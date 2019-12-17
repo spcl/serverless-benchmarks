@@ -162,4 +162,6 @@ dmypy.json
 *.out
 *.app
 
-
+# VIM
+*.swp
+*.swo
