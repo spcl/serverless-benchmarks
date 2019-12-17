@@ -1,6 +1,7 @@
 import gc, sys, imp, datetime, json, os, traceback
 
 RESULTS_DIR = 'results'
+LOGS_DIR = 'logs'
 
 def start_benchmarking():
     gc.disable()
@@ -11,14 +12,13 @@ def stop_benchmarking():
     gc.enable()
     return end
 
-def get_result_prefix(name):
+def get_result_prefix(dirname, name):
     import glob
-    name = os.path.join(RESULTS_DIR, name)
+    name = os.path.join(dirname, name)
     counter = 0
     while glob.glob( '{}-{}*'.format(name, counter) ):
         counter +=1
     return '{}-{}'.format(name, counter)
-
 
 if __name__ == "__main__":
     cfg = json.load(open('input.json', 'r'))
@@ -42,8 +42,12 @@ if __name__ == "__main__":
         start = start_benchmarking()
         for i in range(0, repetitions):
             begin = datetime.datetime.now()
-            handler(input_data)
+            res = handler(input_data)
             stop = datetime.datetime.now()
+            print(res, file = open(
+                    '{}.txt'.format(get_result_prefix(LOGS_DIR, 'output')),
+                    'w'
+                ))
             timedata[i] = [begin, stop]
         end = stop_benchmarking()
     except Exception as e:
@@ -65,7 +69,7 @@ if __name__ == "__main__":
 
     experiment_data['runtime']['version'] = platform.python_version()
     experiment_data['runtime']['modules'] = str(allmodules)
-    result = get_result_prefix('time')
+    result = get_result_prefix(RESULTS_DIR, 'time')
     with open('{}.json'.format(result), 'w') as f:
         json.dump(experiment_data, f)
 
