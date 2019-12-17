@@ -69,9 +69,12 @@ if __name__ == "__main__":
 
     experiment_data['runtime']['version'] = platform.python_version()
     experiment_data['runtime']['modules'] = str(allmodules)
+
+    experiment_data['input'] = cfg
+
     result = get_result_prefix(RESULTS_DIR, 'time')
     with open('{}.json'.format(result), 'w') as f:
-        json.dump(experiment_data, f)
+        json.dump(experiment_data, f, indent = 2)
 
     # Dump results
     with open('{}.csv'.format(result), 'w') as f:
