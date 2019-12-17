@@ -1,0 +1,3 @@
+[submodule "third-party/pypapi"]
+	path = third-party/pypapi
+	url = https://github.com/mcopik/pypapi.git
