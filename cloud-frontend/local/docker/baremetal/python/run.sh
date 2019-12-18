@@ -1,8 +1,11 @@
-file_name=logs/execution-0.log
+#!/bin/bash
+
+EXPERIMENT_INPUT="$1"
+file_name=logs/execution_00.log
 counter=0
 
 while [ -e "${file_name}" ]; do
-  printf -f file_name -- '%s_%02d.log' "logs/execution" "$(( ++counter ))"
+  file_name=$(printf '%s_%02d.log' "logs/execution" "$(( ++counter ))")
 done
 
-script -c 'python3 runner.py input.json' -f "${file_name}"
+script -c "PYTHONPATH=. python3 runner.py ${EXPERIMENT_INPUT}" -f "${file_name}"

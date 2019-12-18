@@ -23,23 +23,26 @@ class papi_benchmarker:
         self.ins_granularity = papi_cfg['overflow_instruction_granularity']
         self.buffer_size = papi_cfg['overflow_buffer_size']
         self.start_time = datetime.datetime.now()
-
-    def start_overflow(self):
+        
         self.papi.overflow_sampling(self.events, self.papi_events.PAPI_TOT_INS,
                 int(self.ins_granularity), int(self.buffer_size))
+
+    def start_overflow(self):
         self.papi.start(self.events)
 
     def stop_overflow(self):
         self.papi.stop(self.events)
+
+    def get_results(self):
         data = self.papi.overflow_sampling_results(self.events)
         for vals in data:
-            for vals in zip(*[iter(vals)])*(self.count + 1):
-                measurement_time = datetime.datetime.fromtimestamp(vals[0]/1e6)
+            for i in range(0, len(vals), self.count + 1):
+                chunks = vals[i:i+self.count+1]
+                measurement_time = datetime.datetime.fromtimestamp(chunks[0]/1e6)
                 time = (measurement_time - self.start_time) / datetime.timedelta(microseconds = 1)
-                self.results.append([time.strftime("%s.%f"), time] + list(vals[1:]))
+                self.results.append([measurement_time.strftime("%s.%f"), time] + list(chunks[1:]))
 
     def finish(self):
-        self.papi.stop(self.events)
         self.papi.cleanup_eventset(self.events)
         self.papi.destroy_eventset(self.events)
 
@@ -146,16 +149,17 @@ if __name__ == "__main__":
                             datetime.timedelta(microseconds=1)
                     ])
     if run_papi:
+        papi_experiments.get_results()
         papi_experiments.finish()
         result = get_result_prefix(RESULTS_DIR, 'papi')
         with open('{}.json'.format(result), 'w') as f:
             json.dump(experiment_data, f, indent = 2)
-
+        
         with open('{}.csv'.format(result), 'w') as f:
             csv_writer = csv.writer(f)
             csv_writer.writerow(
                     ['Time','RelativeTime'] + papi_experiments.events_names
                 )
-            for val in papi_experiments.result:
+            for val in papi_experiments.results:
                 csv_writer.writerow(val)
 
