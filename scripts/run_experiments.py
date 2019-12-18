@@ -67,24 +67,29 @@ benchmark_config['module'] = 'function'
 input_config = { 'input' : input_config, 'benchmark' : benchmark_config }
 
 volumes = {}
+experiments = []
 # time benchmark
 name = 'time.json'
+experiments.append(name)
 with open(name, 'w') as f:
-    experiment = {'experiments': ['time']}
+    experiment = {'experiments': [ {'type' : 'time', 'name' : 'time'} ]}
     volumes[os.path.join(output_dir, name)] = {'bind': os.path.join('/home/app/', name), 'mode': 'ro'}
     cfg_copy = input_config.copy()
     cfg_copy['benchmark'].update(experiment)
     json.dump(cfg_copy, f)
 # papi - IPC, mem
-name = 'papi.json'
+name = 'ipc_papi.json'
+experiments.append(name)
 with open(name, 'w') as f:
-    experiment = {
-        'experiments': ['papi'],
-        'papi' : {
-            'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_LST_INS'],
-            'overflow_instruction_granularity' : 1e6,
-            'overflow_buffer_size': 1e5
-        }
+    experiment = { 'experiments': [{
+            'type': 'papi',
+            'name': 'ipc_papi',
+            'config' : {
+                'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_LST_INS'],
+                'overflow_instruction_granularity' : 1e6,
+                'overflow_buffer_size': 1e5
+            }
+        }]
     }
     volumes[os.path.join(output_dir, name)] = {'bind': os.path.join('/home/app/', name), 'mode': 'ro'}
     cfg_copy = input_config.copy()
@@ -113,7 +118,7 @@ container = client.containers.run(
 
 # 5. Run timing experiment
 
-for experiment in ['time.json', 'papi.json']:
+for experiment in experiments:
     exit_code, out = container.exec_run('/bin/bash run.sh {}'.format(experiment), stream = True)
     print('Experiment: {} exit code: {}'.format(experiment, exit_code), file=output_file)
     for line in out:

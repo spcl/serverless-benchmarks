@@ -70,8 +70,12 @@ if __name__ == "__main__":
     mod_name = cfg['benchmark']['module']
     experiments = cfg['benchmark']['experiments']
 
-    run_timing = True if 'time' in experiments else False
-    run_papi = True if 'papi' in experiments else False
+    enabled_experiments = {}
+    for experiment in experiments:
+        enabled_experiments[experiment['type']] = experiment
+
+    run_timing = True if 'time' in enabled_experiments else False
+    run_papi = True if 'papi' in enabled_experiments else False
 
     os.system('unzip -qn code.zip')
     if os.path.exists('data.zip'):
@@ -85,11 +89,9 @@ if __name__ == "__main__":
         print(e)
         sys.exit(1)
 
-    if run_timing:
-        timedata = [0] * repetitions
+    timedata = [0] * repetitions
     if run_papi:
-        papi_cfg = cfg['benchmark']['papi']
-        papi_experiments = papi_benchmarker(papi_cfg)
+        papi_experiments = papi_benchmarker(enabled_experiments['papi']['config'])
     try:
         start = start_benchmarking()
         for i in range(0, repetitions):
@@ -104,8 +106,7 @@ if __name__ == "__main__":
                     '{}.txt'.format(get_result_prefix(LOGS_DIR, 'output')),
                     'w'
                 ))
-            if run_timing:
-                timedata[i] = [begin, stop]
+            timedata[i] = [begin, stop]
         end = stop_benchmarking()
     except Exception as e:
         print('Exception caught!')
@@ -128,13 +129,21 @@ if __name__ == "__main__":
     experiment_data['input'] = cfg
 
     experiment_data['experiment']['repetitions'] = repetitions
-    experiment_data['experiment']['start'] = start.strftime('%s.%f')
-    experiment_data['experiment']['end'] = end.strftime('%s.%f')
-
+    experiment_data['experiment']['start'] = str(start)
+    experiment_data['experiment']['end'] = str(end)
+    # convert list of lists of times data to proper timestamps
+    timestamps = list(map(
+        lambda times : list(map(
+            lambda x: x.strftime('%s.%f'),
+            times
+        )),
+        timedata
+    )) 
+    experiment_data['experiment']['repetitions_timestamps'] = timestamps
 
     # Dump results
     if run_timing:
-        result = get_result_prefix(RESULTS_DIR, 'time')
+        result = get_result_prefix(RESULTS_DIR, enabled_experiments['time']['name'])
         with open('{}.json'.format(result), 'w') as f:
             json.dump(experiment_data, f, indent = 2)
 
@@ -151,7 +160,7 @@ if __name__ == "__main__":
     if run_papi:
         papi_experiments.get_results()
         papi_experiments.finish()
-        result = get_result_prefix(RESULTS_DIR, 'papi')
+        result = get_result_prefix(RESULTS_DIR, enabled_experiments['papi']['name'])
         with open('{}.json'.format(result), 'w') as f:
             json.dump(experiment_data, f, indent = 2)
         
