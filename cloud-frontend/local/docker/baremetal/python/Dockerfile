@@ -9,7 +9,7 @@ RUN mkdir /home/app
 RUN mkdir /home/app/logs
 RUN mkdir /home/app/results
 WORKDIR /home/app
-#ADD /pypapi /home/app/pypapi
 COPY run.sh .
 RUN chmod +x /home/app/run.sh
 COPY runner.py .
+ADD pypapi /home/app/
