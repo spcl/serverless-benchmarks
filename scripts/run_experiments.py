@@ -65,7 +65,31 @@ benchmark_config['repetitions'] = args.repetitions
 # TODO: does it have to be flexible?
 benchmark_config['module'] = 'function'
 input_config = { 'input' : input_config, 'benchmark' : benchmark_config }
-json.dump(input_config, open('input.json', 'w'))
+
+volumes = {}
+# time benchmark
+name = 'time.json'
+with open(name, 'w') as f:
+    experiment = {'experiments': ['time']}
+    volumes[os.path.join(output_dir, name)] = {'bind': os.path.join('/home/app/', name), 'mode': 'ro'}
+    cfg_copy = input_config.copy()
+    cfg_copy['benchmark'].update(experiment)
+    json.dump(cfg_copy, f)
+# papi - IPC, mem
+name = 'papi.json'
+with open(name, 'w') as f:
+    experiment = {
+        'experiments': ['papi'],
+        'papi' : {
+            'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_LST_INS'],
+            'overflow_instruction_granularity' : 1e6,
+            'overflow_buffer_size': 1e5
+        }
+    }
+    volumes[os.path.join(output_dir, name)] = {'bind': os.path.join('/home/app/', name), 'mode': 'ro'}
+    cfg_copy = input_config.copy()
+    cfg_copy['benchmark'].update(experiment)
+    json.dump(cfg_copy, f)
 
 # 7. Start docker instance with code and input
 
@@ -74,9 +98,12 @@ container = client.containers.run(
         'sebs-local-python',
         command='/bin/bash',
         volumes = {
-           os.path.join(output_dir, 'input.json') : {'bind': '/home/app/input.json', 'mode': 'ro'},
-           os.path.join(output_dir, code_package) : {'bind': '/home/app/code.zip', 'mode': 'ro'},
+            **volumes,
+            os.path.join(output_dir, code_package) : {'bind': '/home/app/code.zip', 'mode': 'ro'},
         },
+        # required to access perf counters
+        # alternative: use custom seccomp profile
+        privileged=True,
         remove=True,
         stdout=True, stderr=True,
         detach=True, tty=True
@@ -86,14 +113,18 @@ container = client.containers.run(
 
 # 5. Run timing experiment
 
-container.exec_run('/bin/bash run.sh')
+for experiment in ['time.json', 'papi.json']:
+    exit_code, out = container.exec_run('/bin/bash run.sh {}'.format(experiment), stream = True)
+    print('Experiment: {} exit code: {}'.format(experiment, exit_code), file=output_file)
+    for line in out:
+        print(line.decode('utf-8'), file=output_file)
 
 # Stop measurement processes
 
 # Copy result data
 
-os.popen('docker cp {}:/home/app/results/ results'.format(container.id))
-os.popen('docker cp {}:/home/app/logs/ logs'.format(container.id))
+os.popen('docker cp {}:/home/app/results/ .'.format(container.id))
+os.popen('docker cp {}:/home/app/logs/ .'.format(container.id))
 
 # Clean data storage
 
