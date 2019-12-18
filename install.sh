@@ -11,18 +11,20 @@ fi
 git submodule update --init --recursive
 
 build_dir=sebs-build
+mkdir -p ${build_dir}
+mkdir -p ${build_dir}/install
+install_dir=$(pwd)/${build_dir}/install
 if [ ! -d ${build_dir} ]; then
-  mkdir ${build_dir}
-  pushd ${build_dir} > /dev/null
-  mkdir install
-  install_dir=$(pwd)/install
-  popd > /dev/null
 
   cd third-party/pypapi && git checkout low_api_overflow
   pip3 install -r requirements.txt
   python3 setup.py build && python3 pypapi/papi_build.py
-  mkdir ${install_dir}/pypapi
-  cp -R pypapi/*.py ${install_dir}/pypapi
-  cp -R pypapi/*.so ${install_dir}/pypapi
+  cd ..
+
 fi
+mkdir -p ${install_dir}/pypapi
+cd third-party/pypapi
+cp -R pypapi/*.py ${install_dir}/pypapi
+cp -R pypapi/*.so ${install_dir}/pypapi
+cd ..
 
