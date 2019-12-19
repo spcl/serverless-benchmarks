@@ -7,8 +7,58 @@ import os
 import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-
 PACK_CODE_APP = 'pack_code.sh'
+
+def run_container(client, volumes, code_package):
+    return client.containers.run(
+            'sebs-local-python',
+            command='/bin/bash',
+            volumes = {
+                **volumes,
+                code_package : {'bind': '/home/app/code.zip', 'mode': 'ro'}
+            },
+            # required to access perf counters
+            # alternative: use custom seccomp profile
+            privileged=True,
+            remove=True,
+            stdout=True, stderr=True,
+            detach=True, tty=True
+        )
+
+def run_experiment_time(volumes, input_config):
+    name = 'time'
+    file_name = '{}.json'.format(name)
+    with open(file_name, 'w') as f:
+        experiment = {'experiments': [ {'type' : 'time', 'name' : 'time'} ]}
+        volumes[os.path.join(output_dir, file_name)] = {
+                'bind': os.path.join('/home/app/', file_name), 'mode': 'ro'
+            }
+        cfg_copy = input_config.copy()
+        cfg_copy['benchmark'].update(experiment)
+        json.dump(cfg_copy, f)
+    return name
+
+def run_experiment_papi_ipc(volumes, input_config):
+    name = 'ipc_papi'
+    file_name = '{}.json'.format(name)
+    with open(file_name, 'w') as f:
+        experiment = { 'experiments': [{
+                'type': 'papi',
+                'name': 'ipc_papi',
+                'config' : {
+                    'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_LST_INS'],
+                    'overflow_instruction_granularity' : 1e6,
+                    'overflow_buffer_size': 1e5
+                }
+            }]
+        }
+        volumes[os.path.join(output_dir, file_name)] = {
+                'bind': os.path.join('/home/app/', file_name), 'mode': 'ro'
+            }
+        cfg_copy = input_config.copy()
+        cfg_copy['benchmark'].update(experiment)
+        json.dump(cfg_copy, f)
+    return name
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
 parser.add_argument('benchmark', type=str, help='Benchmark name')
@@ -56,7 +106,7 @@ code_package = '{}.zip'.format(args.benchmark)
 
 # 5. Upload data as required by benchmark
 
-# 6. Create input.json
+# 6. Create input for each experiment
 
 # TODO: generate input
 input_config = {'username' : 'testname', 'random_len' : 10}
@@ -69,69 +119,34 @@ input_config = { 'input' : input_config, 'benchmark' : benchmark_config }
 volumes = {}
 experiments = []
 # time benchmark
-name = 'time.json'
-experiments.append(name)
-with open(name, 'w') as f:
-    experiment = {'experiments': [ {'type' : 'time', 'name' : 'time'} ]}
-    volumes[os.path.join(output_dir, name)] = {'bind': os.path.join('/home/app/', name), 'mode': 'ro'}
-    cfg_copy = input_config.copy()
-    cfg_copy['benchmark'].update(experiment)
-    json.dump(cfg_copy, f)
+experiments.append( run_experiment_time(volumes, input_config) )
 # papi - IPC, mem
-name = 'ipc_papi.json'
-experiments.append(name)
-with open(name, 'w') as f:
-    experiment = { 'experiments': [{
-            'type': 'papi',
-            'name': 'ipc_papi',
-            'config' : {
-                'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_LST_INS'],
-                'overflow_instruction_granularity' : 1e6,
-                'overflow_buffer_size': 1e5
-            }
-        }]
-    }
-    volumes[os.path.join(output_dir, name)] = {'bind': os.path.join('/home/app/', name), 'mode': 'ro'}
-    cfg_copy = input_config.copy()
-    cfg_copy['benchmark'].update(experiment)
-    json.dump(cfg_copy, f)
-
-# 7. Start docker instance with code and input
-
-client = docker.from_env()
-container = client.containers.run(
-        'sebs-local-python',
-        command='/bin/bash',
-        volumes = {
-            **volumes,
-            os.path.join(output_dir, code_package) : {'bind': '/home/app/code.zip', 'mode': 'ro'},
-        },
-        # required to access perf counters
-        # alternative: use custom seccomp profile
-        privileged=True,
-        remove=True,
-        stdout=True, stderr=True,
-        detach=True, tty=True
-    )
+experiments.append( run_experiment_papi_ipc(volumes, input_config) )
+print(volumes)
 
 # Start measurement processes
 
-# 5. Run timing experiment
-
 for experiment in experiments:
-    exit_code, out = container.exec_run('/bin/bash run.sh {}'.format(experiment), stream = True)
+
+    # 7. Start docker instance with code and input
+    client = docker.from_env()
+    container = run_container(client, volumes, os.path.join(output_dir, code_package))
+
+    # 8. Run experiments
+    exit_code, out = container.exec_run('/bin/bash run.sh {}.json'.format(experiment), stream = True)
     print('Experiment: {} exit code: {}'.format(experiment, exit_code), file=output_file)
     for line in out:
         print(line.decode('utf-8'), file=output_file)
 
+    # 9. Copy result data
+    os.makedirs(experiment, exist_ok=True)
+    os.popen('docker cp {}:/home/app/results/ {}'.format(container.id, experiment))
+    os.popen('docker cp {}:/home/app/logs/ {}'.format(container.id, experiment))
+
+    # 10. Kill docker instance
+    container.stop()
+
 # Stop measurement processes
-
-# Copy result data
-
-os.popen('docker cp {}:/home/app/results/ .'.format(container.id))
-os.popen('docker cp {}:/home/app/logs/ .'.format(container.id))
 
 # Clean data storage
 
-# Kill docker instance
-container.stop()
