@@ -44,23 +44,4 @@ if __name__ == "__main__":
         result[v] = experiment_data[v]
     result_dir = get_result_prefix(RESULTS_DIR, cfg['benchmark']['name'], 'json')
     with open('{}.json'.format(result_dir), 'w') as f:
-        json.dump(result, f, indent = 2)
-    
-    run_timing = False
-    # Dump results
-    if run_timing:
-        result = get_result_prefix(RESULTS_DIR, enabled_experiments['time']['name'])
-        with open('{}.json'.format(result), 'w') as f:
-            json.dump(experiment_data, f, indent = 2)
-
-        with open('{}.csv'.format(result), 'w') as f:
-            csv_writer = csv.writer(f)
-            csv_writer.writerow(['Begin','End','Duration'])
-            for i in range(0, len(timedata)):
-                csv_writer.writerow([
-                        timedata[i][0].strftime('%s.%f'),
-                        timedata[i][1].strftime('%s.%f'),
-                        (timedata[i][1] - timedata[i][0]) /
-                            datetime.timedelta(microseconds=1)
-                    ])
-
+        json.dump(result, f, indent = 2) 
