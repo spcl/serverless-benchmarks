@@ -69,6 +69,7 @@ if __name__ == "__main__":
     repetitions = cfg['benchmark']['repetitions']
     mod_name = cfg['benchmark']['module']
     experiments = cfg['benchmark']['experiments']
+    block_exit = cfg['benchmark']['block_exit']
 
     enabled_experiments = {}
     for experiment in experiments:
@@ -171,4 +172,8 @@ if __name__ == "__main__":
                 )
             for val in papi_experiments.results:
                 csv_writer.writerow(val)
+
+    if block_exit:
+        while True:
+            pass
 
