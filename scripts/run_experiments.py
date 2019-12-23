@@ -36,29 +36,29 @@ def run_experiment_time(volumes, input_config):
             }
         cfg_copy = input_config.copy()
         cfg_copy['benchmark'].update(experiment)
-        json.dump(cfg_copy, f)
+        json.dump(cfg_copy, f, indent=2)
     return name
 
 def run_experiment_papi_ipc(volumes, input_config):
     name = 'ipc_papi'
     file_name = '{}.json'.format(name)
     with open(file_name, 'w') as f:
-        experiment = { 'experiments': [{
-                'type': 'papi',
-                'name': name,
-                'config' : {
-                    'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_LST_INS'],
-                    'overflow_instruction_granularity' : 1e6,
-                    'overflow_buffer_size': 1e5
-                }
-            }]
+        experiment = {
+            'language': 'python',
+            'name': 'ipc_papi',
+            'type': 'papi',
+            'papi': {
+                'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_LST_INS'],
+                'overflow_instruction_granularity' : 1e6,
+                'overflow_buffer_size': 1e5
+            }
         }
         volumes[os.path.join(output_dir, file_name)] = {
                 'bind': os.path.join('/home/app/', file_name), 'mode': 'ro'
             }
         cfg_copy = input_config.copy()
         cfg_copy['benchmark'].update(experiment)
-        json.dump(cfg_copy, f)
+        json.dump(cfg_copy, f, indent=2)
     return name
 
 def run_experiment_mem(volumes, input_config):
@@ -76,10 +76,10 @@ def run_experiment_mem(volumes, input_config):
         cfg_copy = input_config.copy()
         cfg_copy['benchmark'].update(experiment)
         cfg_copy['benchmark']['block_exit'] = True
-        json.dump(cfg_copy, f)
+        json.dump(cfg_copy, f, indent=2)
     # make port an arg
-    subprocess.Popen([os.path.join(SCRIPT_DIR, 'mem_analyzer.py'), '8081', 
-    return name, proc
+    #subprocess.Popen([os.path.join(SCRIPT_DIR, 'mem_analyzer.py'), '8081', 
+    return name
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
 parser.add_argument('benchmark', type=str, help='Benchmark name')
@@ -133,7 +133,6 @@ code_package = '{}.zip'.format(args.benchmark)
 input_config = {'username' : 'testname', 'random_len' : 10}
 benchmark_config = {}
 benchmark_config['repetitions'] = args.repetitions
-benchmark_config['block_exit'] = False
 benchmark_config['disable_gc'] = True
 # TODO: does it have to be flexible?
 benchmark_config['module'] = 'function'
@@ -143,10 +142,9 @@ client = docker.from_env()
 volumes = {}
 experiments = []
 # time benchmark
-experiments.append( run_experiment_time(volumes, input_config) )
+#experiments.append( run_experiment_time(volumes, input_config) )
 # papi - IPC, mem
 experiments.append( run_experiment_papi_ipc(volumes, input_config) )
-
 
 # Start measurement processes
 for experiment in experiments:
@@ -169,10 +167,10 @@ for experiment in experiments:
     container.stop()
 
 # mem
-cfg = run_experiment_mem(volumes, input_config)
-cfg['benchmark']['disable_gc'] = False
-cfg['benchmark']['repetitions'] = 1
-container = run_container(client, volumes, os.path.join(output_dir, code_package))
+#cfg = run_experiment_mem(volumes, input_config)
+#cfg['benchmark']['disable_gc'] = False
+#cfg['benchmark']['repetitions'] = 1
+#container = run_container(client, volumes, os.path.join(output_dir, code_package))
 
 # Stop measurement processes
 

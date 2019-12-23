@@ -14,4 +14,5 @@ WORKDIR /home/app
 COPY run.sh .
 RUN chmod +x /home/app/run.sh
 COPY runner.py .
+COPY *.py /home/app/
 ADD pypapi /home/app/pypapi

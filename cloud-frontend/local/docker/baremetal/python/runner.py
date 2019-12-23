@@ -1,147 +1,52 @@
-import gc, sys, imp, datetime, json, os, traceback
+import csv, gc, sys, imp, datetime, json, os, subprocess
 
-RESULTS_DIR = 'results'
-LOGS_DIR = 'logs'
+from utils import *
 
-class papi_benchmarker:
-    from pypapi import papi_low as papi
-    from pypapi import events as papi_events
+def get_language(lang):
+    languages = {'python': 'python3', 'nodejs': 'nodejs'}
+    return [languages[lang]]
 
-    def __init__(self, papi_cfg):
-        self.events = []
-        self.events_names = []
-        self.count = 0
+def get_runner(experiment, options=None):
+    runners = {
+        'papi' : 'papi_runner.py',
+        'time' : {'warm' : 'time-in-proc.py', 'cold' : 'time-out-proc.py'},
+        'config': 'config.py'
+    }
+    return [runners[experiment][options] if options is not None else runners[experiment]]
 
-        self.papi.library_init()
-        self.events = self.papi.create_eventset()
-        for event in papi_cfg['events']:
-            self.papi.add_event(self.events, getattr(self.papi_events, event))
-        self.events_names = papi_cfg['events']
-        self.count = len(papi_cfg['events'])
-        self.results = []
-
-        self.ins_granularity = papi_cfg['overflow_instruction_granularity']
-        self.buffer_size = papi_cfg['overflow_buffer_size']
-        self.start_time = datetime.datetime.now()
-        
-        self.papi.overflow_sampling(self.events, self.papi_events.PAPI_TOT_INS,
-                int(self.ins_granularity), int(self.buffer_size))
-
-    def start_overflow(self):
-        self.papi.start(self.events)
-
-    def stop_overflow(self):
-        self.papi.stop(self.events)
-
-    def get_results(self):
-        data = self.papi.overflow_sampling_results(self.events)
-        for vals in data:
-            for i in range(0, len(vals), self.count + 1):
-                chunks = vals[i:i+self.count+1]
-                measurement_time = datetime.datetime.fromtimestamp(chunks[0]/1e6)
-                time = (measurement_time - self.start_time) / datetime.timedelta(microseconds = 1)
-                self.results.append([measurement_time.strftime("%s.%f"), time] + list(chunks[1:]))
-
-    def finish(self):
-        self.papi.cleanup_eventset(self.events)
-        self.papi.destroy_eventset(self.events)
-
-def start_benchmarking():
-    gc.disable()
-    return datetime.datetime.now()
-
-def stop_benchmarking():
-    end = datetime.datetime.now()
-    gc.enable()
-    return end
-
-def get_result_prefix(dirname, name):
-    import glob
-    name = os.path.join(dirname, name)
-    counter = 0
-    while glob.glob( '{}_{:02d}*'.format(name, counter) ):
-        counter +=1
-    return '{}_{:02d}'.format(name, counter)
+def get_runner_cmd(lang, experiment, options):
+    return get_language(lang) + get_runner(experiment, options)
 
 if __name__ == "__main__":
     cfg = json.load(open(sys.argv[1], 'r'))
     input_data = cfg['input']
     repetitions = cfg['benchmark']['repetitions']
-    mod_name = cfg['benchmark']['module']
-    experiments = cfg['benchmark']['experiments']
-    block_exit = cfg['benchmark']['block_exit']
-
-    enabled_experiments = {}
-    for experiment in experiments:
-        enabled_experiments[experiment['type']] = experiment
-
-    run_timing = True if 'time' in enabled_experiments else False
-    run_papi = True if 'papi' in enabled_experiments else False
+    experiment = cfg['benchmark']['type']
+    language = cfg['benchmark']['language']
+    experiment_options = cfg['benchmark'].get('experiment_options', None)
 
     os.system('unzip -qn code.zip')
     if os.path.exists('data.zip'):
         os.system('unzip -qn data.zip -d data')
 
-    try:
-        mod = imp.load_source(mod_name, mod_name + '.py')
-        handler = getattr(mod, 'handler')
-    except ImportError as e:
-        print('Failed to import module {} from {}'.format(mod_name, mod_name + '.py'))
-        print(e)
-        sys.exit(1)
+    # initialize data storage
 
-    timedata = [0] * repetitions
-    if run_papi:
-        papi_experiments = papi_benchmarker(enabled_experiments['papi']['config'])
-    try:
-        start = start_benchmarking()
-        for i in range(0, repetitions):
-            begin = datetime.datetime.now()
-            if run_papi:
-                papi_experiments.start_overflow()
-            res = handler(input_data)
-            if run_papi:
-                papi_experiments.stop_overflow()
-            stop = datetime.datetime.now()
-            print(res, file = open(
-                    '{}.txt'.format(get_result_prefix(LOGS_DIR, 'output')),
-                    'w'
-                ))
-            timedata[i] = [begin, stop]
-        end = stop_benchmarking()
-    except Exception as e:
-        print('Exception caught!')
-        print(e)
-        traceback.print_exc()
+    runner = get_runner_cmd(language, experiment, experiment_options)
+    ret = subprocess.run(runner + [sys.argv[1]], stdout=subprocess.PIPE)
 
     # Dump experiment data
-    experiment_data = {'system' : {}, 'runtime' : {}, 'experiment': {}}
-    # get currently loaded modules
-    # https://stackoverflow.com/questions/4858100/how-to-list-imported-modules
-    modulenames = set(sys.modules) & set(globals())
-    allmodules = [sys.modules[name] for name in modulenames]
-    import platform, csv
+    result = {'system': {}, 'input': cfg} 
     uname = os.uname()
     for val in ['nodename', 'sysname', 'release', 'version', 'machine']:
-        experiment_data['system'][val] = getattr(uname, val)
-
-    experiment_data['runtime']['version'] = platform.python_version()
-    experiment_data['runtime']['modules'] = str(allmodules)
-    experiment_data['input'] = cfg
-
-    experiment_data['experiment']['repetitions'] = repetitions
-    experiment_data['experiment']['start'] = str(start)
-    experiment_data['experiment']['end'] = str(end)
-    # convert list of lists of times data to proper timestamps
-    timestamps = list(map(
-        lambda times : list(map(
-            lambda x: x.strftime('%s.%f'),
-            times
-        )),
-        timedata
-    )) 
-    experiment_data['experiment']['repetitions_timestamps'] = timestamps
-
+        result['system'][val] = getattr(uname, val)
+    experiment_data = json.loads(ret.stdout.decode('utf-8'))
+    for v in ['experiment', 'runtime']:
+        result[v] = experiment_data[v]
+    result_dir = get_result_prefix(RESULTS_DIR, cfg['benchmark']['name'], 'json')
+    with open('{}.json'.format(result_dir), 'w') as f:
+        json.dump(result, f, indent = 2)
+    
+    run_timing = False
     # Dump results
     if run_timing:
         result = get_result_prefix(RESULTS_DIR, enabled_experiments['time']['name'])
@@ -158,22 +63,4 @@ if __name__ == "__main__":
                         (timedata[i][1] - timedata[i][0]) /
                             datetime.timedelta(microseconds=1)
                     ])
-    if run_papi:
-        papi_experiments.get_results()
-        papi_experiments.finish()
-        result = get_result_prefix(RESULTS_DIR, enabled_experiments['papi']['name'])
-        with open('{}.json'.format(result), 'w') as f:
-            json.dump(experiment_data, f, indent = 2)
-        
-        with open('{}.csv'.format(result), 'w') as f:
-            csv_writer = csv.writer(f)
-            csv_writer.writerow(
-                    ['Time','RelativeTime'] + papi_experiments.events_names
-                )
-            for val in papi_experiments.results:
-                csv_writer.writerow(val)
-
-    if block_exit:
-        while True:
-            pass
 
