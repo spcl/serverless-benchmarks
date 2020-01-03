@@ -1,4 +1,4 @@
-import csv, gc, sys, imp, datetime, json, os, subprocess
+import csv, gc, sys, imp, datetime, json, os, subprocess, uuid
 
 from utils import *
 
@@ -8,8 +8,9 @@ def get_language(lang):
 
 def get_runner(experiment, options=None):
     runners = {
-        'papi' : 'papi_runner.py',
+        'papi' : 'papi-runner.py',
         'time' : {'warm' : 'time-in-proc.py', 'cold' : 'time-out-proc.py'},
+        'mem': 'mem-runner.py',
         'config': 'config.py'
     }
     return [runners[experiment][options] if options is not None else runners[experiment]]
@@ -32,7 +33,8 @@ if __name__ == "__main__":
     # initialize data storage
 
     runner = get_runner_cmd(language, experiment, experiment_options)
-    ret = subprocess.run(runner + [sys.argv[1]], stdout=subprocess.PIPE)
+    uuid = uuid.uuid1()
+    ret = subprocess.run(runner + [sys.argv[1], str(uuid)], stdout=subprocess.PIPE)
 
     # Dump experiment data
     result = {'system': {}, 'input': cfg} 

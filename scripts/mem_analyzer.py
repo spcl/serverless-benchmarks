@@ -63,6 +63,12 @@ def measure_now(PIDs):
         all_instances_done.set() 
     all_instances_done.wait()
 
+def get_pid(uuid):
+    ret = subprocess.run('ps -fe | grep {}'.format(uuid), stdout=subprocess.PIPE, shell=True)
+    print(ret)
+    PID = int(ret.stdout.decode('utf-8').split('\n')[0].split()[1])
+    return PID
+
 def measure_memory(PID):
     global samples_counter
     samples_counter = 0
@@ -80,9 +86,10 @@ def measure_memory(PID):
 def start_analyzer():
     global continuous_measurement_thread
     req = json.loads(request.body.read().decode('utf-8'))
-    PID = req['PID']
+    uuid = req['uuid']
+    print(uuid)
     analyze.set()
-    handler = Thread(target=measure_memory, args=(PID,))    
+    handler = Thread(target=measure_memory, args=(get_pid(uuid),))
     continuous_measurement_thread = handler
     handler.start()
 
@@ -95,7 +102,7 @@ def stop_analyzer():
     # measure impact of running 1, 2, 3, ... N apps
     else:
         req = json.loads(request.body.read().decode('utf-8'))
-        measure_now(finished_apps + [req['PID']])
+        measure_now(finished_apps + [get_pid(req['uuid'])])
         #handler = Thread(target=measure_now, args=(finished_apps.copy(), ))
         #handler.start()
 
@@ -132,6 +139,6 @@ parser.add_argument('apps', type=int, help='Number of apps that is expected')
 args = parser.parse_args()
 port = int(args.port)
 out_file = args.output
-number_of_apps = args.apps
+number_of_apps = int(args.apps)
 measurement_directory = tempfile.TemporaryDirectory()
-run(host='0.0.0.0', server='gevent', port=port, debug=True)
+run(host='localhost', server='gevent', port=port, debug=True)
