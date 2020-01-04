@@ -1,14 +1,18 @@
 #!/usr/bin/python3
 
 import argparse
+import copy
 import docker
 import json
 import os
 import sys
 import subprocess
 
+from functools import partial
+
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PACK_CODE_APP = 'pack_code.sh'
+HOME_DIR = '/home/docker_user'
 
 def run_container(client, volumes, code_package):
     return client.containers.run(
@@ -16,28 +20,38 @@ def run_container(client, volumes, code_package):
             command='/bin/bash',
             volumes = {
                 **volumes,
-                code_package : {'bind': '/home/app/code.zip', 'mode': 'ro'}
+                code_package : {'bind': os.path.join(HOME_DIR, 'code.zip'), 'mode': 'ro'}
             },
             # required to access perf counters
             # alternative: use custom seccomp profile
             privileged=True,
+            user='1000:1000',
+            network_mode="host",
             remove=True,
             stdout=True, stderr=True,
             detach=True, tty=True
         )
 
 def run_experiment_time(volumes, input_config):
-    name = 'time'
-    file_name = '{}.json'.format(name)
-    with open(file_name, 'w') as f:
-        experiment = {'experiments': [ {'type' : 'time', 'name' : name} ]}
-        volumes[os.path.join(output_dir, file_name)] = {
-                'bind': os.path.join('/home/app/', file_name), 'mode': 'ro'
+    names = []
+    for option in ['warm', 'cold']:
+        name = 'time_{}'.format(option)
+        file_name = '{}.json'.format(name)
+        with open(file_name, 'w') as f:
+            experiment = {
+                'language': 'python',
+                'name': name,
+                'type': 'time',
+                'experiment_options': option
             }
-        cfg_copy = input_config.copy()
-        cfg_copy['benchmark'].update(experiment)
-        json.dump(cfg_copy, f, indent=2)
-    return name
+            volumes[os.path.join(output_dir, file_name)] = {
+                    'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
+                }
+            cfg_copy = copy.deepcopy(input_config)
+            cfg_copy['benchmark'].update(experiment)
+            json.dump(cfg_copy, f, indent=2)
+        names.append(name)
+    return [[x, lambda *args, **kwargs: None] for x in names]
 
 def run_experiment_papi_ipc(volumes, input_config):
     name = 'ipc_papi'
@@ -54,32 +68,50 @@ def run_experiment_papi_ipc(volumes, input_config):
             }
         }
         volumes[os.path.join(output_dir, file_name)] = {
-                'bind': os.path.join('/home/app/', file_name), 'mode': 'ro'
+                'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
             }
-        cfg_copy = input_config.copy()
+        cfg_copy = copy.deepcopy(input_config)
         cfg_copy['benchmark'].update(experiment)
         json.dump(cfg_copy, f, indent=2)
-    return name
+    return [[name, lambda *args, **kwargs: None]]
+
+def user_group_ids():
+    pass
+    #subprocess.run
+
+def mem_clean(proc, port):
+    pass
+    #subprocess.run(['curl', '-X', 'POST', 'localhost:{}/dump'.format(port)])
+    #proc.kill()
 
 def run_experiment_mem(volumes, input_config):
     name = 'mem'
     file_name = '{}.json'.format(name)
+    base_port = 8081
+    apps = [1, 10]
+    proc = None
+    #proc = subprocess.Popen([os.path.join(SCRIPT_DIR, 'mem_analyzer.py'), str(base_port), 'out.f', str(apps[0])],
+    #        stdout=subprocess.PIPE)
     with open(file_name, 'w') as f:
-        experiment = { 'experiments': [{
-                'type': 'mem',
-                'name': name,
-            }]
+        experiment = {
+            'language': 'python',
+            'name': 'mem_single',
+            'type': 'mem',
+            'repetitions': 1,
+            'disable_gc': False,
+            'mem': {
+                'participants' : apps[0],
+                'analyzer_ip': 'localhost:{}'.format(base_port),
+            }
         }
         volumes[os.path.join(output_dir, file_name)] = {
-                'bind': os.path.join('/home/app/', file_name), 'mode': 'ro'
+                'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
             }
-        cfg_copy = input_config.copy()
+        cfg_copy = copy.deepcopy(input_config)
         cfg_copy['benchmark'].update(experiment)
-        cfg_copy['benchmark']['block_exit'] = True
         json.dump(cfg_copy, f, indent=2)
     # make port an arg
-    #subprocess.Popen([os.path.join(SCRIPT_DIR, 'mem_analyzer.py'), '8081', 
-    return name
+    return [[name, partial(mem_clean, proc, base_port)]]
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
 parser.add_argument('benchmark', type=str, help='Benchmark name')
@@ -134,20 +166,22 @@ input_config = {'username' : 'testname', 'random_len' : 10}
 benchmark_config = {}
 benchmark_config['repetitions'] = args.repetitions
 benchmark_config['disable_gc'] = True
-# TODO: does it have to be flexible?
-benchmark_config['module'] = 'function'
 input_config = { 'input' : input_config, 'benchmark' : benchmark_config }
 
 client = docker.from_env()
 volumes = {}
 experiments = []
 # time benchmark
-#experiments.append( run_experiment_time(volumes, input_config) )
+experiments.extend( run_experiment_time(volumes, input_config) )
 # papi - IPC, mem
-experiments.append( run_experiment_papi_ipc(volumes, input_config) )
+experiments.extend( run_experiment_papi_ipc(volumes, input_config) )
+# mem analyzer
+#experiments.append( run_experiment_mem(volumes, input_config) )
 
 # Start measurement processes
-for experiment in experiments:
+for experiment, cleanup in experiments:
+    print(experiment)
+    print(cleanup)
 
     # 7. Start docker instance with code and input
     container = run_container(client, volumes, os.path.join(output_dir, code_package))
@@ -160,11 +194,13 @@ for experiment in experiments:
 
     # 9. Copy result data
     os.makedirs(experiment, exist_ok=True)
-    os.popen('docker cp {}:/home/app/results/ {}'.format(container.id, experiment))
-    os.popen('docker cp {}:/home/app/logs/ {}'.format(container.id, experiment))
+    os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'results'), experiment))
+    os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'logs'), experiment))
+
+    cleanup()
 
     # 10. Kill docker instance
-    container.stop()
+    #container.stop()
 
 # mem
 #cfg = run_experiment_mem(volumes, input_config)
