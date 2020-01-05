@@ -80,8 +80,8 @@ def user_group_ids():
     #subprocess.run
 
 def mem_clean(proc, port):
-    pass
-    #subprocess.run(['curl', '-X', 'POST', 'localhost:{}/dump'.format(port)])
+    #pass
+    subprocess.run(['curl', '-X', 'POST', 'localhost:{}/dump'.format(port)])
     #proc.kill()
 
 def run_experiment_mem(volumes, input_config):
@@ -172,25 +172,29 @@ client = docker.from_env()
 volumes = {}
 experiments = []
 # time benchmark
-experiments.extend( run_experiment_time(volumes, input_config) )
-# papi - IPC, mem
-experiments.extend( run_experiment_papi_ipc(volumes, input_config) )
+#experiments.extend( run_experiment_time(volumes, input_config) )
+# papi - IPC
+#experiments.extend( run_experiment_papi_ipc(volumes, input_config) )
 # mem analyzer
-#experiments.append( run_experiment_mem(volumes, input_config) )
+experiments.extend( run_experiment_mem(volumes, input_config) )
 
 # Start measurement processes
 for experiment, cleanup in experiments:
-    print(experiment)
-    print(cleanup)
 
     # 7. Start docker instance with code and input
     container = run_container(client, volumes, os.path.join(output_dir, code_package))
 
     # 8. Run experiments
-    exit_code, out = container.exec_run('/bin/bash run.sh {}.json'.format(experiment), stream = True)
+    exit_code, out = container.exec_run('/bin/bash run.sh {}.json'.format(experiment))
     print('Experiment: {} exit code: {}'.format(experiment, exit_code), file=output_file)
-    for line in out:
-        print(line.decode('utf-8'), file=output_file)
+    if exit_code == 0:
+        print(out.decode('utf-8'), file=output_file)
+        #for line in out:
+        #    print(line.decode('utf-8'), file=output_file)
+    else:
+        print('Experiment {} failed!'.format(experiment))
+        print(exit_code)
+        print(out)
 
     # 9. Copy result data
     os.makedirs(experiment, exist_ok=True)

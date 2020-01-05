@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 
 import time, argparse, datetime, csv, json, subprocess, tempfile, os, operator
-from threading import Thread, Event
+# We use multiprocessing since we need a background worker that is active 100% time
+# Multithreading does not work since server never return to handle new requests
+# Queue is used to communicate results
+from multiprocessing import Process, Event, Queue
 import gevent.monkey
 gevent.monkey.patch_all()
 from bottle import route, run, request
 
 analyze = Event()
 all_instances_done = Event()
+data_queue = Queue()
 out_file = None
 data = []
 number_of_apps = 0
@@ -17,19 +21,26 @@ continuous_measurement_thread = None
 samples_counter = 0
 
 def measure(PID):
-    global samples_counter
+    global samples_counter, data
     timestamp = datetime.datetime.now()
     ret = subprocess.run(
             ['''
                 cp /proc/{}/smaps {}/smaps_{} && cat /proc/meminfo | grep ^Cached: | awk \'{{print $2}}\'
             '''.format(PID, measurement_directory.name, samples_counter)],
-            stdout = subprocess.PIPE, shell = True
+            stdout = subprocess.PIPE, stderr=subprocess.PIPE, shell = True
         )
-    data.append([
-            timestamp.strftime('%s.%f'), 
-            number_of_apps,
-            int(ret.stdout.decode('utf-8').split('\n')[0])
-        ])
+    print(samples_counter, ret.returncode, measurement_directory, number_of_apps)
+    if ret.returncode != 0:
+        print('Memory query failed!')
+        print(ret.stderr.decode('utf-8'))
+        return False
+    else:
+        data_queue.put([
+                timestamp.strftime('%s.%f'), 
+                number_of_apps,
+                int(ret.stdout.decode('utf-8').split('\n')[0])
+            ])
+        return True
 
 def measure_now(PIDs):
     global finished_apps
@@ -65,7 +76,6 @@ def measure_now(PIDs):
 
 def get_pid(uuid):
     ret = subprocess.run('ps -fe | grep {}'.format(uuid), stdout=subprocess.PIPE, shell=True)
-    print(ret)
     PID = int(ret.stdout.decode('utf-8').split('\n')[0].split()[1])
     return PID
 
@@ -73,14 +83,19 @@ def measure_memory(PID):
     global samples_counter
     samples_counter = 0
     while analyze.is_set():
+        #print(analyze.is_set())
         i = 0
         while i < 5:
-            measure(PID)
+            #print(analyze.is_set())
+            if not measure(PID):
+                print('Measurements terminated!')
+                return
             i += 1
             samples_counter += 1
     # in case we didn't get a measurement yet because the app finished too quickly
     measure(PID)
     samples_counter += 1
+    data_queue.put('END')
 
 @route('/start', method='POST')
 def start_analyzer():
@@ -89,12 +104,13 @@ def start_analyzer():
     uuid = req['uuid']
     print(uuid)
     analyze.set()
-    handler = Thread(target=measure_memory, args=(get_pid(uuid),))
+    handler = Process(target=measure_memory, args=(get_pid(uuid),))
     continuous_measurement_thread = handler
     handler.start()
 
 @route('/stop', method='POST')
 def stop_analyzer():
+    global continuous_measurement_thread
     if number_of_apps == 1:
         analyze.clear()
         # wait for measurements to finish before ending
@@ -113,6 +129,11 @@ def processed_apps():
 @route('/dump', method='POST')
 def dump_data():
 
+    data = []
+    # make sure that we get everything
+    for v in iter(data_queue.get, 'END'):
+        data.append(v)
+    samples_counter = len(data)
     if measurement_directory is not None:
         for i in range(0, samples_counter):
             ret = subprocess.run(
@@ -123,12 +144,14 @@ def dump_data():
                 )
             # remove newline and seperate into integers
             data[i].extend( map(int, ret.stdout.decode('utf-8').strip().split()) )
-            data[i].extend( data[-1] + data[-2] )
+            rss = data[i][-1] + data[i][-2]
+            data[i].append(rss)
 
     with open(out_file, 'w') as f:
         csv_writer = csv.writer(f)
         csv_writer.writerow(['Timestamp', 'N', 'Cached', 'USS', 'PSS/SSS', 'RSS'])
         for val in data:
+            print(val)
             csv_writer.writerow(val)
     measurement_directory.cleanup()
 
@@ -141,4 +164,4 @@ port = int(args.port)
 out_file = args.output
 number_of_apps = int(args.apps)
 measurement_directory = tempfile.TemporaryDirectory()
-run(host='localhost', server='gevent', port=port, debug=True)
+run(host='localhost', server='waitress', port=port, debug=True)

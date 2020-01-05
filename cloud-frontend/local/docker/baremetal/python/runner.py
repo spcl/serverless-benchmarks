@@ -41,9 +41,13 @@ if __name__ == "__main__":
     uname = os.uname()
     for val in ['nodename', 'sysname', 'release', 'version', 'machine']:
         result['system'][val] = getattr(uname, val)
-    experiment_data = json.loads(ret.stdout.decode('utf-8'))
-    for v in ['experiment', 'runtime']:
-        result[v] = experiment_data[v]
-    result_dir = get_result_prefix(RESULTS_DIR, cfg['benchmark']['name'], 'json')
-    with open('{}.json'.format(result_dir), 'w') as f:
-        json.dump(result, f, indent = 2) 
+    try:
+        experiment_data = json.loads(ret.stdout.decode('utf-8'))
+        for v in ['experiment', 'runtime']:
+            result[v] = experiment_data[v]
+        result_dir = get_result_prefix(RESULTS_DIR, cfg['benchmark']['name'], 'json')
+        with open('{}.json'.format(result_dir), 'w') as f:
+            json.dump(result, f, indent = 2) 
+    except json.decoder.JSONDecodeError as e:
+        print('Experiment output is not valid!')
+        print(ret.stdout.decode('utf-8'))
