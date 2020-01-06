@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import collections
 import copy
 import docker
 import json
@@ -13,6 +14,9 @@ from functools import partial
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PACK_CODE_APP = 'pack_code.sh'
 HOME_DIR = '/home/docker_user'
+
+def iterable(val):
+    return val if isinstance(val, collections.Iterable) else [val, ]
 
 def run_container(client, volumes, code_package):
     return client.containers.run(
@@ -80,18 +84,25 @@ def user_group_ids():
     #subprocess.run
 
 def mem_clean(proc, port):
-    #pass
     subprocess.run(['curl', '-X', 'POST', 'localhost:{}/dump'.format(port)])
-    #proc.kill()
+    proc.kill()
 
 def run_experiment_mem(volumes, input_config):
     name = 'mem'
     file_name = '{}.json'.format(name)
+    #TODO: port detection
     base_port = 8081
     apps = [1, 10]
     proc = None
-    #proc = subprocess.Popen([os.path.join(SCRIPT_DIR, 'mem_analyzer.py'), str(base_port), 'out.f', str(apps[0])],
-    #        stdout=subprocess.PIPE)
+    proc = subprocess.Popen(
+            [os.path.join(SCRIPT_DIR, 'mem_analyzer.py'), str(base_port),
+                os.path.join(name, 'results', 'mem-single.csv'), str(apps[0])],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+            )
+    if proc.returncode is not None:
+        print('Memory analyzer finished unexpectedly', file=output_file)
+        print(proc.stderr.decode('utf-8'), output_file)
     with open(file_name, 'w') as f:
         experiment = {
             'language': 'python',
@@ -113,10 +124,19 @@ def run_experiment_mem(volumes, input_config):
     # make port an arg
     return [[name, partial(mem_clean, proc, base_port)]]
 
+experiments = {
+        'time' : run_experiment_time,
+        'papi' : run_experiment_papi_ipc,
+        'memory' : run_experiment_mem
+        }
+experiments['all'] = experiments.values()
+
 parser = argparse.ArgumentParser(description='Run local app experiments.')
 parser.add_argument('benchmark', type=str, help='Benchmark name')
 parser.add_argument('output_dir', type=str, help='Output dir')
 parser.add_argument('language', choices=['python', 'nodejs', 'cpp'],
+                    help='Benchmark language')
+parser.add_argument('experiment', choices=['time', 'papi', 'memory', 'all'],
                     help='Benchmark language')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
@@ -170,16 +190,12 @@ input_config = { 'input' : input_config, 'benchmark' : benchmark_config }
 
 client = docker.from_env()
 volumes = {}
-experiments = []
-# time benchmark
-#experiments.extend( run_experiment_time(volumes, input_config) )
-# papi - IPC
-#experiments.extend( run_experiment_papi_ipc(volumes, input_config) )
-# mem analyzer
-experiments.extend( run_experiment_mem(volumes, input_config) )
+enabled_experiments = []
+for ex_func in iterable(experiments[args.experiment]):
+    enabled_experiments.extend( ex_func(volumes, input_config) )
 
 # Start measurement processes
-for experiment, cleanup in experiments:
+for experiment, cleanup in enabled_experiments:
 
     # 7. Start docker instance with code and input
     container = run_container(client, volumes, os.path.join(output_dir, code_package))
@@ -189,12 +205,9 @@ for experiment, cleanup in experiments:
     print('Experiment: {} exit code: {}'.format(experiment, exit_code), file=output_file)
     if exit_code == 0:
         print(out.decode('utf-8'), file=output_file)
-        #for line in out:
-        #    print(line.decode('utf-8'), file=output_file)
     else:
-        print('Experiment {} failed!'.format(experiment))
+        print('Experiment {} failed! Exit code {}'.format(experiment, exit_code))
         print(exit_code)
-        print(out)
 
     # 9. Copy result data
     os.makedirs(experiment, exist_ok=True)
@@ -204,13 +217,7 @@ for experiment, cleanup in experiments:
     cleanup()
 
     # 10. Kill docker instance
-    #container.stop()
-
-# mem
-#cfg = run_experiment_mem(volumes, input_config)
-#cfg['benchmark']['disable_gc'] = False
-#cfg['benchmark']['repetitions'] = 1
-#container = run_container(client, volumes, os.path.join(output_dir, code_package))
+    container.stop()
 
 # Stop measurement processes
 
