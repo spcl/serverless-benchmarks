@@ -240,23 +240,24 @@ def create_code_package(benchmark, benchmark_path, language):
 
 class minio_storage:
     storage_container = None
-    input_buckets = output_buckets = []
+    input_buckets = []
+    output_buckets = []
     access_key = None
     secret_key = None
     port = 9000
     location = 'us-east-1'
-    uploader_func = None
+    connection = None
 
     def __init__(self, benchmark, size, buckets):
         if buckets[0] + buckets[1] > 0:
             self.start()
-            connection = self.get_connection()
+            self.connection = self.get_connection()
             for i in range(0, buckets[0]):
                 self.input_buckets.append(
-                        self.create_bucket(connection, '{}-{}-input'.format(benchmark, size)))
+                        self.create_bucket('{}-{}-input'.format(benchmark, size)))
             for i in range(0, buckets[1]):
                 self.output_buckets.append(
-                        self.create_bucket(connection, '{}-{}-output'.format(benchmark, size)))
+                        self.create_bucket('{}-{}-output'.format(benchmark, size)))
              
     def start(self):
         self.access_key = secrets.token_urlsafe(32)
@@ -287,11 +288,23 @@ class minio_storage:
                 secret_key=self.secret_key,
                 secure=False)
 
-    def create_bucket(self, connection, name):
+    def config_to_json(self):
+        if self.storage_container is not None:
+            return {
+                    'address': 'localhost:{}'.format(self.port),
+                    'secret_key': self.secret_key,
+                    'access_key': self.access_key,
+                    'input': self.input_buckets,
+                    'output': self.output_buckets
+                }
+        else:
+            return {}
+
+    def create_bucket(self, name):
         # minio has limit of bucket name to 16 characters
         bucket_name = '{}-{}'.format(name, str(uuid.uuid4())[0:16])
         try:
-            connection.make_bucket(bucket_name, location=self.location)
+            self.connection.make_bucket(bucket_name, location=self.location)
             print('Created bucket {}'.format(bucket_name))
             return bucket_name
         except (minio.error.BucketAlreadyOwnedByYou, minio.error.BucketAlreadyExists, minio.error.ResponseError) as err:
@@ -299,6 +312,14 @@ class minio_storage:
             print(err)
             # rethrow
             raise err
+
+    def uploader_func(self, bucket, file, filepath):
+        try:
+            self.connection.fput_object(bucket, file, filepath)
+        except minio.error.ResponseError as err:
+            print('Upload failed!')
+            print(err)
+            raise(err)
 
 class minio_uploader:
     pass
@@ -310,8 +331,7 @@ def prepare_input(benchmark, benchmark_path, size):
     buckets = mod.buckets_count()
     storage = minio_storage(benchmark, size, buckets)
     # Get JSON and upload data as required by benchmark
-    input_config = mod.generate_input(size, storage.input_buckets,
-            storage.output_buckets, storage.uploader_func)
+    input_config = mod.generate_input(size, storage.input_buckets, storage.output_buckets, storage.uploader_func)
     return input_config, storage
 
 try:
@@ -340,6 +360,7 @@ try:
     benchmark_config = {}
     benchmark_config['repetitions'] = args.repetitions
     benchmark_config['disable_gc'] = True
+    benchmark_config['storage'] = storage.config_to_json()
     input_config = { 'input' : input_config, 'app': app_config, 'benchmark' : benchmark_config }
 
     # 7. Select experiments
