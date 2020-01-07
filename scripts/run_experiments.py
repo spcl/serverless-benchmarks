@@ -219,6 +219,9 @@ output = os.popen('{} -b {} -l {}'.format(
     )).read()
 print(output, file=output_file)
 code_package = '{}.zip'.format(args.benchmark)
+# measure uncompressed code size with unzip -l
+ret = subprocess.run(['unzip -l {} | awk \'END{{print $1}}\''.format(code_package)], shell=True, stdout = subprocess.PIPE)
+code_size = int(ret.stdout.decode('utf-8'))
 
 # 3. Prepare environment
 
@@ -232,10 +235,11 @@ code_package = '{}.zip'.format(args.benchmark)
 
 # TODO: generate input
 input_config = {'username' : 'testname', 'random_len' : 10}
+app_config = {'name' : args.benchmark, 'size' : code_size}
 benchmark_config = {}
 benchmark_config['repetitions'] = args.repetitions
 benchmark_config['disable_gc'] = True
-input_config = { 'input' : input_config, 'benchmark' : benchmark_config }
+input_config = { 'input' : input_config, 'app': app_config, 'benchmark' : benchmark_config }
 
 client = docker.from_env()
 volumes = {}
