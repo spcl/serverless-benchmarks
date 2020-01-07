@@ -10,7 +10,7 @@ RUN deps=''\
   && apt-get update\
   && apt-get install -y unzip curl ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
-  && pip3 install cffi
+  && pip3 install cffi minio
 
 USER ${USER}:${USER}
 COPY --chown=${USER}:${USER} run.sh .

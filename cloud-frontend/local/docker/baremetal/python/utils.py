@@ -1,6 +1,8 @@
 
 import datetime, gc, platform, os, sys
 
+from storage import minio_wrapper
+
 RESULTS_DIR = 'results'
 LOGS_DIR = 'logs'
 
@@ -39,4 +41,7 @@ def process_timestamps(timestamps):
             times
         )),
         timestamps
-    )) 
+    ))
+
+def configure_client(config):
+    minio_wrapper.create_instance(config)

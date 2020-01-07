@@ -19,12 +19,18 @@ def get_runner(experiment, options=None):
 def get_runner_cmd(lang, experiment, options):
     return get_language(lang) + get_runner(experiment, options)
 
+def export_storage_config(config):
+    os.environ['MINIO_ADDRESS'] = config['address']
+    os.environ['MINIO_ACCESS_KEY'] = config['access_key']
+    os.environ['MINIO_SECRET_KEY'] = config['secret_key']
+
 if __name__ == "__main__":
     cfg = json.load(open(sys.argv[1], 'r'))
     input_data = cfg['input']
     repetitions = cfg['benchmark']['repetitions']
     experiment = cfg['benchmark']['type']
     language = cfg['benchmark']['language']
+    export_storage_config(cfg['benchmark']['storage'])
     experiment_options = cfg['benchmark'].get('experiment_options', None)
 
     os.system('unzip -qn code.zip')
