@@ -112,7 +112,7 @@ def run_experiment_mem(volumes, input_config):
         proc = None
         proc = subprocess.Popen(
                 [os.path.join(SCRIPT_DIR, 'mem_analyzer.py'), str(base_port[i]),
-                    os.path.join(name[i], 'results', '{}.csv'.format(name[i])), str(v)],
+                    os.path.join(name[i], 'results', '{}.csv'.format(name[i])), 'memory', str(v)],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT
             )
