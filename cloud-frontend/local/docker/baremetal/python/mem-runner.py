@@ -38,8 +38,14 @@ try:
 
     #while True:
     #    pass
-    ret = subprocess.run(['curl', '-X', 'POST', '{}/stop'.format(cfg['benchmark']['mem']['analyzer_ip'])],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    ret = subprocess.run(
+            [
+                'curl', '-X', 'POST',
+                '{}/stop'.format(cfg['benchmark']['mem']['analyzer_ip']),
+                '-d',
+                '{{"uuid": "{}" }}'.format(sys.argv[2])
+            ],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     experiment_data = {}
     experiment_data['repetitions'] = repetitions
     experiment_data['timestamps'] = process_timestamps(timedata)
