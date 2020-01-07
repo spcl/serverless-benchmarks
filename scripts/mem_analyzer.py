@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 
-import time, argparse, datetime, csv, json, subprocess, tempfile, os, operator
+import time, argparse, datetime, csv, json, subprocess, tempfile, os, operator, multiprocessing, threading
 # We use multiprocessing since we need a background worker that is active 100% time
 # Multithreading does not work since server never return to handle new requests
 # Queue is used to communicate results
-from multiprocessing import Process, Event, Queue
-import gevent.monkey
-gevent.monkey.patch_all()
+from multiprocessing import Process, Queue
+from threading import Lock
+
+# Bottle server
+import waitress, bottle
 from bottle import route, run, request
 
-analyze = Event()
-all_instances_done = Event()
+analyze = multiprocessing.Event()
+all_instances_done = threading.Event()
+lock = Lock()
 data_queue = Queue()
 out_file = None
-data = []
+measurement_data = []
 number_of_apps = 0
 finished_apps = []
 measurement_directory = None
@@ -21,7 +24,7 @@ continuous_measurement_thread = None
 samples_counter = 0
 
 def measure(PID):
-    global samples_counter, data
+    global samples_counter, measurement_directory
     timestamp = datetime.datetime.now()
     ret = subprocess.run(
             ['''
@@ -29,7 +32,6 @@ def measure(PID):
             '''.format(PID, measurement_directory.name, samples_counter)],
             stdout = subprocess.PIPE, stderr=subprocess.PIPE, shell = True
         )
-    print(samples_counter, ret.returncode, measurement_directory, number_of_apps)
     if ret.returncode != 0:
         print('Memory query failed!')
         print(ret.stderr.decode('utf-8'))
@@ -42,8 +44,10 @@ def measure(PID):
             ])
         return True
 
-def measure_now(PIDs):
+def measure_now(PID):
     global finished_apps
+
+    PIDs = finished_apps + [PID]
     pids_set = set(PIDs)
     timestamp = datetime.datetime.now()
     ret = subprocess.run(
@@ -52,25 +56,35 @@ def measure_now(PIDs):
             '''],
             stdout = subprocess.PIPE, shell = True
         )
+    end = datetime.datetime.now()
 
-    #vals = []
     sums = [0]*3
     output = ret.stdout.decode('utf-8').split('\n')
     cached = int(output[0])
-    print(pids_set)
+    count = 0
     # smem does not have an ability to filter by process IDs, only process command
     for line in output[2:]:
         if line:
             vals = list(map(int, line.split()))
             if vals[0] in pids_set:
                 sums = list(map(operator.add, sums, vals[1:]))
-    data.append([
+                count +=1
+    measurement_data.append([
             timestamp.strftime('%s.%f'),
             len(PIDs),
+            cached,
             *sums
         ])
+    print('Process smem measurement in {}[s]'.format( (end-timestamp) / datetime.timedelta(seconds=1) ))
+
+    # This is intended to be used only by one process at a time.
+    # However, we add lock for extension just to be sure it's safe.
+    # Further, modify collection at the end to make sure we don't signal too early.
+    lock.acquire()
     finished_apps = PIDs
-    if len(PIDs) == number_of_apps:
+    lock.release()
+
+    if len(PIDs) == number_of_apps + 1:
         all_instances_done.set() 
     all_instances_done.wait()
 
@@ -83,10 +97,8 @@ def measure_memory(PID):
     global samples_counter
     samples_counter = 0
     while analyze.is_set():
-        #print(analyze.is_set())
         i = 0
         while i < 5:
-            #print(analyze.is_set())
             if not measure(PID):
                 print('Measurements terminated!')
                 return
@@ -99,14 +111,15 @@ def measure_memory(PID):
 
 @route('/start', method='POST')
 def start_analyzer():
-    global continuous_measurement_thread
-    req = json.loads(request.body.read().decode('utf-8'))
-    uuid = req['uuid']
-    print(uuid)
-    analyze.set()
-    handler = Process(target=measure_memory, args=(get_pid(uuid),))
-    continuous_measurement_thread = handler
-    handler.start()
+    global measurement_directory, continuous_measurement_thread
+    if number_of_apps == 1:
+        measurement_directory = tempfile.TemporaryDirectory()
+        req = json.loads(request.body.read().decode('utf-8'))
+        uuid = req['uuid']
+        analyze.set()
+        handler = Process(target=measure_memory, args=(get_pid(uuid),))
+        continuous_measurement_thread = handler
+        handler.start()
 
 @route('/stop', method='POST')
 def stop_analyzer():
@@ -118,9 +131,8 @@ def stop_analyzer():
     # measure impact of running 1, 2, 3, ... N apps
     else:
         req = json.loads(request.body.read().decode('utf-8'))
-        measure_now(finished_apps + [get_pid(req['uuid'])])
-        #handler = Thread(target=measure_now, args=(finished_apps.copy(), ))
-        #handler.start()
+        pid = get_pid(req['uuid'])
+        measure_now(pid)
 
 @route('/processed_apps', method='POST')
 def processed_apps():
@@ -129,11 +141,16 @@ def processed_apps():
 @route('/dump', method='POST')
 def dump_data():
 
-    data = []
-    # make sure that we get everything
-    for v in iter(data_queue.get, 'END'):
-        data.append(v)
-    samples_counter = len(data)
+    # Background measurement launches a new process
+    if number_of_apps == 1:
+        data = []
+        # make sure that we get everything
+        for v in iter(data_queue.get, 'END'):
+            data.append(v)
+        samples_counter = len(data)
+    else:
+        data = measurement_data
+        samples_counter = len(finished_apps)
     if measurement_directory is not None:
         for i in range(0, samples_counter):
             ret = subprocess.run(
@@ -151,9 +168,9 @@ def dump_data():
         csv_writer = csv.writer(f)
         csv_writer.writerow(['Timestamp', 'N', 'Cached', 'USS', 'PSS/SSS', 'RSS'])
         for val in data:
-            print(val)
             csv_writer.writerow(val)
-    measurement_directory.cleanup()
+    if measurement_directory is not None:
+        measurement_directory.cleanup()
 
 parser = argparse.ArgumentParser(description='Measure memory usage of processes.')
 parser.add_argument('port', type=int, help='Port run')
@@ -163,5 +180,5 @@ args = parser.parse_args()
 port = int(args.port)
 out_file = args.output
 number_of_apps = int(args.apps)
-measurement_directory = tempfile.TemporaryDirectory()
-run(host='localhost', server='waitress', port=port, debug=True)
+app = bottle.default_app()
+waitress.serve(app, host='localhost', port=port, threads=number_of_apps+1)
