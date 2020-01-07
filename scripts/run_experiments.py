@@ -5,6 +5,7 @@ import collections
 import copy
 import docker
 import json
+import importlib
 import os
 import sys
 import subprocess
@@ -187,6 +188,8 @@ parser.add_argument('language', choices=['python', 'nodejs', 'cpp'],
                     help='Benchmark language')
 parser.add_argument('experiment', choices=['time', 'papi', 'memory', 'disk_io', 'all'],
                     help='Benchmark language')
+parser.add_argument('size', choices=['test', 'small', 'large'],
+                    help='Benchmark input test size')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
 args = parser.parse_args()
@@ -223,18 +226,29 @@ code_package = '{}.zip'.format(args.benchmark)
 ret = subprocess.run(['unzip -l {} | awk \'END{{print $1}}\''.format(code_package)], shell=True, stdout = subprocess.PIPE)
 code_size = int(ret.stdout.decode('utf-8'))
 
-# 3. Prepare environment
+
+# 4. Prepare environment
 
 # TurboBoost, disable HT, power cap, decide on which cores to use
 
-# 4. Start storage instance
+# 5. Prepare benchmark input
 
-# 5. Upload data as required by benchmark
+# Look for input generator file in the directory containing benchmark
+sys.path.append(benchmark_path)
+mod = importlib.import_module('python.input')
+buckets = mod.buckets_count()
+storage_container = None
+input_buckets = output_buckets = []
+uploader_func = None
+if buckets[0] + buckets[1] > 0:
+    # Run local database
+    storage_container = start_storage()
+# Get JSON and upload data as required by benchmark
+input_config = mod.generate_input(args.size, input_buckets, output_buckets, uploader_func)
 
 # 6. Create input for each experiment
 
 # TODO: generate input
-input_config = {'username' : 'testname', 'random_len' : 10}
 app_config = {'name' : args.benchmark, 'size' : code_size}
 benchmark_config = {}
 benchmark_config['repetitions'] = args.repetitions

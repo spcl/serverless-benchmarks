@@ -6,7 +6,7 @@ if [ ! -d ${env_dir} ]; then
   python3 -mvenv ${env_dir}
   source ${env_dir}/bin/activate
   echo 'Install docker package for python'
-  pip3 install docker wheel bottle gevent
+  pip3 install docker wheel bottle waitress minio
 fi
 
 git submodule update --init --recursive
