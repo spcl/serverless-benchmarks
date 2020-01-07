@@ -81,10 +81,10 @@ def run_experiment_papi_ipc(volumes, input_config):
     return [[name, 1, lambda *args, **kwargs: None, False, lambda x: None]]
 
 
-def mem_clean(proc, port):
+def proc_clean(proc, port):
     subprocess.run(['curl', '-X', 'POST', 'localhost:{}/dump'.format(port)])
     proc.kill()
-    print('Mem analyzer output', file=output_file)
+    print('Proc analyzer output', file=output_file)
     print(proc.stdout.read().decode('utf-8'), file=output_file)
 
 def wait(port, count):
@@ -132,20 +132,20 @@ def run_experiment_mem(volumes, input_config):
             cfg_copy = copy.deepcopy(input_config)
             cfg_copy['benchmark'].update(experiment)
             json.dump(cfg_copy, f, indent=2)
-        experiments.append( [name[i], v, partial(mem_clean, proc, base_port[i]), detach[i], verifier[i]] )
+        experiments.append( [name[i], v, partial(proc_clean, proc, base_port[i]), detach[i], verifier[i]] )
     return experiments
 
 def run_experiment_disk_io(volumes, input_config):
-    name = 'disk_io'
+    name = 'disk-io'
     base_port = 8081
     apps = 1
     detach = False
     verifier = lambda x: None
     experiments = []
-    file_name = '{}.json'.format(name[i])
+    file_name = '{}.json'.format(name)
     proc = subprocess.Popen(
-            [os.path.join(SCRIPT_DIR, 'proc_analyzer.py'), str(base_port[i]),
-                os.path.join(name[i], 'results', '{}.csv'.format(name[i])), 'disk_io', str(apps)],
+            [os.path.join(SCRIPT_DIR, 'proc_analyzer.py'), str(base_port),
+                os.path.join(name, 'results', '{}.csv'.format(name)), 'disk_io', str(apps)],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT
         )
@@ -155,13 +155,13 @@ def run_experiment_disk_io(volumes, input_config):
     with open(file_name, 'w') as f:
         experiment = {
             'language': 'python',
-            'name': name[i],
-            'type': 'disk_io',
+            'name': name,
+            'type': 'disk-io',
             'repetitions': 1,
             'disable_gc': False,
             'analyzer': {
-                'participants' : v,
-                'analyzer_ip': 'localhost:{}'.format(base_port[i]),
+                'participants' : apps,
+                'analyzer_ip': 'localhost:{}'.format(base_port),
             }
         }
         volumes[os.path.join(output_dir, file_name)] = {
@@ -170,7 +170,7 @@ def run_experiment_disk_io(volumes, input_config):
         cfg_copy = copy.deepcopy(input_config)
         cfg_copy['benchmark'].update(experiment)
         json.dump(cfg_copy, f, indent=2)
-    return [[name[i], v, partial(mem_clean, proc, base_port[i]), detach[i], verifier[i]]]
+    return [[name, apps, partial(proc_clean, proc, base_port), detach, verifier]]
 
 experiments = {
         'time' : run_experiment_time,
@@ -252,7 +252,6 @@ for experiment, count, cleanup, detach, wait_f in enabled_experiments:
         containers[i] = run_container(client, volumes, os.path.join(output_dir, code_package))
    
         # 8. Run experiments
-        print('/bin/bash run.sh {}.json'.format(experiment))
         exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment), detach=detach)
         if not detach:
             print('Experiment: {} exit code: {}'.format(experiment, exit_code), file=output_file)
@@ -261,7 +260,7 @@ for experiment, count, cleanup, detach, wait_f in enabled_experiments:
             else:
                 print('Experiment {} failed! Exit code {}'.format(experiment, exit_code))
                 print(exit_code)
-        if detach:
+        else:
             wait_f(i+1)
 
     # 9. Copy result data

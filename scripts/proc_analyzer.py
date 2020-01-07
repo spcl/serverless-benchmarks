@@ -39,6 +39,9 @@ def postprocess_memory_continuous(data, measurement_directory):
         rss = data[i][-1] + data[i][-2]
         data[i].append(rss)
 
+def header_memory_continuous():
+    return ['Timestamp', 'N', 'Cached', 'USS', 'SharedSS', 'RSS']
+
 def measure_memory_summary(PIDs, samples_counter=0, measurement_directory=None):
 
     pids_set = set(PIDs)
@@ -73,10 +76,37 @@ def measure_memory_summary(PIDs, samples_counter=0, measurement_directory=None):
 def postprocess_memory_summary(data=None, measurement_directory=None):
     pass
 
+def header_memory_summary():
+    return ['Timestamp', 'N', 'Cached', 'USS', 'PSS', 'RSS']
+
+def measure_disk_io_continuous(PID, samples_counter, measurement_directory=None):
+    timestamp = datetime.datetime.now()
+    ret = subprocess.run(
+            ['''
+                cat /proc/{}/io | awk \'{{print $2}}\'
+            '''.format(PID)],
+            stdout = subprocess.PIPE, stderr=subprocess.PIPE, shell = True
+        )
+    if ret.returncode != 0:
+        print('IO query failed!')
+        print(ret.stderr.decode('utf-8'))
+        return None
+    else:
+        return [timestamp.strftime('%s.%f'), 1] + list(map(int, ret.stdout.decode('utf-8').split('\n')[:-1]))
+
+def postprocess_disk_io_continuous(data, measurement_directory):
+    pass
+
+def header_disk_io_summary():
+    return ['Timestamp', 'WriteChars', 'ReadChars', 'ReadSysCalls', 'WriteSysCalls', 'ReadBytes', 'WriteBytes']
+
 measurers = {
     'memory': {
-        'continuous' : {'measure': measure_memory_continuous, 'postprocess': postprocess_memory_continuous},
-        'summary' : {'measure': measure_memory_summary, 'postprocess': postprocess_memory_summary}
+        'continuous' : {'measure': measure_memory_continuous, 'postprocess': postprocess_memory_continuous, 'header': header_memory_continuous},
+        'summary' : {'measure': measure_memory_summary, 'postprocess': postprocess_memory_summary, 'header': header_memory_continuous}
+    },
+    'disk_io': {
+        'continuous' : {'measure': measure_disk_io_continuous, 'postprocess': postprocess_disk_io_continuous, 'header': header_disk_io_summary}
     }
 }
 
@@ -222,7 +252,7 @@ def dump_data():
 parser = argparse.ArgumentParser(description='Measure memory usage of processes.')
 parser.add_argument('port', type=int, help='Port run')
 parser.add_argument('output', type=str, help='Output file.')
-parser.add_argument('counter', type=str, choices=['memory', 'io'], help='Output file.')
+parser.add_argument('counter', type=str, choices=['memory', 'disk_io'], help='Output file.')
 parser.add_argument('apps', type=int, help='Number of apps that is expected')
 args = parser.parse_args()
 port = int(args.port)

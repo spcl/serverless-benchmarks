@@ -44,6 +44,11 @@ try:
                 '{{"uuid": "{}" }}'.format(sys.argv[2])
             ],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if ret.returncode != 0:
+        import sys
+        print('Analyzer deinitialization failed!')
+        print(ret.stderr.decode('utf-8'))
+        sys.exit()
     experiment_data = {}
     experiment_data['repetitions'] = repetitions
     experiment_data['timestamps'] = process_timestamps(timedata)
