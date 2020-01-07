@@ -80,9 +80,6 @@ def run_experiment_papi_ipc(volumes, input_config):
         json.dump(cfg_copy, f, indent=2)
     return [[name, 1, lambda *args, **kwargs: None, False, lambda x: None]]
 
-def user_group_ids():
-    pass
-    #subprocess.run
 
 def mem_clean(proc, port):
     subprocess.run(['curl', '-X', 'POST', 'localhost:{}/dump'.format(port)])
@@ -97,7 +94,6 @@ def wait(port, count):
         data = response.read()
         values = json.loads(data)['apps']
     
-
 def run_experiment_mem(volumes, input_config):
     name = ['mem_single', 'mem_multiple']
     #TODO: port detection
@@ -109,9 +105,8 @@ def run_experiment_mem(volumes, input_config):
     for i in range(0, len(apps)):
         v = apps[i]
         file_name = '{}.json'.format(name[i])
-        proc = None
         proc = subprocess.Popen(
-                [os.path.join(SCRIPT_DIR, 'mem_analyzer.py'), str(base_port[i]),
+                [os.path.join(SCRIPT_DIR, 'proc_analyzer.py'), str(base_port[i]),
                     os.path.join(name[i], 'results', '{}.csv'.format(name[i])), 'memory', str(v)],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT
@@ -126,7 +121,7 @@ def run_experiment_mem(volumes, input_config):
                 'type': 'mem',
                 'repetitions': 1,
                 'disable_gc': False,
-                'mem': {
+                'analyzer': {
                     'participants' : v,
                     'analyzer_ip': 'localhost:{}'.format(base_port[i]),
                 }
@@ -140,10 +135,48 @@ def run_experiment_mem(volumes, input_config):
         experiments.append( [name[i], v, partial(mem_clean, proc, base_port[i]), detach[i], verifier[i]] )
     return experiments
 
+def run_experiment_disk_io(volumes, input_config):
+    name = 'disk_io'
+    base_port = 8081
+    apps = 1
+    detach = False
+    verifier = lambda x: None
+    experiments = []
+    file_name = '{}.json'.format(name[i])
+    proc = subprocess.Popen(
+            [os.path.join(SCRIPT_DIR, 'proc_analyzer.py'), str(base_port[i]),
+                os.path.join(name[i], 'results', '{}.csv'.format(name[i])), 'disk_io', str(apps)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
+        )
+    if proc.returncode is not None:
+        print('Analyzer finished unexpectedly', file=output_file)
+        print(proc.stderr.decode('utf-8'), output_file)
+    with open(file_name, 'w') as f:
+        experiment = {
+            'language': 'python',
+            'name': name[i],
+            'type': 'disk_io',
+            'repetitions': 1,
+            'disable_gc': False,
+            'analyzer': {
+                'participants' : v,
+                'analyzer_ip': 'localhost:{}'.format(base_port[i]),
+            }
+        }
+        volumes[os.path.join(output_dir, file_name)] = {
+                'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
+            }
+        cfg_copy = copy.deepcopy(input_config)
+        cfg_copy['benchmark'].update(experiment)
+        json.dump(cfg_copy, f, indent=2)
+    return [[name[i], v, partial(mem_clean, proc, base_port[i]), detach[i], verifier[i]]]
+
 experiments = {
         'time' : run_experiment_time,
         'papi' : run_experiment_papi_ipc,
-        'memory' : run_experiment_mem
+        'memory' : run_experiment_mem,
+        'disk_io' : run_experiment_disk_io
         }
 experiments['all'] = experiments.values()
 
@@ -152,7 +185,7 @@ parser.add_argument('benchmark', type=str, help='Benchmark name')
 parser.add_argument('output_dir', type=str, help='Output dir')
 parser.add_argument('language', choices=['python', 'nodejs', 'cpp'],
                     help='Benchmark language')
-parser.add_argument('experiment', choices=['time', 'papi', 'memory', 'all'],
+parser.add_argument('experiment', choices=['time', 'papi', 'memory', 'disk_io', 'all'],
                     help='Benchmark language')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')

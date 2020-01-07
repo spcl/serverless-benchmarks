@@ -10,7 +10,8 @@ def get_runner(experiment, options=None):
     runners = {
         'papi' : 'papi-runner.py',
         'time' : {'warm' : 'time-in-proc.py', 'cold' : 'time-out-proc.py'},
-        'mem': 'mem-runner.py',
+        'mem': 'analyzer-runner.py',
+        'disk-io': 'analyzer-runner.py',
         'config': 'config.py'
     }
     return [runners[experiment][options] if options is not None else runners[experiment]]

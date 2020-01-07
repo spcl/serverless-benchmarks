@@ -5,7 +5,7 @@
 
 # remove all runner processes
 echo "Stopping memory analyzers..."
-pkill -9 -f mem_analyzer.py
+pkill -9 -f proc_analyzer.py
 
 # stop all docker containers
 # TODO: create common ancestor for all runtimes
