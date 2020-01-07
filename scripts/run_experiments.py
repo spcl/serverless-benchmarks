@@ -6,10 +6,14 @@ import copy
 import docker
 import json
 import importlib
+import minio
 import os
-import sys
+import secrets
 import subprocess
+import sys
+import traceback
 import urllib, urllib.request
+import uuid
 
 from functools import partial
 
@@ -38,7 +42,7 @@ def run_container(client, volumes, code_package):
             detach=True, tty=True
         )
 
-def run_experiment_time(volumes, input_config):
+def run_experiment_time(output_dir, volumes, input_config):
     names = []
     for option in ['warm', 'cold']:
         name = 'time_{}'.format(option)
@@ -59,7 +63,7 @@ def run_experiment_time(volumes, input_config):
         names.append(name)
     return [[x, 1, lambda *args, **kwargs: None, False, lambda x: None] for x in names]
 
-def run_experiment_papi_ipc(volumes, input_config):
+def run_experiment_papi_ipc(output_dir, volumes, input_config):
     name = 'ipc_papi'
     file_name = '{}.json'.format(name)
     with open(file_name, 'w') as f:
@@ -95,7 +99,7 @@ def wait(port, count):
         data = response.read()
         values = json.loads(data)['apps']
     
-def run_experiment_mem(volumes, input_config):
+def run_experiment_mem(output_dir, volumes, input_config):
     name = ['mem_single', 'mem_multiple']
     #TODO: port detection
     base_port = [8081, 8082]
@@ -136,7 +140,7 @@ def run_experiment_mem(volumes, input_config):
         experiments.append( [name[i], v, partial(proc_clean, proc, base_port[i]), detach[i], verifier[i]] )
     return experiments
 
-def run_experiment_disk_io(volumes, input_config):
+def run_experiment_disk_io(output_dir, volumes, input_config):
     name = 'disk-io'
     base_port = 8081
     apps = 1
@@ -180,6 +184,9 @@ experiments = {
         'disk_io' : run_experiment_disk_io
         }
 experiments['all'] = experiments.values()
+output_file = None
+client = docker.from_env()
+verbose = False
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
 parser.add_argument('benchmark', type=str, help='Benchmark name')
@@ -192,7 +199,8 @@ parser.add_argument('size', choices=['test', 'small', 'large'],
                     help='Benchmark input test size')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
-args = parser.parse_args()
+parser.add_argument('--verbose', action='store', default=False, type=bool,
+                    help='Verbose output')
 
 def find(name, path):
     for root, dirs, files in os.walk(path):
@@ -200,99 +208,182 @@ def find(name, path):
             return os.path.join(root, name)
     return None
 
-# 1. Create output dir
-output_dir = os.path.abspath(args.output_dir)
-if not os.path.exists(output_dir):
-    os.mkdir(output_dir)
-os.chdir(output_dir)
-output_file = open('out.log', 'w')
+def create_output(dir):
+    output_dir = os.path.abspath(dir)
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    os.chdir(output_dir)
+    return output_dir, open('out.log', 'w')
 
-# 2. Locate benchmark
-benchmarks_dir = os.path.join(SCRIPT_DIR, '..', 'benchmarks')
-benchmark_path = find(args.benchmark, benchmarks_dir)
-if benchmark_path is None:
-    print('Could not find benchmark {} in {}'.format(args.benchmark, benchmarks_dir))
-    sys.exit(1)
+def find_benchmark(benchmark):
+    benchmarks_dir = os.path.join(SCRIPT_DIR, '..', 'benchmarks')
+    benchmark_path = find(benchmark, benchmarks_dir)
+    if benchmark_path is None:
+        print('Could not find benchmark {} in {}'.format(args.benchmark, benchmarks_dir))
+        sys.exit(1)
+    return benchmark_path
 
-# 3. Build code package
+def create_code_package(benchmark, benchmark_path, language):
+    output = os.popen('{} -b {} -l {} {}'.format(
+            os.path.join(SCRIPT_DIR, PACK_CODE_APP),
+            benchmark_path, language,
+            '-v' if verbose else ''
+        )).read()
+    print(output, file=output_file)
+    code_package = '{}.zip'.format(benchmark)
+    # measure uncompressed code size with unzip -l
+    ret = subprocess.run(['unzip -l {} | awk \'END{{print $1}}\''.format(code_package)], shell=True, stdout = subprocess.PIPE)
+    if ret.returncode != 0:
+        raise RuntimeError('Code size measurement failed: {}'.format(ret.stdout.decode('utf-8')))
+    code_size = int(ret.stdout.decode('utf-8'))
+    return code_package, code_size
 
-output = os.popen('{} -b {} -l {}'.format(
-        os.path.join(SCRIPT_DIR, PACK_CODE_APP),
-        benchmark_path, args.language
-    )).read()
-print(output, file=output_file)
-code_package = '{}.zip'.format(args.benchmark)
-# measure uncompressed code size with unzip -l
-ret = subprocess.run(['unzip -l {} | awk \'END{{print $1}}\''.format(code_package)], shell=True, stdout = subprocess.PIPE)
-code_size = int(ret.stdout.decode('utf-8'))
+class minio_storage:
+    storage_container = None
+    input_buckets = output_buckets = []
+    access_key = None
+    secret_key = None
+    port = 9000
+    location = 'us-east-1'
+    uploader_func = None
 
+    def __init__(self, benchmark, size, buckets):
+        if buckets[0] + buckets[1] > 0:
+            self.start()
+            connection = self.get_connection()
+            for i in range(0, buckets[0]):
+                self.input_buckets.append(
+                        self.create_bucket(connection, '{}-{}-input'.format(benchmark, size)))
+            for i in range(0, buckets[1]):
+                self.output_buckets.append(
+                        self.create_bucket(connection, '{}-{}-output'.format(benchmark, size)))
+             
+    def start(self):
+        self.access_key = secrets.token_urlsafe(32)
+        self.secret_key = secrets.token_hex(32)
+        print('Starting minio instance at localhost:{}'.format(self.port))
+        print('ACCESS_KEY', self.access_key)
+        print('SECRET_KEY', self.secret_key)
+        self.storage_container = client.containers.run(
+            'minio/minio',
+            command='server /data',
+            ports={str(self.port): self.port},
+            environment={
+                'MINIO_ACCESS_KEY' : self.access_key,
+                'MINIO_SECRET_KEY' : self.secret_key
+            },
+            remove=True,
+            stdout=True, stderr=True,
+            detach=True
+        )
 
-# 4. Prepare environment
+    def stop(self):
+        print('Stopping minio instance at localhost:{}'.format(self.port))
+        self.storage_container.stop()
 
-# TurboBoost, disable HT, power cap, decide on which cores to use
+    def get_connection(self):
+        return minio.Minio('localhost:{}'.format(self.port),
+                access_key=self.access_key,
+                secret_key=self.secret_key,
+                secure=False)
 
-# 5. Prepare benchmark input
+    def create_bucket(self, connection, name):
+        # minio has limit of bucket name to 16 characters
+        bucket_name = '{}-{}'.format(name, str(uuid.uuid4())[0:16])
+        try:
+            connection.make_bucket(bucket_name, location=self.location)
+            print('Created bucket {}'.format(bucket_name))
+            return bucket_name
+        except (minio.error.BucketAlreadyOwnedByYou, minio.error.BucketAlreadyExists, minio.error.ResponseError) as err:
+            print('Bucket creation failed!')
+            print(err)
+            # rethrow
+            raise err
 
-# Look for input generator file in the directory containing benchmark
-sys.path.append(benchmark_path)
-mod = importlib.import_module('python.input')
-buckets = mod.buckets_count()
-storage_container = None
-input_buckets = output_buckets = []
-uploader_func = None
-if buckets[0] + buckets[1] > 0:
-    # Run local database
-    storage_container = start_storage()
-# Get JSON and upload data as required by benchmark
-input_config = mod.generate_input(args.size, input_buckets, output_buckets, uploader_func)
+class minio_uploader:
+    pass
 
-# 6. Create input for each experiment
+def prepare_input(benchmark, benchmark_path, size):
+    # Look for input generator file in the directory containing benchmark
+    sys.path.append(benchmark_path)
+    mod = importlib.import_module('python.input')
+    buckets = mod.buckets_count()
+    storage = minio_storage(benchmark, size, buckets)
+    # Get JSON and upload data as required by benchmark
+    input_config = mod.generate_input(size, storage.input_buckets,
+            storage.output_buckets, storage.uploader_func)
+    return input_config, storage
 
-# TODO: generate input
-app_config = {'name' : args.benchmark, 'size' : code_size}
-benchmark_config = {}
-benchmark_config['repetitions'] = args.repetitions
-benchmark_config['disable_gc'] = True
-input_config = { 'input' : input_config, 'app': app_config, 'benchmark' : benchmark_config }
+try:
 
-client = docker.from_env()
-volumes = {}
-enabled_experiments = []
-for ex_func in iterable(experiments[args.experiment]):
-    enabled_experiments.extend( ex_func(volumes, input_config) )
+    # 0. Input args
+    args = parser.parse_args()
+    verbose = args.verbose
 
-# Start measurement processes
-for experiment, count, cleanup, detach, wait_f in enabled_experiments:
+    # 1. Create output dir
+    output_dir, output_file = create_output(args.output_dir)
 
-    containers = [None] * count
-    for i in range(0, count):
-        # 7. Start docker instance with code and input
-        containers[i] = run_container(client, volumes, os.path.join(output_dir, code_package))
-   
-        # 8. Run experiments
-        exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment), detach=detach)
-        if not detach:
-            print('Experiment: {} exit code: {}'.format(experiment, exit_code), file=output_file)
-            if exit_code == 0:
-                print('Output: ', out.decode('utf-8'), file=output_file)
+    # 2. Locate benchmark
+    benchmark_path = find_benchmark(args.benchmark)
+
+    # 3. Build code package
+    code_package, code_size = create_code_package(args.benchmark, benchmark_path, args.language)
+
+    # 4. Prepare environment
+    # TurboBoost, disable HT, power cap, decide on which cores to use
+
+    # 5. Prepare benchmark input
+    input_config, storage = prepare_input(args.benchmark, benchmark_path, args.size)
+
+    # 6. Create experiment config
+    app_config = {'name' : args.benchmark, 'size' : code_size}
+    benchmark_config = {}
+    benchmark_config['repetitions'] = args.repetitions
+    benchmark_config['disable_gc'] = True
+    input_config = { 'input' : input_config, 'app': app_config, 'benchmark' : benchmark_config }
+
+    # 7. Select experiments
+    volumes = {}
+    enabled_experiments = []
+    for ex_func in iterable(experiments[args.experiment]):
+        enabled_experiments.extend( ex_func(output_dir, volumes, input_config) )
+
+    # 8. Start measurement processes
+    for experiment, count, cleanup, detach, wait_f in enabled_experiments:
+
+        containers = [None] * count
+        for i in range(0, count):
+            # 7. Start docker instance with code and input
+            containers[i] = run_container(client, volumes, os.path.join(output_dir, code_package))
+       
+            # 8. Run experiments
+            exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment), detach=detach)
+            if not detach:
+                print('Experiment: {} exit code: {}'.format(experiment, exit_code), file=output_file)
+                if exit_code == 0:
+                    print('Output: ', out.decode('utf-8'), file=output_file)
+                else:
+                    print('Experiment {} failed! Exit code {}'.format(experiment, exit_code))
+                    print(exit_code)
             else:
-                print('Experiment {} failed! Exit code {}'.format(experiment, exit_code))
-                print(exit_code)
-        else:
-            wait_f(i+1)
+                wait_f(i+1)
 
-    # 9. Copy result data
-    os.makedirs(experiment, exist_ok=True)
-    for container in containers:
-        os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'results'), experiment))
-        os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'logs'), experiment))
-        # 10. Kill docker instance
-        container.stop()
+        # 9. Copy result data
+        os.makedirs(experiment, exist_ok=True)
+        for container in containers:
+            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'results'), experiment))
+            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'logs'), experiment))
+            # 10. Kill docker instance
+            container.stop()
 
-    # 11. Cleanup active measurement processes
-    cleanup()
+        # 11. Cleanup active measurement processes
+        cleanup()
 
-# Stop measurement processes
+    # Stop measurement processes
 
-# Clean data storage
-
+    # Clean data storage
+    #storage.stop()
+except Exception as e:
+    print(e)
+    traceback.print_exc()
+    print('Experiments failed!')

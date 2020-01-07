@@ -12,6 +12,11 @@ pkill -9 -f proc_analyzer.py
 echo "Stopping Docker containers..."
 active_containers=$(docker ps --filter ancestor=sebs-local-python -q)
 if [[ -n "${active_containers}" ]]; then
-  docker stop -t0 ${active_containers}
+  docker stop -t0 ${active_containers} > /dev/null
+fi
+echo "Stopping minio storage containers..."
+active_containers=$(docker ps --filter ancestor=minio/minio -q)
+if [[ -n "${active_containers}" ]]; then
+  docker stop -t0 ${active_containers} > /dev/null
 fi
 
