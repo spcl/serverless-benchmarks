@@ -321,6 +321,13 @@ class minio_storage:
             print(err)
             raise(err)
 
+    def clean(self):
+        for bucket in self.output_buckets:
+            objects = self.connection.list_objects_v2(bucket)
+            objects = [obj.object_name for obj in objects]
+            for err in self.connection.remove_objects(bucket, objects):
+                print("Deletion Error: {}".format(del_err), file=output_file)
+
 class minio_uploader:
     pass
 
@@ -401,11 +408,12 @@ try:
 
         # 11. Cleanup active measurement processes
         cleanup()
+        storage.clean()
 
     # Stop measurement processes
 
     # Clean data storage
-    #storage.stop()
+    storage.stop()
 except Exception as e:
     print(e)
     traceback.print_exc()
