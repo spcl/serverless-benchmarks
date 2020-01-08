@@ -43,26 +43,51 @@ def run_container(client, volumes, code_package):
             detach=True, tty=True
         )
 
-def run_experiment_time(output_dir, volumes, input_config):
-    names = []
+class docker_experiment:
+    name = None
+    experiment_type = None
+    config = None
+    instances = 0
+    cleanup_func = lambda * args: None
+    finish_func = lambda *args: None
+    docker_volumes = {}
+    detach = False
+    result_path = None
+
+    # result is copied from Docker or created locally by analyzers
+    # provide path to analyzer result OR find all csv files copied from Docker
+    def get_result_path(self, instance):
+        if self.result_path is None:
+            path = os.path.join(instance, 'results')
+            return [file for file in glob.glob(os.path.join(path, '*.csv'))]
+        else:
+            return [result_path]
+
+def run_experiment_time(output_dir, input_config):
+    experiments = []
     for option in ['warm', 'cold']:
-        name = 'time_{}'.format(option)
-        file_name = '{}.json'.format(name)
+        exp = docker_experiment()
+        exp.name = 'time_{}'.format(option)
+        file_name = '{}.json'.format(exp.name)
         with open(file_name, 'w') as f:
             experiment = {
                 'language': 'python',
-                'name': name,
+                'name': exp.name,
                 'type': 'time',
                 'experiment_options': option
             }
-            volumes[os.path.join(output_dir, file_name)] = {
-                    'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
-                }
             cfg_copy = copy.deepcopy(input_config)
             cfg_copy['benchmark'].update(experiment)
             json.dump(cfg_copy, f, indent=2)
-        names.append(name)
-    return [[x, 1, lambda *args, **kwargs: None, cfg_copy, False, lambda x: None] for x in names]
+            exp.config = cfg_copy
+        exp.experiment_type = 'mem'
+        exp.instances = 1
+        exp.result_from_docker = True
+        exp.docker_volumes[os.path.join(output_dir, file_name)] = {
+                    'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
+                }
+        experiments.append(exp)
+    return experiments
 
 def run_experiment_papi_ipc(output_dir, volumes, input_config):
     name = 'ipc_papi'
@@ -131,7 +156,6 @@ def run_experiment_mem(output_dir, volumes, input_config):
             )
         if proc.returncode is not None:
             print('Memory analyzer finished unexpectedly', file=output_file)
-            print(proc.stderr.decode('utf-8'), output_file)
         with open(file_name, 'w') as f:
             experiment = {
                 'language': 'python',
@@ -155,12 +179,13 @@ def run_experiment_mem(output_dir, volumes, input_config):
 
 def run_experiment_disk_io(output_dir, volumes, input_config):
     name = 'disk-io'
-    base_port = 8081
+    base_port = 8083
     apps = 1
     detach = False
     verifier = lambda x: None
     experiments = []
     file_name = '{}.json'.format(name)
+    os.makedirs(name, exist_ok=True)
     os.makedirs(os.path.join(name, 'results'), exist_ok=True)
     file_output = open(os.path.join(name, 'proc-analyzer.out'), 'w')
     proc = subprocess.Popen(
@@ -403,58 +428,57 @@ try:
     volumes = {}
     enabled_experiments = []
     for ex_func in iterable(experiments[args.experiment]):
-        enabled_experiments.extend( ex_func(output_dir, volumes, input_config) )
-    print(enabled_experiments)
+        enabled_experiments.extend( ex_func(output_dir, input_config) )
 
     # 8. Start measurement processes
-    for experiment, count, cleanup, cfg_copy, detach, wait_f in enabled_experiments:
+    for experiment in enabled_experiments:
+    #for experiment, count, cleanup, cfg_copy, detach, wait_f in enabled_experiments:
 
-
-        containers = [None] * count
-        os.makedirs(experiment, exist_ok=True)
-        print('Experiment: {} begins.'.format(experiment), file=output_file)
-        for i in range(0, count):
+        containers = [None] * experiment.instances
+        os.makedirs(experiment.name, exist_ok=True)
+        print('Experiment: {} begins.'.format(experiment.name), file=output_file)
+        for i in range(0, experiment.instances):
             # 7. Start docker instance with code and input
-            containers[i] = run_container(client, volumes, os.path.join(output_dir, code_package))
+            containers[i] = run_container(client, {**volumes, **experiment.docker_volumes}, os.path.join(output_dir, code_package))
        
             # 8. Run experiments
-            exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment), detach=detach)
-            if not detach:
-                print('Experiment: {} exit code: {}'.format(experiment, exit_code), file=output_file)
+            exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment.name), detach=experiment.detach)
+            if not experiment.detach:
+                print('Experiment: {} exit code: {}'.format(experiment.name, exit_code), file=output_file)
                 if exit_code == 0:
                     print('Output: ', out.decode('utf-8'), file=output_file)
                 else:
-                    print('Experiment {} failed! Exit code {}'.format(experiment, exit_code))
+                    print('Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
                     print(exit_code)
             else:
-                wait_f(i+1)
-                print('Experiment: {} container {} finished.'.format(experiment, i), file=output_file)
+                experiment.finish_func(i+1)
+                print('Experiment: {} container {} finished.'.format(experiment.name, i), file=output_file)
         print('\n', file=output_file)
 
         # Summarize experiment
         summary = {}
-        summary['config'] = cfg_copy
+        summary['config'] = experiment.config
         summary['instances'] = []
         # 9. Copy result data
         for idx, container in enumerate(containers):
-            dest_dir = os.path.join(experiment, 'instance_{}'.format(idx))
+            dest_dir = os.path.join(experiment.name, 'instance_{}'.format(idx))
             os.makedirs(dest_dir, exist_ok=True)
             os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'results'), dest_dir))
             os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'logs'), dest_dir))
+
             # 10. Kill docker instance
             container.stop()
+
             # 11. Move to results, find summary JSONs
-            dir = os.getcwd()
             result_path = os.path.join(dest_dir, 'results')
-            os.chdir(result_path)
-            for json_file in glob.glob('*.json'):
-                summary['instances'].append(os.path.join(result_path, json_file))
-            os.chdir(dir)
-        benchmark_summary[experiment] = summary
+            jsons = [json_file for json_file in glob.glob(os.path.join(result_path, '*.json'))] 
+            summary['instances'].append( {'config': jsons, 'results': experiment.get_result_path(dest_dir)} )
+
+        benchmark_summary[experiment.name] = summary
 
         # 11. Cleanup active measurement processes
-        cleanup()
-        storage.download_results(experiment)
+        experiment.cleanup_func()
+        storage.download_results(experiment.name)
         storage.clean()
 
     # Clean data storage
