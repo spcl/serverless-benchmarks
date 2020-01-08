@@ -4,6 +4,7 @@ import argparse
 import collections
 import copy
 import docker
+import glob
 import json
 import importlib
 import minio
@@ -61,7 +62,7 @@ def run_experiment_time(output_dir, volumes, input_config):
             cfg_copy['benchmark'].update(experiment)
             json.dump(cfg_copy, f, indent=2)
         names.append(name)
-    return [[x, 1, lambda *args, **kwargs: None, False, lambda x: None] for x in names]
+    return [[x, 1, lambda *args, **kwargs: None, cfg_copy, False, lambda x: None] for x in names]
 
 def run_experiment_papi_ipc(output_dir, volumes, input_config):
     name = 'ipc_papi'
@@ -83,7 +84,7 @@ def run_experiment_papi_ipc(output_dir, volumes, input_config):
         cfg_copy = copy.deepcopy(input_config)
         cfg_copy['benchmark'].update(experiment)
         json.dump(cfg_copy, f, indent=2)
-    return [[name, 1, lambda *args, **kwargs: None, False, lambda x: None]]
+    return [[name, 1, lambda *args, **kwargs: None, cfg_copy, False, lambda x: None]]
 
 
 def proc_clean(proc, port):
@@ -149,7 +150,7 @@ def run_experiment_mem(output_dir, volumes, input_config):
             cfg_copy = copy.deepcopy(input_config)
             cfg_copy['benchmark'].update(experiment)
             json.dump(cfg_copy, f, indent=2)
-        experiments.append( [name[i], v, partial(proc_clean, proc, base_port[i]), detach[i], verifier[i]] )
+        experiments.append( [name[i], v, partial(proc_clean, proc, base_port[i]), cfg_copy, detach[i], verifier[i]] )
     return experiments
 
 def run_experiment_disk_io(output_dir, volumes, input_config):
@@ -160,7 +161,7 @@ def run_experiment_disk_io(output_dir, volumes, input_config):
     verifier = lambda x: None
     experiments = []
     file_name = '{}.json'.format(name)
-    os.makedirs(name, exist_ok=True)
+    os.makedirs(os.path.join(name, 'results'), exist_ok=True)
     file_output = open(os.path.join(name, 'proc-analyzer.out'), 'w')
     proc = subprocess.Popen(
             [os.path.join(SCRIPT_DIR, 'proc_analyzer.py'), str(base_port),
@@ -189,7 +190,7 @@ def run_experiment_disk_io(output_dir, volumes, input_config):
         cfg_copy = copy.deepcopy(input_config)
         cfg_copy['benchmark'].update(experiment)
         json.dump(cfg_copy, f, indent=2)
-    return [[name, apps, partial(proc_clean, proc, base_port), detach, verifier]]
+    return [[name, apps, partial(proc_clean, proc, base_port), cfg_copy, detach, verifier]]
 
 experiments = {
         'time' : run_experiment_time,
@@ -197,7 +198,7 @@ experiments = {
         'memory' : run_experiment_mem,
         'disk_io' : run_experiment_disk_io
         }
-experiments['all'] = experiments.values()
+experiments['all'] = list(experiments.values())
 output_file = None
 client = docker.from_env()
 verbose = False
@@ -276,9 +277,9 @@ class minio_storage:
     def start(self):
         self.access_key = secrets.token_urlsafe(32)
         self.secret_key = secrets.token_hex(32)
-        print('Starting minio instance at localhost:{}'.format(self.port))
-        print('ACCESS_KEY', self.access_key)
-        print('SECRET_KEY', self.secret_key)
+        print('Starting minio instance at localhost:{}'.format(self.port), file=output_file)
+        print('ACCESS_KEY', self.access_key, file=output_file)
+        print('SECRET_KEY', self.secret_key, file=output_file)
         self.storage_container = client.containers.run(
             'minio/minio',
             command='server /data',
@@ -293,8 +294,9 @@ class minio_storage:
         )
 
     def stop(self):
-        print('Stopping minio instance at localhost:{}'.format(self.port))
-        self.storage_container.stop()
+        if self.storage_container is not None:
+            print('Stopping minio instance at localhost:{}'.format(self.port),file=output_file)
+            self.storage_container.stop()
 
     def get_connection(self):
         return minio.Minio('localhost:{}'.format(self.port),
@@ -365,6 +367,8 @@ def prepare_input(benchmark, benchmark_path, size):
 
 try:
 
+    benchmark_summary = {}
+
     # 0. Input args
     args = parser.parse_args()
     verbose = args.verbose
@@ -394,17 +398,21 @@ try:
         benchmark_config['storage'] = storage_config
     input_config = { 'input' : input_config, 'app': app_config, 'benchmark' : benchmark_config }
 
+
     # 7. Select experiments
     volumes = {}
     enabled_experiments = []
     for ex_func in iterable(experiments[args.experiment]):
         enabled_experiments.extend( ex_func(output_dir, volumes, input_config) )
+    print(enabled_experiments)
 
     # 8. Start measurement processes
-    for experiment, count, cleanup, detach, wait_f in enabled_experiments:
+    for experiment, count, cleanup, cfg_copy, detach, wait_f in enabled_experiments:
+
 
         containers = [None] * count
         os.makedirs(experiment, exist_ok=True)
+        print('Experiment: {} begins.'.format(experiment), file=output_file)
         for i in range(0, count):
             # 7. Start docker instance with code and input
             containers[i] = run_container(client, volumes, os.path.join(output_dir, code_package))
@@ -420,7 +428,13 @@ try:
                     print(exit_code)
             else:
                 wait_f(i+1)
+                print('Experiment: {} container {} finished.'.format(experiment, i), file=output_file)
+        print('\n', file=output_file)
 
+        # Summarize experiment
+        summary = {}
+        summary['config'] = cfg_copy
+        summary['instances'] = []
         # 9. Copy result data
         for idx, container in enumerate(containers):
             dest_dir = os.path.join(experiment, 'instance_{}'.format(idx))
@@ -429,6 +443,14 @@ try:
             os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'logs'), dest_dir))
             # 10. Kill docker instance
             container.stop()
+            # 11. Move to results, find summary JSONs
+            dir = os.getcwd()
+            result_path = os.path.join(dest_dir, 'results')
+            os.chdir(result_path)
+            for json_file in glob.glob('*.json'):
+                summary['instances'].append(os.path.join(result_path, json_file))
+            os.chdir(dir)
+        benchmark_summary[experiment] = summary
 
         # 11. Cleanup active measurement processes
         cleanup()
@@ -437,6 +459,14 @@ try:
 
     # Clean data storage
     storage.stop()
+
+    # Summarize
+    benchmark_summary['system'] = {}
+    uname = os.uname()
+    for val in ['nodename', 'sysname', 'release', 'version', 'machine']:
+        benchmark_summary['system'][val] = getattr(uname, val)
+    json.dump(benchmark_summary, open('experiments.json', 'w'), indent=2)
+
 except Exception as e:
     print(e)
     traceback.print_exc()

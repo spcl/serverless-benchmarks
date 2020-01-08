@@ -45,10 +45,7 @@ if __name__ == "__main__":
     ret = subprocess.run(runner + [sys.argv[1], str(uuid)], stdout=subprocess.PIPE)
 
     # Dump experiment data
-    result = {'system': {}, 'input': cfg} 
-    uname = os.uname()
-    for val in ['nodename', 'sysname', 'release', 'version', 'machine']:
-        result['system'][val] = getattr(uname, val)
+    result = {'input': cfg}
     try:
         experiment_data = json.loads(ret.stdout.decode('utf-8'))
         for v in ['experiment', 'runtime']:
