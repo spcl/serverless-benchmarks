@@ -30,17 +30,15 @@ def postprocess_memory_continuous(data, measurement_directory):
     for i in range(0, samples_counter):
         ret = subprocess.run(
                 ['''
-                    awk \'/Shared/{{ sum += $2 }} /Private/{{ sum2 += 2 }} END {{ print sum2, sum }}\' {}/smaps_{}
+                    awk \'/Rss:/{{ sum3 += $2 }} /Pss:/{{ sum += $2 }} /Private/{{ sum2 += $2 }} END {{ print sum2, sum, sum3 }}\' {}/smaps_{}
                 '''.format(measurement_directory.name, i)],
                 stdout = subprocess.PIPE, shell = True
             )
         # remove newline and seperate into integers
         data[i].extend( map(int, ret.stdout.decode('utf-8').strip().split()) )
-        rss = data[i][-1] + data[i][-2]
-        data[i].append(rss)
 
 def header_memory_continuous():
-    return ['Timestamp', 'N', 'Cached', 'USS', 'SharedSS', 'RSS']
+    return ['Timestamp', 'N', 'Cached', 'USS', 'PSS', 'RSS']
 
 def measure_memory_summary(PIDs, samples_counter=0, measurement_directory=None):
 
@@ -214,6 +212,8 @@ class summary_measurement:
 
 measurer = None
 out_file = None
+measurer = None
+measurers_functions = None
 
 def get_pid(uuid):
     ret = subprocess.run('ps -fe | grep {}'.format(uuid), stdout=subprocess.PIPE, shell=True)
@@ -243,7 +243,7 @@ def dump_data():
 
     with open(out_file, 'w') as f:
         csv_writer = csv.writer(f)
-        csv_writer.writerow(['Timestamp', 'N', 'Cached', 'USS', 'PSS/SSS', 'RSS'])
+        csv_writer.writerow(measurers_functions['header']())
         for val in data:
             csv_writer.writerow(val)
 
@@ -252,15 +252,17 @@ def dump_data():
 parser = argparse.ArgumentParser(description='Measure memory usage of processes.')
 parser.add_argument('port', type=int, help='Port run')
 parser.add_argument('output', type=str, help='Output file.')
-parser.add_argument('counter', type=str, choices=['memory', 'disk_io'], help='Output file.')
+parser.add_argument('metric', type=str, choices=['memory', 'disk_io'], help='Metric.')
 parser.add_argument('apps', type=int, help='Number of apps that is expected')
 args = parser.parse_args()
 port = int(args.port)
 out_file = args.output
 number_of_apps = int(args.apps)
 if number_of_apps == 1:
-    measurer = continuous_measurement(measurers[args.counter]['continuous'], 1)
+    measurers_functions = measurers[args.metric]['continuous']
+    measurer = continuous_measurement(measurers_functions, 1)
 else:
-    measurer = summary_measurement(measurers[args.counter]['summary'], number_of_apps)
+    measurers_functions = measurers[arg.metric]['summary']
+    measurer = summary_measurement(measurers_functions, number_of_apps)
 app = bottle.default_app()
 waitress.serve(app, host='localhost', port=port, threads=number_of_apps+1)
