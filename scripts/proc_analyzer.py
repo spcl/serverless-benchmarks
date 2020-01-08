@@ -262,7 +262,7 @@ if number_of_apps == 1:
     measurers_functions = measurers[args.metric]['continuous']
     measurer = continuous_measurement(measurers_functions, 1)
 else:
-    measurers_functions = measurers[arg.metric]['summary']
+    measurers_functions = measurers[args.metric]['summary']
     measurer = summary_measurement(measurers_functions, number_of_apps)
 app = bottle.default_app()
 waitress.serve(app, host='localhost', port=port, threads=number_of_apps+1)
