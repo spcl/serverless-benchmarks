@@ -87,10 +87,19 @@ def run_experiment_papi_ipc(output_dir, volumes, input_config):
 
 
 def proc_clean(proc, port):
-    subprocess.run(['curl', '-X', 'POST', 'localhost:{}/dump'.format(port)])
+    try:
+        # curl returns zero event if request errored on server side
+        response = urllib.request.urlopen('http://localhost:{}/dump'.format(port), {})
+        code = response.getcode()
+        if code != 200:
+            print('Proc analyzer failed when writing values!',file=output_file)
+            print(response.read(),file=output_file)
+            raise RuntimeError()
+    except urllib.error.HTTPError as err:
+        print('Proc analyzer failed when writing values!',file=output_file)
+        print(err,file=output_file)
+        raise(err)
     proc.kill()
-    print('Proc analyzer output', file=output_file)
-    print(proc.stdout.read().decode('utf-8'), file=output_file)
 
 def wait(port, count):
     values = 0
@@ -100,7 +109,7 @@ def wait(port, count):
         values = json.loads(data)['apps']
     
 def run_experiment_mem(output_dir, volumes, input_config):
-    name = ['mem_single', 'mem_multiple']
+    name = ['mem-single', 'mem-multiple']
     #TODO: port detection
     base_port = [8081, 8082]
     apps = [1, 10]
@@ -110,11 +119,14 @@ def run_experiment_mem(output_dir, volumes, input_config):
     for i in range(0, len(apps)):
         v = apps[i]
         file_name = '{}.json'.format(name[i])
+        os.makedirs(name[i], exist_ok=True)
+        os.makedirs(os.path.join(name[i], 'results'), exist_ok=True)
+        file_output = open(os.path.join(name[i], 'proc-analyzer.out'), 'w')
         proc = subprocess.Popen(
                 [os.path.join(SCRIPT_DIR, 'proc_analyzer.py'), str(base_port[i]),
                     os.path.join(name[i], 'results', '{}.csv'.format(name[i])), 'memory', str(v)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT
+                stdout=file_output,
+                stderr=file_output
             )
         if proc.returncode is not None:
             print('Memory analyzer finished unexpectedly', file=output_file)
@@ -148,10 +160,12 @@ def run_experiment_disk_io(output_dir, volumes, input_config):
     verifier = lambda x: None
     experiments = []
     file_name = '{}.json'.format(name)
+    os.makedirs(name, exist_ok=True)
+    file_output = open(os.path.join(name, 'proc-analyzer.out'), 'w')
     proc = subprocess.Popen(
             [os.path.join(SCRIPT_DIR, 'proc_analyzer.py'), str(base_port),
                 os.path.join(name, 'results', '{}.csv'.format(name)), 'disk_io', str(apps)],
-            stdout=subprocess.PIPE,
+            stdout=file_output,
             stderr=subprocess.STDOUT
         )
     if proc.returncode is not None:
@@ -382,6 +396,7 @@ try:
     for experiment, count, cleanup, detach, wait_f in enabled_experiments:
 
         containers = [None] * count
+        os.makedirs(experiment, exist_ok=True)
         for i in range(0, count):
             # 7. Start docker instance with code and input
             containers[i] = run_container(client, volumes, os.path.join(output_dir, code_package))
@@ -399,10 +414,11 @@ try:
                 wait_f(i+1)
 
         # 9. Copy result data
-        os.makedirs(experiment, exist_ok=True)
-        for container in containers:
-            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'results'), experiment))
-            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'logs'), experiment))
+        for idx, container in enumerate(containers):
+            dest_dir = os.path.join(experiment, 'instance_{}'.format(idx))
+            os.makedirs(dest_dir, exist_ok=True)
+            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'results'), dest_dir))
+            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'logs'), dest_dir))
             # 10. Kill docker instance
             container.stop()
 
@@ -417,4 +433,4 @@ try:
 except Exception as e:
     print(e)
     traceback.print_exc()
-    print('Experiments failed!')
+    print('Experiments failed! See {}/out.log for details'.format(output_dir))
