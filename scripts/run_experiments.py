@@ -327,7 +327,7 @@ class minio_uploader:
 def prepare_input(benchmark, benchmark_path, size):
     # Look for input generator file in the directory containing benchmark
     sys.path.append(benchmark_path)
-    mod = importlib.import_module('python.input')
+    mod = importlib.import_module('input')
     buckets = mod.buckets_count()
     storage = minio_storage(benchmark, size, buckets)
     # Get JSON and upload data as required by benchmark
@@ -360,7 +360,9 @@ try:
     benchmark_config = {}
     benchmark_config['repetitions'] = args.repetitions
     benchmark_config['disable_gc'] = True
-    benchmark_config['storage'] = storage.config_to_json()
+    storage_config = storage.config_to_json()
+    if storage_config:
+        benchmark_config['storage'] = storage_config
     input_config = { 'input' : input_config, 'app': app_config, 'benchmark' : benchmark_config }
 
     # 7. Select experiments

@@ -1,6 +1,6 @@
 import glob, os
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir, 'data')
+DATA_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 def buckets_count():
     return (1, 1)
