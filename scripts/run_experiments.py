@@ -342,6 +342,14 @@ class minio_storage:
             for err in self.connection.remove_objects(bucket, objects):
                 print("Deletion Error: {}".format(del_err), file=output_file)
 
+    def download_results(self, result_dir):
+        result_dir = os.path.join(result_dir, 'storage_output')
+        for bucket in self.output_buckets:
+            objects = self.connection.list_objects_v2(bucket)
+            objects = [obj.object_name for obj in objects]
+            for obj in objects:
+                self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
+
 class minio_uploader:
     pass
 
@@ -424,9 +432,8 @@ try:
 
         # 11. Cleanup active measurement processes
         cleanup()
+        storage.download_results(experiment)
         storage.clean()
-
-    # Stop measurement processes
 
     # Clean data storage
     storage.stop()
