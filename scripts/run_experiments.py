@@ -55,6 +55,12 @@ class docker_experiment:
     detach = False
     result_path = None
 
+    # if more than one instance of app, then we need to detach from running containers
+    def __init__(self, instances, experiment_type):
+        self.instances = instances
+        self.detach = instances > 1
+        self.experiment_type = experiment_type
+
     # result is copied from Docker or created locally by analyzers
     # provide path to analyzer result OR find all csv files copied from Docker
     def get_result_path(self, instance):
@@ -69,11 +75,14 @@ class analyzer_experiment(docker_experiment):
     output_file = None
     proc = None
 
-    def __init__(self, port):
-        docker_experiment.__init__(self)
+    def __init__(self, instances, experiment_type, port):
+        docker_experiment.__init__(self, instances, experiment_type)
         self.port = port
         self.output_file = output_file
 
+    # Start analyzer process on provided port.
+    # Results are written to file at `result_path`
+    # Output of analyzer goes to `file_output`
     def start(self):
         file_name = '{}.json'.format(self.name)
         os.makedirs(self.name, exist_ok=True)
@@ -82,13 +91,14 @@ class analyzer_experiment(docker_experiment):
         self.result_path = os.path.join(self.name, 'results', '{}.csv'.format(self.name))
         self.proc = subprocess.Popen(
                 [os.path.join(SCRIPT_DIR, 'proc_analyzer.py'), str(self.port),
-                    self.result_path, 'memory', str(self.instances)],
+                    self.result_path, self.experiment_type, str(self.instances)],
                 stdout=file_output,
                 stderr=subprocess.STDOUT
             )
         if self.proc.returncode is not None:
             print('Memory analyzer finished unexpectedly', file=output_file)
 
+    # Write down results of analyzer and kill the process.
     def cleanup(self):
         try:
             # curl returns zero event if request errored on server side
@@ -104,6 +114,10 @@ class analyzer_experiment(docker_experiment):
             raise(err)
         self.proc.kill()
 
+    # For launches with multiple instances, we need a way to tell if N-th
+    # instance has been processed and we can launch a new one.
+    # Thus we wait until server analyzer returns message indicating that all
+    # current processing is finished.
     def finish(self, count):
         # verify if we can launch more instances (analyzer processed all active instances)
         if self.instances > 1:
@@ -116,7 +130,7 @@ class analyzer_experiment(docker_experiment):
 def run_experiment_time(output_dir, input_config):
     experiments = []
     for option in ['warm', 'cold']:
-        exp = docker_experiment()
+        exp = docker_experiment(1, 'time')
         exp.name = 'time_{}'.format(option)
         file_name = '{}.json'.format(exp.name)
         with open(file_name, 'w') as f:
@@ -130,8 +144,6 @@ def run_experiment_time(output_dir, input_config):
             cfg_copy['benchmark'].update(experiment)
             json.dump(cfg_copy, f, indent=2)
             exp.config = cfg_copy
-        exp.experiment_type = 'time'
-        exp.instances = 1
         exp.docker_volumes[os.path.join(output_dir, file_name)] = {
                     'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
                 }
@@ -140,7 +152,7 @@ def run_experiment_time(output_dir, input_config):
 
 def run_experiment_papi_ipc(output_dir, input_config):
     experiments = []
-    exp = docker_experiment()
+    exp = docker_experiment(1, 'papi')
     exp.name = 'ipc_papi'
     file_name = '{}.json'.format(exp.name)
     with open(file_name, 'w') as f:
@@ -157,9 +169,7 @@ def run_experiment_papi_ipc(output_dir, input_config):
         cfg_copy = copy.deepcopy(input_config)
         cfg_copy['benchmark'].update(experiment)
         json.dump(cfg_copy, f, indent=2)
-    exp.experiment_type = 'papi'
-    exp.instances = 1
-    exp.result_from_docker = True
+        exp.config = cfg_copy
     exp.docker_volumes[os.path.join(output_dir, file_name)] = {
             'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
         }
@@ -172,12 +182,10 @@ def run_experiment_mem(output_dir, input_config):
     #TODO: port detection
     base_port = [8081, 8082]
     apps = [1, 10]
-    detach = [False, True]
     exp_type = 'mem'
     for i in range(0, len(apps)):
-        exp = analyzer_experiment(base_port[i])
+        exp = analyzer_experiment(apps[i], 'memory', base_port[i])
         exp.name = name[i]
-        exp.instances = apps[i]
         file_name = '{}.json'.format(exp.name)
         with open(file_name, 'w') as f:
             experiment = {
@@ -195,53 +203,37 @@ def run_experiment_mem(output_dir, input_config):
             cfg_copy['benchmark'].update(experiment)
             json.dump(cfg_copy, f, indent=2)
             exp.config = cfg_copy
-        exp.experiment_type = exp_type
         exp.docker_volumes[os.path.join(output_dir, file_name)] = {
                     'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
                 }
-        exp.detach = detach[i]
         experiments.append(exp)
     return experiments
 
-def run_experiment_disk_io(output_dir, volumes, input_config):
-    name = 'disk-io'
-    base_port = 8083
-    apps = 1
-    detach = False
-    verifier = lambda x: None
-    experiments = []
-    file_name = '{}.json'.format(name)
-    os.makedirs(name, exist_ok=True)
-    os.makedirs(os.path.join(name, 'results'), exist_ok=True)
-    file_output = open(os.path.join(name, 'proc-analyzer.out'), 'w')
-    proc = subprocess.Popen(
-            [os.path.join(SCRIPT_DIR, 'proc_analyzer.py'), str(base_port),
-                os.path.join(name, 'results', '{}.csv'.format(name)), 'disk_io', str(apps)],
-            stdout=file_output,
-            stderr=subprocess.STDOUT
-        )
-    if proc.returncode is not None:
-        print('Analyzer finished unexpectedly', file=output_file)
-        print(proc.stderr.decode('utf-8'), output_file)
+def run_experiment_disk_io(output_dir, input_config):
+    exp = analyzer_experiment(1, 'disk-io', 8081)
+    exp.name = 'disk-io'
+    file_name = '{}.json'.format(exp.name)
     with open(file_name, 'w') as f:
         experiment = {
             'language': 'python',
-            'name': name,
+            'name': exp.name,
             'type': 'disk-io',
             'repetitions': 1,
             'disable_gc': False,
             'analyzer': {
-                'participants' : apps,
-                'analyzer_ip': 'localhost:{}'.format(base_port),
+                'participants' : exp.instances,
+                'analyzer_ip': 'localhost:{}'.format(exp.port),
             }
         }
-        volumes[os.path.join(output_dir, file_name)] = {
-                'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
-            }
         cfg_copy = copy.deepcopy(input_config)
         cfg_copy['benchmark'].update(experiment)
         json.dump(cfg_copy, f, indent=2)
-    return [[name, apps, partial(proc_clean, proc, base_port), cfg_copy, detach, verifier]]
+        exp.config = cfg_copy
+    exp.docker_volumes[os.path.join(output_dir, file_name)] = {
+            'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
+        }
+    cfg_copy = copy.deepcopy(input_config)
+    return [exp]
 
 experiments = {
         'time' : run_experiment_time,

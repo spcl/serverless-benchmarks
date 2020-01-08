@@ -103,7 +103,7 @@ measurers = {
         'continuous' : {'measure': measure_memory_continuous, 'postprocess': postprocess_memory_continuous, 'header': header_memory_continuous},
         'summary' : {'measure': measure_memory_summary, 'postprocess': postprocess_memory_summary, 'header': header_memory_continuous}
     },
-    'disk_io': {
+    'disk-io': {
         'continuous' : {'measure': measure_disk_io_continuous, 'postprocess': postprocess_disk_io_continuous, 'header': header_disk_io_summary}
     }
 }
@@ -252,7 +252,7 @@ def dump_data():
 parser = argparse.ArgumentParser(description='Measure memory usage of processes.')
 parser.add_argument('port', type=int, help='Port run')
 parser.add_argument('output', type=str, help='Output file.')
-parser.add_argument('metric', type=str, choices=['memory', 'disk_io'], help='Metric.')
+parser.add_argument('metric', type=str, choices=['memory', 'disk-io'], help='Metric.')
 parser.add_argument('apps', type=int, help='Number of apps that is expected')
 args = parser.parse_args()
 port = int(args.port)
