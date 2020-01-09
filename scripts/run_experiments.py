@@ -18,8 +18,8 @@ import uuid
 
 from functools import partial
 
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-PACK_CODE_APP = 'pack_code.sh'
+from experiments_utils import *
+
 HOME_DIR = '/home/docker_user'
 
 def iterable(val):
@@ -96,7 +96,6 @@ class docker_experiment:
 
 class analyzer_experiment(docker_experiment):
     port = None
-    output_file = None
     proc = None
 
     def __init__(self, instances, name, experiment_type, input_config, port, option=None):
@@ -109,7 +108,6 @@ class analyzer_experiment(docker_experiment):
         docker_experiment.__init__(self, instances, name, experiment_type,
                 input_config, option, additional_cfg)
         self.port = port
-        self.output_file = output_file
 
     # Start analyzer process on provided port.
     # Results are written to file at `result_path`
@@ -127,7 +125,7 @@ class analyzer_experiment(docker_experiment):
                 stderr=subprocess.STDOUT
             )
         if self.proc.returncode is not None:
-            print('Memory analyzer finished unexpectedly', file=output_file)
+            logging.error('Memory analyzer finished unexpectedly')
 
     # Write down results of analyzer and kill the process.
     def cleanup(self):
@@ -136,12 +134,11 @@ class analyzer_experiment(docker_experiment):
             response = urllib.request.urlopen('http://localhost:{}/dump'.format(self.port), {})
             code = response.getcode()
             if code != 200:
-                print('Proc analyzer failed when writing values!',file=output_file)
-                print(response.read(),file=output_file)
+                logging.error('Proc analyzer failed when writing values!')
+                logging.error(response.read())
                 raise RuntimeError()
         except urllib.error.HTTPError as err:
-            print('Proc analyzer failed when writing values!',file=output_file)
-            print(err,file=output_file)
+            logging.error('Proc analyzer failed when writing values!')
             raise(err)
         self.proc.kill()
 
@@ -223,7 +220,6 @@ experiments = {
         'disk-io' : run_experiment_disk_io
         }
 experiments['all'] = list(experiments.values())
-output_file = None
 client = docker.from_env()
 verbose = False
 
@@ -241,42 +237,6 @@ parser.add_argument('--repetitions', action='store', default=5, type=int,
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 
-def find(name, path):
-    for root, dirs, files in os.walk(path):
-        if name in dirs:
-            return os.path.join(root, name)
-    return None
-
-def create_output(dir):
-    output_dir = os.path.abspath(dir)
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-    os.chdir(output_dir)
-    return output_dir, open('out.log', 'w')
-
-def find_benchmark(benchmark):
-    benchmarks_dir = os.path.join(SCRIPT_DIR, '..', 'benchmarks')
-    benchmark_path = find(benchmark, benchmarks_dir)
-    if benchmark_path is None:
-        print('Could not find benchmark {} in {}'.format(args.benchmark, benchmarks_dir))
-        sys.exit(1)
-    return benchmark_path
-
-def create_code_package(benchmark, benchmark_path, language):
-    output = subprocess.run('{} -b {} -l {} {}'.format(
-            os.path.join(SCRIPT_DIR, PACK_CODE_APP),
-            benchmark_path, language,
-            '-v' if verbose else ''
-        ).split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    print(output.stdout.decode('utf-8'), file=output_file)
-    code_package = '{}.zip'.format(benchmark)
-    # measure uncompressed code size with unzip -l
-    ret = subprocess.run(['unzip -l {} | awk \'END{{print $1}}\''.format(code_package)], shell=True, stdout = subprocess.PIPE)
-    if ret.returncode != 0:
-        raise RuntimeError('Code size measurement failed: {}'.format(ret.stdout.decode('utf-8')))
-    code_size = int(ret.stdout.decode('utf-8'))
-    return code_package, code_size
-
 class minio_storage:
     storage_container = None
     input_buckets = []
@@ -287,23 +247,23 @@ class minio_storage:
     location = 'us-east-1'
     connection = None
 
-    def __init__(self, benchmark, size, buckets):
+    def __init__(self, benchmark, buckets):
         if buckets[0] + buckets[1] > 0:
             self.start()
             self.connection = self.get_connection()
             for i in range(0, buckets[0]):
                 self.input_buckets.append(
-                        self.create_bucket('{}-{}-input'.format(benchmark, size)))
+                        self.create_bucket('{}-{}-input'.format(benchmark, i)))
             for i in range(0, buckets[1]):
                 self.output_buckets.append(
-                        self.create_bucket('{}-{}-output'.format(benchmark, size)))
+                        self.create_bucket('{}-{}-output'.format(benchmark, i)))
              
     def start(self):
         self.access_key = secrets.token_urlsafe(32)
         self.secret_key = secrets.token_hex(32)
-        print('Starting minio instance at localhost:{}'.format(self.port), file=output_file)
-        print('ACCESS_KEY', self.access_key, file=output_file)
-        print('SECRET_KEY', self.secret_key, file=output_file)
+        logging.error('Starting minio instance at localhost:{}'.format(self.port))
+        logging.error('ACCESS_KEY={}'.format(self.access_key))
+        logging.error('SECRET_KEY={}'.format(self.secret_key))
         self.storage_container = client.containers.run(
             'minio/minio',
             command='server /data',
@@ -319,7 +279,7 @@ class minio_storage:
 
     def stop(self):
         if self.storage_container is not None:
-            print('Stopping minio instance at localhost:{}'.format(self.port),file=output_file)
+            logging.error('Stopping minio instance at localhost:{}'.format(self.port))
             self.storage_container.stop()
 
     def get_connection(self):
@@ -345,11 +305,10 @@ class minio_storage:
         bucket_name = '{}-{}'.format(name, str(uuid.uuid4())[0:16])
         try:
             self.connection.make_bucket(bucket_name, location=self.location)
-            print('Created bucket {}'.format(bucket_name),file=output_file)
+            logging.info('Created bucket {}'.format(bucket_name))
             return bucket_name
         except (minio.error.BucketAlreadyOwnedByYou, minio.error.BucketAlreadyExists, minio.error.ResponseError) as err:
-            print('Bucket creation failed!')
-            print(err)
+            logging.error('Bucket creation failed!')
             # rethrow
             raise err
 
@@ -357,8 +316,7 @@ class minio_storage:
         try:
             self.connection.fput_object(bucket, file, filepath)
         except minio.error.ResponseError as err:
-            print('Upload failed!')
-            print(err)
+            logging.error('Upload failed!')
             raise(err)
 
     def clean(self):
@@ -366,7 +324,7 @@ class minio_storage:
             objects = self.connection.list_objects_v2(bucket)
             objects = [obj.object_name for obj in objects]
             for err in self.connection.remove_objects(bucket, objects):
-                print("Deletion Error: {}".format(del_err), file=output_file)
+                logging.error("Deletion Error: {}".format(del_err))
 
     def download_results(self, result_dir):
         result_dir = os.path.join(result_dir, 'storage_output')
@@ -384,7 +342,7 @@ def prepare_input(benchmark, benchmark_path, size):
     sys.path.append(benchmark_path)
     mod = importlib.import_module('input')
     buckets = mod.buckets_count()
-    storage = minio_storage(benchmark, size, buckets)
+    storage = minio_storage(benchmark, buckets)
     # Get JSON and upload data as required by benchmark
     input_config = mod.generate_input(size, storage.input_buckets, storage.output_buckets, storage.uploader_func)
     return input_config, storage
@@ -398,16 +356,16 @@ try:
     verbose = args.verbose
 
     # 1. Create output dir
-    output_dir, output_file = create_output(args.output_dir)
-    print('# Created experiment output at {}'.format(args.output_dir),file=output_file)
+    output_dir = create_output(args.output_dir, args.verbose)
+    logging.info('# Created experiment output at {}'.format(args.output_dir))
 
     # 2. Locate benchmark
     benchmark_path = find_benchmark(args.benchmark)
-    print('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path),file=output_file)
+    logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 3. Build code package
-    code_package, code_size = create_code_package(args.benchmark, benchmark_path, args.language)
-    print('# Created code_package {} of size {}'.format(code_package, code_size),file=output_file)
+    code_package, code_size = create_code_package(args.benchmark, benchmark_path, args.language, args.verbose)
+    logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
 
     # 4. Prepare environment
     # TurboBoost, disable HT, power cap, decide on which cores to use
@@ -436,7 +394,7 @@ try:
 
         containers = [None] * experiment.instances
         os.makedirs(experiment.name, exist_ok=True)
-        print('# Experiment: {} begins.'.format(experiment.name), file=output_file)
+        logging.info('# Experiment: {} begins.'.format(experiment.name))
         experiment.start()
         for i in range(0, experiment.instances):
             # 7. Start docker instance with code and input
@@ -449,16 +407,15 @@ try:
             # 8. Run experiments
             exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment.name), detach=experiment.detach)
             if not experiment.detach:
-                print('# Experiment: {} exit code: {}'.format(experiment.name, exit_code), file=output_file)
+                logging.info('# Experiment: {} exit code: {}'.format(experiment.name, exit_code))
                 if exit_code == 0:
-                    print('Output: ', out.decode('utf-8'), file=output_file)
+                    logging.debug('Output: {}'.format(out.decode('utf-8')))
                 else:
-                    print('# Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
-                    print(exit_code)
+                    logging.error('# Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
+                    logging.error(out.decode('utf-8'))
             else:
                 experiment.finish(i+1)
-                print('Experiment: {} container {} finished.'.format(experiment.name, i), file=output_file)
-        print('\n', file=output_file)
+                logging.info('Experiment: {} container {} finished.'.format(experiment.name, i))
 
         # Summarize experiment
         summary = {}
