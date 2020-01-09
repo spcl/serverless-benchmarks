@@ -66,5 +66,5 @@ if [ -f ${DIR}/init.sh ]; then
   /bin/bash ${DIR}/init.sh $(pwd)/${APP_NAME}.zip $VERBOSE
 fi
 
-zip -qurj ${APP_NAME}.zip "${REPO_DIR}/cloud-frontend/aws/python/runner.py" "${REPO_DIR}/cloud-frontend/aws/python/storage.py"
+zip -qurj ${APP_NAME}.zip "${REPO_DIR}/cloud-frontend/aws/python/handler.py" "${REPO_DIR}/cloud-frontend/aws/python/storage.py"
 logging "Add AWS framework code to ${APP_NAME}.zip"

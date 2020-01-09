@@ -7,8 +7,9 @@ import boto3
 
 class aws:
     client = None
-    location = 'us-east-1'
+    config = None
     storage = None
+    language = None
 
     class s3:
         client = None
@@ -89,13 +90,42 @@ class aws:
         #            self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
         #    
 
-    def __init__(self):
-        self.client = boto3.client('lambda', region_name='us-east-1')
+    def __init__(self, config, language):
+        self.config = config
+        self.language = language
+        self.client = boto3.client('lambda', region_name=config['region'])
 
     def get_storage(self, benchmark, buckets, replace_existing=False):
-        self.storage = aws.s3(self.location, replace_existing)
+        self.storage = aws.s3(self.config['region'], replace_existing)
         self.storage.create_buckets(benchmark, buckets)
         return self.storage
+
+    def create_function(self, code_package, benchmark, memory=128):
+        code_body = open(code_package, 'rb').read()
+        func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
+        # AWS Lambda does not allow hyphens in function names
+        func_name = func_name.replace('-', '_')
+        func_name = func_name.replace('.', '_')
+        # we can either check for exception or use list_functions
+        # there's no API for test
+        try:
+            self.client.get_function(FunctionName=func_name)
+            # if function exists, then update code
+            self.client.update_function_code(
+                FunctionName=func_name,
+                ZipFile=code_body
+            )
+            # and config TODO
+        except self.client.exceptions.ResourceNotFoundException:
+            self.client.create_function(
+                FunctionName=func_name,
+                Runtime=self.config['runtime'][self.language],
+                Handler='handler',
+                Role=self.config['lambda-role'],
+                MemorySize=memory,
+                Code={'ZipFile': code_body}
+            )
+        return func_name
 
     #class s3:
     #    storage_container = None

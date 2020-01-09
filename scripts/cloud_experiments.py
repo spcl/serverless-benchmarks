@@ -2,6 +2,7 @@
 
 import argparse
 import importlib
+import json
 import sys
 
 from experiments_utils import *
@@ -14,19 +15,12 @@ parser.add_argument('language', choices=['python', 'nodejs', 'cpp'],
                     help='Benchmark language')
 parser.add_argument('size', choices=['test', 'small', 'large'],
                     help='Benchmark input test size')
+parser.add_argument('config', type=str, help='Config JSON for provider')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 args = parser.parse_args()
-
-# create cloud object
-if args.cloud == 'aws':
-    from cloud_providers import aws
-    client = aws()
-else:
-    # TODO:
-    pass
 
 def prepare_input(client, benchmark, benchmark_path, size):
     # Look for input generator file in the directory containing benchmark
@@ -37,6 +31,18 @@ def prepare_input(client, benchmark, benchmark_path, size):
     # Get JSON and upload data as required by benchmark
     input_config = mod.generate_input(size, storage.input_buckets, storage.output_buckets, storage.uploader_func)
     return input_config
+
+def import_config(path):
+    return json.load(open(path, 'r'))
+
+# -1. Get provider config and create cloud object
+provider_config = import_config(args.config)
+if args.cloud == 'aws':
+    from cloud_providers import aws
+    client = aws(provider_config, args.language)
+else:
+    # TODO:
+    pass
 
 benchmark_summary = {}
 
@@ -53,16 +59,14 @@ benchmark_path = find_benchmark(args.benchmark)
 logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
 # 3. Build code package
-code_package, code_size = create_code_package(args.benchmark, benchmark_path, args.language, args.verbose)
+code_package, code_size = create_code_package('aws', args.benchmark, benchmark_path, args.language, args.verbose)
 logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
 
 # 5. Prepare benchmark input
 input_config = prepare_input(client, args.benchmark, benchmark_path, args.size)
 
-# create bucket if it does not exist
-# upload data if does not exist
-
-# pack function and deploy
+# 6. Create function if it does not exist
+client.create_function(code_package, args.benchmark)
 
 # get experiment and run
 
