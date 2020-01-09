@@ -43,6 +43,7 @@ REPO_DIR="$(dirname ${REPO_DIR})"
 
 # Update, Recursive, Quiet, Junk (skip relative pathnames)
 CUR_DIR=$(pwd)
+rm -f ${APP_NAME}.zip
 zip -qrj ${APP_NAME}.zip ${DIR}/*.py ${DIR}/requirements.txt
 logging "Run zip -qurj ${APP_NAME}.zip ${DIR}/*.py ${DIR}/requirements.txt"
 
