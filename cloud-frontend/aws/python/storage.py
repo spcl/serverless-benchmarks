@@ -10,12 +10,10 @@ class storage:
         self.client = boto3.client('s3')
     
     def upload(self, bucket, file, filepath):
-        #TODO
-        self.client.put_object(Bucket=bucket, Key=file, Body=filepath)
+        self.client.upload_file(filepath, bucket, file)
     
     def download(self, bucket, file, filepath):
-        #TODO
-        self.client.get_object(Bucket=bucket, Key=file)
+        self.client.download_file(bucket, file, filepath)
     
     def get_instance():
         if storage.instance is None:
