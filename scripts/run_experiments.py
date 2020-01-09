@@ -364,7 +364,7 @@ try:
     logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 3. Build code package
-    code_package, code_size = create_code_package(args.benchmark, benchmark_path, args.language, args.verbose)
+    code_package, code_size = create_code_package('local', args.benchmark, benchmark_path, args.language, args.verbose)
     logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
 
     # 4. Prepare environment

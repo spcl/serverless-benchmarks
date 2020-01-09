@@ -3,7 +3,7 @@ import os
 import subprocess
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-PACK_CODE_APP = 'pack_code.sh'
+PACK_CODE_APP = 'pack_code_{}.sh'
 
 def find(name, path):
     for root, dirs, files in os.walk(path):
@@ -33,9 +33,9 @@ def find_benchmark(benchmark):
         sys.exit(1)
     return benchmark_path
 
-def create_code_package(benchmark, benchmark_path, language, verbose):
+def create_code_package(run, benchmark, benchmark_path, language, verbose):
     output = subprocess.run('{} -b {} -l {} {}'.format(
-            os.path.join(SCRIPT_DIR, PACK_CODE_APP),
+            os.path.join(SCRIPT_DIR, PACK_CODE_APP.format(run)),
             benchmark_path, language,
             '-v' if verbose else ''
         ).split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
