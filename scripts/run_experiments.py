@@ -263,12 +263,12 @@ def find_benchmark(benchmark):
     return benchmark_path
 
 def create_code_package(benchmark, benchmark_path, language):
-    output = os.popen('{} -b {} -l {} {}'.format(
+    output = subprocess.run('{} -b {} -l {} {}'.format(
             os.path.join(SCRIPT_DIR, PACK_CODE_APP),
             benchmark_path, language,
             '-v' if verbose else ''
-        )).read()
-    print(output, file=output_file)
+        ).split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print(output.stdout.decode('utf-8'), file=output_file)
     code_package = '{}.zip'.format(benchmark)
     # measure uncompressed code size with unzip -l
     ret = subprocess.run(['unzip -l {} | awk \'END{{print $1}}\''.format(code_package)], shell=True, stdout = subprocess.PIPE)
@@ -345,7 +345,7 @@ class minio_storage:
         bucket_name = '{}-{}'.format(name, str(uuid.uuid4())[0:16])
         try:
             self.connection.make_bucket(bucket_name, location=self.location)
-            print('Created bucket {}'.format(bucket_name))
+            print('Created bucket {}'.format(bucket_name),file=output_file)
             return bucket_name
         except (minio.error.BucketAlreadyOwnedByYou, minio.error.BucketAlreadyExists, minio.error.ResponseError) as err:
             print('Bucket creation failed!')
@@ -399,12 +399,15 @@ try:
 
     # 1. Create output dir
     output_dir, output_file = create_output(args.output_dir)
+    print('# Created experiment output at {}'.format(args.output_dir),file=output_file)
 
     # 2. Locate benchmark
     benchmark_path = find_benchmark(args.benchmark)
+    print('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path),file=output_file)
 
     # 3. Build code package
     code_package, code_size = create_code_package(args.benchmark, benchmark_path, args.language)
+    print('# Created code_package {} of size {}'.format(code_package, code_size),file=output_file)
 
     # 4. Prepare environment
     # TurboBoost, disable HT, power cap, decide on which cores to use
@@ -422,7 +425,6 @@ try:
         benchmark_config['storage'] = storage_config
     input_config = { 'input' : input_config, 'app': app_config, 'benchmark' : benchmark_config }
 
-
     # 7. Select experiments
     volumes = {}
     enabled_experiments = []
@@ -434,7 +436,7 @@ try:
 
         containers = [None] * experiment.instances
         os.makedirs(experiment.name, exist_ok=True)
-        print('Experiment: {} begins.'.format(experiment.name), file=output_file)
+        print('# Experiment: {} begins.'.format(experiment.name), file=output_file)
         experiment.start()
         for i in range(0, experiment.instances):
             # 7. Start docker instance with code and input
@@ -447,11 +449,11 @@ try:
             # 8. Run experiments
             exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment.name), detach=experiment.detach)
             if not experiment.detach:
-                print('Experiment: {} exit code: {}'.format(experiment.name, exit_code), file=output_file)
+                print('# Experiment: {} exit code: {}'.format(experiment.name, exit_code), file=output_file)
                 if exit_code == 0:
                     print('Output: ', out.decode('utf-8'), file=output_file)
                 else:
-                    print('Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
+                    print('# Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
                     print(exit_code)
             else:
                 experiment.finish(i+1)
@@ -497,5 +499,5 @@ try:
 except Exception as e:
     print(e)
     traceback.print_exc()
-    print('Experiments failed! See {}/out.log for details'.format(output_dir))
+    print('# Experiments failed! See {}/out.log for details'.format(output_dir))
     storage.stop()
