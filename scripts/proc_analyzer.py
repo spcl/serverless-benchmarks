@@ -118,26 +118,31 @@ class continuous_measurement:
     measure_func = None
     postprocess_func = None
     handler = None
+    data = None
 
     def __init__(self, functions, number_of_apps=1):
         self.measure_func = functions['measure']
         self.postprocess_func = functions['postprocess']
 
     def measure(self, PID):
-        samples_counter = 0
-        while self.analyze.is_set():
-            i = 0
-            while i < 5:
-                ret = self.measure_func(PID, samples_counter, self.measurement_directory)
-                if ret is None:
-                    print('Measurements terminated!')
-                    return
-                self.data_queue.put(ret)
-                i += 1
-                samples_counter += 1
-        # in case we didn't get a measurement yet because the app finished too quickly
-        self.measure_func(PID, samples_counter, self.measurement_directory)
-        self.data_queue.put('END')
+        try:
+            samples_counter = 0
+            while self.analyze.is_set():
+                i = 0
+                while i < 5:
+                    ret = self.measure_func(PID, samples_counter, self.measurement_directory)
+                    if ret is None:
+                        print('Measurements terminated!')
+                        return
+                    self.data_queue.put(ret)
+                    i += 1
+                    samples_counter += 1
+            # in case we didn't get a measurement yet because the app finished too quickly
+            self.measure_func(PID, samples_counter, self.measurement_directory)
+        except Exception as err:
+            print(err)
+        finally:
+            self.data_queue.put('END')
 
     def start(self, req):
         uuid = req['uuid']
@@ -149,16 +154,15 @@ class continuous_measurement:
     def stop(self, req):
         # notify the end of measurement
         self.analyze.clear()
+        self.data = []
+        # make sure that we get everything
+        for v in iter(self.data_queue.get, 'END'):
+            self.data.append(v)
         # wait for measurements to finish before ending
         self.handler.join()
     
     def get_data(self):
-        data = []
-        # make sure that we get everything
-        for v in iter(self.data_queue.get, 'END'):
-            data.append(v)
-        self.postprocess_func(data, self.measurement_directory)
-        return data
+        return self.data
 
     def cleanup(self):
         self.measurement_directory.cleanup()

@@ -10,7 +10,7 @@ def get_runner(experiment, options=None):
     runners = {
         'papi' : 'papi-runner.py',
         'time' : {'warm' : 'time-in-proc.py', 'cold' : 'time-out-proc.py'},
-        'mem': 'analyzer-runner.py',
+        'memory': 'analyzer-runner.py',
         'disk-io': 'analyzer-runner.py',
         'config': 'config.py'
     }

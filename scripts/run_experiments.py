@@ -54,12 +54,36 @@ class docker_experiment:
     docker_volumes = {}
     detach = False
     result_path = None
+    json_file = None
 
     # if more than one instance of app, then we need to detach from running containers
-    def __init__(self, instances, experiment_type):
+    def __init__(self, instances, name, experiment_type, input_config, option=None, additional_cfg=None):
         self.instances = instances
         self.detach = instances > 1
         self.experiment_type = experiment_type
+        self.name = name
+
+        self.json_file = '{}.json'.format(self.name)
+        with open(self.json_file, 'w') as f:
+            experiment = {
+                'language': 'python',
+                'name': self.name,
+                'type': self.experiment_type,
+            }
+            if option is not None:
+                experiment['experiment_options'] = option
+            cfg_copy = copy.deepcopy(input_config)
+            cfg_copy['benchmark'].update(experiment)
+            if additional_cfg is not None:
+                cfg_copy['benchmark'].update(additional_cfg)
+            json.dump(cfg_copy, f, indent=2)
+            self.config = cfg_copy
+
+    def get_docker_volumes(self, output_dir):
+        return {
+                os.path.join(output_dir, self.json_file):
+                {'bind': os.path.join(HOME_DIR, self.json_file), 'mode': 'ro'}
+            }
 
     # result is copied from Docker or created locally by analyzers
     # provide path to analyzer result OR find all csv files copied from Docker
@@ -75,8 +99,15 @@ class analyzer_experiment(docker_experiment):
     output_file = None
     proc = None
 
-    def __init__(self, instances, experiment_type, port):
-        docker_experiment.__init__(self, instances, experiment_type)
+    def __init__(self, instances, name, experiment_type, input_config, port, option=None):
+        additional_cfg = {
+            'analyzer': {
+                'participants' : instances,
+                'analyzer_ip': 'localhost:{}'.format(port),
+            }
+        }
+        docker_experiment.__init__(self, instances, name, experiment_type,
+                input_config, option, additional_cfg)
         self.port = port
         self.output_file = output_file
 
@@ -127,119 +158,69 @@ class analyzer_experiment(docker_experiment):
                 data = response.read()
                 values = json.loads(data)['apps']
 
-def run_experiment_time(output_dir, input_config):
+def run_experiment_time(input_config):
     experiments = []
     for option in ['warm', 'cold']:
-        exp = docker_experiment(1, 'time')
-        exp.name = 'time_{}'.format(option)
-        file_name = '{}.json'.format(exp.name)
-        with open(file_name, 'w') as f:
-            experiment = {
-                'language': 'python',
-                'name': exp.name,
-                'type': 'time',
-                'experiment_options': option
-            }
-            cfg_copy = copy.deepcopy(input_config)
-            cfg_copy['benchmark'].update(experiment)
-            json.dump(cfg_copy, f, indent=2)
-            exp.config = cfg_copy
-        exp.docker_volumes[os.path.join(output_dir, file_name)] = {
-                    'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
-                }
-        experiments.append(exp)
+        experiments.append(docker_experiment(
+                instances=1,
+                name='time_{}'.format(option),
+                experiment_type='time',
+                input_config=input_config,
+                option=option
+            ))
     return experiments
 
-def run_experiment_papi_ipc(output_dir, input_config):
+def run_experiment_papi_ipc(input_config):
     experiments = []
-    exp = docker_experiment(1, 'papi')
-    exp.name = 'ipc_papi'
-    file_name = '{}.json'.format(exp.name)
-    with open(file_name, 'w') as f:
-        experiment = {
-            'language': 'python',
-            'name': 'ipc_papi',
-            'type': 'papi',
+    experiments.append(docker_experiment(
+        instances=1,
+        name='ipc_papi',
+        experiment_type='papi',
+        input_config=input_config,
+        additional_cfg={
             'papi': {
                 'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_LST_INS'],
                 'overflow_instruction_granularity' : 1e6,
                 'overflow_buffer_size': 1e5
             }
         }
-        cfg_copy = copy.deepcopy(input_config)
-        cfg_copy['benchmark'].update(experiment)
-        json.dump(cfg_copy, f, indent=2)
-        exp.config = cfg_copy
-    exp.docker_volumes[os.path.join(output_dir, file_name)] = {
-            'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
-        }
-    experiments.append(exp)
+    ))
     return experiments
  
-def run_experiment_mem(output_dir, input_config):
+def run_experiment_mem(input_config):
     experiments = []
-    name = ['mem-single', 'mem-multiple']
-    #TODO: port detection
-    base_port = [8081, 8082]
-    apps = [1, 10]
-    exp_type = 'mem'
-    for i in range(0, len(apps)):
-        exp = analyzer_experiment(apps[i], 'memory', base_port[i])
-        exp.name = name[i]
-        file_name = '{}.json'.format(exp.name)
-        with open(file_name, 'w') as f:
-            experiment = {
-                'language': 'python',
-                'name': name[i],
-                'type': exp_type,
-                'repetitions': 1,
-                'disable_gc': False,
-                'analyzer': {
-                    'participants' : exp.instances,
-                    'analyzer_ip': 'localhost:{}'.format(base_port[i]),
-                }
-            }
-            cfg_copy = copy.deepcopy(input_config)
-            cfg_copy['benchmark'].update(experiment)
-            json.dump(cfg_copy, f, indent=2)
-            exp.config = cfg_copy
-        exp.docker_volumes[os.path.join(output_dir, file_name)] = {
-                    'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
-                }
-        experiments.append(exp)
+    experiments.append(analyzer_experiment(
+        instances=1,
+        name='mem-single',
+        experiment_type='memory',
+        input_config=input_config,
+        port=8081
+    ))
+    #experiments.append(analyzer_experiment(
+    #    instances=10,
+    #    name='mem-multiple',
+    #    experiment_type='memory',
+    #    input_config=input_config,
+    #    port=8081
+    #))
     return experiments
 
-def run_experiment_disk_io(output_dir, input_config):
-    exp = analyzer_experiment(1, 'disk-io', 8081)
-    exp.name = 'disk-io'
-    file_name = '{}.json'.format(exp.name)
-    with open(file_name, 'w') as f:
-        experiment = {
-            'language': 'python',
-            'name': exp.name,
-            'type': 'disk-io',
-            'repetitions': 1,
-            'disable_gc': False,
-            'analyzer': {
-                'participants' : exp.instances,
-                'analyzer_ip': 'localhost:{}'.format(exp.port),
-            }
-        }
-        cfg_copy = copy.deepcopy(input_config)
-        cfg_copy['benchmark'].update(experiment)
-        json.dump(cfg_copy, f, indent=2)
-        exp.config = cfg_copy
-    exp.docker_volumes[os.path.join(output_dir, file_name)] = {
-            'bind': os.path.join(HOME_DIR, file_name), 'mode': 'ro'
-        }
-    cfg_copy = copy.deepcopy(input_config)
-    return [exp]
+def run_experiment_disk_io(input_config):
+    experiments = []
+    experiments.append(analyzer_experiment(
+        instances=1,
+        name='disk-io',
+        experiment_type='disk-io',
+        input_config=input_config,
+        port=8081
+    ))
+    return experiments
 
 experiments = {
         'time' : run_experiment_time,
         'papi' : run_experiment_papi_ipc,
         'memory' : run_experiment_mem,
-        'disk_io' : run_experiment_disk_io
+        'disk-io' : run_experiment_disk_io
         }
 experiments['all'] = list(experiments.values())
 output_file = None
@@ -251,7 +232,7 @@ parser.add_argument('benchmark', type=str, help='Benchmark name')
 parser.add_argument('output_dir', type=str, help='Output dir')
 parser.add_argument('language', choices=['python', 'nodejs', 'cpp'],
                     help='Benchmark language')
-parser.add_argument('experiment', choices=['time', 'papi', 'memory', 'disk_io', 'all'],
+parser.add_argument('experiment', choices=['time', 'papi', 'memory', 'disk-io', 'all'],
                     help='Benchmark language')
 parser.add_argument('size', choices=['test', 'small', 'large'],
                     help='Benchmark input test size')
@@ -446,11 +427,10 @@ try:
     volumes = {}
     enabled_experiments = []
     for ex_func in iterable(experiments[args.experiment]):
-        enabled_experiments.extend( ex_func(output_dir, input_config) )
+        enabled_experiments.extend( ex_func(input_config) )
 
     # 8. Start measurement processes
     for experiment in enabled_experiments:
-    #for experiment, count, cleanup, cfg_copy, detach, wait_f in enabled_experiments:
 
         containers = [None] * experiment.instances
         os.makedirs(experiment.name, exist_ok=True)
@@ -458,7 +438,11 @@ try:
         experiment.start()
         for i in range(0, experiment.instances):
             # 7. Start docker instance with code and input
-            containers[i] = run_container(client, {**volumes, **experiment.docker_volumes}, os.path.join(output_dir, code_package))
+            containers[i] = run_container(
+                client,
+                {**volumes, **experiment.get_docker_volumes(output_dir)},
+                os.path.join(output_dir, code_package)
+            )
        
             # 8. Run experiments
             exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment.name), detach=experiment.detach)
@@ -514,3 +498,4 @@ except Exception as e:
     print(e)
     traceback.print_exc()
     print('Experiments failed! See {}/out.log for details'.format(output_dir))
+    storage.stop()
