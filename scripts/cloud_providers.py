@@ -120,12 +120,29 @@ class aws:
             self.client.create_function(
                 FunctionName=func_name,
                 Runtime=self.config['runtime'][self.language],
-                Handler='handler',
+                Handler='handler.handler',
                 Role=self.config['lambda-role'],
                 MemorySize=memory,
                 Code={'ZipFile': code_body}
             )
         return func_name
+
+    def invoke(self, name, payload):
+        ret = self.client.invoke(
+            FunctionName=name,
+            Payload=payload
+        )
+        if ret['StatusCode'] != 200:
+            logging.error('Invocation of {} failed!'.format(name))
+            logging.error('Input: {}'.format(payload.decode('utf-8')))
+            raise RuntimeError()
+        if 'FunctionError' in ret:
+            logging.error('Invocation of {} failed!'.format(name))
+            logging.error('Input: {}'.format(payload.decode('utf-8')))
+            raise RuntimeError()
+        ret = ret['Payload'].read().decode('utf-8')
+        exec_time = ret['time']
+        message = ret['message']
 
     #class s3:
     #    storage_container = None

@@ -4,6 +4,7 @@ import argparse
 import importlib
 import json
 import sys
+import traceback
 
 from experiments_utils import *
 
@@ -44,30 +45,41 @@ else:
     # TODO:
     pass
 
-benchmark_summary = {}
+try:
+    benchmark_summary = {}
 
-# 0. Input args
-args = parser.parse_args()
-verbose = args.verbose
+    # 0. Input args
+    args = parser.parse_args()
+    verbose = args.verbose
 
-# 1. Create output dir
-output_dir = create_output(args.output_dir, args.verbose)
-logging.info('# Created experiment output at {}'.format(args.output_dir))
+    # 1. Create output dir
+    output_dir = create_output(args.output_dir, args.verbose)
+    logging.info('# Created experiment output at {}'.format(args.output_dir))
 
-# 2. Locate benchmark
-benchmark_path = find_benchmark(args.benchmark)
-logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
+    # 2. Locate benchmark
+    benchmark_path = find_benchmark(args.benchmark)
+    logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
-# 3. Build code package
-code_package, code_size = create_code_package('aws', args.benchmark, benchmark_path, args.language, args.verbose)
-logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
+    # 3. Build code package
+    code_package, code_size = create_code_package('aws', args.benchmark, benchmark_path, args.language, args.verbose)
+    logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
 
-# 5. Prepare benchmark input
-input_config = prepare_input(client, args.benchmark, benchmark_path, args.size)
+    # 5. Prepare benchmark input
+    input_config = prepare_input(client, args.benchmark, benchmark_path, args.size)
+    input_config_bytes = json.dumps(input_config).encode('utf-8')
 
-# 6. Create function if it does not exist
-client.create_function(code_package, args.benchmark)
+    # 6. Create function if it does not exist
+    func = client.create_function(code_package, args.benchmark)
+    logging.info('# Create/update function {} from {} of size {}'.format(func, code_package, code_size))
 
-# get experiment and run
+    # 7. Invoke!
+    client.invoke(func, input_config_bytes)
 
-# get metrics
+    # get experiment and run
+
+    # get metrics
+
+except Exception as e:
+    print(e)
+    traceback.print_exc()
+    print('# Experiments failed! See {}/out.log for details'.format(output_dir))
