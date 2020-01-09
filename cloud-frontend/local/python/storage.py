@@ -1,7 +1,7 @@
 import os
 import minio
 
-class minio_wrapper:
+class storage:
     instance = None
     client = None
 
@@ -23,7 +23,7 @@ class minio_wrapper:
         self.client.fget_object(bucket, file, filepath)
 
     def get_instance():
-        if minio_wrapper.instance is None:
-            minio_wrapper.instance = minio_wrapper()
-        return minio_wrapper.instance
+        if storage.instance is None:
+            storage.instance = storage()
+        return storage.instance
 
