@@ -4,9 +4,8 @@ import uuid
 from urllib.parse import unquote_plus
 from PIL import Image
 
-#TODO: abstract API
-from storage import minio_wrapper
-client = minio_wrapper.get_instance()
+from storage import storage
+client = storage.get_instance()
 
 def resize_image(image_path, resized_path):
     with Image.open(image_path) as image:
