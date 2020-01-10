@@ -10,9 +10,9 @@ def handler(event):
     # start timing
     name = event.get('username')
     size = event.get('random_len')
-    cur_time = datetime.now()                                                   
-    random_numbers = sample(range(0, 100), 10)                                  
-    template = Template( open('templates/template.html', 'r').read())           
+    cur_time = datetime.now()
+    random_numbers = sample(range(0, 100), size)
+    template = Template( open('templates/template.html', 'r').read())
     html = template.render(username = name, cur_time = cur_time, random_numbers = random_numbers)
     # end timing
     # dump stats 
