@@ -6,7 +6,18 @@ if [ ! -d ${env_dir} ]; then
   python3 -mvenv ${env_dir}
   source ${env_dir}/bin/activate
   echo 'Install docker package for python'
-  pip3 install docker wheel bottle waitress minio
+  pip3 install docker wheel bottle waitress minio nodeenv
+  # aws
+  pip3 install boto3
+fi
+
+
+# node
+env_dir=sebs-nodeenv
+if [ ! -d ${env_dir} ]; then
+  nodeenv ${env_dir} 
+  source ${env_dir}/bin/activate
+  npm install -g serverless
 fi
 
 git submodule update --init --recursive

@@ -1,4 +1,7 @@
 
+import base64
+import datetime
+import json
 import logging
 import uuid
 
@@ -100,7 +103,7 @@ class aws:
         self.storage.create_buckets(benchmark, buckets)
         return self.storage
 
-    def create_function(self, code_package, benchmark, memory=128):
+    def create_function(self, code_package, benchmark, memory=2048):
         code_body = open(code_package, 'rb').read()
         func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
         # AWS Lambda does not allow hyphens in function names
@@ -110,6 +113,7 @@ class aws:
         # there's no API for test
         try:
             self.client.get_function(FunctionName=func_name)
+            logging.info('Updating code of function {} from'.format(func_name, code_package))
             # if function exists, then update code
             self.client.update_function_code(
                 FunctionName=func_name,
@@ -117,21 +121,27 @@ class aws:
             )
             # and config TODO
         except self.client.exceptions.ResourceNotFoundException:
+            logging.info('Creating function function {} from {}'.format(func_name, code_package))
             self.client.create_function(
                 FunctionName=func_name,
                 Runtime=self.config['runtime'][self.language],
                 Handler='handler.handler',
                 Role=self.config['lambda-role'],
                 MemorySize=memory,
+                Timeout=100,
                 Code={'ZipFile': code_body}
             )
         return func_name
 
     def invoke(self, name, payload):
+
+        begin = datetime.datetime.now()
         ret = self.client.invoke(
             FunctionName=name,
-            Payload=payload
+            Payload=payload,
+            LogType='Tail'
         )
+        end = datetime.datetime.now()
         if ret['StatusCode'] != 200:
             logging.error('Invocation of {} failed!'.format(name))
             logging.error('Input: {}'.format(payload.decode('utf-8')))
@@ -140,9 +150,17 @@ class aws:
             logging.error('Invocation of {} failed!'.format(name))
             logging.error('Input: {}'.format(payload.decode('utf-8')))
             raise RuntimeError()
-        ret = ret['Payload'].read().decode('utf-8')
-        exec_time = ret['time']
-        message = ret['message']
+        log = base64.b64decode(ret['LogResult'])
+        vals = {}
+        for line in log.decode('utf-8').split('\t'):
+            if not line.isspace():
+                split = line.split(':')
+                vals[split[0]] = split[1].split()[0]
+        ret = json.loads(ret['Payload'].read().decode('utf-8'))
+        vals['function_time'] = ret['time']
+        vals['client_time'] = (end - begin) / datetime.timedelta(microseconds=1)
+        vals['message'] = ret['message']
+        return vals
 
     #class s3:
     #    storage_container = None

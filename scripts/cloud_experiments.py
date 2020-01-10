@@ -1,6 +1,7 @@
 #!python3
 
 import argparse
+import datetime
 import importlib
 import json
 import sys
@@ -70,14 +71,19 @@ try:
 
     # 6. Create function if it does not exist
     func = client.create_function(code_package, args.benchmark)
-    logging.info('# Create/update function {} from {} of size {}'.format(func, code_package, code_size))
 
     # 7. Invoke!
-    client.invoke(func, input_config_bytes)
+    ret = client.invoke(func, input_config_bytes)
+    print(ret)
 
     # get experiment and run
 
     # get metrics
+    #print(client.get_metric_data(
+    #    MetricDataQueries,
+    #    StartTime=datetime(2020, 1, 9),
+    #    EndTime=datetime(2015, 1, 10),
+    #))
 
 except Exception as e:
     print(e)
