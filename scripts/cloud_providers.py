@@ -103,7 +103,7 @@ class aws:
         self.storage.create_buckets(benchmark, buckets)
         return self.storage
 
-    def create_function(self, code_package, benchmark, memory=2048):
+    def create_function(self, code_package, benchmark, memory=128, timeout=10):
         code_body = open(code_package, 'rb').read()
         func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
         # AWS Lambda does not allow hyphens in function names
@@ -119,7 +119,12 @@ class aws:
                 FunctionName=func_name,
                 ZipFile=code_body
             )
-            # and config TODO
+            # and update config
+            self.client.update_function_configuration(
+                FunctionName=func_name,
+                Timeout=timeout,
+                MemorySize=memory
+            )
         except self.client.exceptions.ResourceNotFoundException:
             logging.info('Creating function function {} from {}'.format(func_name, code_package))
             self.client.create_function(
@@ -128,7 +133,7 @@ class aws:
                 Handler='handler.handler',
                 Role=self.config['lambda-role'],
                 MemorySize=memory,
-                Timeout=100,
+                Timeout=timeout,
                 Code={'ZipFile': code_body}
             )
         return func_name

@@ -62,7 +62,7 @@ try:
     logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 3. Build code package
-    code_package, code_size = create_code_package('aws', args.benchmark, benchmark_path, args.language, args.verbose)
+    code_package, code_size, config = create_code_package('aws', args.benchmark, benchmark_path, args.language, args.verbose)
     logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
 
     # 5. Prepare benchmark input
@@ -70,7 +70,8 @@ try:
     input_config_bytes = json.dumps(input_config).encode('utf-8')
 
     # 6. Create function if it does not exist
-    func = client.create_function(code_package, args.benchmark)
+    func = client.create_function(code_package, args.benchmark,
+            config['memory'], config['timeout'])
 
     # 7. Invoke!
     ret = client.invoke(func, input_config_bytes)

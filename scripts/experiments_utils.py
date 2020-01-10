@@ -1,4 +1,5 @@
 import logging
+import json
 import os
 import subprocess
 
@@ -34,6 +35,9 @@ def find_benchmark(benchmark):
     return benchmark_path
 
 def create_code_package(run, benchmark, benchmark_path, language, verbose):
+    config = json.load(open(os.path.join(benchmark_path, 'config.json')))
+    if language not in config['languages']:
+        raise RuntimeError('Benchmark {} not available for language {}'.format(benchmark, language))
     output = subprocess.run('{} -b {} -l {} {}'.format(
             os.path.join(SCRIPT_DIR, PACK_CODE_APP.format(run)),
             benchmark_path, language,
@@ -46,4 +50,4 @@ def create_code_package(run, benchmark, benchmark_path, language, verbose):
     if ret.returncode != 0:
         raise RuntimeError('Code size measurement failed: {}'.format(ret.stdout.decode('utf-8')))
     code_size = int(ret.stdout.decode('utf-8'))
-    return code_package, code_size
+    return code_package, code_size, config
