@@ -11,13 +11,11 @@ if [ ! -d ${env_dir} ]; then
   pip3 install boto3
 fi
 
-
 # node
 env_dir=sebs-nodeenv
 if [ ! -d ${env_dir} ]; then
-  nodeenv ${env_dir} 
+  nodeenv ${env_dir}
   source ${env_dir}/bin/activate
-  npm install -g serverless
 fi
 
 git submodule update --init --recursive
