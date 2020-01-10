@@ -18,7 +18,12 @@ exports.handler = async function(event, context) {
   };
 
   var file = path.join('templates', 'template.html');
-  var data = fs.readFileSync(file, "utf-8");
-  var output = Mustache.render(data, input);
-  return output;
+  return new Promise((resolve, reject) => {
+    fs.readFile(file, "utf-8",
+      function(err, data) {
+        if(err) throw(err);
+        resolve(Mustache.render(data, input));
+      }
+    );
+  });
 };
