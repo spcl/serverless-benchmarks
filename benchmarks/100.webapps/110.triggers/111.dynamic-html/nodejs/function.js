@@ -6,7 +6,7 @@ function random(b, e) {
 	return Math.round(Math.random() * (e - b) + b);
 }
 
-exports.handler = async function(event, context) {
+exports.handler = async function(event) {
   var random_numbers = new Array(event.random_len);
   for(var i = 0; i < event.random_len; ++i) {
     random_numbers[i] = random(0, 100);
@@ -21,7 +21,7 @@ exports.handler = async function(event, context) {
   return new Promise((resolve, reject) => {
     fs.readFile(file, "utf-8",
       function(err, data) {
-        if(err) throw(err);
+        if(err) reject(err);
         resolve(Mustache.render(data, input));
       }
     );
