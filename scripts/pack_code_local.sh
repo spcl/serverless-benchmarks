@@ -27,7 +27,7 @@ fi
 DIR=$(readlink -f $b)
 if [ ! -d "${DIR}" ]; then
   echo "Benchmark directory ${DIR} does not exist!"
-  exist
+  exit
 fi
 
 logging() {
@@ -38,7 +38,7 @@ logging() {
 
 APP_NAME=$(basename "${DIR}")
 DIR="${DIR}/${l}"
-DOCKER_IMG="sebs-local-python"
+DOCKER_IMG="sebs-local-${l}"
 REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 REPO_DIR="$(dirname ${REPO_DIR})"
 
@@ -65,34 +65,39 @@ fi
 # Update, Recursive, Quiet, Junk (skip relative pathnames)
 CUR_DIR=$(pwd)
 rm -f ${APP_NAME}.zip
-zip -qurj ${APP_NAME}.zip ${DIR}/*.py ${DIR}/requirements.txt
-logging "Run zip -qurj ${APP_NAME}.zip ${DIR}/*.py ${DIR}/requirements.txt"
-
-## Add data
-## Preserve directory in zip file
-#if [ -d ${DIR}/data ]; then
-#  mkdir -p .tmp_data
-#  pushd .tmp_data > /dev/null
-#  ln -s ${DIR}/data
-#  zip -qur ${CUR_DIR}/${APP_NAME}.zip data
-#  popd > /dev/null
-#  rm -rf .tmp_data
-#fi
-
-# Install PIP packages, if required
-if [ -f ${DIR}/requirements.txt ]; then
-  # Install PIP packages and pack
-  # Workaround for Ubuntu - --user options is provided by default
-  # and clashses with target
-  # https://github.com/pypa/pip/issues/3826
-  pip3 -q install -r ${DIR}/requirements.txt --system -t .packages
-  pushd .packages > /dev/null
-  # Update, Recursive, Quiet
-  zip -qr ${CUR_DIR}/${APP_NAME}.zip *
-  popd > /dev/null
-  rm -rf .packages
+if [ ${l} == "python" ]; then
+  zip -qurj ${APP_NAME}.zip ${DIR}/*.py ${DIR}/requirements.txt
+  logging "Run zip -qurj ${APP_NAME}.zip ${DIR}/*.py ${DIR}/requirements.txt"
 fi
-echo "Created code ZIP ${APP_NAME}.zip"
+if [ ${l} == "nodejs" ]; then
+  zip -qurj ${APP_NAME}.zip ${DIR}/*.js ${DIR}/package.json
+  logging "Run zip -qurj ${APP_NAME}.zip ${DIR}/*.js ${DIR}/package.json"
+fi
+
+if [ ${l} == "python" ]; then
+  # Install PIP packages, if required
+  if [ -f ${DIR}/requirements.txt ]; then
+    # Install PIP packages and pack
+    # Workaround for Ubuntu - --user options is provided by default
+    # and clashses with target
+    # https://github.com/pypa/pip/issues/3826
+    pip3 -q install -r ${DIR}/requirements.txt --system -t .packages
+    pushd .packages > /dev/null
+    # Update, Recursive, Quiet
+    zip -qr ${CUR_DIR}/${APP_NAME}.zip *
+    popd > /dev/null
+    rm -rf .packages
+  fi
+  echo "Created code ZIP ${APP_NAME}.zip"
+elif [ ${l} == "nodejs" ]; then
+  if [ -f ${DIR}/package.json ]; then
+    cp ${DIR}/package.json .
+    npm install 
+    zip -qr ${APP_NAME}.zip node_modules
+    rm -rf node_modules package.json
+  fi
+  echo "Created code ZIP ${APP_NAME}.zip"
+fi
 
 # Add additional binaries, if required
 if [ -f ${DIR}/init.sh ]; then
