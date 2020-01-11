@@ -45,4 +45,4 @@ experiment_data['repetitions'] = repetitions
 experiment_data['timestamps'] = process_timestamps(timedata)
 experiment_data['start'] = str(start)
 experiment_data['end'] = str(end)
-print(json.dumps({'experiment': experiment_data, 'runtime': get_config()}, indent=2))
+print(json.dumps({'experiment': experiment_data, 'runtime': ""}, indent=2))#get_config()}, indent=2))

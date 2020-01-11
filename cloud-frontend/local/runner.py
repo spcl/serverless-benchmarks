@@ -4,20 +4,20 @@ from utils import *
 
 def get_language(lang):
     languages = {'python': 'python3', 'nodejs': 'nodejs'}
-    return [languages[lang]]
+    return languages[lang]
 
 def get_runner(experiment, options=None):
-    runners = {
-        'papi' : 'papi-runner.py',
-        'time' : {'warm' : 'time-in-proc.py', 'cold' : 'time-out-proc.py'},
-        'memory': 'analyzer-runner.py',
-        'disk-io': 'analyzer-runner.py',
-        'config': 'config.py'
-    }
-    return [runners[experiment][options] if options is not None else runners[experiment]]
+    runners = json.load(open('runners.json', 'r'))
+    return runners[experiment][options] if options is not None else runners[experiment]
 
 def get_runner_cmd(lang, experiment, options):
-    return get_language(lang) + get_runner(experiment, options)
+    executable = get_language(lang)
+    script = get_runner(experiment, options)
+    script_name, extension = os.path.splitext(script)
+    # Out-of-proc measurements don't require languge-specific implementations
+    if extension == '.py':
+        executable = get_language('python')
+    return [executable, script]
 
 def export_storage_config(config):
     if config is not None:

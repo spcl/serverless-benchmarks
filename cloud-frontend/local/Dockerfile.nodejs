@@ -12,9 +12,10 @@ RUN deps=''\
 
 USER ${USER}:${USER}
 COPY --chown=${USER}:${USER} *.py ${HOME}/
-COPY --chown=${USER}:${USER} *.js ${HOME}/
 COPY --chown=${USER}:${USER} run.sh .
-COPY --chown=${USER}:${USER} timeit.sh .
+COPY --chown=${USER}:${USER} nodejs/*.js ${HOME}/
+COPY --chown=${USER}:${USER} nodejs/timeit.sh .
+COPY --chown=${USER}:${USER} nodejs/runners.json .
 
 # pypapi dependnecy
 RUN chmod +x ${HOME}/run.sh\
