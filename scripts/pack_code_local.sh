@@ -92,7 +92,7 @@ if [ ${l} == "python" ]; then
 elif [ ${l} == "nodejs" ]; then
   if [ -f ${DIR}/package.json ]; then
     cp ${DIR}/package.json .
-    npm install 
+    npm install > /dev/null
     zip -qr ${APP_NAME}.zip node_modules
     rm -rf node_modules package.json
   fi
