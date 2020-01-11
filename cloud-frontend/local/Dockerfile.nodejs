@@ -1,0 +1,22 @@
+FROM node:13.6-slim
+ENV USER=node
+ENV HOME=/home/${USER}
+
+WORKDIR ${HOME}
+# must be run as root for some reason
+RUN deps=''\
+  && apt-get update\
+  && apt-get install -y unzip curl python3 ${deps}\
+  && apt-get purge -y --auto-remove ${deps}\
+  && npm install -g minio
+
+USER ${USER}:${USER}
+COPY --chown=${USER}:${USER} *.py ${HOME}/
+COPY --chown=${USER}:${USER} *.js ${HOME}/
+COPY --chown=${USER}:${USER} run.sh .
+COPY --chown=${USER}:${USER} timeit.sh .
+
+# pypapi dependnecy
+RUN chmod +x ${HOME}/run.sh\
+    && mkdir ${HOME}/results\
+    && mkdir ${HOME}/logs
