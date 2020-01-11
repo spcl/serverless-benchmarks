@@ -20,18 +20,28 @@ from functools import partial
 
 from experiments_utils import *
 
-HOME_DIR = '/home/docker_user'
+EXPERIMENTS = {
+    "experiments": {
+      "python": ["papi", "time", "disk-io", "memory"],
+      "nodejs": ["time"]
+    },
+    "home": {
+      "python": "/home/docker_user",
+      "nodejs": "/home/node"
+    }
+}
 
 def iterable(val):
     return val if isinstance(val, collections.Iterable) else [val, ]
 
-def run_container(client, volumes, code_package):
+def run_container(client, language, volumes, code_package):
+    home_dir = EXPERIMENTS['home'][language]
     return client.containers.run(
-            'sebs-local-python',
+            'sebs-local-{}'.format(language),
             command='/bin/bash',
             volumes = {
                 **volumes,
-                code_package : {'bind': os.path.join(HOME_DIR, 'code.zip'), 'mode': 'ro'}
+                code_package : {'bind': os.path.join(home_dir, 'code.zip'), 'mode': 'ro'}
             },
             # required to access perf counters
             # alternative: use custom seccomp profile
@@ -55,18 +65,20 @@ class docker_experiment:
     detach = False
     result_path = None
     json_file = None
+    language = None
 
     # if more than one instance of app, then we need to detach from running containers
-    def __init__(self, instances, name, experiment_type, input_config, option=None, additional_cfg=None):
+    def __init__(self, instances, name, experiment_type,
+            input_config, option=None, additional_cfg=None):
         self.instances = instances
         self.detach = instances > 1
         self.experiment_type = experiment_type
         self.name = name
+        self.language = input_config['benchmark']['language']
 
         self.json_file = '{}.json'.format(self.name)
         with open(self.json_file, 'w') as f:
             experiment = {
-                'language': 'python',
                 'name': self.name,
                 'type': self.experiment_type,
             }
@@ -80,9 +92,10 @@ class docker_experiment:
             self.config = cfg_copy
 
     def get_docker_volumes(self, output_dir):
+        home_dir = EXPERIMENTS['home'][self.language]
         return {
                 os.path.join(output_dir, self.json_file):
-                {'bind': os.path.join(HOME_DIR, self.json_file), 'mode': 'ro'}
+                {'bind': os.path.join(home_dir, self.json_file), 'mode': 'ro'}
             }
 
     # result is copied from Docker or created locally by analyzers
@@ -157,7 +170,7 @@ class analyzer_experiment(docker_experiment):
 
 def run_experiment_time(input_config):
     experiments = []
-    for option in ['warm', 'cold']:
+    for option in ['cold']: #warm', 'cold']:
         experiments.append(docker_experiment(
                 instances=1,
                 name='time_{}'.format(option),
@@ -193,13 +206,13 @@ def run_experiment_mem(input_config):
         input_config=input_config,
         port=8081
     ))
-    #experiments.append(analyzer_experiment(
-    #    instances=10,
-    #    name='mem-multiple',
-    #    experiment_type='memory',
-    #    input_config=input_config,
-    #    port=8081
-    #))
+    experiments.append(analyzer_experiment(
+        instances=10,
+        name='mem-multiple',
+        experiment_type='memory',
+        input_config=input_config,
+        port=8081
+    ))
     return experiments
 
 def run_experiment_disk_io(input_config):
@@ -221,6 +234,7 @@ experiments = {
         }
 experiments['all'] = list(experiments.values())
 client = docker.from_env()
+storage = None
 verbose = False
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
@@ -234,6 +248,8 @@ parser.add_argument('size', choices=['test', 'small', 'large'],
                     help='Benchmark input test size')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
+parser.add_argument('--config', action='store', default='config/experiments.json',
+                    type=str, help='Experiments config file')
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 
@@ -354,17 +370,34 @@ try:
     # 0. Input args
     args = parser.parse_args()
     verbose = args.verbose
+    experiment_config = json.load(open(args.config, 'r'))
 
     # 1. Create output dir
     output_dir = create_output(args.output_dir, args.verbose)
     logging.info('# Created experiment output at {}'.format(args.output_dir))
+
+    # Verify if the experiment is supported for the language
+    supported_experiments = experiment_config['local']['experiments'][args.language]
+    if args.experiment != 'all':
+        selected_experiments = [args.experiment]
+    else:
+        selected_experiments = list(experiments.keys())
+        selected_experiments.remove('all')
+    if any(val not in supported_experiments for val in selected_experiments):
+        raise RuntimeError('Experiment {} is not supported for language {}!'.format(args.experiment, args.language))
 
     # 2. Locate benchmark
     benchmark_path = find_benchmark(args.benchmark)
     logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 3. Build code package
-    code_package, code_size = create_code_package('local', args.benchmark, benchmark_path, args.language, args.verbose)
+    code_package, code_size, config = create_code_package(
+            run='local',
+            benchmark=args.benchmark,
+            benchmark_path=benchmark_path,
+            language=args.language,
+            verbose=args.verbose
+    )
     logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
 
     # 4. Prepare environment
@@ -378,10 +411,16 @@ try:
     benchmark_config = {}
     benchmark_config['repetitions'] = args.repetitions
     benchmark_config['disable_gc'] = True
+    benchmark_config['language'] = args.language
     storage_config = storage.config_to_json()
     if storage_config:
         benchmark_config['storage'] = storage_config
-    input_config = { 'input' : input_config, 'app': app_config, 'benchmark' : benchmark_config }
+    input_config = {
+        'input' : input_config,
+        'app': app_config,
+        'benchmark' : benchmark_config,
+        'experiment_config': experiment_config
+    }
 
     # 7. Select experiments
     volumes = {}
@@ -399,7 +438,7 @@ try:
         for i in range(0, experiment.instances):
             # 7. Start docker instance with code and input
             containers[i] = run_container(
-                client,
+                client, args.language,
                 {**volumes, **experiment.get_docker_volumes(output_dir)},
                 os.path.join(output_dir, code_package)
             )
@@ -425,13 +464,14 @@ try:
         for idx, container in enumerate(containers):
             dest_dir = os.path.join(experiment.name, 'instance_{}'.format(idx))
             os.makedirs(dest_dir, exist_ok=True)
-            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'results'), dest_dir))
-            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(HOME_DIR, 'logs'), dest_dir))
+            home_dir = EXPERIMENTS['home'][args.language]
+            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(home_dir, 'results'), dest_dir))
+            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(home_dir, 'logs'), dest_dir))
 
             # 10. Kill docker instance
             container.stop()
 
-            # 11. Move to results, find summary JSONs
+            # 11. Find experiment JSONs and include in summary
             result_path = os.path.join(dest_dir, 'results')
             jsons = [json_file for json_file in glob.glob(os.path.join(result_path, '*.json'))] 
             summary['instances'].append( {'config': jsons, 'results': experiment.get_result_path(dest_dir)} )
@@ -455,6 +495,9 @@ try:
 
 except Exception as e:
     print(e)
+    logging.error(e)
     traceback.print_exc()
     print('# Experiments failed! See {}/out.log for details'.format(output_dir))
-    storage.stop()
+finally:
+    if storage is not None:
+        storage.stop()

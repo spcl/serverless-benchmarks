@@ -1,5 +1,5 @@
 
-import datetime, platform, os, sys
+import datetime, gc, platform, os, sys
 
 def start_benchmarking(disable_gc):
     if disable_gc:
