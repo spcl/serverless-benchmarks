@@ -45,4 +45,6 @@ experiment_data['repetitions'] = repetitions
 experiment_data['timestamps'] = process_timestamps(timedata)
 experiment_data['start'] = str(start)
 experiment_data['end'] = str(end)
-print(json.dumps({'experiment': experiment_data, 'runtime': ""}, indent=2))#get_config()}, indent=2))
+ret = subprocess.run(json.load(open('runners.json', 'r'))['config'], stdout=subprocess.PIPE)
+config = json.loads(ret.stdout.decode('utf-8'))
+print(json.dumps({'experiment': experiment_data, 'runtime': config}, indent=2))

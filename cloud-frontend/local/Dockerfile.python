@@ -14,7 +14,7 @@ RUN deps=''\
 
 USER ${USER}:${USER}
 COPY --chown=${USER}:${USER} run.sh .
-COPY --chown=${USER}:${USER} runner.py .
+COPY --chown=${USER}:${USER} *.py ${HOME}/
 COPY --chown=${USER}:${USER} python/*.py ${HOME}/
 COPY --chown=${USER}:${USER} python/timeit.sh .
 COPY --chown=${USER}:${USER} python/runners.json .
