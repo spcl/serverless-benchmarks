@@ -277,9 +277,9 @@ class minio_storage:
     def start(self):
         self.access_key = secrets.token_urlsafe(32)
         self.secret_key = secrets.token_hex(32)
-        logging.error('Starting minio instance at localhost:{}'.format(self.port))
-        logging.error('ACCESS_KEY={}'.format(self.access_key))
-        logging.error('SECRET_KEY={}'.format(self.secret_key))
+        logging.info('Starting minio instance at localhost:{}'.format(self.port))
+        logging.info('ACCESS_KEY={}'.format(self.access_key))
+        logging.info('SECRET_KEY={}'.format(self.secret_key))
         self.storage_container = client.containers.run(
             'minio/minio',
             command='server /data',
@@ -295,7 +295,7 @@ class minio_storage:
 
     def stop(self):
         if self.storage_container is not None:
-            logging.error('Stopping minio instance at localhost:{}'.format(self.port))
+            logging.info('Stopping minio instance at localhost:{}'.format(self.port))
             self.storage_container.stop()
 
     def get_connection(self):
