@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "csv-writer": "^1.5.0",
+    "glob": "^7.1.6",
+    "minio": "^7.0.13",
+    "strftime": "^0.10.0"
+  }
+}
