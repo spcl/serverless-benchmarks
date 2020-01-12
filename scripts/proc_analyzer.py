@@ -162,6 +162,7 @@ class continuous_measurement:
         self.handler.join()
     
     def get_data(self):
+        self.postprocess_func(self.data, self.measurement_directory)
         return self.data
 
     def cleanup(self):
