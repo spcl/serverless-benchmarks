@@ -170,7 +170,7 @@ class analyzer_experiment(docker_experiment):
 
 def run_experiment_time(input_config):
     experiments = []
-    for option in ['cold']: #warm', 'cold']:
+    for option in ['warm', 'cold']:
         experiments.append(docker_experiment(
                 instances=1,
                 name='time_{}'.format(option),
@@ -328,9 +328,9 @@ class minio_storage:
             # rethrow
             raise err
 
-    def uploader_func(self, bucket, file, filepath):
+    def uploader_func(self, bucket_idx, file, filepath):
         try:
-            self.connection.fput_object(bucket, file, filepath)
+            self.connection.fput_object(self.input_buckets[0], file, filepath)
         except minio.error.ResponseError as err:
             logging.error('Upload failed!')
             raise(err)
@@ -483,9 +483,6 @@ try:
         storage.download_results(experiment.name)
         storage.clean()
 
-    # Clean data storage
-    storage.stop()
-
     # Summarize
     benchmark_summary['system'] = {}
     uname = os.uname()
@@ -500,4 +497,5 @@ except Exception as e:
     print('# Experiments failed! See {}/out.log for details'.format(output_dir))
 finally:
     if storage is not None:
+        # Clean data storage
         storage.stop()

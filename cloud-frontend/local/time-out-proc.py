@@ -15,7 +15,7 @@ try:
     start = datetime.datetime.now()
     for i in range(0, repetitions):
         begin = datetime.datetime.now()
-        out_file = '{}.txt'.format(get_result_prefix(LOGS_DIR, 'output', 'txt'))
+        out_file = get_result_prefix(LOGS_DIR, 'output', 'txt')
         ret = subprocess.run(['/bin/bash', 'timeit.sh'],
             stdout=subprocess.PIPE)
         stop = datetime.datetime.now()
@@ -29,7 +29,7 @@ except Exception as e:
 
 
 result = get_result_prefix(RESULTS_DIR, cfg['benchmark']['name'], 'csv')
-with open('{}.csv'.format(result), 'w') as f:
+with open(result, 'w') as f:
     csv_writer = csv.writer(f)
     csv_writer.writerow(['#Seconds from epoch.microseconds; Duration in microseconds'])
     csv_writer.writerow(['Begin','End','Duration'])

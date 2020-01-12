@@ -51,7 +51,7 @@ if __name__ == "__main__":
         for v in ['experiment', 'runtime']:
             result[v] = experiment_data[v]
         result_dir = get_result_prefix(RESULTS_DIR, cfg['benchmark']['name'], 'json')
-        with open('{}.json'.format(result_dir), 'w') as f:
+        with open(result_dir, 'w') as f:
             json.dump(result, f, indent = 2) 
     except json.decoder.JSONDecodeError as e:
         print('Experiment output is not valid!')

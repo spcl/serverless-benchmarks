@@ -21,7 +21,7 @@ try:
         res = handler(input_data)
         stop = datetime.datetime.now()
         print(res, file = open(
-                '{}.txt'.format(get_result_prefix(LOGS_DIR, 'output', 'txt')),
+                get_result_prefix(LOGS_DIR, 'output', 'txt'),
                 'w'
             ))
         timedata[i] = [begin, stop]
@@ -33,7 +33,7 @@ except Exception as e:
 
 
 result = get_result_prefix(RESULTS_DIR, cfg['benchmark']['name'], 'csv')
-with open('{}.csv'.format(result), 'w') as f:
+with open(result, 'w') as f:
     csv_writer = csv.writer(f)
     csv_writer.writerow(['#Seconds from epoch.microseconds; Duration in microseconds'])
     csv_writer.writerow(['Begin','End','Duration'])

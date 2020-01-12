@@ -31,7 +31,7 @@ try:
         res = handler(input_data)
         stop = datetime.datetime.now()
         print(res, file = open(
-                '{}.txt'.format(get_result_prefix(LOGS_DIR, 'output', 'txt')),
+                get_result_prefix(LOGS_DIR, 'output', 'txt'),
                 'w'
             ))
         timedata[i] = [begin, stop]

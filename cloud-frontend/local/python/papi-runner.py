@@ -67,7 +67,7 @@ try:
         papi_experiments.stop_overflow()
         stop = datetime.datetime.now()
         print(res, file = open(
-                '{}.txt'.format(get_result_prefix(LOGS_DIR, 'output', 'txt')),
+                get_result_prefix(LOGS_DIR, 'output', 'txt'),
                 'w'
             ))
         timedata[i] = [begin, stop]
@@ -81,7 +81,7 @@ except Exception as e:
 papi_experiments.get_results()
 papi_experiments.finish()
 result = get_result_prefix(RESULTS_DIR, cfg['benchmark']['name'], 'csv')
-with open('{}.csv'.format(result), 'w') as f:
+with open(result, 'w') as f:
     csv_writer = csv.writer(f)
     csv_writer.writerow(
             ['Time','RelativeTime'] + papi_experiments.events_names
