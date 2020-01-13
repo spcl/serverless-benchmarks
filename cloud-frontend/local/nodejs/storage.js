@@ -25,7 +25,6 @@ class minio_storage {
 
   download(bucket, file, filepath) {
     this.client.fGetObject(bucket, file, filepath);
-
   };
 
   uploadStream(bucket, file) {
