@@ -12,6 +12,11 @@ install: https://serverless.com/framework/docs/providers/aws/guide/installation/
 
 
 AWS:
-get keys
+get keys - access and secret
 create role https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html
-Lambda + S3
+Lambda + S3 (CloudWatch is not necessary)
+that's all!
+
+Azure:
+create account
+
