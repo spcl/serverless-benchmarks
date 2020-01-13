@@ -11,7 +11,7 @@ exports.handler = async function(event) {
   width = event.object.width
   height = event.object.height
   let pos = key.lastIndexOf('.');
-  let = key.substr(0, pos < 0 ? key.length : pos) + '.png';
+  let key = key.substr(0, pos < 0 ? key.length : pos) + '.png';
 
   const sharp_resizer = sharp().resize(width, height).png();
   let input_data = storage_handler.downloadStream(input_bucket, key);
