@@ -248,8 +248,9 @@ parser.add_argument('size', choices=['test', 'small', 'large'],
                     help='Benchmark input test size')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
-parser.add_argument('--config', action='store', default='config/experiments.json',
-                    type=str, help='Experiments config file')
+parser.add_argument('--config', action='store',
+        default=os.path.join(SCRIPT_DIR, os.pardir, 'config', 'experiments.json'),
+        type=str, help='Experiments config file')
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 
