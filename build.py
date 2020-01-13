@@ -52,8 +52,12 @@ def build(run, system, language, version, username, version_name):
 def build_language(system, language, language_config):
     username = language_config['username']
     for version, version_name in language_config['versions'].items():
-        for run in language_config['images']:
-            build(run, system, language, version, username, version_name)
+
+        if args.run is None:
+            for run in language_config['images']:
+                build(run, system, language, version, username, version_name)
+        else:
+            build(args.run, system, language, version, username, version_name)
 
 def build_systems(system, system_config):
     if args.language is None:
