@@ -3,14 +3,19 @@ FROM python:${VERSION}
 ARG USER
 ENV HOME=/home/${USER}
 
+RUN useradd ${USER}
 WORKDIR ${HOME}
 RUN apt-get update\
   && apt-get install -y zip\
   && apt-get purge -y --auto-remove
 USER ${USER}:${USER}
 
-CMD cd function\
-    && pip3 -q install -r requirements.txt --system -t .packages\
+# Install PIP packages and pack
+# Workaround for Ubuntu - --user options is provided by default
+# and clashses with target
+# https://github.com/pypa/pip/issues/3826
+CMD cd /mnt/function\
+    && pip3 -q install -r requirements.txt -t .packages\
     && cd .packages\
     && zip -qr ../${APP}.zip *\
     && cd ..\
