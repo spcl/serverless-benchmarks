@@ -12,9 +12,9 @@
       "python": ["papi", "time", "disk-io", "memory"],
       "nodejs": ["time"]
     },
-    "home": {
-      "python": "/home/docker_user",
-      "nodejs": "/home/node"
+    "language": {
+      "python": 3.6,
+      "nodejs": 13.6
     }
   }
 }

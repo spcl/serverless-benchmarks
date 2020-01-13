@@ -1,0 +1,30 @@
+{
+  "local" : {
+    "python": {
+      "versions": {
+        "3.6": "3.6-slim"
+      },
+      "images": ["run", "build"],
+      "username": "docker_user"
+    },
+    "nodejs": {
+      "versions": {
+        "13.6": "13.6-slim"
+      },
+      "images": ["run", "build"],
+      "username": "node"
+    }
+  },
+  "aws": { 
+    "python": {
+      "versions": {},
+      "images": [],
+      "username": "docker_user"
+    },
+    "nodejs": {
+      "versions": {},
+      "images": [],
+      "username": "node"
+    }
+  }
+}
