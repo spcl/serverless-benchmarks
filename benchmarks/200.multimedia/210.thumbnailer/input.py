@@ -16,6 +16,8 @@ def generate_input(size, input_buckets, output_buckets, upload_func):
     #TODO: multiple datasets
     input_config = {'object': {}, 'bucket': {}}
     input_config['object']['key'] = img
+    input_config['object']['width'] = 200
+    input_config['object']['height'] = 200
     input_config['bucket']['input'] = input_buckets[0]
     input_config['bucket']['output'] = output_buckets[0]
     return input_config
