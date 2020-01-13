@@ -1,0 +1,15 @@
+FROM python:${VERSION}
+ENV HOME=/home/${USER}
+
+WORKDIR ${HOME}
+RUN apt-get update\
+  && apt-get install -y zip\
+  && apt-get purge -y --auto-remove
+USER ${USER}:${USER}
+
+CMD cd function\
+    && pip3 -q install -r requirements.txt --system -t .packages\
+    && cd .packages\
+    && zip -qr ../${APP}.zip *\
+    && cd ..\
+    && rm -rf .packages
