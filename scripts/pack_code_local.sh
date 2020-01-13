@@ -77,22 +77,17 @@ fi
 if [ ${l} == "python" ]; then
   # Install PIP packages, if required
   if [ -f ${DIR}/requirements.txt ]; then
-    # Install PIP packages and pack
-    # Workaround for Ubuntu - --user options is provided by default
-    # and clashses with target
-    # https://github.com/pypa/pip/issues/3826
-    pip3 -q install -r ${DIR}/requirements.txt --system -t .packages
-    pushd .packages > /dev/null
-    # Update, Recursive, Quiet
-    zip -qr ${CUR_DIR}/${APP_NAME}.zip *
-    popd > /dev/null
-    rm -rf .packages
+    cp ${DIR}/requirements.txt .
+    # TODO: make it dependent on config
+    docker run --rm -v $(pwd):/mnt/function -e APP=${APP_NAME} sebs.build.local.python.3.6
   fi
   echo "Created code ZIP ${APP_NAME}.zip"
 elif [ ${l} == "nodejs" ]; then
   if [ -f ${DIR}/package.json ]; then
     cp ${DIR}/package.json .
-    docker run --rm -v $(pwd):/home/node/function -e APP=${APP_NAME} sebs-local-build-nodejs
+    # TODO: make it dependent on config
+    echo "Run Docker"
+    docker run --rm -v $(pwd):/mnt/function -e APP=${APP_NAME} sebs.build.local.nodejs.13.6
   fi
   echo "Created code ZIP ${APP_NAME}.zip"
 fi

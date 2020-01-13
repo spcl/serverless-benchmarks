@@ -20,24 +20,12 @@ from functools import partial
 
 from experiments_utils import *
 
-EXPERIMENTS = {
-    "experiments": {
-      "python": ["papi", "time", "disk-io", "memory"],
-      "nodejs": ["time"]
-    },
-    "home": {
-      "python": "/home/docker_user",
-      "nodejs": "/home/node"
-    }
-}
-
 def iterable(val):
     return val if isinstance(val, collections.Iterable) else [val, ]
 
-def run_container(client, language, volumes, code_package):
-    home_dir = EXPERIMENTS['home'][language]
+def run_container(client, language, version, volumes, code_package, home_dir):
     return client.containers.run(
-            'sebs-local-{}'.format(language),
+            'sebs.run.local.{}.{}'.format(language, version),
             command='/bin/bash',
             volumes = {
                 **volumes,
@@ -91,8 +79,7 @@ class docker_experiment:
             json.dump(cfg_copy, f, indent=2)
             self.config = cfg_copy
 
-    def get_docker_volumes(self, output_dir):
-        home_dir = EXPERIMENTS['home'][self.language]
+    def get_docker_volumes(self, output_dir, home_dir):
         return {
                 os.path.join(output_dir, self.json_file):
                 {'bind': os.path.join(home_dir, self.json_file), 'mode': 'ro'}
@@ -372,6 +359,7 @@ try:
     args = parser.parse_args()
     verbose = args.verbose
     experiment_config = json.load(open(args.config, 'r'))
+    systems_config = json.load(open(os.path.join(SCRIPT_DIR, os.pardir, 'config', 'systems.json'), 'r'))
 
     # 1. Create output dir
     output_dir = create_output(args.output_dir, args.verbose)
@@ -413,6 +401,7 @@ try:
     benchmark_config['repetitions'] = args.repetitions
     benchmark_config['disable_gc'] = True
     benchmark_config['language'] = args.language
+    benchmark_config['version'] = experiment_config['local']['language'][args.language]
     storage_config = storage.config_to_json()
     if storage_config:
         benchmark_config['storage'] = storage_config
@@ -432,6 +421,7 @@ try:
     # 8. Start measurement processes
     for experiment in enabled_experiments:
 
+        home_dir = '/home/{}'.format(systems_config['local'][args.language]['username'])
         containers = [None] * experiment.instances
         os.makedirs(experiment.name, exist_ok=True)
         logging.info('# Experiment: {} begins.'.format(experiment.name))
@@ -439,9 +429,10 @@ try:
         for i in range(0, experiment.instances):
             # 7. Start docker instance with code and input
             containers[i] = run_container(
-                client, args.language,
-                {**volumes, **experiment.get_docker_volumes(output_dir)},
-                os.path.join(output_dir, code_package)
+                client, args.language, benchmark_config['version'],
+                {**volumes, **experiment.get_docker_volumes(output_dir, home_dir)},
+                os.path.join(output_dir, code_package),
+                home_dir
             )
        
             # 8. Run experiments
@@ -465,7 +456,6 @@ try:
         for idx, container in enumerate(containers):
             dest_dir = os.path.join(experiment.name, 'instance_{}'.format(idx))
             os.makedirs(dest_dir, exist_ok=True)
-            home_dir = EXPERIMENTS['home'][args.language]
             os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(home_dir, 'results'), dest_dir))
             os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(home_dir, 'logs'), dest_dir))
 
