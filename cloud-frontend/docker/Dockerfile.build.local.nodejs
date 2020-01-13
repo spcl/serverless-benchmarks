@@ -1,0 +1,12 @@
+ARG VERSION
+FROM node:${VERSION}
+ARG USER
+ENV HOME=/home/${USER}
+
+WORKDIR ${HOME}
+RUN apt-get update\
+  && apt-get install -y zip\
+  && apt-get purge -y --auto-remove
+USER ${USER}:${USER}
+
+CMD cd function && npm install && zip -qur ${APP}.zip node_modules && rm -rf node_modules package-lock.json

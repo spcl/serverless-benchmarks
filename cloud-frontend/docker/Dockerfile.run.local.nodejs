@@ -1,5 +1,6 @@
-FROM node:13.6-slim
-ENV USER=node
+ARG VERSION
+FROM node:${VERSION}
+ARG USER
 ENV HOME=/home/${USER}
 
 WORKDIR ${HOME}
