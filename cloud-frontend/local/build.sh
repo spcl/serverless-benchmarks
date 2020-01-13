@@ -7,3 +7,4 @@ docker build -f ${DIR}/Dockerfile.python -t sebs-local-python "${DIR}"
 rm -rf "${DIR}/pypapi"
 
 docker build -f ${DIR}/Dockerfile.nodejs -t sebs-local-nodejs "${DIR}"
+docker build -f ${DIR}/Dockerfile.build.nodejs -t sebs-local-build-nodejs "${DIR}"

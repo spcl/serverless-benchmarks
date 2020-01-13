@@ -92,9 +92,7 @@ if [ ${l} == "python" ]; then
 elif [ ${l} == "nodejs" ]; then
   if [ -f ${DIR}/package.json ]; then
     cp ${DIR}/package.json .
-    npm install > /dev/null
-    zip -qr ${APP_NAME}.zip node_modules
-    rm -rf node_modules package.json
+    docker run --rm -v $(pwd):/home/node/function -e APP=${APP_NAME} sebs-local-build-nodejs
   fi
   echo "Created code ZIP ${APP_NAME}.zip"
 fi
