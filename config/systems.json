@@ -1,15 +1,15 @@
 {
   "local" : {
     "python": {
-      "versions": {
-        "3.6": "3.6-slim"
+      "base_images": {
+        "3.6": "python:3.6-slim"
       },
       "images": ["run", "build"],
       "username": "docker_user"
     },
     "nodejs": {
-      "versions": {
-        "13.6": "13.6-slim"
+      "base_images": {
+        "13.6": "node:13.6-slim"
       },
       "images": ["run", "build"],
       "username": "node"
@@ -17,14 +17,21 @@
   },
   "aws": { 
     "python": {
-      "versions": {},
-      "images": [],
+      "base_images": {
+        "python3.8": "lambci/lambda:build-python3.8",
+        "python3.7": "lambci/lambda:build-python3.7",
+        "python3.6": "lambci/lambda:build-python3.6"
+      },
+      "images": ["build"],
       "username": "docker_user"
     },
     "nodejs": {
-      "versions": {},
-      "images": [],
-      "username": "node"
+      "base_images": {
+        "12.x" : "lambci/lambda:build-nodejs12.x",
+        "10.x" : "lambci/lambda:build-nodejs10.x" 
+      },
+      "images": ["build"],
+      "username": "docker_user"
     }
   }
 }

@@ -3,17 +3,10 @@ FROM ${BASE_IMAGE}
 ARG USER
 ENV HOME=/home/${USER}
 
-RUN useradd ${USER}
+RUN useradd --uid 1000 ${USER}
 WORKDIR ${HOME}
-RUN apt-get update\
-  && apt-get install -y zip\
-  && apt-get purge -y --auto-remove
 USER ${USER}:${USER}
 
-# Install PIP packages and pack
-# Workaround for Ubuntu - --user options is provided by default
-# and clashses with target
-# https://github.com/pypa/pip/issues/3826
 CMD cd /mnt/function\
     && pip3 -q install -r requirements.txt -t .packages\
     && cd .packages\
