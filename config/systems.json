@@ -18,12 +18,15 @@
   "aws": { 
     "python": {
       "base_images": {
-        "python3.8": "lambci/lambda:build-python3.8",
-        "python3.7": "lambci/lambda:build-python3.7",
-        "python3.6": "lambci/lambda:build-python3.6"
+        "3.8": "lambci/lambda:build-python3.8",
+        "3.7": "lambci/lambda:build-python3.7",
+        "3.6": "lambci/lambda:build-python3.6"
       },
       "images": ["build"],
-      "username": "docker_user"
+      "username": "docker_user",
+      "deployment": {
+        "files": [ "handler.py", "storage.py"]
+      }
     },
     "nodejs": {
       "base_images": {
@@ -31,7 +34,10 @@
         "10.x" : "lambci/lambda:build-nodejs10.x" 
       },
       "images": ["build"],
-      "username": "docker_user"
+      "username": "docker_user",
+      "deployment": {
+        "files": [ "handler.js", "storage.js"]
+      }
     }
   }
 }
