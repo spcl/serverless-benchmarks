@@ -129,7 +129,7 @@ class aws:
             logging.info('Creating function function {} from {}'.format(func_name, code_package))
             self.client.create_function(
                 FunctionName=func_name,
-                Runtime=self.config['runtime'][self.language],
+                Runtime='{}{}'.format(self.language,self.config['runtime'][self.language]),
                 Handler='handler.handler',
                 Role=self.config['lambda-role'],
                 MemorySize=memory,

@@ -38,16 +38,23 @@ def import_config(path):
     return json.load(open(path, 'r'))
 
 # -1. Get provider config and create cloud object
-provider_config = import_config(args.config)
+experiment_config = json.load(open(args.config, 'r'))
+systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
+docker = docker.from_env()
+
 if args.cloud == 'aws':
     from cloud_providers import aws
-    client = aws(provider_config, args.language)
+    client = aws(experiment_config[args.cloud], args.language)
 else:
     # TODO:
     pass
 
 try:
     benchmark_summary = {}
+    benchmark_config = {}
+    benchmark_config['language'] = args.language
+    benchmark_config['runtime'] = experiment_config[args.cloud]['runtime'][args.language]
+    benchmark_config['deployment'] = args.cloud
 
     # 0. Input args
     args = parser.parse_args()
@@ -62,7 +69,7 @@ try:
     logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 3. Build code package
-    code_package, code_size, config = create_code_package('aws', args.benchmark, benchmark_path, args.language, args.verbose)
+    code_package, code_size, config = create_code_package(docker, benchmark_config, args.benchmark, benchmark_path)
     logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
 
     # 5. Prepare benchmark input
@@ -79,12 +86,6 @@ try:
 
     # get experiment and run
 
-    # get metrics
-    #print(client.get_metric_data(
-    #    MetricDataQueries,
-    #    StartTime=datetime(2020, 1, 9),
-    #    EndTime=datetime(2015, 1, 10),
-    #))
 
 except Exception as e:
     print(e)

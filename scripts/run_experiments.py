@@ -402,6 +402,7 @@ try:
     benchmark_config['disable_gc'] = True
     benchmark_config['language'] = args.language
     benchmark_config['version'] = experiment_config['local']['language'][args.language]
+    benchmark_config['deployment'] = 'local'
     storage_config = storage.config_to_json()
     if storage_config:
         benchmark_config['storage'] = storage_config
