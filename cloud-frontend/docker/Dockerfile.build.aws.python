@@ -10,6 +10,6 @@ USER ${USER}:${USER}
 CMD cd /mnt/function\
     && pip3 -q install -r requirements.txt -t .packages\
     && cd .packages\
-    && zip -qr ../${APP}.zip *\
+    && zip -qur ../${APP}.zip *\
     && cd ..\
     && rm -rf .packages
