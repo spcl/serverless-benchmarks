@@ -9,7 +9,7 @@ DOCKER_DIR = os.path.join('cloud-frontend', 'docker')
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
-parser.add_argument('--system', default=None, choices=['local', 'aws'], action='store')
+parser.add_argument('--system', default=None, choices=['local', 'aws', 'azure'], action='store')
 parser.add_argument('--run', default=None, choices=['build', 'run'], action='store')
 parser.add_argument('--language', default=None, choices=['python', 'nodejs'], action='store')
 args = parser.parse_args()
@@ -67,7 +67,7 @@ def build_language(system, language, language_config):
             for run in language_config['images']:
                 build(run, system, language, username, *image)
         else:
-            build(args.run, system, language, version, *image)
+            build(args.run, system, language, username, *image)
 
 def build_systems(system, system_config):
     if args.language is None:

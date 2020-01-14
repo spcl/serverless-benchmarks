@@ -20,3 +20,4 @@ that's all!
 Azure:
 create account
 
+FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
