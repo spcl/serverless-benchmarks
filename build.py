@@ -31,37 +31,47 @@ def clean_build_ctx(path, dockerfile, run, language):
     if run == 'run' and language == 'python':
         shutil.rmtree(os.path.join(path, 'pypapi'))
 
-def build(run, system, language, version, username, version_name):
+def build(run, system, language, username, version, version_name):
     print('Build {} Dockerfile for {} system, language {} with version {}'.format(run, system, language, version))
     path = os.path.join(SCRIPT_DIR, 'cloud-frontend', system)
     dockerfile = 'Dockerfile.{}.{}.{}'.format(run, system, language)
-    target = 'sebs.{}.{}.{}.{}'.format(run, system, language, version)
+    target = 'sebs.{}.{}.{}'.format(run, system, language)
+    if version is not None:
+        target += '.' + version
     prepare_build_ctx(path, dockerfile, run, language)
 
+    buildargs={
+        'USER': username
+    }
+    if version is not None:
+        buildargs['BASE_IMAGE'] = version_name
     client.images.build(
         path=path,
         dockerfile=dockerfile,
-        buildargs={
-            'USER': username,
-            'BASE_IMAGE': version_name
-        },
+        buildargs=buildargs,
         tag=target
     )
     clean_build_ctx(path, dockerfile, run, language)
 
 def build_language(system, language, language_config):
     username = language_config['username']
-    for version, base_image in language_config['base_images'].items():
+    configs = []
+    if 'base_images' in language_config:
+        for version, base_image in language_config['base_images'].items():
+            configs.append([version, base_image])
+    else:
+        configs.append([None, None])
 
+    for image in configs:
         if args.run is None:
             for run in language_config['images']:
-                build(run, system, language, version, username, base_image)
+                build(run, system, language, username, *image)
         else:
-            build(args.run, system, language, version, username, base_image)
+            build(args.run, system, language, version, *image)
 
 def build_systems(system, system_config):
     if args.language is None:
-        for language, language_dict in system_config.items():
+        for language, language_dict in system_config['images'].items():
             build_language(system, language, language_dict)
     else:
         build_language(system, args.language, system_config[args.language])
