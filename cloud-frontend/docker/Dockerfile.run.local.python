@@ -3,7 +3,8 @@ FROM ${BASE_IMAGE}
 ARG USER
 ENV HOME=/home/${USER}
 
-RUN useradd ${USER}
+RUN useradd -m ${USER}
+RUN chown -R ${USER}:${USER} ${HOME}
 WORKDIR ${HOME}
 # must be run as root for some reason
 RUN deps=''\

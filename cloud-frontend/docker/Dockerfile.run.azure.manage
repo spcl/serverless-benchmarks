@@ -1,0 +1,21 @@
+FROM python:3.7-slim-stretch
+# disable telemetry by default
+ARG FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
+ARG USER
+ENV HOME=/home/${USER}
+
+RUN apt-get update\
+  && apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg\
+  && curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor\
+    | tee /etc/apt/trusted.gpg.d/microsoft.asc.gpg > /dev/null\
+  && AZ_REPO=$(lsb_release -cs)\
+  && echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main"\
+    | tee /etc/apt/sources.list.d/azure-cli.list\
+  && echo "deb [arch=amd64] https://packages.microsoft.com/debian/9/prod $(lsb_release -cs) main" > /etc/apt/sources.list.d/dotnetdev.list\
+  && apt-get update\
+  && apt-get install -y azure-cli azure-functions-core-tools
+RUN useradd -m ${USER}
+
+WORKDIR ${HOME}
+USER ${USER}:${USER}
+COPY --chown=${USER}:${USER} management/*.py management/
