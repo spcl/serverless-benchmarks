@@ -1,5 +1,9 @@
 {
   "local" : {
+    "experiments": {
+      "python": ["papi", "time", "disk-io", "memory"],
+      "nodejs": ["time"]
+    },
     "python": {
       "base_images": {
         "3.6": "python:3.6-slim"

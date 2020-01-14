@@ -366,7 +366,7 @@ try:
     logging.info('# Created experiment output at {}'.format(args.output_dir))
 
     # Verify if the experiment is supported for the language
-    supported_experiments = experiment_config['local']['experiments'][args.language]
+    supported_experiments = systems_config['local']['experiments'][args.language]
     if args.experiment != 'all':
         selected_experiments = [args.experiment]
     else:

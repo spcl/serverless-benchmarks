@@ -1,23 +1,32 @@
 {
-  "disable_gc": "False",
-  "drop_pagecache": "False",
+  "experiments": {
+    "disable_gc": "False",
+    "drop_pagecache": "False"
+  },
   "aws": {
-    "access_key": "",
-    "secret_key": "",
-    "arn_role": "",
+    "secrets": {
+      "access_key": "",
+      "secret_key": ""
+    },
     "region": "us-east-1",
     "lambda-role": "arn:aws:iam::261490803749:role/aws-role-test",
-    "experiments": {},
     "runtime": {
       "python": 3.6,
       "nodejs": "12.x"
     }
   },
-  "local": {
-    "experiments": {
-      "python": ["papi", "time", "disk-io", "memory"],
-      "nodejs": ["time"]
+  "azure": {
+    "secrets": {
+      "service_principal": "",
+      "appId": "",
+      "password": "",
+      "tenant": ""
     },
+    "runtime": {
+      "python": 3.7
+    }
+  }.
+  "local": {
     "runtime": {
       "python": 3.6,
       "nodejs": 13.6
