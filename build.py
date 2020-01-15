@@ -33,11 +33,11 @@ def clean_build_ctx(path, dockerfile, run, language):
 
 def build(run, system, username, language=None,version=None, version_name=None):
 
-    msg = 'Build {} Dockerfile for {} system'.format(run, system)
+    msg = 'Build *{}* Dockerfile for *{}* system'.format(run, system)
     if language:
-        msg += 'with language ' + language
+        msg += ' with language *' + language + '*'
     if version:
-        msg += 'with version ' + version
+        msg += ' with version *' + version + '*'
     print(msg)
     path = os.path.join(PROJECT_DIR, 'cloud_frontend', system)
     dockerfile = 'Dockerfile.{}.{}'.format(run, system)
