@@ -45,6 +45,7 @@ def import_config(path):
 experiment_config = json.load(open(args.config, 'r'))
 systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
 docker = docker.from_env()
+output_dir = None
 
 if args.cloud == 'aws':
     from cloud_frontend.aws import aws
@@ -57,6 +58,8 @@ try:
     benchmark_summary = {}
     benchmark_config = {}
     benchmark_config['language'] = args.language
+    if args.language not in experiment_config[args.cloud]['runtime']:
+        raise RuntimeError('Language {} is not supported on cloud {}'.format(args.language, args.cloud))
     benchmark_config['runtime'] = experiment_config[args.cloud]['runtime'][args.language]
     benchmark_config['deployment'] = args.cloud
 
@@ -94,7 +97,8 @@ try:
 except Exception as e:
     print(e)
     traceback.print_exc()
-    print('# Experiments failed! See {}/out.log for details'.format(output_dir))
+    if output_dir:
+        print('# Experiments failed! See {}/out.log for details'.format(output_dir))
 finally:
     # Close
     client.shutdown()
