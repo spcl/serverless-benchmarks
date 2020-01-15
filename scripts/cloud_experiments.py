@@ -51,7 +51,7 @@ if args.cloud == 'aws':
     client = aws.aws(experiment_config[args.cloud], args.language)
 else:
     from cloud_frontend.azure import azure
-    client = azure.azure(experiment_config[args.cloud], args.language)
+    client = azure.azure(experiment_config[args.cloud], args.language, docker)
 
 try:
     benchmark_summary = {}
@@ -66,15 +66,15 @@ try:
 
     # 1. Create output dir
     output_dir = create_output(args.output_dir, args.verbose)
-    logging.info('# Created experiment output at {}'.format(args.output_dir))
+    logging.info('Created experiment output at {}'.format(args.output_dir))
 
     # 2. Locate benchmark
     benchmark_path = find_benchmark(args.benchmark)
-    logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
+    logging.info('Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 3. Build code package
     code_dir, code_size, config = create_code_package(docker, client, benchmark_config, args.benchmark, benchmark_path)
-    logging.info('# Created code_package {} of size {}'.format(code_dir, code_size))
+    logging.info('Created code_package {} of size {}'.format(code_dir, code_size))
 
     # 5. Prepare benchmark input
     input_config = prepare_input(client, args.benchmark, benchmark_path, args.size)
@@ -89,9 +89,12 @@ try:
     print(ret)
 
     # get experiment and run
-
+    
 
 except Exception as e:
     print(e)
     traceback.print_exc()
     print('# Experiments failed! See {}/out.log for details'.format(output_dir))
+finally:
+    # Close
+    client.shutdown()

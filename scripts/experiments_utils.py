@@ -31,7 +31,7 @@ def create_output(dir, verbose):
         os.mkdir(output_dir)
     os.chdir(output_dir)
     logging.basicConfig(
-        filename='out.log',
+        filename=os.path.join(output_dir, 'out.log'),
         filemode='w',
         format='%(asctime)s,%(msecs)d %(levelname)s %(message)s',
         datefmt='%H:%M:%S',
@@ -130,4 +130,4 @@ def create_code_package(docker, client, config, benchmark, benchmark_path):
     # package if necessary
     client.package_code(os.path.join(os.getcwd(), 'code'), benchmark)
 
-    return 'code', code_size, config
+    return os.path.join(os.getcwd(), 'code'), code_size, config
