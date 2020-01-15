@@ -178,3 +178,6 @@ class aws:
         vals['message'] = ret['message']
         return vals
 
+    def shutdown(self):
+        pass
+

@@ -1,8 +1,6 @@
 FROM python:3.7-slim-stretch
 # disable telemetry by default
-ARG FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
 ARG USER
-ENV HOME=/home/${USER}
 
 RUN apt-get update\
   && apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg\
@@ -15,7 +13,12 @@ RUN apt-get update\
   && apt-get update\
   && apt-get install -y azure-cli azure-functions-core-tools\
   && az extension add --name application-insights
-RUN useradd -m ${USER}
+ENV FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
 
+# https://github.com/moby/moby/issues/20295
+# https://github.com/moby/moby/issues/20295
+ENV HOME=/home/${USER}
+RUN useradd --uid 1000 -m ${USER}\
+    && chown ${USER}:${USER} ${HOME}
 WORKDIR ${HOME}
 USER ${USER}:${USER}

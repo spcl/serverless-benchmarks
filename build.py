@@ -5,12 +5,12 @@ import json
 import os
 import shutil
 
-DOCKER_DIR = os.path.join('cloud-frontend', 'docker')
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+DOCKER_DIR = os.path.join('cloud_frontend', 'docker')
+PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
 parser.add_argument('--system', default=None, choices=['local', 'aws', 'azure'], action='store')
-parser.add_argument('--run', default=None, choices=['build', 'run'], action='store')
+parser.add_argument('--run', default=None, choices=['build', 'run', 'manage'], action='store')
 parser.add_argument('--language', default=None, choices=['python', 'nodejs'], action='store')
 args = parser.parse_args()
 config = json.load(open(os.path.join('config', 'systems.json'), 'r'))
@@ -23,7 +23,7 @@ def prepare_build_ctx(path, dockerfile, run, language):
         papi_dest = os.path.join(path, 'pypapi')
         if os.path.exists(papi_dest):
             shutil.rmtree(papi_dest)
-        shutil.copytree(os.path.join(SCRIPT_DIR, 'third-party', 'pypapi'), papi_dest)
+        shutil.copytree(os.path.join(PROJECT_DIR, 'third-party', 'pypapi'), papi_dest)
 
 def clean_build_ctx(path, dockerfile, run, language):
     os.remove(os.path.join(path, dockerfile))
@@ -31,19 +31,28 @@ def clean_build_ctx(path, dockerfile, run, language):
     if run == 'run' and language == 'python':
         shutil.rmtree(os.path.join(path, 'pypapi'))
 
-def build(run, system, language, username, version, version_name):
-    print('Build {} Dockerfile for {} system, language {} with version {}'.format(run, system, language, version))
-    path = os.path.join(SCRIPT_DIR, 'cloud-frontend', system)
-    dockerfile = 'Dockerfile.{}.{}.{}'.format(run, system, language)
-    target = 'sebs.{}.{}.{}'.format(run, system, language)
-    if version is not None:
+def build(run, system, username, language=None,version=None, version_name=None):
+
+    msg = 'Build {} Dockerfile for {} system'.format(run, system)
+    if language:
+        msg += 'with language ' + language
+    if version:
+        msg += 'with version ' + version
+    print(msg)
+    path = os.path.join(PROJECT_DIR, 'cloud_frontend', system)
+    dockerfile = 'Dockerfile.{}.{}'.format(run, system)
+    target = 'sebs.{}.{}'.format(run, system)
+    if language:
+        dockerfile += '.' + language
+        target += '.' + language
+    if version:
         target += '.' + version
     prepare_build_ctx(path, dockerfile, run, language)
 
     buildargs={
         'USER': username
     }
-    if version is not None:
+    if version:
         buildargs['BASE_IMAGE'] = version_name
     client.images.build(
         path=path,
@@ -65,16 +74,20 @@ def build_language(system, language, language_config):
     for image in configs:
         if args.run is None:
             for run in language_config['images']:
-                build(run, system, language, username, *image)
+                build(run, system, username, language, *image)
         else:
-            build(args.run, system, language, username, *image)
+            build(args.run, system, username, language, *image)
 
 def build_systems(system, system_config):
-    if args.language is None:
-        for language, language_dict in system_config['images'].items():
-            build_language(system, language, language_dict)
+
+    if args.run == 'manage':
+        build(args.run, system, system_config['images']['manage']['username'])
     else:
-        build_language(system, args.language, system_config[args.language])
+        if args.language:
+            build_language(system, args.language, system_config[args.language])
+        else:
+            for language, language_dict in system_config['languages'].items():
+                build_language(system, language, language_dict)
 
 if args.system is None:
     for system, system_dict in config.items():
