@@ -22,10 +22,12 @@
       "password": "",
       "tenant": ""
     },
+    "regions": "westeurope",
     "runtime": {
-      "python": 3.7
+      "python": 3.7,
+      "node": 10
     }
-  }.
+  },
   "local": {
     "runtime": {
       "python": 3.6,
