@@ -163,21 +163,31 @@ class azure:
     # - additional resources
     # - function.json
     # host.json
-    # requirements.txt
+    # requirements.txt/package.json
     def package_code(self, dir, benchmark):
+
+        EXEC_FILES = {
+            'python': 'handler.py',
+            'nodejs': 'handler.js'
+        }
+        CONFIG_FILES = {
+            'python': 'requirements.txt',
+            'nodejs': 'package.json'
+        }
+        package_config = CONFIG_FILES[self.language]
 
         handler_dir = os.path.join(dir, 'handler')
         os.makedirs(handler_dir)
-        # move all files to 'handler'
+        # move all files to 'handler' except package config
         for file in os.listdir(dir):
-            if file != 'requirements.txt':
+            if file != package_config:
                 file = os.path.join(dir, file)
                 shutil.move(file, handler_dir)
         
         # generate function.json
         # TODO: extension to other triggers than HTTP
         default_function_json = {
-          "scriptFile": "handler.py",
+          "scriptFile": EXEC_FILES[self.language],
           "bindings": [
             {
               "authLevel": "function",
@@ -214,6 +224,36 @@ class azure:
         for file in glob.glob(os.path.join(wrappers_dir, '*.py')):
             shutil.copy(os.path.join(wrappers_dir, file), handler_dir)
 
+        # fucking nodejs
+        # TODO
+        container_name = 'sebs.build.aws.nodejs.10.x'
+        try:
+            img = self.docker_client.images.get(container_name)
+        except docker.errors.ImageNotFound as err:
+            raise RuntimeError('Docker build image {} not found!'.format(img))
+
+        # run Docker container to install packages
+        PACKAGE_FILES = {
+            'python': 'requirements.txt',
+            'nodejs': 'package.json'
+        }
+        file = os.path.join('code', PACKAGE_FILES[self.language])
+        print(os.path.abspath(dir))
+        if os.path.exists(file):
+            print(os.path.abspath(dir))
+            self.docker_client.containers.run(
+                container_name,
+                volumes={
+                    os.path.abspath(dir) : {'bind': '/mnt/function', 'mode': 'rw'}
+                },
+                environment={
+                    'APP': benchmark
+                },
+                user='1000:1000',
+                remove=True,
+                stdout=True, stderr=True,
+            )
+
     def create_function(self, code_package, benchmark, memory=None, timeout=None):
 
         self.start(code_package)
@@ -248,10 +288,12 @@ class azure:
 
         # publish
         ret = self.execute(
-            'bash -c \'cd /mnt/function && func azure functionapp publish {} --{}\''.format(func_name, runtimes[self.language])
+            'bash -c \'cd /mnt/function && func azure functionapp publish {} --{} --build remote\''.format(func_name, runtimes[self.language])
         )
+        url = ""
         for line in ret.split(b'\n'):
             line = line.decode('utf-8')
+            print(line)
             if 'Invoke url' in line:
                 url = line.split('Invoke url:')[1].strip()
                 break
