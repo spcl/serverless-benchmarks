@@ -83,7 +83,7 @@ def create_code_package(docker, client, config, benchmark, benchmark_path):
     # Add deployment files
     system_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json')))[run]['languages'][language]
     if 'deployment' in system_config:
-        handlers_dir = os.path.join(PROJECT_DIR, 'cloud-frontend', run, language)
+        handlers_dir = os.path.join(PROJECT_DIR, 'cloud_frontend', run, language)
         handlers = [os.path.join(handlers_dir, file) for file in system_config['deployment']['files']]
         for file in handlers:
             shutil.copy2(file, 'code')

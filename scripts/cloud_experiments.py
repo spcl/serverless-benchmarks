@@ -1,5 +1,6 @@
 #!python3
 
+
 import argparse
 import datetime
 import importlib
@@ -8,6 +9,9 @@ import sys
 import traceback
 
 from experiments_utils import *
+
+# TODO: replace with something more sustainable
+sys.path.append(PROJECT_DIR)
 
 parser = argparse.ArgumentParser(description='Run cloud experiments.')
 parser.add_argument('cloud', choices=['azure','aws'], help='Cloud to use')
@@ -43,11 +47,11 @@ systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.jso
 docker = docker.from_env()
 
 if args.cloud == 'aws':
-    from cloud_providers import aws
-    client = aws(experiment_config[args.cloud], args.language)
+    from cloud_frontend.aws import aws
+    client = aws.aws(experiment_config[args.cloud], args.language)
 else:
-    from cloud_providers import azure
-    client = azure(experiment_config[args.cloud], args.language)
+    from cloud_frontend.azure import azure
+    client = azure.azure(experiment_config[args.cloud], args.language)
 
 try:
     benchmark_summary = {}
