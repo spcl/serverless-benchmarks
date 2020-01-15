@@ -1,0 +1,11 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG USER
+ENV HOME=/home/${USER}
+
+RUN useradd --uid 1000 ${USER}
+WORKDIR ${HOME}
+USER ${USER}:${USER}
+
+CMD cd /mnt/function\
+    && pip3 -q install -r requirements.txt --target=.python_packages/lib/site-packages

@@ -166,13 +166,15 @@ class azure:
     # requirements.txt/package.json
     def package_code(self, dir, benchmark):
 
+        # In previous step we ran a Docker container which installed packages
+        # Python packages are in .python_packages because this is expected by Azure
         EXEC_FILES = {
             'python': 'handler.py',
             'nodejs': 'handler.js'
         }
         CONFIG_FILES = {
-            'python': 'requirements.txt',
-            'nodejs': 'package.json'
+            'python': ['requirements.txt', '.python_packages'],
+            'nodejs': ['package.json', 'node_modules']
         }
         package_config = CONFIG_FILES[self.language]
 
@@ -180,7 +182,7 @@ class azure:
         os.makedirs(handler_dir)
         # move all files to 'handler' except package config
         for file in os.listdir(dir):
-            if file != package_config:
+            if file not in package_config:
                 file = os.path.join(dir, file)
                 shutil.move(file, handler_dir)
         
@@ -224,36 +226,6 @@ class azure:
         for file in glob.glob(os.path.join(wrappers_dir, '*.py')):
             shutil.copy(os.path.join(wrappers_dir, file), handler_dir)
 
-        # fucking nodejs
-        # TODO
-        container_name = 'sebs.build.aws.nodejs.10.x'
-        try:
-            img = self.docker_client.images.get(container_name)
-        except docker.errors.ImageNotFound as err:
-            raise RuntimeError('Docker build image {} not found!'.format(img))
-
-        # run Docker container to install packages
-        PACKAGE_FILES = {
-            'python': 'requirements.txt',
-            'nodejs': 'package.json'
-        }
-        file = os.path.join('code', PACKAGE_FILES[self.language])
-        print(os.path.abspath(dir))
-        if os.path.exists(file):
-            print(os.path.abspath(dir))
-            self.docker_client.containers.run(
-                container_name,
-                volumes={
-                    os.path.abspath(dir) : {'bind': '/mnt/function', 'mode': 'rw'}
-                },
-                environment={
-                    'APP': benchmark
-                },
-                user='1000:1000',
-                remove=True,
-                stdout=True, stderr=True,
-            )
-
     def create_function(self, code_package, benchmark, memory=None, timeout=None):
 
         self.start(code_package)
@@ -288,7 +260,7 @@ class azure:
 
         # publish
         ret = self.execute(
-            'bash -c \'cd /mnt/function && func azure functionapp publish {} --{} --build remote\''.format(func_name, runtimes[self.language])
+            'bash -c \'cd /mnt/function && func azure functionapp publish {} --{} --no-build\''.format(func_name, runtimes[self.language])
         )
         url = ""
         for line in ret.split(b'\n'):

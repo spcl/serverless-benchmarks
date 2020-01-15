@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG USER
+ENV HOME=/home/${USER}
+
+RUN useradd --uid 1000 -m ${USER}
+WORKDIR ${HOME}
+USER ${USER}:${USER}
+
+CMD cd /mnt/function && npm install && rm -rf package-lock.json
