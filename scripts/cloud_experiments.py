@@ -46,8 +46,8 @@ if args.cloud == 'aws':
     from cloud_providers import aws
     client = aws(experiment_config[args.cloud], args.language)
 else:
-    # TODO:
-    pass
+    from cloud_providers import azure
+    client = azure(experiment_config[args.cloud], args.language)
 
 try:
     benchmark_summary = {}
@@ -69,15 +69,15 @@ try:
     logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 3. Build code package
-    code_package, code_size, config = create_code_package(docker, benchmark_config, args.benchmark, benchmark_path)
-    logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
+    code_dir, code_size, config = create_code_package(docker, client, benchmark_config, args.benchmark, benchmark_path)
+    logging.info('# Created code_package {} of size {}'.format(code_dir, code_size))
 
     # 5. Prepare benchmark input
     input_config = prepare_input(client, args.benchmark, benchmark_path, args.size)
     input_config_bytes = json.dumps(input_config).encode('utf-8')
 
     # 6. Create function if it does not exist
-    func = client.create_function(code_package, args.benchmark,
+    func = client.create_function(code_dir, args.benchmark,
             config['memory'], config['timeout'])
 
     # 7. Invoke!

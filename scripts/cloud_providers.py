@@ -3,9 +3,12 @@ import base64
 import datetime
 import json
 import logging
+import os
 import uuid
 
 import boto3
+
+from experiments_utils import *
 
 
 class aws:
@@ -103,8 +106,17 @@ class aws:
         self.storage.create_buckets(benchmark, buckets)
         return self.storage
 
+    def package_code(self, dir, benchmark):
+        cur_dir = os.getcwd()
+        os.chdir(dir)
+        # create zip
+        execute('zip -qur {}.zip *'.format(benchmark), shell=True)
+        logging.info('Created {}.zip archive'.format(os.path.join(dir, benchmark)))
+        os.chdir(cur_dir)
+
     def create_function(self, code_package, benchmark, memory=128, timeout=10):
-        code_body = open(code_package, 'rb').read()
+        code_package = os.path.join(code_package, '{}.zip'.format(benchmark))
+        code_body = open( code_package, 'rb').read()
         func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
         # AWS Lambda does not allow hyphens in function names
         func_name = func_name.replace('-', '_')
