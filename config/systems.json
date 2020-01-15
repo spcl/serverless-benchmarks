@@ -4,7 +4,7 @@
       "python": ["papi", "time", "disk-io", "memory"],
       "nodejs": ["time"]
     },
-    "images": {
+    "languages": {
       "python": {
         "base_images": {
           "3.6": "python:3.6-slim"
@@ -22,7 +22,7 @@
     }
   },
   "aws": { 
-    "images": {
+    "languages": {
       "python": {
         "base_images": {
           "3.8": "lambci/lambda:build-python3.8",
@@ -49,11 +49,11 @@
     }
   },
   "azure": {
-    "images": {
-      "manage": {
-        "images": ["run"],
-        "username": "docker_user"
-      }
+    "languages": {
+    },
+    "manage": {
+      "images": ["run"],
+      "username": "docker_user"
     }
   }
 }
