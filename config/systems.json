@@ -55,6 +55,12 @@
         "deployment": {
           "files": [ "handler.py", "storage.py"]
         }
+      },
+      "nodejs": {
+        "images": [],
+        "deployment": {
+          "files": [ "handler.js", "storage.js"]
+        }
       }
     },
     "images": {

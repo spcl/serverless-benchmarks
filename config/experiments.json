@@ -25,7 +25,7 @@
     "regions": "westeurope",
     "runtime": {
       "python": 3.7,
-      "node": 10
+      "nodejs": 10
     }
   },
   "local": {
