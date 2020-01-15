@@ -172,8 +172,7 @@ class azure:
         for file in os.listdir(dir):
             if file != 'requirements.txt':
                 file = os.path.join(dir, file)
-                if os.path.isfile(file):
-                    shutil.move(file, handler_dir)
+                shutil.move(file, handler_dir)
         
         # generate function.json
         # TODO: extension to other triggers than HTTP
@@ -251,7 +250,12 @@ class azure:
         ret = self.execute(
             'bash -c \'cd /mnt/function && func azure functionapp publish {} --{}\''.format(func_name, runtimes[self.language])
         )
-        print(ret)
+        for line in ret.split(b'\n'):
+            line = line.decode('utf-8')
+            if 'Invoke url' in line:
+                url = line.split('Invoke url:')[1].strip()
+                break
+        print(url)
 
     def invoke(self, name, payload):
         pass
