@@ -17,7 +17,7 @@ exports.handler = async function(event) {
     random_numbers: random_numbers
   };
 
-  var file = path.join('templates', 'template.html');
+  var file = path.resolve(__dirname, 'templates', 'template.html');
   return new Promise((resolve, reject) => {
     fs.readFile(file, "utf-8",
       function(err, data) {
