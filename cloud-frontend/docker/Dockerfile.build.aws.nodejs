@@ -7,4 +7,4 @@ RUN useradd --uid 1000 ${USER}
 WORKDIR ${HOME}
 USER ${USER}:${USER}
 
-CMD cd /mnt/function && npm install && zip -qur ${APP}.zip node_modules && rm -rf node_modules package-lock.json
+CMD cd /mnt/function && npm install && rm -rf package-lock.json
