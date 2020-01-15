@@ -8,8 +8,7 @@ import uuid
 
 import boto3
 
-from experiments_utils import *
-
+from scripts.experiments_utils import *
 
 class aws:
     client = None

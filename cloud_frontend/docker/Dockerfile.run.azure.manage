@@ -13,9 +13,9 @@ RUN apt-get update\
     | tee /etc/apt/sources.list.d/azure-cli.list\
   && echo "deb [arch=amd64] https://packages.microsoft.com/debian/9/prod $(lsb_release -cs) main" > /etc/apt/sources.list.d/dotnetdev.list\
   && apt-get update\
-  && apt-get install -y azure-cli azure-functions-core-tools
+  && apt-get install -y azure-cli azure-functions-core-tools\
+  && az extension add --name application-insights
 RUN useradd -m ${USER}
 
 WORKDIR ${HOME}
 USER ${USER}:${USER}
-COPY --chown=${USER}:${USER} management/*.py management/
