@@ -50,10 +50,17 @@
   },
   "azure": {
     "languages": {
+      "python": {
+        "images": [],
+        "deployment": {
+          "files": [ "handler.py", "storage.py"]
+        }
+      }
     },
-    "manage": {
-      "images": ["run"],
-      "username": "docker_user"
+    "images": {
+      "manage": {
+        "username": "docker_user"
+      }
     }
   }
 }
