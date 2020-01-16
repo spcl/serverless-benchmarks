@@ -22,9 +22,11 @@ class aws_storage {
     return [write_stream, upload.promise()];
   };
 
+  // We return a promise to match the API for other providers
   downloadStream(bucket, file) {
     // AWS.Request -> read stream
-    return this.S3.getObject( {Bucket: bucket, Key: file} ).createReadStream();
+    let downloaded = this.S3.getObject( {Bucket: bucket, Key: file} ).createReadStream();
+    return Promise.resolve(downloaded);
   };
 };
 exports.storage = aws_storage;
