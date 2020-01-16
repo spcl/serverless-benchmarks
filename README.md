@@ -18,6 +18,9 @@ Lambda + S3 (CloudWatch is not necessary)
 that's all!
 
 Azure:
+
 create account
+we will create storage and resource group, as given in tutorials
+for storage access, we will create keys and manage them
 
 FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1

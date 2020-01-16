@@ -5,8 +5,8 @@ import uuid
 from urllib.parse import unquote_plus
 from PIL import Image
 
-from storage import storage
-client = storage.get_instance()
+from . import storage
+client = storage.storage.get_instance()
 
 # Disk-based solution
 #def resize_image(image_path, resized_path, w, h):

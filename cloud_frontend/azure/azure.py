@@ -273,6 +273,8 @@ class azure:
         for file in glob.glob(os.path.join(wrappers_dir, '*.py')):
             shutil.copy(os.path.join(wrappers_dir, file), handler_dir)
 
+        return dir
+
     def create_function(self, code_package, benchmark, memory=None, timeout=None):
 
         self.start(code_package)
