@@ -112,12 +112,15 @@ class aws:
         self.language = language
         self.cache_client = cache_client
 
+    def start(self, code_package):
+
         # Verify we can log in
         # 1. Cached credentials
         # TODO: flag to update cache
-        if 'secrets' in config['aws']:
-            self.access_key = config['aws']['secrets']['access_key']
-            self.secret_key = config['aws']['secrets']['secret_key']
+        if 'secrets' in self.config['aws']:
+            self.access_key = self.config['aws']['secrets']['access_key']
+            self.secret_key = self.config['aws']['secrets']['secret_key']
+        # 2. Environmental variables
         elif 'AWS_ACCESS_KEY_ID' in os.environ:
             self.access_key = os.environ['AWS_ACCESS_KEY_ID']
             self.secret_key = os.environ['AWS_SECRET_ACCESS_KEY']
@@ -157,6 +160,9 @@ class aws:
         return os.path.join(dir, '{}.zip'.format(benchmark))
 
     def create_function(self, code_package, benchmark, memory=128, timeout=10):
+
+        self.start(code_package)
+
         code_body = open(code_package, 'rb').read()
         func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
         # AWS Lambda does not allow hyphens in function names
