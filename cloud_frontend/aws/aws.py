@@ -12,6 +12,7 @@ from scripts.experiments_utils import *
 
 class aws:
     client = None
+    cache_client = None
     config = None
     storage = None
     language = None
@@ -23,8 +24,13 @@ class aws:
         output_buckets = []
         replace_existing = False
 
-        def __init__(self, location, replace_existing):
-            self.client = boto3.client('s3', region_name=location)
+        def __init__(self, location, access_key, secret_key, replace_existing):
+            self.client = boto3.client(
+                    's3',
+                    region_name=location,
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key
+                )
             self.replace_existing = replace_existing
 
         def input(self):
@@ -101,13 +107,43 @@ class aws:
         #            self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
         #    
 
-    def __init__(self, config, language):
+    def __init__(self, cache_client, config, language):
         self.config = config
         self.language = language
-        self.client = boto3.client('lambda', region_name=config['region'])
+        self.cache_client = cache_client
+
+        # Verify we can log in
+        # 1. Cached credentials
+        # TODO: flag to update cache
+        if 'secrets' in config['aws']:
+            self.access_key = config['aws']['secrets']['access_key']
+            self.secret_key = config['aws']['secrets']['secret_key']
+        elif 'AWS_ACCESS_KEY_ID' in os.environ:
+            self.access_key = os.environ['AWS_ACCESS_KEY_ID']
+            self.secret_key = os.environ['AWS_SECRET_ACCESS_KEY']
+            # update
+            self.cache_client.update_config(
+                    val=access_key,
+                    keys=['aws', 'secrets', 'access_key'])
+            self.cache_client.update_config(
+                    val=secret_key,
+                    keys=['aws', 'secrets', 'secret_key'])
+        else:
+            raise RuntimeError('AWS login credentials are missing! Please set '
+                    'up environmental variables AWS_ACCESS_KEY_ID and '
+                    'AWS_SECRET_ACCESS_KEY')
+
+        self.client = boto3.client('lambda',
+                aws_access_key_id=self.access_key,
+                aws_secret_access_key=self.secret_key,
+                region_name=config['experiments']['region'])
 
     def get_storage(self, benchmark, buckets, replace_existing=False):
-        self.storage = aws.s3(self.config['region'], replace_existing)
+        self.storage = aws.s3(
+                self.config['experiments']['region'],
+                access_key=self.access_key,
+                secret_key=self.secret_key,
+                replace_existing=replace_existing)
         self.storage.create_buckets(benchmark, buckets)
         return self.storage
 
@@ -144,11 +180,12 @@ class aws:
             )
         except self.client.exceptions.ResourceNotFoundException:
             logging.info('Creating function function {} from {}'.format(func_name, code_package))
+            # TODO: create Lambda role
             self.client.create_function(
                 FunctionName=func_name,
-                Runtime='{}{}'.format(self.language,self.config['runtime'][self.language]),
+                Runtime='{}{}'.format(self.language,self.config['experiments']['runtime']),
                 Handler='handler.handler',
-                Role=self.config['lambda-role'],
+                Role=self.config['aws']['lambda-role'],
                 MemorySize=memory,
                 Timeout=timeout,
                 Code={'ZipFile': code_body}
