@@ -72,19 +72,16 @@ try:
     experiment_config['experiments']['region'] = experiment_config[deployment]['region']
     # Load cached secrets
     cached_config = cache_client.get_config(deployment)
-    print(cached_config)
     if cached_config is not None:
         experiment_config[deployment].update(cached_config)
-    print(experiment_config)
     # Create deployment client
     if deployment == 'aws':
         from cloud_frontend.aws import aws
         deployment_client = aws.aws(cache_client, experiment_config, language)
     else:
         from cloud_frontend.azure import azure
-        deployment_client = azure.azure(experiment_config['azure'],
+        deployment_client = azure.azure(cache_client, experiment_config,
                 language, docker_client)
-
 
     # 0. Input args
     args = parser.parse_args()
