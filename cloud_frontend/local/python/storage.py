@@ -1,3 +1,4 @@
+import io
 import os
 import minio
 
@@ -18,9 +19,16 @@ class storage:
 
     def upload(self, bucket, file, filepath):
         self.client.fput_object(bucket, file, filepath)
-    
+
     def download(self, bucket, file, filepath):
         self.client.fget_object(bucket, file, filepath)
+
+    def upload_stream(self, bucket, file, bytes_data):
+        self.client.put_object(bucket, file, bytes_data, bytes_data.getbuffer().nbytes)
+
+    def download_stream(self, bucket, file):
+        data = self.client.get_object(bucket, file)
+        return data.read()
 
     def get_instance():
         if storage.instance is None:
