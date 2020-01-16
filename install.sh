@@ -9,6 +9,8 @@ if [ ! -d ${env_dir} ]; then
   pip3 install docker wheel bottle waitress minio nodeenv
   # aws
   pip3 install boto3
+  # azure
+  pip3 install azure-blob-storage
 fi
 
 # node

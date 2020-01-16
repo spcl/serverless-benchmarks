@@ -1,29 +1,4 @@
-#import argparse
-#import json
-#import logging
-#
-#from utils import login, resource_group, storage_account
-#
-#verbose = False
-#config = json.load(open('azure_config.json', 'r'))
-#azure_config = config['azure']
-#logging.basicConfig(
-#    level=logging.DEBUG if verbose else logging.INFO
-#)
-#
-## Login to Azure
-#login(azure_config['secrets'])
-#logging.info('Azure login succesful')
-#
-## Get or create a resource group
-#resource_group_name = resource_group(azure_config)
-#logging.info('Azure resource group {} selected'.format(resource_group_name))
-#
-#storage_account_name = storage_account(azure_config)
-#logging.info('Azure storage account {} selected'.format(storage_account_name))
-#
-#config['azure'] = azure_config
-#json.dump(config, open('azure_config.json', 'w'), indent=2)
+
 import docker
 import glob
 import json
@@ -31,24 +6,88 @@ import logging
 import os
 import subprocess
 import shutil
+import uuid
+
+from azure.storage.blob import BlobServiceClient
 
 from scripts.experiments_utils import PROJECT_DIR
 
 class blob_storage:
     client = None
-    input_buckets = []
-    input_buckets_files = []
-    output_buckets = []
+    input_containers = []
+    input_containers_files = []
+    output_containers = []
     replace_existing = False
     
-    def __init__(self, location, replace_existing):
-        pass
+    def __init__(self, conn_string, location, replace_existing):
+        self.client = BlobServiceClient.from_connection_string(conn_string)
+
+    def input(self):
+        return self.input_containers
+
+    def output(self):
+        return self.output_containers
+
+    def create_container(self, name, containers):
+        found_container = False
+        for c in containers:
+            container_name = c['name']
+            if name in container_name:
+                found_container = True
+                # TODO: replace existing bucket if param is passed
+                break
+        if not found_container:
+            random_name = str(uuid.uuid4())[0:16]
+            name = '{}-{}'.format(name, random_name)
+            self.client.create_container(name)
+            logging.info('Created container {}'.format(name))
+            return name
+        else:
+            logging.info('Container {} for {} already exists, skipping.'.format(container_name, name))
+            return container_name
     
     def create_buckets(self, benchmark, buckets):
-        pass
+        # Container names do not allow dots
+        benchmark = benchmark.replace('.', '-')
+        # get existing containers which might fit the benchmark
+        containers = self.client.list_containers(
+                name_starts_with=benchmark
+        )
+        for i in range(0, buckets[0]):
+            self.input_containers.append(
+                self.create_container(
+                    '{}-{}-input'.format(benchmark, i),
+                    containers
+                )
+            )
+            container = self.input_containers[-1]
+            self.input_containers_files.append(
+                list(
+                    map(
+                        lambda x : x['name'],
+                        self.client.get_container_client(container).list_blobs()
+                    )
+                )
+            )
+        for i in range(0, buckets[1]):
+            self.output_containers.append(
+                self.create_container(
+                    '{}-{}-output'.format(benchmark, i),
+                    containers
+                )
+            )
     
-    def uploader_func(self, bucket_idx, file, filepath):
-        pass
+    def uploader_func(self, container_idx, file, filepath):
+        container_name = self.input_containers[container_idx]
+        if not self.replace_existing:
+            for f in self.input_containers_files[container_idx]:
+                if f == file:
+                    logging.info('Skipping upload of {} to {}'.format(filepath, container_name))
+                    return
+        client = self.client.get_blob_client(container_name, file)
+        with open(file, 'rb') as file_data:
+            client.upload_blob(file_data)
+        logging.info('Upload {} to {}'.format(filepath, container_name))
 
 class azure:
     config = None
@@ -61,8 +100,8 @@ class azure:
         self.docker_client = docker_client
 
     def shutdown(self):
-        pass
-        #self.docker_instance.stop()
+        if self.docker_instance:
+            self.docker_instance.stop()
 
     def start(self, code_package):
         if not self.docker_instance:
@@ -93,7 +132,8 @@ class azure:
         return out
 
     def get_storage(self, benchmark, buckets, replace_existing=False):
-        self.storage = blob_storage(self.config['region'], replace_existing)
+        self.storage = blob_storage(self.config['secrets']['storage_conn_string'],
+                self.config['region'], replace_existing)
         self.storage.create_buckets(benchmark, buckets)
         return self.storage
 
@@ -135,6 +175,7 @@ class azure:
         sku = 'Standard_LRS'
         # create storage account 
         if not storage_account_name:
+            uuid_name = uuid.uuid1()[0:8]
             name = 'sebsstorage{)'.format(uuid_name)
             self.execute(
                 ('az storage account create --name {0} --location {1}'
@@ -145,6 +186,12 @@ class azure:
             config['storage_account'] = name
             storage_account_name = name
             logging.info('Storage account {} created.'.format(name))
+            ret = self.execute(
+                    'az storage account show-connection-string --name {}'.format(
+                        resource_group_name)
+                )
+            ret = json.loads(ret.decode('utf-8'))
+            config['storage_conn_string'] = ret['connectionString']
         # confirm existence
         else:
             try:

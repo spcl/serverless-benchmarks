@@ -27,6 +27,12 @@ class aws:
             self.client = boto3.client('s3', region_name=location)
             self.replace_existing = replace_existing
 
+        def input(self):
+            return self.input_buckets
+
+        def output(self):
+            return self.output_buckets
+
         def create_bucket(self, name, buckets):
             found_bucket = False
             for b in buckets:

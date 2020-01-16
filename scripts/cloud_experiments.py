@@ -35,7 +35,7 @@ def prepare_input(client, benchmark, benchmark_path, size):
     buckets = mod.buckets_count()
     storage = client.get_storage(benchmark, buckets, False)
     # Get JSON and upload data as required by benchmark
-    input_config = mod.generate_input(size, storage.input_buckets, storage.output_buckets, storage.uploader_func)
+    input_config = mod.generate_input(size, storage.input(), storage.output(), storage.uploader_func)
     return input_config
 
 def import_config(path):
@@ -84,11 +84,11 @@ try:
     input_config_bytes = json.dumps(input_config).encode('utf-8')
 
     # 6. Create function if it does not exist
-    func = client.create_function(code_dir, args.benchmark,
-            config['memory'], config['timeout'])
+    #func = client.create_function(code_dir, args.benchmark,
+    #        config['memory'], config['timeout'])
 
     # 7. Invoke!
-    ret = client.invoke(func, input_config_bytes)
+    #ret = client.invoke(func, input_config_bytes)
     print(ret)
 
     # get experiment and run
