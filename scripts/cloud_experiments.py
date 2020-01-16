@@ -84,11 +84,11 @@ try:
     input_config_bytes = json.dumps(input_config).encode('utf-8')
 
     # 6. Create function if it does not exist
-    #func = client.create_function(code_dir, args.benchmark,
-    #        config['memory'], config['timeout'])
+    func = client.create_function(code_dir, args.benchmark,
+            config['memory'], config['timeout'])
 
     # 7. Invoke!
-    #ret = client.invoke(func, input_config_bytes)
+    ret = client.invoke(func, input_config_bytes)
     print(ret)
 
     # get experiment and run
