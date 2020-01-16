@@ -15,8 +15,4 @@ USER ${USER}:${USER}
 # and clashses with target
 # https://github.com/pypa/pip/issues/3826
 CMD cd /mnt/function\
-    && pip3 -q install -r requirements.txt -t .packages\
-    && cd .packages\
-    && zip -qur ../${APP}.zip *\
-    && cd ..\
-    && rm -rf .packages
+    && pip3 -q install -r requirements.txt -t .

@@ -9,4 +9,4 @@ RUN apt-get update\
   && apt-get purge -y --auto-remove
 USER ${USER}:${USER}
 
-CMD cd /mnt/function && npm install && zip -qur ${APP}.zip node_modules && rm -rf node_modules package-lock.json
+CMD cd /mnt/function && npm install

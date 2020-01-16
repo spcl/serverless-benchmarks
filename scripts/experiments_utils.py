@@ -128,6 +128,7 @@ def create_code_package(docker, client, config, benchmark, benchmark_path):
 
     # now let's do the last step - add config files and create deployment
     # package if necessary
-    client.package_code(os.path.join(os.getcwd(), 'code'), benchmark)
+    package_code = os.path.join(os.path.abspath('code'))
+    package_code = client.package_code(package_code, benchmark)
 
-    return os.path.join(os.getcwd(), 'code'), code_size, config
+    return package_code, code_size, config

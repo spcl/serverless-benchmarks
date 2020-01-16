@@ -338,8 +338,21 @@ class minio_storage:
             for obj in objects:
                 self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
 
-class minio_uploader:
-    pass
+class local:
+
+    def package_code(self, dir, benchmark):
+        cur_dir = os.getcwd()
+        os.chdir(dir)
+        print(os.getcwd())
+        # create zip
+        execute(
+            'zip -qur {}.zip *'.format(os.path.join(os.path.pardir, benchmark)),
+            shell=True
+        )
+        par_dir = os.path.join(dir, os.path.pardir)
+        logging.info('Created {}.zip archive'.format(os.path.join(par_dir, benchmark)))
+        os.chdir(cur_dir)
+        return os.path.join(par_dir, '{}.zip'.format(benchmark))
 
 def prepare_input(benchmark, benchmark_path, size):
     # Look for input generator file in the directory containing benchmark
@@ -379,13 +392,21 @@ try:
     benchmark_path = find_benchmark(args.benchmark)
     logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
+    # 6. Create experiment config
+    benchmark_config = {}
+    benchmark_config['repetitions'] = args.repetitions
+    benchmark_config['disable_gc'] = True
+    benchmark_config['language'] = args.language
+    benchmark_config['runtime'] = experiment_config['local']['runtime'][args.language]
+    benchmark_config['deployment'] = 'local'
+
     # 3. Build code package
     code_package, code_size, config = create_code_package(
-            run='local',
+            docker=client,
+            client=local(),
+            config=benchmark_config,
             benchmark=args.benchmark,
             benchmark_path=benchmark_path,
-            language=args.language,
-            verbose=args.verbose
     )
     logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
 
@@ -393,19 +414,11 @@ try:
     # TurboBoost, disable HT, power cap, decide on which cores to use
 
     # 5. Prepare benchmark input
-    input_config, storage = prepare_input(args.benchmark, benchmark_path, args.size)
-
-    # 6. Create experiment config
-    app_config = {'name' : args.benchmark, 'size' : code_size}
-    benchmark_config = {}
-    benchmark_config['repetitions'] = args.repetitions
-    benchmark_config['disable_gc'] = True
-    benchmark_config['language'] = args.language
-    benchmark_config['version'] = experiment_config['local']['language'][args.language]
-    benchmark_config['deployment'] = 'local'
+    input_config, storage = prepare_input(args.benchmark, benchmark_path, args.size) 
     storage_config = storage.config_to_json()
     if storage_config:
         benchmark_config['storage'] = storage_config
+    app_config = {'name' : args.benchmark, 'size' : code_size}
     input_config = {
         'input' : input_config,
         'app': app_config,
@@ -422,7 +435,7 @@ try:
     # 8. Start measurement processes
     for experiment in enabled_experiments:
 
-        home_dir = '/home/{}'.format(systems_config['local'][args.language]['username'])
+        home_dir = '/home/{}'.format(systems_config['local']['languages'][args.language]['username'])
         containers = [None] * experiment.instances
         os.makedirs(experiment.name, exist_ok=True)
         logging.info('# Experiment: {} begins.'.format(experiment.name))
@@ -430,7 +443,7 @@ try:
         for i in range(0, experiment.instances):
             # 7. Start docker instance with code and input
             containers[i] = run_container(
-                client, args.language, benchmark_config['version'],
+                client, args.language, benchmark_config['runtime'],
                 {**volumes, **experiment.get_docker_volumes(output_dir, home_dir)},
                 os.path.join(output_dir, code_package),
                 home_dir
