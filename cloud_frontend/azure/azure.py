@@ -6,6 +6,7 @@ import logging
 import os
 import subprocess
 import shutil
+import time
 import uuid
 
 from azure.storage.blob import BlobServiceClient
@@ -414,14 +415,18 @@ class azure:
 
         self.storage_account()
         self.resource_group()
-        self.start(code_package)
+        # Restart Docker instance to make sure code package is mounted
+        self.start(code_package, restart=True)
 
         region = self.config['azure']['region']
         # only hyphens are allowed
         # and name needs to be globally unique
-        func_name = '{}-{}'\
-                    .format(benchmark, self.language)\
-                    .replace('.', '-')
+        uuid_name = str(uuid.uuid1())[0:8]
+        func_name = '{}-{}-{}'\
+                    .format(benchmark, self.language, uuid_name)\
+                    .replace('.', '-')\
+                    .replace('_', '-')
+        #func_name = '210-thumbnailer-python-9cc473c4'
         # runtime mapping
         runtimes = {'python': 'python', 'nodejs': 'node'}
 
@@ -443,7 +448,10 @@ class azure:
                 )
             )
 
+        logging.info('Selected {} function app'.format(func_name))
         # publish
+        time.sleep(30)
+        logging.info('Sleep 30 seconds for Azure to register function app')
         ret = self.execute(
             'bash -c \'cd /mnt/function '
             '&& func azure functionapp publish {} --{} --no-build\''.format(
@@ -456,6 +464,25 @@ class azure:
             if 'Invoke url' in line:
                 url = line.split('Invoke url:')[1].strip()
                 break
+
+        self.cache_client.add_function('azure', benchmark, code_package,
+                {
+                    'azure': {
+                        'function': {
+                            'invoke_url': url,
+                            'name': func_name,
+                            'resource_group': self.resource_group_name,
+                        },
+                        'storage': {
+                            'account': self.storage_account_name,
+                            'buckets': {
+                                'input': [],
+                                'output': []
+                            }
+                        }
+                    }
+                }
+        )
 
     def invoke(self, name, payload):
         pass

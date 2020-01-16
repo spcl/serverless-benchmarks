@@ -2,7 +2,7 @@
 import json
 import logging
 import os
-
+import shutil
 
 # https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
 import collections.abc
@@ -67,3 +67,31 @@ class cache:
                     logging.info('Update cached config {}'.format(cloud_config_file))
                     with open(cloud_config_file, 'w') as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
+
+    def add_function(self, deployment, benchmark, code_package, config):
+
+        benchmark_dir = os.path.join(self.cache_dir, benchmark)
+        os.makedirs(benchmark_dir, exist_ok=True)
+
+        # Check if cache directory for this deployment exist
+        benchmark_dir = os.path.join(benchmark_dir, deployment)
+        if not os.path.exists(benchmark_dir):
+            os.mkdir(benchmark_dir)
+
+            # copy code
+            if os.path.isdir(code_package):
+                shutil.copytree(code_package, os.path.join(benchmark_dir, 'code'))
+            # copy zop file
+            else:
+                shutil.copy2(code_package, benchmark_dir)
+
+            with open(os.path.join(benchmark_dir, 'config.json'), 'w') as fp:
+                json.dump(config, fp, indent=2)
+
+        else:
+            # TODO: update
+            raise RuntimeError(
+                    'Cached application {} for {} already exists!'.format(
+                        benchmark, deployment
+                    )
+                )
