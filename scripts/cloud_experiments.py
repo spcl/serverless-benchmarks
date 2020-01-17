@@ -59,7 +59,7 @@ if args.language:
 else:
     language = experiment_config['experiments']['language']
 if args.deployment:
-    experiment_config['experiments']['deployment'] = args.cloud
+    experiment_config['experiments']['deployment'] = args.deployment
     deployment = args.deployment
 else:
     deployment = experiment_config['experiments']['deployment']
@@ -67,7 +67,7 @@ else:
 try:
     benchmark_summary = {}
     if language not in experiment_config[deployment]['runtime']:
-        raise RuntimeError('Language {} is not supported on cloud {}'.format(language, args.cloud))
+        raise RuntimeError('Language {} is not supported on cloud {}'.format(language, args.deployment))
     experiment_config['experiments']['runtime'] = experiment_config[deployment]['runtime'][language]
     experiment_config['experiments']['region'] = experiment_config[deployment]['region']
     # Load cached secrets
@@ -111,8 +111,8 @@ try:
             config['memory'], config['timeout'])
 
     # 7. Invoke!
-    #ret = deployment_client.invoke(func, input_config_bytes)
-    #print(ret)
+    ret = deployment_client.invoke(func, input_config_bytes)
+    print(ret)
 
     # get experiment and run
     

@@ -1,4 +1,5 @@
 
+import datetime
 import json
 import logging
 import os
@@ -68,6 +69,14 @@ class cache:
                     with open(cloud_config_file, 'w') as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 
+    def get_function(self, deployment, benchmark):
+        benchmark_dir = os.path.join(self.cache_dir, benchmark, deployment)
+        if os.path.exists(benchmark_dir):
+            with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
+                cfg = json.load(fp)
+                return cfg
+        return None
+
     def add_function(self, deployment, benchmark, code_package, config):
 
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
@@ -85,6 +94,9 @@ class cache:
             else:
                 shutil.copy2(code_package, benchmark_dir)
 
+            config['code'] = code_package
+            date = str(datetime.datetime.now())
+            config['date'] = {'created': date, 'modified': date}
             with open(os.path.join(benchmark_dir, 'config.json'), 'w') as fp:
                 json.dump(config, fp, indent=2)
 

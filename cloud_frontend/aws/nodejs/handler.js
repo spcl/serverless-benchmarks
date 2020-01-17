@@ -2,7 +2,7 @@
 
 exports.handler = async function(event, context) {
   var start = process.hrtime();
-  var func = require('./function')
+  var func = require('./function/function')
   var ret = func.handler(event);
   return ret.then(
     (result) => {

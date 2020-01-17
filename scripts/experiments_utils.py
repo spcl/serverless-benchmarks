@@ -88,6 +88,25 @@ def create_code_package(docker, client, config, benchmark, benchmark_path):
         for file in handlers:
             shutil.copy2(file, 'code')
 
+    # Add deployment packages
+    if language == 'python':
+        # append to the end of file
+        packages = system_config['deployment']['packages']
+        if len(packages):
+            with open('requirements.txt', 'a') as out:
+                for package in packages:
+                    out.write(package)
+    # modify package.json
+    elif language == 'nodejs':
+        packages = system_config['deployment']['packages']
+        if len(packages):
+            package_json = json.load(open('package.json', 'r'))
+            for key, val in packages.items():
+                package_json['dependencies'][key] = val
+            json.dump(package_json, open('package.json', 'w'), indent=2)
+    else:
+        raise RuntimeError()
+
     # do we have docker image for this run and language?
     if 'build' not in system_config['images']:
         logging.info('Docker build image for {} run with {} is not available, skipping'.format(run, language))

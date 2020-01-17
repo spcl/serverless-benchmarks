@@ -187,8 +187,8 @@ class aws:
 
         cur_dir = os.getcwd()
         os.chdir(dir)
-        # create zip
-        execute('zip -qur {}.zip * .*'.format(benchmark), shell=True)
+        # create zip with hidden directory but without parent directory
+        execute('zip -qur {}.zip * .'.format(benchmark), shell=True)
         logging.info('Created {}.zip archive'.format(os.path.join(dir, benchmark)))
         os.chdir(cur_dir)
         return os.path.join(dir, '{}.zip'.format(benchmark))
