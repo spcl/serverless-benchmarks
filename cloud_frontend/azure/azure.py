@@ -426,7 +426,6 @@ class azure:
                     .format(benchmark, self.language, uuid_name)\
                     .replace('.', '-')\
                     .replace('_', '-')
-        #func_name = '210-thumbnailer-python-9cc473c4'
         # runtime mapping
         runtimes = {'python': 'python', 'nodejs': 'node'}
 

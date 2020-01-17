@@ -11,6 +11,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     if 'connection_string' in req_json:
         os.environ['STORAGE_CONNECTION_STRING'] = req_json['connection_string']
     begin = datetime.datetime.now()
+    # We are deployed in the same directory
     from . import function
     ret = function.handler(req_json)
     end = datetime.datetime.now()

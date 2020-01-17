@@ -16,7 +16,6 @@ class storage:
     # it seems that JS does not have an API that would allow to 
     # upload/download data without going through container client
     def upload_stream(self, container, file, data):
-        let container_client = self.client.getContainerClient(container);
         client = self.client.get_blob_client(container=container, blob=file)
         return client.upload_blob(data)
 
