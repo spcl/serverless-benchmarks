@@ -11,7 +11,7 @@ import uuid
 
 from azure.storage.blob import BlobServiceClient
 
-from scripts.experiments_utils import PROJECT_DIR
+from scripts.experiments_utils import PROJECT_DIR, create_code_package
 
 class blob_storage:
     client = None
@@ -19,7 +19,8 @@ class blob_storage:
     input_containers_files = []
     output_containers = []
     replace_existing = False
-    
+    cached_ = False
+
     def __init__(self, conn_string, location, replace_existing):
         self.client = BlobServiceClient.from_connection_string(conn_string)
 
@@ -46,39 +47,59 @@ class blob_storage:
         else:
             logging.info('Container {} for {} already exists, skipping.'.format(container_name, name))
             return container_name
-    
-    def create_buckets(self, benchmark, buckets):
-        # Container names do not allow dots
-        benchmark = benchmark.replace('.', '-')
-        # get existing containers which might fit the benchmark
-        containers = self.client.list_containers(
-                name_starts_with=benchmark
-        )
-        for i in range(0, buckets[0]):
-            self.input_containers.append(
-                self.create_container(
-                    '{}-{}-input'.format(benchmark, i),
-                    containers
-                )
-            )
-            container = self.input_containers[-1]
-            self.input_containers_files.append(
-                list(
-                    map(
-                        lambda x : x['name'],
-                        self.client.get_container_client(container).list_blobs()
+
+    def create_buckets(self, benchmark, buckets, cached_buckets):
+        if cached_buckets:
+            self.input_containers = cached_buckets['containers']['input']
+            for container in self.input_containers:
+                self.input_containers_files.append(
+                    list(
+                        map(
+                            lambda x : x['name'],
+                            self.client.get_container_client(container).list_blobs()
+                        )
                     )
                 )
+            self.output_containers = cached_buckets['containers']['output']
+            self.cached = True
+            logging.info('Using cached storage input containers {}'.format(self.input_containers))
+            logging.info('Using cached storage output containers {}'.format(self.output_containers))
+        else:
+            # Container names do not allow dots
+            benchmark = benchmark.replace('.', '-')
+            # get existing containers which might fit the benchmark
+            containers = self.client.list_containers(
+                    name_starts_with=benchmark
             )
-        for i in range(0, buckets[1]):
-            self.output_containers.append(
-                self.create_container(
-                    '{}-{}-output'.format(benchmark, i),
-                    containers
+            for i in range(0, buckets[0]):
+                self.input_containers.append(
+                    self.create_container(
+                        '{}-{}-input'.format(benchmark, i),
+                        containers
+                    )
                 )
-            )
-    
+                container = self.input_containers[-1]
+                self.input_containers_files.append(
+                    list(
+                        map(
+                            lambda x : x['name'],
+                            self.client.get_container_client(container).list_blobs()
+                        )
+                    )
+                )
+            for i in range(0, buckets[1]):
+                self.output_containers.append(
+                    self.create_container(
+                        '{}-{}-output'.format(benchmark, i),
+                        containers
+                    )
+                )
+
     def uploader_func(self, container_idx, file, filepath):
+        # Skip upload when using cached containers
+        # TODO: update-container param
+        if self.cached:
+            return
         container_name = self.input_containers[container_idx]
         if not self.replace_existing:
             for f in self.input_containers_files[container_idx]:
@@ -106,7 +127,10 @@ class azure:
     resource_group_name = None
     storage_account_name = None
     storage_connection_string = None
-    
+
+    # runtime mapping
+    AZURE_RUNTIMES = {'python': 'python', 'nodejs': 'node'}
+
     def __init__(self, cache_client, config, language, docker_client):
         self.config = config
         self.language = language
@@ -200,18 +224,20 @@ class azure:
         Create wrapper object for Azure blob storage.
         First ensure that storage account is created and connection string
         is known. Then, create wrapper and create request number of buckets.
-        
+
         Requires Azure CLI instance in Docker to obtain storage account details.
     '''
     def get_storage(self, benchmark, buckets, replace_existing=False):
         # ensure we have a storage account
-        self.storage_account() 
+        self.storage_account()
         self.storage = blob_storage(
                 self.storage_connection_string,
                 self.config['azure']['region'],
                 replace_existing
         )
-        self.storage.create_buckets(benchmark, buckets)
+        self.storage.create_buckets(benchmark, buckets,
+                self.cache_client.get_storage_config('azure', benchmark)
+        )
         return self.storage
 
     '''
@@ -221,7 +247,6 @@ class azure:
         Requires Azure CLI instance in Docker.
     '''
     def resource_group(self):
-        
         # if known, then skip
         if self.resource_group_name:
             return
@@ -312,7 +337,7 @@ class azure:
                     'Storage account {} existence verification failed!'.format(
                         self.storage_account_name
                     )
-                )         
+                )
         # Create storage account
         else:
             region = self.config['azure']['region']
@@ -368,7 +393,7 @@ class azure:
             if file not in package_config:
                 file = os.path.join(dir, file)
                 shutil.move(file, handler_dir)
-        
+
         # generate function.json
         # TODO: extension to other triggers than HTTP
         default_function_json = {
@@ -411,50 +436,18 @@ class azure:
 
         return dir
 
-    def create_function(self, code_package, benchmark, memory=None, timeout=None):
+    '''
+        Publish function code on Azure.
 
-        self.storage_account()
-        self.resource_group()
-        # Restart Docker instance to make sure code package is mounted
-        self.start(code_package, restart=True)
+        :param name: function name
+        :return: URL to reach HTTP-triggered function
+    '''
+    def publish_function(self, name :str):
 
-        region = self.config['azure']['region']
-        # only hyphens are allowed
-        # and name needs to be globally unique
-        uuid_name = str(uuid.uuid1())[0:8]
-        func_name = '{}-{}-{}'\
-                    .format(benchmark, self.language, uuid_name)\
-                    .replace('.', '-')\
-                    .replace('_', '-')
-        # runtime mapping
-        runtimes = {'python': 'python', 'nodejs': 'node'}
-
-        # check if function does not exist
-        try:
-            self.execute(
-                ('az functionapp show --resource-group {} '
-                 '--name {}').format(self.resource_group_name, func_name)
-            )
-        except:
-            ret = self.execute(
-                ('az functionapp create --resource-group {} '
-                 '--os-type Linux --consumption-plan-location {} '
-                 '--runtime {} --runtime-version {} --name {} '
-                 '--storage-account {}').format(
-                    self.resource_group_name, region, runtimes[self.language],
-                    self.config['experiments']['runtime'], func_name,
-                    self.storage_account_name
-                )
-            )
-
-        logging.info('Selected {} function app'.format(func_name))
-        # publish
-        time.sleep(30)
-        logging.info('Sleep 30 seconds for Azure to register function app')
         ret = self.execute(
             'bash -c \'cd /mnt/function '
             '&& func azure functionapp publish {} --{} --no-build\''.format(
-                func_name, runtimes[self.language]
+                name, self.AZURE_RUNTIMES[self.language]
             )
         )
         url = ""
@@ -463,30 +456,134 @@ class azure:
             if 'Invoke url' in line:
                 url = line.split('Invoke url:')[1].strip()
                 break
+        return url
 
-        self.cache_client.add_function(
-                deployment='azure',
-                benchmark=benchmark,
-                language=self.language,
-                code_package=code_package,
-                config={
-                    'azure': {
-                        'function': {
-                            'invoke_url': url,
-                            'runtime': self.config['experiments']['runtime'],
-                            'name': func_name,
-                            'resource_group': self.resource_group_name,
-                        },
-                        'storage': {
-                            'account': self.storage_account_name,
-                            'buckets': {
-                                'input': [],
-                                'output': []
-                            }
+    '''
+        a)  if a cached function is present and no update flag is passed,
+            then just return function name
+        b)  if a cached function is present and update flag is passed,
+            then upload new code
+        c)  if no cached function is present, then create code package and
+            either create new function on AWS or update an existing one
+
+        :param benchmark:
+        :param benchmark_path: Path to benchmark code
+        :param config: JSON config for benchmark
+        :return: function name, code size
+    '''
+    def create_function(self, benchmark :str, benchmark_path :str, config :dict):
+
+        func_name = None
+        code_size = None
+        cached_f = self.cache_client.get_function('azure', benchmark, self.language)
+
+        # a) cached_instance and no update
+        if cached_f is not None and not config['experiments']['update_code']:
+            cached_cfg = cached_f[0]
+            func_name = cached_cfg['name']
+            code_size = cached_cfg['code_size']
+            logging.info('Using cached code package in {} of size {}'.format(
+                func_name, code_size
+            ))
+            logging.info('Using cached function {}'.format(func_name))
+        # b) cached_instance, create package and update code
+        elif cached_f is not None:
+
+            cached_cfg = cached_f[0]
+            func_name = cached_cfg['name']
+
+            # Build code package
+            code_package, code_size, benchmark_config = create_code_package(
+                    self.docker_client, self, config['experiments'],
+                    benchmark, benchmark_path
+            )
+
+            # Restart Docker instance to make sure code package is mounted
+            self.start(code_package, restart=True)
+            # Publish function
+            url = self.publish_function(func_name)
+            logging.info('Updating cached function {} in {} of size {}'.format(
+                func_name, code_package, code_size
+            ))
+
+            # update cache contents
+            cached_cfg['code_size'] = code_size
+            cached_cfg['invoke_url'] = url
+            self.cache_client.update_function('azure', benchmark, self.language,
+                    code_package, cached_cfg)
+        # c) no cached instance, create package and upload code
+        else:
+
+            # Build code package
+            code_package, code_size, benchmark_config = create_code_package(
+                    self.docker_client, self, config['experiments'],
+                    benchmark, benchmark_path
+            )
+
+            # Restart Docker instance to make sure code package is mounted
+            self.start(code_package, restart=True)
+            self.storage_account()
+            self.resource_group()
+
+            # create function name
+            region = self.config['azure']['region']
+            # only hyphens are allowed
+            # and name needs to be globally unique
+            uuid_name = str(uuid.uuid1())[0:8]
+            func_name = '{}-{}-{}'\
+                        .format(benchmark, self.language, uuid_name)\
+                        .replace('.', '-')\
+                        .replace('_', '-')
+
+            # check if function does not exist
+            # no API to verify existence
+            try:
+                self.execute(
+                    ('az functionapp show --resource-group {} '
+                     '--name {}').format(self.resource_group_name, func_name)
+                )
+            except:
+                # create function app
+                ret = self.execute(
+                    ('az functionapp create --resource-group {} '
+                     '--os-type Linux --consumption-plan-location {} '
+                     '--runtime {} --runtime-version {} --name {} '
+                     '--storage-account {}').format(
+                        self.resource_group_name, region, self.AZURE_RUNTIMES[self.language],
+                        self.config['experiments']['runtime'], func_name,
+                        self.storage_account_name
+                    )
+                )
+
+                # Sleep because of problems when publishing immediately after
+                # creatin function app.
+                time.sleep(30)
+                logging.info('Sleep 30 seconds for Azure to register function app')
+            logging.info('Selected {} function app'.format(func_name))
+            # update existing function app
+            url = self.publish_function(func_name)
+
+            self.cache_client.add_function(
+                    deployment='azure',
+                    benchmark=benchmark,
+                    language=self.language,
+                    code_package=code_package,
+                    language_config={
+                        'invoke_url': url,
+                        'runtime': self.config['experiments']['runtime'],
+                        'name': func_name,
+                        'code_size': code_size,
+                        'resource_group': self.resource_group_name,
+                    },
+                    storage_config={
+                        'account': self.storage_account_name,
+                        'containers': {
+                            'input': self.storage.input_containers,
+                            'output': self.storage.output_containers
                         }
                     }
-                }
-        )
+            )
+        return func_name, code_size
 
     def invoke(self, name, payload):
         pass
