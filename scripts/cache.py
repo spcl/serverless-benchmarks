@@ -86,7 +86,7 @@ class cache:
         if os.path.exists(benchmark_dir):
             with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
                 cfg = json.load(fp)
-                return cfg[deployment]
+                return cfg[deployment] if deployment in cfg else None
 
     '''
         Acccess cached version of a function.
@@ -144,9 +144,12 @@ class cache:
         cached_dir = os.path.join(benchmark_dir, deployment, language)
         # copy code
         if os.path.isdir(code_package):
-            shutil.copytree(code_package, os.path.join(cached_dir, 'code'))
+            dest = os.path.join(cached_dir, 'code')
+            shutil.rmtree(dest)
+            shutil.copytree(code_package, dest)
         # copy zip file
-        else: shutil.copy2(code_package, cached_dir)
+        else:
+            shutil.copy2(code_package, cached_dir)
         # update JSON config
         with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
             cached_config = json.load(fp)
@@ -191,10 +194,17 @@ class cache:
                     'storage': storage_config
                 }
             }
+
             # don't store absolute path to avoid problems with moving cache dir
             config[deployment][language]['code'] = code_package
             date = str(datetime.datetime.now())
             config[deployment][language]['date'] = {'created': date, 'modified': date}
+            # make sure to not replace other entries
+            if os.path.exists(os.path.join(benchmark_dir, 'config.json')):
+                with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
+                    cached_config = json.load(fp)
+                    cached_config[deployment] = config[deployment]
+                    config = cached_config
             with open(os.path.join(benchmark_dir, 'config.json'), 'w') as fp:
                 json.dump(config, fp, indent=2)
 
