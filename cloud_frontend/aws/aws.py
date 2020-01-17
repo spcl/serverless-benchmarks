@@ -112,49 +112,83 @@ class aws:
         self.language = language
         self.cache_client = cache_client
 
-    def start(self, code_package):
+    def start(self, code_package=None):
 
-        # Verify we can log in
-        # 1. Cached credentials
-        # TODO: flag to update cache
-        if 'secrets' in self.config['aws']:
-            self.access_key = self.config['aws']['secrets']['access_key']
-            self.secret_key = self.config['aws']['secrets']['secret_key']
-        # 2. Environmental variables
-        elif 'AWS_ACCESS_KEY_ID' in os.environ:
-            self.access_key = os.environ['AWS_ACCESS_KEY_ID']
-            self.secret_key = os.environ['AWS_SECRET_ACCESS_KEY']
-            # update
-            self.cache_client.update_config(
-                    val=access_key,
-                    keys=['aws', 'secrets', 'access_key'])
-            self.cache_client.update_config(
-                    val=secret_key,
-                    keys=['aws', 'secrets', 'secret_key'])
-        else:
-            raise RuntimeError('AWS login credentials are missing! Please set '
-                    'up environmental variables AWS_ACCESS_KEY_ID and '
-                    'AWS_SECRET_ACCESS_KEY')
+        if not self.client:
+            # Verify we can log in
+            # 1. Cached credentials
+            # TODO: flag to update cache
+            if 'secrets' in self.config['aws']:
+                self.access_key = self.config['aws']['secrets']['access_key']
+                self.secret_key = self.config['aws']['secrets']['secret_key']
+            # 2. Environmental variables
+            elif 'AWS_ACCESS_KEY_ID' in os.environ:
+                self.access_key = os.environ['AWS_ACCESS_KEY_ID']
+                self.secret_key = os.environ['AWS_SECRET_ACCESS_KEY']
+                # update
+                self.cache_client.update_config(
+                        val=access_key,
+                        keys=['aws', 'secrets', 'access_key'])
+                self.cache_client.update_config(
+                        val=secret_key,
+                        keys=['aws', 'secrets', 'secret_key'])
+            else:
+                raise RuntimeError('AWS login credentials are missing! Please set '
+                        'up environmental variables AWS_ACCESS_KEY_ID and '
+                        'AWS_SECRET_ACCESS_KEY')
 
-        self.client = boto3.client('lambda',
-                aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key,
-                region_name=config['experiments']['region'])
+            self.client = boto3.client('lambda',
+                    aws_access_key_id=self.access_key,
+                    aws_secret_access_key=self.secret_key,
+                    region_name=self.config['aws']['region'])
 
     def get_storage(self, benchmark, buckets, replace_existing=False):
+        self.start()
         self.storage = aws.s3(
-                self.config['experiments']['region'],
+                self.config['aws']['region'],
                 access_key=self.access_key,
                 secret_key=self.secret_key,
                 replace_existing=replace_existing)
         self.storage.create_buckets(benchmark, buckets)
         return self.storage
 
-    def package_code(self, dir, benchmark):
+    '''
+        It would be sufficient to just pack the code and ship it as zip to AWS.
+        However, to have a compatible function implementation across providers,
+        we creata small module.
+        Issue: relative imports in Python when using storage wrapper.
+        Azure expects a relative import inside a module.
+
+        Structure:
+        function
+        - function.py
+        - storage.py
+        - packages
+        - resources
+        handler.py 
+
+        dir: directory where code is located
+        benchmark: benchmark name
+    '''
+    def package_code(self, dir :str, benchmark :str):
+ 
+        CONFIG_FILES = {
+            'python': ['handler.py', 'requirements.txt', '.python_packages'],
+            'nodejs': ['handler.js', 'package.json', 'node_modules']
+        }
+        package_config = CONFIG_FILES[self.language]
+        function_dir = os.path.join(dir, 'function')
+        os.makedirs(function_dir)
+        # move all files to 'function' except handler.py
+        for file in os.listdir(dir):
+            if file not in package_config:
+                file = os.path.join(dir, file)
+                shutil.move(file, function_dir)
+
         cur_dir = os.getcwd()
         os.chdir(dir)
         # create zip
-        execute('zip -qur {}.zip *'.format(benchmark), shell=True)
+        execute('zip -qur {}.zip * .*'.format(benchmark), shell=True)
         logging.info('Created {}.zip archive'.format(os.path.join(dir, benchmark)))
         os.chdir(cur_dir)
         return os.path.join(dir, '{}.zip'.format(benchmark))
@@ -162,7 +196,6 @@ class aws:
     def create_function(self, code_package, benchmark, memory=128, timeout=10):
 
         self.start(code_package)
-
         code_body = open(code_package, 'rb').read()
         func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
         # AWS Lambda does not allow hyphens in function names
@@ -207,6 +240,7 @@ class aws:
             LogType='Tail'
         )
         end = datetime.datetime.now()
+
         if ret['StatusCode'] != 200:
             logging.error('Invocation of {} failed!'.format(name))
             logging.error('Input: {}'.format(payload.decode('utf-8')))
