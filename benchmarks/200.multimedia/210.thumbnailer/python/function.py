@@ -40,3 +40,4 @@ def handler(event):
     img = client.download_stream(input_bucket, key)
     resized = resize_image(img, width, height)
     client.upload_stream(output_bucket, key, resized)
+    return { 'bucket': output_bucket, 'key': key}
