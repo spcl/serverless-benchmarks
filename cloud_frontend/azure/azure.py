@@ -9,6 +9,8 @@ import shutil
 import time
 import uuid
 
+from typing import Tuple
+
 from azure.storage.blob import BlobServiceClient
 
 from scripts.experiments_utils import PROJECT_DIR, create_code_package
@@ -21,8 +23,9 @@ class blob_storage:
     replace_existing = False
     cached = False
 
-    def __init__(self, conn_string, location, replace_existing):
+    def __init__(self, conn_string, replace_existing):
         self.client = BlobServiceClient.from_connection_string(conn_string)
+        self.replace_existing = replace_existing
 
     def input(self):
         return self.input_containers
@@ -36,7 +39,6 @@ class blob_storage:
             container_name = c['name']
             if name in container_name:
                 found_container = True
-                # TODO: replace existing bucket if param is passed
                 break
         if not found_container:
             random_name = str(uuid.uuid4())[0:16]
@@ -61,7 +63,7 @@ class blob_storage:
                     )
                 )
             self.output_containers = cached_buckets['containers']['output']
-            # Clean output container - otherwise upload might fail.
+            # Clean output container for new execution.
             for container in self.output_containers:
                 logging.info('Clean output container {}'.format(container))
                 container_client = self.client.get_container_client(container)
@@ -107,8 +109,7 @@ class blob_storage:
 
     def uploader_func(self, container_idx, file, filepath):
         # Skip upload when using cached containers
-        # TODO: update-container param
-        if self.cached:
+        if self.cached and not self.replace_existing:
             return
         container_name = self.input_containers[container_idx]
         if not self.replace_existing:
@@ -117,8 +118,8 @@ class blob_storage:
                     logging.info('Skipping upload of {} to {}'.format(filepath, container_name))
                     return
         client = self.client.get_blob_client(container_name, file)
-        with open(file, 'rb') as file_data:
-            client.upload_blob(file_data)
+        with open(filepath, 'rb') as file_data:
+            client.upload_blob(data=file_data, overwrite=True)
         logging.info('Upload {} to {}'.format(filepath, container_name))
 
 class azure:
@@ -236,13 +237,18 @@ class azure:
         is known. Then, create wrapper and create request number of buckets.
 
         Requires Azure CLI instance in Docker to obtain storage account details.
+
+        :param benchmark:
+        :param buckets: number of input and output buckets
+        :param replace_existing: when true, replace existing files in input buckets
+        :return: Azure storage instance
     '''
-    def get_storage(self, benchmark, buckets, replace_existing=False):
+    def get_storage(self, benchmark :str, buckets :Tuple[int, int],
+            replace_existing: bool=False):
         # ensure we have a storage account
         self.storage_account()
         self.storage = blob_storage(
                 self.storage_connection_string,
-                self.config['azure']['region'],
                 replace_existing
         )
         self.storage.create_buckets(benchmark, buckets,
@@ -598,3 +604,5 @@ class azure:
     def invoke(self, name, payload):
         pass
 
+    def download_metrics(self, function_name, time_begin, time_end):
+        pass
