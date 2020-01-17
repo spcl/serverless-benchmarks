@@ -14,10 +14,10 @@ durations = [0] * repetitions
 try:
     start = datetime.datetime.now()
     for i in range(0, repetitions):
+        prefix = get_result_prefix(LOGS_DIR, 'output', 'txt')
         begin = datetime.datetime.now()
-        out_file = get_result_prefix(LOGS_DIR, 'output', 'txt')
-        ret = subprocess.run(['/bin/bash', 'timeit.sh'],
-            stdout=subprocess.PIPE)
+        ret = subprocess.run(['/bin/bash', 'timeit.sh', prefix],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stop = datetime.datetime.now()
         timedata[i] = [begin, stop]
         durations[i] = int(ret.stdout.decode('utf-8'))
