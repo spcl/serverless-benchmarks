@@ -84,7 +84,7 @@ def build_systems(system, system_config):
         build(args.run, system, system_config['images']['manage']['username'])
     else:
         if args.language:
-            build_language(system, args.language, system_config[args.language])
+            build_language(system, args.language, system_config['languages'][args.language])
         else:
             for language, language_dict in system_config['languages'].items():
                 build_language(system, language, language_dict)
