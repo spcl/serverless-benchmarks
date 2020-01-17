@@ -229,6 +229,31 @@ class aws:
                 Timeout=timeout,
                 Code={'ZipFile': code_body}
             )
+
+            self.cache_client.add_function(
+                    deployment='aws',
+                    benchmark=benchmark,
+                    language=self.language,
+                    code_package=code_package,
+                    config={
+                        'azure': {
+                            'function': {
+                                'name': func_name,
+                                'runtime': self.config['experiments']['runtime'],
+                                'role': self.config['aws']['lambda-role'],
+                                'memory': memory,
+                                'timeout': timeout
+                            },
+                            'storage': {
+                                'account': self.storage_account_name,
+                                'buckets': {
+                                    'input': [],
+                                    'output': []
+                                }
+                            }
+                        }
+                    }
+            )
         return func_name
 
     def invoke(self, name, payload):

@@ -77,9 +77,9 @@ class cache:
                 return cfg
         return None
 
-    def add_function(self, deployment, benchmark, code_package, config):
+    def add_function(self, deployment, benchmark, language, code_package, config):
 
-        benchmark_dir = os.path.join(self.cache_dir, benchmark)
+        benchmark_dir = os.path.join(self.cache_dir, benchmark, language)
         os.makedirs(benchmark_dir, exist_ok=True)
 
         # Check if cache directory for this deployment exist

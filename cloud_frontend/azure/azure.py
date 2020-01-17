@@ -464,11 +464,16 @@ class azure:
                 url = line.split('Invoke url:')[1].strip()
                 break
 
-        self.cache_client.add_function('azure', benchmark, code_package,
-                {
+        self.cache_client.add_function(
+                deployment='azure',
+                benchmark=benchmark,
+                language=self.language,
+                code_package=code_package,
+                config={
                     'azure': {
                         'function': {
                             'invoke_url': url,
+                            'runtime': self.config['experiments']['runtime'],
                             'name': func_name,
                             'resource_group': self.resource_group_name,
                         },
