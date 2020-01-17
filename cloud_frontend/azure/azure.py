@@ -19,7 +19,7 @@ class blob_storage:
     input_containers_files = []
     output_containers = []
     replace_existing = False
-    cached_ = False
+    cached = False
 
     def __init__(self, conn_string, location, replace_existing):
         self.client = BlobServiceClient.from_connection_string(conn_string)

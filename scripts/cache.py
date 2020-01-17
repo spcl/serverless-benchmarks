@@ -99,7 +99,7 @@ class cache:
     '''
     def get_function(self, deployment :str, benchmark :str, language :str):
         cfg = self.get_benchmark_config(deployment, benchmark)
-        if cfg:
+        if cfg and 'language' in cfg:
             return (
                     cfg[language],
                     os.path.join(self.cache_dir, cfg[language]['code'])
@@ -203,7 +203,7 @@ class cache:
             if os.path.exists(os.path.join(benchmark_dir, 'config.json')):
                 with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
                     cached_config = json.load(fp)
-                    cached_config[deployment] = config[deployment]
+                    cached_config[deployment][language] = language_config
                     config = cached_config
             with open(os.path.join(benchmark_dir, 'config.json'), 'w') as fp:
                 json.dump(config, fp, indent=2)

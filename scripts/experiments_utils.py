@@ -93,17 +93,18 @@ def create_code_package(docker, client, config, benchmark, benchmark_path):
         # append to the end of file
         packages = system_config['deployment']['packages']
         if len(packages):
-            with open('requirements.txt', 'a') as out:
+            with open(os.path.join('code', 'requirements.txt'), 'a') as out:
                 for package in packages:
                     out.write(package)
     # modify package.json
     elif language == 'nodejs':
         packages = system_config['deployment']['packages']
         if len(packages):
-            package_json = json.load(open('package.json', 'r'))
+            package_config = os.path.join('code', 'package.json')
+            package_json = json.load(open(package_config, 'r'))
             for key, val in packages.items():
                 package_json['dependencies'][key] = val
-            json.dump(package_json, open('package.json', 'w'), indent=2)
+            json.dump(package_json, open(package_config, 'w'), indent=2)
     else:
         raise RuntimeError()
 
