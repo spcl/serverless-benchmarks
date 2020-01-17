@@ -61,6 +61,16 @@ class blob_storage:
                     )
                 )
             self.output_containers = cached_buckets['containers']['output']
+            # Clean output container - otherwise upload might fail.
+            for container in self.output_containers:
+                logging.info('Clean output container {}'.format(container))
+                container_client = self.client.get_container_client(container)
+                blobs = list(map(
+                            lambda x : x['name'],
+                            container_client.list_blobs()
+                        ))
+                container_client.delete_blobs(*blobs)
+
             self.cached = True
             logging.info('Using cached storage input containers {}'.format(self.input_containers))
             logging.info('Using cached storage output containers {}'.format(self.output_containers))
