@@ -73,6 +73,22 @@ class cache:
                         json.dump(self.cached_config[cloud], out, indent=2)
 
     '''
+        Acccess cached config of a benchmark.
+
+        :param deployment: allowed deployment clouds or local
+        :param benchmark:
+        :param  language:
+
+        :return: a JSON config or None when not exists
+    '''
+    def get_benchmark_config(self, deployment :str, benchmark :str):
+        benchmark_dir = os.path.join(self.cache_dir, benchmark)
+        if os.path.exists(benchmark_dir):
+            with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
+                cfg = json.load(fp)
+                return cfg[deployment]
+
+    '''
         Acccess cached version of a function.
 
         :param deployment: allowed deployment clouds or local
@@ -82,15 +98,34 @@ class cache:
         :return: a tuple of JSON config and absolute path to code or None
     '''
     def get_function(self, deployment :str, benchmark :str, language :str):
+        cfg = self.get_benchmark_config(deployment, benchmark)
+        if cfg:
+            return (
+                    cfg[language],
+                    os.path.join(self.cache_dir, cfg[language]['code'])
+                )
+        else:
+            return None
+
+    '''
+        Acccess cached storage config of a benchmark.
+
+        :param deployment: allowed deployment clouds or local
+        :param benchmark:
+
+        :return: a JSON config or None
+    '''
+    def get_storage_config(self, deployment :str, benchmark :str):
+        cfg = self.get_benchmark_config(deployment, benchmark)
+        return cfg['storage'] if cfg else None
+
+    def update_storage(self, deployment :str, benchmark :str, config :dict):
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
-        if os.path.exists(benchmark_dir):
-            with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
-                cfg = json.load(fp)
-                return (
-                        cfg[deployment][language],
-                        os.path.join(self.cache_dir, cfg[deployment][language]['code'])
-                    )
-        return None
+        with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
+            cached_config = json.load(fp)
+        cached_config[deployment]['storage'] = config
+        with open(os.path.join(benchmark_dir, 'config.json'), 'w') as fp:
+            json.dump(cached_config, fp, indent=2)
 
     '''
         Update stored function code and configuration.
@@ -114,7 +149,7 @@ class cache:
         else: shutil.copy2(code_package, cached_dir)
         # update JSON config
         with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
-            cached_config = json.loads(fp.read())
+            cached_config = json.load(fp)
         date = str(datetime.datetime.now())
         cached_config[deployment][language] = config
         cached_config[deployment][language]['date']['modified'] = date
@@ -122,6 +157,16 @@ class cache:
             json.dump(cached_config, fp, indent=2)
 
 
+    '''
+        Add new function to cache.
+
+        :param deployment:
+        :param benchmark:
+        :param language:
+        :param code_package: Path to directory/ZIP with code.
+        :param language_config: Configuration of language and code.
+        :param storage_config: Configuration of storage buckets.
+    '''
     def add_function(self, deployment, benchmark, language, code_package,
             language_config, storage_config):
 
@@ -142,12 +187,8 @@ class cache:
            
             config = {
                 deployment: {
-                    language: {
-                        language_config
-                    },
-                    'storage': {
-                        storage_config
-                    }
+                    language: language_config,
+                    'storage': storage_config
                 }
             }
             # don't store absolute path to avoid problems with moving cache dir

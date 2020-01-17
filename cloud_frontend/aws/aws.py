@@ -17,6 +17,7 @@ class aws:
     config = None
     storage = None
     language = None
+    cached = False
 
     class s3:
         client = None
@@ -59,27 +60,41 @@ class aws:
                 logging.info('Bucket {} for {} already exists, skipping.'.format(existing_bucket_name, name))
                 return existing_bucket_name
 
-        def create_buckets(self, benchmark, buckets):
-            s3_buckets = self.client.list_buckets()['Buckets']
-            for i in range(0, buckets[0]):
-                self.input_buckets.append(
-                    self.create_bucket(
-                        '{}-{}-input'.format(benchmark, i),
-                        s3_buckets
+        def create_buckets(self, benchmark, buckets, cached_buckets):
+
+            if cached_buckets:
+                self.input_buckets = cached_buckets['buckets']['input']
+                for bucket in self.input_buckets:
+                    self.input_buckets_files.append(
+                        self.client.list_objects_v2(
+                            Bucket=self.input_buckets[-1]
+                        )
                     )
-                )
-                self.input_buckets_files.append(
-                    self.client.list_objects_v2(
-                        Bucket=self.input_buckets[-1]
+                self.output_buckets = cached_buckets['buckets']['output']
+                self.cached = True
+                logging.info('Using cached storage input buckets {}'.format(self.input_buckets))
+                logging.info('Using cached storage output buckets {}'.format(self.output_buckets))
+            else:
+                s3_buckets = self.client.list_buckets()['Buckets']
+                for i in range(0, buckets[0]):
+                    self.input_buckets.append(
+                        self.create_bucket(
+                            '{}-{}-input'.format(benchmark, i),
+                            s3_buckets
+                        )
                     )
-                )
-            for i in range(0, buckets[1]):
-                self.output_buckets.append(
-                    self.create_bucket(
-                        '{}-{}-output'.format(benchmark, i),
-                        s3_buckets
+                    self.input_buckets_files.append(
+                        self.client.list_objects_v2(
+                            Bucket=self.input_buckets[-1]
+                        )
                     )
-                )
+                for i in range(0, buckets[1]):
+                    self.output_buckets.append(
+                        self.create_bucket(
+                            '{}-{}-output'.format(benchmark, i),
+                            s3_buckets
+                        )
+                    )
             
         def uploader_func(self, bucket_idx, file, filepath):
             bucket_name = self.input_buckets[bucket_idx]
@@ -157,7 +172,9 @@ class aws:
                 access_key=self.access_key,
                 secret_key=self.secret_key,
                 replace_existing=replace_existing)
-        self.storage.create_buckets(benchmark, buckets)
+        self.storage.create_buckets(benchmark, buckets,
+                self.cache_client.get_storage_config('aws', benchmark)
+        )
         return self.storage
 
     '''
@@ -222,9 +239,9 @@ class aws:
         cached_f = self.cache_client.get_function('aws', benchmark, self.language)
         # a) cached_instance and no update
         if cached_f is not None and not config['experiments']['update_code']:
-            cfg = cached_f[0]
-            func_name = cfg['aws'][self.language]['name']
-            code_size = cfg['aws'][self.language]['code_size']
+            cached_cfg = cached_f[0]
+            func_name = cached_cfg['name']
+            code_size = cached_cfg['code_size']
             logging.info('Using cached code package in {} of size {}'.format(
                 func_name, code_size
             ))
@@ -310,8 +327,8 @@ class aws:
                     },
                     storage_config={
                         'buckets': {
-                            'input': [],
-                            'output': []
+                            'input': self.storage.input_buckets,
+                            'output': self.storage.output_buckets
                         }
                     }
             )
