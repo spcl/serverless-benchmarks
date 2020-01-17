@@ -47,8 +47,6 @@ class aws:
                 existing_bucket_name = b['Name']
                 if name in existing_bucket_name:
                     found_bucket = True
-                    # Replace bucket
-                    # TODO: update-bucket param
                     break
             # none found, create
             if not found_bucket:
@@ -72,6 +70,11 @@ class aws:
                         )
                     )
                 self.output_buckets = cached_buckets['buckets']['output']
+                for bucket in self.output_buckets:
+                    objects = self.client.list_objects_v2(bucket)
+                    objects = [obj.object_name for obj in objects]
+                    for err in self.connection.remove_objects(bucket, objects):
+                        logging.error("Deletion Error: {}".format(del_err))
                 self.cached = True
                 logging.info('Using cached storage input buckets {}'.format(self.input_buckets))
                 logging.info('Using cached storage output buckets {}'.format(self.output_buckets))
