@@ -99,7 +99,7 @@ class cache:
     '''
     def get_function(self, deployment :str, benchmark :str, language :str):
         cfg = self.get_benchmark_config(deployment, benchmark)
-        if cfg and 'language' in cfg:
+        if cfg and language in cfg:
             return (
                     cfg[language],
                     os.path.join(self.cache_dir, cfg[language]['code'])
@@ -196,7 +196,7 @@ class cache:
             }
 
             # don't store absolute path to avoid problems with moving cache dir
-            config[deployment][language]['code'] = code_package
+            config[deployment][language]['code'] = os.path.relpath(code_package, self.cache_dir)
             date = str(datetime.datetime.now())
             config[deployment][language]['date'] = {'created': date, 'modified': date}
             # make sure to not replace other entries
