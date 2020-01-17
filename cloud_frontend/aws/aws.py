@@ -47,7 +47,8 @@ class aws:
                 existing_bucket_name = b['Name']
                 if name in existing_bucket_name:
                     found_bucket = True
-                    # TODO: replace existing bucket if param is passed
+                    # Replace bucket
+                    # TODO: update-bucket param
                     break
             # none found, create
             if not found_bucket:
@@ -97,6 +98,10 @@ class aws:
                     )
             
         def uploader_func(self, bucket_idx, file, filepath):
+            # Skip upload when using cached buckets
+            # TODO: update-bucket param
+            if self.cached:
+                return
             bucket_name = self.input_buckets[bucket_idx]
             if not self.replace_existing:
                 for f in self.input_buckets_files[bucket_idx]['Contents']:
@@ -235,17 +240,16 @@ class aws:
 
         func_name = None
         code_size = None
-
         cached_f = self.cache_client.get_function('aws', benchmark, self.language)
+
         # a) cached_instance and no update
         if cached_f is not None and not config['experiments']['update_code']:
             cached_cfg = cached_f[0]
             func_name = cached_cfg['name']
             code_size = cached_cfg['code_size']
-            logging.info('Using cached code package in {} of size {}'.format(
-                func_name, code_size
+            logging.info('Using cached function {} in {} of size {}'.format(
+                func_name, code_package, code_size
             ))
-            logging.info('Using cached function {}'.format(func_name))
             return func_name, code_size
         # b) cached_instance, create package and update code
         elif cached_f is not None:
@@ -259,8 +263,8 @@ class aws:
                     benchmark, benchmark_path
             )
             code_body = open(code_package, 'rb').read()
-            logging.info('Created code_package {} of size {}'.format(
-                code_package, code_size
+            logging.info('Updating cached function {} in {} of size {}'.format(
+                func_name, code_package, code_size
             ))
 
             # Update function usign current benchmark config
