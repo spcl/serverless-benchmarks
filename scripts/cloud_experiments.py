@@ -36,19 +36,6 @@ parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 args = parser.parse_args()
 
-def prepare_input(client, benchmark, benchmark_path, size, update):
-    benchmark_data_path = find_benchmark(args.benchmark, 'benchmarks-data')
-    # Look for input generator file in the directory containing benchmark
-    sys.path.append(benchmark_path)
-    mod = importlib.import_module('input')
-    buckets = mod.buckets_count()
-    storage = client.get_storage(benchmark, buckets, update)
-    # Get JSON and upload data as required by benchmark
-    input_config = mod.generate_input(benchmark_data_path,
-            size, storage.input(),
-            storage.output(), storage.uploader_func)
-    return input_config
-
 # -1. Get provider config and create cloud object
 experiment_config = json.load(open(args.config, 'r'))
 systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))

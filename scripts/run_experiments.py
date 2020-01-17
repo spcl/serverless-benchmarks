@@ -6,7 +6,6 @@ import copy
 import docker
 import glob
 import json
-import importlib
 import minio
 import os
 import secrets
@@ -17,6 +16,7 @@ import urllib, urllib.request
 import uuid
 
 from functools import partial
+from typing import Tuple
 
 from experiments_utils import *
 
@@ -220,8 +220,7 @@ experiments = {
         'disk-io' : run_experiment_disk_io
         }
 experiments['all'] = list(experiments.values())
-client = docker.from_env()
-storage = None
+docker_client = docker.from_env()
 verbose = False
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
@@ -250,8 +249,10 @@ class minio_storage:
     port = 9000
     location = 'us-east-1'
     connection = None
+    docker_client = None
 
-    def __init__(self, benchmark, buckets):
+    def __init__(self, docker_client, benchmark, buckets):
+        self.docker_client = docker_client
         if buckets[0] + buckets[1] > 0:
             self.start()
             self.connection = self.get_connection()
@@ -261,6 +262,11 @@ class minio_storage:
             for i in range(0, buckets[1]):
                 self.output_buckets.append(
                         self.create_bucket('{}-{}-output'.format(benchmark, i)))
+    def input(self):
+        return self.input_buckets
+    
+    def output(self):
+        return self.output_buckets
              
     def start(self):
         self.access_key = secrets.token_urlsafe(32)
@@ -268,7 +274,7 @@ class minio_storage:
         logging.info('Starting minio instance at localhost:{}'.format(self.port))
         logging.info('ACCESS_KEY={}'.format(self.access_key))
         logging.info('SECRET_KEY={}'.format(self.secret_key))
-        self.storage_container = client.containers.run(
+        self.storage_container = self.docker_client.containers.run(
             'minio/minio',
             command='server /data',
             ports={str(self.port): self.port},
@@ -340,10 +346,15 @@ class minio_storage:
 
 class local:
 
+    storage_instance = None
+    docker_client = None
+
+    def __init__(self, docker_client):
+        self.docker_client = docker_client
+
     def package_code(self, dir, benchmark):
         cur_dir = os.getcwd()
         os.chdir(dir)
-        print(os.getcwd())
         # create zip
         execute(
             'zip -qur {}.zip *'.format(os.path.join(os.path.pardir, benchmark)),
@@ -354,15 +365,25 @@ class local:
         os.chdir(cur_dir)
         return os.path.join(par_dir, '{}.zip'.format(benchmark))
 
-def prepare_input(benchmark, benchmark_path, size):
-    # Look for input generator file in the directory containing benchmark
-    sys.path.append(benchmark_path)
-    mod = importlib.import_module('input')
-    buckets = mod.buckets_count()
-    storage = minio_storage(benchmark, buckets)
-    # Get JSON and upload data as required by benchmark
-    input_config = mod.generate_input(size, storage.input_buckets, storage.output_buckets, storage.uploader_func)
-    return input_config, storage
+    '''
+        Create wrapper object for minio storage and fill buckets.
+        Starts minio as a Docker instance, using always fresh buckets.
+
+        :param benchmark:
+        :param buckets: number of input and output buckets
+        :param replace_existing: not used.
+        :return: Azure storage instance
+    '''
+    def get_storage(self, benchmark :str, buckets :Tuple[int, int],
+            replace_existing: bool=False):
+        self.storage_instance = minio_storage(docker_client, benchmark, buckets)
+        return self.storage_instance
+
+    def storage(self):
+        return self.storage_instance
+
+    def shutdown(self):
+        self.storage().stop()
 
 try:
 
@@ -373,6 +394,7 @@ try:
     verbose = args.verbose
     experiment_config = json.load(open(args.config, 'r'))
     systems_config = json.load(open(os.path.join(SCRIPT_DIR, os.pardir, 'config', 'systems.json'), 'r'))
+    deployment_client = local(docker_client)
 
     # 1. Create output dir
     output_dir = create_output(args.output_dir, args.verbose)
@@ -402,8 +424,8 @@ try:
 
     # 3. Build code package
     code_package, code_size, config = create_code_package(
-            docker=client,
-            client=local(),
+            docker=docker_client,
+            client=deployment_client,
             config=benchmark_config,
             benchmark=args.benchmark,
             benchmark_path=benchmark_path,
@@ -414,8 +436,9 @@ try:
     # TurboBoost, disable HT, power cap, decide on which cores to use
 
     # 5. Prepare benchmark input
-    input_config, storage = prepare_input(args.benchmark, benchmark_path, args.size) 
-    storage_config = storage.config_to_json()
+    input_config = prepare_input(deployment_client, args.benchmark,
+            benchmark_path, args.size, False)
+    storage_config = deployment_client.storage().config_to_json()
     if storage_config:
         benchmark_config['storage'] = storage_config
     app_config = {'name' : args.benchmark, 'size' : code_size}
@@ -443,7 +466,7 @@ try:
         for i in range(0, experiment.instances):
             # 7. Start docker instance with code and input
             containers[i] = run_container(
-                client, args.language, benchmark_config['runtime'],
+                docker_client, args.language, benchmark_config['runtime'],
                 {**volumes, **experiment.get_docker_volumes(output_dir, home_dir)},
                 os.path.join(output_dir, code_package),
                 home_dir
@@ -485,8 +508,8 @@ try:
 
         # 11. Cleanup active measurement processes
         experiment.cleanup()
-        storage.download_results(experiment.name)
-        storage.clean()
+        deployment_client.storage().download_results(experiment.name)
+        deployment_client.storage().clean()
 
     # Summarize
     benchmark_summary['system'] = {}
@@ -501,6 +524,4 @@ except Exception as e:
     traceback.print_exc()
     print('# Experiments failed! See {}/out.log for details'.format(output_dir))
 finally:
-    if storage is not None:
-        # Clean data storage
-        storage.stop()
+    deployment_client.shutdown()

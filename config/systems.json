@@ -10,14 +10,22 @@
           "3.6": "python:3.6-slim"
         },
         "images": ["run", "build"],
-        "username": "docker_user"
+        "username": "docker_user",
+        "deployment": {
+          "files": [],
+          "packages": []
+        }
       },
       "nodejs": {
         "base_images": {
           "13.6": "node:13.6-slim"
         },
         "images": ["run", "build"],
-        "username": "node"
+        "username": "node",
+        "deployment": {
+          "files": [],
+          "packages": []
+        }
       }
     }
   },

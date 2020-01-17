@@ -1,10 +1,12 @@
 import docker
 import glob
 import logging
+import importlib
 import json
 import os
-import subprocess
 import shutil
+import sys
+import subprocess
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
@@ -54,6 +56,30 @@ def find_benchmark(benchmark: str, path: str):
         logging.error('Could not find benchmark {} in {}'.format(args.benchmark, benchmarks_dir))
         sys.exit(1)
     return benchmark_path
+
+'''
+    Locates benchmark input generator, inspect how many storage buckets
+    are needed and launches corresponding storage instance, if necessary.
+
+    :param client: Deployment client
+    :param benchmark:
+    :param benchmark_path:
+    :param size: Benchmark workload size
+    :param update_storage: if true then files in input buckets are reuploaded
+'''
+def prepare_input(client :object, benchmark :str, benchmark_path :str,
+        size :str, update_storage :bool):
+    benchmark_data_path = find_benchmark(benchmark, 'benchmarks-data')
+    # Look for input generator file in the directory containing benchmark
+    sys.path.append(benchmark_path)
+    mod = importlib.import_module('input')
+    buckets = mod.buckets_count()
+    storage = client.get_storage(benchmark, buckets, update_storage)
+    # Get JSON and upload data as required by benchmark
+    input_config = mod.generate_input(benchmark_data_path,
+            size, storage.input(),
+            storage.output(), storage.uploader_func)
+    return input_config
 
 def create_code_package(docker, client, config, benchmark, benchmark_path):
 
