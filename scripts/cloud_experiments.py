@@ -28,6 +28,8 @@ parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
 parser.add_argument('--cache', action='store', default='cache', type=str,
                     help='Cache directory')
+parser.add_argument('--update', action='store_true', default=False,
+                    help='Update function code in cache and deployment.')
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 args = parser.parse_args()
@@ -63,6 +65,7 @@ if args.deployment:
     deployment = args.deployment
 else:
     deployment = experiment_config['experiments']['deployment']
+experiment_config['experiments']['update_code'] = args.update
 
 try:
     benchmark_summary = {}
@@ -77,7 +80,8 @@ try:
     # Create deployment client
     if deployment == 'aws':
         from cloud_frontend.aws import aws
-        deployment_client = aws.aws(cache_client, experiment_config, language)
+        deployment_client = aws.aws(cache_client, experiment_config,
+                language, docker_client)
     else:
         from cloud_frontend.azure import azure
         deployment_client = azure.azure(cache_client, experiment_config,
@@ -95,20 +99,13 @@ try:
     benchmark_path = find_benchmark(args.benchmark)
     logging.info('Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
-    # 3. Build code package
-    print(experiment_config)
-    code_dir, code_size, config = create_code_package(docker_client,
-            deployment_client, experiment_config['experiments'],
-            args.benchmark, benchmark_path)
-    logging.info('Created code_package {} of size {}'.format(code_dir, code_size))
-
     # 5. Prepare benchmark input
     input_config = prepare_input(deployment_client, args.benchmark, benchmark_path, args.size)
     input_config_bytes = json.dumps(input_config).encode('utf-8')
 
     # 6. Create function if it does not exist
-    func = deployment_client.create_function(code_dir, args.benchmark,
-            config['memory'], config['timeout'])
+    func, code_size = deployment_client.create_function(args.benchmark,
+            benchmark_path, experiment_config)
 
     # 7. Invoke!
     ret = deployment_client.invoke(func, input_config_bytes)

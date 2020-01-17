@@ -13,6 +13,7 @@ from scripts.experiments_utils import *
 class aws:
     client = None
     cache_client = None
+    docker_client = None
     config = None
     storage = None
     language = None
@@ -107,10 +108,17 @@ class aws:
         #            self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
         #    
 
-    def __init__(self, cache_client, config, language):
+    '''
+        :param cache_client: Function cache instance
+        :param config: Experiments config
+        :param language: Programming language to use for functions
+        :param docker_client: Docker instance
+    '''
+    def __init__(self, cache_client, config, language, docker_client):
         self.config = config
         self.language = language
         self.cache_client = cache_client
+        self.docker_client = docker_client
 
     def start(self, code_package=None):
 
@@ -193,68 +201,144 @@ class aws:
         os.chdir(cur_dir)
         return os.path.join(dir, '{}.zip'.format(benchmark))
 
-    def create_function(self, code_package, benchmark, memory=128, timeout=10):
+    '''
+        a)  if a cached function is present and no update flag is passed,
+            then just return function name
+        b)  if a cached function is present and update flag is passed,
+            then upload new code
+        c)  if no cached function is present, then create code package and
+            either create new function on AWS or update an existing one
 
-        self.start(code_package)
-        code_body = open(code_package, 'rb').read()
-        func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
-        # AWS Lambda does not allow hyphens in function names
-        func_name = func_name.replace('-', '_')
-        func_name = func_name.replace('.', '_')
-        # we can either check for exception or use list_functions
-        # there's no API for test
-        try:
-            self.client.get_function(FunctionName=func_name)
-            logging.info('Updating code of function {} from'.format(func_name, code_package))
-            # if function exists, then update code
-            self.client.update_function_code(
-                FunctionName=func_name,
-                ZipFile=code_body
+        :param benchmark:
+        :param benchmark_path: Path to benchmark code
+        :param config: JSON config for benchmark
+        :return: function name, code size
+    '''
+    def create_function(self, benchmark :str, benchmark_path :str, config: dict):
+
+        func_name = None
+        code_size = None
+
+        cached_f = self.cache_client.get_function('aws', benchmark, self.language)
+        # a) cached_instance and no update
+        if cached_f is not None and not config['experiments']['update_code']:
+            cfg = cached_f[0]
+            func_name = cfg['aws'][self.language]['name']
+            code_size = cfg['aws'][self.language]['code_size']
+            logging.info('Using cached code package in {} of size {}'.format(
+                func_name, code_size
+            ))
+            logging.info('Using cached function {}'.format(func_name))
+            return func_name, code_size
+        # b) cached_instance, create package and update code
+        elif cached_f is not None:
+
+            cached_cfg = cached_f[0]
+            func_name = cached_cfg['name']
+
+            # Build code package
+            code_package, code_size, benchmark_config = create_code_package(
+                    self.docker_client, self, config['experiments'],
+                    benchmark, benchmark_path
             )
-            # and update config
-            self.client.update_function_configuration(
-                FunctionName=func_name,
-                Timeout=timeout,
-                MemorySize=memory
+            code_body = open(code_package, 'rb').read()
+            logging.info('Created code_package {} of size {}'.format(
+                code_package, code_size
+            ))
+
+            # Update function usign current benchmark config
+            timeout = benchmark_config['timeout']
+            memory = benchmark_config['memory']
+            self.update_function(func_name, code_package, timeout, memory) 
+
+            # update cache contents
+            cached_cfg['code_size'] = code_size
+            cached_cfg['timeout'] = timeout
+            cached_cfg['memory'] = memory
+            self.cache_client.update_function('aws', benchmark, self.language,
+                    code_package, cached_cfg)
+            
+            return func_name, code_size
+        # c) no cached instance, create package and upload code
+        else:
+            
+            # Build code package
+            code_package, code_size, benchmark_config = create_code_package(
+                    self.docker_client, self, config['experiments'],
+                    benchmark, benchmark_path
             )
-        except self.client.exceptions.ResourceNotFoundException:
-            logging.info('Creating function function {} from {}'.format(func_name, code_package))
-            # TODO: create Lambda role
-            self.client.create_function(
-                FunctionName=func_name,
-                Runtime='{}{}'.format(self.language,self.config['experiments']['runtime']),
-                Handler='handler.handler',
-                Role=self.config['aws']['lambda-role'],
-                MemorySize=memory,
-                Timeout=timeout,
-                Code={'ZipFile': code_body}
-            )
+            timeout = benchmark_config['timeout']
+            memory = benchmark_config['memory']
+            
+            # Create function name
+            func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
+            # AWS Lambda does not allow hyphens in function names
+            func_name = func_name.replace('-', '_')
+            func_name = func_name.replace('.', '_')
+
+            # we can either check for exception or use list_functions
+            # there's no API for test
+            try:
+                self.client.get_function(FunctionName=func_name)
+                self.update_function(func_name, code_package, timeout, memory)
+            except self.client.exceptions.ResourceNotFoundException:
+                logging.info('Creating function function {} from {}'.format(func_name, code_package))
+
+                # TODO: create Lambda role
+                self.client.create_function(
+                    FunctionName=func_name,
+                    Runtime='{}{}'.format(self.language,self.config['experiments']['runtime']),
+                    Handler='handler.handler',
+                    Role=self.config['aws']['lambda-role'],
+                    MemorySize=memory,
+                    Timeout=timeout,
+                    Code={'ZipFile': code_body}
+                )
 
             self.cache_client.add_function(
                     deployment='aws',
                     benchmark=benchmark,
                     language=self.language,
                     code_package=code_package,
-                    config={
-                        'azure': {
-                            'function': {
-                                'name': func_name,
-                                'runtime': self.config['experiments']['runtime'],
-                                'role': self.config['aws']['lambda-role'],
-                                'memory': memory,
-                                'timeout': timeout
-                            },
-                            'storage': {
-                                'account': self.storage_account_name,
-                                'buckets': {
-                                    'input': [],
-                                    'output': []
-                                }
-                            }
+                    language_config={
+                        'name': func_name,
+                        'code_size': code_size,
+                        'runtime': self.config['experiments']['runtime'],
+                        'role': self.config['aws']['lambda-role'],
+                        'memory': memory,
+                        'timeout': timeout
+                    },
+                    storage_config={
+                        'buckets': {
+                            'input': [],
+                            'output': []
                         }
                     }
             )
-        return func_name
+            return func_name, code_size
+
+    '''
+        Update function code and configuration on AWS.
+
+        :param name: function name
+        :param code_package: path to code package
+        :param timeout: function timeout in seconds
+        :param memory: memory limit for function
+    '''
+    def update_function(self, name :str, code_package :str, timeout :int, memory :int):
+        self.start(code_package)
+        code_body = open(code_package, 'rb').read()
+        self.client.update_function_code(
+            FunctionName=name,
+            ZipFile=code_body
+        )
+        # and update config
+        self.client.update_function_configuration(
+            FunctionName=name,
+            Timeout=timeout,
+            MemorySize=memory
+        )
+        logging.info('Updating code of function {} from'.format(name, code_package))
 
     def invoke(self, name, payload):
 

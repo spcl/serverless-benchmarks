@@ -16,6 +16,14 @@ def update(d, u):
             d[k] = v
     return d
 
+def update_dict(cfg, val, keys):
+    def map_keys(obj, val, keys):
+        if len(keys):
+            return { keys[0]: map_keys(obj, val, keys[1:]) }
+        else:
+            return val
+    update(cfg, map_keys(cfg, val, keys))
+
 
 class cache:
 
@@ -49,12 +57,7 @@ class cache:
         keys: array of consecutive keys for multi-level dictionary
     '''
     def update_config(self, val, keys):
-        def map_keys(obj, val, keys):
-            if len(keys):
-                return { keys[0]: map_keys(obj, val, keys[1:]) }
-            else:
-                return val
-        update(self.cached_config, map_keys(self.cached_config, val, keys))
+        update_dict(self.cached_config, val, keys)
         self.config_updated = True
 
     def shutdown(self):
@@ -69,34 +72,88 @@ class cache:
                     with open(cloud_config_file, 'w') as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 
-    def get_function(self, deployment, benchmark):
-        benchmark_dir = os.path.join(self.cache_dir, benchmark, deployment)
+    '''
+        Acccess cached version of a function.
+
+        :param deployment: allowed deployment clouds or local
+        :param benchmark:
+        :param  language:
+
+        :return: a tuple of JSON config and absolute path to code or None
+    '''
+    def get_function(self, deployment :str, benchmark :str, language :str):
+        benchmark_dir = os.path.join(self.cache_dir, benchmark)
         if os.path.exists(benchmark_dir):
             with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
                 cfg = json.load(fp)
-                return cfg
+                return (
+                        cfg[deployment][language],
+                        os.path.join(self.cache_dir, cfg[deployment][language]['code'])
+                    )
         return None
 
-    def add_function(self, deployment, benchmark, language, code_package, config):
+    '''
+        Update stored function code and configuration.
+        Replaces entire config for specified deployment
 
-        benchmark_dir = os.path.join(self.cache_dir, benchmark, language)
+        :param deployment:
+        :param benchmark:
+        :param language:
+        :param code_package:
+        :param config: Updated config values to use.
+    '''
+    def update_function(self, deployment :str, benchmark :str, language :str,
+            code_package :str, config :dict):
+        
+        benchmark_dir = os.path.join(self.cache_dir, benchmark)
+        cached_dir = os.path.join(benchmark_dir, deployment, language)
+        # copy code
+        if os.path.isdir(code_package):
+            shutil.copytree(code_package, os.path.join(cached_dir, 'code'))
+        # copy zip file
+        else: shutil.copy2(code_package, cached_dir)
+        # update JSON config
+        with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
+            cached_config = json.loads(fp.read())
+        date = str(datetime.datetime.now())
+        cached_config[deployment][language] = config
+        cached_config[deployment][language]['date']['modified'] = date
+        with open(os.path.join(benchmark_dir, 'config.json'), 'w') as fp:
+            json.dump(cached_config, fp, indent=2)
+
+
+    def add_function(self, deployment, benchmark, language, code_package,
+            language_config, storage_config):
+
+        benchmark_dir = os.path.join(self.cache_dir, benchmark)
         os.makedirs(benchmark_dir, exist_ok=True)
 
         # Check if cache directory for this deployment exist
-        benchmark_dir = os.path.join(benchmark_dir, deployment)
-        if not os.path.exists(benchmark_dir):
-            os.mkdir(benchmark_dir)
+        cached_dir = os.path.join(benchmark_dir, deployment, language)
+        if not os.path.exists(cached_dir):
+            os.makedirs(cached_dir, exist_ok=True)
 
             # copy code
             if os.path.isdir(code_package):
-                shutil.copytree(code_package, os.path.join(benchmark_dir, 'code'))
+                shutil.copytree(code_package, os.path.join(cached_dir, 'code'))
             # copy zop file
             else:
-                shutil.copy2(code_package, benchmark_dir)
-
-            config['code'] = code_package
+                shutil.copy2(code_package, cached_dir)
+           
+            config = {
+                deployment: {
+                    language: {
+                        language_config
+                    },
+                    'storage': {
+                        storage_config
+                    }
+                }
+            }
+            # don't store absolute path to avoid problems with moving cache dir
+            config[deployment][language]['code'] = code_package
             date = str(datetime.datetime.now())
-            config['date'] = {'created': date, 'modified': date}
+            config[deployment][language]['date'] = {'created': date, 'modified': date}
             with open(os.path.join(benchmark_dir, 'config.json'), 'w') as fp:
                 json.dump(config, fp, indent=2)
 
