@@ -1,3 +1,6 @@
 [submodule "third-party/pypapi"]
 	path = third-party/pypapi
 	url = git@github.com:mcopik/pypapi.git
+[submodule "benchmarks-data"]
+	path = benchmarks-data
+	url = git@github.com:mcopik/serverless-benchmarks-data.git
