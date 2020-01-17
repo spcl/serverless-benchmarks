@@ -1,18 +1,21 @@
 import glob, os
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
-
 def buckets_count():
     return (1, 1)
 
-def generate_input(size, input_buckets, output_buckets, upload_func):
-    cwd = os.getcwd()
-    os.chdir(DATA_DIR)
-    img = None
-    for file in glob.glob("*.jpg"):
-        img = file
-        upload_func(0, file, os.path.join(DATA_DIR, file))
-    os.chdir(cwd)
+'''
+    Generate test, small and large workload for thumbnailer.
+
+    :param data_dir: directory where benchmark data is placed
+    :param size: workload size
+    :param input_buckets: input storage containers for this benchmark
+    :param output_buckets:
+    :param upload_func: upload function taking three params(bucket_idx, key, filepath)
+'''
+def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+    for file in glob.glob(os.path.join(data_dir, '*.jpg')):
+        img = os.path.relpath(file, data_dir)
+        upload_func(0, img, file)
     #TODO: multiple datasets
     input_config = {'object': {}, 'bucket': {}}
     input_config['object']['key'] = img

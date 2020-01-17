@@ -98,9 +98,8 @@ class aws:
                     )
             
         def uploader_func(self, bucket_idx, file, filepath):
-            # Skip upload when using cached buckets
-            # TODO: update-bucket param
-            if self.cached:
+            # Skip upload when using cached buckets and not updating storage.
+            if self.cached and not self.replace_existing:
                 return
             bucket_name = self.input_buckets[bucket_idx]
             if not self.replace_existing:
@@ -248,7 +247,7 @@ class aws:
             func_name = cached_cfg['name']
             code_size = cached_cfg['code_size']
             logging.info('Using cached function {} in {} of size {}'.format(
-                func_name, code_package, code_size
+                func_name, cached_f[1], code_size
             ))
             return func_name, code_size
         # b) cached_instance, create package and update code

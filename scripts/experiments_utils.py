@@ -39,8 +39,16 @@ def create_output(dir, verbose):
     )
     return output_dir
 
-def find_benchmark(benchmark):
-    benchmarks_dir = os.path.join(SCRIPT_DIR, '..', 'benchmarks')
+'''
+    Locate directory corresponding to a benchmark in benchmarks
+    or benchmarks-data directory.
+
+    :param benchmark: Benchmark name.
+    :param path: Path for lookup, relative to repository.
+    :return: relative path to directory corresponding to benchmark
+'''
+def find_benchmark(benchmark: str, path: str):
+    benchmarks_dir = os.path.join(PROJECT_DIR, path)
     benchmark_path = find(benchmark, benchmarks_dir)
     if benchmark_path is None:
         logging.error('Could not find benchmark {} in {}'.format(args.benchmark, benchmarks_dir))

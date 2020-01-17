@@ -389,7 +389,7 @@ try:
         raise RuntimeError('Experiment {} is not supported for language {}!'.format(args.experiment, args.language))
 
     # 2. Locate benchmark
-    benchmark_path = find_benchmark(args.benchmark)
+    benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
     logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 6. Create experiment config

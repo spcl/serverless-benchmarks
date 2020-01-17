@@ -30,18 +30,23 @@ parser.add_argument('--cache', action='store', default='cache', type=str,
                     help='Cache directory')
 parser.add_argument('--update', action='store_true', default=False,
                     help='Update function code in cache and deployment.')
+parser.add_argument('--update-storage', action='store_true', default=False,
+                    help='Update storage files in deployment.')
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 args = parser.parse_args()
 
-def prepare_input(client, benchmark, benchmark_path, size):
+def prepare_input(client, benchmark, benchmark_path, size, update):
+    benchmark_data_path = find_benchmark(args.benchmark, 'benchmarks-data')
     # Look for input generator file in the directory containing benchmark
     sys.path.append(benchmark_path)
     mod = importlib.import_module('input')
     buckets = mod.buckets_count()
-    storage = client.get_storage(benchmark, buckets, False)
+    storage = client.get_storage(benchmark, buckets, update)
     # Get JSON and upload data as required by benchmark
-    input_config = mod.generate_input(size, storage.input(), storage.output(), storage.uploader_func)
+    input_config = mod.generate_input(benchmark_data_path,
+            size, storage.input(),
+            storage.output(), storage.uploader_func)
     return input_config
 
 # -1. Get provider config and create cloud object
@@ -66,6 +71,7 @@ if args.deployment:
 else:
     deployment = experiment_config['experiments']['deployment']
 experiment_config['experiments']['update_code'] = args.update
+experiment_config['experiments']['update_storage'] = args.update_storage
 
 try:
     benchmark_summary = {}
@@ -96,11 +102,13 @@ try:
     logging.info('Created experiment output at {}'.format(args.output_dir))
 
     # 2. Locate benchmark
-    benchmark_path = find_benchmark(args.benchmark)
+    benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
     logging.info('Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 5. Prepare benchmark input
-    input_config = prepare_input(deployment_client, args.benchmark, benchmark_path, args.size)
+    input_config = prepare_input(deployment_client, args.benchmark,
+            benchmark_path, args.size,
+            experiment_config['experiments']['update_storage'])
     input_config_bytes = json.dumps(input_config).encode('utf-8')
 
     # 6. Create function if it does not exist
