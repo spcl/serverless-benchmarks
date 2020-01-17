@@ -35,13 +35,7 @@ class minio_storage {
 
   downloadStream(bucket, file) {
     var read_stream = new stream.PassThrough();
-    this.client.getObject(bucket, file,
-      (err, stream) => {
-        if(err) throw err;
-        stream.pipe(read_stream);
-      }
-    );
-    return read_stream;
+    return this.client.getObject(bucket, file);
   };
 
   static get_instance() {
