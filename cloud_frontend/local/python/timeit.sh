@@ -1,4 +1,4 @@
 #!/bin/bash
 ts=$(date +%s%N);
-python3 -c "from json import load; from function import handler;handler(load(open('input.json', 'r')))"
+python3 -c "from json import load; from function import function; print(function.handler(load(open('input.json', 'r'))))" > $1
 tt=$((($(date +%s%N) - $ts)/1000)) ; echo $tt

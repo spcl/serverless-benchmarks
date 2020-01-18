@@ -5,9 +5,6 @@ ENV HOME=/home/${USER}
 
 RUN useradd ${USER}
 WORKDIR ${HOME}
-RUN apt-get update\
-  && apt-get install -y zip\
-  && apt-get purge -y --auto-remove
 USER ${USER}:${USER}
 
 # Install PIP packages and pack
@@ -15,4 +12,4 @@ USER ${USER}:${USER}
 # and clashses with target
 # https://github.com/pypa/pip/issues/3826
 CMD cd /mnt/function\
-    && pip3 -q install -r requirements.txt -t .
+    && pip3 -q install -r requirements.txt -t .python_packages/lib/site-packages

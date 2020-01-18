@@ -17,7 +17,7 @@ if ret.returncode != 0:
 from utils import *
 from tools import *
 # imported function
-from function import handler
+from function import function
 
 repetitions = cfg['benchmark']['repetitions']
 disable_gc = cfg['benchmark']['disable_gc']
@@ -28,7 +28,7 @@ try:
     start = start_benchmarking(disable_gc)
     for i in range(0, repetitions):
         begin = datetime.datetime.now()
-        res = handler(input_data)
+        res = function.handler(input_data)
         stop = datetime.datetime.now()
         print(res, file = open(
                 get_result_prefix(LOGS_DIR, 'output', 'txt'),

@@ -5,7 +5,7 @@ from utils import *
 from tools import *
 
 # imported function
-from function import handler
+from function import function
 
 
 cfg = json.load(open(sys.argv[1], 'r'))
@@ -18,7 +18,7 @@ try:
     start = start_benchmarking(disable_gc)
     for i in range(0, repetitions):
         begin = datetime.datetime.now()
-        res = handler(input_data)
+        res = function.handler(input_data)
         stop = datetime.datetime.now()
         print(res, file = open(
                 get_result_prefix(LOGS_DIR, 'output', 'txt'),

@@ -1,5 +1,6 @@
 import csv, gc, sys, imp, datetime, json, os, subprocess, uuid
 
+from distutils.dir_util import copy_tree
 from utils import *
 
 def get_language(lang):
@@ -34,11 +35,8 @@ if __name__ == "__main__":
     export_storage_config(cfg['benchmark'].get('storage', None))
     experiment_options = cfg['benchmark'].get('experiment_options', None)
 
-    os.system('unzip -qn code.zip')
-    if os.path.exists('data.zip'):
-        os.system('unzip -qn data.zip -d data')
-
-    # initialize data storage
+    # copy code to main directory
+    copy_tree('code', '.')
 
     runner = get_runner_cmd(language, experiment, experiment_options)
     uuid = uuid.uuid1()

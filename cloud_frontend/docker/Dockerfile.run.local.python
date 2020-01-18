@@ -23,6 +23,8 @@ COPY --chown=${USER}:${USER} python/runners.json .
 # https://github.com/moby/moby/issues/35018 :-(
 ADD --chown=docker_user:docker_user pypapi ${HOME}/pypapi
 
+ENV PYTHONPATH=${HOME}/.python_packages/lib/site-packages:$PYTHONPATH
+
 # pypapi dependnecy
 RUN chmod +x ${HOME}/run.sh\
     && mkdir ${HOME}/results\
