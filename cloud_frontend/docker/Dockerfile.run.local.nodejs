@@ -23,6 +23,4 @@ COPY --chown=${USER}:${USER} nodejs/package.json .
 RUN npm install
 
 # pypapi dependnecy
-RUN chmod +x ${HOME}/run.sh\
-    && mkdir ${HOME}/results\
-    && mkdir ${HOME}/logs
+RUN chmod +x ${HOME}/run.sh

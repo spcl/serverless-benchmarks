@@ -25,7 +25,4 @@ ADD --chown=docker_user:docker_user pypapi ${HOME}/pypapi
 
 ENV PYTHONPATH=${HOME}/.python_packages/lib/site-packages:$PYTHONPATH
 
-# pypapi dependnecy
-RUN chmod +x ${HOME}/run.sh\
-    && mkdir ${HOME}/results\
-    && mkdir ${HOME}/logs
+RUN chmod +x ${HOME}/run.sh

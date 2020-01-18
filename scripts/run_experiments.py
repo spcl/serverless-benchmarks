@@ -411,6 +411,8 @@ class local:
         if self.storage_instance:
             self.storage_instance.stop()
 
+deployment_client = None
+
 try:
 
     benchmark_summary = {}
@@ -490,10 +492,27 @@ try:
         logging.info('# Experiment: {} begins.'.format(experiment.name))
         experiment.start()
         for i in range(0, experiment.instances):
+
+            # results directory for container instance
+            dest_dir = os.path.join(experiment.name, 'instance_{}'.format(i))
+            os.makedirs(dest_dir, exist_ok=True)
+            result_volumes = {}
+            for result in ['results', 'logs']:
+                res_dir = os.path.join(dest_dir, result)
+                os.makedirs(res_dir, exist_ok=True)
+                result_volumes[os.path.abspath(res_dir)] = {
+                        'bind': os.path.join(home_dir, result),
+                        'mode': 'rw'
+                }
+
             # 7. Start docker instance with code and input
             containers[i] = run_container(
                 docker_client, args.language, benchmark_config['runtime'],
-                {**volumes, **experiment.get_docker_volumes(output_dir, home_dir)},
+                {
+                    **volumes,
+                    **result_volumes,
+                    **experiment.get_docker_volumes(output_dir, home_dir)
+                },
                 os.path.join(output_dir, code_package),
                 home_dir
             )
@@ -505,6 +524,7 @@ try:
                 if exit_code == 0:
                     logging.debug('Output: {}'.format(out.decode('utf-8')))
                 else:
+                    print('# Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
                     logging.error('# Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
                     logging.error(out.decode('utf-8'))
             else:
@@ -517,10 +537,6 @@ try:
         summary['instances'] = []
         # 9. Copy result data
         for idx, container in enumerate(containers):
-            dest_dir = os.path.join(experiment.name, 'instance_{}'.format(idx))
-            os.makedirs(dest_dir, exist_ok=True)
-            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(home_dir, 'results'), dest_dir))
-            os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(home_dir, 'logs'), dest_dir))
 
             # 10. Kill docker instance
             #container.stop()
@@ -550,4 +566,5 @@ except Exception as e:
     traceback.print_exc()
     print('# Experiments failed! See {}/out.log for details'.format(output_dir))
 finally:
-    deployment_client.shutdown()
+    if deployment_client:
+        deployment_client.shutdown()
