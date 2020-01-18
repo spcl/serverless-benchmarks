@@ -47,7 +47,7 @@ class cache:
             cloud_config_file = os.path.join(self.cache_dir, '{}.json'.format(cloud))
             if os.path.exists(cloud_config_file):
                 self.cached_config[cloud] = json.load(open(cloud_config_file, 'r'))
-    
+
     def get_config(self, cloud):
         return self.cached_config[cloud] if cloud in self.cached_config else None
 
@@ -139,7 +139,7 @@ class cache:
     '''
     def update_function(self, deployment :str, benchmark :str, language :str,
             code_package :str, config :dict):
-        
+
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
         cached_dir = os.path.join(benchmark_dir, deployment, language)
         # copy code
@@ -183,11 +183,14 @@ class cache:
 
             # copy code
             if os.path.isdir(code_package):
-                shutil.copytree(code_package, os.path.join(cached_dir, 'code'))
-            # copy zop file
+                cached_location = os.path.join(cached_dir, 'code')
+                shutil.copytree(code_package, cached_location)
+            # copy zip file
             else:
+                package_name = os.path.basename(cached_dir)
+                cached_location = os.path.join(cached_dir, package_name)
                 shutil.copy2(code_package, cached_dir)
-           
+
             config = {
                 deployment: {
                     language: language_config,
@@ -196,14 +199,21 @@ class cache:
             }
 
             # don't store absolute path to avoid problems with moving cache dir
-            config[deployment][language]['code'] = os.path.relpath(code_package, self.cache_dir)
+            relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
+            config[deployment][language]['code'] = relative_cached_loc
             date = str(datetime.datetime.now())
             config[deployment][language]['date'] = {'created': date, 'modified': date}
             # make sure to not replace other entries
             if os.path.exists(os.path.join(benchmark_dir, 'config.json')):
                 with open(os.path.join(benchmark_dir, 'config.json'), 'r') as fp:
                     cached_config = json.load(fp)
-                    cached_config[deployment][language] = language_config
+                    if deployment in cached_config:
+                        cached_config[deployment][language] = language_config
+                    else:
+                        cached_config[deployment] = {
+                            language: language_config,
+                            'storage': storage_config
+                        }
                     config = cached_config
             with open(os.path.join(benchmark_dir, 'config.json'), 'w') as fp:
                 json.dump(config, fp, indent=2)

@@ -19,6 +19,7 @@ from functools import partial
 from typing import Tuple
 
 from experiments_utils import *
+from cache import cache
 
 def iterable(val):
     return val if isinstance(val, collections.Iterable) else [val, ]
@@ -183,7 +184,7 @@ def run_experiment_papi_ipc(input_config):
         }
     ))
     return experiments
- 
+
 def run_experiment_mem(input_config):
     experiments = []
     experiments.append(analyzer_experiment(
@@ -237,6 +238,10 @@ parser.add_argument('--repetitions', action='store', default=5, type=int,
 parser.add_argument('--config', action='store',
         default=os.path.join(SCRIPT_DIR, os.pardir, 'config', 'experiments.json'),
         type=str, help='Experiments config file')
+parser.add_argument('--cache', action='store', default='cache', type=str,
+                    help='Cache directory')
+parser.add_argument('--update', action='store_true', default=False,
+                    help='Update function code in cache and deployment.')
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 
@@ -264,10 +269,10 @@ class minio_storage:
                         self.create_bucket('{}-{}-output'.format(benchmark, i)))
     def input(self):
         return self.input_buckets
-    
+
     def output(self):
         return self.output_buckets
-             
+
     def start(self):
         self.access_key = secrets.token_urlsafe(32)
         self.secret_key = secrets.token_hex(32)
@@ -349,11 +354,15 @@ class local:
     storage_instance = None
     docker_client = None
     language = None
+    cache_client = None
+    config = None
 
-    def __init__(self, docker_client, language):
+    def __init__(self, cache_client, config, docker_client, language):
+        self.cache_client = cache_client
+        self.config = config
         self.docker_client = docker_client
         self.language = language
-    
+
     '''
         It would be sufficient to just pack the code and ship it as zip to AWS.
         However, to have a compatible function implementation across providers,
@@ -366,13 +375,13 @@ class local:
         - function.py
         - storage.py
         - resources
-        handler.py 
+        handler.py
 
         dir: directory where code is located
         benchmark: benchmark name
     '''
     def package_code(self, dir :str, benchmark :str):
- 
+
         CONFIG_FILES = {
             'python': ['handler.py', 'requirements.txt', '.python_packages'],
             'nodejs': ['handler.js', 'package.json', 'node_modules']
@@ -411,6 +420,86 @@ class local:
         if self.storage_instance:
             self.storage_instance.stop()
 
+    '''
+        Create benchmark package or use an exisiting one.
+        a)  if a cached function is present and no update flag is passed,
+            then just return function name
+        b)  if a cached function is present and update flag is passed,
+            then provide path to it
+        c)  if no cached function is present, then create code package and
+            provide path to it
+
+        :param benchmark:
+        :param benchmark_path: Path to benchmark code
+        :param config: JSON config for benchmark
+        :return: path to code, code size
+    '''
+    def create_function(self, benchmark :str, benchmark_path :str, config: dict):
+
+        func_name = None
+        code_size = None
+        cached_f = self.cache_client.get_function('local', benchmark, self.language)
+
+        # a) cached_instance and no update
+        if cached_f is not None and not config['experiments']['update_code']:
+            cached_cfg = cached_f[0]
+            func_name = cached_cfg['name']
+            code_size = cached_cfg['code_size']
+            logging.info('Using cached function {} in {} of size {}'.format(
+                func_name, cached_f[1], code_size
+            ))
+            return cached_f[1], code_size
+        # b) cached_instance, create package and update code
+        elif cached_f is not None:
+
+            cached_cfg = cached_f[0]
+            func_name = cached_cfg['name']
+
+            # Build code package
+            code_package, code_size, benchmark_config = create_code_package(
+                    docker=self.docker_client,
+                    client=self,
+                    config=config['experiments'],
+                    benchmark=benchmark,
+                    benchmark_path=benchmark_path
+            )
+            logging.info('Updating cached function {} in {} of size {}'.format(
+                func_name, code_package, code_size
+            ))
+
+            # Copy new code to cache
+            cached_cfg['code_size'] = code_size
+            self.cache_client.update_function('aws', benchmark, self.language,
+                    code_package, cached_cfg)
+
+            return cached_f[1], code_size
+        # c) no cached instance, create package and upload code
+        else:
+            func_name = benchmark
+            code_package, code_size, benchmark_config = create_code_package(
+                    docker=self.docker_client,
+                    client=self,
+                    config=config['experiments'],
+                    benchmark=benchmark,
+                    benchmark_path=benchmark_path
+            )
+            logging.info('Creating function function {} from {}'.format(
+                benchmark, code_package
+            ))
+            self.cache_client.add_function(
+                    deployment='local',
+                    benchmark=benchmark,
+                    language=self.language,
+                    code_package=code_package,
+                    language_config={
+                        'name': func_name,
+                        'code_size': code_size,
+                        'runtime': self.config['experiments']['runtime'],
+                    },
+                    storage_config={}
+            )
+            return code_package, code_size
+
 deployment_client = None
 
 try:
@@ -421,8 +510,15 @@ try:
     args = parser.parse_args()
     verbose = args.verbose
     experiment_config = json.load(open(args.config, 'r'))
+    # CLI takes precendece over config
+    experiment_config['experiments']['update_code'] = args.update
+    experiment_config['experiments']['deployment'] = 'local'
+    experiment_config['experiments']['language'] = args.language
+    experiment_config['experiments']['runtime'] = experiment_config['local']['runtime'][args.language]
+
     systems_config = json.load(open(os.path.join(SCRIPT_DIR, os.pardir, 'config', 'systems.json'), 'r'))
-    deployment_client = local(docker_client, args.language)
+    cache_client = cache(args.cache)
+    deployment_client = local(cache_client, experiment_config, docker_client, args.language)
 
     # 1. Create output dir
     output_dir = create_output(args.output_dir, args.verbose)
@@ -450,25 +546,17 @@ try:
     benchmark_config['runtime'] = experiment_config['local']['runtime'][args.language]
     benchmark_config['deployment'] = 'local'
 
-    # 3. Build code package
-    code_package, code_size, config = create_code_package(
-            docker=docker_client,
-            client=deployment_client,
-            config=benchmark_config,
-            benchmark=args.benchmark,
-            benchmark_path=benchmark_path,
-    )
-    logging.info('# Created code_package {} of size {}'.format(code_package, code_size))
-
-    # 4. Prepare environment
-    # TurboBoost, disable HT, power cap, decide on which cores to use
-
     # 5. Prepare benchmark input
     input_config = prepare_input(deployment_client, args.benchmark,
             benchmark_path, args.size, False)
     storage_config = deployment_client.storage().config_to_json()
     if storage_config:
         benchmark_config['storage'] = storage_config
+
+    # 4. Prepare environment
+    # TurboBoost, disable HT, power cap, decide on which cores to use
+    code_package, code_size = deployment_client.create_function(args.benchmark,
+            benchmark_path, experiment_config)
     app_config = {'name' : args.benchmark, 'size' : code_size}
     input_config = {
         'input' : input_config,
@@ -476,6 +564,7 @@ try:
         'benchmark' : benchmark_config,
         'experiment_config': experiment_config
     }
+
 
     # 7. Select experiments
     volumes = {}
@@ -516,7 +605,7 @@ try:
                 os.path.join(output_dir, code_package),
                 home_dir
             )
-       
+
             # 8. Run experiments
             exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment.name), detach=experiment.detach)
             if not experiment.detach:
@@ -539,11 +628,11 @@ try:
         for idx, container in enumerate(containers):
 
             # 10. Kill docker instance
-            #container.stop()
+            container.stop()
 
             # 11. Find experiment JSONs and include in summary
             result_path = os.path.join(dest_dir, 'results')
-            jsons = [json_file for json_file in glob.glob(os.path.join(result_path, '*.json'))] 
+            jsons = [json_file for json_file in glob.glob(os.path.join(result_path, '*.json'))]
             summary['instances'].append( {'config': jsons, 'results': experiment.get_result_path(dest_dir)} )
 
         benchmark_summary[experiment.name] = summary
