@@ -114,13 +114,6 @@ class aws:
             logging.info('Upload {} to {}'.format(filepath, bucket_name))
             self.client.upload_file(filepath, bucket_name, file)
 
-        #def clean(self):
-        #    for bucket in self.output_buckets:
-        #        objects = self.connection.list_objects_v2(bucket)
-        #        objects = [obj.object_name for obj in objects]
-        #        for err in self.connection.remove_objects(bucket, objects):
-        #            logging.error("Deletion Error: {}".format(del_err))
-
         #def download_results(self, result_dir):
         #    result_dir = os.path.join(result_dir, 'storage_output')
         #    for bucket in self.output_buckets:
@@ -187,15 +180,15 @@ class aws:
     '''
         It would be sufficient to just pack the code and ship it as zip to AWS.
         However, to have a compatible function implementation across providers,
-        we creata small module.
+        we create a small module.
         Issue: relative imports in Python when using storage wrapper.
-        Azure expects a relative import inside a module.
+        Azure expects a relative import inside a module thus it's easier
+        to always create a module.
 
         Structure:
         function
         - function.py
         - storage.py
-        - packages
         - resources
         handler.py 
 
