@@ -9,4 +9,4 @@ RUN apt-get update\
   && apt-get purge -y --auto-remove
 USER ${USER}:${USER}
 
-CMD cd /mnt/function && npm install
+CMD cd /mnt/function && npm install && rm -rf package-lock.json

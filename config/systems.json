@@ -12,7 +12,7 @@
         "images": ["run", "build"],
         "username": "docker_user",
         "deployment": {
-          "files": [],
+          "files": ["storage.py"],
           "packages": []
         }
       },
@@ -23,7 +23,7 @@
         "images": ["run", "build"],
         "username": "node",
         "deployment": {
-          "files": [],
+          "files": ["storage.js"],
           "packages": []
         }
       }

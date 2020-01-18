@@ -29,7 +29,7 @@ def run_container(client, language, version, volumes, code_package, home_dir):
             command='/bin/bash',
             volumes = {
                 **volumes,
-                code_package : {'bind': os.path.join(home_dir, 'code.zip'), 'mode': 'ro'}
+                code_package : {'bind': os.path.join(home_dir, 'code'), 'mode': 'ro'}
             },
             # required to access perf counters
             # alternative: use custom seccomp profile
@@ -348,22 +348,44 @@ class local:
 
     storage_instance = None
     docker_client = None
+    language = None
 
-    def __init__(self, docker_client):
+    def __init__(self, docker_client, language):
         self.docker_client = docker_client
+        self.language = language
+    
+    '''
+        It would be sufficient to just pack the code and ship it as zip to AWS.
+        However, to have a compatible function implementation across providers,
+        we create a small module.
+        Issue: relative imports in Python when using storage wrapper.
+        Azure expects a relative import inside a module.
 
-    def package_code(self, dir, benchmark):
-        cur_dir = os.getcwd()
-        os.chdir(dir)
-        # create zip
-        execute(
-            'zip -qur {}.zip *'.format(os.path.join(os.path.pardir, benchmark)),
-            shell=True
-        )
-        par_dir = os.path.join(dir, os.path.pardir)
-        logging.info('Created {}.zip archive'.format(os.path.join(par_dir, benchmark)))
-        os.chdir(cur_dir)
-        return os.path.join(par_dir, '{}.zip'.format(benchmark))
+        Structure:
+        function
+        - function.py
+        - storage.py
+        - resources
+        handler.py 
+
+        dir: directory where code is located
+        benchmark: benchmark name
+    '''
+    def package_code(self, dir :str, benchmark :str):
+ 
+        CONFIG_FILES = {
+            'python': ['handler.py', 'requirements.txt', '.python_packages'],
+            'nodejs': ['handler.js', 'package.json', 'node_modules']
+        }
+        package_config = CONFIG_FILES[self.language]
+        function_dir = os.path.join(dir, 'function')
+        os.makedirs(function_dir)
+        # move all files to 'function' except handler.py
+        for file in os.listdir(dir):
+            if file not in package_config:
+                file = os.path.join(dir, file)
+                shutil.move(file, function_dir)
+        return dir
 
     '''
         Create wrapper object for minio storage and fill buckets.
@@ -382,8 +404,12 @@ class local:
     def storage(self):
         return self.storage_instance
 
+    '''
+        Shut down minio storage instance.
+    '''
     def shutdown(self):
-        self.storage().stop()
+        if self.storage_instance:
+            self.storage_instance.stop()
 
 try:
 
@@ -394,7 +420,7 @@ try:
     verbose = args.verbose
     experiment_config = json.load(open(args.config, 'r'))
     systems_config = json.load(open(os.path.join(SCRIPT_DIR, os.pardir, 'config', 'systems.json'), 'r'))
-    deployment_client = local(docker_client)
+    deployment_client = local(docker_client, args.language)
 
     # 1. Create output dir
     output_dir = create_output(args.output_dir, args.verbose)
@@ -497,7 +523,7 @@ try:
             os.popen('docker cp {}:{} {}'.format(container.id, os.path.join(home_dir, 'logs'), dest_dir))
 
             # 10. Kill docker instance
-            container.stop()
+            #container.stop()
 
             # 11. Find experiment JSONs and include in summary
             result_path = os.path.join(dest_dir, 'results')

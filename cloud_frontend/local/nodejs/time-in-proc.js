@@ -2,7 +2,7 @@
 const tools = require('./tools'),
     fs = require('fs'),
     strftime = require('strftime'),
-    f = require('./function'),
+    f = require('./function/function'),
     util = require('util');
 const createCsvWriter = require('csv-writer').createArrayCsvWriter;
 

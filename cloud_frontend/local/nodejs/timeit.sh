@@ -1,7 +1,7 @@
 #!/bin/bash
 OUT=$1
 ts=$(date +%s%N);
-node --expose-gc -e "var fs = require('fs'), f = require('./function');
+node --expose-gc -e "var fs = require('fs'), f = require('./function/function');
 async function test() {
   var input = JSON.parse(fs.readFileSync('input.json', 'utf-8'));
   return await f.handler(input);
