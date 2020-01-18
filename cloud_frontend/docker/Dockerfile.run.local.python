@@ -10,7 +10,7 @@ WORKDIR ${HOME}
 RUN deps=''\
   && chown -R ${USER}:${USER} ${HOME}\
   && apt-get update\
-  && apt-get install -y unzip curl ${deps}\
+  && apt-get install -y curl ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
   && pip3 install cffi minio
 

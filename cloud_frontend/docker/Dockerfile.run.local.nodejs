@@ -6,7 +6,7 @@ ENV HOME=/home/${USER}
 WORKDIR ${HOME}
 RUN deps=''\
   && apt-get update\
-  && apt-get install -y unzip curl python3 ${deps}\
+  && apt-get install -y curl python3 ${deps}\
   && apt-get purge -y --auto-remove ${deps}
 
 USER ${USER}:${USER}
