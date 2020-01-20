@@ -367,6 +367,7 @@ class aws:
 
     def invoke(self, name, payload):
 
+        payload = json.dumps(payload).encode('utf-8')
         begin = datetime.datetime.now()
         ret = self.client.invoke(
             FunctionName=name,
