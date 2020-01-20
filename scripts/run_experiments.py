@@ -469,7 +469,7 @@ class local:
 
             # Copy new code to cache
             cached_cfg['code_size'] = code_size
-            self.cache_client.update_function('aws', benchmark, self.language,
+            self.cache_client.update_function('local', benchmark, self.language,
                     code_package, cached_cfg)
 
             return cached_f[1], code_size
@@ -628,7 +628,7 @@ try:
         for idx, container in enumerate(containers):
 
             # 10. Kill docker instance
-            container.stop()
+            #container.stop()
 
             # 11. Find experiment JSONs and include in summary
             result_path = os.path.join(dest_dir, 'results')

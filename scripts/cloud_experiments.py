@@ -92,20 +92,21 @@ try:
 
     # 2. Locate benchmark
     benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
+    if benchmark_path is None:
+        raise RuntimeError('Benchmark {} not found in {}!'.format(benchmark, benchmarks_dir))
     logging.info('Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 5. Prepare benchmark input
     input_config = prepare_input(deployment_client, args.benchmark,
             benchmark_path, args.size,
             experiment_config['experiments']['update_storage'])
-    input_config_bytes = json.dumps(input_config).encode('utf-8')
 
     # 6. Create function if it does not exist
     func, code_size = deployment_client.create_function(args.benchmark,
             benchmark_path, experiment_config, args.function_name)
 
     # 7. Invoke!
-    ret = deployment_client.invoke(func, input_config_bytes)
+    ret = deployment_client.invoke(func, input_config)
     print(ret)
 
     # get experiment and run
