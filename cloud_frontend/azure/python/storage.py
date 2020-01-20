@@ -15,7 +15,7 @@ class storage:
 
     def upload(self, container, file, filepath):
         with open(filepath, 'rb') as data:
-            upload_stream(container, file, data)
+            self.upload_stream(container, file, data)
 
     def download(self, container, file, filepath):
         with open(filepath, 'wb') as download_file:
