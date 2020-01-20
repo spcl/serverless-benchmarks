@@ -6,11 +6,13 @@ if [ ! -d ${env_dir} ]; then
   python3 -mvenv ${env_dir}
   source ${env_dir}/bin/activate
   echo 'Install docker package for python'
-  pip3 install docker wheel bottle waitress minio nodeenv
+  pip3 install docker wheel bottle waitress minio nodeenv requests
   # aws
   pip3 install boto3
   # azure
   pip3 install azure-blob-storage
+  #
+
 fi
 
 # node
