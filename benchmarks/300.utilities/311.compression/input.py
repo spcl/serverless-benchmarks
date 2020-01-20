@@ -8,11 +8,6 @@ def upload_files(data_root, data_dir, upload_func):
 
     for root, dirs, files in os.walk(data_dir):
         prefix = os.path.relpath(root, data_root)
-        #cur_dir = os.path.join(cur_dir, root)
-        #print(cur_dir)
-        #print(root)
-        #print(dirs)
-        #print(files)
         for file in files:
             file_name = prefix + '/' + file
             filepath = os.path.join(root, file)
