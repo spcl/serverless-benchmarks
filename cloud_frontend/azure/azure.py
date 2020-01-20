@@ -1,9 +1,11 @@
 
+import datetime
 import docker
 import glob
 import json
 import logging
 import os
+import requests
 import subprocess
 import shutil
 import time
@@ -138,6 +140,9 @@ class azure:
     resource_group_name = None
     storage_account_name = None
     storage_connection_string = None
+
+    # function
+    url = None
 
     # runtime mapping
     AZURE_RUNTIMES = {'python': 'python', 'nodejs': 'node'}
@@ -500,6 +505,7 @@ class azure:
             cached_cfg = cached_f[0]
             func_name = cached_cfg['name']
             code_size = cached_cfg['code_size']
+            self.url = cached_cfg['invoke_url']
             logging.info('Using cached code package in {} of size {}'.format(
                 func_name, code_size
             ))
@@ -520,6 +526,7 @@ class azure:
             self.start(code_package, restart=True)
             # Publish function
             url = self.publish_function(func_name)
+            self.url = url
             logging.info('Updating cached function {} in {} of size {}'.format(
                 func_name, code_package, code_size
             ))
@@ -584,6 +591,7 @@ class azure:
             logging.info('Selected {} function app'.format(func_name))
             # update existing function app
             url = self.publish_function(func_name)
+            self.url = url
 
             self.cache_client.add_function(
                     deployment='azure',
@@ -608,7 +616,23 @@ class azure:
         return func_name, code_size
 
     def invoke(self, name, payload):
-        pass
+
+        payload['connection_string'] = self.storage_connection_string
+        begin = datetime.datetime.now()
+        ret = requests.request(method='POST', url=self.url, json=payload)
+        end = datetime.datetime.now()
+
+        if ret.status_code != 200:
+            logging.error('Invocation of {} failed!'.format(name))
+            logging.error('Input: {}'.format(payload))
+            raise RuntimeError()
+
+        vals = {}
+        vals['message'] = ret.json()['message']
+        vals['function_time'] = ret.json()['time']
+        vals['client_time'] = (end - begin) / datetime.timedelta(microseconds=1)
+        return vals
+
 
     def download_metrics(self, function_name, time_begin, time_end):
         pass
