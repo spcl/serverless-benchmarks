@@ -232,9 +232,11 @@ class aws:
         :param benchmark:
         :param benchmark_path: Path to benchmark code
         :param config: JSON config for benchmark
+        :param function_name: Override randomly generated function name
         :return: function name, code size
     '''
-    def create_function(self, benchmark :str, benchmark_path :str, config: dict):
+    def create_function(self, benchmark :str, benchmark_path :str,
+            config :dict, function_name :str=''):
 
         func_name = None
         code_size = None
@@ -290,10 +292,13 @@ class aws:
             memory = benchmark_config['memory']
             
             # Create function name
-            func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
-            # AWS Lambda does not allow hyphens in function names
-            func_name = func_name.replace('-', '_')
-            func_name = func_name.replace('.', '_')
+            if not function_name:
+                func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
+                # AWS Lambda does not allow hyphens in function names
+                func_name = func_name.replace('-', '_')
+                func_name = func_name.replace('.', '_')
+            else:
+                func_name = function_name
 
             # we can either check for exception or use list_functions
             # there's no API for test

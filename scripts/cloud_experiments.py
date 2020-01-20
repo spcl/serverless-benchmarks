@@ -28,6 +28,8 @@ parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
 parser.add_argument('--cache', action='store', default='cache', type=str,
                     help='Cache directory')
+parser.add_argument('--function-name', action='store', default='', type=str,
+                    help='Override function name for random generation.')
 parser.add_argument('--update', action='store_true', default=False,
                     help='Update function code in cache and deployment.')
 parser.add_argument('--update-storage', action='store_true', default=False,
@@ -100,7 +102,7 @@ try:
 
     # 6. Create function if it does not exist
     func, code_size = deployment_client.create_function(args.benchmark,
-            benchmark_path, experiment_config)
+            benchmark_path, experiment_config, args.function_name)
 
     # 7. Invoke!
     ret = deployment_client.invoke(func, input_config_bytes)

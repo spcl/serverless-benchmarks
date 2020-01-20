@@ -485,9 +485,11 @@ class azure:
         :param benchmark:
         :param benchmark_path: Path to benchmark code
         :param config: JSON config for benchmark
+        :param function_name: Override randomly generated function name
         :return: function name, code size
     '''
-    def create_function(self, benchmark :str, benchmark_path :str, config :dict):
+    def create_function(self, benchmark :str, benchmark_path :str,
+            config :dict, function_name :str=''):
 
         func_name = None
         code_size = None
@@ -543,13 +545,16 @@ class azure:
 
             # create function name
             region = self.config['azure']['region']
-            # only hyphens are allowed
-            # and name needs to be globally unique
-            uuid_name = str(uuid.uuid1())[0:8]
-            func_name = '{}-{}-{}'\
-                        .format(benchmark, self.language, uuid_name)\
-                        .replace('.', '-')\
-                        .replace('_', '-')
+            if not function_name:
+                # only hyphens are allowed
+                # and name needs to be globally unique
+                uuid_name = str(uuid.uuid1())[0:8]
+                func_name = '{}-{}-{}'\
+                            .format(benchmark, self.language, uuid_name)\
+                            .replace('.', '-')\
+                            .replace('_', '-')
+            else:
+                func_name = function_name
 
             # check if function does not exist
             # no API to verify existence
@@ -570,6 +575,7 @@ class azure:
                         self.storage_account_name
                     )
                 )
+                logging.info('Created function app {}'.format(func_name))
 
                 # Sleep because of problems when publishing immediately after
                 # creatin function app.
