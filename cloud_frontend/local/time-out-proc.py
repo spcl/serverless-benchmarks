@@ -22,6 +22,9 @@ try:
         timedata[i] = [begin, stop]
         durations[i] = int(ret.stdout.decode('utf-8'))
     end = datetime.datetime.now()
+except ValueError as e:
+    print('Incorrect output from function')
+    print(ret.stdout.decode('utf-8'))
 except Exception as e:
     print('Exception caught!')
     print(e)
