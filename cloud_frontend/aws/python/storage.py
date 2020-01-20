@@ -1,4 +1,5 @@
 import io
+import os
 
 import boto3
 
@@ -15,6 +16,14 @@ class storage:
     
     def download(self, bucket, file, filepath):
         self.client.download_file(bucket, file, filepath)
+
+    def download_directory(self, bucket, prefix, path):
+        objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        for obj in objects['Contents']:
+            file_name = obj['Key']
+            path_to_file = os.path.dirname(file_name)
+            os.makedirs(os.path.join(path, path_to_file), exist_ok=True)
+            self.download(bucket, file_name, os.path.join(path, file_name))
 
     def upload_stream(self, bucket, file, data):
         self.client.upload_fileobj(data, bucket, file)

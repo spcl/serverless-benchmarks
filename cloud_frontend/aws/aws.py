@@ -20,6 +20,7 @@ class aws:
     cached = False
 
     class s3:
+        cached = False
         client = None
         input_buckets = []
         input_buckets_files = []
@@ -71,10 +72,11 @@ class aws:
                     )
                 self.output_buckets = cached_buckets['buckets']['output']
                 for bucket in self.output_buckets:
-                    objects = self.client.list_objects_v2(bucket)
-                    objects = [obj.object_name for obj in objects]
-                    for err in self.connection.remove_objects(bucket, objects):
-                        logging.error("Deletion Error: {}".format(del_err))
+                    objects = self.client.list_objects_v2(Bucket=bucket)
+                    if 'Contents' in objects:
+                        objects = [obj['Key'] for obj in objects['Contents']]
+                        for err in self.connection.remove_objects(bucket, objects):
+                            logging.error("Deletion Error: {}".format(del_err))
                 self.cached = True
                 logging.info('Using cached storage input buckets {}'.format(self.input_buckets))
                 logging.info('Using cached storage output buckets {}'.format(self.output_buckets))
@@ -106,11 +108,12 @@ class aws:
                 return
             bucket_name = self.input_buckets[bucket_idx]
             if not self.replace_existing:
-                for f in self.input_buckets_files[bucket_idx]['Contents']:
-                    f_name = f['Key']
-                    if file == f_name:
-                        logging.info('Skipping upload of {} to {}'.format(filepath, bucket_name))
-                        return
+                if 'Contents' in self.input_buckets_files[bucket_idx]:
+                    for f in self.input_buckets_files[bucket_idx]['Contents']:
+                        f_name = f['Key']
+                        if file == f_name:
+                            logging.info('Skipping upload of {} to {}'.format(filepath, bucket_name))
+                            return
             logging.info('Upload {} to {}'.format(filepath, bucket_name))
             self.client.upload_file(filepath, bucket_name, file)
 
@@ -301,6 +304,7 @@ class aws:
                 logging.info('Creating function function {} from {}'.format(func_name, code_package))
 
                 # TODO: create Lambda role
+                code_body = open(code_package, 'rb').read()
                 self.client.create_function(
                     FunctionName=func_name,
                     Runtime='{}{}'.format(self.language,self.config['experiments']['runtime']),
