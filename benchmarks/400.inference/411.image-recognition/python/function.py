@@ -28,17 +28,22 @@ def handler(event):
     client.download(input_bucket, key, download_path)
     image_download_end = datetime.datetime.now()
 
-    model_download_begin = datetime.datetime.now()
-    model_process_begin = datetime.datetime.now()
     global model
     if not model:
+        model_download_begin = datetime.datetime.now()
         model_path = os.path.join('/tmp', model_key)
         client.download(model_bucket, model_key, model_path)
         model_download_end = datetime.datetime.now()
+        model_process_begin = datetime.datetime.now()
         model = resnet50(pretrained=False)
         model.load_state_dict(torch.load(model_path))
         model.eval()
-    model_process_end = datetime.datetime.now()
+        model_process_end = datetime.datetime.now()
+    else:
+        model_download_begin = datetime.datetime.now()
+        model_download_end = model_download_begin
+        model_process_begin = datetime.datetime.now()
+        model_process_end = model_process_begin
    
     process_begin = datetime.datetime.now()
     input_image = Image.open(image_path)
