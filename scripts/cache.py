@@ -62,7 +62,6 @@ class cache:
 
     def shutdown(self):
         if self.config_updated:
-            print(self.cached_config)
             for cloud in ['azure', 'aws']:
                 if cloud in self.cached_config:
                     cloud_config_file = os.path.join(
