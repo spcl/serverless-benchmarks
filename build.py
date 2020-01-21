@@ -50,7 +50,8 @@ def build(run, system, username, language=None,version=None, version_name=None):
     prepare_build_ctx(path, dockerfile, run, language)
 
     buildargs={
-        'USER': username
+        'USER': username,
+        'VERSION': version
     }
     if version:
         buildargs['BASE_IMAGE'] = version_name

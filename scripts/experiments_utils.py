@@ -100,7 +100,7 @@ def create_code_package(docker_client, client, config, benchmark, benchmark_path
 
     # copy function code
     FILES = {
-        'python': ['*.py', 'requirements.txt'],
+        'python': ['*.py', 'requirements.txt*'],
         'nodejs': ['*.js', 'package.json']
     }
     for file_type in FILES[language]:
