@@ -27,8 +27,10 @@ def find(name, path):
             return os.path.join(root, name)
     return None
 
-def create_output(dir, verbose):
+def create_output(dir, preserve_dir, verbose):
     output_dir = os.path.abspath(dir)
+    if os.path.exists(output_dir) and not preserve_dir:
+        shutil.rmtree(output_dir)
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     os.chdir(output_dir)
@@ -78,7 +80,7 @@ def prepare_input(client :object, benchmark :str, benchmark_path :str,
             storage.output(), storage.uploader_func)
     return input_config
 
-def create_code_package(docker, client, config, benchmark, benchmark_path):
+def create_code_package(docker_client, client, config, benchmark, benchmark_path):
 
     run = config['deployment']
     language = config['language']
@@ -145,9 +147,15 @@ def create_code_package(docker, client, config, benchmark, benchmark_path):
     else:
         container_name = 'sebs.build.{}.{}.{}'.format(run, language, runtime)
         try:
-            img = docker.images.get(container_name)
+            img = docker_client.images.get(container_name)
         except docker.errors.ImageNotFound as err:
             raise RuntimeError('Docker build image {} not found!'.format(img))
+
+        # does this benchmark has package.sh script?
+        volumes = {}
+        package_script = os.path.abspath(os.path.join(benchmark_path, 'package.sh'))
+        if os.path.exists(package_script):
+            volumes[package_script] = {'bind': '/mnt/function/package.sh', 'mode': 'ro'}
 
         # run Docker container to install packages
         PACKAGE_FILES = {
@@ -156,18 +164,27 @@ def create_code_package(docker, client, config, benchmark, benchmark_path):
         }
         file = os.path.join('code', PACKAGE_FILES[language])
         if os.path.exists(file):
-            docker.containers.run(
-                container_name,
-                volumes={
-                    os.path.abspath('code') : {'bind': '/mnt/function', 'mode': 'rw'}
-                },
-                environment={
-                    'APP': benchmark
-                },
-                user='1000:1000',
-                remove=True,
-                stdout=True, stderr=True,
-            )
+            try:
+                stdout = docker_client.containers.run(
+                    container_name,
+                    volumes={
+                        **volumes,
+                        os.path.abspath('code') : {'bind': '/mnt/function', 'mode': 'rw'}
+                    },
+                    environment={
+                        'APP': benchmark
+                    },
+                    user='1000:1000',
+                    remove=True,
+                    stdout=True, stderr=True
+                )
+                for line in stdout.decode('utf-8').split('\n'):
+                    if 'size' in line:
+                        logging.info('Docker build: {}'.format(line))
+            except docker.errors.ContainerError as e:
+                logging.error('Package build failed!')
+                logging.error(e)
+                raise e
 
     logging.info('Created {}/code package for run on {} with {}:{}'.format(os.getcwd(), run, language, runtime))
 

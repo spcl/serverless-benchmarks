@@ -34,6 +34,8 @@ parser.add_argument('--update', action='store_true', default=False,
                     help='Update function code in cache and deployment.')
 parser.add_argument('--update-storage', action='store_true', default=False,
                     help='Update storage files in deployment.')
+parser.add_argument('--preserve-out', action='store_true', default=False,
+                    help='Dont clean output directory [default false]')
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 args = parser.parse_args()
@@ -87,7 +89,7 @@ try:
     verbose = args.verbose
 
     # 1. Create output dir
-    output_dir = create_output(args.output_dir, args.verbose)
+    output_dir = create_output(args.output_dir, args.preserve_out, args.verbose)
     logging.info('Created experiment output at {}'.format(args.output_dir))
 
     # 2. Locate benchmark

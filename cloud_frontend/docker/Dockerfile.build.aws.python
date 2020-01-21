@@ -7,5 +7,7 @@ RUN useradd --uid 1000 ${USER}
 WORKDIR ${HOME}
 USER ${USER}:${USER}
 
+ENV SCRIPT_FILE=/mnt/function/package.sh
 CMD cd /mnt/function\
-    && pip3 -q install -r requirements.txt -t .python_packages/lib/site-packages
+    && pip3 -q install -r requirements.txt -t .python_packages/lib/site-packages\
+    && if test -f "${SCRIPT_FILE}"; then /bin/bash ${SCRIPT_FILE} .python_packages/lib/site-packages ; fi
