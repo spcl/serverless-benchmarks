@@ -166,4 +166,7 @@ dmypy.json
 *.swp
 *.swo
 
+# virtual environemnts
 sebs-*
+# cache
+cache
