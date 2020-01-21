@@ -23,8 +23,10 @@ class aws:
         cached = False
         client = None
         input_buckets = []
+        request_input_buckets = 0
         input_buckets_files = []
         output_buckets = []
+        request_output_buckets = 0
         replace_existing = False
 
         def __init__(self, location, access_key, secret_key, replace_existing):
@@ -42,13 +44,14 @@ class aws:
         def output(self):
             return self.output_buckets
 
-        def create_bucket(self, name, buckets):
+        def create_bucket(self, name, buckets=None):
             found_bucket = False
-            for b in buckets:
-                existing_bucket_name = b['Name']
-                if name in existing_bucket_name:
-                    found_bucket = True
-                    break
+            if buckets:
+                for b in buckets:
+                    existing_bucket_name = b['Name']
+                    if name in existing_bucket_name:
+                        found_bucket = True
+                        break
             # none found, create
             if not found_bucket:
                 random_name = str(uuid.uuid4())[0:16]
@@ -60,8 +63,26 @@ class aws:
                 logging.info('Bucket {} for {} already exists, skipping.'.format(existing_bucket_name, name))
                 return existing_bucket_name
 
+        def add_input_bucket(self, name):
+
+            idx = self.request_input_buckets
+            self.request_input_buckets += 1
+            name = '{}-{}-input'.format(name, idx)
+            # there's cached bucket we could use
+            for bucket in self.input_buckets:
+                if name in bucket:
+                    return bucket, idx
+            # otherwise add one
+            bucket_name = self.create_bucket(name)
+            self.input_buckets.append(bucket_name)
+            print(self.input_buckets)
+            print(idx)
+            return bucket_name, idx
+
         def create_buckets(self, benchmark, buckets, cached_buckets):
 
+            self.request_input_buckets = buckets[0]
+            self.request_output_buckets = buckets[1]
             if cached_buckets:
                 self.input_buckets = cached_buckets['buckets']['input']
                 for bucket in self.input_buckets:
@@ -114,6 +135,13 @@ class aws:
                         if file == f_name:
                             logging.info('Skipping upload of {} to {}'.format(filepath, bucket_name))
                             return
+            self.upload(bucket_idx, file, filepath)
+
+        '''
+            Upload without any caching. Useful for uploading code package to S3.
+        '''
+        def upload(self, bucket_idx :int, file :str, filepath :str):
+            bucket_name = self.input_buckets[bucket_idx]
             logging.info('Upload {} to {}'.format(filepath, bucket_name))
             self.client.upload_file(filepath, bucket_name, file)
 
@@ -153,10 +181,10 @@ class aws:
                 self.secret_key = os.environ['AWS_SECRET_ACCESS_KEY']
                 # update
                 self.cache_client.update_config(
-                        val=access_key,
+                        val=self.access_key,
                         keys=['aws', 'secrets', 'access_key'])
                 self.cache_client.update_config(
-                        val=secret_key,
+                        val=self.secret_key,
                         keys=['aws', 'secrets', 'secret_key'])
             else:
                 raise RuntimeError('AWS login credentials are missing! Please set '
@@ -216,8 +244,11 @@ class aws:
         cur_dir = os.getcwd()
         os.chdir(dir)
         # create zip with hidden directory but without parent directory
-        execute('zip -qur {}.zip * .'.format(benchmark), shell=True)
-        logging.info('Created {}.zip archive'.format(os.path.join(dir, benchmark)))
+        execute('zip -qu -r9 {}.zip * .'.format(benchmark), shell=True)
+        benchmark_archive = '{}.zip'.format(os.path.join(dir, benchmark))
+        logging.info('Created {} archive'.format(benchmark_archive))
+        mbytes = os.path.getsize(benchmark_archive) / 1024.0 / 1024.0
+        logging.info('Zip archive size {:2f} MB'.format(mbytes))
         os.chdir(cur_dir)
         return os.path.join(dir, '{}.zip'.format(benchmark))
 
@@ -270,7 +301,7 @@ class aws:
             # Update function usign current benchmark config
             timeout = benchmark_config['timeout']
             memory = benchmark_config['memory']
-            self.update_function(func_name, code_package, timeout, memory) 
+            self.update_function(benchmark, func_name, code_package, code_size, timeout, memory) 
 
             # update cache contents
             cached_cfg['code_size'] = code_size
@@ -304,12 +335,21 @@ class aws:
             # there's no API for test
             try:
                 self.client.get_function(FunctionName=func_name)
-                self.update_function(func_name, code_package, timeout, memory)
+                self.update_function(benchmark, func_name, code_package, code_size, timeout, memory)
             except self.client.exceptions.ResourceNotFoundException:
                 logging.info('Creating function function {} from {}'.format(func_name, code_package))
 
                 # TODO: create Lambda role
-                code_body = open(code_package, 'rb').read()
+                # AWS Lambda limit on zip deployment size
+                if code_size < 69905067:
+                    code_body = open(code_package, 'rb').read()
+                    code_config = {'ZipFile': code_body}
+                # Upload code package to S3, then use it
+                else:
+                    code_package_name = os.path.basename(code_package)
+                    bucket, idx = self.storage.add_input_bucket(benchmark)
+                    self.storage.upload(idx, code_package_name, code_package)
+                    code_config = {'S3Bucket': bucket, 'S3Key': code_package_name}
                 self.client.create_function(
                     FunctionName=func_name,
                     Runtime='{}{}'.format(self.language,self.config['experiments']['runtime']),
@@ -317,7 +357,7 @@ class aws:
                     Role=self.config['aws']['lambda-role'],
                     MemorySize=memory,
                     Timeout=timeout,
-                    Code={'ZipFile': code_body}
+                    Code=code_config
                 )
 
             self.cache_client.add_function(
@@ -345,18 +385,33 @@ class aws:
     '''
         Update function code and configuration on AWS.
 
+        :param benchmark: benchmark name
         :param name: function name
         :param code_package: path to code package
+        :param code_size: size of code package in bytes
         :param timeout: function timeout in seconds
         :param memory: memory limit for function
     '''
-    def update_function(self, name :str, code_package :str, timeout :int, memory :int):
+    def update_function(self, benchmark :str, name :str, code_package :str,
+            code_size :int, timeout :int, memory :int):
         self.start(code_package)
-        code_body = open(code_package, 'rb').read()
-        self.client.update_function_code(
-            FunctionName=name,
-            ZipFile=code_body
-        )
+        # AWS Lambda limit on zip deployment
+        if code_size < 69905067:
+            code_body = open(code_package, 'rb').read()
+            self.client.update_function_code(
+                FunctionName=name,
+                ZipFile=code_body
+            )
+        # Upload code package to S3, then update
+        else:
+            code_package_name = os.path.basename(code_package)
+            bucket, idx = self.storage.add_input_bucket(benchmark)
+            self.storage.upload(idx, code_package_name, code_package)
+            self.client.update_function_code(
+                FunctionName=name,
+                S3Bucket=bucket,
+                S3Key=code_package_name
+            )
         # and update config
         self.client.update_function_configuration(
             FunctionName=name,
