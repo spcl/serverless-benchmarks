@@ -200,3 +200,17 @@ def create_code_package(docker_client, client, config, benchmark, benchmark_path
     package_code = client.package_code(package_code, benchmark)
 
     return package_code, code_size, config
+
+'''
+    Download all files in a storage bucket.
+    Warning: assumes flat directory in a bucket! Does not handle bucket files
+    with directory marks in a name, e.g. 'dir1/dir2/file'
+'''
+def download_bucket(storage_client :object, bucket_name :str, output_dir :str):
+
+    files = storage_client.list_bucket(bucket_name)
+    for f in files:
+        output_file = os.path.join(output_dir, f)
+        if not os.path.exists(output_file):
+            storage_client.download(bucket_name, f, output_file)
+
