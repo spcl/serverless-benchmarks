@@ -59,7 +59,7 @@ class blob_storage:
     '''
     def correct_name(self, name :str):
         return name.replace('.', '-')
-        
+
     '''
     '''
     def add_output_container(self, name :str, suffix: str='output'):
@@ -139,6 +139,34 @@ class blob_storage:
         with open(filepath, 'rb') as file_data:
             client.upload_blob(data=file_data, overwrite=True)
         logging.info('Upload {} to {}'.format(filepath, container_name))
+
+    '''
+        Download file from bucket.
+
+        :param container_name:
+        :param file:
+        :param filepath:
+    '''
+    def download(self, container_name :str, file :str, filepath :str):
+        logging.info('Download {}:{} to {}'.format(container_name, file, filepath))
+        client = self.client.get_blob_client(container_name, file)
+        with open(filepath, 'wb') as download_file:
+            download_file.write( client.download_blob().readall() )
+
+    '''
+        Return list of files in a container.
+
+        :param container:
+        :return: list of file names. empty if container empty
+    '''
+    def list_bucket(self, container :str):
+        objects = list(
+            map(
+                lambda x : x['name'],
+                self.client.get_container_client(container).list_blobs()
+            )
+        )
+        return objects
 
 class azure:
     config = None
@@ -664,5 +692,6 @@ class azure:
         return vals
 
 
-    def download_metrics(self, function_name, time_begin, time_end):
+    def download_metrics(self, function_name :str, start_time :int, end_time :int,
+            requests :dict):
         pass

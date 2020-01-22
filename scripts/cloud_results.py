@@ -58,7 +58,7 @@ for result_file in os.listdir(result_dir):
         json_data = json.loads(binary_json.read().decode('utf-8'))
         requests[request_id] = json_data
 # get cloud logs
-deployment_client.get_logs(function_name, experiment_begin, experiment_end, requests)
+deployment_client.download_metrics(function_name, experiment_begin, experiment_end, requests)
 
 with open(os.path.join(args.output_dir, 'results.json'), 'w') as out_f:
     json.dump(requests, out_f, indent=2)

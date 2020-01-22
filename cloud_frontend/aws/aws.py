@@ -170,7 +170,6 @@ class aws:
             logging.info('Upload {} to {}'.format(filepath, bucket_name))
             self.client.upload_file(filepath, bucket_name, file)
 
-
         '''
             Download file from bucket.
 
@@ -179,7 +178,7 @@ class aws:
             :param filepath:
         '''
         def download(self, bucket_name :str, file :str, filepath :str):
-            logging.info('Download {} to {}'.format(filepath, bucket_name))
+            logging.info('Download {}:{} to {}'.format(bucket_name, file, filepath))
             self.client.download_file(
                 Bucket=bucket_name,
                 Key=file,
@@ -573,7 +572,7 @@ class aws:
     def shutdown(self):
         pass
 
-    def get_logs(self, function_name :str, start_time :int, end_time :int,
+    def download_metrics(self, function_name :str, start_time :int, end_time :int,
             requests :dict):
         self.configure_credentials()
         if not self.logs_client:
