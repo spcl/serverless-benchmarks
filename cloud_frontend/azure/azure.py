@@ -22,6 +22,7 @@ class blob_storage:
     input_containers = []
     input_containers_files = []
     output_containers = []
+    temporary_containers = []
     replace_existing = False
     cached = False
 
@@ -35,13 +36,14 @@ class blob_storage:
     def output(self):
         return self.output_containers
 
-    def create_container(self, name, containers):
+    def create_container(self, name, containers=None):
         found_container = False
-        for c in containers:
-            container_name = c['name']
-            if name in container_name:
-                found_container = True
-                break
+        if containers:
+            for c in containers:
+                container_name = c['name']
+                if name in container_name:
+                    found_container = True
+                    break
         if not found_container:
             random_name = str(uuid.uuid4())[0:16]
             name = '{}-{}'.format(name, random_name)
@@ -51,6 +53,21 @@ class blob_storage:
         else:
             logging.info('Container {} for {} already exists, skipping.'.format(container_name, name))
             return container_name
+
+    '''
+        Azure does not allow dots in container names.
+    '''
+    def correct_name(self, name :str):
+        return name.replace('.', '-')
+        
+    '''
+    '''
+    def add_output_container(self, name :str, suffix: str='output'):
+
+        name = '{}-{}'.format(name, suffix)
+        cont_name = self.create_container(self.correct_name(name))
+        self.temporary_containers.append(cont_name)
+        return cont_name
 
     def create_buckets(self, benchmark, buckets, cached_buckets):
         if cached_buckets:
@@ -79,8 +96,7 @@ class blob_storage:
             logging.info('Using cached storage input containers {}'.format(self.input_containers))
             logging.info('Using cached storage output containers {}'.format(self.output_containers))
         else:
-            # Container names do not allow dots
-            benchmark = benchmark.replace('.', '-')
+            benchmark = self.correct_name(benchmark)
             # get existing containers which might fit the benchmark
             containers = self.client.list_containers(
                     name_starts_with=benchmark
@@ -248,7 +264,7 @@ class azure:
         :param replace_existing: when true, replace existing files in input buckets
         :return: Azure storage instance
     '''
-    def get_storage(self, benchmark :str, buckets :Tuple[int, int],
+    def get_storage(self, benchmark :str = None, buckets :Tuple[int, int] = None,
             replace_existing: bool=False):
         # ensure we have a storage account
         self.storage_account()
@@ -256,9 +272,10 @@ class azure:
                 self.storage_connection_string,
                 replace_existing
         )
-        self.storage.create_buckets(benchmark, buckets,
-                self.cache_client.get_storage_config('azure', benchmark)
-        )
+        if benchmark and buckets:
+            self.storage.create_buckets(benchmark, buckets,
+                    self.cache_client.get_storage_config('azure', benchmark)
+            )
         return self.storage
 
     '''
@@ -615,7 +632,18 @@ class azure:
             )
         return func_name, code_size
 
-    def invoke(self, name, payload):
+    '''
+        Prepare Azure resources to store experiment results.
+        Allocate one container.
+
+        :param benchmark: benchmark name
+        :return: name of bucket to store experiment results
+    '''
+    def prepare_experiment(self, benchmark :str):
+        logs_container = self.storage.add_output_container(benchmark, suffix='logs')
+        return logs_container
+
+    def invoke_sync(self, name :str, payload :dict):
 
         payload['connection_string'] = self.storage_connection_string
         begin = datetime.datetime.now()
@@ -627,9 +655,11 @@ class azure:
             logging.error('Input: {}'.format(payload))
             raise RuntimeError()
 
+        ret = ret.json()
         vals = {}
-        vals['message'] = ret.json()['message']
-        vals['function_time'] = ret.json()['time']
+        vals['result'] = ret['result']
+        vals['compute_time'] = ret['compute_time']
+        vals['results_time'] = ret['results_time']
         vals['client_time'] = (end - begin) / datetime.timedelta(microseconds=1)
         return vals
 

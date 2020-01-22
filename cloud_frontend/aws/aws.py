@@ -8,6 +8,8 @@ import uuid
 
 import boto3
 
+from typing import Tuple
+
 from scripts.experiments_utils import *
 
 class aws:
@@ -75,9 +77,26 @@ class aws:
             # otherwise add one
             bucket_name = self.create_bucket(name)
             self.input_buckets.append(bucket_name)
-            print(self.input_buckets)
-            print(idx)
             return bucket_name, idx
+
+        '''
+            :param cache: if true then bucket will be counted and mentioned in cache
+        '''
+        def add_output_bucket(self, name :str, suffix: str='output', cache: bool=True):
+
+            idx = self.request_input_buckets
+            name = '{}-{}-{}'.format(name, idx + 1, suffix)
+            if cache:
+                self.request_input_buckets += 1
+                # there's cached bucket we could use
+                for bucket in self.input_buckets:
+                    if name in bucket:
+                        return bucket, idx
+            # otherwise add one
+            bucket_name = self.create_bucket(name)
+            if cache:
+                self.input_buckets.append(bucket_name)
+            return bucket_name
 
         def create_buckets(self, benchmark, buckets, cached_buckets):
 
@@ -122,7 +141,7 @@ class aws:
                             s3_buckets
                         )
                     )
-            
+
         def uploader_func(self, bucket_idx, file, filepath):
             # Skip upload when using cached buckets and not updating storage.
             if self.cached and not self.replace_existing:
@@ -135,15 +154,45 @@ class aws:
                         if file == f_name:
                             logging.info('Skipping upload of {} to {}'.format(filepath, bucket_name))
                             return
-            self.upload(bucket_idx, file, filepath)
+            bucket_name = self.input_buckets[bucket_idx]
+            self.upload(bucket_name, file, filepath)
 
         '''
             Upload without any caching. Useful for uploading code package to S3.
         '''
-        def upload(self, bucket_idx :int, file :str, filepath :str):
-            bucket_name = self.input_buckets[bucket_idx]
+        def upload(self, bucket_name :str, file :str, filepath :str):
             logging.info('Upload {} to {}'.format(filepath, bucket_name))
             self.client.upload_file(filepath, bucket_name, file)
+
+
+        '''
+            Download file from bucket.
+
+            :param bucket_name:
+            :param file:
+            :param filepath:
+        '''
+        def download(self, bucket_name :str, file :str, filepath :str):
+            logging.info('Download {} to {}'.format(filepath, bucket_name))
+            self.client.download_file(
+                Bucket=bucket_name,
+                Key=file,
+                Filename=filepath
+            )
+
+        '''
+            Return list of files in a bucket.
+
+            :param bucket_name:
+            :return: list of file names. empty if bucket empty
+        '''
+        def list_bucket(self, bucket_name :str):
+            objects = self.client.list_objects_v2(Bucket=bucket_name)
+            if 'Contents' in objects:
+                objects = [obj['Key'] for obj in objects['Contents']]
+            else:
+                objects = []
+            return objects
 
         #def download_results(self, result_dir):
         #    result_dir = os.path.join(result_dir, 'storage_output')
@@ -152,7 +201,7 @@ class aws:
         #        objects = [obj.object_name for obj in objects]
         #        for obj in objects:
         #            self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
-        #    
+        #
 
     '''
         :param cache_client: Function cache instance
@@ -196,16 +245,28 @@ class aws:
                     aws_secret_access_key=self.secret_key,
                     region_name=self.config['aws']['region'])
 
-    def get_storage(self, benchmark, buckets, replace_existing=False):
+    '''
+        Create a client instance for cloud storage. When benchmark and buckets
+        parameters are passed, then storage is initialized with required number
+        of buckets. Buckets may be created or retrieved from cache.
+
+        :param benchmark: benchmark name
+        :param buckets: tuple of required input/output buckets
+        :param replace_existing: when true, the existing files in cached buckets are replaced
+        :return: storage client
+    '''
+    def get_storage(self, benchmark :str = None, buckets :Tuple[int, int] = None,
+            replace_existing :bool = False):
         self.start()
         self.storage = aws.s3(
                 self.config['aws']['region'],
                 access_key=self.access_key,
                 secret_key=self.secret_key,
                 replace_existing=replace_existing)
-        self.storage.create_buckets(benchmark, buckets,
-                self.cache_client.get_storage_config('aws', benchmark)
-        )
+        if benchmark and buckets:
+            self.storage.create_buckets(benchmark, buckets,
+                    self.cache_client.get_storage_config('aws', benchmark)
+            )
         return self.storage
 
     '''
@@ -221,13 +282,13 @@ class aws:
         - function.py
         - storage.py
         - resources
-        handler.py 
+        handler.py
 
         dir: directory where code is located
         benchmark: benchmark name
     '''
     def package_code(self, dir :str, benchmark :str):
- 
+
         CONFIG_FILES = {
             'python': ['handler.py', 'requirements.txt', '.python_packages'],
             'nodejs': ['handler.js', 'package.json', 'node_modules']
@@ -301,7 +362,7 @@ class aws:
             # Update function usign current benchmark config
             timeout = benchmark_config['timeout']
             memory = benchmark_config['memory']
-            self.update_function(benchmark, func_name, code_package, code_size, timeout, memory) 
+            self.update_function(benchmark, func_name, code_package, code_size, timeout, memory)
 
             # update cache contents
             cached_cfg['code_size'] = code_size
@@ -309,11 +370,11 @@ class aws:
             cached_cfg['memory'] = memory
             self.cache_client.update_function('aws', benchmark, self.language,
                     code_package, cached_cfg)
-            
+
             return func_name, code_size
         # c) no cached instance, create package and upload code
         else:
-            
+
             # Build code package
             code_package, code_size, benchmark_config = create_code_package(
                     self.docker_client, self, config['experiments'],
@@ -321,7 +382,7 @@ class aws:
             )
             timeout = benchmark_config['timeout']
             memory = benchmark_config['memory']
-            
+
             # Create function name
             if not function_name:
                 func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
@@ -348,7 +409,7 @@ class aws:
                 else:
                     code_package_name = os.path.basename(code_package)
                     bucket, idx = self.storage.add_input_bucket(benchmark)
-                    self.storage.upload(idx, code_package_name, code_package)
+                    self.storage.upload(bucket, code_package_name, code_package)
                     code_config = {'S3Bucket': bucket, 'S3Key': code_package_name}
                 self.client.create_function(
                     FunctionName=func_name,
@@ -406,7 +467,7 @@ class aws:
         else:
             code_package_name = os.path.basename(code_package)
             bucket, idx = self.storage.add_input_bucket(benchmark)
-            self.storage.upload(idx, code_package_name, code_package)
+            self.storage.upload(bucket, code_package_name, code_package)
             self.client.update_function_code(
                 FunctionName=name,
                 S3Bucket=bucket,
@@ -420,7 +481,19 @@ class aws:
         )
         logging.info('Updating code of function {} from'.format(name, code_package))
 
-    def invoke(self, name, payload):
+
+    '''
+        Prepare AWS resources to store experiment results.
+        Allocate one bucket.
+
+        :param benchmark: benchmark name
+        :return: name of bucket to store experiment results
+    '''
+    def prepare_experiment(self, benchmark :str):
+        logs_bucket = self.storage.add_output_bucket(benchmark, suffix='logs')
+        return logs_bucket
+
+    def invoke_sync(self, name :str, payload :dict):
 
         payload = json.dumps(payload).encode('utf-8')
         begin = datetime.datetime.now()
@@ -440,16 +513,32 @@ class aws:
             logging.error('Input: {}'.format(payload.decode('utf-8')))
             raise RuntimeError()
         log = base64.b64decode(ret['LogResult'])
-        vals = {}
+        aws_vals = {}
         for line in log.decode('utf-8').split('\t'):
             if not line.isspace():
                 split = line.split(':')
-                vals[split[0]] = split[1].split()[0]
+                aws_vals[split[0]] = split[1].split()[0]
+        vals = {}
+        vals['aws'] = aws_vals
         ret = json.loads(ret['Payload'].read().decode('utf-8'))
-        vals['function_time'] = ret['time']
         vals['client_time'] = (end - begin) / datetime.timedelta(microseconds=1)
-        vals['message'] = ret['message']
+        vals['compute_time'] = ret['compute_time']
+        vals['results_time'] = ret['results_time']
+        vals['result'] = ret['result']
         return vals
+
+    def invoke_async(self, name :str, payload :dict):
+
+        ret = self.client.invoke(
+            FunctionName=name,
+            InvocationType='Event',
+            Payload=payload,
+            LogType='Tail'
+        )
+        if ret['StatusCode'] != 202:
+            logging.error('Async invocation of {} failed!'.format(name))
+            logging.error('Input: {}'.format(payload.decode('utf-8')))
+            raise RuntimeError()
 
     def shutdown(self):
         pass
