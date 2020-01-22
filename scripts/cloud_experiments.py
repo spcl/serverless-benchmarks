@@ -63,6 +63,7 @@ else:
     deployment = experiment_config['experiments']['deployment']
 experiment_config['experiments']['update_code'] = args.update
 experiment_config['experiments']['update_storage'] = args.update_storage
+experiment_config['experiments']['benchmark'] = args.benchmark
 
 try:
     benchmark_summary = {}
@@ -108,11 +109,22 @@ try:
             benchmark_path, experiment_config, args.function_name)
 
     # 7. Invoke!
-    ret = deployment_client.invoke(func, input_config)
+    bucket = deployment_client.prepare_experiment(args.benchmark)
+    input_config['logs'] = { 'bucket': bucket }
+    begin = datetime.datetime.now()
+    ret = deployment_client.invoke_sync(func, input_config)
+    end = datetime.datetime.now()
+    benchmark_summary['experiment'] = {
+        'results_bucket': bucket,
+        'begin': begin.strftime('%s'),
+        'end': end.strftime('%s'),
+        'invocations': 1
+    }
+    benchmark_summary['config'] = experiment_config
     print(ret)
 
-    # get experiment and run
-    
+    with open('experiments.json', 'w') as out_f:
+        json.dump(benchmark_summary, out_f, indent=2)
 
 except Exception as e:
     print(e)
