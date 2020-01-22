@@ -18,4 +18,4 @@ def handler(event):
     html = template.render(username = name, cur_time = cur_time, random_numbers = random_numbers)
     # end timing
     # dump stats 
-    return html
+    return {'result': html}
