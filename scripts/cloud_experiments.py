@@ -113,11 +113,10 @@ try:
     input_config['logs'] = { 'bucket': bucket }
     begin = datetime.datetime.now()
     ret = deployment_client.invoke_sync(func, input_config)
-    end = datetime.datetime.now()
     benchmark_summary['experiment'] = {
+        'function_name': func,
         'results_bucket': bucket,
-        'begin': begin.strftime('%s'),
-        'end': end.strftime('%s'),
+        'begin': int(begin.strftime('%s')),
         'invocations': 1
     }
     benchmark_summary['config'] = experiment_config

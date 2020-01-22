@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import os
+import time
 import uuid
 
 import boto3
@@ -14,12 +15,17 @@ from scripts.experiments_utils import *
 
 class aws:
     client = None
+    logs_client = None
     cache_client = None
     docker_client = None
     config = None
     storage = None
     language = None
     cached = False
+
+    # AWS credentials
+    access_key = None
+    secret_key = None
 
     class s3:
         cached = False
@@ -215,9 +221,12 @@ class aws:
         self.cache_client = cache_client
         self.docker_client = docker_client
 
-    def start(self, code_package=None):
-
-        if not self.client:
+    '''
+        Parse AWS credentials passed in config or environment variables.
+        Updates class properties.
+    '''
+    def configure_credentials(self):
+        if self.access_key is None:
             # Verify we can log in
             # 1. Cached credentials
             # TODO: flag to update cache
@@ -240,10 +249,19 @@ class aws:
                         'up environmental variables AWS_ACCESS_KEY_ID and '
                         'AWS_SECRET_ACCESS_KEY')
 
-            self.client = boto3.client('lambda',
-                    aws_access_key_id=self.access_key,
-                    aws_secret_access_key=self.secret_key,
-                    region_name=self.config['aws']['region'])
+    '''
+        Start boto3 client for `client` AWS resource.
+
+        :param resource: AWS resource to use
+        :param code_package: not used
+    '''
+    def start(self, resource :str = 'lambda', code_package=None):
+
+        self.configure_credentials()
+        return boto3.client(resource,
+                aws_access_key_id=self.access_key,
+                aws_secret_access_key=self.secret_key,
+                region_name=self.config['aws']['region'])
 
     '''
         Create a client instance for cloud storage. When benchmark and buckets
@@ -257,7 +275,7 @@ class aws:
     '''
     def get_storage(self, benchmark :str = None, buckets :Tuple[int, int] = None,
             replace_existing :bool = False):
-        self.start()
+        self.configure_credentials()
         self.storage = aws.s3(
                 self.config['aws']['region'],
                 access_key=self.access_key,
@@ -455,7 +473,8 @@ class aws:
     '''
     def update_function(self, benchmark :str, name :str, code_package :str,
             code_size :int, timeout :int, memory :int):
-        self.start(code_package)
+        if not self.client:
+            self.client = self.start('lambda', code_package)
         # AWS Lambda limit on zip deployment
         if code_size < 69905067:
             code_body = open(code_package, 'rb').read()
@@ -513,13 +532,8 @@ class aws:
             logging.error('Input: {}'.format(payload.decode('utf-8')))
             raise RuntimeError()
         log = base64.b64decode(ret['LogResult'])
-        aws_vals = {}
-        for line in log.decode('utf-8').split('\t'):
-            if not line.isspace():
-                split = line.split(':')
-                aws_vals[split[0]] = split[1].split()[0]
         vals = {}
-        vals['aws'] = aws_vals
+        vals['aws'] = aws.parse_aws_report(log.decode('utf-8'))
         ret = json.loads(ret['Payload'].read().decode('utf-8'))
         vals['client_time'] = (end - begin) / datetime.timedelta(microseconds=1)
         vals['compute_time'] = ret['compute_time']
@@ -540,6 +554,57 @@ class aws:
             logging.error('Input: {}'.format(payload.decode('utf-8')))
             raise RuntimeError()
 
+    '''
+        Accepts AWS report after function invocation.
+        Returns a dictionary filled with values with various metrics such as
+        time, invocation time and memory consumed.
+
+        :param log: decoded log from CloudWatch or from synchronuous invocation
+        :return: dictionary with parsed values
+    '''
+    def parse_aws_report(log :str):
+        aws_vals = {}
+        for line in log.split('\t'):
+            if not line.isspace():
+                split = line.split(':')
+                aws_vals[split[0]] = split[1].split()[0]
+        return aws_vals
+
     def shutdown(self):
         pass
+
+    def get_logs(self, function_name :str, start_time :int, end_time :int,
+            requests :dict):
+        self.configure_credentials()
+        if not self.logs_client:
+            self.logs_client = self.start('logs')
+
+        query = self.logs_client.start_query(
+            logGroupName='/aws/lambda/{}'.format(function_name),
+            queryString="filter @message like /REPORT/",
+            startTime=start_time,
+            endTime=end_time
+        )
+        query_id = query['queryId']
+        response = None
+
+        while response == None or response['status'] == 'Running':
+            logging.info('Waiting for AWS query to complete ...')
+            time.sleep(1)
+            response = self.logs_client.get_query_results(
+                queryId=query_id
+            )
+        # results contain a list of matches
+        # each match has multiple parts, we look at `@message` since this one
+        # contains the report of invocation
+        results = response['results']
+        for val in results:
+            for result_part in val:
+                if result_part['field'] == '@message':
+                    actual_result = aws.parse_aws_report(result_part['value'])
+                    request_id = actual_result['REPORT RequestId']
+                    if request_id not in requests:
+                        logging.info('Found invocation {} without result in bucket!'.format(request_id))
+                    del actual_result['REPORT RequestId']
+                    requests[request_id]['aws'] = actual_result
 
