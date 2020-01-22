@@ -64,16 +64,16 @@ def handler(event):
     process_end = datetime.datetime.now()
 
     download_time = (image_download_end- image_download_begin) / datetime.timedelta(microseconds=1)
-    model_time = (model_download_end - model_download_begin) / datetime.timedelta(microseconds=1)
+    model_download_time = (model_download_end - model_download_begin) / datetime.timedelta(microseconds=1)
     model_process_time = (model_process_end - model_process_begin) / datetime.timedelta(microseconds=1)
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
     return {
-            'classification': {'idx': index.item(), 'class': ret},
+            'result': {'idx': index.item(), 'class': ret},
             'measurement': {
-                'download_time': download_time,
+                'download_time': download_time + model_download_time,
+                'compute_time': process_time + model_process_time,
                 'model_time': model_process_time,
-                'model_download_time': model_time,
-                'compute': process_time
+                'model_download_time': model_download_time
             }
         }
 
