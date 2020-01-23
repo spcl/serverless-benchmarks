@@ -13,18 +13,18 @@ def handler(event, context):
     ret = function.handler(event)
     end = datetime.datetime.now()
 
+    log_data = {
+        'result': ret['result']
+    }
+    if 'measurement' in ret:
+        log_data['measurement'] = ret['measurement']
     if 'logs' in event:
+        log_data['time'] = (end - begin) / datetime.timedelta(microseconds=1)
         results_begin = datetime.datetime.now()
         from function import storage
         storage_inst = storage.storage.get_instance()
         b = event.get('logs').get('bucket')
         req_id = context.aws_request_id
-        log_data = {
-            'time': (end - begin) / datetime.timedelta(microseconds=1),
-            'result': ret['result']
-        }
-        if 'measurement' in ret:
-            log_data['measurement'] = ret['measurement']
         storage_inst.upload_stream(b, '{}.json'.format(req_id),
                 io.BytesIO(json.dumps(log_data).encode('utf-8')))
         results_end = datetime.datetime.now()
@@ -35,6 +35,6 @@ def handler(event, context):
     return {
         'compute_time': (end - begin) / datetime.timedelta(microseconds=1),
         'results_time': results_time,
-        'result': ret['result']
+        'result': log_data
     }
 

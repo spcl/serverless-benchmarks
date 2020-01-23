@@ -16,26 +16,30 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     ret = function.handler(req_json)
     end = datetime.datetime.now()
 
-    results_begin = datetime.datetime.now()
-    from . import storage
-    storage_inst = storage.storage.get_instance()
-    b = req_json.get('logs').get('bucket')
-    req_id = context.invocation_id
     log_data = {
-        'time': (end - begin) / datetime.timedelta(microseconds=1),
         'result': ret['result']
     }
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
-    storage_inst.upload_stream(b, '{}.json'.format(req_id),
-            io.BytesIO(json.dumps(log_data).encode('utf-8')))
-    results_end = datetime.datetime.now()
+    if 'logs' in req_json:
+        log_data['time'] = (end - begin) / datetime.timedelta(microseconds=1)
+        results_begin = datetime.datetime.now()
+        from . import storage
+        storage_inst = storage.storage.get_instance()
+        b = req_json.get('logs').get('bucket')
+        req_id = context.invocation_id
+        storage_inst.upload_stream(b, '{}.json'.format(req_id),
+                io.BytesIO(json.dumps(log_data).encode('utf-8')))
+        results_end = datetime.datetime.now()
+        results_time = (results_end - results_begin) / datetime.timedelta(microseconds=1)
+    else:
+        results_time = 0
 
     return func.HttpResponse(
         json.dumps({
             'compute_time': (end - begin) / datetime.timedelta(microseconds=1),
-            'results_time': (results_end - results_begin) / datetime.timedelta(microseconds=1),
-            'result': ret['result']
+            'results_time': results_time,
+            'result': log_data
         }),
         mimetype="application/json"
     )
