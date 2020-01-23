@@ -1,3 +1,4 @@
+import datetime
 import io
 import os
 import sys
@@ -37,7 +38,32 @@ def handler(event):
     #client.download(input_bucket, key, download_path)
     #resize_image(download_path, upload_path, width, height)
     #client.upload(output_bucket, key, upload_path)
+    download_begin = datetime.datetime.now()
     img = client.download_stream(input_bucket, key)
+    download_end = datetime.datetime.now()
+
+    process_begin = datetime.datetime.now()
     resized = resize_image(img, width, height)
+    resized_size = resized.getbuffer().nbytes
+    process_end = datetime.datetime.now()
+
+    upload_begin = datetime.datetime.now()
     client.upload_stream(output_bucket, key, resized)
-    return { 'bucket': output_bucket, 'key': key}
+    upload_end = datetime.datetime.now()
+
+    download_time = (download_end - download_begin) / datetime.timedelta(microseconds=1)
+    upload_time = (upload_end - upload_begin) / datetime.timedelta(microseconds=1)
+    process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
+    return {
+            'result': {
+                'bucket': output_bucket,
+                'key': key
+            },
+            'measurement': {
+                'download_time': download_time,
+                'download_size': len(img),
+                'upload_time': upload_time,
+                'upload_size': resized_size,
+                'compute_time': process_time
+            }
+    }
