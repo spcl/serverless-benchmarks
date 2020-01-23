@@ -504,24 +504,44 @@ class azure:
 
     '''
         Publish function code on Azure.
+        Boolean flag enables repeating publish operation until it succeeds.
+        Useful for publish immediately after function creation where it might
+        take from 30-60 seconds for all Azure caches to be updated.
 
         :param name: function name
+        :param repeat_on_failure: keep repeating if command fails on unknown name.
         :return: URL to reach HTTP-triggered function
     '''
-    def publish_function(self, name :str):
+    def publish_function(self, name :str, repeat_on_failure :bool = False):
 
-        ret = self.execute(
-            'bash -c \'cd /mnt/function '
-            '&& func azure functionapp publish {} --{} --no-build\''.format(
-                name, self.AZURE_RUNTIMES[self.language]
-            )
-        )
+        success = False
         url = ""
-        for line in ret.split(b'\n'):
-            line = line.decode('utf-8')
-            if 'Invoke url' in line:
-                url = line.split('Invoke url:')[1].strip()
-                break
+        while not success:
+            try:
+                ret = self.execute(
+                    'bash -c \'cd /mnt/function '
+                    '&& func azure functionapp publish {} --{} --no-build\''.format(
+                        name, self.AZURE_RUNTIMES[self.language]
+                    )
+                )
+                url = ""
+                for line in ret.split(b'\n'):
+                    line = line.decode('utf-8')
+                    if 'Invoke url' in line:
+                        url = line.split('Invoke url:')[1].strip()
+                        break
+                success = True
+            except RuntimeError as e:
+                error = str(e)
+                # app not found
+                if 'find app with name' in error and repeat_on_failure:
+                    # Sleep because of problems when publishing immediately
+                    # after creating function app.
+                    time.sleep(30)
+                    logging.info('Sleep 30 seconds for Azure to register function app')
+                # escape loop. we failed!
+                else:
+                    raise e
         return url
 
     '''
@@ -629,13 +649,9 @@ class azure:
                 )
                 logging.info('Created function app {}'.format(func_name))
 
-                # Sleep because of problems when publishing immediately after
-                # creatin function app.
-                time.sleep(30)
-                logging.info('Sleep 30 seconds for Azure to register function app')
             logging.info('Selected {} function app'.format(func_name))
             # update existing function app
-            url = self.publish_function(func_name)
+            url = self.publish_function(func_name, repeat_on_failure=True)
             self.url = url
 
             self.cache_client.add_function(
@@ -709,7 +725,9 @@ class azure:
 
         # Azure CLI requires date in the following format
         # Format: date (yyyy-mm-dd) time (hh:mm:ss.xxxxx) timezone (+/-hh:mm)
-        start_time = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S')
+        # Include microseconds time to make sure we're not affected by
+        # miliseconds precision.
+        start_time = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S.%f')
         end_time = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d %H:%M:%S')
         import pytz
         from pytz import reference

@@ -96,7 +96,7 @@ try:
     # 2. Locate benchmark
     benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
     if benchmark_path is None:
-        raise RuntimeError('Benchmark {} not found in {}!'.format(benchmark, benchmarks_dir))
+        raise RuntimeError('Benchmark {} not found in {}!'.format(args.benchmark, benchmarks_dir))
     logging.info('Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 5. Prepare benchmark input
@@ -116,7 +116,7 @@ try:
     benchmark_summary['experiment'] = {
         'function_name': func,
         'results_bucket': bucket,
-        'begin': int(begin.strftime('%s')),
+        'begin': float(begin.strftime('%s.%f')),
         'invocations': 1
     }
     benchmark_summary['config'] = experiment_config
