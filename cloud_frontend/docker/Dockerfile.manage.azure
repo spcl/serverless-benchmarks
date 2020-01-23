@@ -1,6 +1,7 @@
 FROM python:3.7-slim-stretch
-# disable telemetry by default
 ARG USER
+# disable telemetry by default
+ENV FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
 
 RUN apt-get update\
   && apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg\
@@ -12,8 +13,8 @@ RUN apt-get update\
   && echo "deb [arch=amd64] https://packages.microsoft.com/debian/9/prod $(lsb_release -cs) main" > /etc/apt/sources.list.d/dotnetdev.list\
   && apt-get update\
   && apt-get install -y azure-cli azure-functions-core-tools\
-  && az extension add --name application-insights
-ENV FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
+# Install NodeJS 10.x to test functions locally with func host
+  && curl -sL https://deb.nodesource.com/setup_10.x | bash - && apt-get install -y nodejs
 
 # https://github.com/moby/moby/issues/20295
 # https://github.com/moby/moby/issues/20295
@@ -22,3 +23,7 @@ RUN useradd --uid 1000 -m ${USER}\
     && chown ${USER}:${USER} ${HOME}
 WORKDIR ${HOME}
 USER ${USER}:${USER}
+
+# Extension must be installed for a specific user, I guess.
+# Installed with root does not work for user.
+RUN az extension add --name application-insights
