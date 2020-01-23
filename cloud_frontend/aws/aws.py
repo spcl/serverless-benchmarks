@@ -120,9 +120,13 @@ class aws:
                 for bucket in self.output_buckets:
                     objects = self.client.list_objects_v2(Bucket=bucket)
                     if 'Contents' in objects:
-                        objects = [obj['Key'] for obj in objects['Contents']]
-                        for err in self.connection.remove_objects(bucket, objects):
-                            logging.error("Deletion Error: {}".format(del_err))
+                        objects = [{'Key': obj['Key']} for obj in objects['Contents']]
+                        self.client.delete_objects(
+                                Bucket=bucket,
+                                Delete={
+                                    'Objects': objects
+                                }
+                        )
                 self.cached = True
                 logging.info('Using cached storage input buckets {}'.format(self.input_buckets))
                 logging.info('Using cached storage output buckets {}'.format(self.output_buckets))
@@ -261,6 +265,10 @@ class aws:
                 aws_access_key_id=self.access_key,
                 aws_secret_access_key=self.secret_key,
                 region_name=self.config['aws']['region'])
+    
+    def start_lambda(self):
+        if not self.client:
+            self.client = self.start('lambda')
 
     '''
         Create a client instance for cloud storage. When benchmark and buckets
@@ -350,6 +358,7 @@ class aws:
         func_name = None
         code_size = None
         cached_f = self.cache_client.get_function('aws', benchmark, self.language)
+        self.start_lambda()
 
         # a) cached_instance and no update
         if cached_f is not None and not config['experiments']['update_code']:
@@ -472,8 +481,6 @@ class aws:
     '''
     def update_function(self, benchmark :str, name :str, code_package :str,
             code_size :int, timeout :int, memory :int):
-        if not self.client:
-            self.client = self.start('lambda', code_package)
         # AWS Lambda limit on zip deployment
         if code_size < 69905067:
             code_body = open(code_package, 'rb').read()
@@ -513,9 +520,7 @@ class aws:
 
     def invoke_sync(self, name :str, payload :dict):
 
-        if not self.client:
-            self.client = self.start('lambda')
-
+        self.start_lambda()
         payload = json.dumps(payload).encode('utf-8')
         begin = datetime.datetime.now()
         ret = self.client.invoke(
@@ -575,8 +580,9 @@ class aws:
     def shutdown(self):
         pass
 
-    def download_metrics(self, function_name :str, start_time :int, end_time :int,
-            requests :dict):
+    def download_metrics(self, function_name :str, deployment_config :dict,
+            start_time :int, end_time :int, requests :dict):
+
         self.configure_credentials()
         if not self.logs_client:
             self.logs_client = self.start('logs')
