@@ -43,14 +43,16 @@ def handler(event):
     upload_time = (s3_upload_stop - s3_upload_begin) / datetime.timedelta(microseconds=1)
     process_time = (compress_end - compress_begin) / datetime.timedelta(microseconds=1)
     return {
-            'bucket': output_bucket,
-            'key': key,
+            'result': {
+                'bucket': output_bucket,
+                'key': key
+            },
             'measurement': {
                 'download_time': download_time,
                 'download_size': size,
                 'upload_time': upload_time,
                 'upload_size': archive_size,
-                'compute': process_time
+                'compute_time': process_time
             }
         }
 
