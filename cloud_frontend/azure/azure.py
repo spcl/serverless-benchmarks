@@ -692,6 +692,58 @@ class azure:
         return vals
 
 
-    def download_metrics(self, function_name :str, start_time :int, end_time :int,
-            requests :dict):
-        pass
+    def download_metrics(self, function_name :str, deployment_config :dict,
+            start_time :int, end_time :int, requests :dict):
+        self.login()
+
+        resource_group = deployment_config['resource_group']
+        app_id_query = self.execute(
+                ('az monitor app-insights component show '
+                 '--app {} --resource-group {}'
+                 ).format(
+                     function_name,
+                     resource_group
+                )
+        ).decode('utf-8')
+        application_id = json.loads(app_id_query)['appId']
+
+        # Azure CLI requires date in the following format
+        # Format: date (yyyy-mm-dd) time (hh:mm:ss.xxxxx) timezone (+/-hh:mm)
+        start_time = datetime.datetime.fromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S')
+        end_time = datetime.datetime.fromtimestamp(end_time).strftime('%Y-%m-%d %H:%M:%S')
+        import pytz
+        from pytz import reference
+        tz = reference.LocalTimezone().tzname(datetime.datetime.now())
+        timezone_str = datetime.datetime.now(pytz.timezone(tz)).strftime('%z')
+
+        query = ("requests | project timestamp, operation_Name, success, "
+                 "resultCode, duration, cloud_RoleName, "
+                 "invocationId=customDimensions['InvocationId'], "
+                 "functionTime=customDimensions['FunctionExecutionTimeMs']")
+        ret = self.execute(
+            ('az monitor app-insights query --app {} --analytics-query "{}" '
+             '--start-time {} {} --end-time {} {}'
+             ).format(
+                application_id,
+                query,
+                start_time,
+                timezone_str,
+                end_time,
+                timezone_str
+            )
+        ).decode('utf-8')
+
+        ret = json.loads(ret)
+        ret = ret['tables'][0]
+        # time is last, invocation is second to last
+        for request in ret['rows']:
+            duration = request[4]
+            func_exec_time = request[-1]
+            invocation_id = request[-2]
+            requests[invocation_id]['azure'] = {
+                'duration': duration,
+                'func_time': float(func_exec_time)
+            }
+
+        # TODO: query performance counters for mem
+
