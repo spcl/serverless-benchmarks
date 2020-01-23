@@ -513,6 +513,9 @@ class aws:
 
     def invoke_sync(self, name :str, payload :dict):
 
+        if not self.client:
+            self.client = self.start('lambda')
+
         payload = json.dumps(payload).encode('utf-8')
         begin = datetime.datetime.now()
         ret = self.client.invoke(
