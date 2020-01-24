@@ -12,6 +12,7 @@ import boto3
 from typing import Tuple
 
 from scripts.experiments_utils import *
+from CodePackage import CodePackage
 
 class aws:
     client = None
@@ -265,7 +266,7 @@ class aws:
                 aws_access_key_id=self.access_key,
                 aws_secret_access_key=self.secret_key,
                 region_name=self.config['aws']['region'])
-    
+
     def start_lambda(self):
         if not self.client:
             self.client = self.start('lambda')
@@ -333,10 +334,12 @@ class aws:
         execute('zip -qu -r9 {}.zip * .'.format(benchmark), shell=True)
         benchmark_archive = '{}.zip'.format(os.path.join(dir, benchmark))
         logging.info('Created {} archive'.format(benchmark_archive))
-        mbytes = os.path.getsize(benchmark_archive) / 1024.0 / 1024.0
+
+        bytes_size = os.path.getsize(benchmark_archive)
+        mbytes =  bytes_size / 1024.0 / 1024.0
         logging.info('Zip archive size {:2f} MB'.format(mbytes))
         os.chdir(cur_dir)
-        return os.path.join(dir, '{}.zip'.format(benchmark))
+        return os.path.join(dir, '{}.zip'.format(benchmark)), bytes_size
 
     '''
         a)  if a cached function is present and no update flag is passed,
@@ -352,62 +355,54 @@ class aws:
         :param function_name: Override randomly generated function name
         :return: function name, code size
     '''
-    def create_function(self, benchmark :str, benchmark_path :str,
-            config :dict, function_name :str=''):
+    def create_function(self, code_package: CodePackage, experiment_config :dict):
 
-        func_name = None
-        code_size = None
-        cached_f = self.cache_client.get_function('aws', benchmark, self.language)
-        self.start_lambda()
-
-        # a) cached_instance and no update
-        if cached_f is not None and not config['experiments']['update_code']:
-            cached_cfg = cached_f[0]
-            func_name = cached_cfg['name']
-            code_size = cached_cfg['code_size']
-            logging.info('Using cached function {} in {} of size {}'.format(
-                func_name, cached_f[1], code_size
+        benchmark = code_package.benchmark
+        if code_package.is_cached and code_package.is_cached_valid:
+            func_name = code_package.cached_config['name']
+            code_location = code_package.code_location
+            logging.info('Using cached function {fname} in {loc}'.format(
+                fname=func_name,
+                loc=code_location
             ))
-            return func_name, code_size
-        # b) cached_instance, create package and update code
-        elif cached_f is not None:
+            return func_name
+        elif code_package.is_cached:
 
-            cached_cfg = cached_f[0]
-            func_name = cached_cfg['name']
+            func_name = code_package.cached_config['name']
+            code_location = code_package.code_location
+            timeout = code_package.benchmark_config['timeout']
+            memory = code_package.benchmark_config['memory']
 
-            # Build code package
-            code_package, code_size, benchmark_config = create_code_package(
-                    self.docker_client, self, config['experiments'],
-                    benchmark, benchmark_path
-            )
-            code_body = open(code_package, 'rb').read()
-            logging.info('Updating cached function {} in {} of size {}'.format(
-                func_name, code_package, code_size
-            ))
+            self.start_lambda()
+            # Run AWS-specific part of building code.
+            package, code_size = self.package_code(code_location, code_package.benchmark)
+            package_body = open(package, 'rb').read()
+            self.update_function(benchmark, func_name, package, code_size, timeout, memory)
 
-            # Update function usign current benchmark config
-            timeout = benchmark_config['timeout']
-            memory = benchmark_config['memory']
-            self.update_function(benchmark, func_name, code_package, code_size, timeout, memory)
-
-            # update cache contents
+            cached_cfg = code_package.cached_config
             cached_cfg['code_size'] = code_size
             cached_cfg['timeout'] = timeout
             cached_cfg['memory'] = memory
+            cached_cfg['hash'] = code_package.hash()
             self.cache_client.update_function('aws', benchmark, self.language,
-                    code_package, cached_cfg)
+                    package, cached_cfg
+            )
 
-            return func_name, code_size
-        # c) no cached instance, create package and upload code
+            logging.info('Updating cached function {fname} in {loc}'.format(
+                fname=func_name,
+                loc=code_location
+            ))
+
+            return func_name
+        # no cached instance, create package and upload code
         else:
 
-            # Build code package
-            code_package, code_size, benchmark_config = create_code_package(
-                    self.docker_client, self, config['experiments'],
-                    benchmark, benchmark_path
-            )
-            timeout = benchmark_config['timeout']
-            memory = benchmark_config['memory']
+            func_name = code_package.function_name()
+            code_location = code_package.code_location()
+            timeout = code_package.benchmark_config['timeout']
+            memory = code_package.benchmark_config['memory']
+
+            self.start_lambda()
 
             # Create function name
             if not function_name:
@@ -417,6 +412,10 @@ class aws:
                 func_name = func_name.replace('.', '_')
             else:
                 func_name = function_name
+
+            # Run AWS-specific part of building code.
+            package, code_size  = self.package_code(code_location, code_package.benchmark())
+            package_body = open(package, 'rb').read()
 
             # we can either check for exception or use list_functions
             # there's no API for test
@@ -451,14 +450,15 @@ class aws:
                     deployment='aws',
                     benchmark=benchmark,
                     language=self.language,
-                    code_package=code_package,
+                    code_package=package,
                     language_config={
                         'name': func_name,
                         'code_size': code_size,
                         'runtime': self.config['experiments']['runtime'],
                         'role': self.config['aws']['lambda-role'],
                         'memory': memory,
-                        'timeout': timeout
+                        'timeout': timeout,
+                        'hash': code_package.hash()
                     },
                     storage_config={
                         'buckets': {
@@ -504,7 +504,7 @@ class aws:
             Timeout=timeout,
             MemorySize=memory
         )
-        logging.info('Updating code of function {} from'.format(name, code_package))
+        logging.info('Updating AWS code of function {} from {}'.format(name, code_package))
 
 
     '''

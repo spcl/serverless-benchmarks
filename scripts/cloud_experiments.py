@@ -10,11 +10,14 @@ import traceback
 
 from experiments_utils import *
 from cache import cache
+from CodePackage import CodePackage
 
 # TODO: replace with something more sustainable
 sys.path.append(PROJECT_DIR)
 
 parser = argparse.ArgumentParser(description='Run cloud experiments.')
+parser.add_argument('action', choices=['publish', 'invoke', 'logs'],
+                    help='Benchmark name')
 parser.add_argument('benchmark', type=str, help='Benchmark name')
 parser.add_argument('output_dir', type=str, help='Output dir')
 parser.add_argument('size', choices=['test', 'small', 'large'],
@@ -88,42 +91,54 @@ try:
     # 0. Input args
     args = parser.parse_args()
     verbose = args.verbose
-
+    
     # 1. Create output dir
     output_dir = create_output(args.output_dir, args.preserve_out, args.verbose)
     logging.info('Created experiment output at {}'.format(args.output_dir))
 
-    # 2. Locate benchmark
-    benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
-    if benchmark_path is None:
-        raise RuntimeError('Benchmark {} not found in {}!'.format(args.benchmark, benchmarks_dir))
-    logging.info('Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
+    print(experiment_config)
+    if args.action == 'publish':
+        package = CodePackage(args.benchmark, experiment_config, args.output_dir,
+                systems_config[deployment], cache_client, docker_client)
+        func = deployment_client.create_function(package, experiment_config)
+    elif args.action == 'invoke':
+        package = CodePackage(args.benchmark, experiment_config, args.output_dir,
+                systems_config[deployment], cache_client, docker_client)
+        func = deployment_client.create_function(package, experiment_config)
+        bucket = deployment_client.prepare_experiment(args.benchmark)
+        input_config['logs'] = { 'bucket': bucket }
+        begin = datetime.datetime.now()
+        ret = deployment_client.invoke_sync(func, input_config)
+        benchmark_summary['experiment'] = {
+            'function_name': func,
+            'results_bucket': bucket,
+            'begin': float(begin.strftime('%s.%f')),
+            'invocations': 1
+        }
+        benchmark_summary['config'] = experiment_config
+        print(ret)
+        with open('experiments.json', 'w') as out_f:
+            json.dump(benchmark_summary, out_f, indent=2)
+    else:
+        pass
+
+    ## 2. Locate benchmark
+    #benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
+    #if benchmark_path is None:
+    #    raise RuntimeError('Benchmark {} not found in {}!'.format(args.benchmark, benchmarks_dir))
+    #logging.info('Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 5. Prepare benchmark input
-    input_config = prepare_input(deployment_client, args.benchmark,
-            benchmark_path, args.size,
-            experiment_config['experiments']['update_storage'])
+    #input_config = prepare_input(deployment_client, args.benchmark,
+    #        benchmark_path, args.size,
+            #experiment_config['experiments']['update_storage'])
 
     # 6. Create function if it does not exist
-    func, code_size = deployment_client.create_function(args.benchmark,
-            benchmark_path, experiment_config, args.function_name)
+    #func, code_size = deployment_client.create_function(args.benchmark,
+    #        benchmark_path, experiment_config, args.function_name)
 
     # 7. Invoke!
-    bucket = deployment_client.prepare_experiment(args.benchmark)
-    input_config['logs'] = { 'bucket': bucket }
-    begin = datetime.datetime.now()
-    ret = deployment_client.invoke_sync(func, input_config)
-    benchmark_summary['experiment'] = {
-        'function_name': func,
-        'results_bucket': bucket,
-        'begin': float(begin.strftime('%s.%f')),
-        'invocations': 1
-    }
-    benchmark_summary['config'] = experiment_config
-    print(ret)
 
-    with open('experiments.json', 'w') as out_f:
-        json.dump(benchmark_summary, out_f, indent=2)
 
 except Exception as e:
     print(e)
