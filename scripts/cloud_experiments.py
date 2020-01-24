@@ -91,19 +91,22 @@ try:
     # 0. Input args
     args = parser.parse_args()
     verbose = args.verbose
-    
+
     # 1. Create output dir
     output_dir = create_output(args.output_dir, args.preserve_out, args.verbose)
     logging.info('Created experiment output at {}'.format(args.output_dir))
 
-    print(experiment_config)
     if args.action == 'publish':
         package = CodePackage(args.benchmark, experiment_config, args.output_dir,
-                systems_config[deployment], cache_client, docker_client)
+                systems_config[deployment], cache_client, docker_client, args.update)
         func = deployment_client.create_function(package, experiment_config)
     elif args.action == 'invoke':
         package = CodePackage(args.benchmark, experiment_config, args.output_dir,
-                systems_config[deployment], cache_client, docker_client)
+                systems_config[deployment], cache_client, docker_client, args.update)
+        # 5. Prepare benchmark input
+        input_config = prepare_input(deployment_client, args.benchmark,
+                package.benchmark_path, args.size,
+                experiment_config['experiments']['update_storage'])
         func = deployment_client.create_function(package, experiment_config)
         bucket = deployment_client.prepare_experiment(args.benchmark)
         input_config['logs'] = { 'bucket': bucket }
@@ -128,10 +131,6 @@ try:
     #    raise RuntimeError('Benchmark {} not found in {}!'.format(args.benchmark, benchmarks_dir))
     #logging.info('Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
-    # 5. Prepare benchmark input
-    #input_config = prepare_input(deployment_client, args.benchmark,
-    #        benchmark_path, args.size,
-            #experiment_config['experiments']['update_storage'])
 
     # 6. Create function if it does not exist
     #func, code_size = deployment_client.create_function(args.benchmark,

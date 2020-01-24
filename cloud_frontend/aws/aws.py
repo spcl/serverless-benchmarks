@@ -533,10 +533,20 @@ class aws:
         if ret['StatusCode'] != 200:
             logging.error('Invocation of {} failed!'.format(name))
             logging.error('Input: {}'.format(payload.decode('utf-8')))
+            self.get_invocation_error(
+                    function_name=name,
+                    start_time=int(begin.strftime('%s')) - 1,
+                    end_time=int(end.strftime('%s')) + 1
+            )
             raise RuntimeError()
         if 'FunctionError' in ret:
             logging.error('Invocation of {} failed!'.format(name))
             logging.error('Input: {}'.format(payload.decode('utf-8')))
+            self.get_invocation_error(
+                    function_name=name,
+                    start_time=int(begin.strftime('%s')) - 1,
+                    end_time=int(end.strftime('%s')) + 1
+            )
             raise RuntimeError()
         log = base64.b64decode(ret['LogResult'])
         vals = {}
@@ -579,6 +589,29 @@ class aws:
 
     def shutdown(self):
         pass
+
+    def get_invocation_error(self, function_name :str, start_time :int,
+            end_time :int):
+        self.configure_credentials()
+        if not self.logs_client:
+            self.logs_client = self.start('logs')
+
+        query = self.logs_client.start_query(
+            logGroupName='/aws/lambda/{}'.format(function_name),
+            queryString="fields @timestamp, @message",
+            startTime=start_time,
+            endTime=end_time
+        )
+        query_id = query['queryId']
+        response = None
+
+        while response == None or response['status'] == 'Running':
+            logging.info('Waiting for AWS query to complete ...')
+            time.sleep(1)
+            response = self.logs_client.get_query_results(
+                queryId=query_id
+            )
+        print(response)
 
     def download_metrics(self, function_name :str, deployment_config :dict,
             start_time :int, end_time :int, requests :dict):

@@ -27,6 +27,10 @@ class CodePackage:
     @property
     def benchmark(self):
         return self._benchmark
+    
+    @property
+    def benchmark_path(self):
+        return self._benchmark_path
 
     @property
     def benchmark_config(self):
@@ -50,14 +54,14 @@ class CodePackage:
 
     def __init__(self, benchmark: str, config: dict, output_dir: str,
             system_config: dict, cache_client: cache,
-            docker_client: docker.client):
+            docker_client: docker.client,
+            forced_update: bool=False):
         self._benchmark = benchmark
         self._deployment = config['experiments']['deployment']
         self._language = config['experiments']['language']
         self._runtime = config['experiments']['runtime']
-        path = find_benchmark(self.benchmark, 'benchmarks')
-        self._benchmark_path = os.path.join(path, self._language)
-        with open( os.path.join(path, 'config.json') ) as json_file:
+        self._benchmark_path = find_benchmark(self.benchmark, 'benchmarks')
+        with open( os.path.join(self.benchmark_path, 'config.json') ) as json_file:
             self._benchmark_config = json.load(json_file)
         if self._language not in self._benchmark_config['languages']:
             raise RuntimeError(
@@ -72,6 +76,8 @@ class CodePackage:
 
         # verify existence of function in cache
         self.query_cache()
+        if forced_update:
+            self._is_cached_valid = False
         if not self.is_cached or not self.is_cached_valid:
             self._code_location = self.build(output_dir)
 
@@ -91,7 +97,8 @@ class CodePackage:
 
     def hash(self):
         if not self._hash_value:
-            self._hash_value = CodePackage.hash_directory(self._benchmark_path)
+            path = os.path.join(self.benchmark_path, self._language)
+            self._hash_value = CodePackage.hash_directory(path)
         return self._hash_value
 
     def query_cache(self):
@@ -114,16 +121,18 @@ class CodePackage:
             'python': ['*.py', 'requirements.txt*'],
             'nodejs': ['*.js', 'package.json']
         }
+        path = os.path.join(self.benchmark_path, self._language)
         for file_type in FILES[self._language]:
-            for f in glob.glob( os.path.join(self._benchmark_path, file_type) ):
-                shutil.copy2( os.path.join(self._benchmark_path, f), output_dir)
+            for f in glob.glob( os.path.join(path, file_type) ):
+                shutil.copy2( os.path.join(path, f), output_dir)
 
     def add_benchmark_data(self, output_dir):
-        cmd = '/bin/bash {benchmark_path}/init.sh {output_dir}/code false'
-        if os.path.exists( os.path.join(self._benchmark_path, 'init.sh') ):
+        cmd = '/bin/bash {benchmark_path}/init.sh {output_dir} false'
+        path = os.path.join(self.benchmark_path, self._language)
+        if os.path.exists( os.path.join(path, 'init.sh') ):
             out = subprocess.run(
                     cmd.format(
-                        benchmark_path=self._benchmark_path,
+                        benchmark_path=path,
                         output_dir=output_dir
                     ),
                     shell=True,
@@ -199,7 +208,9 @@ class CodePackage:
 
             # does this benchmark has package.sh script?
             volumes = {}
-            package_script = os.path.abspath(os.path.join(self._benchmark_path, 'package.sh'))
+            package_script = os.path.abspath(os.path.join(
+                        self._benchmark_path, self._language, 'package.sh'
+            ))
             if os.path.exists(package_script):
                 volumes[package_script] = {'bind': '/mnt/function/package.sh', 'mode': 'ro'}
 
