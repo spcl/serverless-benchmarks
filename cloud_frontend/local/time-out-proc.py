@@ -20,7 +20,8 @@ try:
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stop = datetime.datetime.now()
         timedata[i] = [begin, stop]
-        durations[i] = int(ret.stdout.decode('utf-8'))
+        # time returns WALL,USER,SYS
+        durations[i] = ret.stdout.decode('utf-8').rstrip().split(',')
     end = datetime.datetime.now()
 except ValueError as e:
     print('Incorrect output from function')
@@ -34,13 +35,13 @@ except Exception as e:
 result = get_result_prefix(RESULTS_DIR, cfg['benchmark']['name'], 'csv')
 with open(result, 'w') as f:
     csv_writer = csv.writer(f)
-    csv_writer.writerow(['#Seconds from epoch.microseconds; Duration in microseconds'])
-    csv_writer.writerow(['Begin','End','Duration'])
+    csv_writer.writerow(['#Seconds from epoch.microseconds; Duration in miliseconds'])
+    csv_writer.writerow(['Begin','End','Wallclock','User','Sys'])
     for i in range(0, len(timedata)):
         csv_writer.writerow([
                 timedata[i][0].strftime('%s.%f'),
                 timedata[i][1].strftime('%s.%f'),
-                durations[i]
+                *durations[i]
             ])
 
 experiment_data = {}
