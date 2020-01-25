@@ -108,17 +108,18 @@ class CodePackage:
     def query_cache(self):
         self._cached_config, self._code_location = self._cache_client.get_function(
                     deployment=self._deployment,
-                    benchmark=self.benchmark,
+                    benchmark=self._benchmark,
                     language=self._language
         )
         if self.cached_config is not None:
             # compare hashes
             current_hash = self.hash()
             old_hash = self.cached_config['hash']
+            self._code_size = self.cached_config['code_size']
             self._is_cached = True
             self._is_cached_valid = current_hash == old_hash
         else:
-            self.is_cached = False
+            self._is_cached = False
 
     def copy_code(self, output_dir):
         FILES = {
@@ -252,26 +253,29 @@ class CodePackage:
                     logging.error(e)
                     raise e
 
+    def recalculate_code_size(self):
+        self._code_size = CodePackage.directory_size(self._output_dir)
+
     def build(self, output_dir):
 
-        output_dir = os.path.join(output_dir, 'code')
+        self._output_dir = os.path.join(output_dir, 'code')
         # create directory to be deployed
-        if os.path.exists(output_dir):
-            shutil.rmtree(output_dir)
-        os.makedirs(output_dir)
+        if os.path.exists(self._output_dir):
+            shutil.rmtree(self._output_dir)
+        os.makedirs(self._output_dir)
 
-        self.copy_code(output_dir)
-        self.add_benchmark_data(output_dir)
-        self.add_deployment_files(output_dir)
-        self.add_deployment_package(output_dir)
-        self.install_dependencies(output_dir)
+        self.copy_code(self._output_dir)
+        self.add_benchmark_data(self._output_dir)
+        self.add_deployment_files(self._output_dir)
+        self.add_deployment_package(self._output_dir)
+        self.install_dependencies(self._output_dir)
 
-        self._code_size = CodePackage.directory_size(output_dir)
+        self._code_size = CodePackage.directory_size(self._output_dir)
         logging.info('Created code package for run on {deployment} with {language}:{runtime}'.format(
             deployment=self._deployment,
             language=self._language,
             runtime=self._runtime
             )
         )
-        return os.path.abspath(output_dir)
+        return os.path.abspath(self._output_dir)
 

@@ -20,6 +20,8 @@ from typing import Tuple
 
 from experiments_utils import *
 from cache import cache
+from CodePackage import CodePackage
+from ExperimentEnvironment import ExperimentEnvironment
 
 def iterable(val):
     return val if isinstance(val, collections.Iterable) else [val, ]
@@ -434,71 +436,66 @@ class local:
         :param config: JSON config for benchmark
         :return: path to code, code size
     '''
-    def create_function(self, benchmark :str, benchmark_path :str, config: dict):
+    def create_function(self, code_package: CodePackage, experiment_config :dict):
 
-        func_name = None
-        code_size = None
-        cached_f = self.cache_client.get_function('local', benchmark, self.language)
+        benchmark = code_package.benchmark
 
-        # a) cached_instance and no update
-        if cached_f is not None and not config['experiments']['update_code']:
-            cached_cfg = cached_f[0]
-            func_name = cached_cfg['name']
-            code_size = cached_cfg['code_size']
-            logging.info('Using cached function {} in {} of size {}'.format(
-                func_name, cached_f[1], code_size
+        if code_package.is_cached and code_package.is_cached_valid:
+            func_name = code_package.cached_config['name']
+            code_location = code_package.code_location
+            logging.info('Using cached function {fname} in {loc}'.format(
+                fname=func_name,
+                loc=code_location
             ))
-            return cached_f[1], code_size
+            return func_name
         # b) cached_instance, create package and update code
-        elif cached_f is not None:
+        elif code_package.is_cached:
 
-            cached_cfg = cached_f[0]
-            func_name = cached_cfg['name']
+            func_name = benchmark
+            code_location = code_package.code_location
 
             # Build code package
-            code_package, code_size, benchmark_config = create_code_package(
-                    docker=self.docker_client,
-                    client=self,
-                    config=config['experiments'],
-                    benchmark=benchmark,
-                    benchmark_path=benchmark_path
-            )
-            logging.info('Updating cached function {} in {} of size {}'.format(
-                func_name, code_package, code_size
-            ))
+            package = self.package_code(code_location, code_package.benchmark)
+            code_size = code_package.recalculate_code_size()
 
             # Copy new code to cache
             cached_cfg['code_size'] = code_size
+            cached_cfg['hash'] = code_package.hash()
             self.cache_client.update_function('local', benchmark, self.language,
-                    code_package, cached_cfg)
+                    package, cached_cfg
+            )
+            logging.info('Updating cached function {fname} in {loc}'.format(
+                fname=func_name,
+                loc=code_location
+            ))
 
-            return cached_f[1], code_size
+            return func_name
         # c) no cached instance, create package and upload code
         else:
             func_name = benchmark
-            code_package, code_size, benchmark_config = create_code_package(
-                    docker=self.docker_client,
-                    client=self,
-                    config=config['experiments'],
-                    benchmark=benchmark,
-                    benchmark_path=benchmark_path
-            )
-            logging.info('Creating function function {} from {}'.format(
-                benchmark, code_package
+            code_location = code_package.code_location
+
+            # Build code package
+            package = self.package_code(code_location, code_package.benchmark)
+            code_size = code_package.recalculate_code_size()
+            logging.info('Creating function {fname} in {loc}'.format(
+                fname=func_name,
+                loc=code_location
             ))
             self.cache_client.add_function(
-                    deployment='local',
-                    benchmark=benchmark,
-                    language=self.language,
-                    code_package=code_package,
-                    language_config={
-                        'name': func_name,
-                        'code_size': code_size,
-                        'runtime': self.config['experiments']['runtime'],
-                    },
-                    storage_config={}
+                deployment='local',
+                benchmark=benchmark,
+                language=self.language,
+                code_package=package,
+                language_config={
+                    'name': func_name,
+                    'code_size': code_size,
+                    'runtime': self.config['experiments']['runtime'],
+                    'hash': code_package.hash()
+                },
+                storage_config={}
             )
-            return code_package, code_size
+            return func_name
 
 deployment_client = None
 
@@ -519,9 +516,10 @@ try:
     systems_config = json.load(open(os.path.join(SCRIPT_DIR, os.pardir, 'config', 'systems.json'), 'r'))
     cache_client = cache(args.cache)
     deployment_client = local(cache_client, experiment_config, docker_client, args.language)
+    deployment = 'local'
 
     # 1. Create output dir
-    output_dir = create_output(args.output_dir, args.verbose)
+    output_dir = create_output(args.output_dir, False, args.verbose)
     logging.info('# Created experiment output at {}'.format(args.output_dir))
 
     # Verify if the experiment is supported for the language
@@ -535,8 +533,8 @@ try:
         raise RuntimeError('Experiment {} is not supported for language {}!'.format(args.experiment, args.language))
 
     # 2. Locate benchmark
-    benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
-    logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
+    #benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
+    #logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 6. Create experiment config
     benchmark_config = {}
@@ -546,25 +544,28 @@ try:
     benchmark_config['runtime'] = experiment_config['local']['runtime'][args.language]
     benchmark_config['deployment'] = 'local'
 
+    package = CodePackage(args.benchmark, experiment_config, args.output_dir,
+            systems_config[deployment], cache_client, docker_client, args.update)
     # 5. Prepare benchmark input
     input_config = prepare_input(deployment_client, args.benchmark,
-            benchmark_path, args.size, False)
+            package.benchmark_path, args.size, False)
     storage_config = deployment_client.storage().config_to_json()
     if storage_config:
         benchmark_config['storage'] = storage_config
 
     # 4. Prepare environment
     # TurboBoost, disable HT, power cap, decide on which cores to use
-    code_package, code_size = deployment_client.create_function(args.benchmark,
-            benchmark_path, experiment_config)
-    app_config = {'name' : args.benchmark, 'size' : code_size}
+
+    #code_package, code_size = deployment_client.create_function(args.benchmark,
+    #        benchmark_path, experiment_config)
+    func = deployment_client.create_function(package, experiment_config)
+    app_config = {'name' : args.benchmark, 'size' : package.code_size}
     input_config = {
         'input' : input_config,
         'app': app_config,
         'benchmark' : benchmark_config,
         'experiment_config': experiment_config
     }
-
 
     # 7. Select experiments
     volumes = {}
@@ -602,7 +603,7 @@ try:
                     **result_volumes,
                     **experiment.get_docker_volumes(output_dir, home_dir)
                 },
-                os.path.join(output_dir, code_package),
+                os.path.join(output_dir, package.code_location),
                 home_dir
             )
 

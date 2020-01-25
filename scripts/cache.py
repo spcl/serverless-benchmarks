@@ -104,7 +104,7 @@ class cache:
                     os.path.join(self.cache_dir, cfg[language]['code'])
                 )
         else:
-            return None
+            return (None, None)
 
     '''
         Acccess cached storage config of a benchmark.

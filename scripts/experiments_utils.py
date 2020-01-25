@@ -8,6 +8,8 @@ import shutil
 import sys
 import subprocess
 
+from typing import List
+
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = 'pack_code_{}.sh'
