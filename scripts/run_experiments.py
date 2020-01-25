@@ -34,11 +34,12 @@ def run_container(client, language, version, volumes, code_package, home_dir):
                 **volumes,
                 code_package : {'bind': os.path.join(home_dir, 'code'), 'mode': 'ro'}
             },
+            cpuset_cpus='3',
             # required to access perf counters
             # alternative: use custom seccomp profile
             privileged=True,
             user='1000:1000',
-            network_mode="host",
+            network_mode="bridge",
             remove=True,
             stdout=True, stderr=True,
             detach=True, tty=True
@@ -278,7 +279,6 @@ class minio_storage:
     def start(self):
         self.access_key = secrets.token_urlsafe(32)
         self.secret_key = secrets.token_hex(32)
-        logging.info('Starting minio instance at localhost:{}'.format(self.port))
         logging.info('ACCESS_KEY={}'.format(self.access_key))
         logging.info('SECRET_KEY={}'.format(self.secret_key))
         self.storage_container = self.docker_client.containers.run(
@@ -293,14 +293,22 @@ class minio_storage:
             stdout=True, stderr=True,
             detach=True
         )
+        # who knows why? otherwise attributes are not loaded
+        self.storage_container.reload()
+        networks = self.storage_container.attrs['NetworkSettings']['Networks']
+        self.url = '{IPAddress}:{Port}'.format(
+                IPAddress=networks['bridge']['IPAddress'],
+                Port=self.port
+        )
+        logging.info('Starting minio instance at {}'.format(self.url))
 
     def stop(self):
         if self.storage_container is not None:
-            logging.info('Stopping minio instance at localhost:{}'.format(self.port))
+            logging.info('Stopping minio instance at {url}'.format(url=self.url))
             self.storage_container.stop()
 
     def get_connection(self):
-        return minio.Minio('localhost:{}'.format(self.port),
+        return minio.Minio(self.url,
                 access_key=self.access_key,
                 secret_key=self.secret_key,
                 secure=False)
@@ -308,7 +316,7 @@ class minio_storage:
     def config_to_json(self):
         if self.storage_container is not None:
             return {
-                    'address': 'localhost:{}'.format(self.port),
+                    'address': self.url,
                     'secret_key': self.secret_key,
                     'access_key': self.access_key,
                     'input': self.input_buckets,
@@ -628,8 +636,14 @@ try:
         # 9. Copy result data
         for idx, container in enumerate(containers):
 
+            # Gather docker statistics
+            dest_dir = os.path.join(experiment.name, 'instance_{}'.format(i))
+            docker_stats = container.stats(stream=False)
+            with open(os.path.join(dest_dir, 'docker_stats.json'), 'w') as out_f:
+                json.dump(docker_stats, out_f, indent=2)
+
             # 10. Kill docker instance
-            #container.stop()
+            container.stop()
 
             # 11. Find experiment JSONs and include in summary
             result_path = os.path.join(dest_dir, 'results')
