@@ -15,7 +15,8 @@ from typing import Tuple
 
 from azure.storage.blob import BlobServiceClient
 
-from scripts.experiments_utils import PROJECT_DIR, create_code_package
+from CodePackage import CodePackage
+from experiments_utils import project_absolute_path
 
 class blob_storage:
     client = None
@@ -496,7 +497,7 @@ class azure:
         json.dump(default_host_json, open(os.path.join(dir, 'host.json'), 'w'), indent=2)
 
         # copy handlers
-        wrappers_dir = os.path.join(PROJECT_DIR, 'cloud-frontend', 'azure', self.language)
+        wrappers_dir = project_absolute_path('cloud-frontend', 'azure', self.language)
         for file in glob.glob(os.path.join(wrappers_dir, '*.py')):
             shutil.copy(os.path.join(wrappers_dir, file), handler_dir)
 
@@ -558,57 +559,56 @@ class azure:
         :param function_name: Override randomly generated function name
         :return: function name, code size
     '''
-    def create_function(self, benchmark :str, benchmark_path :str,
-            config :dict, function_name :str=''):
+    def create_function(self, code_package: CodePackage, experiment_config :dict):
 
-        func_name = None
-        code_size = None
-        cached_f = self.cache_client.get_function('azure', benchmark, self.language)
-
-        # a) cached_instance and no update
-        if cached_f is not None and not config['experiments']['update_code']:
-            cached_cfg = cached_f[0]
-            func_name = cached_cfg['name']
-            code_size = cached_cfg['code_size']
-            self.url = cached_cfg['invoke_url']
-            logging.info('Using cached code package in {} of size {}'.format(
-                func_name, code_size
+        benchmark = code_package.benchmark
+        if code_package.is_cached and code_package.is_cached_valid:
+            func_name = code_package.cached_config['name']
+            self.url = code_package.cached_config['invoke_url']
+            code_location = code_package.code_location
+            logging.info('Using cached function {fname} in {loc}'.format(
+                fname=func_name,
+                loc=code_location
             ))
-            logging.info('Using cached function {}'.format(func_name))
+            return func_name
         # b) cached_instance, create package and update code
-        elif cached_f is not None:
+        elif code_package.is_cached:
 
-            cached_cfg = cached_f[0]
-            func_name = cached_cfg['name']
+            func_name = code_package.cached_config['name']
+            code_location = code_package.code_location
+            timeout = code_package.benchmark_config['timeout']
+            memory = code_package.benchmark_config['memory']
 
-            # Build code package
-            code_package, code_size, benchmark_config = create_code_package(
-                    self.docker_client, self, config['experiments'],
-                    benchmark, benchmark_path
-            )
-
+            # Run Azure-specific part of building code.
+            package = self.package_code(code_location, code_package.benchmark)
+            code_size = CodePackage.directory_size(code_location)
             # Restart Docker instance to make sure code package is mounted
-            self.start(code_package, restart=True)
+            self.start(package, restart=True)
             # Publish function
             url = self.publish_function(func_name)
             self.url = url
-            logging.info('Updating cached function {} in {} of size {}'.format(
-                func_name, code_package, code_size
-            ))
 
-            # update cache contents
+            cached_cfg = code_package.cached_config
             cached_cfg['code_size'] = code_size
+            cached_cfg['hash'] = code_package.hash()
             cached_cfg['invoke_url'] = url
             self.cache_client.update_function('azure', benchmark, self.language,
-                    code_package, cached_cfg)
+                    package, cached_cfg
+            )
+
+            logging.info('Updating cached function {fname} in {loc}'.format(
+                fname=func_name,
+                loc=code_location
+            ))
+
+            return func_name
         # c) no cached instance, create package and upload code
         else:
 
-            # Build code package
-            code_package, code_size, benchmark_config = create_code_package(
-                    self.docker_client, self, config['experiments'],
-                    benchmark, benchmark_path
-            )
+            func_name = code_package.function_name()
+            code_location = code_package.code_location()
+            timeout = code_package.benchmark_config['timeout']
+            memory = code_package.benchmark_config['memory']
 
             # Restart Docker instance to make sure code package is mounted
             self.start(code_package, restart=True)
@@ -650,6 +650,11 @@ class azure:
                 logging.info('Created function app {}'.format(func_name))
 
             logging.info('Selected {} function app'.format(func_name))
+            # Run Azure-specific part of building code.
+            package = self.package_code(code_location, code_package.benchmark)
+            code_size = CodePackage.directory_size(code_location)
+            # Restart Docker instance to make sure code package is mounted
+            self.start(package, restart=True)
             # update existing function app
             url = self.publish_function(func_name, repeat_on_failure=True)
             self.url = url
@@ -665,6 +670,7 @@ class azure:
                         'name': func_name,
                         'code_size': code_size,
                         'resource_group': self.resource_group_name,
+                        'hash': code_package.hash()
                     },
                     storage_config={
                         'account': self.storage_account_name,

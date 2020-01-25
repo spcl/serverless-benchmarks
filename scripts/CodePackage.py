@@ -52,6 +52,10 @@ class CodePackage:
     def is_cached_valid(self):
         return self._is_cached_valid
 
+    @property
+    def code_size(self):
+        return self._code_size
+
     def __init__(self, benchmark: str, config: dict, output_dir: str,
             system_config: dict, cache_client: cache,
             docker_client: docker.client,
@@ -262,7 +266,7 @@ class CodePackage:
         self.add_deployment_package(output_dir)
         self.install_dependencies(output_dir)
 
-        self.code_size = CodePackage.directory_size(output_dir)
+        self._code_size = CodePackage.directory_size(output_dir)
         logging.info('Created code package for run on {deployment} with {language}:{runtime}'.format(
             deployment=self._deployment,
             language=self._language,
