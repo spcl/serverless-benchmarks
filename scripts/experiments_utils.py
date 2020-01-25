@@ -46,6 +46,8 @@ def create_output(dir, preserve_dir, verbose):
         datefmt='%H:%M:%S',
         level=logging.DEBUG if verbose else logging.INFO
     )
+    # Add stdout output
+    logging.getLogger().addHandler(logging.StreamHandler())
     return output_dir
 
 '''
