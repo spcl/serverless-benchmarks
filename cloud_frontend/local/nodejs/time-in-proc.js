@@ -20,13 +20,17 @@ let measurer = async function(repetition, finish) {
   if (repetition < repetitions) {
     let begin_timestamp = Date.now();
     let begin = process.hrtime();
+    let cpuTimeBegin = process.cpuUsage();
     let ret = f.handler(input_data);
     ret.then((res) => {
+      let cpuTimeEnd = process.cpuUsage();
       let stop_timestamp = Date.now();
       let stop = process.hrtime(begin);
       let output_file = tools.get_result_prefix(tools.LOGS_DIR, 'output', 'txt');
       fs.writeFileSync(output_file, res);
-      timedata[repetition] = [begin_timestamp, stop_timestamp, stop[0]*1e6 + stop[1]/1e3];
+      let userTime = cpuTimeEnd.user - cpuTimeBegin.user;
+      let sysTime = cpuTimeEnd.system - cpuTimeBegin.system;
+      timedata[repetition] = [begin_timestamp, stop_timestamp, stop[0]*1e6 + stop[1]/1e3, userTime, sysTime];
       measurer(repetition + 1, finish);
     });
   } else{
@@ -40,7 +44,7 @@ measurer(0,
     let result = tools.get_result_prefix(tools.RESULTS_DIR, cfg.benchmark.name, 'csv')
     let csvWriter = createCsvWriter({
           path: result,
-          header: ['Begin','End','Duration']
+          header: ['Begin','End','Duration','User','Sys']
     });
     for(let i = 0; i < repetitions; ++i) {
       timedata[i][0] = strftime('%s.%L', new Date(timedata[i][0]));
