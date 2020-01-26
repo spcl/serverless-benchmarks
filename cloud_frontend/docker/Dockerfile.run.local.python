@@ -22,7 +22,7 @@ COPY --chown=${USER}:${USER} python/*.py ${HOME}/
 COPY --chown=${USER}:${USER} python/timeit.sh .
 COPY --chown=${USER}:${USER} python/runners.json .
 # https://github.com/moby/moby/issues/35018 :-(
-ADD --chown=docker_user:docker_user pypapi ${HOME}/pypapi
+ADD --chown=docker_user:docker_user pypapi/pypapi ${HOME}/pypapi
 
 ENV PYTHONPATH=${HOME}/.python_packages/lib/site-packages:$PYTHONPATH
 

@@ -5,7 +5,9 @@ from utils import *
 from tools import *
 
 # imported function
-from function import handler
+from function import function
+
+import pypapi.exceptions
 
 class papi_benchmarker:
     from pypapi import papi_low as papi
@@ -19,7 +21,12 @@ class papi_benchmarker:
         self.papi.library_init()
         self.events = self.papi.create_eventset()
         for event in papi_cfg['events']:
-            self.papi.add_event(self.events, getattr(self.papi_events, event))
+            try:
+                self.papi.add_event(self.events, getattr(self.papi_events, event))
+            except pypapi.exceptions.PapiInvalidValueError as err:
+                print('Adding event {event} failed!'.format(event=event))
+                sys.exit(100)
+
         self.events_names = papi_cfg['events']
         self.count = len(papi_cfg['events'])
         self.results = []
@@ -63,7 +70,7 @@ try:
     for i in range(0, repetitions):
         begin = datetime.datetime.now()
         papi_experiments.start_overflow()
-        res = handler(input_data)
+        res = function.handler(input_data)
         papi_experiments.stop_overflow()
         stop = datetime.datetime.now()
         print(res, file = open(
