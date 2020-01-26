@@ -6,11 +6,24 @@ import time, argparse, datetime, csv, json, subprocess, tempfile, os, operator, 
 import waitress, bottle
 from bottle import route, run, request
 
-class MemoryMeasurements:
+class Measurements:
 
     def __init__(self, pids, output_dir):
         self._pids = pids
         self._pids_num = len(pids)
+        self._output_dir = output_dir
+        self._counter = 0
+        self._data = []
+
+    @property
+    def data(self):
+        return self._data
+
+
+class MemoryMeasurements(Measurements):
+
+    def __init__(self, pids, output_dir):
+        super().__init__(pids, output_dir)
         smaps_files = ' '.join([
                 ' /proc/{pid}/smaps '.format(pid=pid)
                 for pid in self._pids
@@ -20,9 +33,6 @@ class MemoryMeasurements:
                 output_dir=output_dir
         )
         self._cached_cmd = 'cat /proc/meminfo | grep ^Cached: | awk \'{{print $2}}\''
-        self._output_dir = output_dir
-        self._counter = 0
-        self._data = []
 
     def measure(self):
         timestamp = datetime.datetime.now()
@@ -64,34 +74,42 @@ class MemoryMeasurements:
                     )
             )
 
-    @property
-    def data(self):
-        return self._data
-
     @staticmethod
     def header():
         return ['Timestamp', 'N', 'Cached', 'USS', 'PSS', 'RSS']
 
-def measure_disk_io_continuous(PID, samples_counter, measurement_directory=None):
-    timestamp = datetime.datetime.now()
-    ret = subprocess.run(
-            ['''
-                cat /proc/{}/io | awk \'{{print $2}}\'
-            '''.format(PID)],
-            stdout = subprocess.PIPE, stderr=subprocess.PIPE, shell = True
-        )
-    if ret.returncode != 0:
-        print('IO query failed!')
-        print(ret.stderr.decode('utf-8'))
-        return None
-    else:
-        return [timestamp.strftime('%s.%f'), 1] + list(map(int, ret.stdout.decode('utf-8').split('\n')[:-1]))
+class DiskIOMeasurements(Measurements):
 
-def postprocess_disk_io_continuous(data, measurement_directory):
-    pass
+    def __init__(self, pids, output_dir):
+        if len(pids) > 1:
+            raise NotImplementedError('DiskIOMeasurements does not support more than 1 PID!')
+        super().__init__(pids, output_dir)
+        self._cat_cmd = 'cat /proc/{pid}/io | awk \'{{print $2}}\''.format(pid=pids[0])
 
-def header_disk_io_summary():
-    return ['Timestamp', 'WriteChars', 'ReadChars', 'ReadSysCalls', 'WriteSysCalls', 'ReadBytes', 'WriteBytes']
+    def measure(self):
+        timestamp = datetime.datetime.now()
+        ret = subprocess.run(
+                self._cat_cmd,
+                stdout = subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell = True
+            )
+        if ret.returncode != 0:
+            print('IO query failed!')
+            print(ret.stderr.decode('utf-8'))
+            raise RuntimeError()
+        else:
+            self._data.append(
+                    [timestamp.strftime('%s.%f'), 1] +
+                    list(map(int, ret.stdout.decode('utf-8').split('\n')[:-1]))
+            )
+
+    def postprocess(self):
+        pass
+
+    @staticmethod
+    def header():
+        return ['Timestamp', 'WriteChars', 'ReadChars', 'ReadSysCalls', 'WriteSysCalls', 'ReadBytes', 'WriteBytes']
 
 # We use multiprocessing since we need a background worker that is active 100% time
 # Multithreading does not work since server function never returns to handle new requests
@@ -146,26 +164,22 @@ class continuous_measurement:
         uuid = req['uuid']
         self._pids.append(get_pid(uuid))
         if len(self._pids) == self._apps_number:
-            print('Start! ', req['uuid'])
             # notify the start of measurement
             self.analyze.set()
             self.handler = multiprocessing.Process(target=self.measure, args=(self._pids, self._measurer_type))
             self.handler.start()
         else:
-            print('Wait for start! ', req['uuid'])
             self.analyze.wait()
 
     def stop(self, req):
         self._finished_apps += 1
         if self._finished_apps == self._apps_number:
-            print('Finish! ', req['uuid'])
             # notify the end of measurement
             self.analyze.clear()
             self.data = []
             # make sure that we get everything
             for v in iter(self.data_queue.get, 'END'):
                 self.data.append(v)
-        print('Wait for finish! ', req['uuid'])
         # wait for measurements to finish before ending
         self.handler.join()
         self._processed_apps = self._apps_number
@@ -262,7 +276,7 @@ def dump_data():
 
     measurer.cleanup()
 
-metrics = { 'memory': MemoryMeasurements }
+metrics = { 'memory': MemoryMeasurements, 'disk-io': DiskIOMeasurements }
 
 parser = argparse.ArgumentParser(description='Measure memory usage of processes.')
 parser.add_argument('port', type=int, help='Port run')
