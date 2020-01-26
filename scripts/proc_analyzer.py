@@ -270,5 +270,6 @@ else:
     measurers_functions = measurers[args.metric]['summary']
     measurer = summary_measurement(measurers_functions, number_of_apps)
 app = bottle.default_app()
-print('Start at localhost:{}'.format(port))
-waitress.serve(app, host='localhost', port=port, threads=number_of_apps+1)
+print('Start at 0.0.0.0:{}'.format(port))
+# listen on all ports
+waitress.serve(app, host='0.0.0.0', port=port, threads=number_of_apps+1)

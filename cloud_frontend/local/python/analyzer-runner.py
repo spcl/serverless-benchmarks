@@ -1,8 +1,9 @@
 
-import datetime, json, sys, subprocess
+import datetime, json, sys, subprocess, os
+ip_address = os.environ['DOCKER_HOST_IP']
 cfg = json.load(open(sys.argv[1], 'r'))
 ret = subprocess.run(['curl', '-X', 'POST',
-    '{}/start'.format(cfg['benchmark']['analyzer']['analyzer_ip']),
+    '{}:{}/start'.format(ip_address, cfg['benchmark']['analyzer']['analyzer_port']),
     '-d',
     '{{"uuid": "{}" }}'.format(sys.argv[2])],
     stdout=subprocess.PIPE,
@@ -11,7 +12,7 @@ if ret.returncode != 0:
     import sys
     print('Analyzer initialization failed!')
     print(ret.stderr.decode('utf-8'))
-    sys.exit()
+    sys.exit(1)
 
 
 from utils import *
@@ -40,7 +41,7 @@ try:
     ret = subprocess.run(
             [
                 'curl', '-X', 'POST',
-                '{}/stop'.format(cfg['benchmark']['analyzer']['analyzer_ip']),
+                '{}:{}/stop'.format(ip_address, cfg['benchmark']['analyzer']['analyzer_port']),
                 '-d',
                 '{{"uuid": "{}" }}'.format(sys.argv[2])
             ],
@@ -49,7 +50,7 @@ try:
         import sys
         print('Analyzer deinitialization failed!')
         print(ret.stderr.decode('utf-8'))
-        sys.exit()
+        sys.exit(1)
     experiment_data = {}
     experiment_data['repetitions'] = repetitions
     experiment_data['timestamps'] = process_timestamps(timedata)

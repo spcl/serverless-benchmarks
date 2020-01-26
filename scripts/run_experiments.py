@@ -106,7 +106,7 @@ class analyzer_experiment(docker_experiment):
         additional_cfg = {
             'analyzer': {
                 'participants' : instances,
-                'analyzer_ip': 'localhost:{}'.format(port),
+                'analyzer_port': port
             }
         }
         docker_experiment.__init__(self, instances, name, experiment_type,
@@ -135,7 +135,7 @@ class analyzer_experiment(docker_experiment):
     def cleanup(self):
         try:
             # curl returns zero event if request errored on server side
-            response = urllib.request.urlopen('http://localhost:{}/dump'.format(self.port), {})
+            response = urllib.request.urlopen('http://0.0.0.0:{}/dump'.format(self.port), {})
             code = response.getcode()
             if code != 200:
                 logging.error('Proc analyzer failed when writing values!')
@@ -155,7 +155,7 @@ class analyzer_experiment(docker_experiment):
         if self.instances > 1:
             values = 0
             while values != count:
-                response = urllib.request.urlopen('http://localhost:{}/processed_apps'.format(self.port), {})
+                response = urllib.request.urlopen('http://0.0.0.0:{}/processed_apps'.format(self.port), {})
                 data = response.read()
                 values = json.loads(data)['apps']
 
@@ -622,7 +622,6 @@ try:
                 if exit_code == 0:
                     logging.debug('Output: {}'.format(out.decode('utf-8')))
                 else:
-                    print('# Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
                     logging.error('# Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
                     logging.error(out.decode('utf-8'))
             else:
@@ -643,7 +642,7 @@ try:
                 json.dump(docker_stats, out_f, indent=2)
 
             # 10. Kill docker instance
-            container.stop()
+            #container.stop()
 
             # 11. Find experiment JSONs and include in summary
             result_path = os.path.join(dest_dir, 'results')

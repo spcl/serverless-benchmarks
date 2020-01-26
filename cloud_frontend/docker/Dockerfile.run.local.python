@@ -10,7 +10,8 @@ WORKDIR ${HOME}
 RUN deps=''\
   && chown -R ${USER}:${USER} ${HOME}\
   && apt-get update\
-  && apt-get install -y curl ${deps}\
+  # for route
+  && apt-get install -y curl net-tools ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
   && pip3 install cffi minio
 

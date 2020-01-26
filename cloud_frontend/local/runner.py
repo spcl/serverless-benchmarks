@@ -1,4 +1,4 @@
-import csv, gc, sys, imp, datetime, json, os, subprocess, uuid
+import csv, gc, sys, imp, datetime, json, os, subprocess, uuid, sys
 
 from distutils.dir_util import copy_tree
 from utils import *
@@ -41,6 +41,9 @@ if __name__ == "__main__":
     runner = get_runner_cmd(language, experiment, experiment_options)
     uuid = uuid.uuid1()
     ret = subprocess.run(runner + [sys.argv[1], str(uuid)], stdout=subprocess.PIPE)
+    if ret.returncode != 0:
+        print('Experiment finished incorrectly! Exit code {}'.format(ret.returncode))
+        sys.exit(1)
 
     # Dump experiment data
     result = {'input': cfg}
