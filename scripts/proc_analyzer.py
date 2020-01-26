@@ -6,76 +6,74 @@ import time, argparse, datetime, csv, json, subprocess, tempfile, os, operator, 
 import waitress, bottle
 from bottle import route, run, request
 
-def measure_memory_continuous(PID, samples_counter, measurement_directory):
-    timestamp = datetime.datetime.now()
-    ret = subprocess.run(
-            ['''
-                cp /proc/{}/smaps {}/smaps_{} && cat /proc/meminfo | grep ^Cached: | awk \'{{print $2}}\'
-            '''.format(PID, measurement_directory.name, samples_counter)],
-            stdout = subprocess.PIPE, stderr=subprocess.PIPE, shell = True
-        )
-    if ret.returncode != 0:
-        print('Memory query failed!')
-        print(ret.stderr.decode('utf-8'))
-        return None
-    else:
-        return [
-                timestamp.strftime('%s.%f'), 
-                1,
-                int(ret.stdout.decode('utf-8').split('\n')[0])
-            ]
+class MemoryMeasurements:
 
-def postprocess_memory_continuous(data, measurement_directory):
-    samples_counter = len(data)
-    for i in range(0, samples_counter):
+    def __init__(self, pids, output_dir):
+        self._pids = pids
+        self._pids_num = len(pids)
+        smaps_files = ' '.join([
+                ' /proc/{pid}/smaps '.format(pid=pid)
+                for pid in self._pids
+        ])
+        self._copy_cmd = 'cat {smaps} > {output_dir}/smaps_{{id}}'.format(
+                smaps=smaps_files,
+                output_dir=output_dir
+        )
+        self._cached_cmd = 'cat /proc/meminfo | grep ^Cached: | awk \'{{print $2}}\''
+        self._output_dir = output_dir
+        self._counter = 0
+        self._data = []
+
+    def measure(self):
+        timestamp = datetime.datetime.now()
         ret = subprocess.run(
-                ['''
-                    awk \'/Rss:/{{ sum3 += $2 }} /Pss:/{{ sum += $2 }} /Private/{{ sum2 += $2 }} END {{ print sum2, sum, sum3 }}\' {}/smaps_{}
-                '''.format(measurement_directory.name, i)],
-                stdout = subprocess.PIPE, shell = True
-            )
-        # remove newline and seperate into integers
-        data[i].extend( map(int, ret.stdout.decode('utf-8').strip().split()) )
-
-def header_memory_continuous():
-    return ['Timestamp', 'N', 'Cached', 'USS', 'PSS', 'RSS']
-
-def measure_memory_summary(PIDs, samples_counter=0, measurement_directory=None):
-
-    pids_set = set(PIDs)
-    timestamp = datetime.datetime.now()
-    ret = subprocess.run(
-            ['''
-                cat /proc/meminfo | grep ^Cached: | awk '{print $2}' && smem -c 'pid uss pss rss'
-            '''],
-            stdout = subprocess.PIPE, shell = True
+            '{copy} && {cached}'.format(
+                    copy=self._copy_cmd.format(id=self._counter),
+                    cached=self._cached_cmd
+            ),
+            stdout = subprocess.PIPE, stderr=subprocess.PIPE, shell=True
         )
-    end = datetime.datetime.now()
+        self._counter += 1
+        if ret.returncode != 0:
+            print('Memory query failed!')
+            print(ret.stderr.decode('utf-8'))
+            raise RuntimeError()
+        else:
+            self._data.append([
+                    timestamp.strftime('%s.%f'), 
+                    self._pids_num,
+                    int(ret.stdout.decode('utf-8').split('\n')[0])
+                ])
 
-    sums = [0]*3
-    output = ret.stdout.decode('utf-8').split('\n')
-    cached = int(output[0])
-    count = 0
-    # smem does not have an ability to filter by process IDs, only process command
-    for line in output[2:]:
-        if line:
-            vals = list(map(int, line.split()))
-            if vals[0] in pids_set:
-                sums = list(map(operator.add, sums, vals[1:]))
-                count +=1
-    print('Process smem measurement in {}[s]'.format( (end-timestamp) / datetime.timedelta(seconds=1) ))
-    return [
-            timestamp.strftime('%s.%f'),
-            len(PIDs),
-            cached,
-            *sums
-        ]
+    def postprocess(self):
+        self._samples_counter = len(self._data)
+        print(self._output_dir)
+        # Run awk over a file and sum RSS, PSS and Private mappings
+        cmd = "awk \'/Rss:/{{ sum3 += $2 }} /Pss:/{{ sum += $2 }} "\
+              "/Private/{{ sum2 += $2 }} END {{ print sum2, sum, sum3 }}\' "\
+              "{dir}/smaps_{counter}"
+        for i in range(0, self._samples_counter):
+            print(i)
+            print(cmd.format(dir=self._output_dir, counter=i))
+            ret = subprocess.run(
+                    [cmd.format(dir=self._output_dir, counter=i)],
+                    stdout = subprocess.PIPE, shell = True
+                )
+            # remove newline, seperate fields and convert into integers
+            self._data[i].extend(
+                    map(
+                        int,
+                        ret.stdout.decode('utf-8').strip().split()
+                    )
+            )
 
-def postprocess_memory_summary(data=None, measurement_directory=None):
-    pass
+    @property
+    def data(self):
+        return self._data
 
-def header_memory_summary():
-    return ['Timestamp', 'N', 'Cached', 'USS', 'PSS', 'RSS']
+    @staticmethod
+    def header():
+        return ['Timestamp', 'N', 'Cached', 'USS', 'PSS', 'RSS']
 
 def measure_disk_io_continuous(PID, samples_counter, measurement_directory=None):
     timestamp = datetime.datetime.now()
@@ -98,58 +96,60 @@ def postprocess_disk_io_continuous(data, measurement_directory):
 def header_disk_io_summary():
     return ['Timestamp', 'WriteChars', 'ReadChars', 'ReadSysCalls', 'WriteSysCalls', 'ReadBytes', 'WriteBytes']
 
-measurers = {
-    'memory': {
-        'continuous' : {'measure': measure_memory_continuous, 'postprocess': postprocess_memory_continuous, 'header': header_memory_continuous},
-        'summary' : {'measure': measure_memory_summary, 'postprocess': postprocess_memory_summary, 'header': header_memory_continuous}
-    },
-    'disk-io': {
-        'continuous' : {'measure': measure_disk_io_continuous, 'postprocess': postprocess_disk_io_continuous, 'header': header_disk_io_summary}
-    }
-}
-
 # We use multiprocessing since we need a background worker that is active 100% time
 # Multithreading does not work since server function never returns to handle new requests
 # Queue is used to communicate results
 class continuous_measurement:
     data_queue = multiprocessing.Queue()
     analyze = multiprocessing.Event()
-    measurement_directory = tempfile.TemporaryDirectory()
     measure_func = None
     postprocess_func = None
     handler = None
     data = None
 
-    def __init__(self, functions, number_of_apps=1):
-        self.measure_func = functions['measure']
-        self.postprocess_func = functions['postprocess']
+    def __init__(self, measurer_type, number_of_apps=1):
+        self._measurer_type = measurer_type
+        self._apps_number = number_of_apps
+        self._pids = []
+        #self.measure_func = functions['measure']
+        #self.postprocess_func = functions['postprocess']
 
-    def measure(self, PID):
+    def measure(self, pids, measurer_type):
+        measurement_directory = tempfile.TemporaryDirectory()
+        measurer_obj = measurer_type(pids, measurement_directory.name)
         try:
             samples_counter = 0
             while self.analyze.is_set():
                 i = 0
                 while i < 5:
-                    ret = self.measure_func(PID, samples_counter, self.measurement_directory)
-                    if ret is None:
-                        print('Measurements terminated!')
-                        return
-                    self.data_queue.put(ret)
+                    #ret = self.measure_func(PID, samples_counter, self.measurement_directory)
+                    measurer_obj.measure()
+
+                    #if ret is None:
+                    #    print('Measurements terminated!')
+                    #    return
+                    #self.data_queue.put(ret)
                     i += 1
-                    samples_counter += 1
+                    #samples_counter += 1
             # in case we didn't get a measurement yet because the app finished too quickly
-            self.measure_func(PID, samples_counter, self.measurement_directory)
+            #self.measure_func(PID, samples_counter, self.measurement_directory)
         except Exception as err:
+            print('Failed!')
             print(err)
         finally:
+            measurer_obj.postprocess()
+            for val in measurer_obj.data:
+                self.data_queue.put(val)
             self.data_queue.put('END')
 
     def start(self, req):
         uuid = req['uuid']
-        # notify the start of measurement
-        self.analyze.set()
-        self.handler = multiprocessing.Process(target=self.measure, args=(get_pid(uuid),))
-        self.handler.start()
+        self._pids.append(get_pid(uuid))
+        if len(self._pids) == self._apps_number:
+            # notify the start of measurement
+            self.analyze.set()
+            self.handler = multiprocessing.Process(target=self.measure, args=(self._pids, self._measurer_type))
+            self.handler.start()
 
     def stop(self, req):
         # notify the end of measurement
@@ -162,11 +162,12 @@ class continuous_measurement:
         self.handler.join()
     
     def get_data(self):
-        self.postprocess_func(self.data, self.measurement_directory)
+        #self.postprocess_func(self.data, self.measurement_directory)
         return self.data
 
     def cleanup(self):
-        self.measurement_directory.cleanup()
+        pass
+        #self.measurement_directory.cleanup()
 
     def processed_apps(self):
         return 0
@@ -183,8 +184,8 @@ class summary_measurement:
 
     def __init__(self, functions, number_of_apps):
         self.number_of_apps = number_of_apps
-        self.measure_func = functions['measure']
-        self.postprocess_func = functions['postprocess']
+        #self.measure_func = functions['measure']
+        #self.postprocess_func = functions['postprocess']
 
     def start(self, req):
         self.all_instances_done.clear()
@@ -215,10 +216,7 @@ class summary_measurement:
     def cleanup(self):
         pass
 
-measurer = None
 out_file = None
-measurer = None
-measurers_functions = None
 
 def get_pid(uuid):
     ret = subprocess.run('ps -fe | grep {}'.format(uuid), stdout=subprocess.PIPE, shell=True)
@@ -248,11 +246,13 @@ def dump_data():
 
     with open(out_file, 'w') as f:
         csv_writer = csv.writer(f)
-        csv_writer.writerow(measurers_functions['header']())
+        csv_writer.writerow(metrics[args.metric].header())
         for val in data:
             csv_writer.writerow(val)
 
     measurer.cleanup()
+
+metrics = { 'memory': MemoryMeasurements }
 
 parser = argparse.ArgumentParser(description='Measure memory usage of processes.')
 parser.add_argument('port', type=int, help='Port run')
@@ -263,12 +263,13 @@ args = parser.parse_args()
 port = int(args.port)
 out_file = args.output
 number_of_apps = int(args.apps)
-if number_of_apps == 1:
-    measurers_functions = measurers[args.metric]['continuous']
-    measurer = continuous_measurement(measurers_functions, 1)
-else:
-    measurers_functions = measurers[args.metric]['summary']
-    measurer = summary_measurement(measurers_functions, number_of_apps)
+#if number_of_apps == 1:
+#    measurers_functions = measurers[args.metric]['continuous']
+#    measurer = continuous_measurement(measurers_functions, 1)
+#else:
+#    measurers_functions = measurers[args.metric]['summary']
+#    measurer = summary_measurement(measurers_functions, number_of_apps)
+measurer = continuous_measurement(metrics[args.metric], number_of_apps)
 app = bottle.default_app()
 print('Start at 0.0.0.0:{}'.format(port))
 # listen on all ports
