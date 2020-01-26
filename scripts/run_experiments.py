@@ -26,7 +26,7 @@ from ExperimentEnvironment import ExperimentEnvironment
 def iterable(val):
     return val if isinstance(val, collections.Iterable) else [val, ]
 
-def run_container(client, language, version, volumes, code_package, home_dir):
+def run_container(client, language, version, volumes, code_package, home_dir, cpuset):
     return client.containers.run(
             'sebs.run.local.{}.{}'.format(language, version),
             command='/bin/bash',
@@ -34,7 +34,7 @@ def run_container(client, language, version, volumes, code_package, home_dir):
                 **volumes,
                 code_package : {'bind': os.path.join(home_dir, 'code'), 'mode': 'ro'}
             },
-            cpuset_cpus='3',
+            cpuset_cpus=cpuset,
             # required to access perf counters
             # alternative: use custom seccomp profile
             privileged=True,
@@ -198,7 +198,7 @@ def run_experiment_mem(input_config):
         port=8081
     ))
     experiments.append(analyzer_experiment(
-        instances=10,
+        instances=5,
         name='mem-multiple',
         experiment_type='memory',
         input_config=input_config,
@@ -589,6 +589,8 @@ try:
         os.makedirs(experiment.name, exist_ok=True)
         logging.info('# Experiment: {} begins.'.format(experiment.name))
         experiment.start()
+
+        instance_volumes = []
         for i in range(0, experiment.instances):
 
             # results directory for container instance
@@ -602,19 +604,24 @@ try:
                         'bind': os.path.join(home_dir, result),
                         'mode': 'rw'
                 }
+            instance_volumes.append(result_volumes)
+
 
             # 7. Start docker instance with code and input
+        for i in range(0, experiment.instances):
             containers[i] = run_container(
                 docker_client, args.language, benchmark_config['runtime'],
                 {
                     **volumes,
-                    **result_volumes,
+                    **instance_volumes[i],
                     **experiment.get_docker_volumes(output_dir, home_dir)
                 },
                 os.path.join(output_dir, package.code_location),
-                home_dir
+                home_dir,
+                cpuset=str(i)
             )
 
+        for i in range(0, experiment.instances):
             # 8. Run experiments
             exit_code, out = containers[i].exec_run('/bin/bash run.sh {}.json'.format(experiment.name), detach=experiment.detach)
             if not experiment.detach:
@@ -624,9 +631,10 @@ try:
                 else:
                     logging.error('# Experiment {} failed! Exit code {}'.format(experiment.name, exit_code))
                     logging.error(out.decode('utf-8'))
-            else:
-                experiment.finish(i+1)
-                logging.info('Experiment: {} container {} finished.'.format(experiment.name, i))
+
+        if experiment.detach:
+            experiment.finish(experiment.instances)
+            logging.info('Experiment: {} containers finished.'.format(experiment.name, i))
 
         # Summarize experiment
         summary = {}
