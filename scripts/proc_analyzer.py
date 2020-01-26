@@ -47,14 +47,11 @@ class MemoryMeasurements:
 
     def postprocess(self):
         self._samples_counter = len(self._data)
-        print(self._output_dir)
         # Run awk over a file and sum RSS, PSS and Private mappings
         cmd = "awk \'/Rss:/{{ sum3 += $2 }} /Pss:/{{ sum += $2 }} "\
               "/Private/{{ sum2 += $2 }} END {{ print sum2, sum, sum3 }}\' "\
               "{dir}/smaps_{counter}"
         for i in range(0, self._samples_counter):
-            print(i)
-            print(cmd.format(dir=self._output_dir, counter=i))
             ret = subprocess.run(
                     [cmd.format(dir=self._output_dir, counter=i)],
                     stdout = subprocess.PIPE, shell = True
@@ -111,6 +108,8 @@ class continuous_measurement:
         self._measurer_type = measurer_type
         self._apps_number = number_of_apps
         self._pids = []
+        self._processed_apps = 0
+        self._finished_apps = 0
         #self.measure_func = functions['measure']
         #self.postprocess_func = functions['postprocess']
 
@@ -141,25 +140,35 @@ class continuous_measurement:
             for val in measurer_obj.data:
                 self.data_queue.put(val)
             self.data_queue.put('END')
+            measurement_directory.cleanup()
 
     def start(self, req):
         uuid = req['uuid']
         self._pids.append(get_pid(uuid))
         if len(self._pids) == self._apps_number:
+            print('Start! ', req['uuid'])
             # notify the start of measurement
             self.analyze.set()
             self.handler = multiprocessing.Process(target=self.measure, args=(self._pids, self._measurer_type))
             self.handler.start()
+        else:
+            print('Wait for start! ', req['uuid'])
+            self.analyze.wait()
 
     def stop(self, req):
-        # notify the end of measurement
-        self.analyze.clear()
-        self.data = []
-        # make sure that we get everything
-        for v in iter(self.data_queue.get, 'END'):
-            self.data.append(v)
+        self._finished_apps += 1
+        if self._finished_apps == self._apps_number:
+            print('Finish! ', req['uuid'])
+            # notify the end of measurement
+            self.analyze.clear()
+            self.data = []
+            # make sure that we get everything
+            for v in iter(self.data_queue.get, 'END'):
+                self.data.append(v)
+        print('Wait for finish! ', req['uuid'])
         # wait for measurements to finish before ending
         self.handler.join()
+        self._processed_apps = self._apps_number
     
     def get_data(self):
         #self.postprocess_func(self.data, self.measurement_directory)
@@ -169,8 +178,9 @@ class continuous_measurement:
         pass
         #self.measurement_directory.cleanup()
 
+    @property
     def processed_apps(self):
-        return 0
+        return self._finished_apps
 
 # measure impact of running 1, 2, 3, ... N apps
 class summary_measurement:
@@ -235,7 +245,7 @@ def stop_analyzer():
 
 @route('/processed_apps', method='POST')
 def processed_apps():
-    return json.dumps({'apps' : measurer.processed_apps()})
+    return json.dumps({'apps' : measurer.processed_apps})
 
 @route('/dump', method='POST')
 def dump_data():
