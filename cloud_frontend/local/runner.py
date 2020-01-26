@@ -43,6 +43,7 @@ if __name__ == "__main__":
     ret = subprocess.run(runner + [sys.argv[1], str(uuid)], stdout=subprocess.PIPE)
     if ret.returncode != 0:
         print('Experiment finished incorrectly! Exit code {}'.format(ret.returncode))
+        print('Output: ', ret.stdout.decode('utf-8'))
         sys.exit(1)
 
     # Dump experiment data
@@ -57,3 +58,4 @@ if __name__ == "__main__":
     except json.decoder.JSONDecodeError as e:
         print('Experiment output is not valid!')
         print(ret.stdout.decode('utf-8'))
+        sys.exit(1)

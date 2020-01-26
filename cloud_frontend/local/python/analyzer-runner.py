@@ -12,7 +12,7 @@ if ret.returncode != 0:
     import sys
     print('Analyzer initialization failed!')
     print(ret.stderr.decode('utf-8'))
-    sys.exit(1)
+    sys.exit(100)
 
 
 from utils import *
@@ -50,7 +50,7 @@ try:
         import sys
         print('Analyzer deinitialization failed!')
         print(ret.stderr.decode('utf-8'))
-        sys.exit(1)
+        sys.exit(101)
     experiment_data = {}
     experiment_data['repetitions'] = repetitions
     experiment_data['timestamps'] = process_timestamps(timedata)
@@ -60,3 +60,5 @@ try:
 except Exception as e:
     print('Exception caught!')
     print(e)
+    sys.exit(102)
+sys.exit(0)
