@@ -644,13 +644,13 @@ try:
         for idx, container in enumerate(containers):
 
             # Gather docker statistics
-            dest_dir = os.path.join(experiment.name, 'instance_{}'.format(i))
+            dest_dir = os.path.join(experiment.name, 'instance_{}'.format(idx))
             docker_stats = container.stats(stream=False)
             with open(os.path.join(dest_dir, 'docker_stats.json'), 'w') as out_f:
                 json.dump(docker_stats, out_f, indent=2)
 
             # 10. Kill docker instance
-            #container.stop()
+            container.stop()
 
             # 11. Find experiment JSONs and include in summary
             result_path = os.path.join(dest_dir, 'results')
