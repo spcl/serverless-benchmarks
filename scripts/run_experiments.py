@@ -175,14 +175,66 @@ def run_experiment_papi_ipc(input_config):
     experiments = []
     experiments.append(docker_experiment(
         instances=1,
-        name='ipc_papi',
+        name='inscount_papi',
         experiment_type='papi',
         input_config=input_config,
         additional_cfg={
             'papi': {
-                'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_LST_INS'],
+                'events': ['PAPI_TOT_INS', 'PAPI_LST_INS', 'PAPI_BR_INS', 'PAPI_BR_MSP'],
                 'overflow_instruction_granularity' : 1e6,
-                'overflow_buffer_size': 1e5
+                'overflow_buffer_size': 1e6
+            }
+        }
+    ))
+    experiments.append(docker_experiment(
+        instances=1,
+        name='sp_flops_papi',
+        experiment_type='papi',
+        input_config=input_config,
+        additional_cfg={
+            'papi': {
+                'events': ['PAPI_TOT_INS', 'PAPI_SP_OPS', 'PAPI_VEC_SP'],
+                'overflow_instruction_granularity' : 1e6,
+                'overflow_buffer_size': 1e6
+            }
+        }
+    ))
+    experiments.append(docker_experiment(
+        instances=1,
+        name='dp_flops_papi',
+        experiment_type='papi',
+        input_config=input_config,
+        additional_cfg={
+            'papi': {
+                'events': ['PAPI_TOT_INS', 'PAPI_DP_OPS', 'PAPI_VEC_DP'],
+                'overflow_instruction_granularity' : 1e6,
+                'overflow_buffer_size': 1e6
+            }
+        }
+    ))
+    experiments.append(docker_experiment(
+        instances=1,
+        name='cache_papi',
+        experiment_type='papi',
+        input_config=input_config,
+        additional_cfg={
+            'papi': {
+                'events': ['PAPI_TOT_INS', 'PAPI_L1_DCM', 'PAPI_L1_ICM', 'PAPI_L2_TCM', 'PAPI_L3_TCM'],
+                'overflow_instruction_granularity' : 1e6,
+                'overflow_buffer_size': 1e6
+            }
+        }
+    ))
+    experiments.append(docker_experiment(
+        instances=1,
+        name='cycles_papi',
+        experiment_type='papi',
+        input_config=input_config,
+        additional_cfg={
+            'papi': {
+                'events': ['PAPI_TOT_CYC', 'PAPI_TOT_INS', 'PAPI_STL_ICY', 'PAPI_STL_CCY', 'PAPI_RES_STL'],
+                'overflow_instruction_granularity' : 1e6,
+                'overflow_buffer_size': 1e6
             }
         }
     ))
