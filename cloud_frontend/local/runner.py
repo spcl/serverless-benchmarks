@@ -57,5 +57,6 @@ if __name__ == "__main__":
             json.dump(result, f, indent = 2) 
     except json.decoder.JSONDecodeError as e:
         print('Experiment output is not valid!')
+        print(e)
         print(ret.stdout.decode('utf-8'))
         sys.exit(1)
