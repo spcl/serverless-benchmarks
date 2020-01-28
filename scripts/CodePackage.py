@@ -89,12 +89,18 @@ class CodePackage:
         Compute MD5 hash of an entire directory.
     '''
     @staticmethod
-    def hash_directory(directory: str):
+    def hash_directory(directory: str, language: str):
 
         hash_sum = hashlib.md5()
-        for root, dirs, files in os.walk(directory):
-            for f in files:
-                path = os.path.join(root, f)
+        FILES = {
+            'python': ['*.py', 'requirements.txt*'],
+            'nodejs': ['*.js', 'package.json']
+        }
+        NON_LANG_FILES = ['*.sh', '*.json']
+        selected_files = FILES[language] + NON_LANG_FILES
+        for file_type in selected_files:
+            for f in glob.glob( os.path.join(directory, file_type) ):
+                path = os.path.join(directory, f)
                 with open(path, 'rb') as opened_file:
                     hash_sum.update( opened_file.read() )
         return hash_sum.hexdigest()
@@ -102,7 +108,7 @@ class CodePackage:
     def hash(self):
         if not self._hash_value:
             path = os.path.join(self.benchmark_path, self._language)
-            self._hash_value = CodePackage.hash_directory(path)
+            self._hash_value = CodePackage.hash_directory(path, self._language)
         return self._hash_value
 
     def query_cache(self):
@@ -133,18 +139,22 @@ class CodePackage:
 
     def add_benchmark_data(self, output_dir):
         cmd = '/bin/bash {benchmark_path}/init.sh {output_dir} false'
-        path = os.path.join(self.benchmark_path, self._language)
-        if os.path.exists( os.path.join(path, 'init.sh') ):
-            out = subprocess.run(
-                    cmd.format(
-                        benchmark_path=path,
-                        output_dir=output_dir
-                    ),
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT
-                )
-            logging.debug(out.stdout.decode('utf-8'))
+        paths = [
+            self.benchmark_path,
+            os.path.join(self.benchmark_path, self._language)
+        ]
+        for path in paths:
+            if os.path.exists( os.path.join(path, 'init.sh') ):
+                out = subprocess.run(
+                        cmd.format(
+                            benchmark_path=path,
+                            output_dir=output_dir
+                        ),
+                        shell=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT
+                    )
+                logging.debug(out.stdout.decode('utf-8'))
 
     def add_deployment_files(self, output_dir):
         if 'deployment' in self._system_config:
@@ -255,6 +265,7 @@ class CodePackage:
 
     def recalculate_code_size(self):
         self._code_size = CodePackage.directory_size(self._output_dir)
+        return self._code_size
 
     def build(self, output_dir):
 
