@@ -517,6 +517,7 @@ class local:
             # Build code package
             package = self.package_code(code_location, code_package.benchmark)
             code_size = code_package.recalculate_code_size()
+            cached_cfg = code_package.cached_config
 
             # Copy new code to cache
             cached_cfg['code_size'] = code_size
