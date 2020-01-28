@@ -11,6 +11,7 @@ let repetitions = cfg.benchmark.repetitions;
 let disable_gc = cfg.benchmark.disable_gc;
 let input_data = cfg.input;
 let timedata = new Array(repetitions);
+process.on('unhandledRejection', r => console.log(r));
 
 // Due to the async nature of nodejs, we use 'then' functionality
 // of promise to make sure that we start a new instance only after finishing
@@ -27,12 +28,18 @@ let measurer = async function(repetition, finish) {
       let stop_timestamp = Date.now();
       let stop = process.hrtime(begin);
       let output_file = tools.get_result_prefix(tools.LOGS_DIR, 'output', 'txt');
-      fs.writeFileSync(output_file, res);
+      fs.writeFileSync(output_file, JSON.stringify(res));
       let userTime = cpuTimeEnd.user - cpuTimeBegin.user;
       let sysTime = cpuTimeEnd.system - cpuTimeBegin.system;
       timedata[repetition] = [begin_timestamp, stop_timestamp, stop[0]*1e6 + stop[1]/1e3, userTime, sysTime];
       measurer(repetition + 1, finish);
-    });
+    },
+    (reason) => {
+      console.log('Function invocation failed!');
+      console.log(reason);
+      process.exit(1);
+    }
+    );
   } else{
     finish();
   }
