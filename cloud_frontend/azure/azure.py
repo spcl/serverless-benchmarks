@@ -605,28 +605,24 @@ class azure:
         # c) no cached instance, create package and upload code
         else:
 
-            func_name = code_package.function_name()
-            code_location = code_package.code_location()
+            code_location = code_package.code_location
             timeout = code_package.benchmark_config['timeout']
             memory = code_package.benchmark_config['memory']
 
             # Restart Docker instance to make sure code package is mounted
-            self.start(code_package, restart=True)
+            self.start(code_location, restart=True)
             self.storage_account()
             self.resource_group()
 
             # create function name
             region = self.config['azure']['region']
-            if not function_name:
-                # only hyphens are allowed
-                # and name needs to be globally unique
-                uuid_name = str(uuid.uuid1())[0:8]
-                func_name = '{}-{}-{}'\
-                            .format(benchmark, self.language, uuid_name)\
-                            .replace('.', '-')\
-                            .replace('_', '-')
-            else:
-                func_name = function_name
+            # only hyphens are allowed
+            # and name needs to be globally unique
+            uuid_name = str(uuid.uuid1())[0:8]
+            func_name = '{}-{}-{}'\
+                        .format(benchmark, self.language, uuid_name)\
+                        .replace('.', '-')\
+                        .replace('_', '-')
 
             # check if function does not exist
             # no API to verify existence
@@ -663,7 +659,7 @@ class azure:
                     deployment='azure',
                     benchmark=benchmark,
                     language=self.language,
-                    code_package=code_package,
+                    code_package=package,
                     language_config={
                         'invoke_url': url,
                         'runtime': self.config['experiments']['runtime'],
