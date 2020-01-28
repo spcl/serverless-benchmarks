@@ -47,8 +47,8 @@ with open(result, 'w') as f:
                 timedata[i][1].strftime('%s.%f'),
                 (timedata[i][1] - timedata[i][0]) /
                     datetime.timedelta(microseconds=1),
-                (os_times[i][1].ru_utime - os_times[i][0].ru_utime) * 10e6,
-                (os_times[i][1].ru_stime - os_times[i][0].ru_stime) * 10e6
+                (os_times[i][1].ru_utime - os_times[i][0].ru_utime) * 1e6,
+                (os_times[i][1].ru_stime - os_times[i][0].ru_stime) * 1e6
             ])
 
 experiment_data = {}
