@@ -20,11 +20,11 @@ class minio_storage {
   }
 
   upload(bucket, file, filepath) {
-    this.client.fPutObject(bucket, file, filepath);
+    return this.client.fPutObject(bucket, file, filepath);
   };
 
   download(bucket, file, filepath) {
-    this.client.fGetObject(bucket, file, filepath);
+    return this.client.fGetObject(bucket, file, filepath);
   };
 
   uploadStream(bucket, file) {
