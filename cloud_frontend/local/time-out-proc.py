@@ -19,6 +19,8 @@ try:
         ret = subprocess.run(['/bin/bash', 'timeit.sh', prefix],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stop = datetime.datetime.now()
+        if ret.returncode != 0:
+            raise RuntimeError()
         timedata[i] = [begin, stop]
         # time returns WALL,USER,SYS
         durations[i] = ret.stdout.decode('utf-8').rstrip().split(',')
