@@ -397,25 +397,20 @@ class aws:
         # no cached instance, create package and upload code
         else:
 
-            func_name = code_package.function_name()
-            code_location = code_package.code_location()
+            code_location = code_package.code_location
             timeout = code_package.benchmark_config['timeout']
             memory = code_package.benchmark_config['memory']
 
             self.start_lambda()
 
             # Create function name
-            if not function_name:
-                func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
-                # AWS Lambda does not allow hyphens in function names
-                func_name = func_name.replace('-', '_')
-                func_name = func_name.replace('.', '_')
-            else:
-                func_name = function_name
+            func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
+            # AWS Lambda does not allow hyphens in function names
+            func_name = func_name.replace('-', '_')
+            func_name = func_name.replace('.', '_')
 
             # Run AWS-specific part of building code.
-            package, code_size  = self.package_code(code_location, code_package.benchmark())
-            package_body = open(package, 'rb').read()
+            package, code_size  = self.package_code(code_location, code_package.benchmark)
 
             # we can either check for exception or use list_functions
             # there's no API for test
@@ -423,18 +418,20 @@ class aws:
                 self.client.get_function(FunctionName=func_name)
                 self.update_function(benchmark, func_name, code_package, code_size, timeout, memory)
             except self.client.exceptions.ResourceNotFoundException:
-                logging.info('Creating function function {} from {}'.format(func_name, code_package))
+                logging.info('Creating function {} from {}'.format(func_name, code_package))
 
                 # TODO: create Lambda role
                 # AWS Lambda limit on zip deployment size
-                if code_size < 69905067:
-                    code_body = open(code_package, 'rb').read()
-                    code_config = {'ZipFile': code_body}
+                # Limit to 50 MB
+                if code_size < 50*1024*1024:
+                    package_body = open(package, 'rb').read()
+                    code_config = {'ZipFile': package_body}
                 # Upload code package to S3, then use it
                 else:
-                    code_package_name = os.path.basename(code_package)
+                    code_package_name = os.path.basename(package)
                     bucket, idx = self.storage.add_input_bucket(benchmark)
-                    self.storage.upload(bucket, code_package_name, code_package)
+                    self.storage.upload(bucket, code_package_name, package)
+                    logging.info('Uploading function {} code to {}'.format(func_name, bucket))
                     code_config = {'S3Bucket': bucket, 'S3Key': code_package_name}
                 self.client.create_function(
                     FunctionName=func_name,
@@ -467,7 +464,7 @@ class aws:
                         }
                     }
             )
-            return func_name, code_size
+            return func_name
 
     '''
         Update function code and configuration on AWS.
@@ -482,7 +479,7 @@ class aws:
     def update_function(self, benchmark :str, name :str, code_package :str,
             code_size :int, timeout :int, memory :int):
         # AWS Lambda limit on zip deployment
-        if code_size < 69905067:
+        if code_size < 50*1024*1024:
             code_body = open(code_package, 'rb').read()
             self.client.update_function_code(
                 FunctionName=name,
