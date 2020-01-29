@@ -56,6 +56,13 @@ class CodePackage:
     def code_size(self):
         return self._code_size
 
+    @property
+    def hash(self):
+        if not self._hash_value:
+            path = os.path.join(self.benchmark_path, self._language)
+            self._hash_value = CodePackage.hash_directory(path, self._language)
+        return self._hash_value
+
     def __init__(self, benchmark: str, config: dict, output_dir: str,
             system_config: dict, cache_client: cache,
             docker_client: docker.client,
@@ -105,11 +112,6 @@ class CodePackage:
                     hash_sum.update( opened_file.read() )
         return hash_sum.hexdigest()
 
-    def hash(self):
-        if not self._hash_value:
-            path = os.path.join(self.benchmark_path, self._language)
-            self._hash_value = CodePackage.hash_directory(path, self._language)
-        return self._hash_value
 
     def query_cache(self):
         self._cached_config, self._code_location = self._cache_client.get_function(
@@ -119,7 +121,7 @@ class CodePackage:
         )
         if self.cached_config is not None:
             # compare hashes
-            current_hash = self.hash()
+            current_hash = self.hash
             old_hash = self.cached_config['hash']
             self._code_size = self.cached_config['code_size']
             self._is_cached = True

@@ -288,7 +288,7 @@ parser.add_argument('experiment', choices=['time', 'papi', 'memory', 'disk-io', 
                     help='Benchmark language')
 parser.add_argument('size', choices=['test', 'small', 'large'],
                     help='Benchmark input test size')
-parser.add_argument('--repetitions', action='store', default=5, type=int,
+parser.add_argument('--repetitions', action='store', default=None, type=int,
                     help='Number of experimental repetitions')
 parser.add_argument('--config', action='store',
         default=os.path.join(SCRIPT_DIR, os.pardir, 'config', 'experiments.json'),
@@ -526,7 +526,7 @@ class local:
 
             # Copy new code to cache
             cached_cfg['code_size'] = code_size
-            cached_cfg['hash'] = code_package.hash()
+            cached_cfg['hash'] = code_package.hash
             self.cache_client.update_function('local', benchmark, self.language,
                     package, cached_cfg
             )
@@ -557,7 +557,7 @@ class local:
                     'name': func_name,
                     'code_size': code_size,
                     'runtime': self.config['experiments']['runtime'],
-                    'hash': code_package.hash()
+                    'hash': code_package.hash
                 },
                 storage_config={}
             )
@@ -604,11 +604,16 @@ try:
 
     # 6. Create experiment config
     benchmark_config = {}
-    benchmark_config['repetitions'] = args.repetitions
-    benchmark_config['disable_gc'] = True
+    # CLI overrides JSON config
+    if args.repetitions:
+        benchmark_config['repetitions'] = args.repetitions
     benchmark_config['language'] = args.language
     benchmark_config['runtime'] = experiment_config['local']['runtime'][args.language]
-    benchmark_config['deployment'] = 'local'
+    benchmark_config['deployment'] = {
+        'name': 'local',
+        'config': experiment_config['local']
+    }
+    benchmark_config['config'] = experiment_config['experiments']
 
     package = CodePackage(args.benchmark, experiment_config, args.output_dir,
             systems_config[deployment], cache_client, docker_client, args.update)
@@ -625,12 +630,15 @@ try:
     #code_package, code_size = deployment_client.create_function(args.benchmark,
     #        benchmark_path, experiment_config)
     func = deployment_client.create_function(package, experiment_config)
-    app_config = {'name' : args.benchmark, 'size' : package.code_size}
+    app_config = {
+            'name': args.benchmark,
+            'size': package.code_size,
+            'hash': package.hash
+    }
     input_config = {
         'input' : input_config,
         'app': app_config,
         'benchmark' : benchmark_config,
-        'experiment_config': experiment_config
     }
 
     # 7. Select experiments
