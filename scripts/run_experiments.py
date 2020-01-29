@@ -11,6 +11,7 @@ import os
 import secrets
 import subprocess
 import sys
+import time
 import traceback
 import urllib, urllib.request
 import uuid
@@ -299,7 +300,7 @@ parser.add_argument('--update', action='store_true', default=False,
                     help='Update function code in cache and deployment.')
 parser.add_argument('--shutdown-containers', action='store_true',
                     help='Shutdown containers after experiments.')
-parser.add_argument('--no-shutdown-containers', action='store_false',
+parser.add_argument('--no-shutdown-containers', dest='shutdown_containers', action='store_false',
                     help='Shutdown containers after experiments.')
 parser.set_defaults(shutdown_containers=True)
 parser.add_argument('--verbose', action='store', default=False, type=bool,
@@ -566,7 +567,6 @@ class local:
 deployment_client = None
 
 try:
-
     benchmark_summary = { 'experiments': {} }
 
     # 0. Input args
@@ -714,14 +714,26 @@ try:
             with open(os.path.join(dest_dir, 'docker_stats.json'), 'w') as out_f:
                 json.dump(docker_stats, out_f, indent=2)
 
+            # Wait until log file shows up - indicates the end of command
+            # Necessary when command is detached
+            # TODO: with fix system where containers report finish by themselves
+            found = False
+            result_path = os.path.join(dest_dir, 'results')
+            while True:
+                logs = glob.glob(os.path.join(result_path, '*.json'))
+                if len(logs):
+                    break
+                else:
+                    time.sleep(1)
+
+            # 11. Find experiment JSONs and include in summary
+            jsons = [json_file for json_file in glob.glob(os.path.join(result_path, '*.json'))]
+            summary['instances'].append( {'config': jsons, 'results': experiment.get_result_path(dest_dir)} )
+
             # 10. Kill docker instance
             if args.shutdown_containers:
                 container.stop()
 
-            # 11. Find experiment JSONs and include in summary
-            result_path = os.path.join(dest_dir, 'results')
-            jsons = [json_file for json_file in glob.glob(os.path.join(result_path, '*.json'))]
-            summary['instances'].append( {'config': jsons, 'results': experiment.get_result_path(dest_dir)} )
 
         benchmark_summary['experiments'][experiment.name] = summary
 
