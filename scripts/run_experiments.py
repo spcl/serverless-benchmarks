@@ -396,7 +396,7 @@ class minio_storage:
 
     def uploader_func(self, bucket_idx, file, filepath):
         try:
-            self.connection.fput_object(self.input_buckets[0], file, filepath)
+            self.connection.fput_object(self.input_buckets[bucket_idx], file, filepath)
         except minio.error.ResponseError as err:
             logging.error('Upload failed!')
             raise(err)
@@ -567,7 +567,7 @@ deployment_client = None
 
 try:
 
-    benchmark_summary = {}
+    benchmark_summary = { 'experiments': {} }
 
     # 0. Input args
     args = parser.parse_args()
@@ -715,15 +715,15 @@ try:
                 json.dump(docker_stats, out_f, indent=2)
 
             # 10. Kill docker instance
-            #if args.shutdown_containers:
-            #    container.stop()
+            if args.shutdown_containers:
+                container.stop()
 
             # 11. Find experiment JSONs and include in summary
             result_path = os.path.join(dest_dir, 'results')
             jsons = [json_file for json_file in glob.glob(os.path.join(result_path, '*.json'))]
             summary['instances'].append( {'config': jsons, 'results': experiment.get_result_path(dest_dir)} )
 
-        benchmark_summary[experiment.name] = summary
+        benchmark_summary['experiments'][experiment.name] = summary
 
         # 11. Cleanup active measurement processes
         experiment.cleanup()
@@ -738,7 +738,6 @@ try:
     json.dump(benchmark_summary, open('experiments.json', 'w'), indent=2)
 
 except Exception as e:
-    print(e)
     logging.error(e)
     traceback.print_exc()
     print('# Experiments failed! See {}/out.log for details'.format(output_dir))
