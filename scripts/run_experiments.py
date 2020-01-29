@@ -586,7 +586,7 @@ try:
 
     # 1. Create output dir
     output_dir = create_output(args.output_dir, False, args.verbose)
-    logging.info('# Created experiment output at {}'.format(args.output_dir))
+    logging.info('Created experiment output at {}'.format(output_dir))
 
     # Verify if the experiment is supported for the language
     supported_experiments = systems_config['local']['experiments'][args.language]
@@ -614,7 +614,7 @@ try:
         'config': experiment_config['local']
     }
 
-    package = CodePackage(args.benchmark, experiment_config, args.output_dir,
+    package = CodePackage(args.benchmark, experiment_config, output_dir,
             systems_config[deployment], cache_client, docker_client, args.update)
     # 5. Prepare benchmark input
     input_config = prepare_input(deployment_client, args.benchmark,
