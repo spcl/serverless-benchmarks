@@ -11,10 +11,10 @@ Requirements:
 
 ### Installation
 
-Run `instal.sh`. It will create a virtual environment in `sebs-virtualenv`,
+Run `install.sh`. It will create a virtual environment in `sebs-virtualenv`,
 install necessary Python dependecies and install third-party dependencies.
 
-Then, run `build.py`. It will create all necessary Docker images to build and run
+Then, run `scripts/build_docker_images.py`. It will create all necessary Docker images to build and run
 benchmarks.
 
 ### Work
