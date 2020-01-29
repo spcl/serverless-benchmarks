@@ -13,7 +13,7 @@ module.exports = async function(context, req) {
       var elapsed = process.hrtime(start);
       var micro = elapsed[1] / 1e3 + elapsed[0] * 1e6;
       return {
-          body: {time: micro, message: result},
+          body: {compute_time: micro, results_time: 0, result: result},
           headers: { 'Content-Type': 'application/json' }
       };
       // required only for runtime V1
