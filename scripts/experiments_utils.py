@@ -39,15 +39,29 @@ def create_output(dir, preserve_dir, verbose):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     os.chdir(output_dir)
+    logging_format = '%(asctime)s,%(msecs)d %(levelname)s %(message)s'
+    logging_date_format = '%H:%M:%S'
+
+    # default file log
     logging.basicConfig(
         filename=os.path.join(output_dir, 'out.log'),
         filemode='w',
-        format='%(asctime)s,%(msecs)d %(levelname)s %(message)s',
-        datefmt='%H:%M:%S',
+        format=logging_format,
+        datefmt=logging_date_format,
         level=logging.DEBUG if verbose else logging.INFO
     )
     # Add stdout output
-    logging.getLogger().addHandler(logging.StreamHandler())
+    stdout = logging.StreamHandler()
+    formatter = logging.Formatter(logging_format, logging_date_format)
+    stdout.setFormatter(formatter)
+    stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
+    logging.getLogger().addHandler(stdout)
+
+    # disable information from libraries logging to decrease output noise
+    for name in logging.root.manager.loggerDict:
+        if name.startswith('urllib3'):
+            logging.getLogger(name).setLevel(logging.ERROR)
+
     return output_dir
 
 '''
