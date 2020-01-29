@@ -297,6 +297,11 @@ parser.add_argument('--cache', action='store', default='cache', type=str,
                     help='Cache directory')
 parser.add_argument('--update', action='store_true', default=False,
                     help='Update function code in cache and deployment.')
+parser.add_argument('--shutdown-containers', action='store_true',
+                    help='Shutdown containers after experiments.')
+parser.add_argument('--no-shutdown-containers', action='store_false',
+                    help='Shutdown containers after experiments.')
+parser.set_defaults(shutdown_containers=True)
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 
@@ -703,7 +708,8 @@ try:
                 json.dump(docker_stats, out_f, indent=2)
 
             # 10. Kill docker instance
-            container.stop()
+            #if args.shutdown_containers:
+            #    container.stop()
 
             # 11. Find experiment JSONs and include in summary
             result_path = os.path.join(dest_dir, 'results')
