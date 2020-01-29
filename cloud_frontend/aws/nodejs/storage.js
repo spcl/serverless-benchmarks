@@ -1,5 +1,6 @@
 
 const aws = require('aws-sdk'),
+      fs = require('fs'),
       stream = require('stream');
 
 class aws_storage {
@@ -9,9 +10,15 @@ class aws_storage {
   }
 
   upload(bucket, file, filepath) {
+    var upload_stream = fs.createReadStream(filepath);
+    let params = {Bucket: bucket, Key: file, Body: upload_stream};
+    var upload = this.S3.upload(params);
+    return upload.promise();
   };
 
   download(bucket, file, filepath) {
+    var file = fs.createWriteStream(filepath);
+    this.S3.getObject( {Bucket: bucket, Key: file} ).createReadStream().pipe(file);
   };
 
   uploadStream(bucket, file) {
