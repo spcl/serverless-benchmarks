@@ -1,7 +1,7 @@
 {
   "experiments": {
-    "disable_gc": "False",
-    "drop_pagecache": "False"
+    "disable_gc": false,
+    "drop_pagecache": false
   },
   "aws": {
     "secrets": {

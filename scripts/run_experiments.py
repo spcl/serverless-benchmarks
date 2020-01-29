@@ -603,7 +603,7 @@ try:
     #logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 6. Create experiment config
-    benchmark_config = {}
+    benchmark_config = experiment_config['experiments']
     # CLI overrides JSON config
     if args.repetitions:
         benchmark_config['repetitions'] = args.repetitions
@@ -613,7 +613,6 @@ try:
         'name': 'local',
         'config': experiment_config['local']
     }
-    benchmark_config['config'] = experiment_config['experiments']
 
     package = CodePackage(args.benchmark, experiment_config, args.output_dir,
             systems_config[deployment], cache_client, docker_client, args.update)

@@ -68,7 +68,7 @@ class CodePackage:
             docker_client: docker.client,
             forced_update: bool=False):
         self._benchmark = benchmark
-        self._deployment = config['experiments']['deployment']
+        self._deployment = config['experiments']['deployment']['name']
         self._language = config['experiments']['language']
         self._runtime = config['experiments']['runtime']
         self._benchmark_path = find_benchmark(self.benchmark, 'benchmarks')
