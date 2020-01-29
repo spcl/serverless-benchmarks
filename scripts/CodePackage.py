@@ -72,6 +72,8 @@ class CodePackage:
         self._language = config['experiments']['language']
         self._runtime = config['experiments']['runtime']
         self._benchmark_path = find_benchmark(self.benchmark, 'benchmarks')
+        if not self._benchmark_path:
+            raise RuntimeError('Benchmark {benchmark} not found!'.format(benchmark=self._benchmark))
         with open( os.path.join(self.benchmark_path, 'config.json') ) as json_file:
             self._benchmark_config = json.load(json_file)
         if self._language not in self._benchmark_config['languages']:
