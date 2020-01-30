@@ -11,6 +11,8 @@ if [ ! -d ${env_dir} ]; then
   pip3 install boto3
   # azure
   pip3 install azure-storage-blob
+  # plotting, scrips
+  pip3 install pandas matplotlib seaborn
 fi
 
 ## node
