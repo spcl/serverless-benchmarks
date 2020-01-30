@@ -234,9 +234,9 @@ class aws:
             # Verify we can log in
             # 1. Cached credentials
             # TODO: flag to update cache
-            if 'secrets' in self.config['aws']:
-                self.access_key = self.config['aws']['secrets']['access_key']
-                self.secret_key = self.config['aws']['secrets']['secret_key']
+            if 'secrets' in self.config:
+                self.access_key = self.config['secrets']['access_key']
+                self.secret_key = self.config['secrets']['secret_key']
             # 2. Environmental variables
             elif 'AWS_ACCESS_KEY_ID' in os.environ:
                 self.access_key = os.environ['AWS_ACCESS_KEY_ID']
@@ -265,7 +265,7 @@ class aws:
         return boto3.client(resource,
                 aws_access_key_id=self.access_key,
                 aws_secret_access_key=self.secret_key,
-                region_name=self.config['aws']['region'])
+                region_name=self.config['config']['region'])
 
     def start_lambda(self):
         if not self.client:
@@ -285,7 +285,7 @@ class aws:
             replace_existing :bool = False):
         self.configure_credentials()
         self.storage = aws.s3(
-                self.config['aws']['region'],
+                self.config['config']['region'],
                 access_key=self.access_key,
                 secret_key=self.secret_key,
                 replace_existing=replace_existing)
@@ -383,7 +383,7 @@ class aws:
             cached_cfg['code_size'] = code_size
             cached_cfg['timeout'] = timeout
             cached_cfg['memory'] = memory
-            cached_cfg['hash'] = code_package.hash()
+            cached_cfg['hash'] = code_package.hash
             self.cache_client.update_function('aws', benchmark, self.language,
                     package, cached_cfg
             )
@@ -414,9 +414,12 @@ class aws:
 
             # we can either check for exception or use list_functions
             # there's no API for test
+            language_runtime = self.config['config']['runtime'][self.language]
             try:
                 self.client.get_function(FunctionName=func_name)
-                self.update_function(benchmark, func_name, code_package, code_size, timeout, memory)
+                self.update_function(benchmark, func_name, package, code_size, timeout, memory)
+                # TODO: get configuration of REST API
+                url = None
             except self.client.exceptions.ResourceNotFoundException:
                 logging.info('Creating function {} from {}'.format(func_name, code_package))
 
@@ -435,13 +438,14 @@ class aws:
                     code_config = {'S3Bucket': bucket, 'S3Key': code_package_name}
                 self.client.create_function(
                     FunctionName=func_name,
-                    Runtime='{}{}'.format(self.language,self.config['experiments']['runtime']),
+                    Runtime='{}{}'.format(self.language, language_runtime),
                     Handler='handler.handler',
-                    Role=self.config['aws']['lambda-role'],
+                    Role=self.config['config']['lambda-role'],
                     MemorySize=memory,
                     Timeout=timeout,
                     Code=code_config
                 )
+                url = self.create_http_trigger(func_name)
 
             self.cache_client.add_function(
                     deployment='aws',
@@ -451,11 +455,12 @@ class aws:
                     language_config={
                         'name': func_name,
                         'code_size': code_size,
-                        'runtime': self.config['experiments']['runtime'],
-                        'role': self.config['aws']['lambda-role'],
+                        'runtime': language_runtime,
+                        'role': self.config['config']['lambda-role'],
                         'memory': memory,
                         'timeout': timeout,
-                        'hash': code_package.hash()
+                        'hash': code_package.hash,
+                        'url': url
                     },
                     storage_config={
                         'buckets': {
@@ -465,6 +470,103 @@ class aws:
                     }
             )
             return func_name
+
+    def create_http_trigger(self, func_name: str):
+
+        # https://github.com/boto/boto3/issues/572
+        # assumed we have: function name, region
+
+        api_client = boto3.client('apigateway', region_name=self.config['config']['region'])
+
+        # create REST API
+        api_name = '{function_name}_API'.format(function_name=func_name)
+        api = api_client.create_rest_api(name=api_name)
+        api_id = api['id']
+
+        # create resource
+        resource = api_client.get_resources(restApiId=api_id)
+        parent_id = resource['items'][0]['id']
+
+
+        ## create resource
+        resource = api_client.create_resource(
+            restApiId=api_id,
+            parentId=parent_id,
+            pathPart=func_name
+        )
+        resource_id = resource['id']
+
+        ## create POST method
+        put_method_resp = api_client.put_method(
+            restApiId=api_id,
+            resourceId=resource_id,
+            httpMethod="POST",
+            authorizationType="NONE",
+            apiKeyRequired=False
+        )
+
+        lambda_version = self.client.meta.service_model.api_version
+        # get account information
+        sts_client = boto3.client('sts')
+        account_id = sts_client.get_caller_identity()['Account']
+
+        uri_data = {
+            "aws-region": self.config['config']['region'],
+            "api-version": lambda_version,
+            "aws-acct-id": account_id,
+            "lambda-function-name": func_name
+        }
+
+        uri = "arn:aws:apigateway:{aws-region}:lambda:path/{api-version}/functions/arn:aws:lambda:{aws-region}:{aws-acct-id}:function:{lambda-function-name}/invocations".format(**uri_data)
+        print(uri)
+
+        ## create integration
+        integration_resp = api_client.put_integration(
+            restApiId=api_id,
+            resourceId=resource_id,
+            httpMethod="POST",
+            type="AWS",
+            integrationHttpMethod="POST",
+            uri=uri
+        )
+
+        api_client.put_integration_response(
+            restApiId=api_id,
+            resourceId=resource_id,
+            httpMethod="POST",
+            statusCode="200",
+            selectionPattern=".*"
+        )
+
+        ## create POST method response
+        api_client.put_method_response(
+            restApiId=api_id,
+            resourceId=resource_id,
+            httpMethod="POST",
+            statusCode="200"
+        )
+
+        uri_data['aws-api-id'] = api_id
+        source_arn = "arn:aws:execute-api:{aws-region}:{aws-acct-id}:{aws-api-id}/*/POST/{lambda-function-name}".format(**uri_data)
+
+        self.client.add_permission(
+            FunctionName=func_name,
+            StatementId=uuid.uuid4().hex,
+            Action="lambda:InvokeFunction",
+            Principal="apigateway.amazonaws.com",
+            SourceArn=source_arn
+        )
+
+        # state 'your stage name' was already created via API Gateway GUI
+        stage_name = 'name'
+        api_client.create_deployment(
+            restApiId=api_id,
+            stageName=stage_name
+        )
+        uri_data['api_id'] = api_id
+        uri_data['stage_name'] = stage_name
+        url = 'https://{api_id}.execute-api.{aws-region}.amazonaws.com/{stage_name}/{lambda-function-name}'
+        return url.format(**uri_data)
 
     '''
         Update function code and configuration on AWS.
@@ -550,9 +652,7 @@ class aws:
         vals['aws'] = aws.parse_aws_report(log.decode('utf-8'))
         ret = json.loads(ret['Payload'].read().decode('utf-8'))
         vals['client_time'] = (end - begin) / datetime.timedelta(microseconds=1)
-        vals['compute_time'] = ret['compute_time']
-        vals['results_time'] = ret['results_time']
-        vals['result'] = ret['result']
+        vals['return'] = ret
         return vals
 
     def invoke_async(self, name :str, payload :dict):
@@ -593,21 +693,31 @@ class aws:
         if not self.logs_client:
             self.logs_client = self.start('logs')
 
-        query = self.logs_client.start_query(
-            logGroupName='/aws/lambda/{}'.format(function_name),
-            queryString="fields @timestamp, @message",
-            startTime=start_time,
-            endTime=end_time
-        )
-        query_id = query['queryId']
         response = None
-
-        while response == None or response['status'] == 'Running':
-            logging.info('Waiting for AWS query to complete ...')
-            time.sleep(1)
-            response = self.logs_client.get_query_results(
-                queryId=query_id
+        while True:
+            print(function_name)
+            print(start_time)
+            print(end_time)
+            query = self.logs_client.start_query(
+                logGroupName='/aws/lambda/{}'.format(function_name),
+                queryString="filter @message like /REPORT/",
+                startTime=start_time,
+                endTime=end_time
             )
+            query_id = query['queryId']
+
+            while response == None or response['status'] == 'Running':
+                logging.info('Waiting for AWS query to complete ...')
+                time.sleep(1)
+                response = self.logs_client.get_query_results(
+                    queryId=query_id
+                )
+            if len(response['results']) == 0:
+                logging.info('AWS logs are not yet available, repeat ...')
+                response = None
+                break
+            else:
+                break
         print(response)
 
     def download_metrics(self, function_name :str, deployment_config :dict,
