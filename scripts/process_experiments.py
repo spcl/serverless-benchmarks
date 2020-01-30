@@ -243,6 +243,7 @@ experiment_types = {
     'disk-io': DiskIOExperiment
 }
 
+os.makedirs(args.output_dir, exist_ok=True)
 logging.basicConfig(
     filename=os.path.join(args.output_dir, 'out.log'),
     filemode='w',
@@ -252,7 +253,6 @@ logging.basicConfig(
 
 summary_file = os.path.join(args.benchmark_dir, 'experiments.json')
 experiments_summary = json.load( open(summary_file, 'r') )
-os.makedirs(args.output_dir, exist_ok=True)
 
 for name, data in experiments_summary['experiments'].items():
     benchmark_type = data['config']['benchmark']['type']
