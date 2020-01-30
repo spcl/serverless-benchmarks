@@ -16,15 +16,17 @@ from CodePackage import CodePackage
 sys.path.append(PROJECT_DIR)
 
 parser = argparse.ArgumentParser(description='Run cloud experiments.')
-parser.add_argument('action', choices=['publish', 'invoke', 'logs'],
+parser.add_argument('action', choices=['publish', 'test_invoke', 'experiment', 'logs'],
                     help='Benchmark name')
 parser.add_argument('benchmark', type=str, help='Benchmark name')
 parser.add_argument('output_dir', type=str, help='Output dir')
 parser.add_argument('size', choices=['test', 'small', 'large'],
                     help='Benchmark input test size')
 parser.add_argument('config', type=str, help='Config JSON for experiments')
-parser.add_argument('--deployment', choices=['azure','aws', 'local'],
+parser.add_argument('--deployment', choices=['azure', 'aws', 'local'],
                     help='Cloud to use')
+parser.add_argument('--experiment', choices=['time_warm'],
+                    help='Experiment to run')
 parser.add_argument('--language', choices=['python', 'nodejs', 'cpp'],
                     default=None, help='Benchmark language')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
@@ -44,7 +46,7 @@ parser.add_argument('--verbose', action='store', default=False, type=bool,
 args = parser.parse_args()
 
 # -1. Get provider config and create cloud object
-experiment_config = json.load(open(args.config, 'r'))
+default_config = json.load(open(args.config, 'r'))
 systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
 output_dir = None
 
@@ -52,40 +54,48 @@ cache_client = cache(args.cache)
 docker_client = docker.from_env()
 deployment_client = None
 
+experiment_config = {
+    'experiments': {}
+}
 
 # CLI overrides JSON options
+# Language
 if args.language:
-    experiment_config['experiments']['language'] = args.language
     language = args.language
 else:
-    language = experiment_config['experiments']['language']
+    language = default_config['experiments']['language']
+experiment_config['experiments']['language'] = language
+
 if args.deployment:
-    experiment_config['experiments']['deployment'] = args.deployment
     deployment = args.deployment
 else:
-    deployment = experiment_config['experiments']['deployment']
+    deployment = default_config['experiments']['deployment']
+experiment_config['experiments']['deployment'] = {
+    'name': deployment,
+    'config': default_config[deployment]
+}
 experiment_config['experiments']['update_code'] = args.update
 experiment_config['experiments']['update_storage'] = args.update_storage
 experiment_config['experiments']['benchmark'] = args.benchmark
 
 try:
     benchmark_summary = {}
-    if language not in experiment_config[deployment]['runtime']:
+    if language not in default_config[deployment]['runtime']:
         raise RuntimeError('Language {} is not supported on cloud {}'.format(language, args.deployment))
-    experiment_config['experiments']['runtime'] = experiment_config[deployment]['runtime'][language]
-    experiment_config['experiments']['region'] = experiment_config[deployment]['region']
+    experiment_config['experiments']['runtime'] = default_config[deployment]['runtime'][language]
+    experiment_config['experiments']['region'] = default_config[deployment]['region']
     # Load cached secrets
     cached_config = cache_client.get_config(deployment)
     if cached_config is not None:
-        experiment_config[deployment].update(cached_config)
+        experiment_config['experiments']['deployment'].update(cached_config)
     # Create deployment client
     if deployment == 'aws':
         from cloud_frontend.aws import aws
-        deployment_client = aws.aws(cache_client, experiment_config,
+        deployment_client = aws.aws(cache_client, experiment_config['experiments']['deployment'],
                 language, docker_client)
     else:
         from cloud_frontend.azure import azure
-        deployment_client = azure.azure(cache_client, experiment_config,
+        deployment_client = azure.azure(cache_client, experiment_config['experiments']['deployment'],
                 language, docker_client)
 
     # 0. Input args
@@ -97,31 +107,43 @@ try:
     logging.info('Created experiment output at {}'.format(args.output_dir))
 
     if args.action == 'publish':
-        package = CodePackage(args.benchmark, experiment_config, args.output_dir,
+        package = CodePackage(args.benchmark, experiment_config, output_dir,
                 systems_config[deployment], cache_client, docker_client, args.update)
         func = deployment_client.create_function(package, experiment_config)
-    elif args.action == 'invoke':
-        package = CodePackage(args.benchmark, experiment_config, args.output_dir,
+    elif args.action == 'test_invoke':
+        package = CodePackage(args.benchmark, experiment_config, output_dir,
                 systems_config[deployment], cache_client, docker_client, args.update)
         # 5. Prepare benchmark input
         input_config = prepare_input(deployment_client, args.benchmark,
                 package.benchmark_path, args.size,
                 experiment_config['experiments']['update_storage'])
         func = deployment_client.create_function(package, experiment_config)
-        bucket = deployment_client.prepare_experiment(args.benchmark)
-        input_config['logs'] = { 'bucket': bucket }
+
+        # TODO bucket save of results
+        bucket = None
+        #bucket = deployment_client.prepare_experiment(args.benchmark)
+        #input_config['logs'] = { 'bucket': bucket }
+
         begin = datetime.datetime.now()
         ret = deployment_client.invoke_sync(func, input_config)
+        print(ret)
         benchmark_summary['experiment'] = {
             'function_name': func,
-            'results_bucket': bucket,
             'begin': float(begin.strftime('%s.%f')),
             'invocations': 1
         }
+        if bucket:
+            ret['results_bucket'] = bucket
         benchmark_summary['config'] = experiment_config
-        print(ret)
         with open('experiments.json', 'w') as out_f:
             json.dump(benchmark_summary, out_f, indent=2)
+    elif args.action == 'invoke':
+        package = CodePackage(args.benchmark, experiment_config, output_dir,
+                systems_config[deployment], cache_client, docker_client, args.update)
+        # 5. Prepare benchmark input
+        input_config = prepare_input(deployment_client, args.benchmark,
+                package.benchmark_path, args.size,
+                experiment_config['experiments']['update_storage'])
     else:
         pass
 

@@ -37,7 +37,7 @@ def create_output(dir, preserve_dir, verbose):
     if os.path.exists(output_dir) and not preserve_dir:
         shutil.rmtree(output_dir)
     if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
     os.chdir(output_dir)
     logging_format = '%(asctime)s,%(msecs)d %(levelname)s %(message)s'
     logging_date_format = '%H:%M:%S'
