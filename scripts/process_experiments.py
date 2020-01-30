@@ -142,19 +142,7 @@ class PAPIExperiment(Experiment):
                 ret.to_csv(os.path.join(self._out_dir, self._name + '.csv'), sep=',')
 
     @staticmethod
-    def process_row_cycles(row):
-        cycles = int(row['PAPI_TOT_CYC'])
-        return [
-            cycles,
-            float(row['PAPI_TOT_INS'])/cycles,
-            int(row['PAPI_STL_ICY'])/cycles,
-            int(row['PAPI_STL_CCY'])/cycles,
-            int(row['PAPI_RES_STL'])/cycles
-        ]
-
-    @staticmethod
-    def process_cycles(df, config):
-        timestamps = config['experiment']['timestamps']
+    def process_rows(df, timestamps, processer):
         current_timestamp_idx = 0
         current_timestamp_end = float(timestamps[0][1])
         prev_row = None
@@ -166,21 +154,61 @@ class PAPIExperiment(Experiment):
                 current_timestamp_idx += 1
                 current_timestamp_end = float(timestamps[current_timestamp_idx][1])
 
-                results.append(PAPIExperiment.process_row_cycles(prev_row))
+                results.append(processer(prev_row))
             prev_row = row
         # last datapoint
-        results.append(PAPIExperiment.process_row_cycles(prev_row))
+        results.append(processer(prev_row))
         # drop first result
         results = results[1:]
+        return results
+
+    @staticmethod
+    def process_cycles(df, config):
+
+        def process(row):
+            cycles = int(row['PAPI_TOT_CYC'])
+            return [
+                cycles,
+                float(row['PAPI_TOT_INS'])/cycles,
+                int(row['PAPI_STL_ICY'])/cycles,
+                int(row['PAPI_STL_CCY'])/cycles,
+                int(row['PAPI_RES_STL'])/cycles
+            ]
+
+        timestamps = config['experiment']['timestamps']
+        results = PAPIExperiment.process_rows(df, timestamps, process)
         new_df = pd.DataFrame(
-                data=results,
-                columns=['cycles', 'ipc', 'stalled_cycles_issue', 'stalled_cycles_retire', 'stalled_cycles_resource']
+            data=results,
+            columns=[
+                'cycles', 'ipc', 'stalled_cycles_issue',
+                'stalled_cycles_retire', 'stalled_cycles_resource'
+            ]
         )
         return compute_stats(new_df)
 
     @staticmethod
     def process_caches(df, config):
-        pass
+
+        def process(row):
+            ins = int(row['PAPI_TOT_INS'])
+            return [
+                ins,
+                float(row['PAPI_L1_ICM'])/ins*1e4,
+                float(row['PAPI_L1_DCM'])/ins*1e4,
+                float(row['PAPI_L2_TCM'])/ins*1e4,
+                float(row['PAPI_L3_TCM'])/ins*1e4
+            ]
+
+        timestamps = config['experiment']['timestamps']
+        results = PAPIExperiment.process_rows(df, timestamps, process)
+        new_df = pd.DataFrame(
+            data=results,
+            columns=[
+                'ins', 'l1_imiss_1k', 'l1_dmiss_1k',
+                'l2_miss_1k', 'l3_miss_1k'
+            ]
+        )
+        return compute_stats(new_df)
 
     @staticmethod
     def process_dp_flops(df, config):
@@ -191,35 +219,17 @@ class PAPIExperiment(Experiment):
         pass
 
     @staticmethod
-    def process_row_inscount(row):
-        ins = int(row['PAPI_TOT_INS'])
-        return [
-            ins,
-            float(row['PAPI_LST_INS'])/ins,
-            float(row['PAPI_BR_INS'])/ins,
-            float(row['PAPI_BR_MSP'])/ins*1e4
-        ]
-
-    @staticmethod
     def process_inscount(df, config):
+        def process(row):
+            ins = int(row['PAPI_TOT_INS'])
+            return [
+                ins,
+                float(row['PAPI_LST_INS'])/ins,
+                float(row['PAPI_BR_INS'])/ins,
+                float(row['PAPI_BR_MSP'])/ins*1e4
+            ]
         timestamps = config['experiment']['timestamps']
-        current_timestamp_idx = 0
-        current_timestamp_end = float(timestamps[0][1])
-        prev_row = None
-        results = []
-        for index, row in df.iterrows():
-            time = row['Time']
-            # we reached new repetition
-            if time > current_timestamp_end:
-                current_timestamp_idx += 1
-                current_timestamp_end = float(timestamps[current_timestamp_idx][1])
-
-                results.append(PAPIExperiment.process_row_inscount(prev_row))
-            prev_row = row
-        # last datapoint
-        results.append(PAPIExperiment.process_row_inscount(prev_row))
-        # drop first result
-        results = results[1:]
+        results = PAPIExperiment.process_rows(df, timestamps, process)
         new_df = pd.DataFrame(
                 data=results,
                 columns=['instructions', 'load_stores', 'branches', 'br_mispr_1k']
