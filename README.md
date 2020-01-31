@@ -109,7 +109,9 @@ Benchmarks can be executed locally without any configuration.
 
 AWS provides one year of free services, including significant amount of compute
 time in AWS Lambda. To work with AWS, you need to provide access and secret keys to a role 
-with permissions sufficient to manage functions and S3 resources. Additionally, you
+with permissions sufficient to manage functions and S3 resources. Additionally,
+the account must have `AmazonAPIGatewayAdministrator` permission to set-up automatically
+AWS HTTP trigger. Additionally, you
 neet to provide Lambda [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
 with permissions to Lambda and S3. 
 
