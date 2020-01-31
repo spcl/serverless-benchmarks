@@ -479,30 +479,43 @@ class aws:
             )
             return func_name
 
-    def create_http_trigger(self, func_name: str):
+    def create_http_trigger(self, func_name: str, api_id: str, parent_id: str):
 
         # https://github.com/boto/boto3/issues/572
         # assumed we have: function name, region
 
-        api_client = boto3.client('apigateway', region_name=self.config['config']['region'])
+        api_client = self.start('apigateway')
 
         # create REST API
-        api_name = '{function_name}_API'.format(function_name=func_name)
-        api = api_client.create_rest_api(name=api_name)
-        api_id = api['id']
+        #api_name = '{api_name}_API'.format(api_name=api_name)
+        #api = api_client.create_rest_api(name=api_name)
+        #api_id = api['id']
+        #api_id = 'xmriy8ylb6
 
         # create resource
-        resource = api_client.get_resources(restApiId=api_id)
-        parent_id = resource['items'][0]['id']
-
+        #resource = api_client.get_resources(restApiId=api_id)
+        #parent_id = resource['items'][0]['id']
 
         ## create resource
-        resource = api_client.create_resource(
-            restApiId=api_id,
-            parentId=parent_id,
-            pathPart=func_name
-        )
-        resource_id = resource['id']
+        # TODO: check if resource exists
+        resource_id = None
+        resp = api_client.get_resources(restApiId=api_id)['items']
+        for v in resp:
+            if 'pathPart' in v:
+                path=v['pathPart']
+                if path == func_name:
+                    resource_id = v['id']
+                    break
+        if not resource_id:
+            logging.info(func_name)
+            logging.info(parent_id)
+            resource = api_client.create_resource(
+                restApiId=api_id,
+                parentId=parent_id,
+                pathPart=func_name
+            )
+            logging.info(resource)
+            resource_id = resource['id']
 
         ## create POST method
         put_method_resp = api_client.put_method(
@@ -515,7 +528,7 @@ class aws:
 
         lambda_version = self.client.meta.service_model.api_version
         # get account information
-        sts_client = boto3.client('sts')
+        sts_client = self.start('sts')
         account_id = sts_client.get_caller_identity()['Account']
 
         uri_data = {
@@ -761,6 +774,8 @@ class aws:
                     requests[request_id]['aws'] = actual_result
     
     def create_lambda_function(self, function_name: str,
+            api_id: str,
+            parent_id: str,
             package: str,
             code_size: int,
             memory: int,
@@ -792,11 +807,35 @@ class aws:
             Timeout=timeout,
             Code=code_config
         )
-        url = self.create_http_trigger(function_name)
+        while True:
+            try:
+                logging.info('Creating HTTP Trigger for function {} from {}'.format(function_name, package))
+                url = self.create_http_trigger(function_name, api_id, parent_id)
+                logging.info(url)
+            except Exception as e:
+                logging.info('Exception')
+                logging.info(e)
+                import traceback
+                traceback.print_exc()
+                api_client = self.start('apigateway')
+                resp = api_client.get_resources(restApiId=api_id)['items']
+                for v in resp:
+                    if 'pathPart' in v:
+                        path=v['pathPart']
+                        if path == function_name:
+                            resource_id = v['id']
+                            logging.info('Remove resource with path {} from {}'.format(function_name, api_id))
+                            api_client.delete_resource(restApiId=api_id, resourceId=resource_id)
+                            break
+                # throttling on AWS
+                continue
+            logging.info('Done')
+            break 
+        logging.info('Created HTTP Trigger for function {} from {}'.format(function_name, package))
         return url
 
-    def create_function_copies(self, function_names: List[str],
-            code_package: CodePackage, experiment_config :dict):
+    def create_function_copies(self, function_names: List[str], api_name: str, memory: int, timeout: int,
+            code_package: CodePackage, experiment_config: dict, api_id: str = None):
 
         code_location = code_package.code_location
         code_size = code_package.code_size
@@ -804,15 +843,26 @@ class aws:
         memory = code_package.benchmark_config['memory']
 
         self.start_lambda()
+        api_client = self.start('apigateway')
+        #api_name = '{api_name}_API'.format(api_name=api_name)
+        if api_id is None:
+            api = api_client.create_rest_api(name=api_name)
+            api_id = api['id']
+        resource = api_client.get_resources(restApiId=api_id)
+        for r in resource['items']:
+            if r['path'] == '/':
+                parent_id = r['id']
+        logging.info('Created API {} with id {} and resource parent id {}'.format(api_name, api_id, parent_id))
 
         # Run AWS-specific part of building code.
-        urls = [self.create_lambda_function(fname, code_location, code_size, 128, 60, experiment_config) for fname in function_names]
-        return urls
+        urls = [self.create_lambda_function(fname, api_id, parent_id, code_location, code_size, memory, timeout, experiment_config) for fname in function_names]
+        return urls, api_id
 
     def delete_function(self, function_names: List[str]):
         self.start_lambda()
         for fname in function_names:
             try:
+                logging.info('Attempting delete')
                 self.client.delete_function(FunctionName=fname)
             except Exception as e:
                 pass

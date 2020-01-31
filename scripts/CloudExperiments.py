@@ -16,7 +16,7 @@ import boto3
 from cache import cache
 from CodePackage import CodePackage
 
-def invoke(idx, url, json_data):
+def invoke(tid, idx, url, json_data):
     begin = datetime.datetime.now()
     headers = {'content-type': 'application/json'}
     with requests.post(url, headers=headers, json=json_data) as req:
@@ -37,10 +37,11 @@ def invoke(idx, url, json_data):
             'begin': begin.strftime('%s.%f'),
             'end': end.strftime('%s.%f'),
             'cold': body['is_cold'],
+            'tid': tid,
             'duration': 0,
             'response': body
         }
-        logging.info('Processed request! Start {begin} End {end} Cold? {cold} Duration {duration}'.format(**data))
+        logging.info('Processed request! Tid: {tid} Start {begin} End {end} Cold? {cold} Duration {duration}'.format(**data))
         return data
 
 
@@ -53,25 +54,23 @@ class TimeWarmExperiment:
 class ColdStartExperiment:
 
     def __init__(self, sleep_time, fname, invocations,
-            process_id, thread_id, out_dir, memory, timeout):
+            process_id, thread_id, out_dir):
         self._sleep_time = sleep_time
         self._invocations = invocations
         self._out_dir = out_dir
         self._pid = process_id
         self._tid = thread_id
         self._fname = fname
-        self._memory = memory
-        self._timeout = timeout
 
-    def test(self, repetition, invocations, url, json_data):
+    def test(self, tid, repetition, invocations, url, json_data):
 
         logging.info('P {} T {} Sleep {} F {} Url {}'.format(
             self._pid, self._tid, self._sleep_time, self._fname, url
         ))
         first_begin = datetime.datetime.now()
-        first_data = invoke(repetition, url, json_data)
+        first_data = invoke(tid, repetition, url, json_data)
         if not first_data['cold']:
-            raise RuntimeError('First invocation not cold on {rep}'.format(rep=repetition))
+            raise RuntimeError('First invocation not cold on time {t} rep {rep} pid {pid} tid {tid}'.format(t=self._sleep_time,rep=repetition,pid=self._pid,tid=self._tid))
 
         # sleep
         time_spent = float(datetime.datetime.now().strftime('%s.%f')) - float(first_data['end'])
@@ -80,7 +79,7 @@ class ColdStartExperiment:
 
         # run again!
         second_begin = datetime.datetime.now()
-        second_data = invoke(repetition, url, json_data)
+        second_data = invoke(tid, repetition, url, json_data)
         return {
             'idx': repetition,
             'sleep_time': self._sleep_time,
@@ -91,7 +90,7 @@ class ColdStartExperiment:
         }
 
 def run(repetitions, urls, fnames, sleep_times, input_data,
-        invocations, process_id, out_dir, memory, timeout):
+        invocations, process_id, out_dir):
   
     threads=len(urls)
     # wait before starting 
@@ -103,9 +102,9 @@ def run(repetitions, urls, fnames, sleep_times, input_data,
         results = []
         for idx, url in enumerate(urls):
             exp = ColdStartExperiment(sleep_times[idx], fnames[idx],
-                    invocations, process_id, idx, out_dir, memory, timeout)
+                    invocations, process_id, idx, out_dir)
             results.append(
-                pool.apply_async(exp.test, args=(repetitions, invocations, url, input_data))
+                pool.apply_async(exp.test, args=(idx, repetitions, invocations, url, input_data))
             )
             time.sleep(0.091)
         final_results = [result.get() for result in results]
@@ -117,6 +116,9 @@ class ExperimentRunner:
             invocations: int,
             repetitions: int,
             sleep_time: int,
+            memory: int,
+            times_begin_idx: int,
+            times_end_idx: int,
             benchmark: str,
             output_dir: str,
             language: str,
@@ -133,23 +135,98 @@ class ExperimentRunner:
         #invoke(0, url, input_config)
         function_names = []
         fname = cached_f['name']
-        memory = 128
-        timeout = 240
+        timeout = 870
         #times = [1, 2, 5]
         input_config['sleep'] = sleep_time
-        times = [1, 2, 5]
-        for t in times:
-            function_names.append('{}_{}_{}_{}_{}'.format(fname, memory, sleep_time, invocations, t))
-        deployment_client.delete_function(function_names)
-        #urls = function_names
-        urls = deployment_client.create_function_copies(function_names, code_package, experiment_config)
-        #print(urls)
+
+        times = [1, 2, 4, 8, 15, 30, 60, 120, 180, 240, 300, 360, 480, 600, 720, 900, 1080, 1200]
+        #times = [360, 480, 600, 720, 900, 1080, 1200]
+        if False:
+            invoc_begin=1
+            invoc_end=21
+            name = 'experiment_1'
+            times = times[times_begin_idx:times_end_idx+1]
+            logging.info('Work on times {}'.format(times))
+            urls_config = json.load(open('/users/mcopik/projects/serverless-benchmarks/serverless-benchmarks/{}_20.experiment'.format(name), 'r'))
+            for invoc in range(invoc_begin, invoc_end):
+                for t in times:
+                    function_names.append('{}_{}_{}_{}_{}'.format(fname, memory, sleep_time, invoc, t))
+            deployment_client.delete_function(function_names)
+            #urls = function_names
+            URLS = {}
+            for invoc in range(invoc_begin, invoc_end):
+                function_names = []
+                for t in times:
+                    function_names.append('{}_{}_{}_{}_{}'.format(fname, memory, sleep_time, invoc, t))
+                logging.info(function_names)
+
+                api_id = urls_config[str(invoc)]['restApiId']
+                api_name = urls_config[str(invoc)]['restApi']
+                #api_name = '{}_{}_{}'.format(fname, memory, invoc)
+
+                urls, api_id = deployment_client.create_function_copies(function_names, api_name, memory, timeout, code_package, experiment_config, api_id)
+                #URLS[invoc] = {'names': function_names, 'urls': urls, 'restApi': '{}_{}_{}'.format(fname, memory, invocations), 'restApiId': api_id }
+
+                urls_config[str(invoc)]['names'].extend(function_names)
+                urls_config[str(invoc)]['urls'].extend(urls)
+
+                json.dump(urls_config, open('{}_{}.experiment'.format(name, invoc), 'w'), indent=2)
+            return
+        else:
+            name = 'experiment_1'
+            urls_config = json.load(open('/users/mcopik/projects/serverless-benchmarks/serverless-benchmarks/{}_{}.experiment'.format(name, invocations), 'r'))
+            urls = urls_config[str(invocations)]['urls']
+            urls = urls[times_begin_idx:times_end_idx+1]
+            times = times[times_begin_idx:times_end_idx+1]
+            logging.info('Work on times {}'.format(times))
+            logging.info('Work on urls {}'.format(urls))
+            
+            for t in times:
+                function_names.append('{}_{}_{}_{}_{}'.format(fname, memory, 1, invocations, t))
         idx = 0
         json_results = [[]] * len(times)
         json_results = {}
         for t in times:
             json_results[t] = []
-        
+        logging.info('Using urls {}'.format(urls)) 
+
+        # Make sure it's cold and update memory
+        deployment_client.start_lambda()
+        for idx, fname in enumerate(function_names):
+            while True:
+                try: 
+                    deployment_client.client.update_function_configuration(
+                        FunctionName=fname,
+                        Timeout=timeout,
+                        MemorySize=memory+128
+                    )
+                    logging.info('Updated {} to timeout {}'.format(function_names[idx], timeout))
+                    break
+                except Exception as e:
+                    logging.info('Repeat update...')
+                    logging.info(e)
+                    continue
+            while True:
+                try: 
+                    deployment_client.client.update_function_configuration(
+                        FunctionName=fname,
+                        Timeout=timeout,
+                        MemorySize=memory
+                    )
+                    logging.info('Updated {} to timeout {}'.format(function_names[idx], timeout))
+                    break
+                except Exception as e:
+                    logging.info('Repeat update...')
+                    logging.info(e)
+                    continue
+        logging.info('Start {} invocations with {} times'.format(invocations, len(times)))
+        idx = 0
+        fname = 'results_{invocations}_{repetition}_{memory}_{sleep}.json'.format(
+                invocations=invocations,
+                repetition=repetitions,
+                memory=memory,
+                sleep=sleep_time
+        )
         with multiprocessing.Pool(processes=invocations) as pool:
             while idx < repetitions:
                 for i, t in enumerate(times):
@@ -159,35 +236,37 @@ class ExperimentRunner:
                     results.append(
                         pool.apply_async(run, args=(idx,
                             urls, function_names, times, input_config, invocations,
-                            i, output_dir, 128, 120))
+                            i, output_dir))
                     )
                 for result in results:
                     ret = result.get()
                     for i, val in enumerate(ret):
                         json_results[times[i]][-1].append(val)
+                logging.info('Finished iteration {}'.format(idx))
                 idx += 1
                 for fname in function_names:
                     deployment_client.client.update_function_configuration(
                         FunctionName=fname,
                         Timeout=timeout + idx,
+                        MemorySize=memory+128
+                    )
+                    deployment_client.client.update_function_configuration(
+                        FunctionName=fname,
+                        Timeout=timeout,
                         MemorySize=memory
                     )
-        fname = 'results_{invocations}_{repetition}_{memory}_{sleep}.json'.format(
-                invocations=invocations,
-                repetition=repetitions,
-                memory=memory,
-                sleep=sleep_time
-        )
-        results = {
-            'invocations': invocations,
-            'repetition': repetitions,
-            'wait_times': times,
-            'sleep_time': sleep_time,
-            'memory': memory,
-            'results': json_results
-        }
-        json.dump(results, open(os.path.join(output_dir, fname), 'w'), indent=2)
-        deployment_client.delete_function(function_names)
+                    logging.info('Updated {} to timeout {}'.format(fname, timeout+idx))
+                logging.info('Dumped data')
+                results = {
+                    'invocations': invocations,
+                    'repetition': repetitions,
+                    'wait_times': times,
+                    'sleep_time': sleep_time,
+                    'memory': memory,
+                    'results': json_results
+                }
+                json.dump(results, open(os.path.join(output_dir, fname), 'w'), indent=2)
+        #deployment_client.delete_function(function_names)
         #threads=10
         #futures = []
         #with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:

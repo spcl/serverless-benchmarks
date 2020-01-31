@@ -1,4 +1,4 @@
-#!python3
+#!/usr/bin/env python3
 
 
 import argparse
@@ -35,7 +35,13 @@ parser.add_argument('--repetitions', action='store', default=5, type=int,
 # TODO: make JSON config
 parser.add_argument('--invocations', action='store', type=int,
                     help='Number of experimental repetitions')
+parser.add_argument('--times-begin-idx', action='store', type=int,
+                    help='Number of experimental repetitions')
+parser.add_argument('--times-end-idx', action='store', type=int,
+                    help='Number of experimental repetitions')
 parser.add_argument('--sleep-time', action='store', type=int,
+                    help='Number of experimental repetitions')
+parser.add_argument('--memory', action='store', type=int,
                     help='Number of experimental repetitions')
 parser.add_argument('--cache', action='store', default='cache', type=str,
                     help='Cache directory')
@@ -156,13 +162,16 @@ try:
         )
         package = CodePackage(args.benchmark, experiment_config, output_dir,
                 systems_config[deployment], cache_client, docker_client, args.update)
-        assert args.invocations
+        assert args.invocations is not None
         assert args.sleep_time
         # TODO: experiment JSON config
         runner = ExperimentRunner(
             invocations=args.invocations,
             repetitions=args.repetitions,
             sleep_time=args.sleep_time,
+            memory=args.memory,
+            times_begin_idx=args.times_begin_idx,
+            times_end_idx=args.times_end_idx,
             benchmark=args.benchmark,
             output_dir=output_dir,
             language=language,
