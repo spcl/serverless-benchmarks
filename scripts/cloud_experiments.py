@@ -11,6 +11,7 @@ import traceback
 from experiments_utils import *
 from cache import cache
 from CodePackage import CodePackage
+from CloudExperiments import ExperimentRunner
 
 # TODO: replace with something more sustainable
 sys.path.append(PROJECT_DIR)
@@ -114,9 +115,12 @@ try:
         package = CodePackage(args.benchmark, experiment_config, output_dir,
                 systems_config[deployment], cache_client, docker_client, args.update)
         # 5. Prepare benchmark input
-        input_config = prepare_input(deployment_client, args.benchmark,
-                package.benchmark_path, args.size,
-                experiment_config['experiments']['update_storage'])
+        input_config = prepare_input(
+            client=deployment_client,
+            benchmark=args.benchmark,
+            size=args.size,
+            update_storage=experiment_config['experiments']['update_storage']
+        )
         func = deployment_client.create_function(package, experiment_config)
 
         # TODO bucket save of results
@@ -137,13 +141,26 @@ try:
         benchmark_summary['config'] = experiment_config
         with open('experiments.json', 'w') as out_f:
             json.dump(benchmark_summary, out_f, indent=2)
-    elif args.action == 'invoke':
+    elif args.action == 'experiment':
+        # Prepare benchmark input
+        input_config = prepare_input(
+            client=deployment_client,
+            benchmark=args.benchmark,
+            size=args.size,
+            update_storage=experiment_config['experiments']['update_storage']
+        )
         package = CodePackage(args.benchmark, experiment_config, output_dir,
                 systems_config[deployment], cache_client, docker_client, args.update)
-        # 5. Prepare benchmark input
-        input_config = prepare_input(deployment_client, args.benchmark,
-                package.benchmark_path, args.size,
-                experiment_config['experiments']['update_storage'])
+        runner = ExperimentRunner(
+            benchmark=args.benchmark,
+            output_dir=output_dir,
+            language=language,
+            input_config=input_config,
+            experiment_config=experiment_config,
+            code_package=package,
+            deployment_client=deployment_client,
+            cache_client=cache_client
+        )
     else:
         pass
 
