@@ -113,7 +113,11 @@ def run(repetitions, urls, fnames, sleep_times, input_data,
 
 class ExperimentRunner:
 
-    def __init__(self, benchmark: str,
+    def __init__(self,
+            invocations: int,
+            repetitions: int,
+            sleep_time: int,
+            benchmark: str,
             output_dir: str,
             language: str,
             input_config: dict,
@@ -130,13 +134,10 @@ class ExperimentRunner:
         function_names = []
         fname = cached_f['name']
         memory = 128
-        timeout = 120
-        invocations = 4
-        repetitions = 5
+        timeout = 240
         #times = [1, 2, 5]
-        sleep_time=1
         input_config['sleep'] = sleep_time
-        times = [1, 2,5]
+        times = [1, 2, 5]
         for t in times:
             function_names.append('{}_{}_{}_{}_{}'.format(fname, memory, sleep_time, invocations, t))
         deployment_client.delete_function(function_names)
@@ -181,6 +182,8 @@ class ExperimentRunner:
             'invocations': invocations,
             'repetition': repetitions,
             'wait_times': times,
+            'sleep_time': sleep_time,
+            'memory': memory,
             'results': json_results
         }
         json.dump(results, open(os.path.join(output_dir, fname), 'w'), indent=2)

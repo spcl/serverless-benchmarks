@@ -32,6 +32,11 @@ parser.add_argument('--language', choices=['python', 'nodejs', 'cpp'],
                     default=None, help='Benchmark language')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
+# TODO: make JSON config
+parser.add_argument('--invocations', action='store', type=int,
+                    help='Number of experimental repetitions')
+parser.add_argument('--sleep-time', action='store', type=int,
+                    help='Number of experimental repetitions')
 parser.add_argument('--cache', action='store', default='cache', type=str,
                     help='Cache directory')
 parser.add_argument('--function-name', action='store', default='', type=str,
@@ -40,7 +45,7 @@ parser.add_argument('--update', action='store_true', default=False,
                     help='Update function code in cache and deployment.')
 parser.add_argument('--update-storage', action='store_true', default=False,
                     help='Update storage files in deployment.')
-parser.add_argument('--preserve-out', action='store_true', default=False,
+parser.add_argument('--preserve-out', action='store_true', default=True,
                     help='Dont clean output directory [default false]')
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
@@ -151,7 +156,13 @@ try:
         )
         package = CodePackage(args.benchmark, experiment_config, output_dir,
                 systems_config[deployment], cache_client, docker_client, args.update)
+        assert args.invocations
+        assert args.sleep_time
+        # TODO: experiment JSON config
         runner = ExperimentRunner(
+            invocations=args.invocations,
+            repetitions=args.repetitions,
+            sleep_time=args.sleep_time,
             benchmark=args.benchmark,
             output_dir=output_dir,
             language=language,
