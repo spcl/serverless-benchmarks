@@ -50,7 +50,8 @@ def handler(event, context):
             'end': end.strftime('%s.%f'),
             'results_time': results_time,
             'is_cold': is_cold,
-            'result': log_data
+            'result': log_data,
+            'request_id': context.aws_request_id
         })
     }
 
