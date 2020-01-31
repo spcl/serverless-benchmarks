@@ -617,8 +617,12 @@ try:
     package = CodePackage(args.benchmark, experiment_config, output_dir,
             systems_config[deployment], cache_client, docker_client, args.update)
     # 5. Prepare benchmark input
-    input_config = prepare_input(deployment_client, args.benchmark,
-            package.benchmark_path, args.size, False)
+    input_config = prepare_input(
+        client=deployment_client,
+        benchmark=args.benchmark,
+        size=args.size,
+        update_storage=False
+    )
     storage_config = deployment_client.storage().config_to_json()
     if storage_config:
         benchmark_config['storage'] = storage_config

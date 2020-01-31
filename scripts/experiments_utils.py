@@ -87,8 +87,8 @@ def find_benchmark(benchmark: str, path: str):
     :param size: Benchmark workload size
     :param update_storage: if true then files in input buckets are reuploaded
 '''
-def prepare_input(client :object, benchmark :str, benchmark_path :str,
-        size :str, update_storage :bool):
+def prepare_input(client :object, benchmark :str, size :str, update_storage :bool):
+    benchmark_path = find_benchmark(benchmark, 'benchmarks')
     benchmark_data_path = find_benchmark(benchmark, 'benchmarks-data')
     # Look for input generator file in the directory containing benchmark
     sys.path.append(benchmark_path)
