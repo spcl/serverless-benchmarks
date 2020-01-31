@@ -14,6 +14,10 @@ from typing import Tuple
 from scripts.experiments_utils import *
 from CodePackage import CodePackage
 
+class classproperty(property):
+    def __get__(self, cls, owner):
+        return classmethod(self.fget).__get__(None, owner)()
+
 class aws:
     client = None
     logs_client = None
@@ -23,6 +27,10 @@ class aws:
     storage = None
     language = None
     cached = False
+
+    @classproperty
+    def name(cls):
+        return 'aws'
 
     # AWS credentials
     access_key = None
@@ -421,7 +429,7 @@ class aws:
                 # TODO: get configuration of REST API
                 url = None
             except self.client.exceptions.ResourceNotFoundException:
-                logging.info('Creating function {} from {}'.format(func_name, code_package))
+                logging.info('Creating function {} from {}'.format(func_name, code_location))
 
                 # TODO: create Lambda role
                 # AWS Lambda limit on zip deployment size
@@ -518,7 +526,6 @@ class aws:
         }
 
         uri = "arn:aws:apigateway:{aws-region}:lambda:path/{api-version}/functions/arn:aws:lambda:{aws-region}:{aws-acct-id}:function:{lambda-function-name}/invocations".format(**uri_data)
-        print(uri)
 
         ## create integration
         integration_resp = api_client.put_integration(
@@ -695,9 +702,6 @@ class aws:
 
         response = None
         while True:
-            print(function_name)
-            print(start_time)
-            print(end_time)
             query = self.logs_client.start_query(
                 logGroupName='/aws/lambda/{}'.format(function_name),
                 queryString="filter @message like /REPORT/",
@@ -755,4 +759,68 @@ class aws:
                         logging.info('Found invocation {} without result in bucket!'.format(request_id))
                     del actual_result['REPORT RequestId']
                     requests[request_id]['aws'] = actual_result
+    
+    def create_lambda_function(self, function_name: str,
+            package: str,
+            code_size: int,
+            memory: int,
+            timeout: int,
+            experiment_config :dict):
 
+        language_runtime = self.config['config']['runtime'][self.language]
+        logging.info('Creating function {} from {}'.format(function_name, package))
+
+        # TODO: create Lambda role
+        # AWS Lambda limit on zip deployment size
+        # Limit to 50 MB
+        if code_size < 50*1024*1024:
+            package_body = open(package, 'rb').read()
+            code_config = {'ZipFile': package_body}
+        # Upload code package to S3, then use it
+        else:
+            code_package_name = os.path.basename(package)
+            bucket, idx = self.storage.add_input_bucket(benchmark)
+            self.storage.upload(bucket, code_package_name, package)
+            logging.info('Uploading function {} code to {}'.format(func_name, bucket))
+            code_config = {'S3Bucket': bucket, 'S3Key': code_package_name}
+        self.client.create_function(
+            FunctionName=function_name,
+            Runtime='{}{}'.format(self.language, language_runtime),
+            Handler='handler.handler',
+            Role=self.config['config']['lambda-role'],
+            MemorySize=memory,
+            Timeout=timeout,
+            Code=code_config
+        )
+        url = self.create_http_trigger(function_name)
+        return url
+
+    def create_function_copies(self, function_names: List[str],
+            code_package: CodePackage, experiment_config :dict):
+
+        code_location = code_package.code_location
+        code_size = code_package.code_size
+        timeout = code_package.benchmark_config['timeout']
+        memory = code_package.benchmark_config['memory']
+
+        self.start_lambda()
+
+        # Run AWS-specific part of building code.
+        urls = [self.create_lambda_function(fname, code_location, code_size, 128, 60, experiment_config) for fname in function_names]
+        return urls
+
+    def delete_function(self, function_names: List[str]):
+        self.start_lambda()
+        for fname in function_names:
+            try:
+                self.client.delete_function(FunctionName=fname)
+            except Exception as e:
+                pass
+
+    def update_function_config(self, fname: str, timeout: int, memory: int):
+        self.start_lambda()
+        self.client.update_function_configuration(
+            FunctionName=name,
+            Timeout=timeout,
+            MemorySize=memory
+        )
