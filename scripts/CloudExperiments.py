@@ -297,6 +297,185 @@ class ExperimentRunner:
         #self._pool = Pool(5)
         #print(cached_f)
 
+def invoke_f(url, json_data):
+    begin = datetime.datetime.now()
+    headers = {'content-type': 'application/json'}
+    with requests.post(url, headers=headers, json=json_data) as req:
+        end = datetime.datetime.now()
+        if req.status_code != 200:
+            data = {
+                'idx': idx,
+                'begin': begin,
+                'url': url,
+                'code': req.status_code,
+                'reason': req.reason
+            }
+            raise RuntimeError(
+                ('Request {idx} at {begin} for {url} finished with status'
+                 'code {code}! Reason: {reason}').format(**data)
+            )
+        body = req.json()['body']
+        data = {
+            'begin': begin.strftime('%s.%f'),
+            'end': end.strftime('%s.%f'),
+            'cold': body['is_cold'],
+            'duration': 0,
+            'response': body
+        }
+        logging.info('Processed request! Start {begin} End {end} Cold? {cold} Duration {duration}'.format(**data))
+        return data
+
+def run(pid, invocations, url, input_data):
+
+    # wait before starting 
+    b = multiprocessing.Semaphore(invocations)
+    b.acquire()
+
+    attempts = []
+    logging.info('P {} Url {}'.format(pid, url))
+    begin = datetime.datetime.now()
+    first_data = invoke_f(url, input_data)
+    end = datetime.datetime.now()
+    attempts.append({
+        'begin': begin.strftime('%s.%f'),
+        'end': end.strftime('%s.%f'),
+        'result': first_data,
+        'correct': True
+        })
+    if not first_data['cold']:
+        logging.error('First invocation not cold on pid {pid}'.format(pid=pid))
+        attempts[0]['correct'] = False
+        return attempts
+    logging.info('Processed first request {pid}'.format(pid=pid))
+    time.sleep(5)
+    b = multiprocessing.Semaphore(invocations)
+    b.acquire()
+
+    # run again!
+    begin = datetime.datetime.now()
+    second_data = invoke_f(url, input_data)
+    end = datetime.datetime.now()
+    attempts.append({
+        'begin': begin.strftime('%s.%f'),
+        'end': end.strftime('%s.%f'),
+        'result': second_data,
+        'correct': True
+    })
+    return {
+        'idx': repetition,
+        'sleep_time': self._sleep_time,
+        'first_begin': first_begin.strftime('%s.%f'),
+        'second_begin': second_begin.strftime('%s.%f'),
+        'first_result': first_data,
+        'second_result': second_data
+    }
 
 
+def run_burst_experiment(
+        config_file: str,
+        invocations: int,
+        memories: List[int],
+        repetitions: int,
+        benchmark: str,
+        output_dir: str,
+        language: str,
+        input_config: dict,
+        experiment_config: dict,
+        deployment_client, cache_client: cache):
+    cached_f, path = cache_client.get_function(
+            deployment=deployment_client.name,
+            benchmark=benchmark,
+            language=language
+    )
+    if 'invoke_url' in cached_f:
+        cached_url = cached_f['invoke_url']
+    elif 'url' in cached_f:
+        cached_url = cached_f['url']
+    else:
+        raise RuntimeError()
+    fname = cached_f['name']
 
+    # Make sure it's cold and update memory to new rquired
+    timeout = 840
+
+    for memory in memories:
+
+        #deployment_client.start_lambda()
+        #while True:
+        #    try:
+        #        mem_change = memory + 512 if memory < 2048 else memory - 512
+        #        deployment_client.client.update_function_configuration(
+        #            FunctionName=fname,
+        #            Timeout=timeout,
+        #            MemorySize=mem_change
+        #        )
+        #        logging.info('Updated {} to timeout {} mem {}'.format(function_names[idx], timeout, mem_change))
+        #        break
+        #    except Exception as e:
+        #        logging.info('Repeat update...')
+        #        logging.info(e)
+        #        continue
+        #time.sleep(30)
+        #while True:
+        #    try: 
+        #        deployment_client.client.update_function_configuration(
+        #            FunctionName=fname,
+        #            Timeout=timeout,
+        #            MemorySize=memory
+        #        )
+        #        logging.info('Updated {} to timeout {} memory {}'.format(function_names[idx], timeout, memory))
+        #        break
+        #    except Exception as e:
+        #        logging.info('Repeat update...')
+        #        logging.info(e)
+        #        continue
+        logging.info('Start {} invocations mem {} '.format(invocations, memory))
+        idx = 0
+        fname = 'results_{benchmark}_{invocations}_{repetition}_{memory}.json'.format(
+                benchmark=benchmark,
+                invocations=invocations,
+                repetition=repetitions,
+                memory=memory,
+        )
+        full_results = {'cold': [], 'warm': []}
+        with multiprocessing.Pool(processes=invocations) as pool:
+            #time.sleep(15)
+            while idx < repetitions:
+                #for i, t in enumerate(times):
+                #    json_results[t].append([])
+                results = []
+                for i in range(0, invocations):
+                    results.append(
+                        pool.apply_async(run, args=(idx, invocations, cached_url, input_config))
+                    )
+                for result in results:
+                    ret = result.get()
+                    full_results['cold'].append(ret)
+                    #for i, val in enumerate(ret):
+                    #    json_results[times[i]][-1].append(val)
+                logging.info('Finished iteration {}'.format(idx))
+                idx += 1
+                #idx += 1
+                #for fname in function_names:
+                #    deployment_client.client.update_function_configuration(
+                #        FunctionName=fname,
+                #        Timeout=timeout + idx,
+                #        MemorySize=memory+128
+                #    )
+                #time.sleep(30)
+                #for fname in function_names:
+                #    deployment_client.client.update_function_configuration(
+                #        FunctionName=fname,
+                #        Timeout=timeout,
+                #        MemorySize=memory
+                #    )
+                #    logging.info('Updated {} to timeout {}'.format(fname, timeout+idx))
+                #logging.info('Dumped data')
+            results = {
+                'repetition': repetitions,
+                'memory': memory,
+                'results': full_results
+            }
+            json.dump(results, open(os.path.join(output_dir, fname), 'w'), indent=2)
+            break
+        logging.info('Done!')

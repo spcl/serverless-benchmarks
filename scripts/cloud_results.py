@@ -38,6 +38,15 @@ else:
             language, docker_client)
 storage_client = deployment_client.get_storage()
 
+def recursive_visit(json_data: dict):
+
+    for key, val in json_data.items():
+        recursive_visit(val)
+
+
+results = experiment['results']
+
+
 function_name = experiment['experiment']['function_name']
 deployment_config = experiment['config'][deployment]
 experiment_begin = experiment['experiment']['begin']
@@ -48,6 +57,7 @@ else:
 
 result_dir = os.path.join(args.output_dir, 'results')
 os.makedirs(result_dir, exist_ok=True)
+
 
 # get results
 download_bucket(storage_client, experiment['experiment']['results_bucket'], result_dir)
