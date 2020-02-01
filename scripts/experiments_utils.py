@@ -51,7 +51,7 @@ def create_output(dir, preserve_dir, verbose):
         level=logging.DEBUG if verbose else logging.INFO
     )
     # Add stdout output
-    stdout = logging.StreamHandler()
+    stdout = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter(logging_format, logging_date_format)
     stdout.setFormatter(formatter)
     stdout.setLevel(logging.DEBUG if verbose else logging.INFO)

@@ -12,12 +12,13 @@ from experiments_utils import *
 from cache import cache
 from CodePackage import CodePackage
 from CloudExperiments import ExperimentRunner
+from function_generator import *
 
 # TODO: replace with something more sustainable
 sys.path.append(PROJECT_DIR)
 
 parser = argparse.ArgumentParser(description='Run cloud experiments.')
-parser.add_argument('action', choices=['publish', 'test_invoke', 'experiment', 'logs'],
+parser.add_argument('action', choices=['publish', 'test_invoke', 'experiment', 'create', 'logs'],
                     help='Benchmark name')
 parser.add_argument('benchmark', type=str, help='Benchmark name')
 parser.add_argument('output_dir', type=str, help='Output dir')
@@ -39,9 +40,13 @@ parser.add_argument('--times-begin-idx', action='store', type=int,
                     help='Number of experimental repetitions')
 parser.add_argument('--times-end-idx', action='store', type=int,
                     help='Number of experimental repetitions')
+parser.add_argument('--config-experiment-runner', action='store', type=str,
+                    help='Number of experimental repetitions')
 parser.add_argument('--sleep-time', action='store', type=int,
                     help='Number of experimental repetitions')
 parser.add_argument('--memory', action='store', type=int,
+                    help='Number of experimental repetitions')
+parser.add_argument('--extend', action='store', type=str, default=None,
                     help='Number of experimental repetitions')
 parser.add_argument('--cache', action='store', default='cache', type=str,
                     help='Cache directory')
@@ -166,6 +171,7 @@ try:
         assert args.sleep_time
         # TODO: experiment JSON config
         runner = ExperimentRunner(
+            config_file=args.config_experiment_runner,
             invocations=args.invocations,
             repetitions=args.repetitions,
             sleep_time=args.sleep_time,
@@ -181,6 +187,24 @@ try:
             deployment_client=deployment_client,
             cache_client=cache_client
         )
+    elif args.action =='create':
+        # Prepare benchmark input
+        input_config = prepare_input(
+            client=deployment_client,
+            benchmark=args.benchmark,
+            size=args.size,
+            update_storage=experiment_config['experiments']['update_storage']
+        )
+        package = CodePackage(args.benchmark, experiment_config, output_dir,
+                systems_config[deployment], cache_client, docker_client, args.update)
+        create_functions(deployment_client, cache_client, package, experiment_config,
+                args.benchmark,
+                language,
+                args.memory,
+                args.times_begin_idx,
+                args.times_end_idx,
+                args.sleep_time,
+                args.extend)
     else:
         pass
 
