@@ -49,6 +49,7 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
             'results_time': results_time,
             'result': log_data,
             'is_cold': is_cold,
+            'environ': list(os.environ.items()),
             'request_id': context.invocation_id
         }),
         mimetype="application/json"

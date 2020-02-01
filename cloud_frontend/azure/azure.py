@@ -819,9 +819,10 @@ class azure:
             self.login()
             self.init = True
     
-        names = []
-        for fname in function_names: 
-            names.append(self.create_azure_function(fname, experiment_config))
+        #names = []
+        #for fname in function_names: 
+        #    names.append(self.create_azure_function(fname, experiment_config))
+        names = function_names
 
         #time.sleep(30)
         urls = []
