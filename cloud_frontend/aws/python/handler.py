@@ -10,7 +10,6 @@ def handler(event, context):
 
     # HTTP trigger with API Gateaway
     if 'httpMethod' in event:
-        print(event['body'])
         event = json.loads(event['body'])
     begin = datetime.datetime.now()
     from function import function
