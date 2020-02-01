@@ -124,6 +124,13 @@ try:
     logging.info('Created experiment output at {}'.format(args.output_dir))
 
     if args.action == 'publish':
+        # 5. Prepare benchmark input
+        input_config = prepare_input(
+            client=deployment_client,
+            benchmark=args.benchmark,
+            size=args.size,
+            update_storage=experiment_config['experiments']['update_storage']
+        )
         package = CodePackage(args.benchmark, experiment_config, output_dir,
                 systems_config[deployment], cache_client, docker_client, args.update)
         func = deployment_client.create_function(package, experiment_config)
