@@ -330,7 +330,7 @@ class aws:
         package_config = CONFIG_FILES[self.language]
         function_dir = os.path.join(dir, 'function')
         os.makedirs(function_dir)
-        # move all files to 'function' except handler.py
+    # move all files to 'function' except handler.py
         for file in os.listdir(dir):
             if file not in package_config:
                 file = os.path.join(dir, file)
@@ -453,7 +453,7 @@ class aws:
                     Timeout=timeout,
                     Code=code_config
                 )
-                url = self.create_http_trigger(func_name)
+                url = self.create_http_trigger(func_name, None, None)
 
             self.cache_client.add_function(
                     deployment='aws',
@@ -491,6 +491,15 @@ class aws:
         #api = api_client.create_rest_api(name=api_name)
         #api_id = api['id']
         #api_id = 'xmriy8ylb6
+        if api_id is None:
+            api_name = func_name
+            api = api_client.create_rest_api(name=api_name)
+            api_id = api['id']
+        if parent_id is None:
+            resource = api_client.get_resources(restApiId=api_id)
+            for r in resource['items']:
+                if r['path'] == '/':
+                    parent_id = r['id']
 
         # create resource
         #resource = api_client.get_resources(restApiId=api_id)
