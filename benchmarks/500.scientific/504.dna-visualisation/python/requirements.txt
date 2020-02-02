@@ -1,1 +1,1 @@
-numpy==1.18.1
+squiggle==0.3.1
