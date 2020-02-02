@@ -7,9 +7,6 @@ ENV PYTHON_VERSION=${VERSION}
 
 RUN useradd --uid 1000 ${USER}
 WORKDIR ${HOME}
-RUN apt-get update\
-  && apt-get install -y gcc build-essential python-dev libxml2 libxml2-dev zlib1g-dev\
-  && apt-get purge -y --auto-remove
 USER ${USER}:${USER}
 
 ENV SCRIPT_FILE=/mnt/function/package.sh
