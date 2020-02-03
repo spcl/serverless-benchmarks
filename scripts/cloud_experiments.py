@@ -237,7 +237,7 @@ try:
         result = run_burst_experiment(
             config_file=args.config_experiment_runner,
             invocations=args.invocations,
-            memories=[128, 256, 512, 1024, 1536, 1792, 2048, 2560, 3092],
+            memories=[128, 256, 512, 1024],#, 1536, 1792, 2048, 3092],
             repetitions=args.repetitions,
             benchmark=args.benchmark,
             output_dir=output_dir,
@@ -245,18 +245,10 @@ try:
             input_config=input_config,
             experiment_config=experiment_config,
             deployment_client=deployment_client,
-            cache_client=cache_client
+            cache_client=cache_client,
+            additional_cfg=experiment_config
         )
         end = datetime.datetime.now()
-        benchmark_summary['experiment'] = {
-            'benchmark': args.benchmark,
-            'begin': float(begin.strftime('%s.%f')),
-            'end': float(end.strftime('%s.%f')),
-        }
-        benchmark_summary['results'] = result
-        benchmark_summary['config'] = experiment_config
-        with open('experiments.json', 'w') as out_f:
-            json.dump(benchmark_summary, out_f, indent=2)
     else:
         pass
 

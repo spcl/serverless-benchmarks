@@ -314,7 +314,7 @@ def invoke_f(url, json_data):
                 ('Request {idx} at {begin} for {url} finished with status'
                  'code {code}! Reason: {reason}').format(**data)
             )
-        body = req.json()['body']
+        body = json.loads(req.json()['body'])
         data = {
             'begin': begin.strftime('%s.%f'),
             'end': end.strftime('%s.%f'),
@@ -355,20 +355,14 @@ def run(pid, invocations, url, input_data):
     begin = datetime.datetime.now()
     second_data = invoke_f(url, input_data)
     end = datetime.datetime.now()
+    logging.info('Processed second request {pid}'.format(pid=pid))
     attempts.append({
         'begin': begin.strftime('%s.%f'),
         'end': end.strftime('%s.%f'),
         'result': second_data,
         'correct': True
     })
-    return {
-        'idx': repetition,
-        'sleep_time': self._sleep_time,
-        'first_begin': first_begin.strftime('%s.%f'),
-        'second_begin': second_begin.strftime('%s.%f'),
-        'first_result': first_data,
-        'second_result': second_data
-    }
+    return attempts
 
 
 def run_burst_experiment(
@@ -381,7 +375,8 @@ def run_burst_experiment(
         language: str,
         input_config: dict,
         experiment_config: dict,
-        deployment_client, cache_client: cache):
+        deployment_client, cache_client: cache,
+        additional_cfg):
     cached_f, path = cache_client.get_function(
             deployment=deployment_client.name,
             benchmark=benchmark,
@@ -394,6 +389,7 @@ def run_burst_experiment(
     else:
         raise RuntimeError()
     fname = cached_f['name']
+    logging.info('Function {} URL {}'.format(fname, cached_url))
 
     # Make sure it's cold and update memory to new rquired
     timeout = 840
@@ -407,9 +403,9 @@ def run_burst_experiment(
                 deployment_client.client.update_function_configuration(
                     FunctionName=fname,
                     Timeout=timeout,
-                    MemorySize=mem_change
+                    MemorySize=mem_change,
                 )
-                logging.info('Updated {} to timeout {} mem {}'.format(function_names[idx], timeout, mem_change))
+                logging.info('Updated {} to timeout {} mem {}'.format(fname, timeout, mem_change))
                 break
             except Exception as e:
                 logging.info('Repeat update...')
@@ -423,15 +419,16 @@ def run_burst_experiment(
                     Timeout=timeout,
                     MemorySize=memory
                 )
-                logging.info('Updated {} to timeout {} memory {}'.format(function_names[idx], timeout, memory))
+                logging.info('Updated {} to timeout {} memory {}'.format(fname, timeout, memory))
                 break
             except Exception as e:
                 logging.info('Repeat update...')
                 logging.info(e)
                 continue
+        time.sleep(30)
         logging.info('Start {} invocations mem {} '.format(invocations, memory))
         idx = 0
-        fname = 'results_{benchmark}_{invocations}_{repetition}_{memory}.json'.format(
+        result_file = 'results_{benchmark}_{invocations}_{repetition}_{memory}.json'.format(
                 benchmark=benchmark,
                 invocations=invocations,
                 repetition=repetitions,
@@ -440,30 +437,33 @@ def run_burst_experiment(
         full_results = {'cold': [], 'warm': []}
         with multiprocessing.Pool(processes=invocations) as pool:
             #time.sleep(15)
-            while idx < repetitions:
+            #while idx < repetitions:
                 #for i, t in enumerate(times):
                 #    json_results[t].append([])
-                results = []
-                for i in range(0, invocations):
-                    results.append(
-                        pool.apply_async(run, args=(idx, invocations, cached_url, input_config))
-                    )
-                for result in results:
-                    ret = result.get()
-                    full_results['cold'].append(ret)
-                    #for i, val in enumerate(ret):
-                    #    json_results[times[i]][-1].append(val)
-                logging.info('Finished cold iteration {}'.format(idx))
-                results = []
-                for i in range(0, invocations):
-                    results.append(
-                        pool.apply_async(run, args=(idx, invocations, cached_url, input_config))
-                    )
-                for result in results:
-                    ret = result.get()
-                    full_results['warm'].append(ret)
-                logging.info('Finished cold iteration {}'.format(idx))
-                idx += 1
+            begin = datetime.datetime.now()
+            results = []
+            for i in range(0, invocations):
+                results.append(
+                    pool.apply_async(run, args=(idx, invocations, cached_url, input_config))
+                )
+            for result in results:
+                ret = result.get()
+                full_results['cold'].append(ret)
+                #for i, val in enumerate(ret):
+                #    json_results[times[i]][-1].append(val)
+            end = datetime.datetime.now()
+            logging.info('Finished iteration {}'.format(idx))
+            idx += 1
+                #results = []
+                #for i in range(0, invocations):
+                #    logging.info('Launch warm {}'.format(i))
+                #    results.append(
+                #        pool.apply_async(run, args=(idx, invocations, cached_url, input_config))
+                #    )
+                #    time.sleep(1)
+                #for result in results:
+                #    ret = result.get()
+                #    full_results['warm'].append(ret)
                 #idx += 1
                 #for fname in function_names:
                 #    deployment_client.client.update_function_configuration(
@@ -481,10 +481,13 @@ def run_burst_experiment(
                 #    logging.info('Updated {} to timeout {}'.format(fname, timeout+idx))
                 #logging.info('Dumped data')
             results = {
+                'begin': begin.strftime('%s.%f'),
+                'end': end.strftime('%s.%f'),
+                'function_name': fname,
                 'repetition': repetitions,
                 'memory': memory,
-                'results': full_results
+                'results': full_results,
+                'config': additional_cfg
             }
-            json.dump(results, open(os.path.join(output_dir, fname), 'w'), indent=2)
-            break
-        logging.info('Done!')
+            json.dump(results, open(os.path.join(output_dir, result_file), 'w'), indent=2)
+        logging.info('Done {}!'.format(memory))
