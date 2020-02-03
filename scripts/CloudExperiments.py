@@ -400,35 +400,35 @@ def run_burst_experiment(
 
     for memory in memories:
 
-        #deployment_client.start_lambda()
-        #while True:
-        #    try:
-        #        mem_change = memory + 512 if memory < 2048 else memory - 512
-        #        deployment_client.client.update_function_configuration(
-        #            FunctionName=fname,
-        #            Timeout=timeout,
-        #            MemorySize=mem_change
-        #        )
-        #        logging.info('Updated {} to timeout {} mem {}'.format(function_names[idx], timeout, mem_change))
-        #        break
-        #    except Exception as e:
-        #        logging.info('Repeat update...')
-        #        logging.info(e)
-        #        continue
-        #time.sleep(30)
-        #while True:
-        #    try: 
-        #        deployment_client.client.update_function_configuration(
-        #            FunctionName=fname,
-        #            Timeout=timeout,
-        #            MemorySize=memory
-        #        )
-        #        logging.info('Updated {} to timeout {} memory {}'.format(function_names[idx], timeout, memory))
-        #        break
-        #    except Exception as e:
-        #        logging.info('Repeat update...')
-        #        logging.info(e)
-        #        continue
+        deployment_client.start_lambda()
+        while True:
+            try:
+                mem_change = memory + 512 if memory < 2048 else memory - 512
+                deployment_client.client.update_function_configuration(
+                    FunctionName=fname,
+                    Timeout=timeout,
+                    MemorySize=mem_change
+                )
+                logging.info('Updated {} to timeout {} mem {}'.format(function_names[idx], timeout, mem_change))
+                break
+            except Exception as e:
+                logging.info('Repeat update...')
+                logging.info(e)
+                continue
+        time.sleep(30)
+        while True:
+            try: 
+                deployment_client.client.update_function_configuration(
+                    FunctionName=fname,
+                    Timeout=timeout,
+                    MemorySize=memory
+                )
+                logging.info('Updated {} to timeout {} memory {}'.format(function_names[idx], timeout, memory))
+                break
+            except Exception as e:
+                logging.info('Repeat update...')
+                logging.info(e)
+                continue
         logging.info('Start {} invocations mem {} '.format(invocations, memory))
         idx = 0
         fname = 'results_{benchmark}_{invocations}_{repetition}_{memory}.json'.format(
@@ -453,7 +453,16 @@ def run_burst_experiment(
                     full_results['cold'].append(ret)
                     #for i, val in enumerate(ret):
                     #    json_results[times[i]][-1].append(val)
-                logging.info('Finished iteration {}'.format(idx))
+                logging.info('Finished cold iteration {}'.format(idx))
+                results = []
+                for i in range(0, invocations):
+                    results.append(
+                        pool.apply_async(run, args=(idx, invocations, cached_url, input_config))
+                    )
+                for result in results:
+                    ret = result.get()
+                    full_results['warm'].append(ret)
+                logging.info('Finished cold iteration {}'.format(idx))
                 idx += 1
                 #idx += 1
                 #for fname in function_names:

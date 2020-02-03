@@ -82,8 +82,12 @@ def create_functions(deployment, cache_client, code_package, experiment_config, 
         function_names = []
         fname = cached_f['name']
         memory = memory
-        invoc_begin=16
-        invoc_end=21
+        #invoc_begin=16
+        #invoc_end=21
+        #invocs = [2, 3, 4, 5]
+        #invocs = [6,7,8]
+        #invocs = [10,11,12,13]
+        invocs = [16,17,18,19]
         name = 'experiment_azure'
         times = times[times_begin_idx:times_end_idx+1]
         logging.info('Work on times {}'.format(times))
@@ -97,8 +101,8 @@ def create_functions(deployment, cache_client, code_package, experiment_config, 
         #        function_names.append('{}-{}{}-{}-{}'.format(fname, memory, sleep_time, invoc, t))
         #logging.info('Remove functions {}'.format(function_names))
         URLS = {}
-        logging.info('Work on {}'.format(list(range(invoc_begin, invoc_end))))
-        for invoc in range(invoc_begin, invoc_end):
+        logging.info('Work on {}'.format(invocs))
+        for invoc in invocs: #range(invoc_begin, invoc_end):
             function_names = []
             for t in times:
                 function_names.append('{}-{}-{}-{}-{}'.format(fname, memory, sleep_time, invoc, t))
