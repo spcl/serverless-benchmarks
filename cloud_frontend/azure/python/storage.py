@@ -1,5 +1,6 @@
 
 import os
+import uuid
 
 from azure.storage.blob import BlobServiceClient
 
@@ -13,9 +14,18 @@ class storage:
                 os.getenv('STORAGE_CONNECTION_STRING')
             )
 
+    @staticmethod
+    def unique_name(name):
+        name, extension = name.split('.')
+        return '{name}.{random}.{extension}'.format(
+                    name=name,
+                    extension=extension,
+                    random=str(uuid.uuid4()).split('-')[0]
+                )
+
     def upload(self, container, file, filepath):
         with open(filepath, 'rb') as data:
-            self.upload_stream(container, file, data)
+            self.upload_stream(container, storage.unique_name(file), data)
 
     def download(self, container, file, filepath):
         with open(filepath, 'wb') as download_file:
@@ -33,7 +43,10 @@ class storage:
     # it seems that JS does not have an API that would allow to 
     # upload/download data without going through container client
     def upload_stream(self, container, file, data):
-        client = self.client.get_blob_client(container=container, blob=file)
+        client = self.client.get_blob_client(
+                container=container,
+                blob=storage.unique_name(file)
+        )
         return client.upload_blob(data)
 
     def download_stream(self, container, file):
