@@ -1,5 +1,7 @@
 
 const { BlobServiceClient } = require('@azure/storage-blob'),
+        uuid = require('uuid'),
+        util = require('util'),
         stream = require('stream');
 
 
@@ -10,8 +12,19 @@ class azure_storage {
     this.client = BlobServiceClient.fromConnectionString(STORAGE_CONNECTION_STRING);
   }
 
-  upload(bucket, file, filepath) {
-    // TOD:
+  unique_name(file) {
+    let [name, extension] = file.split('.');
+    let uuid_name = uuid.v4().split('-')[0];
+    return util.format('%s.%s.%s', name, uuid_name, extension);
+  }
+
+  upload(container, file, filepath) {
+    // it seems that JS does not have an API that would allow to
+    // upload/download data without going through container/blob client 
+    let containerClient = this.client.getContainerClient(container);
+    let uniqueName = this.unique_name(file);
+    let blockBlobClient = containerClient.getBlockBlobClient(uniqueName);
+    return blockBlobClient.uploadFile(filepath);
   };
 
   download(bucket, file, filepath) {
@@ -24,11 +37,12 @@ class azure_storage {
     // it seems that JS does not have an API that would allow to
     // upload/download data without going through container/blob client 
     let containerClient = this.client.getContainerClient(container);
-    let blockBlobClient = containerClient.getBlockBlobClient(file);
+    let uniqueName = this.unique_name(file);
+    let blockBlobClient = containerClient.getBlockBlobClient(uniqueName);
     var write_stream = new stream.PassThrough();
     // returns promise
     let upload = blockBlobClient.uploadStream(write_stream);
-    return [write_stream, upload];
+    return [write_stream, upload, uniqueName];
   };
 
   downloadStream(container, file) {
