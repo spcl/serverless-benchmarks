@@ -91,7 +91,8 @@ class blob_storage:
                             lambda x : x['name'],
                             container_client.list_blobs()
                         ))
-                container_client.delete_blobs(*blobs)
+                #TODO: reenable with a try/except for failed deletions
+                #container_client.delete_blobs(*blobs)
 
             self.cached = True
             logging.info('Using cached storage input containers {}'.format(self.input_containers))
@@ -715,9 +716,7 @@ class azure:
 
         ret = ret.json()
         vals = {}
-        vals['result'] = ret['result']
-        vals['compute_time'] = ret['compute_time']
-        vals['results_time'] = ret['results_time']
+        vals['return'] = ret
         vals['client_time'] = (end - begin) / datetime.timedelta(microseconds=1)
         return vals
 

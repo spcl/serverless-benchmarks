@@ -1,5 +1,6 @@
 import io
 import os
+import uuid
 
 import boto3
 
@@ -10,9 +11,20 @@ class storage:
 
     def __init__(self):
         self.client = boto3.client('s3')
+
+    @staticmethod
+    def unique_name(name):
+        name, extension = name.split('.')
+        return '{name}.{random}.{extension}'.format(
+                    name=name,
+                    extension=extension,
+                    random=str(uuid.uuid4()).split('-')[0]
+                )
     
     def upload(self, bucket, file, filepath):
-        self.client.upload_file(filepath, bucket, file)
+        key_name = storage.unique_name(file)
+        self.client.upload_file(filepath, bucket, key_name)
+        return key_name
     
     def download(self, bucket, file, filepath):
         self.client.download_file(bucket, file, filepath)
@@ -26,7 +38,9 @@ class storage:
             self.download(bucket, file_name, os.path.join(path, file_name))
 
     def upload_stream(self, bucket, file, data):
-        self.client.upload_fileobj(data, bucket, file)
+        key_name = storage.unique_name(file)
+        self.client.upload_fileobj(data, bucket, key_name)
+        return key_name
 
     def download_stream(self, bucket, file):
         data = io.BytesIO()

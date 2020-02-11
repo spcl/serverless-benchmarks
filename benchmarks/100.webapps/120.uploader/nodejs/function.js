@@ -31,5 +31,5 @@ exports.handler = async function(event) {
     }
   );
   await upload;
-  return {bucket: output_bucket, key: keyName}
+  return {bucket: output_bucket, url: url, key: keyName}
 };
