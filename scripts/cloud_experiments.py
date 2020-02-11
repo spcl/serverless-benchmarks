@@ -58,6 +58,8 @@ parser.add_argument('--update-storage', action='store_true', default=False,
                     help='Update storage files in deployment.')
 parser.add_argument('--preserve-out', action='store_true', default=True,
                     help='Dont clean output directory [default false]')
+parser.add_argument('--no-update-function', action='store_true', default=False,
+                    help='Dont clean output directory [default false]')
 parser.add_argument('--verbose', action='store', default=False, type=bool,
                     help='Verbose output')
 args = parser.parse_args()
@@ -171,6 +173,7 @@ try:
         assert args.sleep_time
         # TODO: experiment JSON config
         runner = ExperimentRunner(
+            not args.no_update_function,
             config_file=args.config_experiment_runner,
             invocations=args.invocations,
             repetitions=args.repetitions,
