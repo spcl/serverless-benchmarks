@@ -330,7 +330,7 @@ class aws:
         package_config = CONFIG_FILES[self.language]
         function_dir = os.path.join(dir, 'function')
         os.makedirs(function_dir)
-    # move all files to 'function' except handler.py
+        # move all files to 'function' except handler.py
         for file in os.listdir(dir):
             if file not in package_config:
                 file = os.path.join(dir, file)
@@ -487,10 +487,6 @@ class aws:
         api_client = self.start('apigateway')
 
         # create REST API
-        #api_name = '{api_name}_API'.format(api_name=api_name)
-        #api = api_client.create_rest_api(name=api_name)
-        #api_id = api['id']
-        #api_id = 'xmriy8ylb6
         if api_id is None:
             api_name = func_name
             api = api_client.create_rest_api(name=api_name)
@@ -502,10 +498,6 @@ class aws:
                     parent_id = r['id']
 
         # create resource
-        #resource = api_client.get_resources(restApiId=api_id)
-        #parent_id = resource['items'][0]['id']
-
-        ## create resource
         # TODO: check if resource exists
         resource_id = None
         resp = api_client.get_resources(restApiId=api_id)['items']
@@ -525,6 +517,14 @@ class aws:
             )
             logging.info(resource)
             resource_id = resource['id']
+        logging.info(
+            'AWS: using REST API {api_id} with parent ID {parent_id}'
+            'using resource ID {resource_id}'.format(
+                api_id=apid_id,
+                parent_id=parent_id,
+                resource_id=resource_id
+            )
+        )
 
         ## create POST method
         put_method_resp = api_client.put_method(
