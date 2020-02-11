@@ -48,7 +48,7 @@ def handler(event):
     process_end = datetime.datetime.now()
 
     upload_begin = datetime.datetime.now()
-    client.upload_stream(output_bucket, key, resized)
+    key_name = client.upload_stream(output_bucket, key, resized)
     upload_end = datetime.datetime.now()
 
     download_time = (download_end - download_begin) / datetime.timedelta(microseconds=1)
@@ -57,7 +57,7 @@ def handler(event):
     return {
             'result': {
                 'bucket': output_bucket,
-                'key': key
+                'key': key_name
             },
             'measurement': {
                 'download_time': download_time,

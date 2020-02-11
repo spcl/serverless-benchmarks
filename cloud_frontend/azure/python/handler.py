@@ -35,11 +35,22 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     else:
         results_time = 0
 
+    # cold test
+    is_cold = False
+    fname = os.path.join('/tmp','cold_run')
+    if not os.path.exists(fname):
+        is_cold = True
+        open(fname, 'a').close()
+
     return func.HttpResponse(
         json.dumps({
-            'compute_time': (end - begin) / datetime.timedelta(microseconds=1),
+            'begin': begin.strftime('%s.%f'),
+            'end': end.strftime('%s.%f'),
             'results_time': results_time,
-            'result': log_data
+            'result': log_data,
+            'is_cold': is_cold,
+            'environ': list(os.environ.items()),
+            'request_id': context.invocation_id
         }),
         mimetype="application/json"
     )

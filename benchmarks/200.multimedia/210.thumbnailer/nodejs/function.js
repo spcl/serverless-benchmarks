@@ -15,12 +15,12 @@ exports.handler = async function(event) {
 
   const sharp_resizer = sharp().resize(width, height).png();
   let read_promise = storage_handler.downloadStream(input_bucket, key);
-  let [writeStream, promise] = storage_handler.uploadStream(output_bucket, upload_key);
+  let [writeStream, promise, uploadName] = storage_handler.uploadStream(output_bucket, upload_key);
   read_promise.then(
     (input_stream) => {
       input_stream.pipe(sharp_resizer).pipe(writeStream);
     }
   );
   await promise;
-  return {bucket: output_bucket, key: upload_key}
+  return {bucket: output_bucket, key: uploadName}
 };

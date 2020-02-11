@@ -1,5 +1,7 @@
 
 const minio = require('minio'),
+      uuid = require('uuid'),
+      util = require('util'),
       stream = require('stream');
 
 class minio_storage {
@@ -19,8 +21,15 @@ class minio_storage {
     );
   }
 
+  unique_name(file) {
+    let [name, extension] = file.split('.');
+    let uuid_name = uuid.v4().split('-')[0];
+    return util.format('%s.%s.%s', name, uuid_name, extension);
+  }
+
   upload(bucket, file, filepath) {
-    return this.client.fPutObject(bucket, file, filepath);
+    let uniqueName = this.unique_name(file);
+    return [uniqueName, this.client.fPutObject(bucket, uniqueName, filepath)];
   };
 
   download(bucket, file, filepath) {
@@ -29,8 +38,9 @@ class minio_storage {
 
   uploadStream(bucket, file) {
     var write_stream = new stream.PassThrough();
-    let promise = this.client.putObject(bucket, file, write_stream, write_stream.size);
-    return [write_stream, promise];
+    let uniqueName = this.unique_name(file);
+    let promise = this.client.putObject(bucket, uniqueName, write_stream, write_stream.size);
+    return [write_stream, promise, uniqueName];
   };
 
   downloadStream(bucket, file) {

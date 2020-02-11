@@ -73,5 +73,56 @@ def create_functions(deployment, cache_client, code_package, experiment_config, 
             else:
                 json.dump(URLS, open('{}_{}_{}.experiment'.format(name, invoc, memory), 'w'), indent=2)
         return
+    elif deployment.name == 'azure':
+        cached_f, path = cache_client.get_function(
+                deployment=deployment.name,
+                benchmark=benchmark,
+                language=language
+        )
+        function_names = []
+        fname = cached_f['name']
+        memory = memory
+        #invoc_begin=16
+        #invoc_end=21
+        #invocs = [2, 3, 4, 5]
+        #invocs = [6,7,8]
+        #invocs = [10,11,12,13]
+        invocs = [16,17,18,19]
+        name = 'experiment_azure'
+        times = times[times_begin_idx:times_end_idx+1]
+        logging.info('Work on times {}'.format(times))
+        if extend:
+            urls_config = json.load(open(extend, 'r'))
+        else:
+            urls_config = None
+        function_names = []
+        #for invoc in range(invoc_begin, invoc_end):
+        #    for t in times:
+        #        function_names.append('{}-{}{}-{}-{}'.format(fname, memory, sleep_time, invoc, t))
+        #logging.info('Remove functions {}'.format(function_names))
+        URLS = {}
+        logging.info('Work on {}'.format(invocs))
+        for invoc in invocs: #range(invoc_begin, invoc_end):
+            function_names = []
+            for t in times:
+                function_names.append('{}-{}-{}-{}-{}'.format(fname, memory, sleep_time, invoc, t))
+
+            logging.info('Create functions {}'.format(function_names))
+            names, urls = deployment.create_function_copies(function_names, code_package, experiment_config)
+            print(names, urls)
+
+            if urls_config:
+                urls_config[str(invoc)]['names'].extend(names)
+                urls_config[str(invoc)]['urls'].extend(urls)
+            else:
+                URLS[invoc] = {'names': names, 'urls': urls }
+
+            print(URLS) 
+            if urls_config:
+                json.dump(urls_config, open('{}_{}_azure.experiment'.format(name, invoc), 'w'), indent=2)
+            else:
+                print('Dump data {}'.format('{}_{}_azure.experiment'.format(name, invoc)))
+                json.dump(URLS, open('{}_{}_azure.experiment'.format(name, invoc), 'w'), indent=2)
+        return
     else:
         pass

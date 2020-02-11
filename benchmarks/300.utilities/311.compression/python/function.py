@@ -36,7 +36,7 @@ def handler(event):
     s3_upload_begin = datetime.datetime.now()
     archive_name = '{}.zip'.format(key)
     archive_size = os.path.getsize(os.path.join(download_path, archive_name))
-    client.upload(output_bucket, archive_name, os.path.join(download_path, archive_name))
+    key_name = client.upload(output_bucket, archive_name, os.path.join(download_path, archive_name))
     s3_upload_stop = datetime.datetime.now()
 
     download_time = (s3_download_stop - s3_download_begin) / datetime.timedelta(microseconds=1)
@@ -45,7 +45,7 @@ def handler(event):
     return {
             'result': {
                 'bucket': output_bucket,
-                'key': key
+                'key': key_name
             },
             'measurement': {
                 'download_time': download_time,

@@ -11,7 +11,7 @@ import shutil
 import time
 import uuid
 
-from typing import Tuple
+from typing import Tuple, List
 
 from azure.storage.blob import BlobServiceClient
 
@@ -91,7 +91,8 @@ class blob_storage:
                             lambda x : x['name'],
                             container_client.list_blobs()
                         ))
-                container_client.delete_blobs(*blobs)
+                #TODO: reenable with a try/except for failed deletions
+                #container_client.delete_blobs(*blobs)
 
             self.cached = True
             logging.info('Using cached storage input containers {}'.format(self.input_containers))
@@ -169,6 +170,10 @@ class blob_storage:
         )
         return objects
 
+class classproperty(property):
+    def __get__(self, cls, owner):
+        return classmethod(self.fget).__get__(None, owner)()
+
 class azure:
     config = None
     language = None
@@ -189,6 +194,10 @@ class azure:
     # function
     url = None
 
+    @classproperty
+    def name(cls):
+        return 'azure'
+
     # runtime mapping
     AZURE_RUNTIMES = {'python': 'python', 'nodejs': 'node'}
 
@@ -198,11 +207,12 @@ class azure:
         self.docker_client = docker_client
         self.cache_client = cache_client
 
+
         # Read cached credentaisl
-        if 'secrets' in config['azure']:
-            self.appId = config['azure']['secrets']['appId']
-            self.tenant = config['azure']['secrets']['tenant']
-            self.password = config['azure']['secrets']['password']
+        if 'secrets' in config:
+            self.appId = config['secrets']['appId']
+            self.tenant = config['secrets']['tenant']
+            self.password = config['secrets']['password']
         elif 'AZURE_SECRET_APPLICATION_ID' in os.environ:
             self.appId = os.environ['AZURE_SECRET_APPLICATION_ID']
             self.tenant = os.environ['AZURE_SECRET_TENANT']
@@ -319,8 +329,8 @@ class azure:
             return
 
         # Resource group provided, verify existence
-        if 'resource_group' in self.config['azure']:
-            self.resource_group_name = self.config['azure']['resource_group']
+        if 'resource_group' in self.config:
+            self.resource_group_name = self.config['resource_group']
             ret = self.execute('az group exists --name {0}'.format(
                     self.resource_group_name)
                 )
@@ -332,7 +342,7 @@ class azure:
                     )
         # Create resource group
         else:
-            region = self.config['azure']['region']
+            region = self.config['region']
             uuid_name = str(uuid.uuid1())[0:8]
             # Only underscore and alphanumeric characters are allowed
             self.resource_group_name = 'sebs_resource_group_{}'.format(uuid_name)
@@ -359,7 +369,7 @@ class azure:
         if self.storage_connection_string:
             return
 
-        if 'connection_string' not in self.config['azure']['storage']:
+        if 'connection_string' not in self.config['storage']:
             # Get storage connection string
             ret = self.execute(
                     'az storage account show-connection-string --name {}'.format(
@@ -373,7 +383,7 @@ class azure:
             )
             logging.info('Storage connection string {}.'.format(self.storage_connection_string))
         else:
-            self.storage_connection_string = self.config['azure']['storage']['connection_string']
+            self.storage_connection_string = self.config['storage']['connection_string']
         return self.storage_connection_string
 
     '''
@@ -389,8 +399,8 @@ class azure:
             return
 
         # Storage acount known, only verify correctness
-        if 'storage' in self.config['azure']:
-            self.storage_account_name = self.config['azure']['storage']['account']
+        if 'storage' in self.config:
+            self.storage_account_name = self.config['storage']['account']
             try:
                 # There's no API to check existence.
                 # Thus, we attempt to query basic info and check for failures.
@@ -407,7 +417,7 @@ class azure:
                 )
         # Create storage account
         else:
-            region = self.config['azure']['region']
+            region = self.config['region']
             # Ensure we have resource group
             self.resource_group()
             sku = 'Standard_LRS'
@@ -525,12 +535,15 @@ class azure:
                         name, self.AZURE_RUNTIMES[self.language]
                     )
                 )
+                print(ret)
                 url = ""
                 for line in ret.split(b'\n'):
                     line = line.decode('utf-8')
-                    if 'Invoke url' in line:
+                    if 'Invoke url:' in line:
                         url = line.split('Invoke url:')[1].strip()
                         break
+                if url == "":
+                    raise RuntimeError('Couldnt find URL in {}'.format(ret.decode('utf-8')))
                 success = True
             except RuntimeError as e:
                 error = str(e)
@@ -539,7 +552,7 @@ class azure:
                     # Sleep because of problems when publishing immediately
                     # after creating function app.
                     time.sleep(30)
-                    logging.info('Sleep 30 seconds for Azure to register function app')
+                    logging.info('Sleep 30 seconds for Azure to register function app {}'.format(name))
                 # escape loop. we failed!
                 else:
                     raise e
@@ -590,7 +603,7 @@ class azure:
 
             cached_cfg = code_package.cached_config
             cached_cfg['code_size'] = code_size
-            cached_cfg['hash'] = code_package.hash()
+            cached_cfg['hash'] = code_package.hash
             cached_cfg['invoke_url'] = url
             self.cache_client.update_function('azure', benchmark, self.language,
                     package, cached_cfg
@@ -615,7 +628,7 @@ class azure:
             self.resource_group()
 
             # create function name
-            region = self.config['azure']['region']
+            region = self.config['config']['region']
             # only hyphens are allowed
             # and name needs to be globally unique
             uuid_name = str(uuid.uuid1())[0:8]
@@ -639,7 +652,7 @@ class azure:
                      '--runtime {} --runtime-version {} --name {} '
                      '--storage-account {}').format(
                         self.resource_group_name, region, self.AZURE_RUNTIMES[self.language],
-                        self.config['experiments']['runtime'], func_name,
+                        self.config['config']['runtime'][self.language], func_name,
                         self.storage_account_name
                     )
                 )
@@ -662,11 +675,11 @@ class azure:
                     code_package=package,
                     language_config={
                         'invoke_url': url,
-                        'runtime': self.config['experiments']['runtime'],
+                        'runtime': self.config['config']['runtime'][self.language],
                         'name': func_name,
                         'code_size': code_size,
                         'resource_group': self.resource_group_name,
-                        'hash': code_package.hash()
+                        'hash': code_package.hash
                     },
                     storage_config={
                         'account': self.storage_account_name,
@@ -703,9 +716,7 @@ class azure:
 
         ret = ret.json()
         vals = {}
-        vals['result'] = ret['result']
-        vals['compute_time'] = ret['compute_time']
-        vals['results_time'] = ret['results_time']
+        vals['return'] = ret
         vals['client_time'] = (end - begin) / datetime.timedelta(microseconds=1)
         return vals
 
@@ -766,4 +777,58 @@ class azure:
             }
 
         # TODO: query performance counters for mem
+
+    def create_azure_function(self, fname, config):
+
+        # create function name
+        region = self.config['config']['region']
+        # only hyphens are allowed
+        # and name needs to be globally unique
+        uuid_name = str(uuid.uuid1())[0:8]
+        func_name = fname.replace('.', '-')\
+                    .replace('_', '-')
+
+        # create function app
+        ret = self.execute(
+            ('az functionapp create --resource-group {} '
+             '--os-type Linux --consumption-plan-location {} '
+             '--runtime {} --runtime-version {} --name {} '
+             '--storage-account {}').format(
+                self.resource_group_name, region, self.AZURE_RUNTIMES[self.language],
+                self.config['config']['runtime'][self.language], func_name,
+                self.storage_account_name
+            )
+        )
+        logging.info('Created function app {}'.format(func_name))
+        return func_name
+
+    init = False
+
+    def create_function_copies(self, function_names: List[str],
+            code_package: CodePackage, experiment_config: dict):
+
+        if not self.init:
+            code_location = code_package.code_location
+            #package = self.package_code(code_location, code_package.benchmark)
+            code_size = code_package.code_size
+            # Restart Docker instance to make sure code package is mounted
+            self.start(code_location, restart=True)
+            self.storage_account()
+            self.resource_group()
+            self.login()
+            self.init = True
+    
+        #names = []
+        #for fname in function_names: 
+        #    names.append(self.create_azure_function(fname, experiment_config))
+        names = function_names
+
+        #time.sleep(30)
+        urls = []
+        for fname in function_names:
+            url = self.publish_function(fname, repeat_on_failure=True)
+            urls.append(url)
+            logging.info('Published function app {} with URL {}'.format(fname, url))
+
+        return names, urls
 

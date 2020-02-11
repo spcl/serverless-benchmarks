@@ -7,7 +7,7 @@ import os
 import shutil
 
 DOCKER_DIR = os.path.join('cloud_frontend', 'docker')
-PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
+PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
 parser.add_argument('--system', default=None, choices=['local', 'aws', 'azure'], action='store')
