@@ -1,6 +1,8 @@
 
 const aws = require('aws-sdk'),
       fs = require('fs'),
+      uuid = require('uuid'),
+      util = require('util'),
       stream = require('stream');
 
 class aws_storage {
@@ -9,11 +11,18 @@ class aws_storage {
     this.S3 = new aws.S3();
   }
 
+  unique_name(file) {
+    let [name, extension] = file.split('.');
+    let uuid_name = uuid.v4().split('-')[0];
+    return util.format('%s.%s.%s', name, uuid_name, extension);
+  }
+
   upload(bucket, file, filepath) {
     var upload_stream = fs.createReadStream(filepath);
-    let params = {Bucket: bucket, Key: file, Body: upload_stream};
+    let uniqueName = this.unique_name(file);
+    let params = {Bucket: bucket, Key: uniqueName, Body: upload_stream};
     var upload = this.S3.upload(params);
-    return upload.promise();
+    return [uniqueName, upload.promise()];
   };
 
   download(bucket, file, filepath) {
@@ -23,10 +32,11 @@ class aws_storage {
 
   uploadStream(bucket, file) {
     var write_stream = new stream.PassThrough();
+    let uniqueName = this.unique_name(file);
     // putObject won't work correctly for streamed data (length has to be known before)
     // https://stackoverflow.com/questions/38442512/difference-between-upload-and-putobject-for-uploading-a-file-to-s3
-    var upload = this.S3.upload( {Bucket: bucket, Key: file, Body: write_stream} );
-    return [write_stream, upload.promise()];
+    var upload = this.S3.upload( {Bucket: bucket, Key: uniqueName, Body: write_stream} );
+    return [write_stream, upload.promise(), uniqueName];
   };
 
   // We return a promise to match the API for other providers

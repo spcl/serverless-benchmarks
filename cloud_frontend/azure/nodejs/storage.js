@@ -24,7 +24,7 @@ class azure_storage {
     let containerClient = this.client.getContainerClient(container);
     let uniqueName = this.unique_name(file);
     let blockBlobClient = containerClient.getBlockBlobClient(uniqueName);
-    return blockBlobClient.uploadFile(filepath);
+    return [uniqueName, blockBlobClient.uploadFile(filepath)];
   };
 
   download(bucket, file, filepath) {
