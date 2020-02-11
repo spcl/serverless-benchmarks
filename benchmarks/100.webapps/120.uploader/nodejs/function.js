@@ -23,11 +23,13 @@ exports.handler = async function(event) {
   var file = fs.createWriteStream(download_path);
   request(url).pipe(file);
   let promise = streamToPromise(file);
+  var keyName;
   let upload = promise.then(
     async () => {
-      await storage_handler.upload(output_bucket, upload_key, download_path);
+      [keyName, promise] = storage_handler.upload(output_bucket, upload_key, download_path);
+      await promise;
     }
   );
   await upload;
-  return {bucket: output_bucket, key: upload_key}
+  return {bucket: output_bucket, url: url, key: keyName}
 };

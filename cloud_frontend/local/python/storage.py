@@ -1,5 +1,7 @@
 import io
 import os
+import uuid
+
 import minio
 
 class storage:
@@ -17,8 +19,19 @@ class storage:
                     secret_key=secret_key,
                     secure=False)
 
+    @staticmethod
+    def unique_name(name):
+        name, extension = name.split('.')
+        return '{name}.{random}.{extension}'.format(
+                    name=name,
+                    extension=extension,
+                    random=str(uuid.uuid4()).split('-')[0]
+                )
+
     def upload(self, bucket, file, filepath):
-        self.client.fput_object(bucket, file, filepath)
+        key_name = storage.unique_name(file)
+        self.client.fput_object(bucket, key_name, filepath)
+        return key_name
 
     def download(self, bucket, file, filepath):
         self.client.fget_object(bucket, file, filepath)
@@ -30,7 +43,9 @@ class storage:
             self.download(bucket, file_name, os.path.join(path, file_name))
 
     def upload_stream(self, bucket, file, bytes_data):
-        self.client.put_object(bucket, file, bytes_data, bytes_data.getbuffer().nbytes)
+        key_name = storage.unique_name(file)
+        self.client.put_object(bucket, key_name, bytes_data, bytes_data.getbuffer().nbytes)
+        return key_name
 
     def download_stream(self, bucket, file):
         data = self.client.get_object(bucket, file)
