@@ -123,6 +123,7 @@
         "deployment": {
           "files": [ "handler.js", "storage.js"],
           "packages": {
+            "@google-cloud/storage": "^4.0.0",
             "uuid": "3.4.0"
           }
         }
