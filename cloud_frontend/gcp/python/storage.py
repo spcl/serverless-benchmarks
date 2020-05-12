@@ -2,7 +2,7 @@ import io
 import os
 import uuid
 
-from google.cloud import storage
+from google.cloud import storage as gcp_storage
 
 
 class storage:
@@ -10,7 +10,7 @@ class storage:
     client = None
 
     def __init__(self):
-        self.client = storage.Client()
+        self.client = gcp_storage.Client()
 
     @staticmethod
     def unique_name(name):
