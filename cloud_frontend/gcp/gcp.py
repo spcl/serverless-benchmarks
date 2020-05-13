@@ -1,7 +1,7 @@
 
 from google.cloud import storage as gcp_storage
 import google.auth.credentials.Credentials
-import google.auth.credentials.AnonymousCredentials
+from google.auth.credentials import AnonymousCredentials
 import os
 import time
 import uuid
@@ -14,7 +14,6 @@ class storage:
     input_buckets_files = []
     request_input_buckets = 0
     request_output_buckets = 0
-
 
     def __init__(self, location, access_key, replace_existing):
         self.replace_existing = replace_existing
@@ -132,20 +131,196 @@ class storage:
 
 class gcp:
 
-    def __init__(self):
-        pass
+    access_key = None
 
-    def get_storage(self, benchmark, buckets, replace_existing):
-        pass
+    def __init__(self, cache_client, config, language, docker_client):
+        self.config = config
+        self.language = language
+        self.docker_client = docker_client
+        self.cache_client = cache_client
 
+    def configure_credentials(self):
+        if self.access_key is None:
+            if 'secrets' in self.config:
+                self.access_key = self.config['secrets']['access_key']
+            elif 'GCP_ACCESS_KEY' in os.environ:
+                self.access_key = os.environ['GCP_ACCESS_KEY']
+                self.cache_client.update_config(val=self.access_key, keys=['gcp', 'secrets', 'access_key'])
+            else:
+                raise RuntimeError("GCP login credentials are missing!")
+
+
+    def get_storage(self, benchmark=None, buckets=None, replace_existing=False):
+        self.configure_credentials()
+        self.location = self.config['config']['region']
+        self.storage = storage(self.location, self.access_key, replace_existing)
+        if benchmark and buckets:
+            self.storage.create_buckets(benchmark, buckets, self.cache_client.get_storage_config('gcp', benchmark))
+        return self.storage
+
+    """
+
+    - main.py/index.js (handler.py/js)
+    - function
+      - function.py/js
+      - storage.py/js
+      - resources
+    """
     def package_code(self, dir, benchmark):
-        pass
+
+        CONFIG_FILES = {
+            'python': ['handler.py', 'requirements.txt', '.python_packages'],
+            'nodejs': ['handler.js', 'package.json', 'node_modules']
+        }
+        HANDLER = {
+            'python': ('handler.py', 'main.py'),
+            'nodejs': ('handler.js', 'index.js')
+        }
+
+        package_config = CONFIG_FILES[self.language]
+        function_dir = os.path.join(dir, 'function')
+        os.makedirs(function_dir)
+        for file in os.listdir(dir):
+            if file not in package_config:
+                file = os.path.join(dir, file)
+                shutil.move(file, function_dir)
+
+        cur_dir = os.getcwd()
+        os.chdir(dir)
+        old_name, new_name = HANDLER[self.language]
+        shutil.move(old_name, new_name)
+
+        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)
+        benchmark_archive = "{}.zip".format(os.path.join(dir, benchmark))
+        logging.info('Created {} archive'.format(benchmark_archive))
+
+        shutil.move(new_name, old_name)
+        os.chdir(cur_dir)
+        return os.path.join(dir, "{}.zip".format(benchmark))
+
 
     def create_function(self, code_package, experiment_config):
-        pass
+
+        benchmark = code_package.benchmark
+        if code_package.is_cached and code_package.is_cached_valid:
+            func_name = code_package.cached_config["name"]
+            code_location = code_package.code_location
+            logging.info('Using cached function {fname} in {loc}'.format(
+                fname=func_name,
+                loc=code_location
+            ))
+            return func_name
+
+        elif code_package.is_cached:
+            func_name = code_package.cached_config["name"]
+            code_location = code_package.code_location
+            timeout = code_package.benchmark_config["timeout"]
+            memory = code_package.benchmark_config["memory"]
+
+            package = self.package_code(code_location, code_package.benchmark)
+            code_size = CodePackage.directory_size(code_location)
+            self.update_function(benchmark, func_name, package, timeout, memory)
+
+            cached_cfg = code_package.cached_config
+            cached_cfg["code_size"] = code_size
+            cached_cfg["timeout"] = timeout
+            cached_cfg["memory"] = memory
+            cached_cfg["hash"] = code_package.hash
+            self.cache_client.update_function('gcp', benchmark, self.language, package, cached_cfg)
+
+            logging.info("Updating cached function {fname} in {loc}".format(
+                fname=func_name,
+                loc=code_location
+            ))
+
+            return func_name
+        else:
+
+            code_location = code_package.code_location
+            timeout = code_package.benchmark_config["timeout"]
+            memory = code_package.benchmark_config["memory"]
+            code_size = CodePackage.directory_size(code_location)
+
+            func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
+            func_name = func_name.replace('-', '_')
+            func_name = func_name.replace('.', '_')
+
+            package = self.package_code(code_location, code_package.benchmark)
+
+            code_package_name = os.path.basename(package)
+            bucket, idx = self.storage.add_input_bucket(benchmark)
+            self.storage.upload(bucket, code_package_name, package)
+            logging.info('Uploading function {} code to {}'.format(func_name, bucket))
+            blob = self.storage.client.bucket(bucket).blob(code_package_name)
+            signed_url = blob.generate_signed_url(
+                version="v4",
+                expiration=datetime.timedelta(minutes=15),
+                method="GET",  # TODO I'm not sure which method to put here
+            )
+
+            # TODO check if the function exists
+            # https://cloud.google.com/functions/docs/reference/rest/v1/projects.locations.functions/get
+            if False:
+                update_function_url = "https://cloudfunctions.googleapis.com/v1/{function.name}"
+                payload = {
+                    "name": func_name,
+                    "entrypoint": "handler",
+                    "availableMemoryMb": memory,
+                    "timeout": timeout,
+                    "sourceArchiveUrl": signed_url  # TODO check if the url starts with "gs://"
+                }
+                requests.request(method="POST", url=update_function_url, payload=payload)
+                logging.info('Updating AWS code of function {} from {}'.format(func_name, code_package))
+            else:
+                create_function_url = "https://cloudfunctions.googleapis.com/v1/{location}/functions".format(
+                    location="" #TODO
+                )
+
+                # possible runtimes: https://cloud.google.com/sdk/gcloud/reference/functions/deploy#--runtime
+                # TODO delete from docker images unnecessary python/nodejs versions
+
+                language_runtime = self.config['config']['runtime'][self.language]
+                payload = {
+                    "name": func_name,
+                    "entrypoint": "handler",
+                    "runtime": self.language + language_runtime.replace(".", ""),
+                    "availableMemoryMb": memory,
+                    "timeout": timeout,
+                    "sourceArchiveUrl": signed_url #TODO check if the url starts with "gs://"
+                }
+
+                requests.request(method="POST", url=create_function_url, payload=payload)
+                invoke_url = "https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/{function_name}".format(
+                    function_name=func_name
+                )
+
+            self.cache_client.add_function(
+                deployment="gcp",
+                benchmark=benchmark,
+                language=self.language,
+                code_package=package,
+                language_config={
+                    "name": func_name,
+                    "code_size": code_size,
+                    "runtime": language_runtime,
+                    'role': self.config['config']['lambda-role'],
+                    'memory': memory,
+                    'timeout': timeout,
+                    'hash': code_package.hash,
+                    'url': invoke_url
+                },
+                storage_config={
+                    "buckets": {
+                        "input": self.storage.input_buckets,
+                        "output": self.storage.output_buckets
+                    }
+                }
+            )
+            return func_name
 
     def prepare_experiment(self, benchmark):
-        pass
+        logs_bucket = self.storage.add_output_bucket(benchmark, suffix='logs')
+        return logs_bucket
 
     def invoke_sync(self, name: str, payload: dict):
         pass

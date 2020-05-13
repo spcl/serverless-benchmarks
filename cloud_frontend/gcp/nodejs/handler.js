@@ -4,7 +4,7 @@ const path = require('path'), fs = require('fs');
 exports.handler = async function(req, res) {
   var begin = Date.now()/1000;
   var start = process.hrtime();
-  var func = require('./function')
+  var func = require('./function/function')
   var ret = func.handler(req);
   return ret.then(
     (result) => {
