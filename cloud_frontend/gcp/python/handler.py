@@ -5,7 +5,7 @@ def handler(req):
     req_json = req.get_json()
     begin = datetime.datetime.now()
     # We are deployed in the same directory
-    from . import function
+    from function import function
     ret = function.handler(req_json)
     end = datetime.datetime.now()
 
@@ -17,7 +17,7 @@ def handler(req):
     if 'logs' in req_json:
         log_data['time'] = (end - begin) / datetime.timedelta(microseconds=1)
         results_begin = datetime.datetime.now()
-        from . import storage
+        from function import storage
         storage_inst = storage.storage.get_instance()
         b = req_json.get('logs').get('bucket')
         # FIXME: AWS and Azure have context for it. What to use here for filename?
@@ -42,5 +42,5 @@ def handler(req):
             'is_cold': is_cold,
             'result': log_data,
             # FIXME: As above
-            'request_id': results_begin
+            'request_id': str(datetime.datetime.now())
         }), 200, {'ContentType': 'application/json'}

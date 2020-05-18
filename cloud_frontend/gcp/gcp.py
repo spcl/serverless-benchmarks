@@ -207,6 +207,8 @@ class gcp:
         benchmark = code_package.benchmark
         self.location = experiment_config["experiments"]["deployment"]["config"]["region"]
         self.project_name = experiment_config["experiments"]["deployment"]["config"]["project_name"]
+        project_name = self.project_name
+        location = self.location
 
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
