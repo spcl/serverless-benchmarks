@@ -1,10 +1,13 @@
-
+from googleapiclient.discovery import build
 from google.cloud import storage as gcp_storage
-import google.auth.credentials.Credentials
-from google.auth.credentials import AnonymousCredentials
 import os
 import time
 import uuid
+from typing import Tuple, List
+from CodePackage import CodePackage
+import shutil
+from scripts.experiments_utils import *
+import datetime
 
 class storage:
 
@@ -15,10 +18,9 @@ class storage:
     request_input_buckets = 0
     request_output_buckets = 0
 
-    def __init__(self, location, access_key, replace_existing):
+    def __init__(self, replace_existing):
         self.replace_existing = replace_existing
-        self.location = location
-        self.client = gcp_storage.Client(credentials=AnonymousCredentials(token=access_key))
+        self.client = gcp_storage.Client()
 
     def input(self):
         return self.input_buckets
@@ -37,7 +39,7 @@ class storage:
 
         if not found_bucket:
             random_name = str(uuid.uuid4())[0:16]
-            bucket_name = '{}-{}'.format(name, random_name)
+            bucket_name = '{}-{}'.format(name, random_name).replace(".", "_")
             self.client.create_bucket(bucket_name)
             logging.info('Created bucket {}'.format(bucket_name))
             return bucket_name
@@ -74,7 +76,7 @@ class storage:
         if cached_buckets:
             self.input_buckets = cached_buckets['buckets']['input']
             for bucket_name in self.input_buckets:
-                self.input_buckets_files.appned(self.client.bucket(bucket_name).list_blobs())
+                self.input_buckets_files.append(self.client.bucket(bucket_name).list_blobs())
 
             self.output_buckets = cached_buckets['buckets']['output']
             for bucket_name in self.output_buckets:
@@ -82,8 +84,8 @@ class storage:
                     blob.delete()
 
             self.cached = True
-            logging.info('Using cached storage input containers {}'.format(self.input_containers))
-            logging.info('Using cached storage output containers {}'.format(self.output_containers))
+            logging.info('Using cached storage input containers {}'.format(self.input_buckets))
+            logging.info('Using cached storage output containers {}'.format(self.output_buckets))
 
         else:
             gcp_buckets = self.client.list_buckets()
@@ -126,34 +128,35 @@ class storage:
         blobs = self.client.bucket(bucket_name).list_blobs()
         return [blob.name for blob in blobs]
 
-
-
-
 class gcp:
-
-    access_key = None
 
     def __init__(self, cache_client, config, language, docker_client):
         self.config = config
         self.language = language
         self.docker_client = docker_client
         self.cache_client = cache_client
+        self.gcp_credentials = None
+        self.storage = None
+
+        self.project_name = None
+        self.location = None
+
+        self.configure_credentials()
+        self.function_client = build("cloudfunctions", "v1")
 
     def configure_credentials(self):
-        if self.access_key is None:
+        if self.gcp_credentials is None:
             if 'secrets' in self.config:
-                self.access_key = self.config['secrets']['access_key']
-            elif 'GCP_ACCESS_KEY' in os.environ:
-                self.access_key = os.environ['GCP_ACCESS_KEY']
-                self.cache_client.update_config(val=self.access_key, keys=['gcp', 'secrets', 'access_key'])
+                self.gcp_credentials = self.config['secrets']['gcp_credentials']
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.gcp_credentials
+            elif "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
+                self.gcp_credentials = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
+                self.cache_client.update_config(val=self.gcp_credentials, keys=['gcp', 'secrets', 'gcp_credentials'])
             else:
                 raise RuntimeError("GCP login credentials are missing!")
 
-
     def get_storage(self, benchmark=None, buckets=None, replace_existing=False):
-        self.configure_credentials()
-        self.location = self.config['config']['region']
-        self.storage = storage(self.location, self.access_key, replace_existing)
+        self.storage = storage(replace_existing)
         if benchmark and buckets:
             self.storage.create_buckets(benchmark, buckets, self.cache_client.get_storage_config('gcp', benchmark))
         return self.storage
@@ -202,6 +205,9 @@ class gcp:
     def create_function(self, code_package, experiment_config):
 
         benchmark = code_package.benchmark
+        self.location = experiment_config["experiments"]["deployment"]["config"]["region"]
+        self.project_name = experiment_config["experiments"]["deployment"]["config"]["project_name"]
+
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
@@ -241,7 +247,7 @@ class gcp:
             memory = code_package.benchmark_config["memory"]
             code_size = CodePackage.directory_size(code_location)
 
-            func_name = '{}-{}-{}'.format(benchmark, self.language, memory)
+            func_name = 'foo_{}-{}-{}'.format(benchmark, self.language, memory)
             func_name = func_name.replace('-', '_')
             func_name = func_name.replace('.', '_')
 
@@ -252,47 +258,58 @@ class gcp:
             self.storage.upload(bucket, code_package_name, package)
             logging.info('Uploading function {} code to {}'.format(func_name, bucket))
             blob = self.storage.client.bucket(bucket).blob(code_package_name)
-            signed_url = blob.generate_signed_url(
-                version="v4",
-                expiration=datetime.timedelta(minutes=15),
-                method="GET",  # TODO I'm not sure which method to put here
-            )
+            # signed_url = blob.generate_signed_url(
+            #     version="v4",
+            #     expiration=datetime.timedelta(minutes=15),
+            #     method="GET",  # TODO I'm not sure which method to put here
+            # )
 
-            # TODO check if the function exists
-            # https://cloud.google.com/functions/docs/reference/rest/v1/projects.locations.functions/get
-            if False:
-                update_function_url = "https://cloudfunctions.googleapis.com/v1/{function.name}"
-                payload = {
-                    "name": func_name,
-                    "entrypoint": "handler",
-                    "availableMemoryMb": memory,
-                    "timeout": timeout,
-                    "sourceArchiveUrl": signed_url  # TODO check if the url starts with "gs://"
-                }
-                requests.request(method="POST", url=update_function_url, payload=payload)
+            print("Experiment config: ", experiment_config)
+            req = self.function_client.projects().locations().functions().list(parent="projects/{project_name}/locations/{location}"
+                                                                   .format(project_name=project_name, location=location))
+            res = req.execute()
+
+            full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(project_name=project_name, location=location, func_name=func_name)
+            if "functions" in res.keys() and full_func_name in [f["name"] for f in res["functions"]]:
+                language_runtime = str(self.config['config']['runtime'][self.language])
+                req = self.function_client.projects().locations().functions().patch(
+                    name=full_func_name,
+                    body={
+                        "name": full_func_name,
+                        "entryPoint": "handler",
+                        "runtime": self.language + language_runtime.replace(".", ""),
+                        "availableMemoryMb": memory,
+                        "timeout": str(timeout) + "s",
+                        "httpsTrigger": {},
+                        "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+                    })
+                res = req.execute()
+                print("response:", res)
                 logging.info('Updating AWS code of function {} from {}'.format(func_name, code_package))
             else:
-                create_function_url = "https://cloudfunctions.googleapis.com/v1/{location}/functions".format(
-                    location="" #TODO
+
+                language_runtime = str(self.config['config']['runtime'][self.language])
+                print("language runtime: ", self.language + language_runtime.replace(".", ""))
+                req = self.function_client.projects().locations().functions().create(
+                    location="projects/{project_name}/locations/{location}".format(project_name=project_name, location=location),
+                    body={
+                        "name": full_func_name,
+                        "entryPoint": "handler",
+                        "runtime": self.language + language_runtime.replace(".", ""),
+                        "availableMemoryMb": memory,
+                        "timeout": str(timeout) + "s",
+                        "httpsTrigger": {},
+                        "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+                    }
                 )
+                print("request: ", req)
+                res = req.execute()
+                print("response:", res)
 
-                # possible runtimes: https://cloud.google.com/sdk/gcloud/reference/functions/deploy#--runtime
-                # TODO delete from docker images unnecessary python/nodejs versions
-
-                language_runtime = self.config['config']['runtime'][self.language]
-                payload = {
-                    "name": func_name,
-                    "entrypoint": "handler",
-                    "runtime": self.language + language_runtime.replace(".", ""),
-                    "availableMemoryMb": memory,
-                    "timeout": timeout,
-                    "sourceArchiveUrl": signed_url #TODO check if the url starts with "gs://"
-                }
-
-                requests.request(method="POST", url=create_function_url, payload=payload)
-                invoke_url = "https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/{function_name}".format(
-                    function_name=func_name
-                )
+            our_function_req = self.function_client.projects().locations().functions().get(name=full_func_name)
+            res = our_function_req.execute()
+            invoke_url = res["httpsTrigger"]["url"]
+            print("RESPONSE: ", res)
 
             self.cache_client.add_function(
                 deployment="gcp",
@@ -302,8 +319,7 @@ class gcp:
                 language_config={
                     "name": func_name,
                     "code_size": code_size,
-                    "runtime": language_runtime,
-                    'role': self.config['config']['lambda-role'],
+                    "runtime": self.config['config']['runtime'][self.language],
                     'memory': memory,
                     'timeout': timeout,
                     'hash': code_package.hash,
@@ -323,10 +339,33 @@ class gcp:
         return logs_bucket
 
     def invoke_sync(self, name: str, payload: dict):
-        pass
+        full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(
+            project_name=self.project_name, location=self.location, func_name=name)
+        print(payload)
+        payload = json.dumps(payload)
+        print(payload)
+        req = self.function_client.projects().locations().functions().call(
+            name=full_func_name,
+            body={
+                "data": payload
+            }
+        )
+        begin = datetime.datetime.now()
+        res = req.execute()
+        end = datetime.datetime.now()
+
+        print("RES: ", res)
+
+        if "error" in res.keys() and res["error"] != "":
+            logging.error('Invocation of {} failed!'.format(name))
+            logging.error('Input: {}'.format(payload))
+            raise RuntimeError()
+
+        print("Result", res["result"])
+        return {"return": res["result"], "client_time": (end - begin) / datetime.timedelta(microseconds=1)}
 
     def invoke_async(self, name: str, payload: dict):
-        pass
+        print("Nope")
 
     def shutdown(self):
         pass

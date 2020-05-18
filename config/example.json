@@ -21,6 +21,14 @@
       "nodejs": 10
     }
   },
+  "gcp": {
+    "region": "europe-west1",
+    "project_name": "sincere-baton-277510",
+    "runtime": {
+      "python": 3.7,
+      "nodejs": 10
+    }
+  },
   "local": {
     "runtime": {
       "python": 3.6,

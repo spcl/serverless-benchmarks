@@ -26,7 +26,7 @@ parser.add_argument('output_dir', type=str, help='Output dir')
 parser.add_argument('size', choices=['test', 'small', 'large'],
                     help='Benchmark input test size')
 parser.add_argument('config', type=str, help='Config JSON for experiments')
-parser.add_argument('--deployment', choices=['azure', 'aws', 'local'],
+parser.add_argument('--deployment', choices=['azure', 'aws', 'gcp', 'local'],
                     help='Cloud to use')
 parser.add_argument('--experiment', choices=['time_warm'],
                     help='Experiment to run')
@@ -115,10 +115,14 @@ try:
         from cloud_frontend.aws import aws
         deployment_client = aws.aws(cache_client, experiment_config['experiments']['deployment'],
                 language, docker_client)
-    else:
+    elif deployment == 'azure':
         from cloud_frontend.azure import azure
         deployment_client = azure.azure(cache_client, experiment_config['experiments']['deployment'],
                 language, docker_client)
+    else:
+        from cloud_frontend.gcp import gcp
+        deployment_client = gcp.gcp(cache_client, experiment_config['experiments']['deployment'],
+                                        language, docker_client)
 
     # 0. Input args
     args = parser.parse_args()
