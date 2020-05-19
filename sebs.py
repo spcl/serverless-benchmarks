@@ -5,18 +5,20 @@ import argparse
 import datetime
 import importlib
 import json
+import logging
+import os
 import sys
 import traceback
 
-from experiments_utils import *
-from cache import cache
-from CodePackage import CodePackage
-from CloudExperiments import ExperimentRunner, run_burst_experiment
-from function_generator import *
-from get_results import *
+import docker
 
-# TODO: replace with something more sustainable
-sys.path.append(PROJECT_DIR)
+import sebs
+
+#from scripts.experiments.CloudExperiments import ExperimentRunner, run_burst_experiment
+#from scripts.experiments.function_generator import *
+#from scripts.experiments.get_results import *
+
+PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser(description='Run cloud experiments.')
 parser.add_argument('action', choices=['publish', 'test_invoke', 'experiment', 'create', 'results','logs', 'burst_invoke'],
@@ -72,7 +74,7 @@ default_config = json.load(open(args.config, 'r'))
 systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
 output_dir = None
 
-cache_client = cache(args.cache)
+cache_client = sebs.Cache(args.cache)
 docker_client = docker.from_env()
 deployment_client = None
 
@@ -112,38 +114,39 @@ try:
         experiment_config['experiments']['deployment'].update(cached_config)
     # Create deployment client
     if deployment == 'aws':
-        from cloud_frontend.aws import aws
-        deployment_client = aws.aws(cache_client, experiment_config['experiments']['deployment'],
+        deployment_client = sebs.AWS(cache_client, experiment_config['experiments']['deployment'],
                 language, docker_client)
     else:
-        from cloud_frontend.azure import azure
-        deployment_client = azure.azure(cache_client, experiment_config['experiments']['deployment'],
-                language, docker_client)
+        # FIXME: refactor Azure
+        #from cloud_frontend.azure import azure
+        #deployment_client = azure.azure(cache_client, experiment_config['experiments']['deployment'],
+        #        language, docker_client)
+        pass
 
     # 0. Input args
     args = parser.parse_args()
     verbose = args.verbose
 
     # 1. Create output dir
-    output_dir = create_output(args.output_dir, args.preserve_out, args.verbose)
+    output_dir = sebs.utils.create_output(args.output_dir, args.preserve_out, args.verbose)
     logging.info('Created experiment output at {}'.format(args.output_dir))
 
     if args.action == 'publish':
         # 5. Prepare benchmark input
-        input_config = prepare_input(
+        input_config = sebs.utils.prepare_input(
             client=deployment_client,
             benchmark=args.benchmark,
             size=args.size,
             update_storage=experiment_config['experiments']['update_storage']
         )
-        package = CodePackage(args.benchmark, experiment_config, output_dir,
+        package = sebs.CodePackage(args.benchmark, experiment_config, output_dir,
                 systems_config[deployment], cache_client, docker_client, args.update)
         func = deployment_client.create_function(package, experiment_config)
     elif args.action == 'test_invoke':
-        package = CodePackage(args.benchmark, experiment_config, output_dir,
+        package = sebs.CodePackage(args.benchmark, experiment_config, output_dir,
                 systems_config[deployment], cache_client, docker_client, args.update)
         # 5. Prepare benchmark input
-        input_config = prepare_input(
+        input_config = sebs.utils.prepare_input(
             client=deployment_client,
             benchmark=args.benchmark,
             size=args.size,

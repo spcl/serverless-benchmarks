@@ -25,7 +25,7 @@ def update_dict(cfg, val, keys):
     update(cfg, map_keys(cfg, val, keys))
 
 
-class cache:
+class Cache:
 
     cache_dir = None
     cached_config = {}

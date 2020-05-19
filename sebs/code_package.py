@@ -8,8 +8,8 @@ import os
 import shutil
 import subprocess
 
-from cache import cache
-from experiments_utils import project_absolute_path, find_benchmark
+from .cache import Cache
+from .utils import project_absolute_path, find_benchmark
 
 '''
     Creates code package representing a benchmark with all code and assets
@@ -64,7 +64,7 @@ class CodePackage:
         return self._hash_value
 
     def __init__(self, benchmark: str, config: dict, output_dir: str,
-            system_config: dict, cache_client: cache,
+            system_config: dict, cache_client: Cache,
             docker_client: docker.client,
             forced_update: bool=False):
         self._benchmark = benchmark
@@ -163,7 +163,7 @@ class CodePackage:
     def add_deployment_files(self, output_dir):
         if 'deployment' in self._system_config:
             handlers_dir = project_absolute_path(
-                    'cloud_frontend', self._deployment, self._language
+                'benchmarks', 'wrappers', self._deployment, self._language
             )
             handlers = [
                 os.path.join(handlers_dir, file)
@@ -223,7 +223,7 @@ class CodePackage:
             try:
                 img = self._docker_client.images.get(container_name)
             except docker.errors.ImageNotFound as err:
-                raise RuntimeError('Docker build image {} not found!'.format(img))
+                raise RuntimeError('Docker build image {} not found!'.format(container_name))
 
             # does this benchmark has package.sh script?
             volumes = {}

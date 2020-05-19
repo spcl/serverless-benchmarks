@@ -6,15 +6,15 @@ import json
 import os
 import shutil
 
-DOCKER_DIR = os.path.join('cloud_frontend', 'docker')
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
+DOCKER_DIR = os.path.join(PROJECT_DIR, 'cloud_frontend', 'docker')
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
 parser.add_argument('--system', default=None, choices=['local', 'aws', 'azure'], action='store')
 parser.add_argument('--run', default=None, choices=['build', 'run', 'manage'], action='store')
 parser.add_argument('--language', default=None, choices=['python', 'nodejs'], action='store')
 args = parser.parse_args()
-config = json.load(open(os.path.join('config', 'systems.json'), 'r'))
+config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
 client = docker.from_env()
 
 def prepare_build_ctx(path, dockerfile, run, language):
@@ -56,6 +56,7 @@ def build(run, system, username, language=None,version=None, version_name=None):
     }
     if version:
         buildargs['BASE_IMAGE'] = version_name
+    print('Build img {} in {} from file {} with args {}'.format(target, path, dockerfile, buildargs))
     client.images.build(
         path=path,
         dockerfile=dockerfile,
