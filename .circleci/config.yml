@@ -14,7 +14,7 @@ jobs:
       - run:
           command: flake8 sebs --output-file flake-reports
           name: Python code lint with flake8
-      -store_artifacts
+      -store_artifacts:
           path: flake-reports
           destination flake-reports
 
