@@ -346,6 +346,16 @@ class gcp:
         print(payload)
         payload = json.dumps(payload)
         print(payload)
+
+        status_req = self.function_client.projects().locations().functions().get(name=full_func_name)
+        deployed = False
+        while not deployed:
+            status_res = status_req.execute()
+            if status_res['status'] == 'ACTIVE':
+                deployed = True
+            else:
+                time.sleep(5)
+
         req = self.function_client.projects().locations().functions().call(
             name=full_func_name,
             body={
