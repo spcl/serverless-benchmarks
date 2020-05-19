@@ -1,6 +1,4 @@
+from .aws.aws import AWS  # noqa
 
-from .aws.aws import AWS
-
-from .cache import Cache
-from .code_package import CodePackage
-
+from .cache import Cache  # noqa
+from .code_package import CodePackage  # noqa
