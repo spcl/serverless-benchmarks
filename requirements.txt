@@ -1,0 +1,9 @@
+docker==4.2.0
+boto3
+azure-storage-blob
+#linting
+flake8
+flake8-mypy
+flake8-boto3
+mypy-boto3
+
