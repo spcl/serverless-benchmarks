@@ -1,11 +1,13 @@
 import logging
 import uuid
-from typing import List
+from typing import List, Tuple
 
 import boto3
 
+from sebs.faas import PersistentStorage
 
-class S3:
+
+class S3(PersistentStorage):
     cached = False
     input_buckets: List[str] = []
     request_input_buckets = 0
@@ -52,7 +54,7 @@ class S3:
             )
             return existing_bucket_name
 
-    def add_input_bucket(self, name):
+    def add_input_bucket(self, name: str) -> Tuple[str, int]:
 
         idx = self.request_input_buckets
         self.request_input_buckets += 1

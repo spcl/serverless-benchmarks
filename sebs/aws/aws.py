@@ -6,11 +6,13 @@ import os
 import shutil
 import time
 import uuid
-from typing import List, Tuple
+from typing import cast, Any, Dict, List, Optional, Tuple, Union
 
 import boto3
+import docker
 
 from sebs import utils
+from sebs.cache import Cache
 from sebs.code_package import CodePackage
 from sebs.aws.s3 import S3
 
@@ -21,18 +23,13 @@ class classproperty(property):
 
 
 class AWS:
-    client = None
     logs_client = None
-    cache_client = None
-    docker_client = None
-    config = None
-    storage = None
-    language = None
+    storage: S3
     cached = False
 
     # AWS credentials
-    access_key = None
-    secret_key = None
+    access_key: str
+    secret_key: str
 
     @classproperty
     def name(cls):
@@ -45,11 +42,18 @@ class AWS:
         :param docker_client: Docker instance
     """
 
-    def __init__(self, cache_client, config, language, docker_client):
+    def __init__(
+        self,
+        cache_client: Cache,
+        config: Dict[str, Any],
+        language: str,
+        docker_client: docker.DockerClient,
+    ):
         self.config = config
         self.language = language
         self.cache_client = cache_client
         self.docker_client = docker_client
+        self.configure_credentials()
 
     """
         Parse AWS credentials passed in config or environment variables.
@@ -82,26 +86,14 @@ class AWS:
                     "AWS_SECRET_ACCESS_KEY"
                 )
 
-    """
-        Start boto3 client for `client` AWS resource.
-
-        :param resource: AWS resource to use
-        :param code_package: not used
-    """
-
-    def start(self, resource: str = "lambda", code_package=None):
-
-        self.configure_credentials()
-        return boto3.client(
-            resource,
-            aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key,
-            region_name=self.config["config"]["region"],
-        )
-
     def start_lambda(self):
         if not self.client:
-            self.client = self.start("lambda")
+            self.client = boto3.client(
+                service_name="lambda",
+                aws_access_key_id=self.access_key,
+                aws_secret_access_key=self.secret_key,
+                region_name=self.config["config"]["region"],
+            )
 
     """
         Create a client instance for cloud storage. When benchmark and buckets
@@ -280,12 +272,15 @@ class AWS:
                 # TODO: create Lambda role
                 # AWS Lambda limit on zip deployment size
                 # Limit to 50 MB
+                # mypy doesn't recognize correctly the case when the same
+                # variable has different types across the path
+                code_config: Dict[str, Union[str, bytes]]
                 if code_size < 50 * 1024 * 1024:
                     package_body = open(package, "rb").read()
                     code_config = {"ZipFile": package_body}
                 # Upload code package to S3, then use it
                 else:
-                    code_package_name = os.path.basename(package)
+                    code_package_name = cast(str, os.path.basename(package))
                     bucket, idx = self.storage.add_input_bucket(benchmark)
                     self.storage.upload(bucket, code_package_name, package)
                     logging.info(
@@ -327,12 +322,19 @@ class AWS:
             )
             return func_name
 
-    def create_http_trigger(self, func_name: str, api_id: str, parent_id: str):
+    def create_http_trigger(
+        self, func_name: str, api_id: Optional[str], parent_id: Optional[str]
+    ):
 
         # https://github.com/boto/boto3/issues/572
         # assumed we have: function name, region
 
-        api_client = self.start("apigateway")
+        api_client = boto3.client(
+            service_name="apigateway",
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+            region_name=self.config["config"]["region"],
+        )
 
         # create REST API
         if api_id is None:
@@ -340,8 +342,8 @@ class AWS:
             api = api_client.create_rest_api(name=api_name)
             api_id = api["id"]
         if parent_id is None:
-            resource = api_client.get_resources(restApiId=api_id)
-            for r in resource["items"]:
+            resources = api_client.get_resources(restApiId=api_id)
+            for r in resources["items"]:
                 if r["path"] == "/":
                     parent_id = r["id"]
 
@@ -359,7 +361,7 @@ class AWS:
             logging.info(func_name)
             logging.info(parent_id)
             resource = api_client.create_resource(
-                restApiId=api_id, parentId=parent_id, pathPart=func_name
+                restApiId=api_id, parentId=cast(str, parent_id), pathPart=func_name
             )
             logging.info(resource)
             resource_id = resource["id"]
@@ -381,7 +383,12 @@ class AWS:
 
         lambda_version = self.client.meta.service_model.api_version
         # get account information
-        sts_client = self.start("sts")
+        sts_client = boto3.client(
+            service_name="sts",
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+            region_name=self.config["config"]["region"],
+        )
         account_id = sts_client.get_caller_identity()["Account"]
 
         uri_data = {
@@ -503,14 +510,16 @@ class AWS:
     def invoke_sync(self, name: str, payload: dict):
 
         self.start_lambda()
-        payload = json.dumps(payload).encode("utf-8")
+        serialized_payload = json.dumps(payload).encode("utf-8")
         begin = datetime.datetime.now()
-        ret = self.client.invoke(FunctionName=name, Payload=payload, LogType="Tail")
+        ret = self.client.invoke(
+            FunctionName=name, Payload=serialized_payload, LogType="Tail"
+        )
         end = datetime.datetime.now()
 
         if ret["StatusCode"] != 200:
             logging.error("Invocation of {} failed!".format(name))
-            logging.error("Input: {}".format(payload.decode("utf-8")))
+            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             self.get_invocation_error(
                 function_name=name,
                 start_time=int(begin.strftime("%s")) - 1,
@@ -519,7 +528,7 @@ class AWS:
             raise RuntimeError()
         if "FunctionError" in ret:
             logging.error("Invocation of {} failed!".format(name))
-            logging.error("Input: {}".format(payload.decode("utf-8")))
+            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             self.get_invocation_error(
                 function_name=name,
                 start_time=int(begin.strftime("%s")) - 1,
@@ -536,12 +545,16 @@ class AWS:
 
     def invoke_async(self, name: str, payload: dict):
 
+        serialized_payload = json.dumps(payload).encode("utf-8")
         ret = self.client.invoke(
-            FunctionName=name, InvocationType="Event", Payload=payload, LogType="Tail"
+            FunctionName=name,
+            InvocationType="Event",
+            Payload=serialized_payload,
+            LogType="Tail",
         )
         if ret["StatusCode"] != 202:
             logging.error("Async invocation of {} failed!".format(name))
-            logging.error("Input: {}".format(payload.decode("utf-8")))
+            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             raise RuntimeError()
 
     """
@@ -553,6 +566,7 @@ class AWS:
         :return: dictionary with parsed values
     """
 
+    @staticmethod
     def parse_aws_report(log: str):
         aws_vals = {}
         for line in log.split("\t"):
@@ -567,7 +581,12 @@ class AWS:
     def get_invocation_error(self, function_name: str, start_time: int, end_time: int):
         self.configure_credentials()
         if not self.logs_client:
-            self.logs_client = self.start("logs")
+            self.logs_client = boto3.client(
+                service_name="logs",
+                aws_access_key_id=self.access_key,
+                aws_secret_access_key=self.secret_key,
+                region_name=self.config["config"]["region"],
+            )
 
         response = None
         while True:
@@ -600,9 +619,13 @@ class AWS:
         requests: dict,
     ):
 
-        self.configure_credentials()
         if not self.logs_client:
-            self.logs_client = self.start("logs")
+            self.logs_client = boto3.client(
+                service_name="logs",
+                aws_access_key_id=self.access_key,
+                aws_secret_access_key=self.secret_key,
+                region_name=self.config["config"]["region"],
+            )
 
         query = self.logs_client.start_query(
             logGroupName="/aws/lambda/{}".format(function_name),
@@ -653,12 +676,15 @@ class AWS:
         # TODO: create Lambda role
         # AWS Lambda limit on zip deployment size
         # Limit to 50 MB
+        # mypy doesn't recognize correctly the case when the same
+        # variable has different types across the path
+        code_config: Dict[str, Union[str, bytes]]
         if code_size < 50 * 1024 * 1024:
             package_body = open(package, "rb").read()
             code_config = {"ZipFile": package_body}
         # Upload code package to S3, then use it
         else:
-            code_package_name = os.path.basename(package)
+            code_package_name = cast(str, os.path.basename(package))
             bucket, idx = self.storage.add_input_bucket(function_name)
             self.storage.upload(bucket, code_package_name, package)
             logging.info(
@@ -689,7 +715,12 @@ class AWS:
                 import traceback
 
                 traceback.print_exc()
-                api_client = self.start("apigateway")
+                api_client = boto3.client(
+                    service_name="apigateway",
+                    aws_access_key_id=self.access_key,
+                    aws_secret_access_key=self.secret_key,
+                    region_name=self.config["config"]["region"],
+                )
                 resp = api_client.get_resources(restApiId=api_id)["items"]
                 for v in resp:
                     if "pathPart" in v:
@@ -733,7 +764,12 @@ class AWS:
         memory = code_package.benchmark_config["memory"]
 
         self.start_lambda()
-        api_client = self.start("apigateway")
+        api_client = boto3.client(
+            service_name="apigateway",
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+            region_name=self.config["config"]["region"],
+        )
         # api_name = '{api_name}_API'.format(api_name=api_name)
         if api_id is None:
             api = api_client.create_rest_api(name=api_name)
