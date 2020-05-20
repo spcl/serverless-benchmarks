@@ -52,7 +52,7 @@ class ExperimentEnvironment:
         scaling_governor_path = (
             "/sys/devices/system/cpu/cpu{cpu_id}/cpufreq/scaling_driver"
         )
-        governor = execute("cat {path}".format(scaling_governor_path))
+        governor = execute("cat {path}".format(path=scaling_governor_path))
         if governor == "intel_pstate":
             self._governor = governor
         else:
