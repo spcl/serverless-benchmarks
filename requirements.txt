@@ -3,7 +3,9 @@ boto3
 azure-storage-blob
 #linting
 flake8
-flake8-mypy
 flake8-boto3
+black
+flake8-black
+mypy
 mypy-boto3
 
