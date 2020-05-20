@@ -1,6 +1,6 @@
 from typing import List
 
-from experiments_utils import execute
+from sebs.utils import execute
 
 """
     Assumes that all cores are online in the beginning.
@@ -79,7 +79,7 @@ class ExperimentEnvironment:
         self.write_cpu_status(cores, 1)
 
     def disable_boost(self, cores: List[int]):
-        if self.governor == "intel_pstate":
+        if self._governor == "intel_pstate":
             boost_path = "/sys/devices/system/cpu/intel_pstate"
             self._prev_boost_status = execute("cat " + boost_path)
             execute("echo 0 | sudo tee {path}".format(path=boost_path))
@@ -87,7 +87,7 @@ class ExperimentEnvironment:
             raise NotImplementedError()
 
     def enable_boost(self, cores: List[int]):
-        if self.governor == "intel_pstate":
+        if self._governor == "intel_pstate":
             boost_path = "/sys/devices/system/cpu/intel_pstate"
             execute(
                 "echo {status} | sudo tee {path}".format(
@@ -112,12 +112,12 @@ class ExperimentEnvironment:
         )
 
     def setup_benchmarking(self, cores: List[int]):
-        self.disable_boost()
+        self.disable_boost(cores)
         self.disable_hyperthreading(cores)
         self.set_frequency(100)
         self.drop_page_cache()
 
     def after_benchmarking(self, cores: List[int]):
-        self.enable_boost()
+        self.enable_boost(cores)
         self.enable_hyperthreading(cores)
         self.unset_frequency()
