@@ -10,7 +10,7 @@ jobs:
       - checkout
       - restore_cache:
           key: deps1-{{ .Branch }}-{{ checksum "requirements/dev.txt" }}
-      - install_deps:
+      - run:
           command: |
             python3 -m venv venv
             . venv/bin/activate
