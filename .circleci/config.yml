@@ -21,7 +21,9 @@ jobs:
           paths:
             - "venv"
       - run:
-          command: flake8 sebs --config=flake8.cfg --black-config=black.toml --tee --output-file flake-reports
+          command: |
+            . venv/bin/activate
+            flake8 sebs --config=flake8.cfg --black-config=black.toml --tee --output-file flake-reports
           name: Python code lint with flake8
       - store_artifacts:
           path: flake-reports
