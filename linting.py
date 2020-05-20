@@ -13,3 +13,5 @@ call("black", arg, "--config black.toml")
 print("flake8 linting")
 call("flake8", arg, "--config=flake8.cfg --black-config=black.toml")
 
+print("Check static typing")
+call("mypy", arg, "")
