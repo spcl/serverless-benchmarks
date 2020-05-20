@@ -12,7 +12,7 @@ jobs:
       - python/install-deps
       - python/save-cache
       - run:
-          command: flake8 sebs --output-file flake-reports
+          command: flake8 sebs --config=flake8.cfg --black-config=black.toml --tee --output-file flake-reports
           name: Python code lint with flake8
       - store_artifacts:
           path: flake-reports
