@@ -10,9 +10,9 @@ from typing import List, Tuple
 
 import boto3
 
-from .. import utils
-from ..code_package import CodePackage
-from .s3 import S3
+from sebs import utils
+from sebs.code_package import CodePackage
+from sebs.aws.s3 import S3
 
 
 class classproperty(property):

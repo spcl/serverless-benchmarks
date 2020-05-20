@@ -1,16 +1,19 @@
 import logging
 import uuid
+from typing import List
 
 import boto3
+
+from sebs.aws.aws import AWS
 
 
 class S3:
     cached = False
-    client = None
-    input_buckets = []
+    client: AWS = None
+    input_buckets: List[str] = []
     request_input_buckets = 0
-    input_buckets_files = []
-    output_buckets = []
+    input_buckets_files: List[str] = []
+    output_buckets: List[str] = []
     request_output_buckets = 0
     replace_existing = False
 

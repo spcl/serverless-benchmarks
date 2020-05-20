@@ -4,6 +4,9 @@ import os
 import shutil
 import subprocess
 import sys
+from typing import Callable, Dict, List, Tuple
+
+from sebs import faas
 
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -86,6 +89,34 @@ def find_benchmark(benchmark: str, path: str):
 
 
 """
+    The interface of `input` module of each benchmark.
+    Useful for static type hinting with mypy.
+"""
+
+
+class BenchmarkModuleInterface:
+    @staticmethod
+    def buckets_count() -> Tuple[int, int]:
+        pass
+
+    @staticmethod
+    def generate_input(
+        data_dir: str,
+        size: str,
+        input_buckets: List[str],
+        output_buckets: List[str],
+        upload_func: Callable[[int, str, str], None],
+    ) -> Dict[str, str]:
+        pass
+
+
+def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
+    # Look for input generator file in the directory containing benchmark
+    sys.path.append(benchmark_path)
+    return importlib.import_module("input")  # type: ignore
+
+
+"""
     Locates benchmark input generator, inspect how many storage buckets
     are needed and launches corresponding storage instance, if necessary.
 
@@ -97,12 +128,10 @@ def find_benchmark(benchmark: str, path: str):
 """
 
 
-def prepare_input(client: object, benchmark: str, size: str, update_storage: bool):
+def prepare_input(client: faas.System, benchmark: str, size: str, update_storage: bool):
     benchmark_path = find_benchmark(benchmark, "benchmarks")
     benchmark_data_path = find_benchmark(benchmark, "benchmarks-data")
-    # Look for input generator file in the directory containing benchmark
-    sys.path.append(benchmark_path)
-    mod = importlib.import_module("input")
+    mod = load_benchmark_input(benchmark_path)
     buckets = mod.buckets_count()
     storage = client.get_storage(benchmark, buckets, update_storage)
     # Get JSON and upload data as required by benchmark
@@ -123,7 +152,9 @@ def prepare_input(client: object, benchmark: str, size: str, update_storage: boo
 """
 
 
-def download_bucket(storage_client: object, bucket_name: str, output_dir: str):
+def download_bucket(
+    storage_client: faas.PersistentStorage, bucket_name: str, output_dir: str
+):
 
     files = storage_client.list_bucket(bucket_name)
     for f in files:

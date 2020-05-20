@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import shutil
+from typing import Dict
 
 
 def update(d, u):
@@ -28,8 +29,8 @@ def update_dict(cfg, val, keys):
 
 class Cache:
 
-    cache_dir = None
-    cached_config = {}
+    cache_dir: str = ""
+    cached_config: Dict[str, str] = {}
     """
         Indicate that cloud offerings updated credentials or settings.
         Thus we have to write down changes.
