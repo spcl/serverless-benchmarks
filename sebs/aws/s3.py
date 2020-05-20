@@ -4,12 +4,9 @@ from typing import List
 
 import boto3
 
-from sebs.aws.aws import AWS
-
 
 class S3:
     cached = False
-    client: AWS = None
     input_buckets: List[str] = []
     request_input_buckets = 0
     input_buckets_files: List[str] = []
