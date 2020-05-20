@@ -8,14 +8,14 @@ jobs:
     executor: python/default
     steps:
       - checkout
-      - load-cache:
+      - load_cache:
           key: deps1-{{ .Branch }}-{{ checksum "requirements/dev.txt" }}
-      - install-deps:
+      - install_deps:
           command: |
             python3 -m venv venv
             . venv/bin/activate
             pip install -r requirements.txt
-      - save-cache:
+      - save_cache:
           key: deps1-{{ .Branch }}-{{ checksum "requirements/dev.txt" }}
           paths:
             - "venv"
