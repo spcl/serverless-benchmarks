@@ -12,6 +12,7 @@ import boto3
 import docker
 
 from sebs import utils
+from sebs.faas import PersistentStorage
 from sebs.cache import Cache
 from sebs.code_package import CodePackage
 from sebs.aws.s3 import S3
@@ -27,9 +28,8 @@ class AWS:
     storage: S3
     cached = False
 
-    # AWS credentials
-    access_key: str
-    secret_key: str
+    access_key: str = ""
+    secret_key: str = ""
 
     @classproperty
     def name(cls):
@@ -61,33 +61,34 @@ class AWS:
     """
 
     def configure_credentials(self):
-        if self.access_key is None:
-            # Verify we can log in
-            # 1. Cached credentials
-            # TODO: flag to update cache
-            if "secrets" in self.config:
-                self.access_key = self.config["secrets"]["access_key"]
-                self.secret_key = self.config["secrets"]["secret_key"]
-            # 2. Environmental variables
-            elif "AWS_ACCESS_KEY_ID" in os.environ:
-                self.access_key = os.environ["AWS_ACCESS_KEY_ID"]
-                self.secret_key = os.environ["AWS_SECRET_ACCESS_KEY"]
-                # update
-                self.cache_client.update_config(
-                    val=self.access_key, keys=["aws", "secrets", "access_key"]
-                )
-                self.cache_client.update_config(
-                    val=self.secret_key, keys=["aws", "secrets", "secret_key"]
-                )
-            else:
-                raise RuntimeError(
-                    "AWS login credentials are missing! Please set "
-                    "up environmental variables AWS_ACCESS_KEY_ID and "
-                    "AWS_SECRET_ACCESS_KEY"
-                )
+        if self.access_key != "":
+            return
+        # Verify we can log in
+        # 1. Cached credentials
+        # TODO: flag to update cache
+        if "secrets" in self.config:
+            self.access_key = self.config["secrets"]["access_key"]
+            self.secret_key = self.config["secrets"]["secret_key"]
+        # 2. Environmental variables
+        elif "AWS_ACCESS_KEY_ID" in os.environ:
+            self.access_key = os.environ["AWS_ACCESS_KEY_ID"]
+            self.secret_key = os.environ["AWS_SECRET_ACCESS_KEY"]
+            # update
+            self.cache_client.update_config(
+                val=self.access_key, keys=["aws", "secrets", "access_key"]
+            )
+            self.cache_client.update_config(
+                val=self.secret_key, keys=["aws", "secrets", "secret_key"]
+            )
+        else:
+            raise RuntimeError(
+                "AWS login credentials are missing! Please set "
+                "up environmental variables AWS_ACCESS_KEY_ID and "
+                "AWS_SECRET_ACCESS_KEY"
+            )
 
     def start_lambda(self):
-        if not self.client:
+        if not hasattr(self, "client"):
             self.client = boto3.client(
                 service_name="lambda",
                 aws_access_key_id=self.access_key,
@@ -111,7 +112,7 @@ class AWS:
         benchmark: str = None,
         buckets: Tuple[int, int] = None,
         replace_existing: bool = False,
-    ):
+    ) -> PersistentStorage:
         self.configure_credentials()
         self.storage = S3(
             self.config["config"]["region"],
