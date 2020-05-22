@@ -9,7 +9,6 @@ from typing import Callable, Dict, List, Tuple
 from sebs import faas
 
 
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
 
