@@ -4,7 +4,8 @@ from typing import List, Tuple
 
 import boto3
 
-from sebs.faas import PersistentStorage
+from sebs.cache import Cache
+from ..faas.storage import PersistentStorage
 
 
 class S3(PersistentStorage):
@@ -16,13 +17,16 @@ class S3(PersistentStorage):
     request_output_buckets = 0
     replace_existing = False
 
-    def __init__(self, location, access_key, secret_key, replace_existing):
+    def __init__(
+        self, cache_client: Cache, location, access_key, secret_key, replace_existing
+    ):
         self.client = boto3.client(
             "s3",
             region_name=location,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
         )
+        self.cache_client = cache_client
         self.replace_existing = replace_existing
 
     def input(self):  # noqa: A003
@@ -178,6 +182,11 @@ class S3(PersistentStorage):
         else:
             objects = []
         return objects
+
+    def allocate_buckets(self, benchmark: str, buckets: Tuple[int, int]):
+        self.create_buckets(
+            benchmark, buckets, self.cache_client.get_storage_config("aws", benchmark),
+        )
 
     # def download_results(self, result_dir):
     #    result_dir = os.path.join(result_dir, 'storage_output')

@@ -11,9 +11,9 @@ from typing import Callable, Dict, List, Tuple
 
 import docker
 
-from sebs import faas
 from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path
+from .faas.storage import PersistentStorage
 
 
 """
@@ -72,7 +72,7 @@ class Benchmark:
     def __init__(
         self,
         benchmark: str,
-        deployment: faas.System,
+        deployment_name: str,
         config: dict,
         output_dir: str,
         system_config: dict,
@@ -81,7 +81,7 @@ class Benchmark:
         forced_update: bool = False,
     ):
         self._benchmark = benchmark
-        self._deployment = deployment
+        self._deployment_name = deployment_name
         self._language = config["experiments"]["language"]
         self._runtime = config["experiments"]["runtime"]
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
@@ -132,7 +132,7 @@ class Benchmark:
 
     def query_cache(self):
         self._cached_config, self._code_location = self._cache_client.get_function(
-            deployment=self._deployment.name,
+            deployment=self._deployment_name,
             benchmark=self._benchmark,
             language=self._language,
         )
@@ -172,7 +172,7 @@ class Benchmark:
     def add_deployment_files(self, output_dir):
         if "deployment" in self._system_config:
             handlers_dir = project_absolute_path(
-                "benchmarks", "wrappers", self._deployment.name, self._language
+                "benchmarks", "wrappers", self._deployment_name, self._language
             )
             handlers = [
                 os.path.join(handlers_dir, file)
@@ -222,11 +222,11 @@ class Benchmark:
                 (
                     "Docker build image for {deployment} run in {language} "
                     "is not available, skipping"
-                ).format(deployment=self._deployment.name, language=self._language)
+                ).format(deployment=self._deployment_name, language=self._language)
             )
         else:
             container_name = "sebs.build.{deployment}.{language}.{runtime}".format(
-                deployment=self._deployment.name,
+                deployment=self._deployment_name,
                 language=self._language,
                 runtime=self._runtime,
             )
@@ -302,7 +302,7 @@ class Benchmark:
                 "Created code package for run on {deployment}"
                 + " with {language}:{runtime}"
             ).format(
-                deployment=self._deployment.name,
+                deployment=self._deployment_name,
                 language=self._language,
                 runtime=self._runtime,
             )
@@ -317,14 +317,13 @@ class Benchmark:
         :param benchmark:
         :param benchmark_path:
         :param size: Benchmark workload size
-        :param update_storage: if true then files in input buckets are reuploaded
     """
 
-    def prepare_input(self, size: str, update_storage: bool):
+    def prepare_input(self, storage: PersistentStorage, size: str):
         benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
         mod = load_benchmark_input(self._benchmark_path)
         buckets = mod.buckets_count()
-        storage = self._deployment.get_storage(self._benchmark, buckets, update_storage)
+        storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = mod.generate_input(
             benchmark_data_path,

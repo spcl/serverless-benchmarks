@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import sys
 
-from sebs import faas
+from .faas.storage import PersistentStorage
 
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
@@ -93,7 +93,7 @@ def find_benchmark(benchmark: str, path: str):
 
 
 def download_bucket(
-    storage_client: faas.PersistentStorage, bucket_name: str, output_dir: str
+    storage_client: PersistentStorage, bucket_name: str, output_dir: str
 ):
 
     files = storage_client.list_bucket(bucket_name)

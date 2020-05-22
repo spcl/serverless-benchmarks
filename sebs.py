@@ -143,13 +143,16 @@ try:
                 systems_config[deployment], cache_client, docker_client, args.update)
         func = deployment_client.create_function(package, experiment_config)
     elif args.action == 'test_invoke':
-        benchmark = sebs.Benchmark(args.benchmark, deployment_client, experiment_config,
+        benchmark = sebs.Benchmark(args.benchmark, deployment_client.name(), experiment_config,
                 output_dir, systems_config[deployment], cache_client, docker_client, args.update)
-        input_config = benchmark.prepare_input(
-            size=args.size, 
-            update_storage=experiment_config['experiments']['update_storage']
+        storage=deployment_client.get_storage(
+            replace_existing=experiment_config['experiments']['update_storage']
         )
-        func = deployment_client.create_function(benchmark, experiment_config)
+        input_config = benchmark.prepare_input(
+            storage=storage,
+            size=args.size 
+        )
+        func = deployment_client.get_function(benchmark, experiment_config)
 
         # TODO bucket save of results
         bucket = None
@@ -157,10 +160,10 @@ try:
         #input_config['logs'] = { 'bucket': bucket }
 
         begin = datetime.datetime.now()
-        ret = deployment_client.invoke_sync(func, input_config)
+        ret = func.sync_invoke(input_config)
         end = datetime.datetime.now()
         benchmark_summary['experiment'] = {
-            'function_name': func,
+            'function_name': func.name,
             'begin': float(begin.strftime('%s.%f')),
             'end': float(end.strftime('%s.%f')),
         }
