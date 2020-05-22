@@ -7,48 +7,31 @@ import os
 import shutil
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
-DOCKER_DIR = os.path.join(PROJECT_DIR, 'cloud_frontend', 'docker')
+DOCKER_DIR = os.path.join(PROJECT_DIR, 'docker')
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
 parser.add_argument('--system', default=None, choices=['local', 'aws', 'azure'], action='store')
-parser.add_argument('--run', default=None, choices=['build', 'run', 'manage'], action='store')
+parser.add_argument('--type', default=None, choices=['build', 'run', 'manage'], action='store')
 parser.add_argument('--language', default=None, choices=['python', 'nodejs'], action='store')
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
 client = docker.from_env()
 
-def prepare_build_ctx(path, dockerfile, run, language):
-    shutil.copyfile(os.path.join(DOCKER_DIR, dockerfile), os.path.join(path, dockerfile))
-    # copy pypapi
-    if run == 'run' and language == 'python':
-        papi_dest = os.path.join(path, 'pypapi')
-        if os.path.exists(papi_dest):
-            shutil.rmtree(papi_dest)
-        shutil.copytree(os.path.join(PROJECT_DIR, 'third-party', 'pypapi'), papi_dest)
+def build(image_type, system, username, language=None,version=None, version_name=None):
 
-def clean_build_ctx(path, dockerfile, run, language):
-    os.remove(os.path.join(path, dockerfile))
-    # copy pypapi
-    if run == 'run' and language == 'python':
-        shutil.rmtree(os.path.join(path, 'pypapi'))
-
-def build(run, system, username, language=None,version=None, version_name=None):
-
-    msg = 'Build *{}* Dockerfile for *{}* system'.format(run, system)
+    msg = 'Build *{}* Dockerfile for *{}* system'.format(image_type, system)
     if language:
         msg += ' with language *' + language + '*'
     if version:
         msg += ' with version *' + version + '*'
     print(msg)
-    path = os.path.join(PROJECT_DIR, 'cloud_frontend', system)
-    dockerfile = 'Dockerfile.{}.{}'.format(run, system)
-    target = 'sebs.{}.{}'.format(run, system)
+    dockerfile = os.path.join(PROJECT_DIR, 'docker', 'Dockerfile.{}.{}'.format(image_type, system))
+    target = 'sebs.{}.{}'.format(image_type, system)
     if language:
         dockerfile += '.' + language
         target += '.' + language
     if version:
         target += '.' + version
-    prepare_build_ctx(path, dockerfile, run, language)
 
     buildargs={
         'USER': username,
@@ -56,14 +39,13 @@ def build(run, system, username, language=None,version=None, version_name=None):
     }
     if version:
         buildargs['BASE_IMAGE'] = version_name
-    print('Build img {} in {} from file {} with args {}'.format(target, path, dockerfile, buildargs))
+    print('Build img {} in {} from file {} with args {}'.format(target, PROJECT_DIR, dockerfile, buildargs))
     client.images.build(
-        path=path,
+        path=PROJECT_DIR,
         dockerfile=dockerfile,
         buildargs=buildargs,
         tag=target
     )
-    clean_build_ctx(path, dockerfile, run, language)
 
 def build_language(system, language, language_config):
     username = language_config['username']
@@ -75,16 +57,16 @@ def build_language(system, language, language_config):
         configs.append([None, None])
 
     for image in configs:
-        if args.run is None:
-            for run in language_config['images']:
-                build(run, system, username, language, *image)
+        if args.type is None:
+            for image_type in language_config['images']:
+                build(image_type, system, username, language, *image)
         else:
-            build(args.run, system, username, language, *image)
+            build(args.type, system, username, language, *image)
 
 def build_systems(system, system_config):
 
-    if args.run == 'manage':
-        build(args.run, system, system_config['images']['manage']['username'])
+    if args.type == 'manage':
+        build(args.type, system, system_config['images']['manage']['username'])
     else:
         if args.language:
             build_language(system, args.language, system_config['languages'][args.language])
