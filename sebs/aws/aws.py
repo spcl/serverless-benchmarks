@@ -11,10 +11,11 @@ from typing import cast, Any, Dict, List, Optional, Tuple, Union
 import boto3
 import docker
 
+
+from sebs.benchmark import Benchmark
+from sebs.cache import Cache
 from sebs import utils
 from sebs.faas import PersistentStorage
-from sebs.cache import Cache
-from sebs.code_package import CodePackage
 from sebs.aws.s3 import S3
 
 
@@ -190,7 +191,7 @@ class AWS:
         :return: function name, code size
     """
 
-    def create_function(self, code_package: CodePackage, experiment_config: dict):
+    def create_function(self, code_package: Benchmark, experiment_config: dict):
 
         benchmark = code_package.benchmark
         if code_package.is_cached and code_package.is_cached_valid:
@@ -754,7 +755,7 @@ class AWS:
         api_name: str,
         memory: int,
         timeout: int,
-        code_package: CodePackage,
+        code_package: Benchmark,
         experiment_config: dict,
         api_id: str = None,
     ):

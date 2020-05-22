@@ -3,6 +3,12 @@ from abc import abstractmethod
 from typing import List, Tuple
 
 
+class Trigger(ABC):
+    @abstractmethod
+    def invoke(self):
+        pass
+
+
 class PersistentStorage(ABC):
 
     """
@@ -55,4 +61,9 @@ class System(ABC):
     def get_storage(
         self, benchmark: str, buckets: Tuple[int, int], replace_existing: bool
     ) -> PersistentStorage:
+        pass
+
+    @abstractmethod
+    @staticmethod
+    def name() -> str:
         pass

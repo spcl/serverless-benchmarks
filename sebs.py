@@ -143,16 +143,13 @@ try:
                 systems_config[deployment], cache_client, docker_client, args.update)
         func = deployment_client.create_function(package, experiment_config)
     elif args.action == 'test_invoke':
-        package = sebs.CodePackage(args.benchmark, experiment_config, output_dir,
-                systems_config[deployment], cache_client, docker_client, args.update)
-        # 5. Prepare benchmark input
-        input_config = sebs.utils.prepare_input(
-            client=deployment_client,
-            benchmark=args.benchmark,
-            size=args.size,
+        benchmark = sebs.Benchmark(args.benchmark, deployment_client, experiment_config,
+                output_dir, systems_config[deployment], cache_client, docker_client, args.update)
+        input_config = benchmark.prepare_input(
+            size=args.size, 
             update_storage=experiment_config['experiments']['update_storage']
         )
-        func = deployment_client.create_function(package, experiment_config)
+        func = deployment_client.create_function(benchmark, experiment_config)
 
         # TODO bucket save of results
         bucket = None

@@ -1,15 +1,19 @@
 import glob
 import hashlib
+import importlib
 import json
 import logging
 import os
 import shutil
 import subprocess
+import sys
+from typing import Callable, Dict, List, Tuple
 
 import docker
 
-from .cache import Cache
-from .utils import find_benchmark, project_absolute_path
+from sebs import faas
+from sebs.cache import Cache
+from sebs.utils import find_benchmark, project_absolute_path
 
 
 """
@@ -25,7 +29,7 @@ from .utils import find_benchmark, project_absolute_path
 """
 
 
-class CodePackage:
+class Benchmark:
     @property
     def benchmark(self):
         return self._benchmark
@@ -62,12 +66,13 @@ class CodePackage:
     def hash(self):
         if not self._hash_value:
             path = os.path.join(self.benchmark_path, self._language)
-            self._hash_value = CodePackage.hash_directory(path, self._language)
+            self._hash_value = Benchmark.hash_directory(path, self._language)
         return self._hash_value
 
     def __init__(
         self,
         benchmark: str,
+        deployment: faas.System,
         config: dict,
         output_dir: str,
         system_config: dict,
@@ -76,7 +81,7 @@ class CodePackage:
         forced_update: bool = False,
     ):
         self._benchmark = benchmark
-        self._deployment = config["experiments"]["deployment"]["name"]
+        self._deployment = deployment
         self._language = config["experiments"]["language"]
         self._runtime = config["experiments"]["runtime"]
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
@@ -127,7 +132,7 @@ class CodePackage:
 
     def query_cache(self):
         self._cached_config, self._code_location = self._cache_client.get_function(
-            deployment=self._deployment,
+            deployment=self._deployment.name,
             benchmark=self._benchmark,
             language=self._language,
         )
@@ -167,7 +172,7 @@ class CodePackage:
     def add_deployment_files(self, output_dir):
         if "deployment" in self._system_config:
             handlers_dir = project_absolute_path(
-                "benchmarks", "wrappers", self._deployment, self._language
+                "benchmarks", "wrappers", self._deployment.name, self._language
             )
             handlers = [
                 os.path.join(handlers_dir, file)
@@ -217,11 +222,11 @@ class CodePackage:
                 (
                     "Docker build image for {deployment} run in {language} "
                     "is not available, skipping"
-                ).format(deployment=self._deployment, language=self._language)
+                ).format(deployment=self._deployment.name, language=self._language)
             )
         else:
             container_name = "sebs.build.{deployment}.{language}.{runtime}".format(
-                deployment=self._deployment,
+                deployment=self._deployment.name,
                 language=self._language,
                 runtime=self._runtime,
             )
@@ -274,7 +279,7 @@ class CodePackage:
                     raise e
 
     def recalculate_code_size(self):
-        self._code_size = CodePackage.directory_size(self._output_dir)
+        self._code_size = Benchmark.directory_size(self._output_dir)
         return self._code_size
 
     def build(self, output_dir):
@@ -291,15 +296,69 @@ class CodePackage:
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
 
-        self._code_size = CodePackage.directory_size(self._output_dir)
+        self._code_size = Benchmark.directory_size(self._output_dir)
         logging.info(
             (
                 "Created code package for run on {deployment}"
                 + " with {language}:{runtime}"
             ).format(
-                deployment=self._deployment,
+                deployment=self._deployment.name,
                 language=self._language,
                 runtime=self._runtime,
             )
         )
         return os.path.abspath(self._output_dir)
+
+    """
+        Locates benchmark input generator, inspect how many storage buckets
+        are needed and launches corresponding storage instance, if necessary.
+
+        :param client: Deployment client
+        :param benchmark:
+        :param benchmark_path:
+        :param size: Benchmark workload size
+        :param update_storage: if true then files in input buckets are reuploaded
+    """
+
+    def prepare_input(self, size: str, update_storage: bool):
+        benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
+        mod = load_benchmark_input(self._benchmark_path)
+        buckets = mod.buckets_count()
+        storage = self._deployment.get_storage(self._benchmark, buckets, update_storage)
+        # Get JSON and upload data as required by benchmark
+        input_config = mod.generate_input(
+            benchmark_data_path,
+            size,
+            storage.input(),
+            storage.output(),
+            storage.uploader_func,
+        )
+        return input_config
+
+
+"""
+    The interface of `input` module of each benchmark.
+    Useful for static type hinting with mypy.
+"""
+
+
+class BenchmarkModuleInterface:
+    @staticmethod
+    def buckets_count() -> Tuple[int, int]:
+        pass
+
+    @staticmethod
+    def generate_input(
+        data_dir: str,
+        size: str,
+        input_buckets: List[str],
+        output_buckets: List[str],
+        upload_func: Callable[[int, str, str], None],
+    ) -> Dict[str, str]:
+        pass
+
+
+def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
+    # Look for input generator file in the directory containing benchmark
+    sys.path.append(benchmark_path)
+    return importlib.import_module("input")  # type: ignore
