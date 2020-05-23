@@ -23,9 +23,15 @@ class Credentials(ABC):
     def initialize(config: dict, cache: cache.Cache) -> "Credentials":
         pass
 
+    @abstractmethod
+    def serialize(self) -> dict:
+        pass
+
 
 class Resources(ABC):
-    pass
+    @abstractmethod
+    def serialize(self) -> dict:
+        pass
 
 
 class Config(ABC):
@@ -49,4 +55,8 @@ class Config(ABC):
     @staticmethod
     @abstractmethod
     def initialize(config: dict, cache: cache.Cache) -> "Config":
+        pass
+
+    @abstractmethod
+    def serialize(self) -> dict:
         pass

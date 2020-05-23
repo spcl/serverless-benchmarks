@@ -66,9 +66,15 @@ class AWSCredentials(Credentials):
             )
         return ret
 
+    def serialize(self) -> dict:
+        out = {"access_key": self.access_key, "secret_key": self.secret_key}
+        return out
+
 
 class AWSResources(Resources):
-    pass
+    def serialize(self) -> dict:
+        out: dict = {}
+        return out
 
 
 class AWSConfig(Config):
@@ -105,4 +111,17 @@ class AWSConfig(Config):
             logging.info("Using user-provided config for AWS")
             AWSConfig.deserialize(config_obj, config)
             cache.update_config(val=config_obj.region, keys=["aws", "region"])
+
+        # systems_config = json.load(
+        #    open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r")
+        # )
+
         return config_obj
+
+    def serialize(self) -> dict:
+        out = {
+            "region": self._region,
+            "credentials": self._credentials.serialize(),
+            "resources": self._resources.serialize(),
+        }
+        return out

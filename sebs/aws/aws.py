@@ -10,9 +10,9 @@ from typing import Dict, List, Optional, Union, cast
 
 import boto3
 
-from sebs import utils
 from sebs.aws.s3 import S3
 from sebs.aws.config import AWSConfig
+from sebs import utils
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from ..faas.function import Function
@@ -43,16 +43,12 @@ class AWS(System):
     """
         :param cache_client: Function cache instance
         :param config: Experiments config
-        :param language: Programming language to use for functions
         :param docker_client: Docker instance
     """
 
-    def __init__(
-        self, config: AWSConfig, cache_client: Cache, language: str,
-    ):
+    def __init__(self, config: AWSConfig, cache_client: Cache):
         super().__init__()
         self._config = config
-        self.language = language
         self.cache_client = cache_client
 
     def get_lambda_client(self):
@@ -106,13 +102,13 @@ class AWS(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, directory: str, benchmark: str):
+    def package_code(self, directory: str, benchmark: Benchmark):
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[self.language]
+        package_config = CONFIG_FILES[benchmark.language]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         # move all files to 'function' except handler.py
@@ -125,7 +121,9 @@ class AWS(System):
         os.chdir(directory)
         # create zip with hidden directory but without parent directory
         utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)
-        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+        benchmark_archive = "{}.zip".format(
+            os.path.join(directory, benchmark.benchmark)
+        )
         logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(benchmark_archive)
@@ -136,6 +134,7 @@ class AWS(System):
 
     def create_lambda_function(
         self,
+        benchmark: Benchmark,
         function_name: str,
         api_id: str,
         parent_id: str,
@@ -145,8 +144,8 @@ class AWS(System):
         timeout: int,
         experiment_config: dict,
     ):
-
-        language_runtime = self.config["config"]["runtime"][self.language]
+        language = benchmark.language
+        language_runtime = benchmark.language_version
         logging.info("Creating function {} from {}".format(function_name, package))
 
         # TODO: create Lambda role
@@ -169,7 +168,7 @@ class AWS(System):
             code_config = {"S3Bucket": bucket, "S3Key": code_package_name}
         self.client.create_function(
             FunctionName=function_name,
-            Runtime="{}{}".format(self.language, language_runtime),
+            Runtime="{}{}".format(language, language_runtime),
             Handler="handler.handler",
             Role=self.config["config"]["lambda-role"],
             MemorySize=memory,
@@ -246,9 +245,7 @@ class AWS(System):
 
             self.get_lambda_client()
             # Run AWS-specific part of building code.
-            package, code_size = self.package_code(
-                code_location, code_package.benchmark
-            )
+            package, code_size = self.package_code(code_location, code_package)
             package_body = open(package, "rb").read()
             self.update_function(
                 benchmark, func_name, package, code_size, timeout, memory
@@ -260,7 +257,7 @@ class AWS(System):
             cached_cfg["memory"] = memory
             cached_cfg["hash"] = code_package.hash
             self.cache_client.update_function(
-                "aws", benchmark, self.language, package, cached_cfg
+                "aws", benchmark, code_package.language, package, cached_cfg
             )
 
             logging.info(
@@ -274,13 +271,15 @@ class AWS(System):
         else:
 
             code_location = code_package.code_location
+            language = code_package.language
+            language_runtime = code_package.language_version
             timeout = code_package.benchmark_config["timeout"]
             memory = code_package.benchmark_config["memory"]
 
             self.get_lambda_client()
 
             # Create function name
-            func_name = "{}-{}-{}".format(benchmark, self.language, memory)
+            func_name = "{}-{}-{}".format(benchmark, language, memory)
             # AWS Lambda does not allow hyphens in function names
             func_name = func_name.replace("-", "_")
             func_name = func_name.replace(".", "_")
@@ -292,7 +291,6 @@ class AWS(System):
 
             # we can either check for exception or use list_functions
             # there's no API for test
-            language_runtime = self.config["config"]["runtime"][self.language]
             try:
                 self.client.get_function(FunctionName=func_name)
                 self.update_function(
@@ -325,7 +323,7 @@ class AWS(System):
                     code_config = {"S3Bucket": bucket, "S3Key": code_package_name}
                 self.client.create_function(
                     FunctionName=func_name,
-                    Runtime="{}{}".format(self.language, language_runtime),
+                    Runtime="{}{}".format(language, language_runtime),
                     Handler="handler.handler",
                     Role=self.config["config"]["lambda-role"],
                     MemorySize=memory,
@@ -337,7 +335,7 @@ class AWS(System):
             self.cache_client.add_function(
                 deployment="aws",
                 benchmark=benchmark,
-                language=self.language,
+                language=language,
                 code_package=package,
                 language_config={
                     "name": func_name,
@@ -645,6 +643,7 @@ class AWS(System):
 
     def create_function_copies(
         self,
+        benchmark: Benchmark,
         function_names: List[str],
         api_name: str,
         memory: int,
@@ -683,6 +682,7 @@ class AWS(System):
         # Run AWS-specific part of building code.
         urls = [
             self.create_lambda_function(
+                benchmark,
                 fname,
                 api_id,
                 parent_id,

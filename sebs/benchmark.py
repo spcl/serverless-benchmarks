@@ -14,6 +14,7 @@ import docker
 from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path
 from .faas.storage import PersistentStorage
+from .experiments.config import Config as ExperimentConfig
 
 
 """
@@ -62,6 +63,14 @@ class Benchmark:
     def code_size(self):
         return self._code_size
 
+    @property
+    def language(self):
+        return self._language
+
+    @property
+    def language_version(self):
+        return self._language_version
+
     @property  # noqa: A003
     def hash(self):
         if not self._hash_value:
@@ -73,17 +82,15 @@ class Benchmark:
         self,
         benchmark: str,
         deployment_name: str,
-        config: dict,
+        config: ExperimentConfig,
         output_dir: str,
-        system_config: dict,
         cache_client: Cache,
         docker_client: docker.client,
-        forced_update: bool = False,
     ):
         self._benchmark = benchmark
         self._deployment_name = deployment_name
-        self._language = config["experiments"]["language"]
-        self._runtime = config["experiments"]["runtime"]
+        self._language = config.runtime.language.value
+        self._language_version = config.runtime.version
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not self._benchmark_path:
             raise RuntimeError(
@@ -97,14 +104,13 @@ class Benchmark:
                     self.benchmark, self._language
                 )
             )
-        self._system_config = system_config["languages"][self._language]
         self._cache_client = cache_client
         self._docker_client = docker_client
         self._hash_value = None
 
         # verify existence of function in cache
         self.query_cache()
-        if forced_update:
+        if config.update_code:
             self._is_cached_valid = False
         if not self.is_cached or not self.is_cached_valid:
             self._code_location = self.build(output_dir)

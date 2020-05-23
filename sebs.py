@@ -32,8 +32,9 @@ parser.add_argument('--deployment', choices=['azure', 'aws', 'local'],
                     help='Cloud to use')
 parser.add_argument('--experiment', choices=['time_warm'],
                     help='Experiment to run')
-parser.add_argument('--language', choices=['python', 'nodejs', 'cpp'],
+parser.add_argument('--language', choices=['python', 'nodejs'],
                     default=None, help='Benchmark language')
+parser.add_argument('--language-version', type=str, default=None, help='Benchmark language version')
 parser.add_argument('--repetitions', action='store', default=5, type=int,
                     help='Number of experimental repetitions')
 # TODO: make JSON config
@@ -55,7 +56,7 @@ parser.add_argument('--cache', action='store', default='cache', type=str,
                     help='Cache directory')
 parser.add_argument('--function-name', action='store', default='', type=str,
                     help='Override function name for random generation.')
-parser.add_argument('--update', action='store_true', default=False,
+parser.add_argument('--update-code', action='store_true', default=False,
                     help='Update function code in cache and deployment.')
 parser.add_argument('--update-storage', action='store_true', default=False,
                     help='Update storage files in deployment.')
@@ -70,66 +71,44 @@ parser.add_argument('--experiment-input', action='store', type=str,
 args = parser.parse_args()
 
 # -1. Get provider config and create cloud object
-default_config = json.load(open(args.config, 'r'))
-systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
+config = json.load(open(args.config, 'r'))
+#systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
 output_dir = None
 
 cache_client = sebs.Cache(args.cache)
-docker_client = docker.from_env()
-deployment_client = None
 
-experiment_config = {
-    'experiments': {}
-}
-
+# 0. Input args
+args = parser.parse_args()
+verbose = args.verbose
 # CLI overrides JSON options
 # Language
 if args.language:
-    language = args.language
-else:
-    language = default_config['experiments']['language']
-experiment_config['experiments']['language'] = language
-
+    config['experiments']['runtime']['language'] = args.language
+if args.language_version:
+    config['experiments']['runtime']['version'] = args.language_version
+# deployment
 if args.deployment:
-    deployment = args.deployment
-else:
-    deployment = default_config['experiments']['deployment']
-experiment_config['experiments']['deployment'] = {
-    'name': deployment,
-    'config': default_config[deployment]
-}
-experiment_config['experiments']['update_code'] = args.update
-experiment_config['experiments']['update_storage'] = args.update_storage
-experiment_config['experiments']['benchmark'] = args.benchmark
+    config['deployment']['name'] = args.deployment
+if args.update_code:
+    config['experiments']['update_code'] = args.update_code
+if args.update_storage:
+    config['experiments']['update_storage'] = args.update_storage
+
+config['experiments']['benchmark'] = args.benchmark
 
 try:
     benchmark_summary = {}
-    if language not in default_config[deployment]['runtime']:
-        raise RuntimeError('Language {} is not supported on cloud {}'.format(language, args.deployment))
-    experiment_config['experiments']['runtime'] = default_config[deployment]['runtime'][language]
-    experiment_config['experiments']['region'] = default_config[deployment]['region']
-    # Load cached secrets
-    cached_config = cache_client.get_config(deployment)
-    if cached_config is not None:
-        experiment_config['experiments']['deployment'].update(cached_config)
-    # Create deployment client
-    if deployment == 'aws':
-        deployment_client = sebs.AWS(cache_client, experiment_config['experiments']['deployment'],
-                language, docker_client)
-    else:
-        # FIXME: refactor Azure
-        #from cloud_frontend.azure import azure
-        #deployment_client = azure.azure(cache_client, experiment_config['experiments']['deployment'],
-        #        language, docker_client)
-        pass
-
-    # 0. Input args
-    args = parser.parse_args()
-    verbose = args.verbose
-
+    #if language not in default_config[deployment]['runtime']:
+    #    raise RuntimeError('Language {} is not supported on cloud {}'.format(language, args.deployment))
+    #experiment_config['experiments']['runtime'] = default_config[deployment]['runtime'][language]
+    #experiment_config['experiments']['region'] = default_config[deployment]['region']
     # 1. Create output dir
     output_dir = sebs.utils.create_output(args.output_dir, args.preserve_out, args.verbose)
     logging.info('Created experiment output at {}'.format(args.output_dir))
+    experiment_config = sebs.get_experiment(config["experiments"])
+    deployment_client = sebs.get_deployment(cache_client,
+        config["deployment"],
+    )
 
     if args.action == 'publish':
         # 5. Prepare benchmark input
@@ -140,13 +119,13 @@ try:
             update_storage=experiment_config['experiments']['update_storage']
         )
         package = sebs.CodePackage(args.benchmark, experiment_config, output_dir,
-                systems_config[deployment], cache_client, docker_client, args.update)
+                systems_config[deployment], cache_client, deployment_client.docker_client, args.update)
         func = deployment_client.create_function(package, experiment_config)
     elif args.action == 'test_invoke':
         benchmark = sebs.Benchmark(args.benchmark, deployment_client.name(), experiment_config,
-                output_dir, systems_config[deployment], cache_client, docker_client, args.update)
+                output_dir, cache_client, deployment_client.docker_client)
         storage=deployment_client.get_storage(
-            replace_existing=experiment_config['experiments']['update_storage']
+            replace_existing=experiment_config.update_storage
         )
         input_config = benchmark.prepare_input(
             storage=storage,
@@ -174,7 +153,10 @@ try:
         }]
         if bucket:
             ret['results_bucket'] = bucket
-        benchmark_summary['config'] = experiment_config
+        benchmark_summary['config'] = {
+            "experiments": experiment_config.serialize(),
+            "deployment": deployment_client.config.serialize()
+        }
         with open('experiments.json', 'w') as out_f:
             json.dump(benchmark_summary, out_f, indent=2)
     elif args.action == 'experiment':
