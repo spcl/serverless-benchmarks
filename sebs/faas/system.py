@@ -1,12 +1,24 @@
 from abc import ABC
 from abc import abstractmethod
 
+import docker
+
 import sebs.benchmark
 from .function import Function
 from .storage import PersistentStorage
 
 
 class System(ABC):
+
+    _docker_client: docker.client
+
+    def __init__(self):
+        self._docker_client = docker.from_env()
+
+    @property
+    def docker_client(self):
+        return self._docker_client
+
     @abstractmethod
     def get_storage(self, replace_existing: bool) -> PersistentStorage:
         pass

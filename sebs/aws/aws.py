@@ -6,13 +6,13 @@ import os
 import shutil
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Dict, List, Optional, Union, cast
 
 import boto3
-import docker
 
 from sebs import utils
 from sebs.aws.s3 import S3
+from sebs.aws.config import AWSConfig
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from ..faas.function import Function
@@ -29,14 +29,16 @@ class AWS(System):
     logs_client = None
     storage: S3
     cached = False
-
-    access_key: str = ""
-    secret_key: str = ""
+    _config: AWSConfig
 
     # @classproperty
     @staticmethod
     def name():
         return "aws"
+
+    @property
+    def config(self):
+        return self._config
 
     """
         :param cache_client: Function cache instance
@@ -46,57 +48,20 @@ class AWS(System):
     """
 
     def __init__(
-        self,
-        cache_client: Cache,
-        config: Dict[str, Any],
-        language: str,
-        docker_client: docker.DockerClient,
+        self, config: AWSConfig, cache_client: Cache, language: str,
     ):
-        self.config = config
+        super().__init__()
+        self._config = config
         self.language = language
         self.cache_client = cache_client
-        self.docker_client = docker_client
-        self.configure_credentials()
-
-    """
-        Parse AWS credentials passed in config or environment variables.
-        Updates class properties.
-    """
-
-    def configure_credentials(self):
-        if self.access_key != "":
-            return
-        # Verify we can log in
-        # 1. Cached credentials
-        # TODO: flag to update cache
-        if "secrets" in self.config:
-            self.access_key = self.config["secrets"]["access_key"]
-            self.secret_key = self.config["secrets"]["secret_key"]
-        # 2. Environmental variables
-        elif "AWS_ACCESS_KEY_ID" in os.environ:
-            self.access_key = os.environ["AWS_ACCESS_KEY_ID"]
-            self.secret_key = os.environ["AWS_SECRET_ACCESS_KEY"]
-            # update
-            self.cache_client.update_config(
-                val=self.access_key, keys=["aws", "secrets", "access_key"]
-            )
-            self.cache_client.update_config(
-                val=self.secret_key, keys=["aws", "secrets", "secret_key"]
-            )
-        else:
-            raise RuntimeError(
-                "AWS login credentials are missing! Please set "
-                "up environmental variables AWS_ACCESS_KEY_ID and "
-                "AWS_SECRET_ACCESS_KEY"
-            )
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
             self.client = boto3.client(
                 service_name="lambda",
-                aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key,
-                region_name=self.config["config"]["region"],
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
+                region_name=self.config.region,
             )
         return self.client
 
@@ -112,13 +77,12 @@ class AWS(System):
     """
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        self.configure_credentials()
         if not hasattr(self, "storage"):
             self.storage = S3(
                 self.cache_client,
-                self.config["config"]["region"],
-                access_key=self.access_key,
-                secret_key=self.secret_key,
+                self.config.region,
+                access_key=self.config.credentials.access_key,
+                secret_key=self.config.credentials.secret_key,
                 replace_existing=replace_existing,
             )
         return self.storage
@@ -229,9 +193,9 @@ class AWS(System):
                 traceback.print_exc()
                 api_client = boto3.client(
                     service_name="apigateway",
-                    aws_access_key_id=self.access_key,
-                    aws_secret_access_key=self.secret_key,
-                    region_name=self.config["config"]["region"],
+                    aws_access_key_id=self.config.credentials.access_key,
+                    aws_secret_access_key=self.config.credential.secret_key,
+                    region_name=self.config.region,
                 )
                 resp = api_client.get_resources(restApiId=api_id)["items"]
                 for v in resp:
@@ -403,9 +367,9 @@ class AWS(System):
 
         api_client = boto3.client(
             service_name="apigateway",
-            aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key,
-            region_name=self.config["config"]["region"],
+            aws_access_key_id=self.config.credentials.access_key,
+            aws_secret_access_key=self.config.credentials.secret_key,
+            region_name=self.config.region,
         )
 
         # create REST API
@@ -457,9 +421,9 @@ class AWS(System):
         # get account information
         sts_client = boto3.client(
             service_name="sts",
-            aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key,
-            region_name=self.config["config"]["region"],
+            aws_access_key_id=self.config.credentials.access_key,
+            aws_secret_access_key=self.config.credential.secret_key,
+            region_name=self.config.region,
         )
         account_id = sts_client.get_caller_identity()["Account"]
 
@@ -601,13 +565,12 @@ class AWS(System):
         pass
 
     def get_invocation_error(self, function_name: str, start_time: int, end_time: int):
-        self.configure_credentials()
         if not self.logs_client:
             self.logs_client = boto3.client(
                 service_name="logs",
-                aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key,
-                region_name=self.config["config"]["region"],
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credential.secret_key,
+                region_name=self.config.region,
             )
 
         response = None
@@ -644,9 +607,9 @@ class AWS(System):
         if not self.logs_client:
             self.logs_client = boto3.client(
                 service_name="logs",
-                aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key,
-                region_name=self.config["config"]["region"],
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credential.secret_key,
+                region_name=self.config.region,
             )
 
         query = self.logs_client.start_query(
@@ -699,9 +662,9 @@ class AWS(System):
         self.get_lambda_client()
         api_client = boto3.client(
             service_name="apigateway",
-            aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key,
-            region_name=self.config["config"]["region"],
+            aws_access_key_id=self.config.credentials.access_key,
+            aws_secret_access_key=self.config.credential.secret_key,
+            region_name=self.config.region,
         )
         # api_name = '{api_name}_API'.format(api_name=api_name)
         if api_id is None:
