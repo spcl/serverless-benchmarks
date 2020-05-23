@@ -176,9 +176,10 @@ class S3(PersistentStorage):
     """
 
     def list_bucket(self, bucket_name: str):
-        objects = self.client.list_objects_v2(Bucket=bucket_name)
-        if "Contents" in objects:
-            objects = [obj["Key"] for obj in objects["Contents"]]
+        objects_list = self.client.list_objects_v2(Bucket=bucket_name)
+        objects: List[str]
+        if "Contents" in objects_list:
+            objects = [obj["Key"] for obj in objects_list["Contents"]]
         else:
             objects = []
         return objects
