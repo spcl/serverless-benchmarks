@@ -11,10 +11,40 @@ from typing import Callable, Dict, List, Tuple
 
 import docker
 
+from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path
 from .faas.storage import PersistentStorage
 from .experiments.config import Config as ExperimentConfig
+from .experiments.config import Language
+
+
+class BenchmarkConfig:
+    def __init__(self, timeout: int, memory: int, languages: List[Language]):
+        self._timeout = timeout
+        self._memory = memory
+        self._languages = languages
+
+    @property
+    def timeout(self) -> int:
+        return self._timeout
+
+    @property
+    def memory(self) -> int:
+        return self._memory
+
+    @property
+    def languages(self) -> List[Language]:
+        return self._languages
+
+    # FIXME: 3.7+ python with future annotations
+    @staticmethod
+    def deserialize(json_object: dict) -> "BenchmarkConfig":
+        return BenchmarkConfig(
+            json_object["timeout"],
+            json_object["memory"],
+            [Language.deserialize(x) for x in json_object["languages"]],
+        )
 
 
 """
@@ -40,7 +70,7 @@ class Benchmark:
         return self._benchmark_path
 
     @property
-    def benchmark_config(self):
+    def benchmark_config(self) -> BenchmarkConfig:
         return self._benchmark_config
 
     @property
@@ -64,8 +94,12 @@ class Benchmark:
         return self._code_size
 
     @property
-    def language(self):
+    def language(self) -> Language:
         return self._language
+
+    @property
+    def language_name(self) -> str:
+        return self._language.value
 
     @property
     def language_version(self):
@@ -74,8 +108,8 @@ class Benchmark:
     @property  # noqa: A003
     def hash(self):
         if not self._hash_value:
-            path = os.path.join(self.benchmark_path, self._language)
-            self._hash_value = Benchmark.hash_directory(path, self._language)
+            path = os.path.join(self.benchmark_path, self.language_name)
+            self._hash_value = Benchmark.hash_directory(path, self.language_name)
         return self._hash_value
 
     def __init__(
@@ -83,13 +117,15 @@ class Benchmark:
         benchmark: str,
         deployment_name: str,
         config: ExperimentConfig,
+        system_config: SeBSConfig,
         output_dir: str,
         cache_client: Cache,
         docker_client: docker.client,
     ):
         self._benchmark = benchmark
         self._deployment_name = deployment_name
-        self._language = config.runtime.language.value
+        self._experiment_config = config
+        self._language = config.runtime.language
         self._language_version = config.runtime.version
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not self._benchmark_path:
@@ -97,15 +133,16 @@ class Benchmark:
                 "Benchmark {benchmark} not found!".format(benchmark=self._benchmark)
             )
         with open(os.path.join(self.benchmark_path, "config.json")) as json_file:
-            self._benchmark_config = json.load(json_file)
-        if self._language not in self._benchmark_config["languages"]:
+            self._benchmark_config = BenchmarkConfig.deserialize(json.load(json_file))
+        if self.language not in self.benchmark_config.languages:
             raise RuntimeError(
                 "Benchmark {} not available for language {}".format(
-                    self.benchmark, self._language
+                    self.benchmark, self.language
                 )
             )
         self._cache_client = cache_client
         self._docker_client = docker_client
+        self._system_config = system_config
         self._hash_value = None
 
         # verify existence of function in cache
@@ -140,7 +177,7 @@ class Benchmark:
         self._cached_config, self._code_location = self._cache_client.get_function(
             deployment=self._deployment_name,
             benchmark=self._benchmark,
-            language=self._language,
+            language=self.language_name,
         )
         if self.cached_config is not None:
             # compare hashes
@@ -157,14 +194,17 @@ class Benchmark:
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
         }
-        path = os.path.join(self.benchmark_path, self._language)
-        for file_type in FILES[self._language]:
+        path = os.path.join(self.benchmark_path, self.language_name)
+        for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
 
     def add_benchmark_data(self, output_dir):
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"
-        paths = [self.benchmark_path, os.path.join(self.benchmark_path, self._language)]
+        paths = [
+            self.benchmark_path,
+            os.path.join(self.benchmark_path, self.language_name),
+        ]
         for path in paths:
             if os.path.exists(os.path.join(path, "init.sh")):
                 out = subprocess.run(
@@ -176,20 +216,23 @@ class Benchmark:
                 logging.debug(out.stdout.decode("utf-8"))
 
     def add_deployment_files(self, output_dir):
-        if "deployment" in self._system_config:
-            handlers_dir = project_absolute_path(
-                "benchmarks", "wrappers", self._deployment_name, self._language
+        handlers_dir = project_absolute_path(
+            "benchmarks", "wrappers", self._deployment_name, self.language_name
+        )
+        handlers = [
+            os.path.join(handlers_dir, file)
+            for file in self._system_config.deployment_files(
+                self._deployment_name, self.language_name
             )
-            handlers = [
-                os.path.join(handlers_dir, file)
-                for file in self._system_config["deployment"]["files"]
-            ]
-            for file in handlers:
-                shutil.copy2(file, "code")
+        ]
+        for file in handlers:
+            shutil.copy2(file, "code")
 
     def add_deployment_package_python(self, output_dir):
         # append to the end of requirements file
-        packages = self._system_config["deployment"]["packages"]
+        packages = self._system_config.deployment_packages(
+            self._deployment_name, self.language_name
+        )
         if len(packages):
             with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
                 for package in packages:
@@ -197,7 +240,9 @@ class Benchmark:
 
     def add_deployment_package_nodejs(self, output_dir):
         # modify package.json
-        packages = self._system_config["deployment"]["packages"]
+        packages = self._system_config.deployment_packages(
+            self._deployment_name, self.language_name
+        )
         if len(packages):
             package_config = os.path.join(output_dir, "package.json")
             package_json = json.load(open(package_config, "r"))
@@ -206,9 +251,9 @@ class Benchmark:
             json.dump(package_json, open(package_config, "w"), indent=2)
 
     def add_deployment_package(self, output_dir):
-        if self._language == "python":
+        if self.language == Language.PYTHON:
             self.add_deployment_package_python(output_dir)
-        elif self._language == "nodejs":
+        elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
         else:
             raise NotImplementedError
@@ -223,18 +268,20 @@ class Benchmark:
 
     def install_dependencies(self, output_dir):
         # do we have docker image for this run and language?
-        if "build" not in self._system_config["images"]:
+        if "build" not in self._system_config.docker_image_types(
+            self._deployment_name, self.language_name
+        ):
             logging.info(
                 (
                     "Docker build image for {deployment} run in {language} "
                     "is not available, skipping"
-                ).format(deployment=self._deployment_name, language=self._language)
+                ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
             container_name = "sebs.build.{deployment}.{language}.{runtime}".format(
                 deployment=self._deployment_name,
-                language=self._language,
-                runtime=self._runtime,
+                language=self.language_name,
+                runtime=self.language_version,
             )
             try:
                 self._docker_client.images.get(container_name)
@@ -246,7 +293,7 @@ class Benchmark:
             # does this benchmark has package.sh script?
             volumes = {}
             package_script = os.path.abspath(
-                os.path.join(self._benchmark_path, self._language, "package.sh")
+                os.path.join(self._benchmark_path, self.language_name, "package.sh")
             )
             if os.path.exists(package_script):
                 volumes[package_script] = {
@@ -256,7 +303,7 @@ class Benchmark:
 
             # run Docker container to install packages
             PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
-            file = os.path.join("code", PACKAGE_FILES[self._language])
+            file = os.path.join("code", PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
                     stdout = self._docker_client.containers.run(
@@ -309,8 +356,8 @@ class Benchmark:
                 + " with {language}:{runtime}"
             ).format(
                 deployment=self._deployment_name,
-                language=self._language,
-                runtime=self._runtime,
+                language=self.language_name,
+                runtime=self.language_version,
             )
         )
         return os.path.abspath(self._output_dir)

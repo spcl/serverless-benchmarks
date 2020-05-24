@@ -9,6 +9,7 @@ import uuid
 from typing import Dict, List, Optional, Union, cast
 
 import boto3
+import docker
 
 from sebs.aws.s3 import S3
 from sebs.aws.config import AWSConfig
@@ -46,10 +47,11 @@ class AWS(System):
         :param docker_client: Docker instance
     """
 
-    def __init__(self, config: AWSConfig, cache_client: Cache):
-        super().__init__()
+    def __init__(
+        self, config: AWSConfig, cache_client: Cache, docker_client: docker.client
+    ):
+        super().__init__(cache_client, docker_client)
         self._config = config
-        self.cache_client = cache_client
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
@@ -98,17 +100,17 @@ class AWS(System):
         - resources
         handler.py
 
-        dir: directory where code is located
         benchmark: benchmark name
     """
 
-    def package_code(self, directory: str, benchmark: Benchmark):
+    def package_code(self, benchmark: Benchmark):
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[benchmark.language]
+        directory = benchmark.code_location
+        package_config = CONFIG_FILES[benchmark.language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         # move all files to 'function' except handler.py
@@ -120,7 +122,7 @@ class AWS(System):
         cur_dir = os.getcwd()
         os.chdir(directory)
         # create zip with hidden directory but without parent directory
-        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)
+        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark.benchmark), shell=True)
         benchmark_archive = "{}.zip".format(
             os.path.join(directory, benchmark.benchmark)
         )
@@ -130,7 +132,7 @@ class AWS(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         logging.info("Zip archive size {:2f} MB".format(mbytes))
         os.chdir(cur_dir)
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(benchmark.benchmark)), bytes_size
 
     def create_lambda_function(
         self,
@@ -144,7 +146,7 @@ class AWS(System):
         timeout: int,
         experiment_config: dict,
     ):
-        language = benchmark.language
+        language = benchmark.language_name
         language_runtime = benchmark.language_version
         logging.info("Creating function {} from {}".format(function_name, package))
 
@@ -222,9 +224,7 @@ class AWS(System):
         )
         return url
 
-    def get_function(
-        self, code_package: Benchmark, experiment_config: dict
-    ) -> Function:
+    def get_function(self, code_package: Benchmark) -> Function:
 
         benchmark = code_package.benchmark
         if code_package.is_cached and code_package.is_cached_valid:
@@ -240,12 +240,12 @@ class AWS(System):
 
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
-            timeout = code_package.benchmark_config["timeout"]
-            memory = code_package.benchmark_config["memory"]
+            timeout = code_package.benchmark_config.timeout
+            memory = code_package.benchmark_config.memory
 
             self.get_lambda_client()
             # Run AWS-specific part of building code.
-            package, code_size = self.package_code(code_location, code_package)
+            package, code_size = self.package_code(code_package)
             package_body = open(package, "rb").read()
             self.update_function(
                 benchmark, func_name, package, code_size, timeout, memory
@@ -257,7 +257,7 @@ class AWS(System):
             cached_cfg["memory"] = memory
             cached_cfg["hash"] = code_package.hash
             self.cache_client.update_function(
-                "aws", benchmark, code_package.language, package, cached_cfg
+                "aws", benchmark, code_package.language_name, package, cached_cfg
             )
 
             logging.info(
@@ -273,8 +273,8 @@ class AWS(System):
             code_location = code_package.code_location
             language = code_package.language
             language_runtime = code_package.language_version
-            timeout = code_package.benchmark_config["timeout"]
-            memory = code_package.benchmark_config["memory"]
+            timeout = code_package.benchmark_config.timeout
+            memory = code_package.benchmark_config.memory
 
             self.get_lambda_client()
 
@@ -285,9 +285,7 @@ class AWS(System):
             func_name = func_name.replace(".", "_")
 
             # Run AWS-specific part of building code.
-            package, code_size = self.package_code(
-                code_location, code_package.benchmark
-            )
+            package, code_size = self.package_code(code_package)
 
             # we can either check for exception or use list_functions
             # there's no API for test
@@ -655,8 +653,8 @@ class AWS(System):
 
         code_location = code_package.code_location
         code_size = code_package.code_size
-        timeout = code_package.benchmark_config["timeout"]
-        memory = code_package.benchmark_config["memory"]
+        timeout = code_package.benchmark_config.timeout
+        memory = code_package.benchmark_config.memory
 
         self.get_lambda_client()
         api_client = boto3.client(

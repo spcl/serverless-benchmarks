@@ -5,6 +5,14 @@ class Language(Enum):
     PYTHON = "python"
     NODEJS = "nodejs"
 
+    # FIXME: 3.7+ python with future annotations
+    @staticmethod
+    def deserialize(val: str) -> "Language":
+        for member in Language:
+            if member.value == val:
+                return member
+        raise Exception("Unknown language type {}".format(member))
+
 
 class Runtime:
 

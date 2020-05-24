@@ -4,20 +4,23 @@ from abc import abstractmethod
 import docker
 
 import sebs.benchmark
+from sebs.cache import Cache
 from .function import Function
 from .storage import PersistentStorage
 
 
 class System(ABC):
-
-    _docker_client: docker.client
-
-    def __init__(self):
-        self._docker_client = docker.from_env()
+    def __init__(self, cache_client: Cache, docker_client: docker.client):
+        self._docker_client = docker_client
+        self._cache_client = cache_client
 
     @property
-    def docker_client(self):
+    def docker_client(self) -> docker.client:
         return self._docker_client
+
+    @property
+    def cache_client(self) -> Cache:
+        return self._cache_client
 
     @abstractmethod
     def get_storage(self, replace_existing: bool) -> PersistentStorage:
@@ -38,9 +41,7 @@ class System(ABC):
     """
 
     @abstractmethod
-    def get_function(
-        self, code_package: sebs.benchmark.Benchmark, experiment_config: dict
-    ) -> Function:
+    def get_function(self, code_package: sebs.benchmark.Benchmark) -> Function:
         pass
 
     @staticmethod
