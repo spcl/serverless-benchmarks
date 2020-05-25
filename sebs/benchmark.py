@@ -226,7 +226,7 @@ class Benchmark:
             )
         ]
         for file in handlers:
-            shutil.copy2(file, "code")
+            shutil.copy2(file, os.path.join(output_dir))
 
     def add_deployment_package_python(self, output_dir):
         # append to the end of requirements file

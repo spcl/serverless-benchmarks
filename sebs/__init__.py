@@ -1,6 +1,6 @@
 from .sebs import SeBS  # noqa
 
-from .aws.aws import AWS  # noqa
+from .aws import *  # noqa
 
 from .cache import Cache  # noqa
 from .benchmark import Benchmark  # noqa

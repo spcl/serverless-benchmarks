@@ -52,6 +52,8 @@ class AWS(System):
     ):
         super().__init__(cache_client, docker_client)
         self._config = config
+        self.get_lambda_client()
+        self.get_storage()
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
@@ -83,6 +85,8 @@ class AWS(System):
                 secret_key=self.config.credentials.secret_key,
                 replace_existing=replace_existing,
             )
+        else:
+            self.storage.replace_existing = replace_existing
         return self.storage
 
     """
@@ -195,7 +199,7 @@ class AWS(System):
                 api_client = boto3.client(
                     service_name="apigateway",
                     aws_access_key_id=self.config.credentials.access_key,
-                    aws_secret_access_key=self.config.credential.secret_key,
+                    aws_secret_access_key=self.config.credentials.secret_key,
                     region_name=self.config.region,
                 )
                 resp = api_client.get_resources(restApiId=api_id)["items"]
@@ -235,7 +239,7 @@ class AWS(System):
                     fname=func_name, loc=code_location
                 )
             )
-            return LambdaFunction(func_name, self)
+            return LambdaFunction(func_name, code_location, self)
         elif code_package.is_cached:
 
             func_name = code_package.cached_config["name"]
@@ -243,7 +247,6 @@ class AWS(System):
             timeout = code_package.benchmark_config.timeout
             memory = code_package.benchmark_config.memory
 
-            self.get_lambda_client()
             # Run AWS-specific part of building code.
             package, code_size = self.package_code(code_package)
             package_body = open(package, "rb").read()
@@ -266,17 +269,15 @@ class AWS(System):
                 )
             )
 
-            return LambdaFunction(func_name, self)
+            return LambdaFunction(func_name, package, self)
         # no cached instance, create package and upload code
         else:
 
             code_location = code_package.code_location
-            language = code_package.language
+            language = code_package.language_name
             language_runtime = code_package.language_version
             timeout = code_package.benchmark_config.timeout
             memory = code_package.benchmark_config.memory
-
-            self.get_lambda_client()
 
             # Create function name
             func_name = "{}-{}-{}".format(benchmark, language, memory)
@@ -323,7 +324,7 @@ class AWS(System):
                     FunctionName=func_name,
                     Runtime="{}{}".format(language, language_runtime),
                     Handler="handler.handler",
-                    Role=self.config["config"]["lambda-role"],
+                    Role=self.config.resources.lambda_role,
                     MemorySize=memory,
                     Timeout=timeout,
                     Code=code_config,
@@ -339,7 +340,7 @@ class AWS(System):
                     "name": func_name,
                     "code_size": code_size,
                     "runtime": language_runtime,
-                    "role": self.config["config"]["lambda-role"],
+                    "role": self.config.resources.lambda_role,
                     "memory": memory,
                     "timeout": timeout,
                     "hash": code_package.hash,
@@ -352,7 +353,7 @@ class AWS(System):
                     }
                 },
             )
-            return LambdaFunction(func_name, self)
+            return LambdaFunction(func_name, package, self)
 
     def create_http_trigger(
         self, func_name: str, api_id: Optional[str], parent_id: Optional[str]
@@ -418,7 +419,7 @@ class AWS(System):
         sts_client = boto3.client(
             service_name="sts",
             aws_access_key_id=self.config.credentials.access_key,
-            aws_secret_access_key=self.config.credential.secret_key,
+            aws_secret_access_key=self.config.credentials.secret_key,
             region_name=self.config.region,
         )
         account_id = sts_client.get_caller_identity()["Account"]
@@ -565,7 +566,7 @@ class AWS(System):
             self.logs_client = boto3.client(
                 service_name="logs",
                 aws_access_key_id=self.config.credentials.access_key,
-                aws_secret_access_key=self.config.credential.secret_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
                 region_name=self.config.region,
             )
 
@@ -604,7 +605,7 @@ class AWS(System):
             self.logs_client = boto3.client(
                 service_name="logs",
                 aws_access_key_id=self.config.credentials.access_key,
-                aws_secret_access_key=self.config.credential.secret_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
                 region_name=self.config.region,
             )
 
@@ -660,7 +661,7 @@ class AWS(System):
         api_client = boto3.client(
             service_name="apigateway",
             aws_access_key_id=self.config.credentials.access_key,
-            aws_secret_access_key=self.config.credential.secret_key,
+            aws_secret_access_key=self.config.credentials.secret_key,
             region_name=self.config.region,
         )
         # api_name = '{api_name}_API'.format(api_name=api_name)
@@ -711,8 +712,13 @@ class AWS(System):
 
 
 class LambdaFunction(Function):
-    def __init__(self, name: str, deployment: AWS):
+    @property
+    def code_package(self):
+        return self._code_package
+
+    def __init__(self, name: str, code_package: str, deployment: AWS):
         super().__init__(name)
+        self._code_package = code_package
         self._deployment = deployment
 
     def sync_invoke(self, payload: dict):

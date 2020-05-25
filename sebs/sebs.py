@@ -59,3 +59,12 @@ class SeBS:
             self.docker_client,
         )
         return benchmark
+
+    def shutdown(self):
+        self.cache_client.shutdown()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self):
+        self.shutdown()

@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 import traceback
+from typing import Optional
 
 import docker
 
@@ -75,7 +76,8 @@ config = json.load(open(args.config, 'r'))
 #systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
 output_dir = None
 
-cache_client = sebs.Cache(args.cache)
+sebs_client = sebs.SeBS(args.cache)
+deployment_client: Optional[sebs.faas.System]
 
 # 0. Input args
 args = parser.parse_args()
@@ -105,10 +107,8 @@ try:
     # 1. Create output dir
     output_dir = sebs.utils.create_output(args.output_dir, args.preserve_out, args.verbose)
     logging.info('Created experiment output at {}'.format(args.output_dir))
-    experiment_config = sebs.get_experiment(config["experiments"])
-    deployment_client = sebs.get_deployment(cache_client,
-        config["deployment"],
-    )
+    experiment_config = sebs_client.get_experiment(config["experiments"])
+    deployment_client = sebs_client.get_deployment(config["deployment"])
 
     if args.action == 'publish':
         # 5. Prepare benchmark input
@@ -119,19 +119,16 @@ try:
             update_storage=experiment_config['experiments']['update_storage']
         )
         package = sebs.CodePackage(args.benchmark, experiment_config, output_dir,
-                systems_config[deployment], cache_client, deployment_client.docker_client, args.update)
+                systems_config[deployment], sebs.cache_client, deployment_client.docker_client, args.update)
         func = deployment_client.create_function(package, experiment_config)
     elif args.action == 'test_invoke':
-        benchmark = sebs.Benchmark(args.benchmark, deployment_client.name(), experiment_config,
-                output_dir, cache_client, deployment_client.docker_client)
-        storage=deployment_client.get_storage(
-            replace_existing=experiment_config.update_storage
-        )
+        benchmark = sebs_client.get_benchmark(args.benchmark, output_dir, deployment_client, experiment_config)
+        storage = deployment_client.get_storage(experiment_config)
         input_config = benchmark.prepare_input(
             storage=storage,
             size=args.size 
         )
-        func = deployment_client.get_function(benchmark, experiment_config)
+        func = deployment_client.get_function(benchmark)
 
         # TODO bucket save of results
         bucket = None
@@ -263,4 +260,4 @@ finally:
     # Close
     if deployment_client is not None:
         deployment_client.shutdown()
-    cache_client.shutdown()
+    sebs_client.shutdown()

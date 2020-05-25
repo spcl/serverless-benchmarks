@@ -15,7 +15,15 @@ class S3(PersistentStorage):
     input_buckets_files: List[str] = []
     output_buckets: List[str] = []
     request_output_buckets = 0
-    replace_existing = False
+    _replace_existing = False
+
+    @property
+    def replace_existing(self):
+        return self._replace_existing
+
+    @replace_existing.setter
+    def replace_existing(self, val: bool):
+        self._replace_existing = val
 
     def __init__(
         self, cache_client: Cache, location, access_key, secret_key, replace_existing
@@ -27,7 +35,7 @@ class S3(PersistentStorage):
             aws_secret_access_key=secret_key,
         )
         self.cache_client = cache_client
-        self.replace_existing = replace_existing
+        self._replace_existing = replace_existing
 
     def input(self):  # noqa: A003
         return self.input_buckets

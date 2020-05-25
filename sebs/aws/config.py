@@ -72,9 +72,55 @@ class AWSCredentials(Credentials):
 
 
 class AWSResources(Resources):
+    def __init__(self, lambda_role: str):
+        self._lambda_role = lambda_role
+
+    @property
+    def lambda_role(self):
+        return self._lambda_role
+
+    @lambda_role.setter
+    def lambda_role(self, val):
+        self._lambda_role = val
+
+    # FIXME: python3.7+ future annotatons
+    @staticmethod
+    def deserialize(dct: dict) -> Resources:
+        return AWSResources(dct["lambda-role"] if "lambda-role" in dct else "")
+
     def serialize(self) -> dict:
-        out: dict = {}
+        out = {"lambda-role": self._lambda_role}
         return out
+
+    @staticmethod
+    def initialize(config: dict, cache: Cache) -> Resources:
+
+        cached_config = cache.get_config("aws")
+        ret: AWSResources
+        # Load cached values
+        if cached_config and "resources" in cached_config:
+            logging.info("Using cached resources for AWS")
+            ret = cast(
+                AWSResources, AWSResources.deserialize(cached_config["resources"])
+            )
+        else:
+            # Check for new config
+            if "resources" in config:
+                logging.info(
+                    "No cached resources for AWS found, using user configuration."
+                )
+                ret = cast(AWSResources, AWSResources.deserialize(config["resources"]))
+            else:
+                logging.info("No resources for AWS found, initialize!")
+                ret = AWSResources(lambda_role="")
+
+        if not ret.lambda_role:
+            # FIXME: hardcoded value for test purposes, add generation here
+            ret.lambda_role = "arn:aws:iam::261490803749:role/aws-role-test"
+        cache.update_config(
+            val=ret.lambda_role, keys=["aws", "resources", "lambda-role"]
+        )
+        return ret
 
 
 class AWSConfig(Config):
@@ -102,7 +148,8 @@ class AWSConfig(Config):
         cached_config = cache.get_config("aws")
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(AWSCredentials, AWSCredentials.initialize(config, cache))
-        config_obj = AWSConfig(credentials, AWSResources())
+        resources = cast(AWSResources, AWSResources.initialize(config, cache))
+        config_obj = AWSConfig(credentials, resources)
         # Load cached values
         if cached_config:
             logging.info("Using cached config for AWS")
@@ -111,10 +158,6 @@ class AWSConfig(Config):
             logging.info("Using user-provided config for AWS")
             AWSConfig.deserialize(config_obj, config)
             cache.update_config(val=config_obj.region, keys=["aws", "region"])
-
-        # systems_config = json.load(
-        #    open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r")
-        # )
 
         return config_obj
 
