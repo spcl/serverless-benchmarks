@@ -109,6 +109,8 @@ class AWS(System):
 
     def package_code(self, benchmark: Benchmark):
 
+        directory = benchmark.build()
+
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
@@ -262,6 +264,9 @@ class AWS(System):
             self.cache_client.update_function(
                 "aws", benchmark, code_package.language_name, package, cached_cfg
             )
+            # FIXME: fix after dissociating code package and benchmark
+            code_package.is_cached = True
+            code_package.is_cached_valid = True
 
             logging.info(
                 "Updating cached function {fname} in {loc}".format(
@@ -353,6 +358,9 @@ class AWS(System):
                     }
                 },
             )
+            # FIXME: fix after dissociating code package and benchmark
+            code_package.is_cached = True
+            code_package.is_cached_valid = True
             return LambdaFunction(func_name, package, self)
 
     def create_http_trigger(

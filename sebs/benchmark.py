@@ -85,9 +85,17 @@ class Benchmark:
     def is_cached(self):
         return self._is_cached
 
+    @is_cached.setter
+    def is_cached(self, val: bool):
+        self._is_cached = val
+
     @property
     def is_cached_valid(self):
         return self._is_cached_valid
+
+    @is_cached_valid.setter
+    def is_cached_valid(self, val: bool):
+        self._is_cached_valid = val
 
     @property
     def code_size(self):
@@ -144,13 +152,12 @@ class Benchmark:
         self._docker_client = docker_client
         self._system_config = system_config
         self._hash_value = None
+        self._output_dir = os.path.join(output_dir, "code")
 
         # verify existence of function in cache
         self.query_cache()
         if config.update_code:
             self._is_cached_valid = False
-        if not self.is_cached or not self.is_cached_valid:
-            self._code_location = self.build(output_dir)
 
     """
         Compute MD5 hash of an entire directory.
@@ -335,9 +342,8 @@ class Benchmark:
         self._code_size = Benchmark.directory_size(self._output_dir)
         return self._code_size
 
-    def build(self, output_dir):
+    def build(self):
 
-        self._output_dir = os.path.join(output_dir, "code")
         # create directory to be deployed
         if os.path.exists(self._output_dir):
             shutil.rmtree(self._output_dir)
@@ -349,6 +355,7 @@ class Benchmark:
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
 
+        self._code_location = os.path.abspath(self._output_dir)
         self._code_size = Benchmark.directory_size(self._output_dir)
         logging.info(
             (
