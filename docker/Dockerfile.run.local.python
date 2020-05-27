@@ -3,17 +3,23 @@ FROM ${BASE_IMAGE}
 ARG USER
 ENV HOME=/home/${USER}
 
-RUN useradd -m ${USER}
-RUN chown -R ${USER}:${USER} ${HOME}
 WORKDIR ${HOME}
 # must be run as root for some reason
 RUN deps=''\
-  && chown -R ${USER}:${USER} ${HOME}\
   && apt-get update\
-  # for route
-  && apt-get install -y curl net-tools ${deps}\
+  # for route and sudo
+  && apt-get install -y curl net-tools sudo ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
   && pip3 install cffi minio
+RUN useradd -m ${USER}\
+    # Let the user use sudo
+    && usermod -aG sudo ${USER}\
+    # Set correct permission on home directory
+    && chown -R ${USER}:${USER} ${HOME}\
+    # Enable non-password use of sudo
+    && echo "$USER ALL=(ALL:ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/dont-prompt-$USER-for-password
+RUN chown -R ${USER}:${USER} ${HOME}
+
 
 USER ${USER}:${USER}
 COPY --chown=${USER}:${USER} docker/local/run.sh .
