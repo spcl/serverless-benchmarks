@@ -9,8 +9,9 @@ import shutil
 from scripts.experiments_utils import *
 import datetime
 
-class storage:
 
+class storage:
+    cached = False
     client = None
     input_buckets = []
     output_buckets = []
@@ -50,7 +51,7 @@ class storage:
     def add_input_bucket(self, name):
         idx = self.request_input_buckets
 
-        #TODO Do we want to increment that when the cache is used?
+        # TODO Do we want to increment that when the cache is used?
         self.request_input_buckets += 1
         name = '{}-{}-input'.format(name, idx)
         for bucket in self.input_buckets:
@@ -59,16 +60,14 @@ class storage:
         bucket_name = self.create_bucket(name)
         self.input_buckets.append(bucket_name)
 
-        #TODO idx is never used
+        # TODO idx is never used
         return bucket_name, idx
 
-
-    #TODO Should we return with idx or not (in AWS there are two possible returns)
+    # TODO Should we return with idx or not (in AWS there are two possible returns)
     def add_output_bucket(self, name, suffix="output"):
         name = '{}-{}'.format(name, suffix)
         bucket_name = self.create_bucket(name)
         return bucket_name
-
 
     def create_buckets(self, benchmark, buckets, cached_buckets):
         self.request_input_buckets = buckets[0]
@@ -76,7 +75,7 @@ class storage:
         if cached_buckets:
             self.input_buckets = cached_buckets['buckets']['input']
             for bucket_name in self.input_buckets:
-                self.input_buckets_files.append(self.client.bucket(bucket_name).list_blobs())
+                self.input_buckets_files.append(list(self.client.bucket(bucket_name).list_blobs()))
 
             self.output_buckets = cached_buckets['buckets']['output']
             for bucket_name in self.output_buckets:
@@ -88,12 +87,12 @@ class storage:
             logging.info('Using cached storage output containers {}'.format(self.output_buckets))
 
         else:
-            gcp_buckets = self.client.list_buckets()
+            gcp_buckets = list(self.client.list_buckets())
             for i in range(buckets[0]):
                 self.input_buckets.append(self.create_bucket('{}-{}-input'.format(benchmark, i), gcp_buckets))
 
                 # TODO why in AWS and Azure only one (the last) bucket is used?
-                self.input_bucket_files.append(self.client.bucket(self.input_buckets[i]).list_blobs())
+                self.input_buckets_files.append(list(self.client.bucket(self.input_buckets[i]).list_blobs()))
 
             for i in range(buckets[1]):
                 self.output_buckets.append(self.create_bucket('{}-{}-output'.format(benchmark, i), gcp_buckets))
@@ -117,7 +116,6 @@ class storage:
         blob = bucket_instance.blob(file)
         blob.upload_from_filename(filepath)
 
-
     def download(self, bucket_name, file, filepath):
         logging.info('Download {}:{} to {}'.format(bucket_name, file, filepath))
         bucket_instance = self.client.bucket(bucket_name)
@@ -127,6 +125,7 @@ class storage:
     def list_buckets(self, bucket_name):
         blobs = self.client.bucket(bucket_name).list_blobs()
         return [blob.name for blob in blobs]
+
 
 class gcp:
 
@@ -169,6 +168,7 @@ class gcp:
       - storage.py/js
       - resources
     """
+
     def package_code(self, dir, benchmark):
 
         CONFIG_FILES = {
@@ -200,7 +200,6 @@ class gcp:
         shutil.move(new_name, old_name)
         os.chdir(cur_dir)
         return os.path.join(dir, "{}.zip".format(benchmark))
-
 
     def create_function(self, code_package, experiment_config):
 
@@ -267,11 +266,13 @@ class gcp:
             # )
 
             print("Experiment config: ", experiment_config)
-            req = self.function_client.projects().locations().functions().list(parent="projects/{project_name}/locations/{location}"
-                                                                   .format(project_name=project_name, location=location))
+            req = self.function_client.projects().locations().functions().list(
+                parent="projects/{project_name}/locations/{location}"
+                .format(project_name=project_name, location=location))
             res = req.execute()
 
-            full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(project_name=project_name, location=location, func_name=func_name)
+            full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(
+                project_name=project_name, location=location, func_name=func_name)
             if "functions" in res.keys() and full_func_name in [f["name"] for f in res["functions"]]:
                 language_runtime = str(self.config['config']['runtime'][self.language])
                 req = self.function_client.projects().locations().functions().patch(
@@ -293,7 +294,8 @@ class gcp:
                 language_runtime = str(self.config['config']['runtime'][self.language])
                 print("language runtime: ", self.language + language_runtime.replace(".", ""))
                 req = self.function_client.projects().locations().functions().create(
-                    location="projects/{project_name}/locations/{location}".format(project_name=project_name, location=location),
+                    location="projects/{project_name}/locations/{location}".format(project_name=project_name,
+                                                                                   location=location),
                     body={
                         "name": full_func_name,
                         "entryPoint": "handler",
@@ -389,5 +391,3 @@ class gcp:
     def create_function_copies(self, function_names: List[str], api_name: str, memory: int, timeout: int,
                                code_package: CodePackage, experiment_config: dict, api_id: str = None):
         pass
-
-
