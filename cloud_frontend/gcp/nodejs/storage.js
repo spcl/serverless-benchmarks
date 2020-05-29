@@ -7,7 +7,7 @@ const { Storage } = require('@google-cloud/storage'),
 class gcp_storage {
 
   constructor() {
-    this.storage = storage();
+    this.storage = new Storage();
   }
 
   unique_name(file) {
@@ -17,10 +17,10 @@ class gcp_storage {
   }
 
   upload(container, file, filepath) {
-    bucket = this.storage.bucket(container);
+    let bucket = this.storage.bucket(container);
     let uniqueName = this.unique_name(file);
     let options = {destination: uniqueName};
-    return [unique_name, bucket.upload(uniqueName, options)];
+    return [uniqueName, bucket.upload(filepath, options)];
   };
 
   download(bucket, file, filepath) {
@@ -36,7 +36,7 @@ class gcp_storage {
     let upload = file.createWriteStream();
     var write_stream = new stream.PassThrough();
     write_stream.pipe(upload);
-    return [write_stream, Promise.resolve(upload), unique_name];
+    return [write_stream, Promise.resolve(upload), uniqueName];
   };
 
   downloadStream(container, file) {

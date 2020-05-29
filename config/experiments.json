@@ -36,7 +36,7 @@
     "project_name": "sincere-baton-277510",
     "runtime": {
       "python": 3.6,
-      "nodejs": "12.x"
+      "nodejs": 10
     }
   },
   "local": {

@@ -113,7 +113,7 @@ class storage:
     def upload(self, bucket_name, file, filepath):
         logging.info('Upload {} to {}'.format(filepath, bucket_name))
         bucket_instance = self.client.bucket(bucket_name)
-        blob = bucket_instance.blob(file)
+        blob = bucket_instance.blob(file, chunk_size=256 * 1024)
         blob.upload_from_filename(filepath)
 
     def download(self, bucket_name, file, filepath):
@@ -220,13 +220,16 @@ class gcp:
 
         elif code_package.is_cached:
             func_name = code_package.cached_config["name"]
+            full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(
+                project_name=project_name, location=location, func_name=func_name)
             code_location = code_package.code_location
             timeout = code_package.benchmark_config["timeout"]
             memory = code_package.benchmark_config["memory"]
 
             package = self.package_code(code_location, code_package.benchmark)
+            code_package_name = os.path.basename(package)
+            self.update_function(benchmark, full_func_name, code_package_name, code_package, timeout, memory)
             code_size = CodePackage.directory_size(code_location)
-            self.update_function(benchmark, func_name, package, timeout, memory)
 
             cached_cfg = code_package.cached_config
             cached_cfg["code_size"] = code_size
@@ -242,7 +245,6 @@ class gcp:
 
             return func_name
         else:
-
             code_location = code_package.code_location
             timeout = code_package.benchmark_config["timeout"]
             memory = code_package.benchmark_config["memory"]
@@ -274,23 +276,8 @@ class gcp:
             full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(
                 project_name=project_name, location=location, func_name=func_name)
             if "functions" in res.keys() and full_func_name in [f["name"] for f in res["functions"]]:
-                language_runtime = str(self.config['config']['runtime'][self.language])
-                req = self.function_client.projects().locations().functions().patch(
-                    name=full_func_name,
-                    body={
-                        "name": full_func_name,
-                        "entryPoint": "handler",
-                        "runtime": self.language + language_runtime.replace(".", ""),
-                        "availableMemoryMb": memory,
-                        "timeout": str(timeout) + "s",
-                        "httpsTrigger": {},
-                        "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-                    })
-                res = req.execute()
-                print("response:", res)
-                logging.info('Updating AWS code of function {} from {}'.format(func_name, code_package))
+                self.update_function(benchmark, full_func_name, code_package_name, code_package, timeout, memory)
             else:
-
                 language_runtime = str(self.config['config']['runtime'][self.language])
                 print("language runtime: ", self.language + language_runtime.replace(".", ""))
                 req = self.function_client.projects().locations().functions().create(
@@ -337,6 +324,24 @@ class gcp:
                 }
             )
             return func_name
+
+    def update_function(self, benchmark, full_func_name, code_package_name, code_package, timeout, memory):
+        language_runtime = str(self.config['config']['runtime'][self.language])
+        bucket, idx = self.storage.add_input_bucket(benchmark)
+        req = self.function_client.projects().locations().functions().patch(
+            name=full_func_name,
+            body={
+                "name": full_func_name,
+                "entryPoint": "handler",
+                "runtime": self.language + language_runtime.replace(".", ""),
+                "availableMemoryMb": memory,
+                "timeout": str(timeout) + "s",
+                "httpsTrigger": {},
+                "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+            })
+        res = req.execute()
+        print("response:", res)
+        logging.info('Updating GCP code of function {} from {}'.format(full_func_name, code_package))
 
     def prepare_experiment(self, benchmark):
         logs_bucket = self.storage.add_output_bucket(benchmark, suffix='logs')

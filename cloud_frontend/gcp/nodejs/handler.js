@@ -5,7 +5,7 @@ exports.handler = async function(req, res) {
   var begin = Date.now()/1000;
   var start = process.hrtime();
   var func = require('./function/function')
-  var ret = func.handler(req);
+  var ret = func.handler(req.body);
   return ret.then(
     (result) => {
       var elapsed = process.hrtime(start);

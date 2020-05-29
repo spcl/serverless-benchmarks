@@ -111,9 +111,9 @@
       },
       "nodejs": {
         "base_images": {
-          "12.0.0" : "gcr.io/google-appengine/nodejs",
-          "13.0.0" : "gcr.io/google-appengine/nodejs",
-          "14.0.0" : "gcr.io/google-appengine/nodejs"
+          "6" : "gcr.io/google-appengine/nodejs",
+          "8" : "gcr.io/google-appengine/nodejs",
+          "10" : "gcr.io/google-appengine/nodejs"
         },
         "images": ["build"],
         "username": "docker_user",
