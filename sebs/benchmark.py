@@ -195,6 +195,7 @@ class Benchmark:
             self._is_cached_valid = current_hash == old_hash
         else:
             self._is_cached = False
+            self._is_cached_valid = False
 
     def copy_code(self, output_dir):
         FILES = {

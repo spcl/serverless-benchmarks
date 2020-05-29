@@ -6,7 +6,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import Dict, List, Optional, Union, cast
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 import boto3
 import docker
@@ -16,6 +16,7 @@ from sebs.aws.config import AWSConfig
 from sebs import utils
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
+from sebs.config import SeBSConfig
 from ..faas.function import Function
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
@@ -48,10 +49,16 @@ class AWS(System):
     """
 
     def __init__(
-        self, config: AWSConfig, cache_client: Cache, docker_client: docker.client
+        self,
+        sebs_config: SeBSConfig,
+        config: AWSConfig,
+        cache_client: Cache,
+        docker_client: docker.client,
     ):
-        super().__init__(cache_client, docker_client)
+        super().__init__(sebs_config, cache_client, docker_client)
         self._config = config
+
+    def initialize(self, config: Dict[str, str] = {}):
         self.get_lambda_client()
         self.get_storage()
 
@@ -107,7 +114,7 @@ class AWS(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, benchmark: Benchmark):
+    def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
 
         directory = benchmark.build()
 
@@ -231,6 +238,19 @@ class AWS(System):
         return url
 
     def get_function(self, code_package: Benchmark) -> Function:
+
+        if (
+            code_package.language_version
+            not in self.system_config.supported_language_versions(
+                "aws", code_package.language_name
+            )
+        ):
+            raise Exception(
+                "Unsupported {language} version {version} in AWS!".format(
+                    language=code_package.language_name,
+                    version=code_package.language_version,
+                )
+            )
 
         benchmark = code_package.benchmark
         if code_package.is_cached and code_package.is_cached_valid:

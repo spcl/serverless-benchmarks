@@ -27,6 +27,10 @@ class Runtime:
     def version(self) -> str:
         return self._version
 
+    @version.setter
+    def version(self, val: str):
+        self._version = val
+
     def serialize(self) -> dict:
         return {"language": self._language.value, "version": self._version}
 
@@ -50,6 +54,10 @@ class Config:
     @property
     def update_code(self) -> bool:
         return self._update_code
+
+    @update_code.setter
+    def update_code(self, val: bool):
+        self._update_code = val
 
     @property
     def update_storage(self) -> bool:

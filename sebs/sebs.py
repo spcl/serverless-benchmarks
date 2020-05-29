@@ -33,7 +33,10 @@ class SeBS:
         # FIXME: future annotations, requires Python 3.7+
         deployment_config = configs[name](config, self.cache_client)
         deployment_client = implementations[name](
-            deployment_config, self.cache_client, self.docker_client  # type: ignore
+            self._config,
+            deployment_config,  # type: ignore
+            self.cache_client,
+            self.docker_client,
         )
         return deployment_client
 

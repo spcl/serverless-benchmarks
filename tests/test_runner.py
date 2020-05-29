@@ -14,8 +14,6 @@ args = parser.parse_args()
 if not args.deployment:
     args.deployment = []
 
-from components import cache
-cache.run()
 
 if "aws" in args.deployment:
     from aws import runner

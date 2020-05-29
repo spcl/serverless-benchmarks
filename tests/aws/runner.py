@@ -25,41 +25,73 @@ class AWSUnitTest(unittest.TestCase):
                 self.assertIn(package_file, package_files)
 
     def create_function(
-        self, language: str, benchmark: str, files: List[str], config: dict
+        self, language: str, benchmark_name: str, files: List[str], config: dict
     ):
         deployment_client = self.client.get_deployment(config["deployment"])
+        deployment_client.initialize()
         self.assertIsInstance(deployment_client, sebs.AWS)
         experiment_config = self.client.get_experiment(config["experiments"])
 
         benchmark = self.client.get_benchmark(
-            benchmark, self.tmp_dir.name, deployment_client, experiment_config
+            benchmark_name, self.tmp_dir.name, deployment_client, experiment_config
         )
         self.assertFalse(benchmark.is_cached)
         self.assertFalse(benchmark.is_cached_valid)
 
         # generate default variant
         func = deployment_client.get_function(benchmark)
+        timestamp = os.path.getmtime(benchmark.code_location)
         self.assertIsInstance(func, sebs.aws.LambdaFunction)
         self.check_function(language, func, files)
         self.assertTrue(benchmark.is_cached)
         self.assertTrue(benchmark.is_cached_valid)
 
         # use cached version
+        benchmark = self.client.get_benchmark(
+            benchmark_name, self.tmp_dir.name, deployment_client, experiment_config
+        )
+        self.assertTrue(benchmark.is_cached)
+        self.assertTrue(benchmark.is_cached_valid)
         func = deployment_client.get_function(benchmark)
+        current_timestamp = os.path.getmtime(benchmark.code_location)
         self.assertIsInstance(func, sebs.aws.LambdaFunction)
         self.check_function(language, func, files)
+        # package code has not been rebuilt
+        self.assertEqual(timestamp, current_timestamp)
 
-        # TODO: force rebuild of cached version
-        # TODO: wrong language version
+        # force rebuild of cached version
+        experiment_config.update_code = True
+        benchmark = self.client.get_benchmark(
+            benchmark_name, self.tmp_dir.name, deployment_client, experiment_config
+        )
+        self.assertTrue(benchmark.is_cached)
+        self.assertFalse(benchmark.is_cached_valid)
+        func = deployment_client.get_function(benchmark)
+        current_timestamp = os.path.getmtime(benchmark.code_location)
+        self.assertIsInstance(func, sebs.aws.LambdaFunction)
+        self.check_function(language, func, files)
+        # package should have been rebuilt
+        self.assertLess(timestamp, current_timestamp)
+
+        # wrong language version - expect failure
+        experiment_config.runtime.version = "1.0"
+        with self.assertRaises(Exception) as failure:
+            benchmark = self.client.get_benchmark(
+                benchmark_name, self.tmp_dir.name, deployment_client, experiment_config
+            )
+            func = deployment_client.get_function(benchmark)
+        self.assertTrue(
+            "Unsupported {} version 1.0".format(language) in str(failure.exception)
+        )
 
     def test_create_function_python(self):
         config = {
             "deployment": {"name": "aws", "region": "us-east-1"},
             "experiments": {
                 "runtime": {"language": "python", "version": "3.6"},
-                "update_code": "false",
-                "update_storage": "false",
-                "download_results": "false",
+                "update_code": False,
+                "update_storage": False,
+                "download_results": False,
             },
         }
         benchmark = "110.dynamic-html"
@@ -75,9 +107,9 @@ class AWSUnitTest(unittest.TestCase):
             "deployment": {"name": "aws", "region": "us-east-1"},
             "experiments": {
                 "runtime": {"language": "nodejs", "version": "10.x"},
-                "update_code": "false",
-                "update_storage": "false",
-                "download_results": "false",
+                "update_code": False,
+                "update_storage": False,
+                "download_results": False,
             },
         }
         benchmark = "110.dynamic-html"

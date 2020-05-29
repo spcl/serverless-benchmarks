@@ -26,3 +26,10 @@ class SeBSConfig:
         return self._system_config[deployment_name]["languages"][language_name][
             "images"
         ]
+
+    def supported_language_versions(
+        self, deployment_name: str, language_name: str
+    ) -> List[str]:
+        return self._system_config[deployment_name]["languages"][language_name][
+            "base_images"
+        ].keys()
