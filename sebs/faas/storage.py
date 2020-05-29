@@ -3,6 +3,11 @@ from abc import abstractmethod
 from typing import List, Tuple
 
 
+"""
+    Abstract class
+"""
+
+
 class PersistentStorage(ABC):
 
     """

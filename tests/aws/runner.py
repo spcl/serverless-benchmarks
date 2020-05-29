@@ -9,6 +9,7 @@ import sebs
 from .create_function import AWSCreateFunction
 from .invoke_function_sdk import AWSInvokeFunctionSDK
 
+
 def run():
     runner = unittest.TextTestRunner()
     runner.run(unittest.defaultTestLoader.loadTestsFromTestCase(AWSCreateFunction))

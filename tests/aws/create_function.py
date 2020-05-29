@@ -6,8 +6,8 @@ from typing import List
 
 import sebs
 
-class AWSCreateFunction(unittest.TestCase):
 
+class AWSCreateFunction(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.client = sebs.SeBS(self.tmp_dir.name)
@@ -121,5 +121,5 @@ class AWSCreateFunction(unittest.TestCase):
         )
 
     def tearDown(self):
-        #FIXME: remove created functions
+        # FIXME: remove created functions
         pass

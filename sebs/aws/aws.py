@@ -242,7 +242,7 @@ class AWS(System):
         if (
             code_package.language_version
             not in self.system_config.supported_language_versions(
-                "aws", code_package.language_name
+                self.name(), code_package.language_name
             )
         ):
             raise Exception(
@@ -282,7 +282,7 @@ class AWS(System):
             cached_cfg["memory"] = memory
             cached_cfg["hash"] = code_package.hash
             self.cache_client.update_function(
-                "aws", benchmark, code_package.language_name, package, cached_cfg
+                self.name(), benchmark, code_package.language_name, package, cached_cfg
             )
             # FIXME: fix after dissociating code package and benchmark
             code_package.query_cache()
@@ -356,7 +356,7 @@ class AWS(System):
                 url = self.create_http_trigger(func_name, None, None)
 
             self.cache_client.add_function(
-                deployment="aws",
+                deployment=self.name(),
                 benchmark=benchmark,
                 language=language,
                 code_package=package,
@@ -664,7 +664,7 @@ class AWS(System):
                             )
                         )
                     del actual_result["REPORT RequestId"]
-                    requests[request_id]["aws"] = actual_result
+                    requests[request_id][self.name()] = actual_result
 
     def create_function_copies(
         self,

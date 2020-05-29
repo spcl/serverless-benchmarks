@@ -10,6 +10,14 @@ from sebs.config import SeBSConfig
 from .function import Function
 from .storage import PersistentStorage
 
+"""
+    This class provides basic abstractions for the FaaS system.
+    It provides the interface for initialization of the system and storage
+    services, creation and update of serverless functions and querying
+    logging and measurements services to obtain error messages and performance
+    measurements.
+"""
+
 
 class System(ABC):
     def __init__(
@@ -58,15 +66,16 @@ class System(ABC):
         pass
 
     """
-        Apply the system-specific code packaging routing to build benchmark.
+        Apply the system-specific code packaging routine to build benchmark.
         The benchmark creates a code directory with the following structure:
         - [benchmark sources]
         - [benchmark resources]
         - [dependence specification], e.g. requirements.txt or package.json
         - [handlers implementation for the language and deployment]
 
-        This step allows to restructurize to fit different deployment requirements,
-        e.g. a zip file for AWS or a specific directory structure for Azure.
+        This step allows us to change the structure above to fit different
+        deployment requirements, Example: a zip file for AWS or a specific
+        directory structure for Azure.
 
         :return: path to packaged code and its size
     """
@@ -92,6 +101,9 @@ class System(ABC):
     def get_function(self, code_package: sebs.benchmark.Benchmark) -> Function:
         pass
 
+    # FIXME: trigger allocation API
+    # FIXME: result query API
+    # FIXME: metrics query API
     # def update_function(self, code_package):
     #    pass
 

@@ -1,4 +1,3 @@
-
 import os
 import tempfile
 import unittest
@@ -7,15 +6,14 @@ from typing import Dict, List
 
 import sebs
 
-class AWSInvokeFunctionSDK(unittest.TestCase):
 
+class AWSInvokeFunctionSDK(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.client = sebs.SeBS(self.tmp_dir.name)
 
     def invoke_sync(self, func: sebs.aws.LambdaFunction, func_input: dict):
         print(func.sync_invoke(func_input))
-
 
     def test_invoke_sync_python(self):
         config = {
@@ -35,10 +33,8 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
             benchmark_name, self.tmp_dir.name, deployment_client, experiment_config
         )
         bench_input = benchmark.prepare_input(
-                storage=deployment_client.get_storage(),
-                size="test"
+            storage=deployment_client.get_storage(), size="test"
         )
         func = deployment_client.get_function(benchmark)
 
         self.invoke_sync(func, bench_input)
-
