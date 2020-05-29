@@ -145,8 +145,8 @@ class gcp:
 
     def configure_credentials(self):
         if self.gcp_credentials is None:
-            if 'secrets' in self.config:
-                self.gcp_credentials = self.config['secrets']['gcp_credentials']
+            if 'secrets' in self.config['config']:
+                self.gcp_credentials = self.config['config']['secrets']['gcp_credentials']
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.gcp_credentials
             elif "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
                 self.gcp_credentials = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
