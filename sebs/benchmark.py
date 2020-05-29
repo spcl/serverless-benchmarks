@@ -311,14 +311,14 @@ class Benchmark:
 
             # run Docker container to install packages
             PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
-            file = os.path.join("code", PACKAGE_FILES[self.language_name])
+            file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
                     stdout = self._docker_client.containers.run(
                         container_name,
                         volumes={
                             **volumes,
-                            os.path.abspath("code"): {
+                            os.path.abspath(output_dir): {
                                 "bind": "/mnt/function",
                                 "mode": "rw",
                             },
