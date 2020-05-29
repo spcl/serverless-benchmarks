@@ -112,7 +112,7 @@ time in AWS Lambda. To work with AWS, you need to provide access and secret keys
 with permissions sufficient to manage functions and S3 resources. Additionally,
 the account must have `AmazonAPIGatewayAdministrator` permission to set-up automatically
 AWS HTTP trigger. Additionally, you
-neet to provide Lambda [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
+need to provide Lambda [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
 with permissions to Lambda and S3. 
 
 Pass them as environmental variables for the first run. They will be cached for future use.
@@ -140,3 +140,15 @@ AZURE_SECRET_PASSWORD
 ```
 
 We will create storage account and resource group and handle access keys.
+
+## GCP
+
+The Google Cloud Free Tier gives free resources to learn about Google Cloud services.
+It has two parts:
+- A 12-month free trial with $300 credit to use with any Google Cloud services.
+- Always Free, which provides limited access to many common Google Cloud resources, free of charge.
+
+You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to
+permit operating on storage and functions.
+
+Pass service account's JSON key path in config JSON, see an example in `config/example.json`

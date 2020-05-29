@@ -22,8 +22,11 @@
     }
   },
   "gcp": {
+    "secrets": {
+      "gcp_credentials": "/home/username/credentials/oauth.json"
+    },
     "region": "europe-west1",
-    "project_name": "sincere-baton-277510",
+    "project_name": "cool-evening-275310",
     "runtime": {
       "python": 3.7,
       "nodejs": 10
