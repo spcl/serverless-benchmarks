@@ -203,7 +203,7 @@ class Cache:
                 shutil.copytree(code_package, cached_location)
             # copy zip file
             else:
-                package_name = os.path.basename(cached_dir)
+                package_name = os.path.basename(code_package)
                 cached_location = os.path.join(cached_dir, package_name)
                 shutil.copy2(code_package, cached_dir)
 

@@ -265,8 +265,7 @@ class AWS(System):
                 "aws", benchmark, code_package.language_name, package, cached_cfg
             )
             # FIXME: fix after dissociating code package and benchmark
-            code_package.is_cached = True
-            code_package.is_cached_valid = True
+            code_package.query_cache()
 
             logging.info(
                 "Updating cached function {fname} in {loc}".format(
@@ -359,8 +358,7 @@ class AWS(System):
                 },
             )
             # FIXME: fix after dissociating code package and benchmark
-            code_package.is_cached = True
-            code_package.is_cached_valid = True
+            code_package.query_cache()
             return LambdaFunction(func_name, package, self)
 
     def create_http_trigger(

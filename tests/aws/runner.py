@@ -15,7 +15,6 @@ class AWSUnitTest(unittest.TestCase):
     def check_function(
         self, language: str, func: sebs.aws.LambdaFunction, files: List[str]
     ):
-
         filename, file_extension = os.path.splitext(func.code_package)
         self.assertEqual(file_extension, ".zip")
 
@@ -46,9 +45,9 @@ class AWSUnitTest(unittest.TestCase):
         self.assertTrue(benchmark.is_cached_valid)
 
         # use cached version
-        #func = deployment_client.get_function(benchmark)
-        #self.assertIsInstance(func, sebs.aws.LambdaFunction)
-        #self.check_function(language, func, files)
+        func = deployment_client.get_function(benchmark)
+        self.assertIsInstance(func, sebs.aws.LambdaFunction)
+        self.check_function(language, func, files)
 
         # TODO: force rebuild of cached version
         # TODO: wrong language version
