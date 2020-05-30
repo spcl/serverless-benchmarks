@@ -26,6 +26,8 @@ entry is still used, pass flag `--update` to force rebuild.
 
 #### Local
 
+**Might not work currently**
+
 Use `scripts/run_experiments.py` to execute code locally with thelp of minio,
 object storage service, running in a container. There are four types of experiments
 that can be run: `time`, `memory`, `disk-io` and `papi`. The last one works only
