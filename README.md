@@ -18,10 +18,10 @@ install necessary Python dependecies and install third-party dependencies.
 
 Then, run `tools/build_docker_images.py`. It will create all necessary Docker images to build and run
 benchmarks. 
-On some systems, this command has to be run as root.
+On some systems, this command has to be run as root- only if current user is not added to `docker` group.
 To do so:
 ```
-sudo -i
+sudo -i   # Only if your user is not added to docker group
 cd project_directory
 source sebs-virtualenv/bin/activate
 ./tools/build_docker_images.py
