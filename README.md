@@ -41,8 +41,17 @@ Simply run `./run.sh ${experiment}.json`.
 
 #### Cloud
 
-Use `scripts/cloud_experiments.py` with options `publish` and `invoke`. Right now
-only a single invoke is supported. Experiments and log querying are coming up now.
+Use `sebs.py` with options `test`, `publish` and `invoke`. Right now
+only a single `test` is supported. Experiments and log querying are coming up now.
+
+Example (please modify the `config/example.json` for your needs).
+
+```
+sebs.py --repetitions 1 test_invoke ${benchmark} ${out_dir} ${input_size} config/example.json
+```
+
+where `input_size` could be `test`, `small`, `large`. `out_dir` is used to store
+local results. Command line options allow to override config (`--deployment`, `--language`).
 
 ### Benchmark configuration
 
@@ -103,7 +112,8 @@ use script `init.sh` (see an example in `110.dynamic-html`).
 
 ### Local
 
-Benchmarks can be executed locally without any configuration.
+Benchmarks can be executed locally without any configuration. **not guaranteed work
+at the moment**
 
 ## AWS
 
@@ -126,6 +136,8 @@ Pass lambda role in config JSON, see an example in `config/example.json`. Yeah,
 that's one of those discrepancies that should be fixed...
 
 ## Azure
+
+**temporarily disabled**
 
 Azure provides 2000 USD for the first month.
 You need to create an account and add [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
