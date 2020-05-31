@@ -5,8 +5,10 @@ The current implementation is a product of a rush to the deadline. Thus, there
 some questionable software engineering choices that cannot be fixed now.
 
 Requirements:
-- Docker (at least 1.9 I believe)
-- Python 3.6
+- Docker (at least 19 I believe)
+- Python 3.6 with:
+    - pip
+    - venv
 ... and that should be all.
 
 ### Installation
@@ -14,8 +16,16 @@ Requirements:
 Run `install.sh`. It will create a virtual environment in `sebs-virtualenv`,
 install necessary Python dependecies and install third-party dependencies.
 
-Then, run `scripts/build_docker_images.py`. It will create all necessary Docker images to build and run
-benchmarks.
+Then, run `tools/build_docker_images.py`. It will create all necessary Docker images to build and run
+benchmarks. 
+On some systems, this command has to be run as root- only if current user is not added to `docker` group.
+To do so:
+```
+sudo -i   # Only if your user is not added to docker group
+cd project_directory
+source sebs-virtualenv/bin/activate
+./tools/build_docker_images.py
+```
 
 ### Work
 
