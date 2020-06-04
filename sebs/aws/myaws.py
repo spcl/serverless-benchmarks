@@ -1,7 +1,8 @@
 import boto3
 import json
 import time
-# it's only for tests
+
+# temporary file for testing / share code
 
 # Credentials
 ACCESS_KEY = ''
