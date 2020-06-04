@@ -1,9 +1,0 @@
-{
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {"AWS": "427909965706"},
-      "Action": ["sts:AssumeRole"]
-    }
-  ]
-}

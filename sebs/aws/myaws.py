@@ -1,14 +1,13 @@
 import boto3
 import json
-from time import sleep
 
-# it's only for tests, i will delete this branch
+# it's only for tests
 
 # Credentials
 ACCESS_KEY = ''
 SECRET_KEY = ''
 SESSION_TOKEN = ''
-REGION_NAME = 'us-east-1'
+REGION_NAME = ''
 
 client = boto3.client(
     'stepfunctions',
@@ -104,7 +103,7 @@ def get_execution_history(execution_arr):
 
 
 # We can use AWSLambdaRole policy instead of creating a new one (if lambda:InvokeFunction is enough for us)
-def iam_create_policy(resource_arn):
+def iam_create_policy():
     benchmarks_policy_definition = {
         "Version": "2012-10-17",
         "Statement": [
@@ -133,55 +132,28 @@ def iam_create_policy(resource_arn):
     return response['Policy']['Arn']
 
 
-# not working!
 def iam_create_role():
     assume_role_policy = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Principal": {
-                    "Service": "ec2.amazonaws.com"
-                },
-                "Action": "sts:AssumeRole"
-            }
-        ]
-    }
-    test_policy = {
         "Statement": [{
             "Effect": "Allow",
-            "Principal": {"AWS": "427909965706"},
+            "Principal": {
+                "Service": "lambda.amazonaws.com",
+                "Service": "states.amazonaws.com"
+            },
             "Action": ["sts:AssumeRole"]
         }]
-    }
-    second_policy = {
-        "Version": "2012-10-17",
-        "Statement": {
-            "Effect": "Allow",
-            "Principal": {"AWS": "427909965706"},
-            "Action": "sts:AssumeRole",
-            "Condition": {"Bool": {"aws:MultiFactorAuthPresent": "true"}}
-        }
-    }
-    testtt = {
-        "Version": "2012-10-17",
-        "Statement": {
-            "Effect": "Allow",
-            "Principal": {"Service": "ec2.amazonaws.com"},
-            "Action": "sts:AssumeRole"
-        }
     }
 
     try:
         response = iam_client.create_role(
             RoleName='ServerlessBenchmarksRole',
-            AssumeRolePolicyDocument=str(testtt),
+            AssumeRolePolicyDocument=json.dumps(assume_role_policy),
             Description='Role for serverless benchmarks',
         )
     except Exception as ex:
         print('error: create role - ', ex)
         return None
-    return response
+    return response['Role']['Arn']
 
 
 def iam_attach_policy_to_role(role_name, policy_arn):
@@ -196,17 +168,21 @@ def iam_attach_policy_to_role(role_name, policy_arn):
     return response
 
 
-ROLE = 'arn:aws:iam::427909965706:role/manual_created_role_1'
-
-# new_state_machine = create_state_machine('via-python', sample_definition, ROLE)
-# execution_arr = execute_state_machine('via-python', None)
-# history = get_execution_history(execution_arr)
-# print(history)
+# list state machines
 # print(get_state_machines())
 
-# RESOURCE_ARN = 'arn:aws:states:us-east-1:427909965706:stateMachine:via-python'
-# policy = iam_create_policy(RESOURCE_ARN)
-# policy = 'arn:aws:iam::427909965706:policy/ServerlessBenchmarksPolicy'
-# iam_attach_policy_to_role('testowarola', policy)
-wtf = iam_create_role()
-print(wtf)
+# create role with policy
+role_arn = iam_create_role()
+policy = iam_create_policy()
+iam_attach_policy_to_role('ServerlessBenchmarksRole', policy)
+
+# create state machine
+BENCHMARK_NAME = 'sm-created-via-python'
+create_state_machine(BENCHMARK_NAME, sample_definition, role_arn)
+
+# execute created state machine
+execution_arr = execute_state_machine(BENCHMARK_NAME, None)
+
+# get execution history
+history = get_execution_history(execution_arr)
+print(history)
