@@ -1,6 +1,6 @@
 import boto3
 import json
-
+import time
 # it's only for tests
 
 # Credentials
@@ -103,6 +103,7 @@ def get_execution_history(execution_arr):
 
 
 # We can use AWSLambdaRole policy instead of creating a new one (if lambda:InvokeFunction is enough for us)
+# AWS_LAMBDA_ROLE_ARN = 'arn:aws:iam::aws:policy/service-role/AWSLambdaRole'
 def iam_create_policy():
     benchmarks_policy_definition = {
         "Version": "2012-10-17",
@@ -167,7 +168,6 @@ def iam_attach_policy_to_role(role_name, policy_arn):
         return None
     return response
 
-
 # list state machines
 # print(get_state_machines())
 
@@ -177,10 +177,11 @@ policy = iam_create_policy()
 iam_attach_policy_to_role('ServerlessBenchmarksRole', policy)
 
 # create state machine
-BENCHMARK_NAME = 'sm-created-via-python'
+BENCHMARK_NAME = 'sm-created-via-python-9'
 create_state_machine(BENCHMARK_NAME, sample_definition, role_arn)
 
 # execute created state machine
+time.sleep(10.0) # it need some time (about 6-10s. in this example) - otherwise execution will fail
 execution_arr = execute_state_machine(BENCHMARK_NAME, None)
 
 # get execution history
