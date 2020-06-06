@@ -51,6 +51,15 @@ class Fission(System):
     def update_function(self, name: str, path: str):
         subprocess.call(["./update_fission_fuction.sh", name, path])
 
+    def create_function(self, name: str, language: str, path: str):
+        CONFIG_FILES = {
+            "python": "fission/python-env",
+            "nodejs": "fission/node-env"
+        }
+
+        subprocess.call(["./create_fission_function.sh",
+                         name, CONFIG_FILES[language], path, language])
+
     def get_function(self, code_package: Benchmark) -> Function:
 
         path, size = self.package_code(code_package)
@@ -115,6 +124,8 @@ class Fission(System):
             memory = code_package.benchmark_config.memory
 
             func_name = "{}-{}-{}".format(benchmark, language, memory)
+
+            self.create_function(func_name, language, path)
 
             self.cache_client.add_function(
                 deployment=self.name(),
