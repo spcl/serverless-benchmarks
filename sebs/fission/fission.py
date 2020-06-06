@@ -1,21 +1,12 @@
-import base64
-import datetime
-import json
 import logging
 import os
 import shutil
-import time
 import subprocess
 import docker
-import uuid
-from typing import Dict, List, Optional, Tuple, Union, cast
-
-from sebs import utils
-from sebs.benchmark import Benchmark
+from typing import Dict, Tuple
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.faas.function import Function
-from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 from sebs.fission.fissionFunction import FissionFunction
 from sebs.benchmark import Benchmark
@@ -23,45 +14,46 @@ from sebs.benchmark import Benchmark
 
 class Fission(System):
     def __init__(
-        self,
-        sebs_config: SeBSConfig,
-        cache_client: Cache,
-        docker_client: docker.client,
+        self, sebs_config: SeBSConfig, cache_client: Cache, docker_client: docker.client
     ):
         super().__init__(sebs_config, cache_client, docker_client)
 
     def initialize(self, config: Dict[str, str] = {}):
-        subprocess.call(["./run_fission.sh"])
+        subprocess.call(["./fissionBashScripts/run_fission.sh"])
 
     def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[benchmark.language]
-        function_dir = os.path.join(dir, "function")
+        directory = benchmark.code_location
+        package_config = CONFIG_FILES[benchmark.language_name]
+        function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
-        for file in os.listdir(dir):
+        for file in os.listdir(directory):
             if file not in package_config:
-                file = os.path.join(dir, file)
+                file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
         bytes_size = os.path.getsize(function_dir)
         return function_dir, bytes_size
 
     def update_function(self, name: str, path: str):
-        subprocess.call(["./update_fission_fuction.sh", name, path])
+        subprocess.call(["./fissionBashScripts/update_fission_fuction.sh", name, path])
 
     def create_function(self, name: str, language: str, path: str):
-        CONFIG_FILES = {
-            "python": "fission/python-env",
-            "nodejs": "fission/node-env"
-        }
+        CONFIG_FILES = {"python": "fission/python-env", "nodejs": "fission/node-env"}
 
-        subprocess.call(["./create_fission_function.sh",
-                         name, CONFIG_FILES[language], path, language])
+        subprocess.call(
+            [
+                "./fissionBashScripts/create_fission_function.sh",
+                name,
+                CONFIG_FILES[language],
+                path,
+                language,
+            ]
+        )
 
     def get_function(self, code_package: Benchmark) -> Function:
-
         path, size = self.package_code(code_package)
 
         if (
@@ -86,13 +78,12 @@ class Fission(System):
                     fname=func_name, loc=code_location
                 )
             )
-            return FissionFunction(self)
+            return FissionFunction(func_name)
         elif code_package.is_cached:
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
             timeout = code_package.benchmark_config.timeout
             memory = code_package.benchmark_config.memory
-            language = code_package.language
 
             self.update_function(func_name, path)
 
@@ -104,19 +95,14 @@ class Fission(System):
             self.cache_client.update_function(
                 self.name(), benchmark, code_package.language_name, path, cached_cfg
             )
-            # FIXME: fix after dissociating code package and benchmark
             code_package.query_cache()
-
             logging.info(
                 "Updating cached function {fname} in {loc}".format(
                     fname=func_name, loc=code_location
                 )
             )
-
-            return FissionFunction(self)
-            # no cached instance, create package and upload code
+            return FissionFunction(func_name)
         else:
-
             code_location = code_package.code_location
             language = code_package.language_name
             language_runtime = code_package.language_version
@@ -140,9 +126,11 @@ class Fission(System):
                     "memory": memory,
                     "timeout": timeout,
                     "hash": code_package.hash,
-                    "url": "WtfUrl"
-                }
+                    "url": "WtfUrl",
+                },
+                storage_config={
+                    "buckets": {"input": "input.buckets", "output": "output.buckets"}
+                },
             )
-            # FIXME: fix after dissociating code package and benchmark
             code_package.query_cache()
-            return FissionFunction(self)
+            return FissionFunction(func_name)

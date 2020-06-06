@@ -1,7 +1,4 @@
-from abc import ABC
-from enum import Enum
 from sebs.faas.function import Function
-from typing import List
 import subprocess
 
 
