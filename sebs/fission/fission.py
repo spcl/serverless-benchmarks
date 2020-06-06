@@ -6,6 +6,7 @@ import os
 import shutil
 import time
 import subprocess
+import docker
 import uuid
 from typing import Dict, List, Optional, Tuple, Union, cast
 
@@ -18,10 +19,8 @@ from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
 
-
-class fission(System):
-
-def __init__(
+class Fission(System):
+    def __init__(
         self,
         sebs_config: SeBSConfig,
         cache_client: Cache,
@@ -29,17 +28,22 @@ def __init__(
     ):
         super().__init__(sebs_config, cache_client, docker_client)
 
+
 def initialize(self, config: Dict[str, str] = {}):
-        subprocess.call(['./run_fission.sh'])
+    subprocess.call(["./run_fission.sh"])
+
 
 def get_storage(self, replace_existing: bool) -> PersistentStorage:
-        pass
+    pass
+
 
 def package_code(self, benchmark: sebs.benchmark.Benchmark) -> Tuple[str, int]:
-        pass
+    pass
+
 
 def get_function(self, code_package: sebs.benchmark.Benchmark) -> Function:
-        pass
+    pass
+
 
 def name() -> str:
-        pass
+    pass
