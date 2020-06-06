@@ -30,7 +30,7 @@ def __init__(
         super().__init__(sebs_config, cache_client, docker_client)
 
 def initialize(self, config: Dict[str, str] = {}):
-        pass
+        subprocess.call(['./run_fission.sh'])
 
 def get_storage(self, replace_existing: bool) -> PersistentStorage:
         pass
