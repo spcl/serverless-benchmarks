@@ -1,1 +1,1 @@
-from .fission import Fission
+from .fission import Fission  # noqa
