@@ -3,9 +3,9 @@ FROM ${BASE_IMAGE}
 ARG USER
 ENV HOME=/home/${USER}
 
-RUN useradd -m ${USER}
-RUN chown -R ${USER}:${USER} ${HOME}
+RUN useradd --uid 1000 ${USER}
 WORKDIR ${HOME}
+RUN chown -R ${USER}:${USER} ${HOME}
 # must be run as root for some reason
 RUN deps=''\
   && chown -R ${USER}:${USER} ${HOME}\
