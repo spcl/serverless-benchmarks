@@ -3,6 +3,11 @@ from abc import abstractmethod
 from typing import List, Tuple
 
 
+"""
+    Abstract class
+"""
+
+
 class PersistentStorage(ABC):
 
     """
@@ -46,13 +51,9 @@ class PersistentStorage(ABC):
         pass
 
     @abstractmethod
-    def uploader_func(self, bucket_idx: int, file: str, filepath: str) -> None:
+    def allocate_buckets(self, benchmark: str, buckets: Tuple[int, int]):
         pass
 
-
-class System(ABC):
     @abstractmethod
-    def get_storage(
-        self, benchmark: str, buckets: Tuple[int, int], replace_existing: bool
-    ) -> PersistentStorage:
+    def uploader_func(self, bucket_idx: int, file: str, filepath: str) -> None:
         pass

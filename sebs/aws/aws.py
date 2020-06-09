@@ -6,16 +6,20 @@ import os
 import shutil
 import time
 import uuid
-from typing import cast, Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 import boto3
 import docker
 
-from sebs import utils
-from sebs.faas import PersistentStorage
-from sebs.cache import Cache
-from sebs.code_package import CodePackage
 from sebs.aws.s3 import S3
+from sebs.aws.config import AWSConfig
+from sebs import utils
+from sebs.benchmark import Benchmark
+from sebs.cache import Cache
+from sebs.config import SeBSConfig
+from ..faas.function import Function
+from ..faas.storage import PersistentStorage
+from ..faas.system import System
 
 
 class classproperty(property):
@@ -23,78 +27,50 @@ class classproperty(property):
         return classmethod(self.fget).__get__(None, owner)()
 
 
-class AWS:
+class AWS(System):
     logs_client = None
     storage: S3
     cached = False
+    _config: AWSConfig
 
-    access_key: str = ""
-    secret_key: str = ""
-
-    @classproperty
-    def name(cls):
+    # @classproperty
+    @staticmethod
+    def name():
         return "aws"
+
+    @property
+    def config(self):
+        return self._config
 
     """
         :param cache_client: Function cache instance
         :param config: Experiments config
-        :param language: Programming language to use for functions
         :param docker_client: Docker instance
     """
 
     def __init__(
         self,
+        sebs_config: SeBSConfig,
+        config: AWSConfig,
         cache_client: Cache,
-        config: Dict[str, Any],
-        language: str,
-        docker_client: docker.DockerClient,
+        docker_client: docker.client,
     ):
-        self.config = config
-        self.language = language
-        self.cache_client = cache_client
-        self.docker_client = docker_client
-        self.configure_credentials()
+        super().__init__(sebs_config, cache_client, docker_client)
+        self._config = config
 
-    """
-        Parse AWS credentials passed in config or environment variables.
-        Updates class properties.
-    """
+    def initialize(self, config: Dict[str, str] = {}):
+        self.get_lambda_client()
+        self.get_storage()
 
-    def configure_credentials(self):
-        if self.access_key != "":
-            return
-        # Verify we can log in
-        # 1. Cached credentials
-        # TODO: flag to update cache
-        if "secrets" in self.config:
-            self.access_key = self.config["secrets"]["access_key"]
-            self.secret_key = self.config["secrets"]["secret_key"]
-        # 2. Environmental variables
-        elif "AWS_ACCESS_KEY_ID" in os.environ:
-            self.access_key = os.environ["AWS_ACCESS_KEY_ID"]
-            self.secret_key = os.environ["AWS_SECRET_ACCESS_KEY"]
-            # update
-            self.cache_client.update_config(
-                val=self.access_key, keys=["aws", "secrets", "access_key"]
-            )
-            self.cache_client.update_config(
-                val=self.secret_key, keys=["aws", "secrets", "secret_key"]
-            )
-        else:
-            raise RuntimeError(
-                "AWS login credentials are missing! Please set "
-                "up environmental variables AWS_ACCESS_KEY_ID and "
-                "AWS_SECRET_ACCESS_KEY"
-            )
-
-    def start_lambda(self):
+    def get_lambda_client(self):
         if not hasattr(self, "client"):
             self.client = boto3.client(
                 service_name="lambda",
-                aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key,
-                region_name=self.config["config"]["region"],
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
+                region_name=self.config.region,
             )
+        return self.client
 
     """
         Create a client instance for cloud storage. When benchmark and buckets
@@ -107,25 +83,17 @@ class AWS:
         :return: storage client
     """
 
-    def get_storage(
-        self,
-        benchmark: str = None,
-        buckets: Tuple[int, int] = None,
-        replace_existing: bool = False,
-    ) -> PersistentStorage:
-        self.configure_credentials()
-        self.storage = S3(
-            self.config["config"]["region"],
-            access_key=self.access_key,
-            secret_key=self.secret_key,
-            replace_existing=replace_existing,
-        )
-        if benchmark and buckets:
-            self.storage.create_buckets(
-                benchmark,
-                buckets,
-                self.cache_client.get_storage_config("aws", benchmark),
+    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
+        if not hasattr(self, "storage"):
+            self.storage = S3(
+                self.cache_client,
+                self.config.region,
+                access_key=self.config.credentials.access_key,
+                secret_key=self.config.credentials.secret_key,
+                replace_existing=replace_existing,
             )
+        else:
+            self.storage.replace_existing = replace_existing
         return self.storage
 
     """
@@ -143,17 +111,19 @@ class AWS:
         - resources
         handler.py
 
-        dir: directory where code is located
         benchmark: benchmark name
     """
 
-    def package_code(self, directory: str, benchmark: str):
+    def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
+
+        directory = benchmark.build()
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[self.language]
+        directory = benchmark.code_location
+        package_config = CONFIG_FILES[benchmark.language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         # move all files to 'function' except handler.py
@@ -165,32 +135,122 @@ class AWS:
         cur_dir = os.getcwd()
         os.chdir(directory)
         # create zip with hidden directory but without parent directory
-        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)
-        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark.benchmark), shell=True)
+        benchmark_archive = "{}.zip".format(
+            os.path.join(directory, benchmark.benchmark)
+        )
         logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(benchmark_archive)
         mbytes = bytes_size / 1024.0 / 1024.0
         logging.info("Zip archive size {:2f} MB".format(mbytes))
         os.chdir(cur_dir)
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(benchmark.benchmark)), bytes_size
 
-    """
-        a)  if a cached function is present and no update flag is passed,
-            then just return function name
-        b)  if a cached function is present and update flag is passed,
-            then upload new code
-        c)  if no cached function is present, then create code package and
-            either create new function on AWS or update an existing one
+    def create_lambda_function(
+        self,
+        benchmark: Benchmark,
+        function_name: str,
+        api_id: str,
+        parent_id: str,
+        package: str,
+        code_size: int,
+        memory: int,
+        timeout: int,
+        experiment_config: dict,
+    ):
+        language = benchmark.language_name
+        language_runtime = benchmark.language_version
+        logging.info("Creating function {} from {}".format(function_name, package))
 
-        :param benchmark:
-        :param benchmark_path: Path to benchmark code
-        :param config: JSON config for benchmark
-        :param function_name: Override randomly generated function name
-        :return: function name, code size
-    """
+        # TODO: create Lambda role
+        # AWS Lambda limit on zip deployment size
+        # Limit to 50 MB
+        # mypy doesn't recognize correctly the case when the same
+        # variable has different types across the path
+        code_config: Dict[str, Union[str, bytes]]
+        if code_size < 50 * 1024 * 1024:
+            package_body = open(package, "rb").read()
+            code_config = {"ZipFile": package_body}
+        # Upload code package to S3, then use it
+        else:
+            code_package_name = cast(str, os.path.basename(package))
+            bucket, idx = self.storage.add_input_bucket(function_name)
+            self.storage.upload(bucket, code_package_name, package)
+            logging.info(
+                "Uploading function {} code to {}".format(function_name, bucket)
+            )
+            code_config = {"S3Bucket": bucket, "S3Key": code_package_name}
+        self.client.create_function(
+            FunctionName=function_name,
+            Runtime="{}{}".format(language, language_runtime),
+            Handler="handler.handler",
+            Role=self.config["config"]["lambda-role"],
+            MemorySize=memory,
+            Timeout=timeout,
+            Code=code_config,
+        )
+        while True:
+            try:
+                logging.info(
+                    "Creating HTTP Trigger for function {} from {}".format(
+                        function_name, package
+                    )
+                )
+                url = self.create_http_trigger(function_name, api_id, parent_id)
+                logging.info(url)
+            except Exception as e:
+                logging.info("Exception")
+                logging.info(e)
+                import traceback
 
-    def create_function(self, code_package: CodePackage, experiment_config: dict):
+                traceback.print_exc()
+                api_client = boto3.client(
+                    service_name="apigateway",
+                    aws_access_key_id=self.config.credentials.access_key,
+                    aws_secret_access_key=self.config.credentials.secret_key,
+                    region_name=self.config.region,
+                )
+                resp = api_client.get_resources(restApiId=api_id)["items"]
+                for v in resp:
+                    if "pathPart" in v:
+                        path = v["pathPart"]
+                        if path == function_name:
+                            resource_id = v["id"]
+                            logging.info(
+                                "Remove resource with path {} from {}".format(
+                                    function_name, api_id
+                                )
+                            )
+                            api_client.delete_resource(
+                                restApiId=api_id, resourceId=resource_id
+                            )
+                            break
+                # throttling on AWS
+                continue
+            logging.info("Done")
+            break
+        logging.info(
+            "Created HTTP Trigger for function {} from {}".format(
+                function_name, package
+            )
+        )
+        return url
+
+    def get_function(self, code_package: Benchmark) -> Function:
+
+        if (
+            code_package.language_version
+            not in self.system_config.supported_language_versions(
+                self.name(), code_package.language_name
+            )
+        ):
+            raise Exception(
+                "Unsupported {language} version {version} in AWS!".format(
+                    language=code_package.language_name,
+                    version=code_package.language_version,
+                )
+            )
 
         benchmark = code_package.benchmark
         if code_package.is_cached and code_package.is_cached_valid:
@@ -201,19 +261,16 @@ class AWS:
                     fname=func_name, loc=code_location
                 )
             )
-            return func_name
+            return LambdaFunction(func_name, code_location, self)
         elif code_package.is_cached:
 
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
-            timeout = code_package.benchmark_config["timeout"]
-            memory = code_package.benchmark_config["memory"]
+            timeout = code_package.benchmark_config.timeout
+            memory = code_package.benchmark_config.memory
 
-            self.start_lambda()
             # Run AWS-specific part of building code.
-            package, code_size = self.package_code(
-                code_location, code_package.benchmark
-            )
+            package, code_size = self.package_code(code_package)
             package_body = open(package, "rb").read()
             self.update_function(
                 benchmark, func_name, package, code_size, timeout, memory
@@ -225,8 +282,10 @@ class AWS:
             cached_cfg["memory"] = memory
             cached_cfg["hash"] = code_package.hash
             self.cache_client.update_function(
-                "aws", benchmark, self.language, package, cached_cfg
+                self.name(), benchmark, code_package.language_name, package, cached_cfg
             )
+            # FIXME: fix after dissociating code package and benchmark
+            code_package.query_cache()
 
             logging.info(
                 "Updating cached function {fname} in {loc}".format(
@@ -234,30 +293,27 @@ class AWS:
                 )
             )
 
-            return func_name
+            return LambdaFunction(func_name, package, self)
         # no cached instance, create package and upload code
         else:
 
             code_location = code_package.code_location
-            timeout = code_package.benchmark_config["timeout"]
-            memory = code_package.benchmark_config["memory"]
-
-            self.start_lambda()
+            language = code_package.language_name
+            language_runtime = code_package.language_version
+            timeout = code_package.benchmark_config.timeout
+            memory = code_package.benchmark_config.memory
 
             # Create function name
-            func_name = "{}-{}-{}".format(benchmark, self.language, memory)
+            func_name = "{}-{}-{}".format(benchmark, language, memory)
             # AWS Lambda does not allow hyphens in function names
             func_name = func_name.replace("-", "_")
             func_name = func_name.replace(".", "_")
 
             # Run AWS-specific part of building code.
-            package, code_size = self.package_code(
-                code_location, code_package.benchmark
-            )
+            package, code_size = self.package_code(code_package)
 
             # we can either check for exception or use list_functions
             # there's no API for test
-            language_runtime = self.config["config"]["runtime"][self.language]
             try:
                 self.client.get_function(FunctionName=func_name)
                 self.update_function(
@@ -290,9 +346,9 @@ class AWS:
                     code_config = {"S3Bucket": bucket, "S3Key": code_package_name}
                 self.client.create_function(
                     FunctionName=func_name,
-                    Runtime="{}{}".format(self.language, language_runtime),
+                    Runtime="{}{}".format(language, language_runtime),
                     Handler="handler.handler",
-                    Role=self.config["config"]["lambda-role"],
+                    Role=self.config.resources.lambda_role,
                     MemorySize=memory,
                     Timeout=timeout,
                     Code=code_config,
@@ -300,15 +356,15 @@ class AWS:
                 url = self.create_http_trigger(func_name, None, None)
 
             self.cache_client.add_function(
-                deployment="aws",
+                deployment=self.name(),
                 benchmark=benchmark,
-                language=self.language,
+                language=language,
                 code_package=package,
                 language_config={
                     "name": func_name,
                     "code_size": code_size,
                     "runtime": language_runtime,
-                    "role": self.config["config"]["lambda-role"],
+                    "role": self.config.resources.lambda_role,
                     "memory": memory,
                     "timeout": timeout,
                     "hash": code_package.hash,
@@ -321,7 +377,9 @@ class AWS:
                     }
                 },
             )
-            return func_name
+            # FIXME: fix after dissociating code package and benchmark
+            code_package.query_cache()
+            return LambdaFunction(func_name, package, self)
 
     def create_http_trigger(
         self, func_name: str, api_id: Optional[str], parent_id: Optional[str]
@@ -332,9 +390,9 @@ class AWS:
 
         api_client = boto3.client(
             service_name="apigateway",
-            aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key,
-            region_name=self.config["config"]["region"],
+            aws_access_key_id=self.config.credentials.access_key,
+            aws_secret_access_key=self.config.credentials.secret_key,
+            region_name=self.config.region,
         )
 
         # create REST API
@@ -386,9 +444,9 @@ class AWS:
         # get account information
         sts_client = boto3.client(
             service_name="sts",
-            aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key,
-            region_name=self.config["config"]["region"],
+            aws_access_key_id=self.config.credentials.access_key,
+            aws_secret_access_key=self.config.credentials.secret_key,
+            region_name=self.config.region,
         )
         account_id = sts_client.get_caller_identity()["Account"]
 
@@ -508,56 +566,6 @@ class AWS:
         logs_bucket = self.storage.add_output_bucket(benchmark, suffix="logs")
         return logs_bucket
 
-    def invoke_sync(self, name: str, payload: dict):
-
-        self.start_lambda()
-        serialized_payload = json.dumps(payload).encode("utf-8")
-        begin = datetime.datetime.now()
-        ret = self.client.invoke(
-            FunctionName=name, Payload=serialized_payload, LogType="Tail"
-        )
-        end = datetime.datetime.now()
-
-        if ret["StatusCode"] != 200:
-            logging.error("Invocation of {} failed!".format(name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
-            self.get_invocation_error(
-                function_name=name,
-                start_time=int(begin.strftime("%s")) - 1,
-                end_time=int(end.strftime("%s")) + 1,
-            )
-            raise RuntimeError()
-        if "FunctionError" in ret:
-            logging.error("Invocation of {} failed!".format(name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
-            self.get_invocation_error(
-                function_name=name,
-                start_time=int(begin.strftime("%s")) - 1,
-                end_time=int(end.strftime("%s")) + 1,
-            )
-            raise RuntimeError()
-        log = base64.b64decode(ret["LogResult"])
-        vals = {}
-        vals["aws"] = AWS.parse_aws_report(log.decode("utf-8"))
-        ret = json.loads(ret["Payload"].read().decode("utf-8"))
-        vals["client_time"] = (end - begin) / datetime.timedelta(microseconds=1)
-        vals["return"] = ret
-        return vals
-
-    def invoke_async(self, name: str, payload: dict):
-
-        serialized_payload = json.dumps(payload).encode("utf-8")
-        ret = self.client.invoke(
-            FunctionName=name,
-            InvocationType="Event",
-            Payload=serialized_payload,
-            LogType="Tail",
-        )
-        if ret["StatusCode"] != 202:
-            logging.error("Async invocation of {} failed!".format(name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
-            raise RuntimeError()
-
     """
         Accepts AWS report after function invocation.
         Returns a dictionary filled with values with various metrics such as
@@ -580,13 +588,12 @@ class AWS:
         pass
 
     def get_invocation_error(self, function_name: str, start_time: int, end_time: int):
-        self.configure_credentials()
         if not self.logs_client:
             self.logs_client = boto3.client(
                 service_name="logs",
-                aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key,
-                region_name=self.config["config"]["region"],
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
+                region_name=self.config.region,
             )
 
         response = None
@@ -623,9 +630,9 @@ class AWS:
         if not self.logs_client:
             self.logs_client = boto3.client(
                 service_name="logs",
-                aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key,
-                region_name=self.config["config"]["region"],
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
+                region_name=self.config.region,
             )
 
         query = self.logs_client.start_query(
@@ -657,119 +664,31 @@ class AWS:
                             )
                         )
                     del actual_result["REPORT RequestId"]
-                    requests[request_id]["aws"] = actual_result
-
-    def create_lambda_function(
-        self,
-        function_name: str,
-        api_id: str,
-        parent_id: str,
-        package: str,
-        code_size: int,
-        memory: int,
-        timeout: int,
-        experiment_config: dict,
-    ):
-
-        language_runtime = self.config["config"]["runtime"][self.language]
-        logging.info("Creating function {} from {}".format(function_name, package))
-
-        # TODO: create Lambda role
-        # AWS Lambda limit on zip deployment size
-        # Limit to 50 MB
-        # mypy doesn't recognize correctly the case when the same
-        # variable has different types across the path
-        code_config: Dict[str, Union[str, bytes]]
-        if code_size < 50 * 1024 * 1024:
-            package_body = open(package, "rb").read()
-            code_config = {"ZipFile": package_body}
-        # Upload code package to S3, then use it
-        else:
-            code_package_name = cast(str, os.path.basename(package))
-            bucket, idx = self.storage.add_input_bucket(function_name)
-            self.storage.upload(bucket, code_package_name, package)
-            logging.info(
-                "Uploading function {} code to {}".format(function_name, bucket)
-            )
-            code_config = {"S3Bucket": bucket, "S3Key": code_package_name}
-        self.client.create_function(
-            FunctionName=function_name,
-            Runtime="{}{}".format(self.language, language_runtime),
-            Handler="handler.handler",
-            Role=self.config["config"]["lambda-role"],
-            MemorySize=memory,
-            Timeout=timeout,
-            Code=code_config,
-        )
-        while True:
-            try:
-                logging.info(
-                    "Creating HTTP Trigger for function {} from {}".format(
-                        function_name, package
-                    )
-                )
-                url = self.create_http_trigger(function_name, api_id, parent_id)
-                logging.info(url)
-            except Exception as e:
-                logging.info("Exception")
-                logging.info(e)
-                import traceback
-
-                traceback.print_exc()
-                api_client = boto3.client(
-                    service_name="apigateway",
-                    aws_access_key_id=self.access_key,
-                    aws_secret_access_key=self.secret_key,
-                    region_name=self.config["config"]["region"],
-                )
-                resp = api_client.get_resources(restApiId=api_id)["items"]
-                for v in resp:
-                    if "pathPart" in v:
-                        path = v["pathPart"]
-                        if path == function_name:
-                            resource_id = v["id"]
-                            logging.info(
-                                "Remove resource with path {} from {}".format(
-                                    function_name, api_id
-                                )
-                            )
-                            api_client.delete_resource(
-                                restApiId=api_id, resourceId=resource_id
-                            )
-                            break
-                # throttling on AWS
-                continue
-            logging.info("Done")
-            break
-        logging.info(
-            "Created HTTP Trigger for function {} from {}".format(
-                function_name, package
-            )
-        )
-        return url
+                    requests[request_id][self.name()] = actual_result
 
     def create_function_copies(
         self,
+        benchmark: Benchmark,
         function_names: List[str],
         api_name: str,
         memory: int,
         timeout: int,
-        code_package: CodePackage,
+        code_package: Benchmark,
         experiment_config: dict,
         api_id: str = None,
     ):
 
         code_location = code_package.code_location
         code_size = code_package.code_size
-        timeout = code_package.benchmark_config["timeout"]
-        memory = code_package.benchmark_config["memory"]
+        timeout = code_package.benchmark_config.timeout
+        memory = code_package.benchmark_config.memory
 
-        self.start_lambda()
+        self.get_lambda_client()
         api_client = boto3.client(
             service_name="apigateway",
-            aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key,
-            region_name=self.config["config"]["region"],
+            aws_access_key_id=self.config.credentials.access_key,
+            aws_secret_access_key=self.config.credentials.secret_key,
+            region_name=self.config.region,
         )
         # api_name = '{api_name}_API'.format(api_name=api_name)
         if api_id is None:
@@ -788,6 +707,7 @@ class AWS:
         # Run AWS-specific part of building code.
         urls = [
             self.create_lambda_function(
+                benchmark,
                 fname,
                 api_id,
                 parent_id,
@@ -802,7 +722,7 @@ class AWS:
         return urls, api_id
 
     def delete_function(self, function_names: List[str]):
-        self.start_lambda()
+        self.get_lambda_client()
         for fname in function_names:
             try:
                 logging.info("Attempting delete")
@@ -811,7 +731,68 @@ class AWS:
                 pass
 
     def update_function_config(self, fname: str, timeout: int, memory: int):
-        self.start_lambda()
+        self.get_lambda_client()
         self.client.update_function_configuration(
             FunctionName=fname, Timeout=timeout, MemorySize=memory
         )
+
+
+class LambdaFunction(Function):
+    @property
+    def code_package(self):
+        return self._code_package
+
+    def __init__(self, name: str, code_package: str, deployment: AWS):
+        super().__init__(name)
+        self._code_package = code_package
+        self._deployment = deployment
+
+    def sync_invoke(self, payload: dict):
+        serialized_payload = json.dumps(payload).encode("utf-8")
+        client = self._deployment.get_lambda_client()
+        begin = datetime.datetime.now()
+        ret = client.invoke(
+            FunctionName=self.name, Payload=serialized_payload, LogType="Tail"
+        )
+        end = datetime.datetime.now()
+
+        if ret["StatusCode"] != 200:
+            logging.error("Invocation of {} failed!".format(self.name))
+            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self._deployment.get_invocation_error(
+                function_name=self.name,
+                start_time=int(begin.strftime("%s")) - 1,
+                end_time=int(end.strftime("%s")) + 1,
+            )
+            raise RuntimeError()
+        if "FunctionError" in ret:
+            logging.error("Invocation of {} failed!".format(self.name))
+            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self._deployment.get_invocation_error(
+                function_name=self.name,
+                start_time=int(begin.strftime("%s")) - 1,
+                end_time=int(end.strftime("%s")) + 1,
+            )
+            raise RuntimeError()
+        log = base64.b64decode(ret["LogResult"])
+        vals = {}
+        vals["aws"] = AWS.parse_aws_report(log.decode("utf-8"))
+        ret = json.loads(ret["Payload"].read().decode("utf-8"))
+        vals["client_time"] = (end - begin) / datetime.timedelta(microseconds=1)
+        vals["return"] = ret
+        return vals
+
+    def async_invoke(self, payload: dict):
+
+        serialized_payload = json.dumps(payload).encode("utf-8")
+        client = self._deployment.get_lambda_client()
+        ret = client.invoke(
+            FunctionName=self.name,
+            InvocationType="Event",
+            Payload=serialized_payload,
+            LogType="Tail",
+        )
+        if ret["StatusCode"] != 202:
+            logging.error("Async invocation of {} failed!".format(self.name))
+            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            raise RuntimeError()
