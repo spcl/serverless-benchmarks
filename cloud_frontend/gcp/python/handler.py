@@ -1,5 +1,7 @@
 import datetime, io, json, os, sys
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
+
 
 def handler(req):
     req_json = req.get_json()

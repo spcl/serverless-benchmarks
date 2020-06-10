@@ -173,7 +173,7 @@ class gcp:
 
         CONFIG_FILES = {
             'python': ['handler.py', 'requirements.txt', '.python_packages'],
-            'nodejs': ['handler.js', 'package.json', 'node_modules']
+            'nodejs': ['handler.js', 'node_modules']
         }
         HANDLER = {
             'python': ('handler.py', 'main.py'),
