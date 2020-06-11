@@ -307,37 +307,78 @@ class Benchmark:
                         "Docker pull of image {} failed!".format(image_name)
                     )
 
-            # does this benchmark has package.sh script?
-            volumes = {}
-            package_script = os.path.abspath(
-                os.path.join(self._benchmark_path, self.language_name, "package.sh")
-            )
-            if os.path.exists(package_script):
-                volumes[package_script] = {
-                    "bind": "/mnt/function/package.sh",
-                    "mode": "ro",
+            # Create set of mounted volumes unless Docker volumes are disabled
+            if not self._experiment_config.check_flag('docker_copy_build_files'):
+                volumes = {
+                    os.path.abspath(output_dir): {
+                        "bind": "/mnt/function",
+                        "mode": "rw",
+                    }
                 }
+                package_script = os.path.abspath(
+                    os.path.join(self._benchmark_path, self.language_name, "package.sh")
+                )
+                # does this benchmark has package.sh script?
+                if os.path.exists(package_script):
+                    volumes[package_script] = {
+                        "bind": "/mnt/function/package.sh",
+                        "mode": "ro",
+                    }
 
             # run Docker container to install packages
             PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
-                    stdout = self._docker_client.containers.run(
-                        "{}:{}".format(repo_name, image_name),
-                        volumes={
-                            **volumes,
-                            os.path.abspath(output_dir): {
-                                "bind": "/mnt/function",
-                                "mode": "rw",
-                            },
-                        },
-                        environment={"APP": self.benchmark},
-                        user="1000:1000",
-                        remove=True,
-                        stdout=True,
-                        stderr=True,
-                    )
+                    # Standard, simplest build
+                    if not self._experiment_config.check_flag('docker_copy_build_files'):
+                        stdout = self._docker_client.containers.run(
+                            "{}:{}".format(repo_name, image_name),
+                            volumes=volumes,
+                            environment={"APP": self.benchmark},
+                            user="1000:1000",
+                            remove=True,
+                            stdout=True,
+                            stderr=True,
+                        )
+                    # Hack to enable builds on platforms where Docker mounted volumes
+                    # are not supported. Example: CircleCI docker environment
+                    else:
+                        container = self._docker_client.containers.run(
+                            "{}:{}".format(repo_name, image_name),
+                            environment={"APP": self.benchmark},
+                            user="1000:1000",
+                            #remove=True,
+                            detach=True,
+                            tty=True,
+                            command="/bin/bash"
+                        )
+                        # copy application files
+                        import tarfile
+                        tar_archive = os.path.join(output_dir, os.path.pardir, "function.tar")
+                        with tarfile.open(tar_archive, "w") as tar:
+                            for f in os.listdir(output_dir):
+                                tar.add(os.path.join(output_dir, f), arcname=f)
+                        with open(tar_archive, 'rb') as data:
+                            container.put_archive("/mnt/function", data.read())
+                        # do the build step
+                        exit_code, stdout = container.exec_run(
+                                cmd="/bin/bash installer.sh",
+                                stdout=True,
+                                stderr=True
+                        )
+                        # copy updated code with package
+                        data, stat = container.get_archive("/mnt/function")
+                        with open(tar_archive, 'wb') as f:
+                            for chunk in data:
+                                f.write(chunk)
+                        with tarfile.open(tar_archive, "r") as tar:
+                            tar.extractall()
+                            # docker packs the entire directory with basename function
+                            for f in os.listdir('function'):
+                                shutil.move(os.path.join('function', f), os.path.join(output_dir, f))
+                        container.stop()
+
                     # Pass to output information on optimizing builds.
                     # Useful for AWS where packages have to obey size limits.
                     for line in stdout.decode("utf-8").split("\n"):
