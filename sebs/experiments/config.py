@@ -78,7 +78,7 @@ class Config:
             "update_storage": self._update_storage,
             "download_results": self._download_results,
             "runtime": self._runtime.serialize(),
-            "flags": self._flags
+            "flags": self._flags,
         }
         return out
 
