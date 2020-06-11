@@ -536,8 +536,10 @@ class AWS(System):
     ):
         # AWS Lambda limit on zip deployment
         if code_size < 50 * 1024 * 1024:
-            with open(code_package, "rb")as code_body:
-                self.client.update_function_code(FunctionName=name, ZipFile=code_body.read())
+            with open(code_package, "rb") as code_body:
+                self.client.update_function_code(
+                    FunctionName=name, ZipFile=code_body.read()
+                )
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(code_package)
@@ -582,13 +584,13 @@ class AWS(System):
             if not line.isspace():
                 split = line.split(":")
                 aws_vals[split[0]] = split[1].split()[0]
-        output.request_id = aws_vals['START RequestId']
-        output.times.provider = aws_vals['Duration']
-        output.stats.memory_used = aws_vals['Max Memory Used']
-        if 'Init Duration' in aws_vals:
-            output.stats.init_time_reported = aws_vals['Init Duration']
-        output.billing.billed_time = int(aws_vals['Billed Duration'])
-        output.billing.memory = int(aws_vals['Memory Size'])
+        output.request_id = aws_vals["START RequestId"]
+        output.times.provider = int(aws_vals["Duration"] * 1000)
+        output.stats.memory_used = float(aws_vals["Max Memory Used"])
+        if "Init Duration" in aws_vals:
+            output.stats.init_time_reported = int(aws_vals["Init Duration"] * 1000)
+        output.billing.billed_time = int(aws_vals["Billed Duration"])
+        output.billing.memory = int(aws_vals["Memory Size"])
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
 
     def shutdown(self):
@@ -791,7 +793,7 @@ class LambdaFunction(Function):
         # AWS-specific parsing
         AWS.parse_aws_report(log.decode("utf-8"), aws_result)
         # General benchmark output parsing
-        aws_result.parse_benchmark_output(json.loads(function_output['body']))
+        aws_result.parse_benchmark_output(json.loads(function_output["body"]))
         return aws_result
 
     def async_invoke(self, payload: dict):

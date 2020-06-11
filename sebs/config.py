@@ -6,7 +6,7 @@ from sebs.utils import project_absolute_path
 
 class SeBSConfig:
     def __init__(self):
-        with open(project_absolute_path("config", "systems.json"), 'r') as cfg:
+        with open(project_absolute_path("config", "systems.json"), "r") as cfg:
             self._system_config = json.load(cfg)
 
     def deployment_packages(

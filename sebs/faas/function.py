@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta
 from abc import ABC
 from abc import abstractmethod
@@ -27,6 +26,12 @@ class Trigger(ABC):
     def async_invoke(self):
         pass
 
+
+"""
+    Times are reported in microseconds.
+"""
+
+
 class ExecutionTimes:
 
     client: int
@@ -38,9 +43,10 @@ class ExecutionTimes:
         self.provider = 0
         self.benchmark = 0
 
+
 class ExecutionStats:
 
-    memory_used: Optional[int]
+    memory_used: Optional[float]
     init_time_reported: Optional[int]
     init_time_measured: int
     cold_start: bool
@@ -52,6 +58,7 @@ class ExecutionStats:
         self.init_time_measured = 0
         self.cold_start = False
         self.failure = False
+
 
 class ExecutionBilling:
 
@@ -65,7 +72,7 @@ class ExecutionBilling:
         self.gb_seconds = 0
 
     @property
-    def memory(self) -> int:
+    def memory(self) -> Optional[int]:
         return self._memory
 
     @memory.setter
@@ -73,7 +80,7 @@ class ExecutionBilling:
         self._memory = val
 
     @property
-    def billed_time(self) -> int:
+    def billed_time(self) -> Optional[int]:
         return self._billed_time
 
     @billed_time.setter
@@ -88,6 +95,7 @@ class ExecutionBilling:
     def gb_seconds(self, val: int):
         self._gb_seconds = val
 
+
 class ExecutionResult:
 
     output: dict
@@ -100,17 +108,23 @@ class ExecutionResult:
         self.output = {}
         self.request_id = ""
         self.times = ExecutionTimes()
-        self.times.client = (client_time_end - client_time_begin) / timedelta(microseconds=1)
+        self.times.client = int(
+            (client_time_end - client_time_begin) / timedelta(microseconds=1)
+        )
         self.stats = ExecutionStats()
         self.billing = ExecutionBilling()
 
     def parse_benchmark_output(self, output: dict):
         self.output = output
-        self.stats.cold_start = self.output['is_cold']
-        self.times.benchmark = (
-            datetime.fromtimestamp(float(self.output['end'])) -
-            datetime.fromtimestamp(float(self.output['begin']))
-        ) / timedelta(microseconds=1)
+        self.stats.cold_start = self.output["is_cold"]
+        self.times.benchmark = int(
+            (
+                datetime.fromtimestamp(float(self.output["end"]))
+                - datetime.fromtimestamp(float(self.output["begin"]))
+            )
+            / timedelta(microseconds=1)
+        )
+
 
 """
     Abstraction base class for FaaS function. Contains a list of associated triggers
