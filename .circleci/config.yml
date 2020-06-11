@@ -43,10 +43,12 @@ jobs:
           key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
       - run:
           command: |
-            if [[ -d $HOME/docker ]];\
-            then ls $HOME/docker/*.tar.gz | xargs -I {file} sh -c "zcat {file} | docker load";\
-            else docker pull mcopik/serverless-benchmarks:build.aws.python.3.6\
-                  docker pull mcopik/serverless-benchmarks:build.aws.nodejs.10.x\
+            if [[ -d $HOME/docker ]];
+            then
+              ls $HOME/docker/*.tar.gz | xargs -I {file} sh -c "zcat {file} | docker load";
+            else
+              docker pull mcopik/serverless-benchmarks:build.aws.python.3.6
+              docker pull mcopik/serverless-benchmarks:build.aws.nodejs.10.x
             fi
           name: Load Docker images
       - run:
