@@ -28,6 +28,9 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
                 "update_code": False,
                 "update_storage": False,
                 "download_results": False,
+                "flags": {
+                    "docker_copy_build_files": True
+                }
             },
         }
         benchmark_name = "110.dynamic-html"

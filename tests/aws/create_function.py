@@ -22,7 +22,13 @@ class AWSCreateFunction(unittest.TestCase):
         with zipfile.ZipFile(func.code_package) as package:
             package_files = package.namelist()
             for package_file in files:
-                self.assertIn(package_file, package_files)
+                # check directory - ZipFile lists only files, so we must
+                # check that at least one of them is in this directory
+                if package_file.endswith("/"):
+                    self.assertTrue(any(f.startswith(package_file) for f in package_files))
+                # check file
+                else:
+                    self.assertIn(package_file, package_files)
 
     def create_function(
         self, language: str, benchmark_name: str, files: List[str], config: dict
@@ -92,13 +98,16 @@ class AWSCreateFunction(unittest.TestCase):
                 "update_code": False,
                 "update_storage": False,
                 "download_results": False,
+                "flags": {
+                    "docker_copy_build_files": True
+                }
             },
         }
         benchmark = "110.dynamic-html"
         self.create_function(
             "python",
             benchmark,
-            ["handler.py", "function/storage.py", "requirements.txt"],
+            ["handler.py", "function/storage.py", "requirements.txt", '.python_packages/'],
             config,
         )
 
@@ -110,13 +119,16 @@ class AWSCreateFunction(unittest.TestCase):
                 "update_code": False,
                 "update_storage": False,
                 "download_results": False,
+                "flags": {
+                    "docker_copy_build_files": True
+                }
             },
         }
         benchmark = "110.dynamic-html"
         self.create_function(
             "nodejs",
             benchmark,
-            ["handler.js", "function/storage.js", "package.json"],
+            ["handler.js", "function/storage.js", "package.json", "node_modules/"],
             config,
         )
 
