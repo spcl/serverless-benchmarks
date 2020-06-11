@@ -38,10 +38,14 @@ jobs:
     executor: python/default
     steps:
       - checkout
-      - setup_remote_docker:
-          docker_layer_caching: true
+      - setup_remote_docker
       - restore_cache:
           key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
+      - run:
+          command: |
+            docker pull mcopik/serverless-benchmarks:build.aws.python.3.6
+            docker pull mcopik/serverless-benchmarks:build.aws.nodejs.10.x
+          name: Pull Docker images
       - run:
           command: |
             python3 -m venv venv
