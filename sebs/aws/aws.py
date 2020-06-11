@@ -585,10 +585,10 @@ class AWS(System):
                 split = line.split(":")
                 aws_vals[split[0]] = split[1].split()[0]
         output.request_id = aws_vals["START RequestId"]
-        output.times.provider = int(aws_vals["Duration"] * 1000)
+        output.times.provider = int(float(aws_vals["Duration"])* 1000)
         output.stats.memory_used = float(aws_vals["Max Memory Used"])
         if "Init Duration" in aws_vals:
-            output.stats.init_time_reported = int(aws_vals["Init Duration"] * 1000)
+            output.stats.init_time_reported = int(float(aws_vals["Init Duration"]) * 1000)
         output.billing.billed_time = int(aws_vals["Billed Duration"])
         output.billing.memory = int(aws_vals["Memory Size"])
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
