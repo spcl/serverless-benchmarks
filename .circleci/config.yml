@@ -37,6 +37,7 @@ jobs:
     executor: python/default
     steps:
       - checkout
+      - setup_remote_docker
       - restore_cache:
           key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
       - run:
