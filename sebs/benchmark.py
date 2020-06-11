@@ -286,7 +286,8 @@ class Benchmark:
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
-            container_name = "sebs.build.{deployment}.{language}.{runtime}".format(
+            container_name = "{repo}:build.{deployment}.{language}.{runtime}".format(
+                repo=self._system_config.docker_repository(),
                 deployment=self._deployment_name,
                 language=self.language_name,
                 runtime=self.language_version,

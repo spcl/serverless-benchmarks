@@ -9,6 +9,9 @@ class SeBSConfig:
         with open(project_absolute_path("config", "systems.json"), "r") as cfg:
             self._system_config = json.load(cfg)
 
+    def docker_repository(self) -> str:
+        return self._system_config["general"]["docker_repository"]
+
     def deployment_packages(
         self, deployment_name: str, language_name: str
     ) -> Dict[str, str]:
