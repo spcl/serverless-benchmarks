@@ -286,18 +286,26 @@ class Benchmark:
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
-            container_name = "{repo}:build.{deployment}.{language}.{runtime}".format(
-                repo=self._system_config.docker_repository(),
+            repo_name = self._system_config.docker_repository()
+            image_name = "build.{deployment}.{language}.{runtime}".format(
                 deployment=self._deployment_name,
                 language=self.language_name,
                 runtime=self.language_version,
             )
             try:
-                self._docker_client.images.get(container_name)
+                self._docker_client.images.get(repo_name + ":" + image_name)
             except docker.errors.ImageNotFound:
-                raise RuntimeError(
-                    "Docker build image {} not found!".format(container_name)
-                )
+                try:
+                    logging.info(
+                        "Docker pull of image {repo}:{image}".format(
+                            repo=repo_name, image=image_name
+                        )
+                    )
+                    self._docker_client.images.pull(repo_name, image_name)
+                except docker.errors.APIError:
+                    raise RuntimeError(
+                        "Docker pull of image {} failed!".format(image_name)
+                    )
 
             # does this benchmark has package.sh script?
             volumes = {}
@@ -316,7 +324,7 @@ class Benchmark:
             if os.path.exists(file):
                 try:
                     stdout = self._docker_client.containers.run(
-                        container_name,
+                        "{}:{}".format(repo_name, image_name),
                         volumes={
                             **volumes,
                             os.path.abspath(output_dir): {
