@@ -791,11 +791,14 @@ class LambdaFunction(Function):
         log = base64.b64decode(ret["LogResult"])
         function_output = json.loads(ret["Payload"].read().decode("utf-8"))
 
-        aws_result
         # AWS-specific parsing
         AWS.parse_aws_report(log.decode("utf-8"), aws_result)
         # General benchmark output parsing
-        aws_result.parse_benchmark_output(json.loads(function_output["body"]))
+        # For some reason, the body is dict for NodeJS but a serialized JSON for Python
+        if isinstance(function_output["body"], dict):
+            aws_result.parse_benchmark_output(function_output["body"])
+        else:
+            aws_result.parse_benchmark_output(json.loads(function_output["body"]))
         return aws_result
 
     def async_invoke(self, payload: dict):
@@ -812,3 +815,4 @@ class LambdaFunction(Function):
             logging.error("Async invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             raise RuntimeError()
+        return ret
