@@ -18,4 +18,3 @@ def suite():
 def run():
     runner = unittest.TextTestRunner()
     runner.run()
-    runner.run()
