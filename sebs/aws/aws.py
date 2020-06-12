@@ -6,7 +6,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import Dict, List, Optional, Union, cast
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 import boto3
 import docker
@@ -16,7 +16,8 @@ from sebs.aws.config import AWSConfig
 from sebs import utils
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
-from ..faas.function import Function
+from sebs.config import SeBSConfig
+from ..faas.function import Function, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
@@ -48,10 +49,16 @@ class AWS(System):
     """
 
     def __init__(
-        self, config: AWSConfig, cache_client: Cache, docker_client: docker.client
+        self,
+        sebs_config: SeBSConfig,
+        config: AWSConfig,
+        cache_client: Cache,
+        docker_client: docker.client,
     ):
-        super().__init__(cache_client, docker_client)
+        super().__init__(sebs_config, cache_client, docker_client)
         self._config = config
+
+    def initialize(self, config: Dict[str, str] = {}):
         self.get_lambda_client()
         self.get_storage()
 
@@ -107,7 +114,7 @@ class AWS(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, benchmark: Benchmark):
+    def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
 
         directory = benchmark.build()
 
@@ -232,6 +239,19 @@ class AWS(System):
 
     def get_function(self, code_package: Benchmark) -> Function:
 
+        if (
+            code_package.language_version
+            not in self.system_config.supported_language_versions(
+                self.name(), code_package.language_name
+            )
+        ):
+            raise Exception(
+                "Unsupported {language} version {version} in AWS!".format(
+                    language=code_package.language_name,
+                    version=code_package.language_version,
+                )
+            )
+
         benchmark = code_package.benchmark
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
@@ -262,11 +282,10 @@ class AWS(System):
             cached_cfg["memory"] = memory
             cached_cfg["hash"] = code_package.hash
             self.cache_client.update_function(
-                "aws", benchmark, code_package.language_name, package, cached_cfg
+                self.name(), benchmark, code_package.language_name, package, cached_cfg
             )
             # FIXME: fix after dissociating code package and benchmark
-            code_package.is_cached = True
-            code_package.is_cached_valid = True
+            code_package.query_cache()
 
             logging.info(
                 "Updating cached function {fname} in {loc}".format(
@@ -337,7 +356,7 @@ class AWS(System):
                 url = self.create_http_trigger(func_name, None, None)
 
             self.cache_client.add_function(
-                deployment="aws",
+                deployment=self.name(),
                 benchmark=benchmark,
                 language=language,
                 code_package=package,
@@ -359,8 +378,7 @@ class AWS(System):
                 },
             )
             # FIXME: fix after dissociating code package and benchmark
-            code_package.is_cached = True
-            code_package.is_cached_valid = True
+            code_package.query_cache()
             return LambdaFunction(func_name, package, self)
 
     def create_http_trigger(
@@ -518,8 +536,10 @@ class AWS(System):
     ):
         # AWS Lambda limit on zip deployment
         if code_size < 50 * 1024 * 1024:
-            code_body = open(code_package, "rb").read()
-            self.client.update_function_code(FunctionName=name, ZipFile=code_body)
+            with open(code_package, "rb") as code_body:
+                self.client.update_function_code(
+                    FunctionName=name, ZipFile=code_body.read()
+                )
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(code_package)
@@ -558,13 +578,22 @@ class AWS(System):
     """
 
     @staticmethod
-    def parse_aws_report(log: str):
+    def parse_aws_report(log: str, output: ExecutionResult):
         aws_vals = {}
         for line in log.split("\t"):
             if not line.isspace():
                 split = line.split(":")
                 aws_vals[split[0]] = split[1].split()[0]
-        return aws_vals
+        output.request_id = aws_vals["START RequestId"]
+        output.times.provider = int(float(aws_vals["Duration"]) * 1000)
+        output.stats.memory_used = float(aws_vals["Max Memory Used"])
+        if "Init Duration" in aws_vals:
+            output.stats.init_time_reported = int(
+                float(aws_vals["Init Duration"]) * 1000
+            )
+        output.billing.billed_time = int(aws_vals["Billed Duration"])
+        output.billing.memory = int(aws_vals["Memory Size"])
+        output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
 
     def shutdown(self):
         pass
@@ -646,7 +675,7 @@ class AWS(System):
                             )
                         )
                     del actual_result["REPORT RequestId"]
-                    requests[request_id]["aws"] = actual_result
+                    requests[request_id][self.name()] = actual_result
 
     def create_function_copies(
         self,
@@ -738,6 +767,7 @@ class LambdaFunction(Function):
         )
         end = datetime.datetime.now()
 
+        aws_result = ExecutionResult(begin, end)
         if ret["StatusCode"] != 200:
             logging.error("Invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
@@ -746,7 +776,8 @@ class LambdaFunction(Function):
                 start_time=int(begin.strftime("%s")) - 1,
                 end_time=int(end.strftime("%s")) + 1,
             )
-            raise RuntimeError()
+            aws_result.stats.failure = True
+            return aws_result
         if "FunctionError" in ret:
             logging.error("Invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
@@ -755,14 +786,20 @@ class LambdaFunction(Function):
                 start_time=int(begin.strftime("%s")) - 1,
                 end_time=int(end.strftime("%s")) + 1,
             )
-            raise RuntimeError()
+            aws_result.stats.failure = True
+            return aws_result
         log = base64.b64decode(ret["LogResult"])
-        vals = {}
-        vals["aws"] = AWS.parse_aws_report(log.decode("utf-8"))
-        ret = json.loads(ret["Payload"].read().decode("utf-8"))
-        vals["client_time"] = (end - begin) / datetime.timedelta(microseconds=1)
-        vals["return"] = ret
-        return vals
+        function_output = json.loads(ret["Payload"].read().decode("utf-8"))
+
+        # AWS-specific parsing
+        AWS.parse_aws_report(log.decode("utf-8"), aws_result)
+        # General benchmark output parsing
+        # For some reason, the body is dict for NodeJS but a serialized JSON for Python
+        if isinstance(function_output["body"], dict):
+            aws_result.parse_benchmark_output(function_output["body"])
+        else:
+            aws_result.parse_benchmark_output(json.loads(function_output["body"]))
+        return aws_result
 
     def async_invoke(self, payload: dict):
 
@@ -778,3 +815,4 @@ class LambdaFunction(Function):
             logging.error("Async invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             raise RuntimeError()
+        return ret

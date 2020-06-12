@@ -5,6 +5,9 @@ ENV HOME=/home/${USER}
 
 RUN useradd --uid 1000 ${USER}
 WORKDIR ${HOME}
+RUN mkdir -p /mnt/function && chown -R ${USER}:${USER} /mnt/function
 USER ${USER}:${USER}
 
-CMD cd /mnt/function && npm install && rm -rf package-lock.json
+COPY --chown=${USER}:${USER} docker/nodejs_installer.sh installer.sh
+
+CMD /bin/bash installer.sh

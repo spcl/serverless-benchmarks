@@ -1,18 +1,38 @@
 from abc import ABC
 from abc import abstractmethod
+from typing import Dict, Tuple
 
 import docker
 
 import sebs.benchmark
 from sebs.cache import Cache
+from sebs.config import SeBSConfig
 from .function import Function
 from .storage import PersistentStorage
 
+"""
+    This class provides basic abstractions for the FaaS system.
+    It provides the interface for initialization of the system and storage
+    services, creation and update of serverless functions and querying
+    logging and measurements services to obtain error messages and performance
+    measurements.
+"""
+
 
 class System(ABC):
-    def __init__(self, cache_client: Cache, docker_client: docker.client):
+    def __init__(
+        self,
+        system_config: SeBSConfig,
+        cache_client: Cache,
+        docker_client: docker.client,
+    ):
+        self._system_config = system_config
         self._docker_client = docker_client
         self._cache_client = cache_client
+
+    @property
+    def system_config(self) -> SeBSConfig:
+        return self._system_config
 
     @property
     def docker_client(self) -> docker.client:
@@ -22,8 +42,45 @@ class System(ABC):
     def cache_client(self) -> Cache:
         return self._cache_client
 
+    """
+        Initialize the system. After the call the local or remot
+        FaaS system should be ready to allocate functions, manage
+        storage resources and invoke functions.
+
+        :param config: systems-specific parameters
+    """
+
+    def initialize(self, config: Dict[str, str] = {}):
+        pass
+
+    """
+        Access persistent storage instance.
+        It might be a remote and truly persistent service (AWS S3, Azure Blob..),
+        or a dynamically allocated local instance.
+
+        :param replace_existing: replace benchmark input data if exists already
+    """
+
     @abstractmethod
     def get_storage(self, replace_existing: bool) -> PersistentStorage:
+        pass
+
+    """
+        Apply the system-specific code packaging routine to build benchmark.
+        The benchmark creates a code directory with the following structure:
+        - [benchmark sources]
+        - [benchmark resources]
+        - [dependence specification], e.g. requirements.txt or package.json
+        - [handlers implementation for the language and deployment]
+
+        This step allows us to change the structure above to fit different
+        deployment requirements, Example: a zip file for AWS or a specific
+        directory structure for Azure.
+
+        :return: path to packaged code and its size
+    """
+
+    def package_code(self, benchmark: sebs.benchmark.Benchmark) -> Tuple[str, int]:
         pass
 
     """
@@ -43,6 +100,21 @@ class System(ABC):
     @abstractmethod
     def get_function(self, code_package: sebs.benchmark.Benchmark) -> Function:
         pass
+
+    # FIXME: trigger allocation API
+    # FIXME: result query API
+    # FIXME: metrics query API
+    # def update_function(self, code_package):
+    #    pass
+
+    # @abstractmethod
+    # def get_invocation_error(self, function_name: str,
+    #   start_time: int, end_time: int):
+    #    pass
+
+    # @abstractmethod
+    # def download_metrics(self):
+    #    pass
 
     @staticmethod
     @abstractmethod

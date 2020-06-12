@@ -6,9 +6,11 @@ from sebs.utils import project_absolute_path
 
 class SeBSConfig:
     def __init__(self):
-        self._system_config = json.load(
-            open(project_absolute_path("config", "systems.json"), "r")
-        )
+        with open(project_absolute_path("config", "systems.json"), "r") as cfg:
+            self._system_config = json.load(cfg)
+
+    def docker_repository(self) -> str:
+        return self._system_config["general"]["docker_repository"]
 
     def deployment_packages(
         self, deployment_name: str, language_name: str
@@ -26,3 +28,10 @@ class SeBSConfig:
         return self._system_config[deployment_name]["languages"][language_name][
             "images"
         ]
+
+    def supported_language_versions(
+        self, deployment_name: str, language_name: str
+    ) -> List[str]:
+        return self._system_config[deployment_name]["languages"][language_name][
+            "base_images"
+        ].keys()

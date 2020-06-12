@@ -175,6 +175,7 @@ try:
     logging.info("Created experiment output at {}".format(args.output_dir))
     experiment_config = sebs_client.get_experiment(config["experiments"])
     deployment_client = sebs_client.get_deployment(config["deployment"])
+    deployment_client.initialize()
 
     if args.action == "publish":
         # 5. Prepare benchmark input
