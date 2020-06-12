@@ -253,10 +253,12 @@ class Benchmark:
         )
         if len(packages):
             package_config = os.path.join(output_dir, "package.json")
-            package_json = json.load(open(package_config, "r"))
+            with open(package_config, "r") as package_file:
+                package_json = json.load(package_file)
             for key, val in packages.items():
                 package_json["dependencies"][key] = val
-            json.dump(package_json, open(package_config, "w"), indent=2)
+            with open(package_config, "w") as package_file:
+                json.dump(package_json, package_file, indent=2)
 
     def add_deployment_package(self, output_dir):
         if self.language == Language.PYTHON:
