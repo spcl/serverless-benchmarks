@@ -1,0 +1,6 @@
+benchmarks
+config
+
+# Files that might be created during development
+cache
+sebs-virtualenv
