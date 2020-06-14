@@ -146,8 +146,23 @@ class GCPConfig(Config):
 
     @staticmethod
     def initialize(config: dict, cache: Cache) -> "Config":
-        # TO DO
-        pass
+        cached_config = cache.get_config("gcp")
+        credentials = cast(GCPCredentials, GCPCredentials.initialize(config, cache))
+        resources = cast(GCPResources, GCPResources.initialize(config, cache))
+        config_obj = GCPConfig(credentials, resources)
+        if cached_config:
+            logging.info("Using cached config for GCP")
+            GCPConfig.deserialize(config_obj, cached_config)
+        else:
+            logging.info("Using user-provided config for GCP")
+            GCPConfig.deserialize(config_obj, config)
+            cache.update_config(val=config_obj.region, keys=["gcp", "project_name", "location"])
+
+    @staticmethod
+    def deserialize(cfg: Config, dct: dict):
+        config = cast(GCPConfig, cfg)
+        config._project_name = dct["project_name"]
+        config._location = dct["location"]
 
     def serialize(self) -> dict:
         out = {
