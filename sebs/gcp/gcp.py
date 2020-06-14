@@ -111,7 +111,7 @@ class GCP(System):
         directory = benchmark.build()
 
         CONFIG_FILES = {
-            'python': ['handler.py', '.python_packages'],
+            'python': ['handler.py', 'requirements.txt', '.python_packages'],
             'nodejs': ['handler.js', 'node_modules']
         }
         HANDLER = {
