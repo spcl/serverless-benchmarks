@@ -8,12 +8,12 @@ from ..faas.storage import PersistentStorage
 
 
 class GCPStorage(PersistentStorage):
-    cached: False
+    cached = False
     input_buckets: List[str] = []
     output_buckets: List[str] = []
-    input_buckets_files: []
-    request_input_buckets: 0
-    request_output_buckets: 0
+    input_buckets_files: List[str] = []
+    request_input_buckets = 0
+    request_output_buckets = 0
 
     def __init__(self, replace_existing):
         self.replace_existing = replace_existing
@@ -77,8 +77,10 @@ class GCPStorage(PersistentStorage):
         blob.download_to_filename(filepath)
 
     def upload(self, bucket_name: str, file: str, filepath: str):
+        logging.info('Upload {} to {}'.format(filepath, bucket_name))
         bucket_instance = self.client.bucket(bucket_name)
-        blob = bucket_instance.blob(file)
+        blob = bucket_instance.blob(file, chunk_size=4 * 1024 * 1024)
+        gcp_storage.blob._MAX_MULTIPART_SIZE = 5 * 1024 * 1024  # workaround for connection timeout
         blob.upload_from_filename(filepath)
 
     """

@@ -47,7 +47,7 @@ class GCPFunction(Function):
         print("RES: ", res)
 
         if "error" in res.keys() and res["error"] != "":
-            logging.error('Invocation of {} failed!'.format(name))
+            logging.error('Invocation of {} failed!'.format(self.name))
             logging.error('Input: {}'.format(payload))
             raise RuntimeError()
 
