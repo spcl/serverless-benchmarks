@@ -9,6 +9,7 @@ RUN deps=''\
   && apt-get install -y curl net-tools python3 ${deps}\
   && apt-get purge -y --auto-remove ${deps}
 
+RUN useradd --uid 1000 ${USER}
 USER ${USER}:${USER}
 COPY --chown=${USER}:${USER} docker/local/*.py ${HOME}/
 COPY --chown=${USER}:${USER} docker/local/run.sh .

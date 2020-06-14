@@ -1,6 +1,7 @@
 docker==4.2.0
 boto3==1.11.6
 azure-storage-blob==12.1.0
+minio==5.0.10
 #linting
 flake8==3.7.9
 flake8-boto3==0.3.0
