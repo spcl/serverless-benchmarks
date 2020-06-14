@@ -17,6 +17,7 @@ from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.storage import GCPStorage
+from sebs.gcp.GCPFunction import GCPFunction
 
 """
     This class provides basic abstractions for the FaaS system.
@@ -72,6 +73,9 @@ class GCP(System):
     def initialize(self, config: Dict[str, str] = {}):
         self.function_client = build("cloudfunctions", "v1")
         self.get_storage()
+
+    def get_function_client(self):
+        return self.function_client
 
     """
         Access persistent storage instance.
@@ -166,7 +170,7 @@ class GCP(System):
                 fname=func_name,
                 loc=code_location
             ))
-            return func_name
+            return GCPFunction(func_name, code_location, self)
 
         elif code_package.is_cached:
             func_name = code_package.cached_config["name"]
@@ -186,14 +190,14 @@ class GCP(System):
             cached_cfg["timeout"] = timeout
             cached_cfg["memory"] = memory
             cached_cfg["hash"] = code_package.hash
-            self.cache_client.update_function('gcp', benchmark, self.language, package, cached_cfg)
+            self.cache_client.update_function('gcp', benchmark, code_package.language_name, package, cached_cfg)
 
             logging.info("Updating cached function {fname} in {loc}".format(
                 fname=func_name,
                 loc=code_location
             ))
 
-            return func_name
+            return GCPFunction(func_name, package, self)
         else:
             code_location = code_package.code_location
             timeout = code_package.benchmark_config.timeout
@@ -227,7 +231,7 @@ class GCP(System):
             if "functions" in res.keys() and full_func_name in [f["name"] for f in res["functions"]]:
                 self.update_function(benchmark, full_func_name, code_package_name, code_package, timeout, memory)
             else:
-                language_runtime = str(self.config['config']['runtime'][code_package.language_name])
+                language_runtime = code_package.language_version
                 print("language runtime: ", code_package.language_name + language_runtime.replace(".", ""))
                 req = self.function_client.projects().locations().functions().create(
                     location="projects/{project_name}/locations/{location}".format(project_name=project_name,
@@ -272,7 +276,7 @@ class GCP(System):
                     }
                 }
             )
-            return func_name
+            return GCPFunction(func_name, package, self)
 
     # FIXME: trigger allocation API
     # FIXME: result query API

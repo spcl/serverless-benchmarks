@@ -1,9 +1,9 @@
 from ..faas.function import Function
-from ..gcp.gcp import GCP
 import json
 import datetime
 import logging
 import time
+
 
 class GCPFunction(Function):
 
@@ -11,19 +11,21 @@ class GCPFunction(Function):
     def code_package(self):
         return self._code_package
 
-    def __init__(self, name: str, code_package: str, deployment: GCP):
+    def __init__(self, name: str, code_package: str, deployment):
         super().__init__(name)
         self._code_package = code_package
         self._deployment = deployment
 
-    def sync_invoke(self, name: str, payload: dict):
-
+    def sync_invoke(self, payload: dict):
+        config = self._deployment.config
         full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(
-            project_name=self.project_name, location=self.location, func_name=name)
+            project_name=config.project_name, location=config.region, func_name=self.name)
         print(payload)
         payload = json.dumps(payload)
         print(payload)
-        status_req = self.function_client.projects().locations().functions().get(name=full_func_name)
+        function_client = self._deployment.get_function_client()
+        status_req = function_client.projects().locations().functions().get(name=full_func_name)
+
         deployed = False
         while not deployed:
             status_res = status_req.execute()
@@ -32,7 +34,7 @@ class GCPFunction(Function):
             else:
                 time.sleep(5)
 
-        req = self.function_client.projects().locations().functions().call(
+        req = function_client.projects().locations().functions().call(
             name=full_func_name,
             body={
                 "data": payload
