@@ -11,7 +11,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 import json
-from sebs.utils import execute
+from sebs import utils
 from ..faas.function import Function
 from .storage import PersistentStorage
 from ..faas.system import System
@@ -127,7 +127,7 @@ class GCP(System):
         old_name, new_name = HANDLER[benchmark.language_name]
         shutil.move(old_name, new_name)
 
-        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)
+        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark.benchmark), shell=True)
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark.benchmark))
         logging.info('Created {} archive'.format(benchmark_archive))
 
@@ -278,14 +278,14 @@ class GCP(System):
     # FIXME: result query API
     # FIXME: metrics query API
     def update_function(self, benchmark, full_func_name, code_package_name, code_package, timeout, memory):
-        language_runtime = str(self.config['config']['runtime'][self.language])
+        language_runtime = code_package.language_version
         bucket, idx = self.storage.add_input_bucket(benchmark)
         req = self.function_client.projects().locations().functions().patch(
             name=full_func_name,
             body={
                 "name": full_func_name,
                 "entryPoint": "handler",
-                "runtime": self.language + language_runtime.replace(".", ""),
+                "runtime": code_package.language_name + language_runtime.replace(".", ""),
                 "availableMemoryMb": memory,
                 "timeout": str(timeout) + "s",
                 "httpsTrigger": {},

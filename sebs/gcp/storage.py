@@ -1,8 +1,7 @@
-from abc import ABC
-from abc import abstractmethod
+import logging
+import uuid
 from typing import List, Tuple
 
-from boto.cloudfront import logging
 from google.cloud import storage as gcp_storage
 
 from ..faas.storage import PersistentStorage
@@ -10,7 +9,6 @@ from ..faas.storage import PersistentStorage
 
 class GCPStorage(PersistentStorage):
     cached: False
-    client: None
     input_buckets: List[str] = []
     output_buckets: List[str] = []
     input_buckets_files: []
@@ -53,11 +51,35 @@ class GCPStorage(PersistentStorage):
         # return self.output()
         return self.output_buckets
 
+    def create_bucket(self, name, buckets=None):
+        found_bucket = False
+        if buckets:
+            for b in buckets:
+                existing_bucket_name = b.name
+                if name in existing_bucket_name:
+                    found_bucket = True
+                    break
+
+        if not found_bucket:
+            random_name = str(uuid.uuid4())[0:16]
+            bucket_name = '{}-{}'.format(name, random_name).replace(".", "_")
+            self.client.create_bucket(bucket_name)
+            logging.info('Created bucket {}'.format(bucket_name))
+            return bucket_name
+        else:
+            logging.info('Bucket {} for {} already exists, skipping.'.format(existing_bucket_name, name))
+            return existing_bucket_name
+
     def download(self, bucket_name: str, file: str, filepath: str) -> None:
         logging.info('Download {}:{} to {}'.format(bucket_name, file, filepath))
         bucket_instance = self.client.bucket(bucket_name)
         blob = bucket_instance.blob(file)
         blob.download_to_filename(filepath)
+
+    def upload(self, bucket_name: str, file: str, filepath: str):
+        bucket_instance = self.client.bucket(bucket_name)
+        blob = bucket_instance.blob(file)
+        blob.upload_from_filename(filepath)
 
     """
         :param bucket_name:
