@@ -1,0 +1,35 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG USER
+ENV HOME=/home/${USER}
+
+WORKDIR ${HOME}
+# must be run as root for some reason
+RUN deps=''\
+  && apt-get update\
+  # for route and sudo
+  && apt-get install -y curl net-tools sudo ${deps}\
+  && apt-get purge -y --auto-remove ${deps}\
+  && pip3 install cffi minio
+RUN useradd -m ${USER}\
+    # Let the user use sudo
+    && usermod -aG sudo ${USER}\
+    # Set correct permission on home directory
+    && chown -R ${USER}:${USER} ${HOME}\
+    # Enable non-password use of sudo
+    && echo "$USER ALL=(ALL:ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/dont-prompt-$USER-for-password
+RUN chown -R ${USER}:${USER} ${HOME}
+
+
+USER ${USER}:${USER}
+COPY --chown=${USER}:${USER} docker/local/run.sh .
+COPY --chown=${USER}:${USER} docker/local/*.py ${HOME}/
+COPY --chown=${USER}:${USER} docker/local/python/*.py ${HOME}/
+COPY --chown=${USER}:${USER} docker/local/python/timeit.sh .
+COPY --chown=${USER}:${USER} docker/local/python/runners.json .
+# https://github.com/moby/moby/issues/35018 :-(
+ADD --chown=docker_user:docker_user third-party/pypapi/pypapi ${HOME}/pypapi
+
+ENV PYTHONPATH=${HOME}/.python_packages/lib/site-packages:$PYTHONPATH
+
+RUN chmod +x ${HOME}/run.sh

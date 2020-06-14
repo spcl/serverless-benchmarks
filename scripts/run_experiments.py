@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import argparse
 import collections
@@ -6,9 +6,11 @@ import copy
 import docker
 import glob
 import json
+import logging
 import minio
 import os
 import secrets
+import shutil
 import subprocess
 import sys
 import time
@@ -19,10 +21,11 @@ import uuid
 from functools import partial
 from typing import Tuple
 
-from experiments_utils import *
-from cache import cache
-from CodePackage import CodePackage
-from ExperimentEnvironment import ExperimentEnvironment
+from sebs import Cache, CodePackage
+from sebs.experiments.environment import ExperimentEnvironment
+from sebs import utils as experiment_utils
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 def iterable(val):
     return val if isinstance(val, collections.Iterable) else [val, ]
@@ -181,7 +184,7 @@ def run_experiment_papi_ipc(input_config):
         input_config=input_config,
         additional_cfg={
             'papi': {
-                'events': ['PAPI_TOT_INS', 'PAPI_LST_INS', 'PAPI_BR_INS', 'PAPI_BR_MSP'],
+                'events': ['PAPI_TOT_INS', 'PAPI_LST_INS', 'PAPI_BR_INS'],#, 'PAPI_BR_MSP'],
                 'overflow_instruction_granularity' : 1e6,
                 'overflow_buffer_size': 1e6
             }
@@ -580,12 +583,12 @@ try:
     experiment_config['experiments']['runtime'] = experiment_config['local']['runtime'][args.language]
 
     systems_config = json.load(open(os.path.join(SCRIPT_DIR, os.pardir, 'config', 'systems.json'), 'r'))
-    cache_client = cache(args.cache)
+    cache_client = Cache(args.cache)
     deployment_client = local(cache_client, experiment_config, docker_client, args.language)
     deployment = 'local'
 
     # 1. Create output dir
-    output_dir = create_output(args.output_dir, False, args.verbose)
+    output_dir = experiment_utils.create_output(args.output_dir, False, args.verbose)
     logging.info('Created experiment output at {}'.format(output_dir))
 
     # Verify if the experiment is supported for the language
@@ -607,6 +610,8 @@ try:
     # CLI overrides JSON config
     if args.repetitions:
         benchmark_config['repetitions'] = args.repetitions
+    elif 'repetitions' not in benchmark_config:
+        benchmark_config['repetitions'] = 1
     benchmark_config['language'] = args.language
     benchmark_config['runtime'] = experiment_config['local']['runtime'][args.language]
     benchmark_config['deployment'] = {
@@ -617,7 +622,7 @@ try:
     package = CodePackage(args.benchmark, experiment_config, output_dir,
             systems_config[deployment], cache_client, docker_client, args.update)
     # 5. Prepare benchmark input
-    input_config = prepare_input(
+    input_config = experiment_utils.prepare_input(
         client=deployment_client,
         benchmark=args.benchmark,
         size=args.size,

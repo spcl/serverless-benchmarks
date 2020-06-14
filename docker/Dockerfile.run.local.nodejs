@@ -9,13 +9,14 @@ RUN deps=''\
   && apt-get install -y curl net-tools python3 ${deps}\
   && apt-get purge -y --auto-remove ${deps}
 
+RUN useradd --uid 1000 ${USER}
 USER ${USER}:${USER}
-COPY --chown=${USER}:${USER} *.py ${HOME}/
-COPY --chown=${USER}:${USER} run.sh .
-COPY --chown=${USER}:${USER} nodejs/*.js ${HOME}/
-COPY --chown=${USER}:${USER} nodejs/timeit.sh .
-COPY --chown=${USER}:${USER} nodejs/runners.json .
-COPY --chown=${USER}:${USER} nodejs/package.json .
+COPY --chown=${USER}:${USER} docker/local/*.py ${HOME}/
+COPY --chown=${USER}:${USER} docker/local/run.sh .
+COPY --chown=${USER}:${USER} docker/local/nodejs/*.js ${HOME}/
+COPY --chown=${USER}:${USER} docker/local/nodejs/timeit.sh .
+COPY --chown=${USER}:${USER} docker/local/nodejs/runners.json .
+COPY --chown=${USER}:${USER} docker/local/nodejs/package.json .
 # must be run as root for some reason
 # minio - minio storage SDK
 # strftime - format timestamp easily

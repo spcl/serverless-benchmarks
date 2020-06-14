@@ -1,0 +1,41 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@0.2.1
+
+jobs:
+  build-and-test:
+    executor: python/default
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
+      - run:
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install -r requirements.txt
+          name: Install pip dependencies
+      - save_cache:
+          key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
+          paths:
+            - "venv"
+      - run:
+          command: |
+            . venv/bin/activate
+            flake8 sebs --config=flake8.cfg --black-config=black.toml --tee --output-file flake-reports
+          name: Python code lint with flake8
+      - run:
+          command: |
+            . venv/bin/activate
+            mypy sebs
+          name: Python static code verification with mypy
+      - store_artifacts:
+          path: flake-reports
+          destination: flake-reports
+
+workflows:
+  main:
+    jobs:
+      - build-and-test
+
