@@ -11,8 +11,8 @@ from ..faas.storage import PersistentStorage
 class GCPStorage(PersistentStorage):
     cached: False
     client: None
-    input_buckets: []
-    output_buckets: []
+    input_buckets: List[str] = []
+    output_buckets: List[str] = []
     input_buckets_files: []
     request_input_buckets: 0
     request_output_buckets: 0
@@ -72,7 +72,7 @@ class GCPStorage(PersistentStorage):
 
 
     #cached_buckets? ...
-    def allocate_buckets(self, benchmark: str, buckets: Tuple[int, int], cached_buckets):
+    def allocate_buckets(self, benchmark: str, buckets: Tuple[int, int], cached_buckets = None):
         self.request_input_buckets = buckets[0]
         self.request_output_buckets = buckets[1]
         if cached_buckets:

@@ -5,7 +5,6 @@ from typing import cast
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
 
-
 # FIXME: Replace type hints for static generators after migration to 3.7
 # https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
 
@@ -20,8 +19,8 @@ from sebs.faas.config import Config, Credentials, Resources
     4. If no information is provided, then failure is reported.
 """
 
-class GCPCredentials(Credentials):
 
+class GCPCredentials(Credentials):
     _gcp_credentials: str
 
     def __init__(self, gcp_credentials: str):
@@ -36,21 +35,23 @@ class GCPCredentials(Credentials):
         return GCPCredentials(gcp_credentials)
 
     @staticmethod
-    def initialize(config: dict, cache: Cache) -> "Credentials":
+    def initialize(config: dict, cache: Cache) -> Credentials:
         cached_config = cache.get_config("gcp")
         ret: GCPCredentials
         if cached_config and "credentials" in cached_config:
             logging.info("Using cached credentials for GCP")
             ret = cast(
-                GCPCredentials.deserialize(cached_config["credentials"])
+                GCPCredentials, GCPCredentials.deserialize(cached_config["credentials"])
             )
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
         else:
             logging.info("No cached credentials for GCP found, initialize!")
             # Check for new config
             if "credentials" in config:
                 ret = cast(
-                    GCPCredentials.deserialize(config["credentials"])
+                    GCPCredentials, GCPCredentials.deserialize(config["credentials"])
                 )
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
             elif "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
                 ret = GCPCredentials(
                     os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
@@ -60,7 +61,8 @@ class GCPCredentials(Credentials):
                 )
             else:
                 raise RuntimeError("GCP login credentials are missing!")
-            return ret
+        return ret
+
     """
         Serialize to JSON for storage in cache.
     """
@@ -68,6 +70,7 @@ class GCPCredentials(Credentials):
     def serialize(self) -> dict:
         out = {"gcp_credentials": self.gcp_credentials}
         return out
+
 
 """
     Class grouping resources allocated at the FaaS system to execute functions
@@ -80,17 +83,30 @@ class GCPCredentials(Credentials):
 
 class GCPResources(Resources):
 
-    def __init__(self, project_name: str, location: str):
+    def __init__(self, project_name: str, region: str):
         self._project_name = project_name
-        self._location = location
+        self._region = region
 
     @property
     def project_name(self):
         return self._project_name
 
     @property
-    def location(self):
-        return self._location
+    def region(self):
+        return self.region
+
+    @staticmethod
+    def deserialize(dct: dict) -> Resources:
+        return GCPResources(dct["project_name"] if "project_name" in dct else "",
+                            dct["region"] if "region" in dct else "")
+
+    """
+            Serialize to JSON for storage in cache.
+        """
+
+    def serialize(self) -> dict:
+        out = {"project_name": self._project_name, "region": self._region}
+        return out
 
     @staticmethod
     def initialize(config: dict, cache: Cache) -> "Resources":
@@ -98,26 +114,17 @@ class GCPResources(Resources):
         ret: GCPResources
         if cached_config and "resources" in cached_config:
             logging.info("Using cached resources for AWS")
-            ret = cast(
-                GCPResources.deserialize(cached_config["resources"])
-            )
+            ret = cast(GCPResources, GCPResources.deserialize(cached_config["resources"]))
         else:
             if "resources" in config:
                 logging.info(
                     "No cached resources for GCP found, using user configuration."
                 )
-                ret = cast(GCPResources.deserialize(config["resources"]))
+                ret = cast(GCPResources, GCPResources.deserialize(config["resources"]))
             else:
                 logging.info("No resources for GCP found, initialize!")
-                ret = GCPResources(project_name="", location="")
-
-    """
-        Serialize to JSON for storage in cache.
-    """
-
-    def serialize(self) -> dict:
-        out = {"project_name": self._project_name, "location": self._location}
-        return out
+                ret = GCPResources(project_name="", region="")
+        return ret
 
 
 """
@@ -128,6 +135,8 @@ class GCPResources(Resources):
 
 class GCPConfig(Config):
 
+    _project_name: str
+
     def __init__(self, credentials: GCPCredentials, resources: GCPResources):
         self._credentials = credentials
         self._resources = resources
@@ -135,6 +144,10 @@ class GCPConfig(Config):
     @property
     def region(self) -> str:
         return self._region
+
+    @property
+    def project_name(self) -> str:
+        return self._project_name
 
     @property
     def credentials(self) -> GCPCredentials:
@@ -156,13 +169,16 @@ class GCPConfig(Config):
         else:
             logging.info("Using user-provided config for GCP")
             GCPConfig.deserialize(config_obj, config)
-            cache.update_config(val=config_obj.region, keys=["gcp", "project_name", "location"])
+            cache.update_config(val=config_obj.region, keys=["gcp", "region"])
+            cache.update_config(val=config_obj.project_name, keys=["gcp", "project_name"])
+
+        return config_obj
 
     @staticmethod
     def deserialize(cfg: Config, dct: dict):
         config = cast(GCPConfig, cfg)
         config._project_name = dct["project_name"]
-        config._location = dct["location"]
+        config._region = dct["region"]
 
     def serialize(self) -> dict:
         out = {

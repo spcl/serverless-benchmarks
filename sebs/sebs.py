@@ -1,6 +1,7 @@
 import docker
 
 from sebs.aws.aws import AWS, AWSConfig
+from sebs.gcp.gcp import GCP, GCPConfig
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
@@ -24,8 +25,8 @@ class SeBS:
 
     def get_deployment(self, config: dict) -> FaasSystem:
 
-        implementations = {"aws": AWS}
-        configs = {"aws": AWSConfig.initialize}
+        implementations = {"aws": AWS, "gcp": GCP}
+        configs = {"aws": AWSConfig.initialize, "gcp": GCPConfig.initialize}
         name = config["name"]
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(**config))
