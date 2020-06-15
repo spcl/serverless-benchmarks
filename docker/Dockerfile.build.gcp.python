@@ -7,12 +7,17 @@ ENV PYTHON_VERSION=${VERSION}
 
 RUN useradd --uid 1000 ${USER}
 WORKDIR ${HOME}
+RUN chmod a+w ${HOME}
+USER ${USER}:${USER}
 
+RUN export PATH=/opt/python3.7/bin:/opt/python3.6/bin:/opt/python3.5/bin:/opt/python3.4/bin:$PATH
+RUN echo $PATH
+RUN which python
+
+RUN ls -al $HOME
 RUN virtualenv -p python${PYTHON_VERSION} ${HOME}/env
 ENV VIRTUAL_ENV ${HOME}/env
 ENV PATH ${HOME}/env/bin:${PATH}
-
-USER ${USER}:${USER}
 
 ENV SCRIPT_FILE=/mnt/function/package.sh
 CMD cd /mnt/function\

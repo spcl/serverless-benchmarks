@@ -71,7 +71,7 @@ class GCP(System):
     """
 
     def initialize(self, config: Dict[str, str] = {}):
-        self.function_client = build("cloudfunctions", "v1")
+        self.function_client = build("cloudfunctions", "v1", cache_discovery=False)
         self.get_storage()
 
     def get_function_client(self):
@@ -177,10 +177,10 @@ class GCP(System):
             full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(
                 project_name=project_name, location=location, func_name=func_name)
             code_location = code_package.code_location
-            timeout = code_package.benchmark_config["timeout"]
-            memory = code_package.benchmark_config["memory"]
+            timeout = code_package.benchmark_config.timeout
+            memory = code_package.benchmark_config.memory
 
-            package, code_size = self.package_code(code_location, code_package.benchmark)
+            package, code_size = self.package_code(code_package)
             code_package_name = os.path.basename(package)
             self.update_function(benchmark, full_func_name, code_package_name, code_package, timeout, memory)
             code_size = Benchmark.directory_size(code_location)
@@ -214,11 +214,6 @@ class GCP(System):
             self.storage.upload(bucket, code_package_name, package)
             logging.info('Uploading function {} code to {}'.format(func_name, bucket))
             blob = self.storage.client.bucket(bucket).blob(code_package_name)
-            # signed_url = blob.generate_signed_url(
-            #     version="v4",
-            #     expiration=datetime.timedelta(minutes=15),
-            #     method="GET",  # TODO I'm not sure which method to put here
-            # )
 
             print("config: ", self.config)
             req = self.function_client.projects().locations().functions().list(
@@ -303,9 +298,6 @@ class GCP(System):
         logs_bucket = self.storage.add_output_bucket(benchmark, suffix='logs')
         return logs_bucket
 
-    def prepare_experiment(self, benchmark):
-        logs_bucket = self.storage.add_output_bucket(benchmark, suffix='logs')
-        return logs_bucket
 
     def invoke_sync(self, name: str, payload: dict):
         full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(

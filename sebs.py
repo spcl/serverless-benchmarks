@@ -42,7 +42,7 @@ parser.add_argument(
 )
 parser.add_argument("config", type=str, help="Config JSON for experiments")
 parser.add_argument(
-    "--deployment", choices=["azure", "aws", "local"], help="Cloud to use"
+    "--deployment", choices=["azure", "aws", "local", "gcp"], help="Cloud to use"
 )
 parser.add_argument("--experiment", choices=["time_warm"], help="Experiment to run")
 parser.add_argument(
