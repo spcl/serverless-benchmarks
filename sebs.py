@@ -231,7 +231,8 @@ try:
             "deployment": deployment_client.config.serialize(),
         }
         with open("experiments.json", "w") as out_f:
-            json.dump(benchmark_summary, out_f, indent=2)
+            print(benchmark_summary)
+            json.dump(str(benchmark_summary), out_f, indent=2)
     elif args.action == "experiment":
         # Prepare benchmark input
         input_config = prepare_input(
