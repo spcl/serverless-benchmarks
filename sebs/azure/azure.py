@@ -61,12 +61,23 @@ class Azure(System)
         self.start()
         self.login()
 
+    """
+        Shutdowns Dock
+    """
     def shutdown(self):
         if self.docker_instance:
             logging.info('Stopping Azure manage Docker instance')
             self.docker_instance.stop()
             self.logged_in = False
             self.docker_instance = None
+
+    """
+        Starts an Azure CLI instance in a seperate Docker container.
+        The container is used to upload function code, thus it might
+        be restarted with a new set of volumes to be mounted.
+        TODO: wouldn't it be simpler to just use put_archive method to upload
+        function code on-the-fly?
+    """
 
     def start(self, code_package=None, restart=False):
         volumes = {}
@@ -79,7 +90,7 @@ class Azure(System)
         if not self.docker_instance or restart:
             # Run Azure CLI docker instance in background
             self.docker_instance = self.docker_client.containers.run(
-                    image='sebs.manage.azure',
+                    image='{}:manage.azure'.format(self.system_config.docker_repository()),
                     command='/bin/bash',
                     user='1000:1000',
                     volumes=volumes,
@@ -91,7 +102,12 @@ class Azure(System)
                 )
             logging.info('Starting Azure manage Docker instance')
 
-    def execute(self, cmd):
+    """
+        Execute the given command in Azure CLI.
+        Throws an exception on failure (commands are expected to execute succesfully).
+    """
+
+    def execute(self, cmd: str):
         exit_code, out = self.docker_instance.exec_run(cmd)
         if exit_code != 0:
             raise RuntimeError(
@@ -103,8 +119,8 @@ class Azure(System)
 
     '''
         Run azure login command on Docker instance.
-        Make sure to disable loging for self.execute to avoid infinite recursion.
     '''
+
     def login(self):
         self.execute(
             'az login -u {0} --service-principal --tenant {1} -p {2}'.format(
