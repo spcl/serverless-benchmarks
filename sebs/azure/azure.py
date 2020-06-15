@@ -11,227 +11,55 @@ import shutil
 import time
 import uuid
 
-from typing import Tuple, List
+from typing import Optional
 
-from azure.storage.blob import BlobServiceClient
 
-from CodePackage import CodePackage
-from experiments_utils import project_absolute_path
+from sebs.azure.blob_storage import BlobStorage
+from sebs.azure.config import AzureConfig
+from sebs import utils
+from sebs.benchmark import Benchmark
+from sebs.cache import Cache
+from sebs.config import SeBSConfig
+from ..faas.function import Function, ExecutionResult
+from ..faas.storage import PersistentStorage
+from ..faas.system import System
 
-class blob_storage:
-    client = None
-    input_containers = []
-    input_containers_files = []
-    output_containers = []
-    temporary_containers = []
-    replace_existing = False
+class Azure(System)
+    logs_client = None
+    storage: BlobStorage
     cached = False
-
-    def __init__(self, conn_string, replace_existing):
-        self.client = BlobServiceClient.from_connection_string(conn_string)
-        self.replace_existing = replace_existing
-
-    def input(self):
-        return self.input_containers
-
-    def output(self):
-        return self.output_containers
-
-    def create_container(self, name, containers=None):
-        found_container = False
-        if containers:
-            for c in containers:
-                container_name = c['name']
-                if name in container_name:
-                    found_container = True
-                    break
-        if not found_container:
-            random_name = str(uuid.uuid4())[0:16]
-            name = '{}-{}'.format(name, random_name)
-            self.client.create_container(name)
-            logging.info('Created container {}'.format(name))
-            return name
-        else:
-            logging.info('Container {} for {} already exists, skipping.'.format(container_name, name))
-            return container_name
-
-    '''
-        Azure does not allow dots in container names.
-    '''
-    def correct_name(self, name :str):
-        return name.replace('.', '-')
-
-    '''
-    '''
-    def add_output_container(self, name :str, suffix: str='output'):
-
-        name = '{}-{}'.format(name, suffix)
-        cont_name = self.create_container(self.correct_name(name))
-        self.temporary_containers.append(cont_name)
-        return cont_name
-
-    def create_buckets(self, benchmark, buckets, cached_buckets):
-        if cached_buckets:
-            self.input_containers = cached_buckets['containers']['input']
-            for container in self.input_containers:
-                self.input_containers_files.append(
-                    list(
-                        map(
-                            lambda x : x['name'],
-                            self.client.get_container_client(container).list_blobs()
-                        )
-                    )
-                )
-            self.output_containers = cached_buckets['containers']['output']
-            # Clean output container for new execution.
-            for container in self.output_containers:
-                logging.info('Clean output container {}'.format(container))
-                container_client = self.client.get_container_client(container)
-                blobs = list(map(
-                            lambda x : x['name'],
-                            container_client.list_blobs()
-                        ))
-                #TODO: reenable with a try/except for failed deletions
-                #container_client.delete_blobs(*blobs)
-
-            self.cached = True
-            logging.info('Using cached storage input containers {}'.format(self.input_containers))
-            logging.info('Using cached storage output containers {}'.format(self.output_containers))
-        else:
-            benchmark = self.correct_name(benchmark)
-            # get existing containers which might fit the benchmark
-            containers = self.client.list_containers(
-                    name_starts_with=benchmark
-            )
-            for i in range(0, buckets[0]):
-                self.input_containers.append(
-                    self.create_container(
-                        '{}-{}-input'.format(benchmark, i),
-                        containers
-                    )
-                )
-                container = self.input_containers[-1]
-                self.input_containers_files.append(
-                    list(
-                        map(
-                            lambda x : x['name'],
-                            self.client.get_container_client(container).list_blobs()
-                        )
-                    )
-                )
-            for i in range(0, buckets[1]):
-                self.output_containers.append(
-                    self.create_container(
-                        '{}-{}-output'.format(benchmark, i),
-                        containers
-                    )
-                )
-
-    def uploader_func(self, container_idx, file, filepath):
-        # Skip upload when using cached containers
-        if self.cached and not self.replace_existing:
-            return
-        container_name = self.input_containers[container_idx]
-        if not self.replace_existing:
-            for f in self.input_containers_files[container_idx]:
-                if f == file:
-                    logging.info('Skipping upload of {} to {}'.format(filepath, container_name))
-                    return
-        client = self.client.get_blob_client(container_name, file)
-        with open(filepath, 'rb') as file_data:
-            client.upload_blob(data=file_data, overwrite=True)
-        logging.info('Upload {} to {}'.format(filepath, container_name))
-
-    '''
-        Download file from bucket.
-
-        :param container_name:
-        :param file:
-        :param filepath:
-    '''
-    def download(self, container_name :str, file :str, filepath :str):
-        logging.info('Download {}:{} to {}'.format(container_name, file, filepath))
-        client = self.client.get_blob_client(container_name, file)
-        with open(filepath, 'wb') as download_file:
-            download_file.write( client.download_blob().readall() )
-
-    '''
-        Return list of files in a container.
-
-        :param container:
-        :return: list of file names. empty if container empty
-    '''
-    def list_bucket(self, container :str):
-        objects = list(
-            map(
-                lambda x : x['name'],
-                self.client.get_container_client(container).list_blobs()
-            )
-        )
-        return objects
-
-class classproperty(property):
-    def __get__(self, cls, owner):
-        return classmethod(self.fget).__get__(None, owner)()
-
-class azure:
-    config = None
-    language = None
-    docker_instance = None
-    cache_client = None
-    logged_in = False
-
-    # secrets
-    appId = None
-    tenant = None
-    password = None
-
-    # resources
-    resource_group_name = None
-    storage_account_name = None
-    storage_connection_string = None
-
-    # function
-    url = None
-
-    @classproperty
-    def name(cls):
-        return 'azure'
+    _config: AzureConfig
+    docker_instance: Optional[docker.Container]
 
     # runtime mapping
     AZURE_RUNTIMES = {'python': 'python', 'nodejs': 'node'}
 
-    def __init__(self, cache_client, config, language, docker_client):
-        self.config = config
-        self.language = language
-        self.docker_client = docker_client
-        self.cache_client = cache_client
+    @staticmethod
+    def name():
+        return "azure"
 
+    @property
+    def config(self) -> AzureConfig:
+        return self._config
 
-        # Read cached credentaisl
-        if 'secrets' in config:
-            self.appId = config['secrets']['appId']
-            self.tenant = config['secrets']['tenant']
-            self.password = config['secrets']['password']
-        elif 'AZURE_SECRET_APPLICATION_ID' in os.environ:
-            self.appId = os.environ['AZURE_SECRET_APPLICATION_ID']
-            self.tenant = os.environ['AZURE_SECRET_TENANT']
-            self.password = os.environ['AZURE_SECRET_PASSWORD']
-            self.cache_client.update_config(
-                val=self.appId,
-                keys=['azure', 'secrets', 'appId']
-            )
-            self.cache_client.update_config(
-                val=self.tenant,
-                keys=['azure', 'secrets', 'tenant']
-            )
-            self.cache_client.update_config(
-                val=self.password,
-                keys=['azure', 'secrets', 'password']
-            )
-        else:
-            # TODO: implement creation of service principal
-            raise RuntimeError('Azure credentials are not provided!')
+    def __init__(
+        self,
+        sebs_config: SeBSConfig,
+        config: AWSConfig,
+        cache_client: Cache,
+        docker_client: docker.client,
+    ):
+        super().__init__(sebs_config, cache_client, docker_client)
+        self._config = config
+
+    """
+        Start the Docker container running Azure CLI tools.
+        Login 
+    """
+
+    def initialize(self, config: Dict[str, str] = {}):
+        self.start()
+        self.login()
 
     def shutdown(self):
         if self.docker_instance:
@@ -263,9 +91,7 @@ class azure:
                 )
             logging.info('Starting Azure manage Docker instance')
 
-    def execute(self, cmd, no_login=False):
-        if not no_login:
-            self.login()
+    def execute(self, cmd):
         exit_code, out = self.docker_instance.exec_run(cmd)
         if exit_code != 0:
             raise RuntimeError(
@@ -280,16 +106,14 @@ class azure:
         Make sure to disable loging for self.execute to avoid infinite recursion.
     '''
     def login(self):
-        if not self.logged_in:
-            self.start()
-            self.execute(
-                'az login -u {0} --service-principal --tenant {1} -p {2}'.format(
-                    self.appId, self.tenant, self.password
-                ),
-                no_login=True
+        self.execute(
+            'az login -u {0} --service-principal --tenant {1} -p {2}'.format(
+                self.config.credentials.appId,
+                self.config.credentials.tenant,
+                self.config.credentials.password
             )
-            logging.info('Azure login succesful')
-            self.logged_in = True
+        )
+        logging.info('Azure login succesful')
 
     '''
         Create wrapper object for Azure blob storage.
@@ -303,12 +127,19 @@ class azure:
         :param replace_existing: when true, replace existing files in input buckets
         :return: Azure storage instance
     '''
-    def get_storage(self, benchmark :str = None, buckets :Tuple[int, int] = None,
-            replace_existing: bool=False):
+    def get_storage(self, replace_existing: bool=False) -> PersistentStorage:
+        if not hasattr(self, "storage"):
+            self.storage = BlobStorage(
+                self.cache_client,
+                self.storage_connection_string,
+                replace_existing=replace_existing,
+            )
+        else:
+            self.storage.replace_existing = replace_existing
+        return self.storage
         # ensure we have a storage account
         self.storage_account()
         self.storage = blob_storage(
-                self.storage_connection_string,
                 replace_existing
         )
         if benchmark and buckets:

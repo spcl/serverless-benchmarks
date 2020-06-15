@@ -21,19 +21,12 @@ from ..faas.function import Function, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
-
-class classproperty(property):
-    def __get__(self, cls, owner):
-        return classmethod(self.fget).__get__(None, owner)()
-
-
 class AWS(System):
     logs_client = None
     storage: S3
     cached = False
     _config: AWSConfig
 
-    # @classproperty
     @staticmethod
     def name():
         return "aws"

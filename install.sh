@@ -15,6 +15,8 @@ if [ ! -d ${env_dir} ]; then
   pip3 install pandas matplotlib seaborn
 fi
 
+mypy_boto3
+
 ## node
 #env_dir=sebs-nodeenv
 #if [ ! -d ${env_dir} ]; then
