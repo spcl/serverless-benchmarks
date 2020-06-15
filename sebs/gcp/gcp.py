@@ -111,7 +111,7 @@ class GCP(System):
         directory = benchmark.build()
 
         CONFIG_FILES = {
-            'python': ['handler.py', 'requirements.txt', '.python_packages'],
+            'python': ['handler.py', '.python_packages'],
             'nodejs': ['handler.js', 'node_modules']
         }
         HANDLER = {
@@ -125,6 +125,10 @@ class GCP(System):
             if file not in package_config:
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
+
+        requirements = open(os.path.join(directory, 'requirements.txt'), 'w')
+        requirements.write('google-cloud-storage')
+        requirements.close()
 
         cur_dir = os.getcwd()
         os.chdir(directory)
