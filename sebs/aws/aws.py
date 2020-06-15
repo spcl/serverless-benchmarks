@@ -176,7 +176,7 @@ class AWS(System):
         else:
             code_package_name = cast(str, os.path.basename(package))
             bucket, idx = self.storage.add_input_bucket(function_name)
-            self.storage.upload(bucket, code_package_name, package)
+            self.storage.upload(bucket, package, code_package_name)
             logging.info(
                 "Uploading function {} code to {}".format(function_name, bucket)
             )
@@ -544,7 +544,7 @@ class AWS(System):
         else:
             code_package_name = os.path.basename(code_package)
             bucket, idx = self.storage.add_input_bucket(benchmark)
-            self.storage.upload(bucket, code_package_name, code_package)
+            self.storage.upload(bucket, code_package, code_package_name)
             self.client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
             )
