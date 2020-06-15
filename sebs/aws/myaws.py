@@ -4,10 +4,10 @@ import time
 
 
 # Credentials
-ACCESS_KEY = 'AKIA3YFCLKIJM43KK5WB'
-SECRET_KEY = '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'
+ACCESS_KEY = ''
+SECRET_KEY = ''
 SESSION_TOKEN =''
-REGION_NAME = 'us-east-1'
+REGION_NAME = ''
 
 ROLE_NAME='ServerlessBenchmarksRole'
 POLICY_NAME='ServerlessBenchmarksPolicy'
