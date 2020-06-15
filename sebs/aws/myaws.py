@@ -2,13 +2,16 @@ import boto3
 import json
 import time
 
-# temporary file for testing / share code
 
 # Credentials
-ACCESS_KEY = ''
-SECRET_KEY = ''
-SESSION_TOKEN = ''
-REGION_NAME = ''
+ACCESS_KEY = 'AKIA3YFCLKIJM43KK5WB'
+SECRET_KEY = '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'
+SESSION_TOKEN =''
+REGION_NAME = 'us-east-1'
+
+ROLE_NAME='ServerlessBenchmarksRole'
+POLICY_NAME='ServerlessBenchmarksPolicy'
+BENCHMARK_NAME = 'sm-created-via-python-9'
 
 client = boto3.client(
     'stepfunctions',
@@ -31,21 +34,53 @@ sample_definition = {
     "StartAt": "state_1",
     "States": {
         "state_1": {
-            "Resource": "arn:aws:lambda:us-east-1:427909965706:function:mati_lambda",
+            "Resource": "arn:aws:lambda:us-east-1:807794332178:function:ex_lmbd",
             "Type": "Task",
-            "Next": "state_2"
-        },
-        "state_2": {
-            "Type": "Task",
-            "Resource": "arn:aws:lambda:us-east-1:427909965706:function:mati_lambda",
             "Next": "End"
-        },
+       },
         "End": {
             "Type": "Succeed"
         }
     }
 }
 
+role_policy = {
+        "Statement": [{
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "lambda.amazonaws.com",
+                "Service": "states.amazonaws.com"
+            },
+            "Action": ["sts:AssumeRole"]
+        }]
+}
+
+benchmarks_policy_definition = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:InvokeFunction"
+                ],
+                "Resource": [
+                    "*"
+                ]
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "states:ListStateMachines",
+                    "states:ListActivities",
+                    "states:CreateStateMachine",
+                    "states:CreateActivity"
+                ],
+                "Resource": [ 
+                    "*" 
+                ]
+            }
+        ]
+}
 
 def get_state_machines():
     response = client.list_state_machines()
@@ -103,27 +138,10 @@ def get_execution_history(execution_arr):
     return response
 
 
-# We can use AWSLambdaRole policy instead of creating a new one (if lambda:InvokeFunction is enough for us)
-# AWS_LAMBDA_ROLE_ARN = 'arn:aws:iam::aws:policy/service-role/AWSLambdaRole'
-def iam_create_policy():
-    benchmarks_policy_definition = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "lambda:InvokeFunction"
-                ],
-                "Resource": [
-                    "*"
-                ]
-            }
-        ]
-    }
-
+def iam_create_policy(policy_name):
     try:
         response = iam_client.create_policy(
-            PolicyName='ServerlessBenchmarksPolicy',
+            PolicyName=policy_name,
             Description='Allows benchmark lambdas to access AWS',
             PolicyDocument=json.dumps(benchmarks_policy_definition)
         )
@@ -134,28 +152,42 @@ def iam_create_policy():
     return response['Policy']['Arn']
 
 
-def iam_create_role():
-    assume_role_policy = {
-        "Statement": [{
-            "Effect": "Allow",
-            "Principal": {
-                "Service": "lambda.amazonaws.com",
-                "Service": "states.amazonaws.com"
-            },
-            "Action": ["sts:AssumeRole"]
-        }]
-    }
+def iam_delete_policy(policy_arn):
+    try:
+        response = iam_client.delete_policy(
+            PolicyArn=policy_arn,
+        )
+    except Exception as ex:
+        print('error: delete policy - ', ex)
+        return None
 
+    return response
+
+
+def iam_create_role(role_name):
     try:
         response = iam_client.create_role(
-            RoleName='ServerlessBenchmarksRole',
-            AssumeRolePolicyDocument=json.dumps(assume_role_policy),
+            RoleName=role_name,
+            AssumeRolePolicyDocument=json.dumps(role_policy),
             Description='Role for serverless benchmarks',
         )
+       
     except Exception as ex:
         print('error: create role - ', ex)
         return None
     return response['Role']['Arn']
+
+
+def iam_delete_role(role_name):
+    try:
+        response = iam_client.delete_role(
+            RoleName=role_name,
+        )
+       
+    except Exception as ex:
+        print('error: delete role - ', ex)
+        return None
+    return response
 
 
 def iam_attach_policy_to_role(role_name, policy_arn):
@@ -169,22 +201,45 @@ def iam_attach_policy_to_role(role_name, policy_arn):
         return None
     return response
 
-# list state machines
-# print(get_state_machines())
 
-# create role with policy
-role_arn = iam_create_role()
-policy = iam_create_policy()
-iam_attach_policy_to_role('ServerlessBenchmarksRole', policy)
+def iam_detach_policy_from_role(role_name, policy_arn):
+    try:
+        response = iam_client.detach_role_policy(
+            PolicyArn=policy_arn,
+            RoleName=role_name
+        )
+    except Exception as ex:
+        print('error: detach policy - ', ex)
+        return None
+    return response
 
-# create state machine
-BENCHMARK_NAME = 'sm-created-via-python-9'
-create_state_machine(BENCHMARK_NAME, sample_definition, role_arn)
+# ------------------------------------------------------------------------------------
 
-# execute created state machine
-time.sleep(10.0) # it need some time (about 6-10s. in this example) - otherwise execution will fail
-execution_arr = execute_state_machine(BENCHMARK_NAME, None)
+# create role, policy. attach policy to the role
+role_arn = iam_create_role(ROLE_NAME)
+policy_arn = iam_create_policy(POLICY_NAME)
+iam_attach_policy_to_role(ROLE_NAME, policy_arn)
 
-# get execution history
-history = get_execution_history(execution_arr)
-print(history)
+try:
+    # create state machine
+    create_state_machine(BENCHMARK_NAME, sample_definition, role_arn)
+
+    # list state machines
+    print(get_state_machines())
+
+    # execute created state machine
+    time.sleep(10.0) # it need some time (about 6-10s. in this example) - otherwise execution will fail
+    execution_arr = execute_state_machine(BENCHMARK_NAME, None)
+
+    # get execution history
+    history = get_execution_history(execution_arr)
+    print(history)
+
+except Exception as ex:
+    print('Error while running benchmark', ex)
+
+finally:
+    # CLEANUP
+    iam_detach_policy_from_role(ROLE_NAME, policy_arn)
+    iam_delete_role(ROLE_NAME)
+    iam_delete_policy(policy_arn)
