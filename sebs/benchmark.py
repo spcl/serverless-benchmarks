@@ -14,9 +14,9 @@ import docker
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path
-from .faas.storage import PersistentStorage
-from .experiments.config import Config as ExperimentConfig
-from .experiments.config import Language
+from sebs.faas.storage import PersistentStorage
+from sebs.experiments.config import Config as ExperimentConfig
+from sebs.experiments.config import Language
 
 
 class BenchmarkConfig:
