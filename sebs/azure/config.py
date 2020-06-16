@@ -56,7 +56,7 @@ class AzureCredentials(Credentials):
                     AzureCredentials, AzureCredentials.deserialize(config["credentials"])
                 )
             elif "AZURE_SECRET_APPLICATION_ID" in os.environ:
-                ret = AWSCredentials(
+                ret = AzureCredentials(
                     os.environ["AZURE_SECRET_APPLICATION_ID"],
                     os.environ["AZURE_SECRET_TENANT"],
                     os.environ["AZURE_SECRET_PASSWORD"]
@@ -120,10 +120,10 @@ class AzureResources(Resources):
                 logging.info(
                     "No cached resources for Azure found, using user configuration."
                 )
-                ret = cast(AWSResources, AWSResources.deserialize(config["resources"]))
+                ret = cast(AzureResources, AzureResources.deserialize(config["resources"]))
             else:
                 logging.info("No resources for AWS found, initialize!")
-                ret = AWSResources(lambda_role="")
+                ret = AzureResources()
 
         if not ret.lambda_role:
             # FIXME: hardcoded value for test purposes, add generation here
@@ -162,12 +162,11 @@ class AzureConfig(Config):
         config_obj = AWSConfig(credentials, resources)
         # Load cached values
         if cached_config:
-            logging.info("Using cached config for AWS")
-            AWSConfig.deserialize(config_obj, cached_config)
+            logging.info("Using cached config for Azure")
+            AzureConfig.deserialize(config_obj, cached_config)
         else:
-            logging.info("Using user-provided config for AWS")
-            AWSConfig.deserialize(config_obj, config)
-            cache.update_config(val=config_obj.region, keys=["aws", "region"])
+            logging.info("Using user-provided config for Azure")
+            AzureConfig.deserialize(config_obj, config)
 
         return config_obj
 
