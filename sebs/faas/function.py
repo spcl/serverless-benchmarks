@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta
 from abc import ABC
 from abc import abstractmethod
+from datetime import datetime, timedelta
 from enum import Enum
+import json
 from typing import List, Optional
 
 
@@ -124,6 +125,9 @@ class ExecutionResult:
             )
             / timedelta(microseconds=1)
         )
+
+    def toJSON(self):
+        return json.dumps(self, default=vars, sort_keys=True, indent=2)
 
 
 """

@@ -333,7 +333,8 @@ class Benchmark:
             if os.path.exists(file):
                 try:
                     logging.info(
-                        "Docker build of benchmark dependencies in container of image {repo}:{image}".format(
+                        "Docker build of benchmark dependencies in container "
+                        "of image {repo}:{image}".format(
                             repo=repo_name, image=image_name
                         )
                     )
@@ -371,9 +372,8 @@ class Benchmark:
                         import tarfile
 
                         logging.info(
-                            "Send benchmark code from path {path} to Docker instance".format(
-                                path=os.path.abspath(output_dir)
-                            )
+                            "Send benchmark code from path {path} to "
+                            "Docker instance".format(path=os.path.abspath(output_dir))
                         )
                         tar_archive = os.path.join(
                             output_dir, os.path.pardir, "function.tar"

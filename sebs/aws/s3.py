@@ -18,7 +18,7 @@ class S3(PersistentStorage):
     _replace_existing = False
 
     @property
-    def replace_existing(self):
+    def replace_existing(self) -> bool:
         return self._replace_existing
 
     @replace_existing.setter
@@ -26,7 +26,12 @@ class S3(PersistentStorage):
         self._replace_existing = val
 
     def __init__(
-        self, cache_client: Cache, location, access_key, secret_key, replace_existing
+        self,
+        cache_client: Cache,
+        location: str,
+        access_key: str,
+        secret_key: str,
+        replace_existing: bool,
     ):
         self.client = boto3.client(
             "s3",
@@ -148,7 +153,8 @@ class S3(PersistentStorage):
         if self.cached and not self.replace_existing:
             return
         bucket_name = self.input_buckets[bucket_idx]
-        if not self.replace_existing:
+        print(type(self.replace_existing))
+        if not self.replace_existing():
             if "Contents" in self.input_buckets_files[bucket_idx]:
                 for f in self.input_buckets_files[bucket_idx]["Contents"]:
                     f_name = f["Key"]
