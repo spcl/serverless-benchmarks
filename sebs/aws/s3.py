@@ -143,7 +143,7 @@ class S3(PersistentStorage):
                     self.create_bucket("{}-{}-output".format(benchmark, i), s3_buckets)
                 )
 
-    def uploader_func(self, bucket_idx, file, filepath):
+    def uploader_func(self, bucket_idx, key, filepath):
         # Skip upload when using cached buckets and not updating storage.
         if self.cached and not self.replace_existing:
             return
@@ -152,13 +152,13 @@ class S3(PersistentStorage):
             if "Contents" in self.input_buckets_files[bucket_idx]:
                 for f in self.input_buckets_files[bucket_idx]["Contents"]:
                     f_name = f["Key"]
-                    if file == f_name:
+                    if key == f_name:
                         logging.info(
                             "Skipping upload of {} to {}".format(filepath, bucket_name)
                         )
                         return
         bucket_name = self.input_buckets[bucket_idx]
-        self.upload(bucket_name, file, filepath)
+        self.upload(bucket_name, filepath, key)
 
     def upload(self, bucket_name: str, filepath: str, key: str):
         logging.info("Upload {} to {}".format(filepath, bucket_name))
