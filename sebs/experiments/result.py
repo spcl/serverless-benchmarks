@@ -28,6 +28,8 @@ class Result:
 
     def add_invocation(self, func_name: str, invocation: ExecutionResult):
         if func_name in self.invocations:
-            self.invocations.get(func_name)[invocation.request_id] = invocation  # type: ignore
+            self.invocations.get(func_name)[  # type: ignore
+                invocation.request_id
+            ] = invocation
         else:
             self.invocations[func_name] = {invocation.request_id: invocation}
