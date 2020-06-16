@@ -1,0 +1,31 @@
+{
+  "configuration": {
+    "name": "test-benchmark",
+    "description": "A Hello World example",
+    "platforms": ["aws", "azure"]
+  },
+
+  "pipeline": {
+    "first_step": "state_1",
+    "steps": [
+      {
+        "name":"state_1",
+        "type": "Task",
+        "argument": "<in AWS case: ARN to Lambda function which should be executed in this step>",
+        "next_step": "state_2"
+      },
+      {
+        "name":"state_2",
+        "type": "Wait",
+        "argument": "10",
+        "next_step": ""
+      },
+      {
+        "name":"state_3",
+        "type": "Task",
+        "argument": "<in AWS case: ARN to Lambda function which should be executed in this step>",
+        "next_step": null
+      }
+    ]
+  }
+}

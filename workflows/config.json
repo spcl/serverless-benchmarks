@@ -1,0 +1,30 @@
+{
+  "config": {
+    "aws": {
+      "secrets": {
+        "access_key": "",
+        "secret_key": ""
+      },
+      "region": "us-east-1",
+      "role": {
+        "name": "ServerlessBenchmarksRole",
+        "policy": {
+          "name": "ServerlessBenchmarksPolicy",
+          "permission": [
+            "lambda.amazonaws.com",
+            "states.amazonaws.com"
+          ]
+        }
+      }
+    },
+    "azure": {
+      "secrets": {
+        "service_principal": "",
+        "appId": "",
+        "password": "",
+        "tenant": ""
+      },
+      "regions": "westeurope"
+    }
+  }
+}

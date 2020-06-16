@@ -1,0 +1,24 @@
+{
+  "Comment": "Simple step pipeline for test",
+  "StartAt": "state_1",
+  "States": {
+    "state_1": {
+      "Resource": "arn:aws:lambda:us-east-1:427909965706:function:mati_lambda",
+      "Type": "Task",
+      "Next": "state_2"
+    },
+    "state_2": {
+      "Type": "Wait",
+      "Seconds": 10,
+      "Next": "state_3"
+    },
+    "state_3": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:427909965706:function:mati_lambda",
+      "Next": "End"
+    },
+    "End": {
+      "Type": "Succeed"
+    }
+  }
+}
