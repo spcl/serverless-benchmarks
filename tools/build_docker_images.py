@@ -76,6 +76,8 @@ def build_systems(system, system_config):
 
 if args.deployment is None:
     for system, system_dict in config.items():
+        if system == 'general':
+            continue
         build_systems(system, system_dict)
 else:
     build_systems(args.deployment, config[args.deployment])
