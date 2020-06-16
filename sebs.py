@@ -161,6 +161,7 @@ if args.update_storage:
     config["experiments"]["update_storage"] = args.update_storage
 
 config["experiments"]["benchmark"] = args.benchmark
+deployment_client: sebs.faas.System = None
 
 try:
     benchmark_summary = {}
