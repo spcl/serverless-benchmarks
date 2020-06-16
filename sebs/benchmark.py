@@ -332,10 +332,20 @@ class Benchmark:
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
+                    logging.info(
+                        "Docker build of benchmark dependencies in container of image {repo}:{image}".format(
+                            repo=repo_name, image=image_name
+                        )
+                    )
                     # Standard, simplest build
                     if not self._experiment_config.check_flag(
                         "docker_copy_build_files"
                     ):
+                        logging.info(
+                            "Docker mount of benchmark code from path {path}".format(
+                                path=os.path.abspath(output_dir)
+                            )
+                        )
                         stdout = self._docker_client.containers.run(
                             "{}:{}".format(repo_name, image_name),
                             volumes=volumes,
@@ -360,6 +370,11 @@ class Benchmark:
                         # copy application files
                         import tarfile
 
+                        logging.info(
+                            "Send benchmark code from path {path} to Docker instance".format(
+                                path=os.path.abspath(output_dir)
+                            )
+                        )
                         tar_archive = os.path.join(
                             output_dir, os.path.pardir, "function.tar"
                         )
