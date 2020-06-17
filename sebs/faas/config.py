@@ -1,7 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
 
-
 from sebs.cache import Cache
 
 # FIXME: Replace type hints for static generators after migration to 3.7

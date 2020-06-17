@@ -18,7 +18,7 @@ class S3(PersistentStorage):
     _replace_existing = False
 
     @property
-    def replace_existing(self):
+    def replace_existing(self) -> bool:
         return self._replace_existing
 
     @replace_existing.setter
@@ -26,7 +26,12 @@ class S3(PersistentStorage):
         self._replace_existing = val
 
     def __init__(
-        self, cache_client: Cache, location, access_key, secret_key, replace_existing
+        self,
+        cache_client: Cache,
+        location: str,
+        access_key: str,
+        secret_key: str,
+        replace_existing: bool,
     ):
         self.client = boto3.client(
             "s3",
@@ -66,25 +71,29 @@ class S3(PersistentStorage):
             )
             return existing_bucket_name
 
-    def add_input_bucket(self, name: str) -> Tuple[str, int]:
+    def add_input_bucket(self, name: str, cache: bool = True) -> Tuple[str, int]:
 
         idx = self.request_input_buckets
-        self.request_input_buckets += 1
         name = "{}-{}-input".format(name, idx)
-        # there's cached bucket we could use
-        for bucket in self.input_buckets:
-            if name in bucket:
-                return bucket, idx
+        if cache:
+            self.request_input_buckets += 1
+            # there's cached bucket we could use
+            for bucket in self.input_buckets:
+                if name in bucket:
+                    return bucket, idx
         # otherwise add one
         bucket_name = self.create_bucket(name)
-        self.input_buckets.append(bucket_name)
+        if cache:
+            self.input_buckets.append(bucket_name)
         return bucket_name, idx
 
     """
         :param cache: if true then bucket will be counted and mentioned in cache
     """
 
-    def add_output_bucket(self, name: str, suffix: str = "output", cache: bool = True):
+    def add_output_bucket(
+        self, name: str, suffix: str = "output", cache: bool = True
+    ) -> Tuple[str, int]:
 
         idx = self.request_input_buckets
         name = "{}-{}-{}".format(name, idx + 1, suffix)
@@ -98,7 +107,7 @@ class S3(PersistentStorage):
         bucket_name = self.create_bucket(name)
         if cache:
             self.input_buckets.append(bucket_name)
-        return bucket_name
+        return bucket_name, idx
 
     def create_buckets(self, benchmark, buckets, cached_buckets):
 
@@ -139,49 +148,31 @@ class S3(PersistentStorage):
                     self.create_bucket("{}-{}-output".format(benchmark, i), s3_buckets)
                 )
 
-    def uploader_func(self, bucket_idx, file, filepath):
+    def uploader_func(self, bucket_idx, key, filepath):
         # Skip upload when using cached buckets and not updating storage.
         if self.cached and not self.replace_existing:
             return
         bucket_name = self.input_buckets[bucket_idx]
-        if not self.replace_existing:
+        print(type(self.replace_existing))
+        if not self.replace_existing():
             if "Contents" in self.input_buckets_files[bucket_idx]:
                 for f in self.input_buckets_files[bucket_idx]["Contents"]:
                     f_name = f["Key"]
-                    if file == f_name:
+                    if key == f_name:
                         logging.info(
                             "Skipping upload of {} to {}".format(filepath, bucket_name)
                         )
                         return
         bucket_name = self.input_buckets[bucket_idx]
-        self.upload(bucket_name, file, filepath)
+        self.upload(bucket_name, filepath, key)
 
-    """
-        Upload without any caching. Useful for uploading code package to S3.
-    """
-
-    def upload(self, bucket_name: str, file: str, filepath: str):
+    def upload(self, bucket_name: str, filepath: str, key: str):
         logging.info("Upload {} to {}".format(filepath, bucket_name))
-        self.client.upload_file(filepath, bucket_name, file)
+        self.client.upload_file(Filename=filepath, Bucket=bucket_name, Key=key)
 
-    """
-        Download file from bucket.
-
-        :param bucket_name:
-        :param file:
-        :param filepath:
-    """
-
-    def download(self, bucket_name: str, file: str, filepath: str):
-        logging.info("Download {}:{} to {}".format(bucket_name, file, filepath))
-        self.client.download_file(Bucket=bucket_name, Key=file, Filename=filepath)
-
-    """
-        Return list of files in a bucket.
-
-        :param bucket_name:
-        :return: list of file names. empty if bucket empty
-    """
+    def download(self, bucket_name: str, key: str, filepath: str):
+        logging.info("Download {}:{} to {}".format(bucket_name, key, filepath))
+        self.client.download_file(Bucket=bucket_name, Key=key, Filename=filepath)
 
     def list_bucket(self, bucket_name: str):
         objects_list = self.client.list_objects_v2(Bucket=bucket_name)
