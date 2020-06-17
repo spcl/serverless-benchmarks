@@ -20,7 +20,7 @@ def workload(number_of_iterations, dtype, array_size, operator):
     return {"number_of_operations": number_of_iterations * array_size,
         "dtype": dtype,
         "time": t1 - t0}
-#invoke
+#run
 string_to_operator = {
     "+": op.add,
     "-": op.sub,
@@ -31,5 +31,5 @@ element_type = np.dtype(config.get("type", np.float))
 number_of_iterations = config.get("iterations", 10000)
 array_size = config.get("array_size", 100)
 operator = string_to_operator[config.get("operator", "+")]
-result = workload(number_of_iterations, element_type, array_size, operator))
+result = workload(number_of_iterations, element_type, array_size, operator)
 print(result)
