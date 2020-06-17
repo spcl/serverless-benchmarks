@@ -1,6 +1,8 @@
 import docker
 
-from sebs.aws.aws import AWS, AWSConfig
+from sebs.aws import AWS, AWSConfig
+from sebs.azure import Azure, AzureConfig
+from sebs.azure.azure import Azure, AzureConfig
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
