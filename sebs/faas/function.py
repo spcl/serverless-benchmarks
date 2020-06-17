@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import List, Optional
 
+class TriggerType(Enum):
+    HTTP = 0
+    STORAGE = 1
 
 """
     Function trigger and implementation of invocation.
@@ -14,9 +17,11 @@ from typing import List, Optional
 
 
 class Trigger(ABC):
-    class TriggerType(Enum):
-        HTTP = 0
-        STORAGE = 1
+
+    @staticmethod
+    @abstractmethod
+    def type() -> TriggerType:
+        pass
 
     @abstractmethod
     def sync_invoke(self):
