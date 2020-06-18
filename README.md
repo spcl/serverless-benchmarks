@@ -8,8 +8,6 @@ using them to evaluate different parts of FaaS systems. See [installation instru
 #installation) to configure SeBS to use selected cloud services and [usage instructions](
 #usage) to automatically launch experiments in the cloud!
 
-
-
 ### Benchmark Applications
 
 TODO: description of benchmarks
@@ -78,25 +76,24 @@ TODO :-(
 ### Installation
 
 Requirements:
-- Docker (at least 19 I believe)
+- Docker (at least 19)
 - Python 3.6 with:
     - pip
     - venv
+- Standard Linux tools and `zip` installed
 ... and that should be all.
 
-Run `install.sh`. It will create a virtual environment in `sebs-virtualenv`,
+Run `install.py`. It will create a virtual environment in `sebs-virtualenv`,
 install necessary Python dependecies and install third-party dependencies.
+Then just activate the newly created Python virtual environment, e.g. with
+`source sebs-virtualenv/bin/activate`. Now you can deploy serverless experiments :-)
 
-Then, run `tools/build_docker_images.py`. It will create all necessary Docker images to build and run
-benchmarks. 
-On some systems, this command has to be run as root- only if current user is not added to `docker` group.
-To do so:
-```
-sudo -i   # Only if your user is not added to docker group
-cd project_directory
-source sebs-virtualenv/bin/activate
-./tools/build_docker_images.py
-```
+**Make sure** that your Docker daemon is running and your user has sufficient permissions
+to use it. Otherwise you might see a lot of "Connection refused" and "Permission
+denied" errors when using **SeBS**.
+
+You can run `tools/build_docker_images.py` to create all necessary Docker images.
+to build and run benchmarks. Otherwise they'll be pulled from the Docker Hub repository.
 
 #### AWS
 
