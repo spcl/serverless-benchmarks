@@ -10,7 +10,7 @@ args = parser.parse_args()
 
 def execute(cmd):
     ret = subprocess.run(
-        cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True
     )
     if ret.returncode:
         raise RuntimeError(
@@ -27,7 +27,7 @@ print("Install Python dependencies with pip")
 execute(". {}/bin/activate && pip3 install -r requirements.txt".format(env_dir))
 
 print("Configure mypy extensions")
-execute(". {}/bin/activate && mypy_boto3")
+execute(". {}/bin/activate && mypy_boto3".format(env_dir))
 
 print("Initialize git submodules")
 execute("git submodule update --init --recursive")
