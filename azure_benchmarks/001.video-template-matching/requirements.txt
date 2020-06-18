@@ -1,0 +1,5 @@
+azure-functions
+azure-functions-durable>=1.0.0b5
+urllib3
+numpy
+opencv-python
