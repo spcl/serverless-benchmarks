@@ -12,23 +12,20 @@ jobs:
           key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
       - run:
           command: |
-            python3 -m venv venv
-            . venv/bin/activate
-            pip install -r requirements.txt
-            mypy_boto3
+            python3 install.py
           name: Install pip dependencies
       - save_cache:
           key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
           paths:
-            - "venv"
+            - "sebs-virtualenv"
       - run:
           command: |
-            . venv/bin/activate
+            . sebs-virtualenv/bin/activate
             flake8 sebs --config=flake8.cfg --black-config=black.toml --tee --output-file flake-reports
           name: Python code lint with flake8
       - run:
           command: |
-            . venv/bin/activate
+            . sebs-virtualenv/bin/activate
             mypy sebs
           name: Python static code verification with mypy
       - store_artifacts:
@@ -53,9 +50,7 @@ jobs:
           name: Load Docker images
       - run:
           command: |
-            python3 -m venv venv
-            . venv/bin/activate
-            pip install -r requirements.txt
+            python3 install.py
           name: Install pip dependencies
       - run:
           command: |
@@ -66,11 +61,11 @@ jobs:
       - save_cache:
           key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
           paths:
-            - "venv"
+            - "sebs-virtualenv"
             - $HOME/docker
       - run:
           command: |
-            . venv/bin/activate
+            . sebs-virtualenv/bin/activate
             tests/test_runner.py --deployment aws
           name: Execute AWS tests
 
