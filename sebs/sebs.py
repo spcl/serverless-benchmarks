@@ -23,16 +23,15 @@ class SeBS:
         self._docker_client = docker.from_env()
         self._config = SeBSConfig()
 
-    def get_deployment(self, config: dict) -> FaasSystem:
+    def get_deployment(self, name: str, config: dict) -> FaasSystem:
 
         implementations = {"aws": AWS, "azure": Azure}
         configs = {"aws": AWSConfig.initialize, "azure": AzureConfig.initialize}
-        name = config["name"]
         if name not in implementations:
-            raise RuntimeError("Deployment {name} not supported!".format(**config))
+            raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
         # FIXME: future annotations, requires Python 3.7+
-        deployment_config = configs[name](config, self.cache_client)
+        deployment_config = configs[name](config[name], self.cache_client)
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore

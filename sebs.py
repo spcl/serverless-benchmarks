@@ -141,8 +141,11 @@ if args.language:
 if args.language_version:
     config["experiments"]["runtime"]["version"] = args.language_version
 # deployment
+deployment: str
 if args.deployment:
-    config["deployment"]["name"] = args.deployment
+    deployment = args.deployment
+else:
+    deployment = config["deployment"]["default"]
 if args.update_code:
     config["experiments"]["update_code"] = args.update_code
 if args.update_storage:
@@ -156,7 +159,7 @@ try:
     )
     logging.info("Created experiment output at {}".format(args.output_dir))
     experiment_config = sebs_client.get_experiment(config["experiments"])
-    deployment_client = sebs_client.get_deployment(config["deployment"])
+    deployment_client = sebs_client.get_deployment(deployment, config["deployment"])
     deployment_client.initialize()
 
     if args.action in ("publish", "test_invoke"):
