@@ -14,10 +14,6 @@ jobs:
           command: |
             python3 install.py
           name: Install pip dependencies
-      - save_cache:
-          key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
-          paths:
-            - "sebs-virtualenv"
       - run:
           command: |
             . sebs-virtualenv/bin/activate
