@@ -24,10 +24,10 @@ print("Creating Python virtualenv at {}".format(env_dir))
 execute("python3 -mvenv {}".format(env_dir))
 
 print("Install Python dependencies with pip")
-execute("pip3 install -r requirements.txt")
+execute(". {}/bin/activate && pip3 install -r requirements.txt".format(env_dir))
 
 print("Configure mypy extensions")
-execute("mypy_boto3")
+execute(". {}/bin/activate && mypy_boto3")
 
 print("Initialize git submodules")
 execute("git submodule update --init --recursive")
