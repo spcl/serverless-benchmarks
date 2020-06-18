@@ -3,7 +3,7 @@ ARG USER
 # disable telemetry by default
 ENV FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
 
-RUN apt-get update\
+RUN apt-get clean && apt-get update\
   && apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg\
   && curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor\
     | tee /etc/apt/trusted.gpg.d/microsoft.asc.gpg > /dev/null\
