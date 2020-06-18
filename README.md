@@ -122,18 +122,29 @@ Pass lambda role in config JSON, see an example in `config/example.json`.
 **temporarily disabled**
 
 Azure provides 2000 USD for the first month.
-You need to create an account and add [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
-enable non-interactive login through CLI.
+You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
+enable non-interactive login through CLI. Since this process has [an easy, one-step
+CLI solution](https://docs.microsoft.com/en-us/cli/azure/ad/sp?view=azure-cli-latest#az-ad-sp-create-for-rbac),
+we added a small tool **tools/create_azure_credentials** that uses the interactive web-browser
+authentication to login into Azure CLI and create service principal.
 
-Then, provide principal name
+```console
+Please provide the intended principal name                                                                                                         
+XXXXX
+Please follow the login instructions to generate credentials...                                                            
+To sign in, use a web browser to open the page https://microsoft.com/devicelogin and enter the code YYYYYYY to authenticate.
 
+Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}                                          
+Created service principal http://XXXXX
+
+AZURE_SECRET_APPLICATION_ID = 2a49e1e9-b47d-422b-8d81-461af9e1a61f                                                         
+AZURE_SECRET_TENANT = 93ea0232-1fea-4dc8-a174-4ff4a312127a                                                                                                                                     
+AZURE_SECRET_PASSWORD = 1u0WtswVq-3gLtPpfJYh_KdUJCWY2J2flg
 ```
-AZURE_SECRET_APPLICATION_ID
-AZURE_SECRET_TENANT
-AZURE_SECRET_PASSWORD
-```
 
-We will create storage account and resource group and handle access keys.
+Save these credentials - the password is non retrievable! Provide them to SeBS
+through environmental variables and we will create additional resources (storage account, resource group)
+to deploy functions.
 
 ### Usage
 
