@@ -40,8 +40,8 @@ else:
     credentials = json.loads(out.decode())
     print('Created service principal {}'.format(credentials['name']))
     print('AZURE_SECRET_APPLICATION_ID = {}'.format(credentials['appId']))
-    print('AZURE_SECRET_APPLICATION_TENANT = {}'.format(credentials['tenant']))
-    print('AZURE_SECRET_APPLICATION_PASSWORD = {}'.format(credentials['password']))
+    print('AZURE_SECRET_TENANT = {}'.format(credentials['tenant']))
+    print('AZURE_SECRET_PASSWORD = {}'.format(credentials['password']))
 
 container.stop()
 

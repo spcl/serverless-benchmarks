@@ -7,7 +7,7 @@ from azure.storage.blob import BlobServiceClient
 from sebs.cache import Cache
 from ..faas.storage import PersistentStorage
 
-class BlobStorage(PersistentStorage)
+class BlobStorage(PersistentStorage):
 
     cached = False
     input_containers: List[str] = []

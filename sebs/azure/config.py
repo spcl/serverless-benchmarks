@@ -68,15 +68,15 @@ class AzureCredentials(Credentials):
                     "AZURE_SECRET_TENANT and AZURE_SECRET_PASSWORD"
                 )
             cache.update_config(
-                val=self.app_id,
+                val=ret.app_id,
                 keys=['azure', 'credentials', 'appId']
             )
             cache.update_config(
-                val=self.tenant,
+                val=ret.tenant,
                 keys=['azure', 'credentials', 'tenant']
             )
             cache.update_config(
-                val=self.password,
+                val=ret.password,
                 keys=['azure', 'credentials', 'password']
             )
         return ret
@@ -88,11 +88,14 @@ class AzureCredentials(Credentials):
 
 class AzureResources(Resources):
 
-    resource_group_name = None
-    storage_account_name = None
-    storage_connection_string = None
+    class Storage:
+        def __init__(self):
+            self.account_name = ""
+            self.connection_string = ""
 
     def __init__(self):
+        self.resource_groups: List[str] = []
+        self.storage_accounts: List[Storage] = []
         pass
 
     # FIXME: python3.7+ future annotatons
@@ -122,19 +125,15 @@ class AzureResources(Resources):
                 )
                 ret = cast(AzureResources, AzureResources.deserialize(config["resources"]))
             else:
-                logging.info("No resources for AWS found, initialize!")
+                logging.info("No resources for Azure found, initialize!")
                 ret = AzureResources()
 
-        if not ret.lambda_role:
-            # FIXME: hardcoded value for test purposes, add generation here
-            ret.lambda_role = "arn:aws:iam::261490803749:role/aws-role-test"
-        cache.update_config(
-            val=ret.lambda_role, keys=["aws", "resources", "lambda-role"]
-        )
         return ret
 
 
 class AzureConfig(Config):
+
+    
     def __init__(self, credentials: AzureCredentials, resources: AzureResources):
         self._credentials = credentials
         self._resources = resources
@@ -151,6 +150,7 @@ class AzureConfig(Config):
     @staticmethod
     def deserialize(cfg: Config, dct: dict):
         config = cast(AzureConfig, cfg)
+        config._region = dct["region"]
 
     @staticmethod
     def initialize(config: dict, cache: Cache) -> Config:
@@ -159,7 +159,7 @@ class AzureConfig(Config):
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(AzureCredentials, AzureCredentials.initialize(config, cache))
         resources = cast(AzureResources, AzureResources.initialize(config, cache))
-        config_obj = AWSConfig(credentials, resources)
+        config_obj = AzureConfig(credentials, resources)
         # Load cached values
         if cached_config:
             logging.info("Using cached config for Azure")
@@ -167,11 +167,13 @@ class AzureConfig(Config):
         else:
             logging.info("Using user-provided config for Azure")
             AzureConfig.deserialize(config_obj, config)
+            cache.update_config(val=config_obj.region, keys=["azure", "region"])
 
         return config_obj
 
     def serialize(self) -> dict:
         out = {
+            "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }

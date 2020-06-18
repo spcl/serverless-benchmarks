@@ -1,4 +1,5 @@
 import datetime
+import docker
 import glob
 import json
 import logging
@@ -6,7 +7,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import docker
 import requests
@@ -26,7 +27,6 @@ class Azure(System):
     storage: BlobStorage
     cached = False
     _config: AzureConfig
-    docker_instance: Optional[docker.Container]
 
     # runtime mapping
     AZURE_RUNTIMES = {"python": "python", "nodejs": "node"}
@@ -42,7 +42,7 @@ class Azure(System):
     def __init__(
         self,
         sebs_config: SeBSConfig,
-        config: AWSConfig,
+        config: AzureConfig,
         cache_client: Cache,
         docker_client: docker.client,
     ):
@@ -420,7 +420,7 @@ class Azure(System):
         b)  if a cached function is present and update flag is passed,
             then upload new code
         c)  if no cached function is present, then create code package and
-            either create new function on AWS or update an existing one
+            either create new function on Azure or update an existing one
 
         :param benchmark:
         :param benchmark_path: Path to benchmark code
@@ -429,19 +429,18 @@ class Azure(System):
         :return: function name, code size
     """
 
-    def create_function(self, code_package: CodePackage, experiment_config: dict):
+    def get_function(self, code_package: Benchmark) -> Function:
 
         benchmark = code_package.benchmark
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
-            self.url = code_package.cached_config["invoke_url"]
             code_location = code_package.code_location
             logging.info(
                 "Using cached function {fname} in {loc}".format(
                     fname=func_name, loc=code_location
                 )
             )
-            return func_name
+            return AzureFunction(func_name)
         # b) cached_instance, create package and update code
         elif code_package.is_cached:
 
@@ -595,7 +594,6 @@ class Azure(System):
         end_time: int,
         requests: dict,
     ):
-        self.login()
 
         resource_group = deployment_config["resource_group"]
         app_id_query = self.execute(
@@ -683,7 +681,7 @@ class Azure(System):
     def create_function_copies(
         self,
         function_names: List[str],
-        code_package: CodePackage,
+        code_package: Benchmark,
         experiment_config: dict,
     ):
 
@@ -695,7 +693,6 @@ class Azure(System):
             self.start(code_location, restart=True)
             self.storage_account()
             self.resource_group()
-            self.login()
             self.init = True
 
         # names = []
@@ -711,3 +708,14 @@ class Azure(System):
             logging.info("Published function app {} with URL {}".format(fname, url))
 
         return names, urls
+
+class AzureFunction(Function):
+
+    def __init__(self, name: str):
+        super().__init__(name)
+
+    def sync_invoke(self, payload: dict):
+        raise NotImplementedError("Client-side invocation not supported for Azure Functions. Please use triggers instead!")
+
+    def async_invoke(self, payload: dict):
+        raise NotImplementedError("Client-side invocation not supported for Azure Functions. Please use triggers instead!")
