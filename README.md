@@ -1,71 +1,20 @@
-# serverless-benchmarks
+
+# SeBS: Serverless Benchmark Suite
+
+SeBS is a diverse suite of FaaS benchmarks that allows an automatic performance
+analysis of commercial and open-source serverless platforms. We provide a suite
+of [benchmark applications](#benchmark-applications) and [experiments](#experiments)
+using them to evaluate different parts of FaaS systems. See [installation instructions](
+#installation) to configure SeBS to use selected cloud services and [usage instructions](
+#usage) to automatically launch experiments in the cloud!
 
 
-The current implementation is a product of a rush to the deadline. Thus, there
-some questionable software engineering choices that cannot be fixed now.
 
-Requirements:
-- Docker (at least 19 I believe)
-- Python 3.6 with:
-    - pip
-    - venv
-... and that should be all.
+### Benchmark Applications
 
-### Installation
+TODO: description of benchmarks
 
-Run `install.sh`. It will create a virtual environment in `sebs-virtualenv`,
-install necessary Python dependecies and install third-party dependencies.
-
-Then, run `tools/build_docker_images.py`. It will create all necessary Docker images to build and run
-benchmarks. 
-On some systems, this command has to be run as root- only if current user is not added to `docker` group.
-To do so:
-```
-sudo -i   # Only if your user is not added to docker group
-cd project_directory
-source sebs-virtualenv/bin/activate
-./tools/build_docker_images.py
-```
-
-### Work
-
-By default, all scripts will create a cache in directory `cache` to handle benchmarks
-with necessaries and information on cloud storage resources. Benchmarks will be rebuilt
-after change in source code fails (hopefully). If you see in the logs that a cached
-entry is still used, pass flag `--update` to force rebuild.
-
-#### Local
-
-**Might not work currently**
-
-Use `scripts/run_experiments.py` to execute code locally with thelp of minio,
-object storage service, running in a container. There are four types of experiments
-that can be run: `time`, `memory`, `disk-io` and `papi`. The last one works only
-for Python and memory/disk-io are WiP for NodeJS.
-
-If your benchmark fails for some reason, you should see an error directly. If not,
-inspect files in `${out_dir}/${experiment}/instance_0/logs`. Use `scripts/clean.sh`
-to kill measurement processes if we didn't work.
-
-Containers are usually shutdown after an experiment. The flag `--no-shutdown-containers`
-provides a way to leave them alive and inspect the environment for problems.
-Simply run `./run.sh ${experiment}.json`.
-
-#### Cloud
-
-Use `sebs.py` with options `test`, `publish` and `invoke`. Right now
-only a single `test` is supported. Experiments and log querying are coming up now.
-
-Example (please modify the `config/example.json` for your needs).
-
-```
-sebs.py --repetitions 1 test_invoke ${benchmark} ${out_dir} ${input_size} config/example.json
-```
-
-where `input_size` could be `test`, `small`, `large`. `out_dir` is used to store
-local results. Command line options allow to override config (`--deployment`, `--language`).
-
-### Benchmark configuration
+#### How to add new benchmarks?
 
 Benchmarks follow the naming structure `x.y.z` where x is benchmark group, y is benchmark
 ID and z is benchmark version. For examples of implementations, look at `210.thumbnailer`
@@ -119,15 +68,37 @@ Configure dependencies in `requirements.txt` and `package.json`. By default, onl
 source code is deployed. If you need to use additional resources, e.g. HTML template,
 use script `init.sh` (see an example in `110.dynamic-html`).
 
+### Experiments
 
-## Setting up cloud
+TODO :-(
 
-### Local
 
-Benchmarks can be executed locally without any configuration. **not guaranteed work
-at the moment**
+#### Performance&Cost Variability
 
-## AWS
+### Installation
+
+Requirements:
+- Docker (at least 19 I believe)
+- Python 3.6 with:
+    - pip
+    - venv
+... and that should be all.
+
+Run `install.sh`. It will create a virtual environment in `sebs-virtualenv`,
+install necessary Python dependecies and install third-party dependencies.
+
+Then, run `tools/build_docker_images.py`. It will create all necessary Docker images to build and run
+benchmarks. 
+On some systems, this command has to be run as root- only if current user is not added to `docker` group.
+To do so:
+```
+sudo -i   # Only if your user is not added to docker group
+cd project_directory
+source sebs-virtualenv/bin/activate
+./tools/build_docker_images.py
+```
+
+#### AWS
 
 AWS provides one year of free services, including significant amount of compute
 time in AWS Lambda. To work with AWS, you need to provide access and secret keys to a role 
@@ -144,23 +115,74 @@ AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
 ```
 
-Pass lambda role in config JSON, see an example in `config/example.json`. Yeah,
-that's one of those discrepancies that should be fixed...
+Pass lambda role in config JSON, see an example in `config/example.json`.
 
-## Azure
+#### Azure
 
 **temporarily disabled**
 
 Azure provides 2000 USD for the first month.
-You need to create an account and add [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
-enable non-interactive login through CLI.
+You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
+enable non-interactive login through CLI. Since this process has [an easy, one-step
+CLI solution](https://docs.microsoft.com/en-us/cli/azure/ad/sp?view=azure-cli-latest#az-ad-sp-create-for-rbac),
+we added a small tool **tools/create_azure_credentials** that uses the interactive web-browser
+authentication to login into Azure CLI and create service principal.
 
-Then, provide principal name
+```console
+Please provide the intended principal name                                                                                                         
+XXXXX
+Please follow the login instructions to generate credentials...                                                            
+To sign in, use a web browser to open the page https://microsoft.com/devicelogin and enter the code YYYYYYY to authenticate.
+
+Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}                                          
+Created service principal http://XXXXX
+
+AZURE_SECRET_APPLICATION_ID = 2a49e1e9-b47d-422b-8d81-461af9e1a61f                                                         
+AZURE_SECRET_TENANT = 93ea0232-1fea-4dc8-a174-4ff4a312127a                                                                                                                                     
+AZURE_SECRET_PASSWORD = 1u0WtswVq-3gLtPpfJYh_KdUJCWY2J2flg
+```
+
+Save these credentials - the password is non retrievable! Provide them to SeBS
+through environmental variables and we will create additional resources (storage account, resource group)
+to deploy functions.
+
+### Usage
+
+By default, all scripts will create a cache in directory `cache` to handle benchmarks
+with necessaries and information on cloud storage resources. Benchmarks will be rebuilt
+after change in source code fails (hopefully). If you see in the logs that a cached
+entry is still used, pass flag `--update` to force rebuild.
+
+#### Cloud
+
+Use `sebs.py` with options `test`, `publish` and `invoke`. Right now
+only a single `test` is supported. Experiments and log querying are coming up now.
+
+Example (please modify the `config/example.json` for your needs).
 
 ```
-AZURE_SECRET_APPLICATION_ID
-AZURE_SECRET_TENANT
-AZURE_SECRET_PASSWORD
+sebs.py --repetitions 1 test_invoke ${benchmark} ${out_dir} ${input_size} config/example.json
 ```
 
-We will create storage account and resource group and handle access keys.
+where `input_size` could be `test`, `small`, `large`. `out_dir` is used to store
+local results. Command line options allow to override config (`--deployment`, `--language`).
+
+#### Local
+
+**Might not work currently**
+
+Use `scripts/run_experiments.py` to execute code locally with thelp of minio,
+object storage service, running in a container. There are four types of experiments
+that can be run: `time`, `memory`, `disk-io` and `papi`. The last one works only
+for Python and memory/disk-io are WiP for NodeJS.
+
+If your benchmark fails for some reason, you should see an error directly. If not,
+inspect files in `${out_dir}/${experiment}/instance_0/logs`. Use `scripts/clean.sh`
+to kill measurement processes if we didn't work.
+
+Containers are usually shutdown after an experiment. The flag `--no-shutdown-containers`
+provides a way to leave them alive and inspect the environment for problems.
+Simply run `./run.sh ${experiment}.json`.
+
+
+
