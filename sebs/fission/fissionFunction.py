@@ -4,14 +4,12 @@ import subprocess
 
 class FissionFunction(Function):
     def __init__(self, name: str):
-        self._name = name
-
-    @property
-    def name(self):
-        return self._name
+        super().__init__(name)
 
     def sync_invoke(self, payload: dict):
-        subprocess.call(["./run_fission_function.sh", self.name])
+        subprocess.run(
+            f'fission fn test --name {self.name}'.split(), check=True
+        )
 
     def async_invoke(self, payload: dict):
         raise Exception("Non-trigger invoke not supported!")
