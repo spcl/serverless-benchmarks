@@ -6,10 +6,16 @@ ENV HOME=/home/${USER}
 WORKDIR ${HOME}
 RUN deps=''\
   && apt-get update\
-  && apt-get install -y curl net-tools python3 ${deps}\
+  && apt-get install -y curl net-tools python3 sudo ${deps}\
   && apt-get purge -y --auto-remove ${deps}
 
-RUN useradd --uid 1000 ${USER}
+# Reuse Node's user that is already definied with uid 1000
+RUN usermod -aG sudo ${USER}\
+    # Set correct permission on home directory
+    && chown -R ${USER}:${USER} ${HOME}\
+    # Enable non-password use of sudo
+    && echo "$USER ALL=(ALL:ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/dont-prompt-$USER-for-password
+
 USER ${USER}:${USER}
 COPY --chown=${USER}:${USER} docker/local/*.py ${HOME}/
 COPY --chown=${USER}:${USER} docker/local/run.sh .
