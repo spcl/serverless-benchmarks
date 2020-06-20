@@ -12,12 +12,13 @@ from sebs.faas.system import System
 from sebs.fission.fissionFunction import FissionFunction
 from sebs.benchmark import Benchmark
 from sebs.fission.config import FissionConfig
+from sebs.fission.minio import Minio
 
 class Fission(System):
     available_languages_images = {"python": "fission/python-env", "nodejs": "fission/node-env"}
-
+    storage : Minio
     def __init__(
-        self, sebs_config: SeBSConfig,config: FissionConfig, cache_client: Cache, docker_client: docker.client
+        self, sebs_config: SeBSConfig, config: FissionConfig, cache_client: Cache, docker_client: docker.client
     ):
         super().__init__(sebs_config, cache_client, docker_client)
         self._added_functions: [str] = []
@@ -106,7 +107,7 @@ class Fission(System):
     @staticmethod
     def install_fission_cli_if_needed():
         try:
-            subprocess.run(['fission'], check=True, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
+            subprocess.run(['fission'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
         except subprocess.CalledProcessError:  # if raised - fission cli is not installed
             logging.info("No fission CLI - installing...")
             available_os = {
@@ -126,7 +127,8 @@ class Fission(System):
         pass
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        pass
+        self.storage = Minio(self.docker_client)
+        return self.storage
 
     def initialize(self, config: Dict[str, str] = None):
         if config is None:
