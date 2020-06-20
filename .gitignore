@@ -170,3 +170,6 @@ dmypy.json
 sebs-*
 # cache
 cache
+
+# ide
+.vscode
