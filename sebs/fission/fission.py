@@ -16,7 +16,8 @@ from sebs.fission.minio import Minio
 from sebs import utils
 
 class Fission(System):
-    available_languages_images = {"python": "fission/python-env", "nodejs": "fission/node-env"}
+    available_languages_images = {"python": "fission/python-env:latest", "nodejs": "fission/node-env:latest"}
+    available_languages_builders = {"python": "fission/python-builder:latest", "nodejs": "fission/node-builder:latest"}
     storage : Minio
     _config : FissionConfig
     def __init__(
@@ -150,27 +151,22 @@ class Fission(System):
         }
         directory = benchmark.benchmark_path
         package_config = CONFIG_FILES[benchmark.language_name]
-        function_dir = os.path.join(directory, "function")
-        if os.path.exists(function_dir):
-            shutil.rmtree(function_dir)
-        shutil.copytree(directory, function_dir)
         os.chdir(directory)
-        subprocess.run("zip -qu -r9 {}.zip * .".format(benchmark.benchmark).split())
+        subprocess.run("zip -jr {}.zip {}/".format(benchmark.benchmark, benchmark.language_name).split(), stdout=subprocess.DEVNULL)
         benchmark_archive = "{}.zip".format(
             os.path.join(directory, benchmark.benchmark)
         )
         logging.info("Created {} archive".format(benchmark_archive))
-        bytes_size = os.path.getsize(function_dir)
-        shutil.rmtree(function_dir)
+        bytes_size = os.path.getsize(os.path.join(directory, benchmark.language_name))
         return benchmark_archive, bytes_size
 
-    def update_function(self, name: str, code_path: str):
-        subprocess.run(
-            f'fission fn update --name {name} --code {code_path}'.split(),
-            check=True, stdout=subprocess.DEVNULL
-        )
+    def update_function(self, name: str, env_name: str, code_path: str):
+        packageName = f'{name}-package'
+        self.deleteFunction(name)
+        self.deletePackage(packageName)
+        self.createPackage(packageName, code_path, )
 
-    def create_env_if_needed(self, name: str, image: str):
+    def create_env_if_needed(self, name: str, image: str, builder: str):
         try:
             fission_env_list = subprocess.run(
                 'fission env list '.split(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
@@ -187,13 +183,12 @@ class Fission(System):
         except subprocess.CalledProcessError:  # if exception raised it means that there is no appropriate namespace
             logging.info(f'Creating env for {name} using image \"{image}\".')
             subprocess.run(
-                f'fission env create --name {name} --image {image}'.split(),
+                f'fission env create --name {name} --image {image} --builder {builder}'.split(),
                 check=True, stdout=subprocess.DEVNULL
             )
 
     def create_function(self, name: str, env_name: str, path: str):
-        validName = name.replace('.','-')
-        packageName = f'{validName}-package'
+        packageName = f'{name}-package'
         try:
             packages = subprocess.run('fission package list'.split(), stdout=subprocess.PIPE, check=True)
             subprocess.run(
@@ -201,15 +196,50 @@ class Fission(System):
                 check=True,
                 input=packages.stdout
             )
-        except subprocess.CalledProcessError:
-            logging.info(f'Deploy fission package: {packageName}')
-            subprocess.run(f'fission package create --deployarchive {path} --name {packageName} --env {env_name}'.split(), check=True)
-            logging.info(f'Deploy fission function: {validName}')
-            subprocess.run(
-                f'fission fn create --name {validName} --pkg {packageName} --entrypoint "function.handler"'.split(),
-                check=True, stdout=subprocess.DEVNULL
+            try:
+                self.deletePackage(packageName)
+                self.createPackage(packageName, path, env_name)
+                functions = subprocess.run('fission function list'.split(), stdout=subprocess.PIPE, check=True)
+                subprocess.run(
+                f'grep {name}'.split(),
+                check=True,
+                input=functions.stdout
             )
+            except subprocess.CalledProcessError:
+                self.createFunction(packageName, name)
+        except subprocess.CalledProcessError:
+            self.createPackage(packageName, path, env_name)
+            self.createFunction(packageName, name)
 
+
+    def createPackage(self, packageName: str, path: str, envName: str) -> None:
+        logging.info(f'Deploying fission package...')
+        subprocess.run(f'fission package create --deployarchive {path} --name {packageName} --env {envName}'.split(), check=True)
+    
+    def deletePackage(self, packageName: str) -> None:
+        logging.info(f'Deleting fission package...')
+        subprocess.run(f'fission package delete --name {packageName}'.split())
+
+    def createFunction(self, packageName: str, name: str) -> None:
+        logging.info(f'Deploying fission function...')
+        subprocess.run(
+            f'fission fn create --name {name} --pkg {packageName} --entrypoint function.handler'.split(), check=True
+        )
+        triggerName = f'{name}-trigger'
+        try:
+            triggers = subprocess.run(f'fission httptrigger list'.split())
+            subprocess.run(
+                    f'grep {triggerName}'.split(),
+                    check=True,
+                    input=packages.stdout
+                )
+        except subprocess.CalledProcessError:
+            subprocess.run(f'fission httptrigger create --url /benchmark --method GET --name {triggerName} --function {name}'.split(), check=True)
+
+    def deleteFunction(self, name: str)-> None:
+        logging.info(f'Deleting fission function...')
+        subprocess.run(f'fission fn delete --name {packageName}'.split())
+    
     def get_function(self, code_package: Benchmark) -> Function:
         path, size = self.package_code(code_package)
 
@@ -226,7 +256,7 @@ class Fission(System):
                     version=code_package.language_version,
                 )
             )
-        benchmark = code_package.benchmark
+        benchmark = code_package.benchmark.replace('.','-')
 
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
@@ -236,6 +266,7 @@ class Fission(System):
                     fname=func_name, loc=code_location
                 )
             )
+            self.create_function(func_name, code_package.language_name, code_location)
             return FissionFunction(func_name)
         elif code_package.is_cached:
             func_name = code_package.cached_config["name"]
@@ -243,7 +274,7 @@ class Fission(System):
             timeout = code_package.benchmark_config.timeout
             memory = code_package.benchmark_config.memory
 
-            self.update_function(func_name, path)
+            self.update_function(func_name, code_package.language_name, path)
 
             cached_cfg = code_package.cached_config
             cached_cfg["code_size"] = size
@@ -269,7 +300,7 @@ class Fission(System):
 
             func_name = "{}-{}-{}".format(benchmark, language, memory)
 
-            self.create_env_if_needed(language, self.available_languages_images[language])
+            self.create_env_if_needed(language, self.available_languages_images[language], self.available_languages_builders[language])
             self.create_function(func_name, language, path)
 
             self.cache_client.add_function(
