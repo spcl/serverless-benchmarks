@@ -4,50 +4,61 @@ import shutil
 import subprocess
 import docker
 from typing import Dict, Tuple
+from sebs.faas.storage import PersistentStorage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.faas.function import Function
 from sebs.faas.system import System
 from sebs.fission.fissionFunction import FissionFunction
 from sebs.benchmark import Benchmark
-
+from sebs.fission.config import FissionConfig
 
 class Fission(System):
     available_languages_images = {"python": "fission/python-env", "nodejs": "fission/node-env"}
 
     def __init__(
-        self, sebs_config: SeBSConfig, cache_client: Cache, docker_client: docker.client
+        self, sebs_config: SeBSConfig,config: FissionConfig, cache_client: Cache, docker_client: docker.client
     ):
         super().__init__(sebs_config, cache_client, docker_client)
         self._added_functions: [str] = []
 
     @staticmethod
+    def name():
+        return "fission"
+
+    @property
+    def config(self) -> FissionConfig:
+        return self._config
+
+    @staticmethod
     def check_if_minikube_installed():
         try:
-            subprocess.run('minikube version'.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run('minikube version'.split(), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError:
             logging.error("ERROR: \"minikube\" required.")
 
     @staticmethod
     def run_minikube(vm_driver='docker'):
         try:
-            kube_status = subprocess.run('minikube status'.split(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            kube_status = subprocess.run('minikube status'.split(), stdout=subprocess.PIPE)
 
-            # if minikube is already running, error will be raised to prevent to be started minikube again
+            #if minikube is already running, error will be raised to prevent to be started minikube again.
             subprocess.run(
                 'grep Stopped'.split(),
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                input=kube_status.stdout
+                input=kube_status.stdout,
+                shell=True
             )
             try:
                 logging.info('Starting minikube...')
-                subprocess.run(f'minikube start --vm-driver={vm_driver}'.split(), stdout=subprocess.DEVNULL, check=True)
+                subprocess.run(f'minikube start --vm-driver={vm_driver}'.split(), check=True)
             except subprocess.CalledProcessError:
                 raise ChildProcessError
 
         except subprocess.CalledProcessError:
+            logging.info('Minikube already working')
             pass
         except ChildProcessError:
             logging.error("ERROR: COULDN'T START MINIKUBE")
@@ -63,7 +74,7 @@ class Fission(System):
     @staticmethod
     def check_if_helm_installed():
         try:
-            subprocess.run('helm version'.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run('helm version'.split(), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError:
             logging.error("ERROR: \"helm\" required.")
 
@@ -82,21 +93,20 @@ class Fission(System):
                 stderr=subprocess.DEVNULL,
                 input=k8s_namespaces.stdout
             )
-        except subprocess.CalledProcessError:  # if exception raised it means that there is no appropriate namespace
+            logging.info('fission namespace already exist')
+        except (subprocess.CalledProcessError):
             logging.info(f'No proper fission namespace... Installing Fission as \"{k8s_namespace}\"...')
             subprocess.run(
-                f'kubectl create namespace {k8s_namespace}'.split(),
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+                f'kubectl create namespace {k8s_namespace}'.split(), check=True
             )
             subprocess.run(
-                f'helm install --namespace {k8s_namespace} --name-template fission {fission_url}'.split(),
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+                f'helm install --namespace {k8s_namespace} --name-template fission {fission_url}'.split(), check=True
             )
 
     @staticmethod
     def install_fission_cli_if_needed():
         try:
-            subprocess.run(['fission'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run(['fission'], check=True, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
         except subprocess.CalledProcessError:  # if raised - fission cli is not installed
             logging.info("No fission CLI - installing...")
             available_os = {
@@ -109,8 +119,14 @@ class Fission(System):
 
             subprocess.run(
                 f'curl -Lo fission {fission_cli_url} && chmod +x fission && sudo mv fission /usr/local/bin/',
-                stdout=subprocess.DEVNULL, check=True
+                stdout=subprocess.DEVNULL, check=True, shell=True
             )
+
+    def shutdown(self) -> None:
+        pass
+
+    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
+        pass
 
     def initialize(self, config: Dict[str, str] = None):
         if config is None:

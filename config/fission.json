@@ -1,0 +1,15 @@
+{
+  "experiments": {
+    "update_code": false,
+    "update_storage": false,
+    "download_results": false,
+    "deployment": "fission",
+    "runtime": {
+      "language": "python",
+      "version": "3.6"
+    }
+  },
+  "deployment": {
+    "name": "fission"
+  }
+}
