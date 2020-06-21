@@ -197,6 +197,7 @@ class Fission(System):
                 input=packages.stdout
             )
             try:
+                self.deleteFunction(name)
                 self.deletePackage(packageName)
                 self.createPackage(packageName, path, env_name)
                 functions = subprocess.run('fission function list'.split(), stdout=subprocess.PIPE, check=True)
@@ -227,18 +228,18 @@ class Fission(System):
         )
         triggerName = f'{name}-trigger'
         try:
-            triggers = subprocess.run(f'fission httptrigger list'.split())
+            triggers = subprocess.run(f'fission httptrigger list'.split(), stdout=subprocess.PIPE, check=True)
             subprocess.run(
                     f'grep {triggerName}'.split(),
                     check=True,
-                    input=packages.stdout
+                    input=triggers.stdout
                 )
         except subprocess.CalledProcessError:
             subprocess.run(f'fission httptrigger create --url /benchmark --method GET --name {triggerName} --function {name}'.split(), check=True)
 
     def deleteFunction(self, name: str)-> None:
         logging.info(f'Deleting fission function...')
-        subprocess.run(f'fission fn delete --name {packageName}'.split())
+        subprocess.run(f'fission fn delete --name {name}'.split())
     
     def get_function(self, code_package: Benchmark) -> Function:
         path, size = self.package_code(code_package)
