@@ -13,15 +13,18 @@ from sebs.fission.fissionFunction import FissionFunction
 from sebs.benchmark import Benchmark
 from sebs.fission.config import FissionConfig
 from sebs.fission.minio import Minio
+from sebs import utils
 
 class Fission(System):
     available_languages_images = {"python": "fission/python-env", "nodejs": "fission/node-env"}
     storage : Minio
+    _config : FissionConfig
     def __init__(
         self, sebs_config: SeBSConfig, config: FissionConfig, cache_client: Cache, docker_client: docker.client
     ):
         super().__init__(sebs_config, cache_client, docker_client)
         self._added_functions: [str] = []
+        self._config = config
 
     @staticmethod
     def name():
@@ -49,8 +52,7 @@ class Fission(System):
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                input=kube_status.stdout,
-                shell=True
+                input=kube_status.stdout
             )
             try:
                 logging.info('Starting minikube...')
@@ -146,16 +148,21 @@ class Fission(System):
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        directory = benchmark.code_location
+        directory = benchmark.benchmark_path
         package_config = CONFIG_FILES[benchmark.language_name]
         function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)
-        for file in os.listdir(directory):
-            if file not in package_config:
-                file = os.path.join(directory, file)
-                shutil.move(file, function_dir)
+        if os.path.exists(function_dir):
+            shutil.rmtree(function_dir)
+        shutil.copytree(directory, function_dir)
+        os.chdir(directory)
+        subprocess.run("zip -qu -r9 {}.zip * .".format(benchmark.benchmark).split())
+        benchmark_archive = "{}.zip".format(
+            os.path.join(directory, benchmark.benchmark)
+        )
+        logging.info("Created {} archive".format(benchmark_archive))
         bytes_size = os.path.getsize(function_dir)
-        return function_dir, bytes_size
+        shutil.rmtree(function_dir)
+        return benchmark_archive, bytes_size
 
     def update_function(self, name: str, code_path: str):
         subprocess.run(
@@ -185,10 +192,23 @@ class Fission(System):
             )
 
     def create_function(self, name: str, env_name: str, path: str):
-        subprocess.run(
-            f'fission function create --name {name} --env {env_name} --code {path}'.split(),
-            check=True, stdout=subprocess.DEVNULL
-        )
+        validName = name.replace('.','-')
+        packageName = f'{validName}-package'
+        try:
+            packages = subprocess.run('fission package list'.split(), stdout=subprocess.PIPE, check=True)
+            subprocess.run(
+                f'grep {packageName}'.split(),
+                check=True,
+                input=packages.stdout
+            )
+        except subprocess.CalledProcessError:
+            logging.info(f'Deploy fission package: {packageName}')
+            subprocess.run(f'fission package create --deployarchive {path} --name {packageName} --env {env_name}'.split(), check=True)
+            logging.info(f'Deploy fission function: {validName}')
+            subprocess.run(
+                f'fission fn create --name {validName} --pkg {packageName} --entrypoint "function.handler"'.split(),
+                check=True, stdout=subprocess.DEVNULL
+            )
 
     def get_function(self, code_package: Benchmark) -> Function:
         path, size = self.package_code(code_package)
@@ -241,7 +261,7 @@ class Fission(System):
             )
             return FissionFunction(func_name)
         else:
-            code_location = code_package.code_location
+            code_location = code_package.benchmark_path
             language = code_package.language_name
             language_runtime = code_package.language_version
             timeout = code_package.benchmark_config.timeout
@@ -261,14 +281,15 @@ class Fission(System):
                     "name": func_name,
                     "code_size": size,
                     "runtime": language_runtime,
-                    "role": "FissionRole",
                     "memory": memory,
                     "timeout": timeout,
-                    "hash": code_package.hash,
-                    "url": "WtfUrl",
+                    "hash": code_package.hash
                 },
                 storage_config={
-                    "buckets": {"input": "input.buckets", "output": "output.buckets"}
+                    "buckets": {
+                        "input": self.storage.input_buckets,
+                        "output": self.storage.output_buckets
+                        }
                 },
             )
             code_package.query_cache()

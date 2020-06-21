@@ -24,18 +24,32 @@ class Minio(PersistentStorage):
         self.connection = self.get_connection()
 
     def start(self):
+        minioName = 'minio'
+        try:
+            actualContainer = self.docker_client.containers.get(minioName)
+            actualContainer.rename('minio-to-kill')
+            actualContainer.stop()
+            actualContainer.wait()
+            self.startMinio(minioName)
+        except docker.errors.NotFound:
+            self.startMinio(minioName)
+
+    def startMinio(self, minioName: str):
+        minioVersion = 'minio/minio:latest'
         self.access_key = secrets.token_urlsafe(32)
         self.secret_key = secrets.token_hex(32)
+        logging.info('Minio container starting')
         logging.info('ACCESS_KEY={}'.format(self.access_key))
-        logging.info('SECRET_KEY={}'.format(self.secret_key))
+        logging.info('SECRET_KEY={}'.format(self.secret_key))    
         self.storage_container = self.docker_client.containers.run(
-            'minio/minio:latest',
+            minioVersion,
             command='server /data',
             ports={str(self.port): self.port},
             environment={
                 'MINIO_ACCESS_KEY' : self.access_key,
                 'MINIO_SECRET_KEY' : self.secret_key
             },
+            name=minioName,
             remove=True,
             stdout=True, stderr=True,
             detach=True
@@ -46,7 +60,7 @@ class Minio(PersistentStorage):
                 IPAddress=networks['bridge']['IPAddress'],
                 Port=self.port
         )
-        logging.info('Starting minio instance at {}'.format(self.url))
+        logging.info('Started minio instance at {}'.format(self.url))
 
     def get_connection(self):
         return minio.Minio(self.url,
