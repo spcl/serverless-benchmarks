@@ -21,6 +21,7 @@ from ..faas.function import Function, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
+
 class AWS(System):
     logs_client = None
     storage: S3
