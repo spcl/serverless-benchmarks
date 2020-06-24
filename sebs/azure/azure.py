@@ -13,7 +13,8 @@ import docker
 import requests
 
 from sebs.azure.blob_storage import BlobStorage
-from sebs.azure.config import AzureConfig
+from sebs.azure.cli import AzureCLI
+from sebs.azure.config import AzureConfig, AzureCredentials
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -48,6 +49,7 @@ class Azure(System):
     ):
         super().__init__(sebs_config, cache_client, docker_client)
         self._config = config
+        self.cli_instance: Optional[AzureCLI] = None
 
     """
         Start the Docker container running Azure CLI tools.
@@ -55,77 +57,46 @@ class Azure(System):
     """
 
     def initialize(self, config: Dict[str, str] = {}):
-        self.start()
-        self.login()
-
-    """
-        Shutdowns Dock
-    """
+        self.cli_instance = AzureCLI(self.system_config, self.docker_client)
+        self.cli_instance.login(
+            appId=self.config.credentials.appId,
+            tenant=self.config.credentials.tenant,
+            password=self.config.credentials.password,
+        )
 
     def shutdown(self):
-        if self.docker_instance:
-            logging.info("Stopping Azure manage Docker instance")
-            self.docker_instance.stop()
-            self.logged_in = False
-            self.docker_instance = None
+        if self.cli_instance:
+            self.cli_instance.shutdown()
+        self.config.update_cache(self.cache_client)
 
-    """
-        Starts an Azure CLI instance in a seperate Docker container.
-        The container is used to upload function code, thus it might
-        be restarted with a new set of volumes to be mounted.
-        TODO: wouldn't it be simpler to just use put_archive method to upload
-        function code on-the-fly?
-    """
+    # """
+    #    Starts an Azure CLI instance in a seperate Docker container.
+    #    The container is used to upload function code, thus it might
+    #    be restarted with a new set of volumes to be mounted.
+    #    TODO: wouldn't it be simpler to just use put_archive method to upload
+    #    function code on-the-fly?
+    # """
 
-    def start(self, code_package=None, restart=False):
-        volumes = {}
-        if code_package:
-            volumes = {code_package: {"bind": "/mnt/function/", "mode": "rw"}}
-        if self.docker_instance and restart:
-            self.shutdown()
-        if not self.docker_instance or restart:
-            # Run Azure CLI docker instance in background
-            self.docker_instance = self.docker_client.containers.run(
-                image="{}:manage.azure".format(self.system_config.docker_repository()),
-                command="/bin/bash",
-                user="1000:1000",
-                volumes=volumes,
-                remove=True,
-                stdout=True,
-                stderr=True,
-                detach=True,
-                tty=True,
-            )
-            logging.info("Starting Azure manage Docker instance")
-
-    """
-        Execute the given command in Azure CLI.
-        Throws an exception on failure (commands are expected to execute succesfully).
-    """
-
-    def execute(self, cmd: str):
-        exit_code, out = self.docker_instance.exec_run(cmd)
-        if exit_code != 0:
-            raise RuntimeError(
-                "Command {} failed at Azure CLI docker!\n Output {}".format(
-                    cmd, out.decode("utf-8")
-                )
-            )
-        return out
-
-    """
-        Run azure login command on Docker instance.
-    """
-
-    def login(self):
-        self.execute(
-            "az login -u {0} --service-principal --tenant {1} -p {2}".format(
-                self.config.credentials.appId,
-                self.config.credentials.tenant,
-                self.config.credentials.password,
-            )
-        )
-        logging.info("Azure login succesful")
+    # def start(self, code_package=None, restart=False):
+    #    volumes = {}
+    #    if code_package:
+    #        volumes = {code_package: {"bind": "/mnt/function/", "mode": "rw"}}
+    #    if self.docker_instance and restart:
+    #        self.shutdown()
+    #    if not self.docker_instance or restart:
+    #        # Run Azure CLI docker instance in background
+    #        self.docker_instance = self.docker_client.containers.run(
+    #            image="{}:manage.azure".format(self.system_config.docker_repository()),
+    #            command="/bin/bash",
+    #            user="1000:1000",
+    #            volumes=volumes,
+    #            remove=True,
+    #            stdout=True,
+    #            stderr=True,
+    #            detach=True,
+    #            tty=True,
+    #        )
+    #        logging.info("Starting Azure manage Docker instance")
 
     """
         Create wrapper object for Azure blob storage.
@@ -144,157 +115,14 @@ class Azure(System):
         if not hasattr(self, "storage"):
             self.storage = BlobStorage(
                 self.cache_client,
-                self.storage_connection_string,
+                self.config.resources.data_storage_account(
+                    self.cli_instance
+                ).connection_string,
                 replace_existing=replace_existing,
             )
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
-        # ensure we have a storage account
-        self.storage_account()
-        self.storage = blob_storage(replace_existing)
-        if benchmark and buckets:
-            self.storage.create_buckets(
-                benchmark,
-                buckets,
-                self.cache_client.get_storage_config("azure", benchmark),
-            )
-        return self.storage
-
-    """
-        Locate resource group name in config.
-        If not found, then create a new resource group with uuid-based name.
-
-        Requires Azure CLI instance in Docker.
-    """
-
-    def resource_group(self):
-        # if known, then skip
-        if self.resource_group_name:
-            return
-
-        # Resource group provided, verify existence
-        if "resource_group" in self.config:
-            self.resource_group_name = self.config["resource_group"]
-            ret = self.execute(
-                "az group exists --name {0}".format(self.resource_group_name)
-            )
-            if ret.decode("utf-8").strip() != "true":
-                raise RuntimeError(
-                    "Resource group {} does not exists!".format(
-                        self.resource_group_name
-                    )
-                )
-        # Create resource group
-        else:
-            region = self.config["region"]
-            uuid_name = str(uuid.uuid1())[0:8]
-            # Only underscore and alphanumeric characters are allowed
-            self.resource_group_name = "sebs_resource_group_{}".format(uuid_name)
-            self.execute(
-                "az group create --name {0} --location {1}".format(
-                    self.resource_group_name, region
-                )
-            )
-            self.cache_client.update_config(
-                val=self.resource_group_name, keys=["azure", "resource_group"]
-            )
-            logging.info("Resource group {} created.".format(self.resource_group_name))
-        logging.info(
-            "Azure resource group {} selected".format(self.resource_group_name)
-        )
-        return self.resource_group_name
-
-    """
-        Locate storage account connection string in config.
-        If not found, then query the string in Azure using current storage account.
-
-        Requires Azure CLI instance in Docker.
-    """
-
-    def query_storage_connection_string(self):
-        # if known, then skip
-        if self.storage_connection_string:
-            return
-
-        if "connection_string" not in self.config["storage"]:
-            # Get storage connection string
-            ret = self.execute(
-                "az storage account show-connection-string --name {}".format(
-                    self.storage_account_name
-                )
-            )
-            ret = json.loads(ret.decode("utf-8"))
-            self.storage_connection_string = ret["connectionString"]
-            self.cache_client.update_config(
-                val=self.storage_connection_string,
-                keys=["azure", "storage", "connection_string"],
-            )
-            logging.info(
-                "Storage connection string {}.".format(self.storage_connection_string)
-            )
-        else:
-            self.storage_connection_string = self.config["storage"]["connection_string"]
-        return self.storage_connection_string
-
-    """
-        Locate storage account name and connection string in config.
-        If not found, then create a new storage account with uuid-based name.
-
-        Requires Azure CLI instance in Docker.
-    """
-
-    def storage_account(self):
-
-        # if known, then skip
-        if self.storage_account_name:
-            return
-
-        # Storage acount known, only verify correctness
-        if "storage" in self.config:
-            self.storage_account_name = self.config["storage"]["account"]
-            try:
-                # There's no API to check existence.
-                # Thus, we attempt to query basic info and check for failures.
-                ret = self.execute(
-                    "az storage account show --name {0}".format(
-                        self.storage_account_name
-                    )
-                )
-            except RuntimeError as e:
-                raise RuntimeError(
-                    "Storage account {} existence verification failed!".format(
-                        self.storage_account_name
-                    )
-                )
-        # Create storage account
-        else:
-            region = self.config["region"]
-            # Ensure we have resource group
-            self.resource_group()
-            sku = "Standard_LRS"
-            # Create account. Only alphanumeric characters are allowed
-            uuid_name = str(uuid.uuid1())[0:8]
-            self.storage_account_name = "sebsstorage{}".format(uuid_name)
-            self.execute(
-                (
-                    "az storage account create --name {0} --location {1} "
-                    "--resource-group {2} --sku {3}"
-                ).format(
-                    self.storage_account_name, region, self.resource_group_name, sku
-                )
-            )
-            self.cache_client.update_config(
-                val=self.storage_account_name, keys=["azure", "storage", "account"]
-            )
-            logging.info(
-                "Storage account {} created.".format(self.storage_account_name)
-            )
-        self.query_storage_connection_string()
-        logging.info(
-            "Azure storage account {} selected".format(self.storage_account_name)
-        )
-        return self.storage_account_name
 
     # TODO: currently we rely on Azure remote build
     # Thus we only rearrange files
@@ -709,13 +537,17 @@ class Azure(System):
 
         return names, urls
 
-class AzureFunction(Function):
 
+class AzureFunction(Function):
     def __init__(self, name: str):
         super().__init__(name)
 
     def sync_invoke(self, payload: dict):
-        raise NotImplementedError("Client-side invocation not supported for Azure Functions. Please use triggers instead!")
+        raise NotImplementedError(
+            "Client-side invocation not supported for Azure Functions. Please use triggers instead!"
+        )
 
     def async_invoke(self, payload: dict):
-        raise NotImplementedError("Client-side invocation not supported for Azure Functions. Please use triggers instead!")
+        raise NotImplementedError(
+            "Client-side invocation not supported for Azure Functions. Please use triggers instead!"
+        )
