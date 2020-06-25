@@ -4,7 +4,7 @@ ARG USER
 ENV FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
 
 RUN apt-get clean && apt-get update\
-  && apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg\
+  && apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg libicu57\
   && curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor\
     | tee /etc/apt/trusted.gpg.d/microsoft.asc.gpg > /dev/null\
   && AZ_REPO=$(lsb_release -cs)\
@@ -20,7 +20,8 @@ RUN apt-get clean && apt-get update\
 # https://github.com/moby/moby/issues/20295
 ENV HOME=/home/${USER}
 RUN useradd --uid 1000 -m ${USER}\
-    && chown ${USER}:${USER} ${HOME}
+    && chown ${USER}:${USER} ${HOME}\
+    && chown ${USER}:${USER} /mnt
 WORKDIR ${HOME}
 USER ${USER}:${USER}
 
