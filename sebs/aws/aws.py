@@ -6,7 +6,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import Dict, List, Optional, Tuple, Union, cast  # noqa
 
 import boto3
 import docker
@@ -752,7 +752,7 @@ class LambdaFunction(Function):
         self._code_package = code_package
         self._deployment = deployment
 
-    def sync_invoke(self, payload: dict):
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self._deployment.get_lambda_client()
         begin = datetime.datetime.now()

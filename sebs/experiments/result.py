@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional  # noqa
 
 from sebs.faas.config import Config as DeploymentConfig
 from sebs.faas.function import ExecutionResult

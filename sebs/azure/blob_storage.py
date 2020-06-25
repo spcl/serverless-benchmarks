@@ -26,6 +26,7 @@ class BlobStorage(PersistentStorage):
 
     def __init__(self, cache_client: Cache, conn_string: str, replace_existing: bool):
         self.client = BlobServiceClient.from_connection_string(conn_string)
+        self.cache_client = cache_client
         self.replace_existing = replace_existing
 
     def input(self):  # noqa: A003
@@ -38,23 +39,24 @@ class BlobStorage(PersistentStorage):
         Internal implementation of creating a new container.
     """
 
-    def _create_container(self, name: str, containers: List[str], cache: bool) -> str:
+    def _create_container(
+        self, name: str, containers: List[str], cache: bool
+    ) -> Tuple[str, int]:
         if cache:
+            idx = 0
             for c in containers:
-                container_name = c["name"]
-                if name in container_name:
+                if name in c:
                     logging.info(
-                        "Container {} for {} already exists, skipping.".format(
-                            container_name, name
-                        )
+                        "Container {} for {} already exists, skipping.".format(c, name)
                     )
-                    return (container_name,)
+                    return c, idx
+                idx += 1
         random_name = str(uuid.uuid4())[0:16]
         name = "{}-{}".format(name, random_name)
         self.client.create_container(name)
         logging.info("Created container {}".format(name))
         containers.append(name)
-        return name
+        return name, -1
 
     """
         Azure does not allow dots in container names.
@@ -65,11 +67,12 @@ class BlobStorage(PersistentStorage):
 
     def add_input_bucket(self, name: str, cache: bool = True) -> Tuple[str, int]:
 
+        suffix = "input"
         name = "{}-{}".format(name, suffix)
-        cont_name = self._create_container(
+        cont_name, idx = self._create_container(
             self.correct_name(name), self.input_containers, cache
         )
-        return cont_name, len(self.input_containers) - 1
+        return cont_name, len(self.input_containers) - 1 if idx == -1 else idx
 
     """
     """
@@ -79,10 +82,10 @@ class BlobStorage(PersistentStorage):
     ) -> Tuple[str, int]:
 
         name = "{}-{}".format(name, suffix)
-        cont_name = self._create_container(
+        cont_name, idx = self._create_container(
             self.correct_name(name), self.output_containers, cache
         )
-        return cont_name, len(self.output_containers) - 1
+        return cont_name, len(self.output_containers) - 1 if idx == -1 else idx
 
     def create_buckets(self, benchmark, buckets, cached_buckets):
         if cached_buckets:
@@ -165,14 +168,14 @@ class BlobStorage(PersistentStorage):
         :param filepath:
     """
 
-    def download(self, container_name: str, file: str, filepath: str):
-        logging.info("Download {}:{} to {}".format(container_name, file, filepath))
-        client = self.client.get_blob_client(container_name, file)
+    def download(self, container_name: str, key: str, filepath: str):
+        logging.info("Download {}:{} to {}".format(container_name, key, filepath))
+        client = self.client.get_blob_client(container_name, key)
         with open(filepath, "wb") as download_file:
             download_file.write(client.download_blob().readall())
 
-    def upload(self, bucket_name: str, filepath: str, key: str):
-        logging.info("Upload {} to {}".format(filepath, bucket_name))
+    def upload(self, container_name: str, filepath: str, key: str):
+        logging.info("Upload {} to {}".format(filepath, container_name))
         client = self.client.get_blob_client(container_name, key)
         with open(filepath, "rb") as upload_file:
             client.upload_blob(upload_file.read())

@@ -1,4 +1,7 @@
+import io
 import logging
+import os
+import tarfile
 
 import docker
 
@@ -47,8 +50,12 @@ class AzureCLI:
         )
         logging.info("Azure login succesful")
 
-    def upload_code_package(self, dest):
-        pass
+    def upload_package(self, directory: str, dest: str):
+        handle = io.BytesIO()
+        with tarfile.open(fileobj=handle, mode="w:gz") as tar:
+            for f in os.listdir(directory):
+                tar.add(os.path.join(directory, f), arcname=f)
+        self.docker_instance.put_archive(dest, handle.read())
 
     """
         Shutdowns Docker instance.

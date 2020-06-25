@@ -1,20 +1,17 @@
-import datetime
-import docker
-import glob
 import json
 import logging
 import os
 import shutil
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional  # noqa
 
 import docker
-import requests
 
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
-from sebs.azure.config import AzureConfig, AzureCredentials
+from sebs.azure.config import AzureConfig
+from sebs.azure.triggers import HTTPTrigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -49,11 +46,9 @@ class Azure(System):
     ):
         super().__init__(sebs_config, cache_client, docker_client)
         self._config = config
-        self.cli_instance: Optional[AzureCLI] = None
 
     """
         Start the Docker container running Azure CLI tools.
-        Login 
     """
 
     def initialize(self, config: Dict[str, str] = {}):
@@ -124,8 +119,6 @@ class Azure(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
-    # TODO: currently we rely on Azure remote build
-    # Thus we only rearrange files
     # Directory structure
     # handler
     # - source files
@@ -134,8 +127,9 @@ class Azure(System):
     # - function.json
     # host.json
     # requirements.txt/package.json
-    def package_code(self, dir, benchmark):
+    def package_code(self, benchmark: Benchmark):
 
+        directory = benchmark.build()
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
         EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js"}
@@ -143,20 +137,20 @@ class Azure(System):
             "python": ["requirements.txt", ".python_packages"],
             "nodejs": ["package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[self.language]
+        package_config = CONFIG_FILES[benchmark.language_name]
 
-        handler_dir = os.path.join(dir, "handler")
+        handler_dir = os.path.join(directory, "handler")
         os.makedirs(handler_dir)
         # move all files to 'handler' except package config
-        for file in os.listdir(dir):
-            if file not in package_config:
-                file = os.path.join(dir, file)
-                shutil.move(file, handler_dir)
+        for f in os.listdir(directory):
+            if f not in package_config:
+                source_file = os.path.join(directory, f)
+                shutil.move(source_file, handler_dir)
 
         # generate function.json
         # TODO: extension to other triggers than HTTP
         default_function_json = {
-            "scriptFile": EXEC_FILES[self.language],
+            "scriptFile": EXEC_FILES[benchmark.language_name],
             "bindings": [
                 {
                     "authLevel": "function",
@@ -168,7 +162,7 @@ class Azure(System):
                 {"type": "http", "direction": "out", "name": "$return"},
             ],
         }
-        json_out = os.path.join(dir, "handler", "function.json")
+        json_out = os.path.join(directory, "handler", "function.json")
         json.dump(default_function_json, open(json_out, "w"), indent=2)
 
         # generate host.json
@@ -180,15 +174,11 @@ class Azure(System):
             },
         }
         json.dump(
-            default_host_json, open(os.path.join(dir, "host.json"), "w"), indent=2
+            default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2
         )
 
-        # copy handlers
-        wrappers_dir = project_absolute_path("cloud-frontend", "azure", self.language)
-        for file in glob.glob(os.path.join(wrappers_dir, "*.py")):
-            shutil.copy(os.path.join(wrappers_dir, file), handler_dir)
-
-        return dir
+        code_size = Benchmark.directory_size(directory)
+        return directory, code_size
 
     """
         Publish function code on Azure.
@@ -201,16 +191,21 @@ class Azure(System):
         :return: URL to reach HTTP-triggered function
     """
 
-    def publish_function(self, name: str, repeat_on_failure: bool = False):
+    def publish_function(
+        self, name: str, code_package: Benchmark, repeat_on_failure: bool = False
+    ) -> str:
 
+        # Mount code package in Docker instance
+        self._mount_function_code(code_package)
         success = False
         url = ""
+        logging.info("Attempting publish of function {}".format(name))
         while not success:
             try:
-                ret = self.execute(
+                ret = self.cli_instance.execute(
                     "bash -c 'cd /mnt/function "
                     "&& func azure functionapp publish {} --{} --no-build'".format(
-                        name, self.AZURE_RUNTIMES[self.language]
+                        name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
                 )
                 print(ret)
@@ -242,6 +237,12 @@ class Azure(System):
                     raise e
         return url
 
+    def _mount_function_code(self, code_package: Benchmark):
+        self.cli_instance.upload_package(code_package.code_location, "/mnt/function")
+
+    def get_function_instance(self, name: str):
+        return AzureFunction(name)
+
     """
         a)  if a cached function is present and no update flag is passed,
             then just return function name
@@ -268,31 +269,27 @@ class Azure(System):
                     fname=func_name, loc=code_location
                 )
             )
-            return AzureFunction(func_name)
+            return AzureFunction.deserialize(code_package.cached_config)
         # b) cached_instance, create package and update code
         elif code_package.is_cached:
 
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
-            timeout = code_package.benchmark_config["timeout"]
-            memory = code_package.benchmark_config["memory"]
 
             # Run Azure-specific part of building code.
-            package = self.package_code(code_location, code_package.benchmark)
-            code_size = CodePackage.directory_size(code_location)
-            # Restart Docker instance to make sure code package is mounted
-            self.start(package, restart=True)
+            package = self.package_code(code_package)
+            code_size = Benchmark.directory_size(code_location)
             # Publish function
-            url = self.publish_function(func_name)
-            self.url = url
+            url = self.publish_function(func_name, code_package, True)
 
             cached_cfg = code_package.cached_config
             cached_cfg["code_size"] = code_size
             cached_cfg["hash"] = code_package.hash
-            cached_cfg["invoke_url"] = url
             self.cache_client.update_function(
-                "azure", benchmark, self.language, package, cached_cfg
+                "azure", benchmark, benchmark.language_name, package, cached_cfg
             )
+            # FIXME: fix after dissociating code package and benchmark
+            code_package.query_cache()
 
             logging.info(
                 "Updating cached function {fname} in {loc}".format(
@@ -300,89 +297,95 @@ class Azure(System):
                 )
             )
 
-            return func_name
+            function = self.get_function_instance(func_name)
+            function.add_trigger(HTTPTrigger(url))
+            return function
         # c) no cached instance, create package and upload code
         else:
 
             code_location = code_package.code_location
-            timeout = code_package.benchmark_config["timeout"]
-            memory = code_package.benchmark_config["memory"]
-
-            # Restart Docker instance to make sure code package is mounted
-            self.start(code_location, restart=True)
-            self.storage_account()
-            self.resource_group()
+            language = code_package.language_name
+            language_runtime = code_package.language_version
+            resource_group = self.config.resources.resource_group(self.cli_instance)
 
             # create function name
-            region = self.config["config"]["region"]
+            region = self.config.region
             # only hyphens are allowed
             # and name needs to be globally unique
             uuid_name = str(uuid.uuid1())[0:8]
             func_name = (
-                "{}-{}-{}".format(benchmark, self.language, uuid_name)
+                "{}-{}-{}".format(benchmark, language, uuid_name)
                 .replace(".", "-")
                 .replace("_", "-")
             )
 
+            config = {
+                "resource_group": resource_group,
+                "func_name": func_name,
+                "region": region,
+                "runtime": self.AZURE_RUNTIMES[language],
+                "runtime_version": language_runtime,
+            }
+
             # check if function does not exist
             # no API to verify existence
             try:
-                self.execute(
-                    ("az functionapp show --resource-group {} " "--name {}").format(
-                        self.resource_group_name, func_name
-                    )
-                )
-            except:
-                # create function app
-                ret = self.execute(
+                ret = self.cli_instance.execute(
                     (
-                        "az functionapp create --resource-group {} "
-                        "--os-type Linux --consumption-plan-location {} "
-                        "--runtime {} --runtime-version {} --name {} "
-                        "--storage-account {}"
-                    ).format(
-                        self.resource_group_name,
-                        region,
-                        self.AZURE_RUNTIMES[self.language],
-                        self.config["config"]["runtime"][self.language],
-                        func_name,
-                        self.storage_account_name,
-                    )
+                        " az functionapp show --resource-group {resource_group} "
+                        " --name {func_name} "
+                    ).format(**config)
+                )
+                print(ret.decode())
+                # FIXME: get the current storage account
+            except RuntimeError:
+                function_storage_account = self.config.resources.add_storage_account(
+                    self.cli_instance
+                )
+                config["storage_account"] = function_storage_account.account_name
+                # FIXME: only Linux type is supported
+                # create function app
+                ret = self.cli_instance.execute(
+                    (
+                        " az functionapp create --resource-group {resource_group} "
+                        " --os-type Linux --consumption-plan-location {region} "
+                        " --runtime {runtime} --runtime-version {runtime_version} "
+                        " --name {func_name} --storage-account {storage_account}"
+                    ).format(**config)
                 )
                 logging.info("Created function app {}".format(func_name))
 
             logging.info("Selected {} function app".format(func_name))
             # Run Azure-specific part of building code.
-            package = self.package_code(code_location, code_package.benchmark)
-            code_size = CodePackage.directory_size(code_location)
-            # Restart Docker instance to make sure code package is mounted
-            self.start(package, restart=True)
+            package = self.package_code(code_package)
             # update existing function app
-            url = self.publish_function(func_name, repeat_on_failure=True)
-            self.url = url
+            url = self.publish_function(func_name, code_package, True)
 
             self.cache_client.add_function(
                 deployment="azure",
                 benchmark=benchmark,
-                language=self.language,
+                language=language,
                 code_package=package,
                 language_config={
                     "invoke_url": url,
-                    "runtime": self.config["config"]["runtime"][self.language],
+                    "runtime": language_runtime,
                     "name": func_name,
                     "code_size": code_size,
-                    "resource_group": self.resource_group_name,
+                    "resource_group": resource_group,
                     "hash": code_package.hash,
                 },
                 storage_config={
-                    "account": self.storage_account_name,
+                    "account": function_storage_account.account_name,
                     "containers": {
-                        "input": self.storage.input_containers,
-                        "output": self.storage.output_containers,
+                        "input": self.storage.input,
+                        "output": self.storage.output,
                     },
                 },
             )
-        return func_name, code_size
+            # FIXME: fix after dissociating code package and benchmark
+            function = self.get_function_instance(func_name)
+            function.add_trigger(HTTPTrigger(url))
+            return function
 
     """
         Prepare Azure resources to store experiment results.
@@ -393,161 +396,173 @@ class Azure(System):
     """
 
     def prepare_experiment(self, benchmark: str):
-        logs_container = self.storage.add_output_container(benchmark, suffix="logs")
+        logs_container = self.storage.add_output_bucket(benchmark, suffix="logs")
         return logs_container
 
-    def invoke_sync(self, name: str, payload: dict):
 
-        payload["connection_string"] = self.storage_connection_string
-        begin = datetime.datetime.now()
-        ret = requests.request(method="POST", url=self.url, json=payload)
-        end = datetime.datetime.now()
-
-        if ret.status_code != 200:
-            logging.error("Invocation of {} failed!".format(name))
-            logging.error("Input: {}".format(payload))
-            raise RuntimeError()
-
-        ret = ret.json()
-        vals = {}
-        vals["return"] = ret
-        vals["client_time"] = (end - begin) / datetime.timedelta(microseconds=1)
-        return vals
-
-    def download_metrics(
-        self,
-        function_name: str,
-        deployment_config: dict,
-        start_time: int,
-        end_time: int,
-        requests: dict,
-    ):
-
-        resource_group = deployment_config["resource_group"]
-        app_id_query = self.execute(
-            (
-                "az monitor app-insights component show " "--app {} --resource-group {}"
-            ).format(function_name, resource_group)
-        ).decode("utf-8")
-        application_id = json.loads(app_id_query)["appId"]
-
-        # Azure CLI requires date in the following format
-        # Format: date (yyyy-mm-dd) time (hh:mm:ss.xxxxx) timezone (+/-hh:mm)
-        # Include microseconds time to make sure we're not affected by
-        # miliseconds precision.
-        start_time = datetime.datetime.fromtimestamp(start_time).strftime(
-            "%Y-%m-%d %H:%M:%S.%f"
-        )
-        end_time = datetime.datetime.fromtimestamp(end_time).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-        import pytz
-        from pytz import reference
-
-        tz = reference.LocalTimezone().tzname(datetime.datetime.now())
-        timezone_str = datetime.datetime.now(pytz.timezone(tz)).strftime("%z")
-
-        query = (
-            "requests | project timestamp, operation_Name, success, "
-            "resultCode, duration, cloud_RoleName, "
-            "invocationId=customDimensions['InvocationId'], "
-            "functionTime=customDimensions['FunctionExecutionTimeMs']"
-        )
-        ret = self.execute(
-            (
-                'az monitor app-insights query --app {} --analytics-query "{}" '
-                "--start-time {} {} --end-time {} {}"
-            ).format(
-                application_id, query, start_time, timezone_str, end_time, timezone_str
-            )
-        ).decode("utf-8")
-
-        ret = json.loads(ret)
-        ret = ret["tables"][0]
-        # time is last, invocation is second to last
-        for request in ret["rows"]:
-            duration = request[4]
-            func_exec_time = request[-1]
-            invocation_id = request[-2]
-            requests[invocation_id]["azure"] = {
-                "duration": duration,
-                "func_time": float(func_exec_time),
-            }
-
-        # TODO: query performance counters for mem
-
-    def create_azure_function(self, fname, config):
-
-        # create function name
-        region = self.config["config"]["region"]
-        # only hyphens are allowed
-        # and name needs to be globally unique
-        uuid_name = str(uuid.uuid1())[0:8]
-        func_name = fname.replace(".", "-").replace("_", "-")
-
-        # create function app
-        ret = self.execute(
-            (
-                "az functionapp create --resource-group {} "
-                "--os-type Linux --consumption-plan-location {} "
-                "--runtime {} --runtime-version {} --name {} "
-                "--storage-account {}"
-            ).format(
-                self.resource_group_name,
-                region,
-                self.AZURE_RUNTIMES[self.language],
-                self.config["config"]["runtime"][self.language],
-                func_name,
-                self.storage_account_name,
-            )
-        )
-        logging.info("Created function app {}".format(func_name))
-        return func_name
-
-    init = False
-
-    def create_function_copies(
-        self,
-        function_names: List[str],
-        code_package: Benchmark,
-        experiment_config: dict,
-    ):
-
-        if not self.init:
-            code_location = code_package.code_location
-            # package = self.package_code(code_location, code_package.benchmark)
-            code_size = code_package.code_size
-            # Restart Docker instance to make sure code package is mounted
-            self.start(code_location, restart=True)
-            self.storage_account()
-            self.resource_group()
-            self.init = True
-
-        # names = []
-        # for fname in function_names:
-        #    names.append(self.create_azure_function(fname, experiment_config))
-        names = function_names
-
-        # time.sleep(30)
-        urls = []
-        for fname in function_names:
-            url = self.publish_function(fname, repeat_on_failure=True)
-            urls.append(url)
-            logging.info("Published function app {} with URL {}".format(fname, url))
-
-        return names, urls
+#    def invoke_sync(self, name: str, payload: dict):
+#
+#        payload["connection_string"] = self.storage_connection_string
+#        begin = datetime.datetime.now()
+#        ret = requests.request(method="POST", url=self.url, json=payload)
+#        end = datetime.datetime.now()
+#
+#        if ret.status_code != 200:
+#            logging.error("Invocation of {} failed!".format(name))
+#            logging.error("Input: {}".format(payload))
+#            raise RuntimeError()
+#
+#        ret = ret.json()
+#        vals = {}
+#        vals["return"] = ret
+#        vals["client_time"] = (end - begin) / datetime.timedelta(microseconds=1)
+#        return vals
+#
+#    def download_metrics(
+#        self,
+#        function_name: str,
+#        deployment_config: dict,
+#        start_time: int,
+#        end_time: int,
+#        requests: dict,
+#    ):
+#
+#        resource_group = deployment_config["resource_group"]
+#        app_id_query = self.execute(
+#            (
+#                "az monitor app-insights component show "
+#                "--app {} --resource-group {}"
+#            ).format(function_name, resource_group)
+#        ).decode("utf-8")
+#        application_id = json.loads(app_id_query)["appId"]
+#
+#        # Azure CLI requires date in the following format
+#        # Format: date (yyyy-mm-dd) time (hh:mm:ss.xxxxx) timezone (+/-hh:mm)
+#        # Include microseconds time to make sure we're not affected by
+#        # miliseconds precision.
+#        start_time = datetime.datetime.fromtimestamp(start_time).strftime(
+#            "%Y-%m-%d %H:%M:%S.%f"
+#        )
+#        end_time = datetime.datetime.fromtimestamp(end_time).strftime(
+#            "%Y-%m-%d %H:%M:%S"
+#        )
+#        import pytz
+#        from pytz import reference
+#
+#        tz = reference.LocalTimezone().tzname(datetime.datetime.now())
+#        timezone_str = datetime.datetime.now(pytz.timezone(tz)).strftime("%z")
+#
+#        query = (
+#            "requests | project timestamp, operation_Name, success, "
+#            "resultCode, duration, cloud_RoleName, "
+#            "invocationId=customDimensions['InvocationId'], "
+#            "functionTime=customDimensions['FunctionExecutionTimeMs']"
+#        )
+#        ret = self.execute(
+#            (
+#                'az monitor app-insights query --app {} --analytics-query "{}" '
+#                "--start-time {} {} --end-time {} {}"
+#            ).format(
+#                application_id, query, start_time, timezone_str, end_time, timezone_str
+#            )
+#        ).decode("utf-8")
+#
+#        ret = json.loads(ret)
+#        ret = ret["tables"][0]
+#        # time is last, invocation is second to last
+#        for request in ret["rows"]:
+#            duration = request[4]
+#            func_exec_time = request[-1]
+#            invocation_id = request[-2]
+#            requests[invocation_id]["azure"] = {
+#                "duration": duration,
+#                "func_time": float(func_exec_time),
+#            }
+#
+#        # TODO: query performance counters for mem
+#
+#    def create_azure_function(self, fname, config):
+#
+#        # create function name
+#        region = self.config["config"]["region"]
+#        # only hyphens are allowed
+#        # and name needs to be globally unique
+#        func_name = fname.replace(".", "-").replace("_", "-")
+#
+#        # create function app
+#        self.cli_instance.execute(
+#            (
+#                "az functionapp create --resource-group {} "
+#                "--os-type Linux --consumption-plan-location {} "
+#                "--runtime {} --runtime-version {} --name {} "
+#                "--storage-account {}"
+#            ).format(
+#                self.resource_group_name,
+#                region,
+#                self.AZURE_RUNTIMES[self.language],
+#                self.config["config"]["runtime"][self.language],
+#                func_name,
+#                self.storage_account_name,
+#            )
+#        )
+#        logging.info("Created function app {}".format(func_name))
+#        return func_name
+#
+#    init = False
+#
+#    def create_function_copies(
+#        self,
+#        function_names: List[str],
+#        code_package: Benchmark,
+#        experiment_config: dict,
+#    ):
+#
+#        if not self.init:
+#            code_location = code_package.code_location
+#            # package = self.package_code(code_location, code_package.benchmark)
+#            # code_size = code_package.code_size
+#            # Restart Docker instance to make sure code package is mounted
+#            self.start(code_location, restart=True)
+#            self.storage_account()
+#            self.resource_group()
+#            self.init = True
+#
+#        # names = []
+#        # for fname in function_names:
+#        #    names.append(self.create_azure_function(fname, experiment_config))
+#        names = function_names
+#
+#        # time.sleep(30)
+#        urls = []
+#        for fname in function_names:
+#            url = self.publish_function(fname, repeat_on_failure=True)
+#            urls.append(url)
+#            logging.info("Published function app {} with URL {}".format(fname, url))
+#
+#        return names, urls
 
 
 class AzureFunction(Function):
     def __init__(self, name: str):
         super().__init__(name)
 
-    def sync_invoke(self, payload: dict):
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
         raise NotImplementedError(
-            "Client-side invocation not supported for Azure Functions. Please use triggers instead!"
+            " Client-side invocation not supported for Azure Functions. "
+            " Please use triggers instead! "
         )
 
-    def async_invoke(self, payload: dict):
+    def async_invoke(self, payload: dict) -> ExecutionResult:
         raise NotImplementedError(
-            "Client-side invocation not supported for Azure Functions. Please use triggers instead!"
+            " Client-side invocation not supported for Azure Functions. "
+            " Please use triggers instead! "
         )
+
+    @staticmethod
+    def deserialize(cached_config: dict) -> Function:
+        ret = AzureFunction(cached_config["name"])
+        for trigger in cached_config["triggers"]:
+            trigger_type = {"HTTP": HTTPTrigger}.get(trigger["type"])
+            assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
+            ret.add_trigger(trigger_type.deserialize(trigger))
+        return ret

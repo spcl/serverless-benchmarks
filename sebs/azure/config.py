@@ -2,13 +2,12 @@ import json
 import logging
 import os
 import uuid
-from typing import cast, List, Optional
+from typing import cast, Any, Dict, List, Optional  # noqa
 
 
 from sebs.azure.cli import AzureCLI
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
-from sebs.utils import serialize
 
 
 class AzureCredentials(Credentials):
@@ -95,15 +94,21 @@ class AzureResources(Resources):
 
         # FIXME: 3.7+ migration with future annotations
         @staticmethod
-        def from_cache(account_name: str, connection_string: str) -> "Storage":
+        def from_cache(
+            account_name: str, connection_string: str
+        ) -> "AzureResources.Storage":
             assert connection_string, "Empty connection string for account {}".format(
                 account_name
             )
             return AzureResources.Storage(account_name, connection_string)
 
         @staticmethod
-        def from_allocation(account_name: str, cli_instance: AzureCLI) -> "Storage":
-            connection_string = self.query_connection_string(account_name, cli_instance)
+        def from_allocation(
+            account_name: str, cli_instance: AzureCLI
+        ) -> "AzureResources.Storage":
+            connection_string = AzureResources.Storage.query_connection_string(
+                account_name, cli_instance
+            )
             return AzureResources.Storage(account_name, connection_string)
 
         """
@@ -159,6 +164,9 @@ class AzureResources(Resources):
             uuid_name = str(uuid.uuid1())[0:8]
             # Only underscore and alphanumeric characters are allowed
             self._resource_group = "sebs_resource_group_{}".format(uuid_name)
+            logging.info(
+                "Starting allocation of resource group {}.".format(self._resource_group)
+            )
             cli_instance.execute(
                 "az group create --name {0} --location {1}".format(
                     self._resource_group, self._region
@@ -188,7 +196,8 @@ class AzureResources(Resources):
 
     """
         Internal implementation of creating a new storage account.
-        The method does NOT update cache and does NOT add the account to any resource collection.
+        The method does NOT update cache and
+        does NOT add the account to any resource collection.
     """
 
     def _create_storage_account(self, cli_instance: AzureCLI) -> Storage:
@@ -196,6 +205,7 @@ class AzureResources(Resources):
         # Create account. Only alphanumeric characters are allowed
         uuid_name = str(uuid.uuid1())[0:8]
         account_name = "sebsstorage{}".format(uuid_name)
+        logging.info("Starting allocation of storage account {}.".format(account_name))
         cli_instance.execute(
             (
                 "az storage account create --name {0} --location {1} "
@@ -235,11 +245,14 @@ class AzureResources(Resources):
         )
 
     def serialize(self) -> dict:
-        return {
-            "resource_group": self._resource_group,
+        out: Dict[str, Any] = {
             "storage_accounts": [x.serialize() for x in self._storage_accounts],
-            "data_storage_account": self._data_storage_account.serialize(),
         }
+        if self._resource_group:
+            out["resource_group"] = self._resource_group
+        if self._data_storage_account:
+            out["data_storage_account"] = self._data_storage_account.serialize()
+        return out
 
     @staticmethod
     def initialize(config: dict, cache: Cache) -> Resources:
