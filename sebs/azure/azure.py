@@ -4,7 +4,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import Dict, List, Optional  # noqa
+from typing import Dict, List, Optional, Tuple  # noqa
 
 import docker
 
@@ -127,7 +127,7 @@ class Azure(System):
     # - function.json
     # host.json
     # requirements.txt/package.json
-    def package_code(self, benchmark: Benchmark):
+    def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
 
         directory = benchmark.build()
         # In previous step we ran a Docker container which installed packages
@@ -238,7 +238,7 @@ class Azure(System):
         return url
 
     def _mount_function_code(self, code_package: Benchmark):
-        self.cli_instance.upload_package(code_package.code_location, "/mnt/function")
+        self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
 
     def get_function_instance(self, name: str):
         return AzureFunction(name)
@@ -277,8 +277,7 @@ class Azure(System):
             code_location = code_package.code_location
 
             # Run Azure-specific part of building code.
-            package = self.package_code(code_package)
-            code_size = Benchmark.directory_size(code_location)
+            package, code_size = self.package_code(code_package)
             # Publish function
             url = self.publish_function(func_name, code_package, True)
 
@@ -286,7 +285,7 @@ class Azure(System):
             cached_cfg["code_size"] = code_size
             cached_cfg["hash"] = code_package.hash
             self.cache_client.update_function(
-                "azure", benchmark, benchmark.language_name, package, cached_cfg
+                self.name(), benchmark, code_package.language_name, package, cached_cfg
             )
             # FIXME: fix after dissociating code package and benchmark
             code_package.query_cache()
@@ -357,7 +356,7 @@ class Azure(System):
 
             logging.info("Selected {} function app".format(func_name))
             # Run Azure-specific part of building code.
-            package = self.package_code(code_package)
+            package, code_size = self.package_code(code_package)
             # update existing function app
             url = self.publish_function(func_name, code_package, True)
 
@@ -377,8 +376,8 @@ class Azure(System):
                 storage_config={
                     "account": function_storage_account.account_name,
                     "containers": {
-                        "input": self.storage.input,
-                        "output": self.storage.output,
+                        "input": self.storage.input(),
+                        "output": self.storage.output()
                     },
                 },
             )

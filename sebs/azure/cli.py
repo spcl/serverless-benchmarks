@@ -15,7 +15,7 @@ class AzureCLI:
             command="/bin/bash",
             user="1000:1000",
             volumes={},
-            remove=True,
+            # remove=True,
             stdout=True,
             stderr=True,
             detach=True,
@@ -55,7 +55,10 @@ class AzureCLI:
         with tarfile.open(fileobj=handle, mode="w:gz") as tar:
             for f in os.listdir(directory):
                 tar.add(os.path.join(directory, f), arcname=f)
-        self.docker_instance.put_archive(dest, handle.read())
+        # move to the beginning of memory before writing
+        handle.seek(0)
+        self.execute("mkdir -p {}".format(dest))
+        self.docker_instance.put_archive(path=dest, data=handle.read())
 
     """
         Shutdowns Docker instance.

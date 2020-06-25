@@ -135,10 +135,9 @@ class Trigger(ABC):
 
 class Function:
 
-    _triggers: List[Trigger]
-
     def __init__(self, name: str):
         self._name = name
+        self._triggers: List[Trigger] = []
 
     @property
     def name(self):
