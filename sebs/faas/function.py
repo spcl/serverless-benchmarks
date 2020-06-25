@@ -2,7 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional # noqa
 
 
 """
@@ -134,7 +134,6 @@ class Trigger(ABC):
 
 
 class Function:
-
     def __init__(self, name: str):
         self._name = name
         self._triggers: List[Trigger] = []

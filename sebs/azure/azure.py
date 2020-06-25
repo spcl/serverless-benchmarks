@@ -377,7 +377,7 @@ class Azure(System):
                     "account": function_storage_account.account_name,
                     "containers": {
                         "input": self.storage.input(),
-                        "output": self.storage.output()
+                        "output": self.storage.output(),
                     },
                 },
             )
