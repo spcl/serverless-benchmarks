@@ -2,7 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import List, Optional # noqa
+from typing import List, Optional  # noqa
 
 
 """
@@ -117,6 +117,11 @@ class Trigger(ABC):
         HTTP = 0
         STORAGE = 1
 
+    @staticmethod
+    @abstractmethod
+    def trigger_type() -> TriggerType:
+        pass
+
     @abstractmethod
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         pass
@@ -141,6 +146,10 @@ class Function:
     @property
     def name(self):
         return self._name
+
+    @property
+    def triggers(self) -> List[Trigger]:
+        return self._triggers
 
     def add_trigger(self, trigger: Trigger):
         self._triggers.append(trigger)

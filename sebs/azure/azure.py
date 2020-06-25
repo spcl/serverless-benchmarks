@@ -10,7 +10,7 @@ import docker
 
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
-from sebs.azure.config import AzureConfig
+from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import HTTPTrigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
@@ -269,7 +269,10 @@ class Azure(System):
                     fname=func_name, loc=code_location
                 )
             )
-            return AzureFunction.deserialize(code_package.cached_config)
+            return AzureFunction.deserialize(
+                code_package.cached_config,
+                self.config.resources.data_storage_account(self.cli_instance),
+            )
         # b) cached_instance, create package and update code
         elif code_package.is_cached:
 
@@ -297,7 +300,11 @@ class Azure(System):
             )
 
             function = self.get_function_instance(func_name)
-            function.add_trigger(HTTPTrigger(url))
+            function.add_trigger(
+                HTTPTrigger(
+                    url, self.config.resources.data_storage_account(self.cli_instance)
+                )
+            )
             return function
         # c) no cached instance, create package and upload code
         else:
@@ -383,7 +390,11 @@ class Azure(System):
             )
             # FIXME: fix after dissociating code package and benchmark
             function = self.get_function_instance(func_name)
-            function.add_trigger(HTTPTrigger(url))
+            function.add_trigger(
+                HTTPTrigger(
+                    url, self.config.resources.data_storage_account(self.cli_instance)
+                )
+            )
             return function
 
     """
@@ -558,10 +569,16 @@ class AzureFunction(Function):
         )
 
     @staticmethod
-    def deserialize(cached_config: dict) -> Function:
+    def deserialize(
+        cached_config: dict, data_storage_account: AzureResources.Storage
+    ) -> Function:
         ret = AzureFunction(cached_config["name"])
-        for trigger in cached_config["triggers"]:
-            trigger_type = {"HTTP": HTTPTrigger}.get(trigger["type"])
-            assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
-            ret.add_trigger(trigger_type.deserialize(trigger))
+        # FIXME: remove after fixing cache
+        ret.add_trigger(HTTPTrigger(cached_config["invoke_url"], data_storage_account))
+
+        # FIXME: reenableafter fixing cache
+        # for trigger in cached_config["triggers"]:
+        #    trigger_type = {"HTTP": HTTPTrigger}.get(trigger["type"])
+        #    assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
+        #    ret.add_trigger(trigger_type.deserialize(trigger))
         return ret
