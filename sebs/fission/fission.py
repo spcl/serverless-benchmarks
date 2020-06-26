@@ -19,6 +19,10 @@ class Fission(System):
     available_languages_images = {"python": "fission/python-env:latest", "nodejs": "fission/node-env:latest"}
     available_languages_builders = {"python": "fission/python-builder:latest", "nodejs": "fission/node-builder:latest"}
     storage : Minio
+    httpTriggerName: str
+    functionName: str
+    packageName: str
+    envName: str
     _config : FissionConfig
     def __init__(
         self, sebs_config: SeBSConfig, config: FissionConfig, cache_client: Cache, docker_client: docker.client
@@ -62,7 +66,18 @@ class Fission(System):
                 raise ChildProcessError
 
         except subprocess.CalledProcessError:
-            logging.info('Minikube already working')
+            try:
+                subprocess.run(
+                'grep unusually'.split(),
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                input=kube_status.stdout
+            )
+                logging.info('Starting minikube...')
+                subprocess.run(f'minikube start --vm-driver={vm_driver}'.split(), check=True)
+            except subprocess.CalledProcessError:
+                logging.info('Minikube already working')
             pass
         except ChildProcessError:
             logging.error("ERROR: COULDN'T START MINIKUBE")
@@ -127,7 +142,10 @@ class Fission(System):
             )
 
     def shutdown(self) -> None:
-        pass
+        subprocess.run(f'fission httptrigger delete --name {self.httpTriggerName}'.split())
+        subprocess.run(f'fission fn delete --name {self.functionName}'.split())
+        subprocess.run(f'fission package delete --name {self.packageName}'.split())
+        subprocess.run(f'fission env delete --name {self.envName}'.split())
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         self.storage = Minio(self.docker_client)
@@ -179,9 +197,10 @@ class Fission(System):
                 stderr=subprocess.DEVNULL,
                 input=fission_env_list.stdout
             )
-
+            self.envName = name
         except subprocess.CalledProcessError:  # if exception raised it means that there is no appropriate namespace
             logging.info(f'Creating env for {name} using image \"{image}\".')
+            self.envName = name
             subprocess.run(
                 f'fission env create --name {name} --image {image} --builder {builder}'.split(),
                 check=True, stdout=subprocess.DEVNULL
@@ -215,6 +234,7 @@ class Fission(System):
 
     def createPackage(self, packageName: str, path: str, envName: str) -> None:
         logging.info(f'Deploying fission package...')
+        self.packageName = packageName
         subprocess.run(f'fission package create --deployarchive {path} --name {packageName} --env {envName}'.split(), check=True)
     
     def deletePackage(self, packageName: str) -> None:
@@ -227,6 +247,8 @@ class Fission(System):
             f'fission fn create --name {name} --pkg {packageName} --entrypoint function.handler'.split(), check=True
         )
         triggerName = f'{name}-trigger'
+        self.functionName = name
+        self.httpTriggerName = triggerName
         try:
             triggers = subprocess.run(f'fission httptrigger list'.split(), stdout=subprocess.PIPE, check=True)
             subprocess.run(
@@ -258,7 +280,10 @@ class Fission(System):
                 )
             )
         benchmark = code_package.benchmark.replace('.','-')
-
+        language = code_package.language_name
+        language_runtime = code_package.language_version
+        timeout = code_package.benchmark_config.timeout
+        memory = code_package.benchmark_config.memory
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
@@ -267,14 +292,13 @@ class Fission(System):
                     fname=func_name, loc=code_location
                 )
             )
+            self.create_env_if_needed(language, self.available_languages_images[language], self.available_languages_builders[language])
             self.create_function(func_name, code_package.language_name, code_location)
             return FissionFunction(func_name)
         elif code_package.is_cached:
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
-            timeout = code_package.benchmark_config.timeout
-            memory = code_package.benchmark_config.memory
-
+            self.create_env_if_needed(language, self.available_languages_images[language], self.available_languages_builders[language])
             self.update_function(func_name, code_package.language_name, path)
 
             cached_cfg = code_package.cached_config
@@ -283,7 +307,7 @@ class Fission(System):
             cached_cfg["memory"] = memory
             cached_cfg["hash"] = code_package.hash
             self.cache_client.update_function(
-                self.name(), benchmark, code_package.language_name, path, cached_cfg
+                self.name(), benchmark.replace('-','.'), code_package.language_name, path, cached_cfg
             )
             code_package.query_cache()
             logging.info(
@@ -294,19 +318,12 @@ class Fission(System):
             return FissionFunction(func_name)
         else:
             code_location = code_package.benchmark_path
-            language = code_package.language_name
-            language_runtime = code_package.language_version
-            timeout = code_package.benchmark_config.timeout
-            memory = code_package.benchmark_config.memory
-
             func_name = "{}-{}-{}".format(benchmark, language, memory)
-
             self.create_env_if_needed(language, self.available_languages_images[language], self.available_languages_builders[language])
             self.create_function(func_name, language, path)
-
             self.cache_client.add_function(
                 deployment=self.name(),
-                benchmark=benchmark,
+                benchmark=benchmark.replace('-','.'),
                 language=language,
                 code_package=path,
                 language_config={
