@@ -163,19 +163,30 @@ class Fission(System):
         Fission.install_fission_cli_if_needed()
 
     def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
+
+        benchmark.build()
+
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        directory = benchmark.benchmark_path
+        directory = benchmark.code_location
         package_config = CONFIG_FILES[benchmark.language_name]
+        function_dir = os.path.join(directory, "function")
+        os.makedirs(function_dir)
+        # move all files to 'function' except handler.py
+        for file in os.listdir(directory):
+            if file not in package_config:
+                file = os.path.join(directory, file)
+                shutil.move(file, function_dir)
+        cur_dir = os.getcwd()
         os.chdir(directory)
-        subprocess.run("zip -jr {}.zip {}/".format(benchmark.benchmark, benchmark.language_name).split(), stdout=subprocess.DEVNULL)
+        subprocess.run("zip -jr {}.zip * .".format(benchmark.benchmark).split(), stdout=subprocess.DEVNULL)
         benchmark_archive = "{}.zip".format(
             os.path.join(directory, benchmark.benchmark)
         )
         logging.info("Created {} archive".format(benchmark_archive))
-        bytes_size = os.path.getsize(os.path.join(directory, benchmark.language_name))
+        bytes_size = os.path.getsize(benchmark_archive)
         return benchmark_archive, bytes_size
 
     def update_function(self, name: str, env_name: str, code_path: str):
@@ -244,7 +255,7 @@ class Fission(System):
     def createFunction(self, packageName: str, name: str) -> None:
         logging.info(f'Deploying fission function...')
         subprocess.run(
-            f'fission fn create --name {name} --pkg {packageName} --entrypoint function.handler'.split(), check=True
+            f'fission fn create --name {name} --pkg {packageName} --entrypoint handler.handler'.split(), check=True
         )
         triggerName = f'{name}-trigger'
         self.functionName = name
@@ -257,7 +268,7 @@ class Fission(System):
                     input=triggers.stdout
                 )
         except subprocess.CalledProcessError:
-            subprocess.run(f'fission httptrigger create --url /benchmark --method GET --name {triggerName} --function {name}'.split(), check=True)
+            subprocess.run(f'fission httptrigger create --url /benchmark --method POST --name {triggerName} --function {name}'.split(), check=True)
 
     def deleteFunction(self, name: str)-> None:
         logging.info(f'Deleting fission function...')
@@ -300,7 +311,6 @@ class Fission(System):
             code_location = code_package.code_location
             self.create_env_if_needed(language, self.available_languages_images[language], self.available_languages_builders[language])
             self.update_function(func_name, code_package.language_name, path)
-
             cached_cfg = code_package.cached_config
             cached_cfg["code_size"] = size
             cached_cfg["timeout"] = timeout

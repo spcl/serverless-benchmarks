@@ -104,29 +104,22 @@
   "fission": { 
     "languages": {
       "python": {
-        "base_images": {
-          "3.8": "lambci/lambda:build-python3.8",
-          "3.7": "lambci/lambda:build-python3.7",
-          "3.6": "lambci/lambda:build-python3.6"
-        },
-        "versions": ["3.6", "3.7", "3.8"],
-        "images": ["build"],
+        "base_images": {"3.6":""},
+        "versions": ["3.6"],
+        "images": [],
         "username": "docker_user",
         "deployment": {
-          "files": [],
+          "files": ["handler.py"],
           "packages": []
         }
       },
       "nodejs": {
-        "base_images": {
-          "12.x" : "lambci/lambda:build-nodejs12.x",
-          "10.x" : "lambci/lambda:build-nodejs10.x" 
-        },
+        "base_images": {"8":""},
         "versions": ["10.x", "12.x"],
-        "images": ["build"],
+        "images": [],
         "username": "docker_user",
         "deployment": {
-          "files": [],
+          "files": ["handler.js"],
           "packages": []
         }
       }

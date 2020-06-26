@@ -27,7 +27,6 @@ class Minio(PersistentStorage):
         minioName = 'minio'
         try:
             actualContainer = self.docker_client.containers.get(minioName)
-            actualContainer.rename('minio-to-kill')
             actualContainer.stop()
             actualContainer.wait()
             self.startMinio(minioName)
