@@ -12,9 +12,24 @@ from sebs.config import SeBSConfig
 
 docker_client = docker.from_env()
 config = SeBSConfig()
-azure_docker_image = '{}:manage.azure'.format(config.docker_repository())
+repo_name = config.docker_repository()
+image_name = "manage.azure"
+try:
+    docker_client.images.get(repo_name + ":" + image_name)
+except docker.errors.ImageNotFound:
+    try:
+        print(
+            "Docker pull of image {repo}:{image}".format(
+                repo=repo_name, image=image_name
+            )
+        )
+        docker_client.images.pull(repo_name, image_name)
+    except docker.errors.APIError:
+        raise RuntimeError(
+            "Docker pull of image {} failed!".format(image_name)
+        )
 container = docker_client.containers.run(
-    image=azure_docker_image,
+    image=repo_name + ":" + image_name,
     command="/bin/bash",
     user="1000:1000",
     remove=True,
