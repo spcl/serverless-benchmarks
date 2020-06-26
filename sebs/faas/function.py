@@ -117,9 +117,10 @@ class Trigger(ABC):
         HTTP = 0
         STORAGE = 1
 
+    # FIXME: 3.7+, future annotations
     @staticmethod
     @abstractmethod
-    def trigger_type() -> TriggerType:
+    def trigger_type() -> "Trigger.TriggerType":
         pass
 
     @abstractmethod

@@ -134,11 +134,12 @@ class AzureResources(Resources):
         def serialize(self) -> dict:
             return vars(self)
 
+    # FIXME: 3.7 Python, future annotations
     def __init__(
         self,
         resource_group: Optional[str] = None,
-        storage_accounts: List[Storage] = [],
-        data_storage_account: Optional[Storage] = None,
+        storage_accounts: List["AzureResources.Storage"] = [],
+        data_storage_account: Optional["AzureResources.Storage"] = None,
     ):
         self._resource_group = resource_group
         self._storage_accounts = storage_accounts
@@ -148,7 +149,7 @@ class AzureResources(Resources):
         self._region = region
 
     @property
-    def storage_accounts(self) -> List[Storage]:
+    def storage_accounts(self) -> List["AzureResources.Storage"]:
         return self._storage_accounts
 
     """
@@ -180,7 +181,7 @@ class AzureResources(Resources):
         Retrieve or create storage account associated with benchmark data.
     """
 
-    def data_storage_account(self, cli_instance: AzureCLI) -> Storage:
+    def data_storage_account(self, cli_instance: AzureCLI) -> "AzureResources.Storage":
         if not self._data_storage_account:
             self._data_storage_account = self._create_storage_account(cli_instance)
         return self._data_storage_account
@@ -189,7 +190,7 @@ class AzureResources(Resources):
         Create a new function storage account and add to the list.
     """
 
-    def add_storage_account(self, cli_instance: AzureCLI) -> Storage:
+    def add_storage_account(self, cli_instance: AzureCLI) -> "AzureResources.Storage":
         account = self._create_storage_account(cli_instance)
         self._storage_accounts.append(account)
         return account
@@ -200,7 +201,9 @@ class AzureResources(Resources):
         does NOT add the account to any resource collection.
     """
 
-    def _create_storage_account(self, cli_instance: AzureCLI) -> Storage:
+    def _create_storage_account(
+        self, cli_instance: AzureCLI
+    ) -> "AzureResources.Storage":
         sku = "Standard_LRS"
         # Create account. Only alphanumeric characters are allowed
         uuid_name = str(uuid.uuid1())[0:8]
