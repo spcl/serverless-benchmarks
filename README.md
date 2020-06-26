@@ -133,9 +133,9 @@ To sign in, use a web browser to open the page https://microsoft.com/devicelogin
 Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}                                          
 Created service principal http://XXXXX
 
-AZURE_SECRET_APPLICATION_ID = 2a49e1e9-b47d-422b-8d81-461af9e1a61f                                                         
-AZURE_SECRET_TENANT = 93ea0232-1fea-4dc8-a174-4ff4a312127a                                                                                                                                     
-AZURE_SECRET_PASSWORD = 1u0WtswVq-3gLtPpfJYh_KdUJCWY2J2flg
+AZURE_SECRET_APPLICATION_ID = XXXXXXXXXXXXXXXX
+AZURE_SECRET_TENANT = XXXXXXXXXXXX
+AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
 ```
 
 Save these credentials - the password is non retrievable! Provide them to SeBS
