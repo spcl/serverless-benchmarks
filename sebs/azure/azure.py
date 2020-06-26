@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import os
@@ -10,7 +11,8 @@ import docker
 
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
-from sebs.azure.config import AzureConfig, AzureResources
+from sebs.azure.function import AzureFunction
+from sebs.azure.config import AzureConfig
 from sebs.azure.triggers import HTTPTrigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
@@ -409,87 +411,91 @@ class Azure(System):
         logs_container = self.storage.add_output_bucket(benchmark, suffix="logs")
         return logs_container
 
+    #    def invoke_sync(self, name: str, payload: dict):
+    #
+    #        payload["connection_string"] = self.storage_connection_string
+    #        begin = datetime.datetime.now()
+    #        ret = requests.request(method="POST", url=self.url, json=payload)
+    #        end = datetime.datetime.now()
+    #
+    #        if ret.status_code != 200:
+    #            logging.error("Invocation of {} failed!".format(name))
+    #            logging.error("Input: {}".format(payload))
+    #            raise RuntimeError()
+    #
+    #        ret = ret.json()
+    #        vals = {}
+    #        vals["return"] = ret
+    #        vals["client_time"] = (end - begin) / datetime.timedelta(microseconds=1)
+    #        return vals
+    #
+    def download_metrics(
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: List[ExecutionResult],
+    ):
 
-#    def invoke_sync(self, name: str, payload: dict):
-#
-#        payload["connection_string"] = self.storage_connection_string
-#        begin = datetime.datetime.now()
-#        ret = requests.request(method="POST", url=self.url, json=payload)
-#        end = datetime.datetime.now()
-#
-#        if ret.status_code != 200:
-#            logging.error("Invocation of {} failed!".format(name))
-#            logging.error("Input: {}".format(payload))
-#            raise RuntimeError()
-#
-#        ret = ret.json()
-#        vals = {}
-#        vals["return"] = ret
-#        vals["client_time"] = (end - begin) / datetime.timedelta(microseconds=1)
-#        return vals
-#
-#    def download_metrics(
-#        self,
-#        function_name: str,
-#        deployment_config: dict,
-#        start_time: int,
-#        end_time: int,
-#        requests: dict,
-#    ):
-#
-#        resource_group = deployment_config["resource_group"]
-#        app_id_query = self.execute(
-#            (
-#                "az monitor app-insights component show "
-#                "--app {} --resource-group {}"
-#            ).format(function_name, resource_group)
-#        ).decode("utf-8")
-#        application_id = json.loads(app_id_query)["appId"]
-#
-#        # Azure CLI requires date in the following format
-#        # Format: date (yyyy-mm-dd) time (hh:mm:ss.xxxxx) timezone (+/-hh:mm)
-#        # Include microseconds time to make sure we're not affected by
-#        # miliseconds precision.
-#        start_time = datetime.datetime.fromtimestamp(start_time).strftime(
-#            "%Y-%m-%d %H:%M:%S.%f"
-#        )
-#        end_time = datetime.datetime.fromtimestamp(end_time).strftime(
-#            "%Y-%m-%d %H:%M:%S"
-#        )
-#        import pytz
-#        from pytz import reference
-#
-#        tz = reference.LocalTimezone().tzname(datetime.datetime.now())
-#        timezone_str = datetime.datetime.now(pytz.timezone(tz)).strftime("%z")
-#
-#        query = (
-#            "requests | project timestamp, operation_Name, success, "
-#            "resultCode, duration, cloud_RoleName, "
-#            "invocationId=customDimensions['InvocationId'], "
-#            "functionTime=customDimensions['FunctionExecutionTimeMs']"
-#        )
-#        ret = self.execute(
-#            (
-#                'az monitor app-insights query --app {} --analytics-query "{}" '
-#                "--start-time {} {} --end-time {} {}"
-#            ).format(
-#                application_id, query, start_time, timezone_str, end_time, timezone_str
-#            )
-#        ).decode("utf-8")
-#
-#        ret = json.loads(ret)
-#        ret = ret["tables"][0]
-#        # time is last, invocation is second to last
-#        for request in ret["rows"]:
-#            duration = request[4]
-#            func_exec_time = request[-1]
-#            invocation_id = request[-2]
-#            requests[invocation_id]["azure"] = {
-#                "duration": duration,
-#                "func_time": float(func_exec_time),
-#            }
-#
-#        # TODO: query performance counters for mem
+        resource_group = self.config.resources.resource_group(self.cli_instance)
+        app_id_query = self.cli_instance.execute(
+            (
+                "az monitor app-insights component show " "--app {} --resource-group {}"
+            ).format(function_name, resource_group)
+        ).decode("utf-8")
+        application_id = json.loads(app_id_query)["appId"]
+
+        # Azure CLI requires date in the following format
+        # Format: date (yyyy-mm-dd) time (hh:mm:ss.xxxxx) timezone (+/-hh:mm)
+        # Include microseconds time to make sure we're not affected by
+        # miliseconds precision.
+        start_time_str = datetime.datetime.fromtimestamp(start_time).strftime(
+            "%Y-%m-%d %H:%M:%S.%f"
+        )
+        end_time_str = datetime.datetime.fromtimestamp(end_time).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        import pytz
+        from pytz import reference
+
+        tz = reference.LocalTimezone().tzname(datetime.datetime.now())
+        timezone_str = datetime.datetime.now(pytz.timezone(tz)).strftime("%z")
+
+        query = (
+            "requests | project timestamp, operation_Name, success, "
+            "resultCode, duration, cloud_RoleName, "
+            "invocationId=customDimensions['InvocationId'], "
+            "functionTime=customDimensions['FunctionExecutionTimeMs']"
+        )
+        ret = self.cli_instance.execute(
+            (
+                'az monitor app-insights query --app {} --analytics-query "{}" '
+                "--start-time {} {} --end-time {} {}"
+            ).format(
+                application_id,
+                query,
+                start_time_str,
+                timezone_str,
+                end_time_str,
+                timezone_str,
+            )
+        ).decode("utf-8")
+
+        ret = json.loads(ret)
+        ret = ret["tables"][0]
+        # time is last, invocation is second to last
+        for request in ret["rows"]:
+            duration = request[4]
+            func_exec_time = request[-1]
+            invocation_id = request[-2]
+            requests[invocation_id]["azure"] = {
+                "duration": duration,
+                "func_time": float(func_exec_time),
+            }
+
+        # TODO: query performance counters for mem
+
+
 #
 #    def create_azure_function(self, fname, config):
 #
@@ -550,35 +556,3 @@ class Azure(System):
 #            logging.info("Published function app {} with URL {}".format(fname, url))
 #
 #        return names, urls
-
-
-class AzureFunction(Function):
-    def __init__(self, name: str):
-        super().__init__(name)
-
-    def sync_invoke(self, payload: dict) -> ExecutionResult:
-        raise NotImplementedError(
-            " Client-side invocation not supported for Azure Functions. "
-            " Please use triggers instead! "
-        )
-
-    def async_invoke(self, payload: dict) -> ExecutionResult:
-        raise NotImplementedError(
-            " Client-side invocation not supported for Azure Functions. "
-            " Please use triggers instead! "
-        )
-
-    @staticmethod
-    def deserialize(
-        cached_config: dict, data_storage_account: AzureResources.Storage
-    ) -> Function:
-        ret = AzureFunction(cached_config["name"])
-        # FIXME: remove after fixing cache
-        ret.add_trigger(HTTPTrigger(cached_config["invoke_url"], data_storage_account))
-
-        # FIXME: reenableafter fixing cache
-        # for trigger in cached_config["triggers"]:
-        #    trigger_type = {"HTTP": HTTPTrigger}.get(trigger["type"])
-        #    assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
-        #    ret.add_trigger(trigger_type.deserialize(trigger))
-        return ret
