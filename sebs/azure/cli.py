@@ -10,8 +10,24 @@ from sebs.config import SeBSConfig
 
 class AzureCLI:
     def __init__(self, system_config: SeBSConfig, docker_client: docker.client):
+        repo_name = system_config.docker_repository()
+        image_name = "manage.azure"
+        try:
+            docker_client.images.get(repo_name + ":" + image_name)
+        except docker.errors.ImageNotFound:
+            try:
+                logging.info(
+                    "Docker pull of image {repo}:{image}".format(
+                        repo=repo_name, image=image_name
+                    )
+                )
+                docker_client.images.pull(repo_name, image_name)
+            except docker.errors.APIError:
+                raise RuntimeError(
+                    "Docker pull of image {} failed!".format(image_name)
+                )
         self.docker_instance = docker_client.containers.run(
-            image="{}:manage.azure".format(system_config.docker_repository()),
+            image=repo_name + ":" + image_name,
             command="/bin/bash",
             user="1000:1000",
             volumes={},
