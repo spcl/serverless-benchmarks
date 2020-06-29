@@ -269,7 +269,6 @@ class AWS(System):
             self.update_function(lambda_function, code_package)
             # TODO: get configuration of REST API
             url = None
-            return lambda_function
         except self.client.exceptions.ResourceNotFoundException:
             logging.info("Creating function {} from {}".format(func_name, package))
 
@@ -301,7 +300,7 @@ class AWS(System):
                 Code=code_config,
             )
             url = self.create_http_trigger(func_name, None, None)
-            return LambdaFunction(
+            lambda_function = LambdaFunction(
                 func_name,
                 code_package.hash,
                 timeout,
@@ -311,6 +310,16 @@ class AWS(System):
                 self,
                 code_bucket,
             )
+
+        self.cache_client.add_function(
+            deployment_name=self.name(),
+            language_name=language,
+            code_package=code_package,
+            function=lambda_function
+         )
+
+
+        return lambda_function
 
         # self.cache_client.add_function(
         #    deployment=self.name(),
