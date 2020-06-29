@@ -19,13 +19,21 @@ if not args.deployment:
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
 class TracingStreamResult(testtools.StreamResult):
     all_correct: bool
+    output = {}
 
     def __init__(self):
-        self.all_correct = False
+        self.all_correct = True
 
     def status(self, *args, **kwargs):
-        self.all_correct = self.all_correct and (kwargs[test_status] in ["inprogress", "success"])
-        print('{0[test_id]}: {0[test_status]}'.format(kwargs))
+        self.all_correct = self.all_correct and (kwargs["test_status"] in ["inprogress", "success"])
+        if not kwargs["test_status"]:
+            test_id = kwargs["test_id"]
+            if test_id not in self.output:
+                self.output[test_id] = b""
+            self.output[test_id] += kwargs["file_bytes"]
+        elif kwargs["test_status"] == "fail":
+            print('{0[test_id]}: {0[test_status]}'.format(kwargs))
+            print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
 
 cases = []
 if "aws" in args.deployment:
@@ -37,4 +45,4 @@ result = TracingStreamResult()
 result.startTestRun()
 concurrent_suite.run(result)
 result.stopTestRun()
-sys.exit(result.all_correct)
+sys.exit(not result.all_correct)
