@@ -181,7 +181,7 @@ class Fission(System):
                 shutil.move(file, function_dir)
         cur_dir = os.getcwd()
         os.chdir(directory)
-        subprocess.run("zip -jr {}.zip * .".format(benchmark.benchmark).split(), stdout=subprocess.DEVNULL)
+        subprocess.run("zip -r {}.zip ./".format(benchmark.benchmark).split(), stdout=subprocess.DEVNULL)
         benchmark_archive = "{}.zip".format(
             os.path.join(directory, benchmark.benchmark)
         )
