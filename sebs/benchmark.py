@@ -84,7 +84,9 @@ class Benchmark:
     @property
     def code_location(self):
         if self.code_package:
-            return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
+            return os.path.join(
+                self._cache_client.cache_dir, self.code_package["location"]
+            )
         else:
             return self._code_location
 
@@ -468,10 +470,12 @@ class Benchmark:
 
         # package already exists
         if self.is_cached:
-            #update_code_package
+            # update_code_package
             pass
         else:
-            self._cache_client.add_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.add_code_package(
+                self._deployment_name, self.language_name, self
+            )
         self.query_cache()
 
         return self._code_location

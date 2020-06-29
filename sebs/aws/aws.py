@@ -256,6 +256,9 @@ class AWS(System):
         # there's no API for test
         try:
             self.client.get_function(FunctionName=func_name)
+            logging.info(
+                "Function {} exists on AWS, retrieve configuration.".format(func_name)
+            )
             # Here we assume a single Lambda role
             lambda_function = LambdaFunction(
                 func_name,
@@ -264,11 +267,11 @@ class AWS(System):
                 memory,
                 language_runtime,
                 self.config.resources.lambda_role,
-                self
+                self,
             )
             self.update_function(lambda_function, code_package)
             # TODO: get configuration of REST API
-            url = None
+            # url = None
         except self.client.exceptions.ResourceNotFoundException:
             logging.info("Creating function {} from {}".format(func_name, package))
 
@@ -300,6 +303,7 @@ class AWS(System):
                 Code=code_config,
             )
             url = self.create_http_trigger(func_name, None, None)
+            print(url)
             lambda_function = LambdaFunction(
                 func_name,
                 code_package.hash,
@@ -315,9 +319,8 @@ class AWS(System):
             deployment_name=self.name(),
             language_name=language,
             code_package=code_package,
-            function=lambda_function
-         )
-
+            function=lambda_function,
+        )
 
         return lambda_function
 
@@ -410,6 +413,12 @@ class AWS(System):
         """
         functions = code_package.functions
         if not func_name or func_name not in functions:
+            msg = (
+                "function name not provided."
+                if not func_name
+                else "function {} not found in cache.".format(func_name)
+            )
+            logging.info("Creating new function! Reason: " + msg)
             return self.create_function(code_package)
         else:
             # retrieve function
@@ -423,12 +432,11 @@ class AWS(System):
             )
             # is the function up-to-date?
             if lambda_function.code_package_hash != code_package.hash:
-                " Cached function {fname} with hash {old_hash} is not up to date with "
-                " current build {new_hash} in {loc}, updating cloud version!".format(
-                    fname=func_name,
-                    old_hash=lambda_function.code_package_hash,
-                    new_hash=code_package.hash,
-                    loc=code_location,
+                (
+                    f"Cached function {func_name} with hash "
+                    "{lambda_function.code_package_hash} is not up to date with "
+                    "current build {code_package.hash} in "
+                    "{code_location}, updating cloud version!"
                 )
                 self.update_function(lambda_function, code_package)
             return lambda_function
@@ -768,7 +776,7 @@ class LambdaFunction(Function):
         runtime: str,
         role: str,
         deployment: AWS,
-        bucket: Optional[str] = None
+        bucket: Optional[str] = None,
     ):
         super().__init__(name, code_package_hash)
         self.timeout = timeout

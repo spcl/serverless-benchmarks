@@ -183,10 +183,8 @@ class Cache:
         with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
             json.dump(cached_config, fp, indent=2)
 
-    def add_code_package(self, 
-        deployment_name: str,
-        language_name: str,
-        code_package: "Benchmark"
+    def add_code_package(
+        self, deployment_name: str, language_name: str, code_package: "Benchmark"
     ):
         language = code_package.language_name
         benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
@@ -208,7 +206,7 @@ class Cache:
                 shutil.copy2(code_package.code_location, cached_dir)
             language_config: Dict[str, Any] = {
                 "code_package": code_package.serialize(),
-                "functions": {}
+                "functions": {},
             }
             # don't store absolute path to avoid problems with moving cache dir
             relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
@@ -218,11 +216,7 @@ class Cache:
                 "created": date,
                 "modified": date,
             }
-            config = {
-                deployment_name: {
-                    language: language_config
-                }
-            }
+            config = {deployment_name: {language: language_config}}
             # make sure to not replace other entries
             if os.path.exists(os.path.join(benchmark_dir, "config.json")):
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
@@ -260,7 +254,7 @@ class Cache:
         deployment_name: str,
         language_name: str,
         code_package: "Benchmark",
-        function: "Function"
+        function: "Function",
     ):
         benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
         language = code_package.language_name
@@ -277,7 +271,9 @@ class Cache:
             with open(cache_config, "r") as fp:
                 cached_config = json.load(fp)
                 if "functions" not in cached_config[deployment_name][language]:
-                    cached_config[deployment_name][language]["functions"] = functions_config
+                    cached_config[deployment_name][language][
+                        "functions"
+                    ] = functions_config
                 else:
                     cached_config[deployment_name][language]["functions"].update(
                         functions_config
