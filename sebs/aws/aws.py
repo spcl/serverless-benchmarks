@@ -246,11 +246,7 @@ class AWS(System):
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
 
-        # Create function name
-        func_name = "{}-{}-{}".format(benchmark, language, memory)
-        # AWS Lambda does not allow hyphens in function names
-        func_name = func_name.replace("-", "_")
-        func_name = func_name.replace(".", "_")
+        func_name = self.default_function_name(code_package)
 
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -386,6 +382,19 @@ class AWS(System):
         # self.cache_client.update_function(
         #    self.name(), benchmark, code_package.language_name, package, cached_cfg
         # )
+
+    @staticmethod
+    def default_function_name(code_package: Benchmark) -> str:
+        # Create function name
+        func_name = "{}-{}-{}".format(
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.benchmark_config.memory,
+        )
+        # AWS Lambda does not allow hyphens in function names
+        func_name = func_name.replace("-", "_")
+        func_name = func_name.replace(".", "_")
+        return func_name
 
     def get_function(
         self, code_package: Benchmark, func_name: Optional[str] = None

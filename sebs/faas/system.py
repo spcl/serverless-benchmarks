@@ -111,6 +111,11 @@ class System(ABC):
     ) -> Function:
         pass
 
+    @staticmethod
+    @abstractmethod
+    def default_function_name(code_package: sebs.benchmark.Benchmark) -> str:
+        pass
+
     # FIXME: trigger allocation API
     # FIXME: result query API
     # FIXME: metrics query API
