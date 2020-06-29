@@ -144,13 +144,22 @@ class Trigger(ABC):
 
 
 class Function:
-    def __init__(self, name: str):
+    def __init__(self, name: str, code_hash: str):
         self._name = name
+        self._code_package_hash = code_hash
         self._triggers: List[Trigger] = []
 
     @property
     def name(self):
         return self._name
+
+    @property
+    def code_package_hash(self):
+        return self._code_package_hash
+
+    @code_package_hash.setter
+    def code_package_hash(self, new_hash: str):
+        self._code_package_hash = new_hash
 
     @property
     def triggers(self) -> List[Trigger]:
@@ -166,4 +175,8 @@ class Function:
         raise Exception("Non-trigger invoke not supported!")
 
     def serialize(self) -> dict:
-        return {"name": self._name, "triggers": [x.serialize() for x in self._triggers]}
+        return {
+            "name": self._name,
+            "hash": self._code_package_hash,
+            "triggers": [x.serialize() for x in self._triggers],
+        }

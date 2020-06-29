@@ -7,7 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import docker
 
@@ -74,12 +74,19 @@ class Benchmark:
         return self._benchmark_config
 
     @property
-    def code_location(self):
-        return self._code_location
+    def code_package(self) -> dict:
+        return self._code_package
 
     @property
-    def cached_config(self):
-        return self._cached_config
+    def functions(self) -> Dict[str, Any]:
+        return self._functions
+
+    @property
+    def code_location(self):
+        if self.code_package:
+            return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
+        else:
+            return self._code_location
 
     @property
     def is_cached(self):
@@ -180,17 +187,26 @@ class Benchmark:
                     hash_sum.update(opened_file.read())
         return hash_sum.hexdigest()
 
+    def serialize(self) -> dict:
+        return {"size": self.code_size, "hash": self.hash}
+
     def query_cache(self):
-        self._cached_config, self._code_location = self._cache_client.get_function(
+        self._code_package = self._cache_client.get_code_package(
             deployment=self._deployment_name,
             benchmark=self._benchmark,
             language=self.language_name,
         )
-        if self.cached_config is not None:
+        self._functions = self._cache_client.get_functions(
+            deployment=self._deployment_name,
+            benchmark=self._benchmark,
+            language=self.language_name,
+        )
+
+        if self._code_package is not None:
             # compare hashes
             current_hash = self.hash
-            old_hash = self.cached_config["hash"]
-            self._code_size = self.cached_config["code_size"]
+            old_hash = self._code_package["hash"]
+            self._code_size = self._code_package["size"]
             self._is_cached = True
             self._is_cached_valid = current_hash == old_hash
         else:
@@ -416,7 +432,15 @@ class Benchmark:
         self._code_size = Benchmark.directory_size(self._output_dir)
         return self._code_size
 
-    def build(self):
+    def build(
+        self, deployment_build_step: Callable[[str, str, str], Tuple[str, int]]
+    ) -> str:
+
+        # Skip build if files are up to date and user didn't enforce rebuild
+        if self.is_cached and self.is_cached_valid:
+            return self.code_location
+
+        logging.info("Building benchmark {}".format(self.benchmark))
 
         # create directory to be deployed
         if os.path.exists(self._output_dir):
@@ -428,9 +452,9 @@ class Benchmark:
         self.add_deployment_files(self._output_dir)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
-
-        self._code_location = os.path.abspath(self._output_dir)
-        self._code_size = Benchmark.directory_size(self._output_dir)
+        self._code_location, self._code_size = deployment_build_step(
+            os.path.abspath(self._output_dir), self.language_name, self.benchmark
+        )
         logging.info(
             (
                 "Created code package for run on {deployment}"
@@ -441,7 +465,16 @@ class Benchmark:
                 runtime=self.language_version,
             )
         )
-        return os.path.abspath(self._output_dir)
+
+        # package already exists
+        if self.is_cached:
+            #update_code_package
+            pass
+        else:
+            self._cache_client.add_code_package(self._deployment_name, self.language_name, self)
+        self.query_cache()
+
+        return self._code_location
 
     """
         Locates benchmark input generator, inspect how many storage buckets
