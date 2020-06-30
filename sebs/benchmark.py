@@ -129,12 +129,11 @@ class Benchmark:
             self._hash_value = Benchmark.hash_directory(path, self.language_name)
         return self._hash_value
 
-    """
-        Used only for testing purposes.
-    """
-
     @hash.setter  # noqa: A003
     def hash(self, val: str):
+        """
+            Used only for testing purposes.
+        """
         self._hash_value = val
 
     def __init__(
