@@ -64,7 +64,9 @@ class AWS(System):
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
-            self.client = boto3.client(
+            # thread-safe
+            self.session = boto3.session.Session()
+            self.client = self.session.client(
                 service_name="lambda",
                 aws_access_key_id=self.config.credentials.access_key,
                 aws_secret_access_key=self.config.credentials.secret_key,
@@ -322,29 +324,6 @@ class AWS(System):
         )
 
         return lambda_function
-
-        # self.cache_client.add_function(
-        #    deployment=self.name(),
-        #    benchmark=benchmark,
-        #    language=language,
-        #    code_package=package,
-        #    language_config={
-        #        "name": func_name,
-        #        "code_size": code_size,
-        #        "runtime": language_runtime,
-        #        "role": self.config.resources.lambda_role,
-        #        "memory": memory,
-        #        "timeout": timeout,
-        #        "hash": code_package.hash,
-        #        "url": url,
-        #    },
-        #    storage_config={
-        #        "buckets": {
-        #            "input": self.storage.input_buckets,
-        #            "output": self.storage.output_buckets,
-        #        }
-        #    },
-        # )
 
     """
         Update function code and configuration on AWS.
