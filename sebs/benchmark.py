@@ -442,7 +442,6 @@ class Benchmark:
         if self.is_cached and self.is_cached_valid:
             return self.code_location
 
-
         logging.info("Building benchmark {}".format(self.benchmark))
         # clear existing cache information
         self._code_package = None

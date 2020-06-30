@@ -59,13 +59,13 @@ class AWS(System):
         self._config = config
 
     def initialize(self, config: Dict[str, str] = {}):
+        # thread-safe
+        self.session = boto3.session.Session()
         self.get_lambda_client()
         self.get_storage()
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
-            # thread-safe
-            self.session = boto3.session.Session()
             self.client = self.session.client(
                 service_name="lambda",
                 aws_access_key_id=self.config.credentials.access_key,
@@ -88,6 +88,7 @@ class AWS(System):
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         if not hasattr(self, "storage"):
             self.storage = S3(
+                self.session,
                 self.cache_client,
                 self.config.region,
                 access_key=self.config.credentials.access_key,
@@ -386,8 +387,8 @@ class AWS(System):
         logging.info("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
-        except:
-            pass
+        except Exception:
+            logging.info("Function {} does not exist!".format(func_name))
 
     def get_function(
         self, code_package: Benchmark, func_name: Optional[str] = None

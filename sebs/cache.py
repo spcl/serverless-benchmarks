@@ -155,33 +155,33 @@ class Cache:
         :param config: Updated config values to use.
     """
 
-    def update_function(
-        self,
-        deployment: str,
-        benchmark: str,
-        language: str,
-        code_package: str,
-        config: dict,
-    ):
+    #def update_function(
+    #    self,
+    #    deployment: str,
+    #    benchmark: str,
+    #    language: str,
+    #    code_package: str,
+    #    config: dict,
+    #):
 
-        benchmark_dir = os.path.join(self.cache_dir, benchmark)
-        cached_dir = os.path.join(benchmark_dir, deployment, language)
-        # copy code
-        if os.path.isdir(code_package):
-            dest = os.path.join(cached_dir, "code")
-            shutil.rmtree(dest)
-            shutil.copytree(code_package, dest)
-        # copy zip file
-        else:
-            shutil.copy2(code_package, cached_dir)
-        # update JSON config
-        with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
-            cached_config = json.load(fp)
-        date = str(datetime.datetime.now())
-        cached_config[deployment][language] = config
-        cached_config[deployment][language]["date"]["modified"] = date
-        with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
-            json.dump(cached_config, fp, indent=2)
+    #    benchmark_dir = os.path.join(self.cache_dir, benchmark)
+    #    cached_dir = os.path.join(benchmark_dir, deployment, language)
+    #    # copy code
+    #    if os.path.isdir(code_package):
+    #        dest = os.path.join(cached_dir, "code")
+    #        shutil.rmtree(dest)
+    #        shutil.copytree(code_package, dest)
+    #    # copy zip file
+    #    else:
+    #        shutil.copy2(code_package, cached_dir)
+    #    # update JSON config
+    #    with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
+    #        cached_config = json.load(fp)
+    #    date = str(datetime.datetime.now())
+    #    cached_config[deployment][language] = config
+    #    cached_config[deployment][language]["date"]["modified"] = date
+    #    with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
+    #        json.dump(cached_config, fp, indent=2)
 
     def add_code_package(
         self, deployment_name: str, language_name: str, code_package: "Benchmark"
@@ -314,3 +314,12 @@ class Cache:
                     function.name
                 )
             )
+
+    def update_function(
+        self,
+        deployment_name: str,
+        language_name: str,
+        code_package: "Benchmark",
+        function: "Function",
+    ):
+        pass
