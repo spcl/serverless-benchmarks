@@ -298,8 +298,8 @@ class AWS(System):
                 Timeout=timeout,
                 Code=code_config,
             )
-            url = self.create_http_trigger(func_name, None, None)
-            print(url)
+            #url = self.create_http_trigger(func_name, None, None)
+            #print(url)
             lambda_function = LambdaFunction(
                 func_name,
                 code_package.hash,

@@ -194,7 +194,6 @@ class Cache:
         if not os.path.exists(cached_dir):
             os.makedirs(cached_dir, exist_ok=True)
 
-            print(code_package.code_location)
             # copy code
             if os.path.isdir(code_package.code_location):
                 cached_location = os.path.join(cached_dir, "code")
