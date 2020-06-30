@@ -235,7 +235,7 @@ class AWS(System):
         )
         return url
 
-    def create_function(self, code_package: Benchmark) -> "LambdaFunction":
+    def create_function(self, code_package: Benchmark, func_name: Optional[str]) -> "LambdaFunction":
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -246,7 +246,8 @@ class AWS(System):
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
 
-        func_name = self.default_function_name(code_package)
+        if not func_name:
+            func_name = self.default_function_name(code_package)
 
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -396,6 +397,14 @@ class AWS(System):
         func_name = func_name.replace(".", "_")
         return func_name
 
+    """
+        FIXME: does not clean the cache
+    """
+
+    def delete_function(self, func_name: Optional[str]):
+        logging.info("Deleting function {}".format(func_name))
+        self.client.delete_function(FunctionName=func_name)
+
     def get_function(
         self, code_package: Benchmark, func_name: Optional[str] = None
     ) -> Function:
@@ -428,7 +437,7 @@ class AWS(System):
                 else "function {} not found in cache.".format(func_name)
             )
             logging.info("Creating new function! Reason: " + msg)
-            return self.create_function(code_package)
+            return self.create_function(code_package, func_name)
         else:
             # retrieve function
             cached_function = functions[func_name]

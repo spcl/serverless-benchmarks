@@ -39,10 +39,33 @@ class AWSCreateFunction(unittest.TestCase):
         "nodejs": ["handler.js", "function/storage.js", "package.json", "node_modules/"]
     }
     benchmark = "110.dynamic-html"
+    function_name_suffix = "_test_runner"
 
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.client = sebs.SeBS(self.tmp_dir.name)
+        for language in ["python", "nodejs"]:
+            config = self.config[language]
+            deployment_client = self.client.get_deployment(config["deployment"])
+            deployment_client.initialize()
+            experiment_config = self.client.get_experiment(config["experiments"])
+            benchmark = self.client.get_benchmark(
+                self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+            )
+            func_name = deployment_client.default_function_name(benchmark)
+            deployment_client.delete_function(func_name + self.function_name_suffix)
+
+    def tearDown(self):
+        for language in ["python", "nodejs"]:
+            config = self.config[language]
+            deployment_client = self.client.get_deployment(config["deployment"])
+            deployment_client.initialize()
+            experiment_config = self.client.get_experiment(config["experiments"])
+            benchmark = self.client.get_benchmark(
+                self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+            )
+            func_name = deployment_client.default_function_name(benchmark)
+            deployment_client.delete_function(func_name + self.function_name_suffix)
 
     def check_function(
         self, language: str, package: sebs.benchmark.Benchmark, files: List[str]
@@ -63,7 +86,20 @@ class AWSCreateFunction(unittest.TestCase):
                     self.assertIn(package_file, package_files)
 
     def test_create_function(self):
-        pass
+        for language in ["python", "nodejs"]:
+            config = self.config[language]
+            deployment_client = self.client.get_deployment(config["deployment"])
+            deployment_client.initialize()
+            experiment_config = self.client.get_experiment(config["experiments"])
+            benchmark = self.client.get_benchmark(
+                self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+            )
+
+            func_name = deployment_client.default_function_name(benchmark)
+            func = deployment_client.get_function(benchmark, func_name + self.function_name_suffix)
+            self.assertIsInstance(func, sebs.aws.LambdaFunction)
+            self.assertEqual(func.name, func_name + self.function_name_suffix)
+            self.check_function(language, benchmark, self.package_files[language])
 
     def test_retrieve_cache(self):
         for language in ["python", "nodejs"]:
@@ -180,6 +216,3 @@ class AWSCreateFunction(unittest.TestCase):
     #        config["nodejs"]
     #    )
 
-    def tearDown(self):
-        # FIXME: remove created functions
-        pass
