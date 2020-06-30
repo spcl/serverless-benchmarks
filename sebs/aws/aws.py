@@ -272,6 +272,7 @@ class AWS(System):
                 self,
             )
             self.update_function(lambda_function, code_package)
+            lambda_function.updated_code = True
             # TODO: get configuration of REST API
             # url = None
         except self.client.exceptions.ResourceNotFoundException:
@@ -362,9 +363,10 @@ class AWS(System):
             FunctionName=name, Timeout=function.timeout, MemorySize=function.memory
         )
         function.code_package_hash = code_package.hash
-        # self.cache_client.update_function(
-        #    self.name(), benchmark, code_package.language_name, package, cached_cfg
-        # )
+        function.updated_code = True
+        self.cache_client.add_function(
+            self.name(), code_package.language_name, code_package, function
+        )
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -435,13 +437,14 @@ class AWS(System):
             )
             # is the function up-to-date?
             if lambda_function.code_package_hash != code_package.hash:
-                (
+                logging.info(
                     f"Cached function {func_name} with hash "
-                    "{lambda_function.code_package_hash} is not up to date with "
-                    "current build {code_package.hash} in "
-                    "{code_location}, updating cloud version!"
+                    f"{lambda_function.code_package_hash} is not up to date with "
+                    f"current build {code_package.hash} in "
+                    f"{code_location}, updating cloud version!"
                 )
                 self.update_function(lambda_function, code_package)
+                code_package.query_cache()
             return lambda_function
 
     def create_http_trigger(
@@ -778,7 +781,16 @@ class LambdaFunction(Function):
         self.runtime = runtime
         self.role = role
         self.bucket = bucket
+        self._updated_code = False
         self._deployment = deployment
+
+    @property
+    def updated_code(self) -> bool:
+        return self._updated_code
+
+    @updated_code.setter
+    def updated_code(self, val: bool):
+        self._updated_code = val
 
     def serialize(self) -> dict:
         return {

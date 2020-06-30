@@ -448,9 +448,15 @@ class Benchmark:
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
+            logging.info("Using cached benchmark {}".format(self.benchmark))
             return self.code_location
 
-        logging.info("Building benchmark {}".format(self.benchmark))
+        msg = (
+            "no cached code package."
+            if not self.is_cached
+            else "cached code package is not up to date/build enforced."
+        )
+        logging.info("Building benchmark {}. Reason: {}".format(self.benchmark, msg))
         # clear existing cache information
         self._code_package = None
 
@@ -469,9 +475,10 @@ class Benchmark:
         )
         logging.info(
             (
-                "Created code package for run on {deployment}"
+                "Created code package (source hash: {hash}), for run on {deployment}"
                 + " with {language}:{runtime}"
             ).format(
+                hash=self.hash,
                 deployment=self._deployment_name,
                 language=self.language_name,
                 runtime=self.language_version,
