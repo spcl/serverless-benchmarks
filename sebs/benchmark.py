@@ -442,7 +442,10 @@ class Benchmark:
         if self.is_cached and self.is_cached_valid:
             return self.code_location
 
+
         logging.info("Building benchmark {}".format(self.benchmark))
+        # clear existing cache information
+        self._code_package = None
 
         # create directory to be deployed
         if os.path.exists(self._output_dir):
@@ -470,8 +473,9 @@ class Benchmark:
 
         # package already exists
         if self.is_cached:
-            # update_code_package
-            pass
+            self._cache_client.update_code_package(
+                self._deployment_name, self.language_name, self
+            )
         else:
             self._cache_client.add_code_package(
                 self._deployment_name, self.language_name, self

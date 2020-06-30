@@ -237,6 +237,34 @@ class Cache:
                 )
             )
 
+    def update_code_package(
+        self, deployment_name: str, language_name: str, code_package: "Benchmark"
+    ):
+        language = code_package.language_name
+        benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
+        # Check if cache directory for this deployment exist
+        cached_dir = os.path.join(benchmark_dir, deployment_name, language)
+        if os.path.exists(cached_dir):
+
+            # copy code
+            if os.path.isdir(code_package.code_location):
+                cached_location = os.path.join(cached_dir, "code")
+                shutil.copytree(code_package.code_location, cached_location)
+            # copy zip file
+            else:
+                package_name = os.path.basename(code_package.code_location)
+                cached_location = os.path.join(cached_dir, package_name)
+                shutil.copy2(code_package.code_location, cached_dir)
+
+            with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
+                config = json.load(fp)
+                date = str(datetime.datetime.now())
+                config[deployment_name][language]["code_package"]["modified"] = date
+            with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
+                json.dump(config, fp, indent=2)
+        else:
+            self.add_code_package(deployment_name, language_name, code_package)
+
     """
         Add new function to cache.
 
