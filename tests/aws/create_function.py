@@ -39,11 +39,13 @@ class AWSCreateFunction(unittest.TestCase):
         "nodejs": ["handler.js", "function/storage.js", "package.json", "node_modules/"]
     }
     benchmark = "110.dynamic-html"
-    function_name_suffix = "_test_runner"
+    function_name_suffixes = [] 
 
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.client = sebs.SeBS(self.tmp_dir.name)
+        for i in range(0, 4):
+            self.function_name_suffixes.append("_test_runner_{}".format(i))
         for language in ["python", "nodejs"]:
             config = self.config[language]
             deployment_client = self.client.get_deployment(config["deployment"])
@@ -53,7 +55,8 @@ class AWSCreateFunction(unittest.TestCase):
                 self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
             )
             func_name = deployment_client.default_function_name(benchmark)
-            deployment_client.delete_function(func_name + self.function_name_suffix)
+            for suffix in self.function_name_suffixes:
+                deployment_client.delete_function(func_name + suffix)
 
     def tearDown(self):
         for language in ["python", "nodejs"]:
@@ -65,7 +68,8 @@ class AWSCreateFunction(unittest.TestCase):
                 self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
             )
             func_name = deployment_client.default_function_name(benchmark)
-            deployment_client.delete_function(func_name + self.function_name_suffix)
+            for suffix in self.function_name_suffixes:
+                deployment_client.delete_function(func_name + suffix)
 
     def check_function(
         self, language: str, package: sebs.benchmark.Benchmark, files: List[str]
@@ -86,22 +90,24 @@ class AWSCreateFunction(unittest.TestCase):
                     self.assertIn(package_file, package_files)
 
     def test_create_function(self):
+        tmp_dir = tempfile.TemporaryDirectory()
         for language in ["python", "nodejs"]:
             config = self.config[language]
             deployment_client = self.client.get_deployment(config["deployment"])
             deployment_client.initialize()
             experiment_config = self.client.get_experiment(config["experiments"])
             benchmark = self.client.get_benchmark(
-                self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+                self.benchmark, tmp_dir.name, deployment_client, experiment_config
             )
 
-            func_name = deployment_client.default_function_name(benchmark)
-            func = deployment_client.get_function(benchmark, func_name + self.function_name_suffix)
+            func_name = deployment_client.default_function_name(benchmark) + self.function_name_suffixes[0]
+            func = deployment_client.get_function(benchmark, func_name)
             self.assertIsInstance(func, sebs.aws.LambdaFunction)
-            self.assertEqual(func.name, func_name + self.function_name_suffix)
+            self.assertEqual(func.name, func_name)
             self.check_function(language, benchmark, self.package_files[language])
 
     def test_retrieve_cache(self):
+        tmp_dir = tempfile.TemporaryDirectory()
         for language in ["python", "nodejs"]:
             config = self.config[language]
             deployment_client = self.client.get_deployment(config["deployment"])
@@ -110,28 +116,29 @@ class AWSCreateFunction(unittest.TestCase):
             experiment_config = self.client.get_experiment(config["experiments"])
 
             benchmark = self.client.get_benchmark(
-                self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+                self.benchmark, tmp_dir.name, deployment_client, experiment_config
             )
             self.assertFalse(benchmark.is_cached)
             self.assertFalse(benchmark.is_cached_valid)
 
             # generate default variant
-            func = deployment_client.get_function(benchmark)
+            func_name = deployment_client.default_function_name(benchmark) + self.function_name_suffixes[1]
+            func = deployment_client.get_function(benchmark, func_name)
             timestamp = os.path.getmtime(benchmark.code_location)
             self.assertIsInstance(func, sebs.aws.LambdaFunction)
             self.check_function(language, benchmark, self.package_files[language])
             self.assertTrue(benchmark.is_cached)
             self.assertTrue(benchmark.is_cached_valid)
-            self.assertEqual(func.name, deployment_client.default_function_name(benchmark))
+            self.assertEqual(func.name, func_name)
             self.assertEqual(func.code_package_hash, benchmark.hash)
 
             # use cached version
             benchmark = self.client.get_benchmark(
-                self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+                self.benchmark, tmp_dir.name, deployment_client, experiment_config
             )
             self.assertTrue(benchmark.is_cached)
             self.assertTrue(benchmark.is_cached_valid)
-            func = deployment_client.get_function(benchmark)
+            func = deployment_client.get_function(benchmark, func_name)
             current_timestamp = os.path.getmtime(benchmark.code_location)
             self.assertIsInstance(func, sebs.aws.LambdaFunction)
             self.check_function(language, benchmark, self.package_files[language])
@@ -142,6 +149,7 @@ class AWSCreateFunction(unittest.TestCase):
             self.assertEqual(timestamp, current_timestamp)
 
     def test_rebuild_function(self):
+        tmp_dir = tempfile.TemporaryDirectory()
         for language in ["python", "nodejs"]:
             config = self.config[language]
             deployment_client = self.client.get_deployment(config["deployment"])
@@ -150,39 +158,42 @@ class AWSCreateFunction(unittest.TestCase):
             experiment_config = self.client.get_experiment(config["experiments"])
 
             benchmark = self.client.get_benchmark(
-                self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+                self.benchmark, tmp_dir.name, deployment_client, experiment_config
             )
             self.assertFalse(benchmark.is_cached)
             self.assertFalse(benchmark.is_cached_valid)
 
             # generate default variant
-            func = deployment_client.get_function(benchmark)
+            func_name = deployment_client.default_function_name(benchmark) + self.function_name_suffixes[2]
+            func = deployment_client.get_function(benchmark, func_name)
             timestamp = os.path.getmtime(benchmark.code_location)
             self.assertIsInstance(func, sebs.aws.LambdaFunction)
             self.check_function(language, benchmark, self.package_files[language])
             self.assertTrue(benchmark.is_cached)
             self.assertTrue(benchmark.is_cached_valid)
-            self.assertEqual(func.name, deployment_client.default_function_name(benchmark))
+            self.assertEqual(func.name, func_name)
             self.assertEqual(func.code_package_hash, benchmark.hash)
 
             # force rebuild of cached version
             experiment_config.update_code = True
             benchmark = self.client.get_benchmark(
-                self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+                self.benchmark, tmp_dir.name, deployment_client, experiment_config
             )
             self.assertTrue(benchmark.is_cached)
             self.assertFalse(benchmark.is_cached_valid)
-            func = deployment_client.get_function(benchmark)
+            func = deployment_client.get_function(benchmark, func_name)
             current_timestamp = os.path.getmtime(benchmark.code_location)
             self.assertIsInstance(func, sebs.aws.LambdaFunction)
             self.check_function(language, benchmark, self.package_files[language])
             self.assertTrue(benchmark.is_cached)
             self.assertTrue(benchmark.is_cached_valid)
+            self.assertEqual(func.name, func_name)
             self.assertEqual(func.code_package_hash, benchmark.hash)
             # package should have been rebuilt
             self.assertLess(timestamp, current_timestamp)
 
     def test_incorrect_runtime(self):
+        tmp_dir = tempfile.TemporaryDirectory()
         # wrong language version - expect failure
         for language in ["python", "nodejs"]:
             config = self.config[language]
@@ -193,7 +204,7 @@ class AWSCreateFunction(unittest.TestCase):
             experiment_config.runtime.version = "1.0"
             with self.assertRaises(Exception) as failure:
                 benchmark = self.client.get_benchmark(
-                    self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+                    self.benchmark, tmp_dir.name, deployment_client, experiment_config
                 )
                 func = deployment_client.get_function(benchmark)
             self.assertTrue(
