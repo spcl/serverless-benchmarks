@@ -167,7 +167,7 @@ try:
             replace_existing=experiment_config.update_storage
         )
         input_config = benchmark.prepare_input(storage=storage, size=args.size)
-        func = deployment_client.get_function(benchmark)
+        func = deployment_client.get_function(benchmark, deployment_client.default_function_name(benchmark))
 
         if args.action == "test_invoke":
             # TODO bucket save of results
@@ -179,11 +179,12 @@ try:
                 experiment_config, deployment_client.config
             )
             result.begin()
-            ret = func.sync_invoke(input_config)
+            ret = func.triggers[0].sync_invoke(input_config)
             result.end()
             result.add_invocation(func.name, ret)
             with open("experiments.json", "w") as out_f:
                 out_f.write(sebs.utils.serialize(result))
+            logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
     #    elif args.action == "experiment":
     #        # Prepare benchmark input
     #        input_config = prepare_input(

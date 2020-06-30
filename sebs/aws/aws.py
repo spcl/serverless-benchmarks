@@ -1,17 +1,15 @@
-import base64
-import datetime
-import json
 import logging
 import os
 import shutil
 import time
 import uuid
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import cast, Dict, List, Optional, Tuple, Type, Union
 
 import boto3
 import docker
 
 from sebs.aws.s3 import S3
+from sebs.aws.function import LambdaFunction
 from sebs.aws.config import AWSConfig
 from sebs import utils
 from sebs.benchmark import Benchmark
@@ -22,21 +20,19 @@ from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
 
-class classproperty(property):
-    def __get__(self, cls, owner):
-        return classmethod(self.fget).__get__(None, owner)()
-
-
 class AWS(System):
     logs_client = None
     storage: S3
     cached = False
     _config: AWSConfig
 
-    # @classproperty
     @staticmethod
     def name():
         return "aws"
+
+    @staticmethod
+    def function_type() -> "Type[Function]":
+        return LambdaFunction
 
     @property
     def config(self) -> AWSConfig:
@@ -239,7 +235,7 @@ class AWS(System):
         return url
 
     def create_function(
-        self, code_package: Benchmark, func_name: Optional[str]
+        self, code_package: Benchmark, func_name: str
     ) -> "LambdaFunction":
 
         package = code_package.code_location
@@ -250,9 +246,6 @@ class AWS(System):
         memory = code_package.benchmark_config.memory
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
-
-        if not func_name:
-            func_name = self.default_function_name(code_package)
 
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -269,7 +262,6 @@ class AWS(System):
                 memory,
                 language_runtime,
                 self.config.resources.lambda_role,
-                self,
             )
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
@@ -314,10 +306,11 @@ class AWS(System):
                 memory,
                 language_runtime,
                 self.config.resources.lambda_role,
-                self,
                 code_bucket,
             )
+        from sebs.aws.triggers import LibraryTrigger
 
+        lambda_function.add_trigger(LibraryTrigger(func_name, self))
         self.cache_client.add_function(
             deployment_name=self.name(),
             language_name=language,
@@ -326,6 +319,14 @@ class AWS(System):
         )
 
         return lambda_function
+
+    def cached_function(self, function: Function):
+
+        from sebs.aws.triggers import LibraryTrigger
+
+        for trigger in function.triggers:
+            if isinstance(trigger, LibraryTrigger):
+                trigger.deployment_client = self
 
     """
         Update function code and configuration on AWS.
@@ -338,8 +339,9 @@ class AWS(System):
         :param memory: memory limit for function
     """
 
-    def update_function(self, function: "LambdaFunction", code_package: Benchmark):
+    def update_function(self, function: Function, code_package: Benchmark):
 
+        function = cast(LambdaFunction, function)
         name = function.name
         code_size = code_package.code_size
         package = code_package.code_location
@@ -353,7 +355,7 @@ class AWS(System):
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(package)
-            bucket = function.code_bucket(code_package.benchmark)
+            bucket = function.code_bucket(code_package.benchmark, self.storage)
             self.storage.upload(bucket, package, code_package_name)
             self.client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
@@ -391,63 +393,6 @@ class AWS(System):
             self.client.delete_function(FunctionName=func_name)
         except Exception:
             logging.info("Function {} does not exist!".format(func_name))
-
-    def get_function(
-        self, code_package: Benchmark, func_name: Optional[str] = None
-    ) -> Function:
-
-        if (
-            code_package.language_version
-            not in self.system_config.supported_language_versions(
-                self.name(), code_package.language_name
-            )
-        ):
-            raise Exception(
-                "Unsupported {language} version {version} in AWS!".format(
-                    language=code_package.language_name,
-                    version=code_package.language_version,
-                )
-            )
-
-        code_package.build(self.package_code)
-
-        """
-            Do we have a function with that name or no name provided?
-            a) no -> create new function
-            b) yes -> return function and update code in cloud when needed
-        """
-        functions = code_package.functions
-        if not func_name or func_name not in functions:
-            msg = (
-                "function name not provided."
-                if not func_name
-                else "function {} not found in cache.".format(func_name)
-            )
-            logging.info("Creating new function! Reason: " + msg)
-            ret = self.create_function(code_package, func_name)
-            code_package.query_cache()
-            return ret
-        else:
-            # retrieve function
-            cached_function = functions[func_name]
-            code_location = code_package.code_location
-            lambda_function = LambdaFunction.deserialize(cached_function, self)
-            logging.info(
-                "Using cached function {fname} in {loc}".format(
-                    fname=func_name, loc=code_location
-                )
-            )
-            # is the function up-to-date?
-            if lambda_function.code_package_hash != code_package.hash:
-                logging.info(
-                    f"Cached function {func_name} with hash "
-                    f"{lambda_function.code_package_hash} is not up to date with "
-                    f"current build {code_package.hash} in "
-                    f"{code_location}, updating cloud version!"
-                )
-                self.update_function(lambda_function, code_package)
-                code_package.query_cache()
-            return lambda_function
 
     def create_http_trigger(
         self, func_name: str, api_id: Optional[str], parent_id: Optional[str]
@@ -763,122 +708,3 @@ class AWS(System):
         self.client.update_function_configuration(
             FunctionName=fname, Timeout=timeout, MemorySize=memory
         )
-
-
-class LambdaFunction(Function):
-    def __init__(
-        self,
-        name: str,
-        code_package_hash: str,
-        timeout: int,
-        memory: int,
-        runtime: str,
-        role: str,
-        deployment: AWS,
-        bucket: Optional[str] = None,
-    ):
-        super().__init__(name, code_package_hash)
-        self.timeout = timeout
-        self.memory = memory
-        self.runtime = runtime
-        self.role = role
-        self.bucket = bucket
-        self._updated_code = False
-        self._deployment = deployment
-
-    @property
-    def updated_code(self) -> bool:
-        return self._updated_code
-
-    @updated_code.setter
-    def updated_code(self, val: bool):
-        self._updated_code = val
-
-    def serialize(self) -> dict:
-        return {
-            **super().serialize(),
-            "timeout": self.timeout,
-            "memory": self.memory,
-            "runtime": self.runtime,
-            "role": self.role,
-            "bucket": self.bucket,
-        }
-
-    @staticmethod
-    def deserialize(cached_config: dict, deployment: AWS) -> "LambdaFunction":
-        return LambdaFunction(
-            cached_config["name"],
-            cached_config["hash"],
-            cached_config["timeout"],
-            cached_config["memory"],
-            cached_config["runtime"],
-            cached_config["role"],
-            deployment,
-            cached_config["bucket"],
-        )
-
-    def code_bucket(self, benchmark: str):
-        self.bucket, idx = self._deployment.storage.add_input_bucket(benchmark)
-
-    def sync_invoke(self, payload: dict):
-
-        logging.info(f"AWS: Invoke function {self.name}")
-
-        serialized_payload = json.dumps(payload).encode("utf-8")
-        client = self._deployment.get_lambda_client()
-        begin = datetime.datetime.now()
-        ret = client.invoke(
-            FunctionName=self.name, Payload=serialized_payload, LogType="Tail"
-        )
-        end = datetime.datetime.now()
-
-        aws_result = ExecutionResult(begin, end)
-        if ret["StatusCode"] != 200:
-            logging.error("Invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
-            self._deployment.get_invocation_error(
-                function_name=self.name,
-                start_time=int(begin.strftime("%s")) - 1,
-                end_time=int(end.strftime("%s")) + 1,
-            )
-            aws_result.stats.failure = True
-            return aws_result
-        if "FunctionError" in ret:
-            logging.error("Invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
-            self._deployment.get_invocation_error(
-                function_name=self.name,
-                start_time=int(begin.strftime("%s")) - 1,
-                end_time=int(end.strftime("%s")) + 1,
-            )
-            aws_result.stats.failure = True
-            return aws_result
-        logging.info(f"AWS: Invoke of function {self.name} was successful")
-        log = base64.b64decode(ret["LogResult"])
-        function_output = json.loads(ret["Payload"].read().decode("utf-8"))
-
-        # AWS-specific parsing
-        AWS.parse_aws_report(log.decode("utf-8"), aws_result)
-        # General benchmark output parsing
-        # For some reason, the body is dict for NodeJS but a serialized JSON for Python
-        if isinstance(function_output["body"], dict):
-            aws_result.parse_benchmark_output(function_output["body"])
-        else:
-            aws_result.parse_benchmark_output(json.loads(function_output["body"]))
-        return aws_result
-
-    def async_invoke(self, payload: dict):
-
-        serialized_payload = json.dumps(payload).encode("utf-8")
-        client = self._deployment.get_lambda_client()
-        ret = client.invoke(
-            FunctionName=self.name,
-            InvocationType="Event",
-            Payload=serialized_payload,
-            LogType="Tail",
-        )
-        if ret["StatusCode"] != 202:
-            logging.error("Async invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
-            raise RuntimeError()
-        return ret
