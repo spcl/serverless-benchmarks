@@ -235,7 +235,9 @@ class AWS(System):
         )
         return url
 
-    def create_function(self, code_package: Benchmark, func_name: Optional[str]) -> "LambdaFunction":
+    def create_function(
+        self, code_package: Benchmark, func_name: Optional[str]
+    ) -> "LambdaFunction":
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -299,8 +301,8 @@ class AWS(System):
                 Timeout=timeout,
                 Code=code_config,
             )
-            #url = self.create_http_trigger(func_name, None, None)
-            #print(url)
+            # url = self.create_http_trigger(func_name, None, None)
+            # print(url)
             lambda_function = LambdaFunction(
                 func_name,
                 code_package.hash,
@@ -767,15 +769,6 @@ class AWS(System):
             for fname in function_names
         ]
         return urls, api_id
-
-    def delete_function(self, function_names: List[str]):
-        self.get_lambda_client()
-        for fname in function_names:
-            try:
-                logging.info("Attempting delete")
-                self.client.delete_function(FunctionName=fname)
-            except Exception:
-                pass
 
     def update_function_config(self, fname: str, timeout: int, memory: int):
         self.get_lambda_client()
