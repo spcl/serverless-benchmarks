@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import docker
+import stat
 from typing import Dict, Tuple
 from sebs.faas.storage import PersistentStorage
 from sebs.cache import Cache
@@ -23,6 +24,7 @@ class Fission(System):
     functionName: str
     packageName: str
     envName: str
+    shoudCallBuilder: bool
     _config : FissionConfig
     def __init__(
         self, sebs_config: SeBSConfig, config: FissionConfig, cache_client: Cache, docker_client: docker.client
@@ -176,14 +178,21 @@ class Fission(System):
         benchmark.build()
 
         CONFIG_FILES = {
-            "python": ["handler.py", "requirements.txt", ".python_packages"],
+            "python": ["handler.py", "requirements.txt", ".python_packages", "build.sh"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
         directory = benchmark.code_location
         package_config = CONFIG_FILES[benchmark.language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
-        # move all files to 'function' except handler.py
+        if os.path.exists(os.path.join(directory, "requirements.txt")):
+            scriptPath = os.path.join(directory,"build.sh")
+            self.shoudCallBuilder = True
+            f = open(scriptPath, "w+")
+            f.write("pip3 install -r ${SRC_PKG}/requirements.txt -t ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}")
+            f.close()
+            st = os.stat(scriptPath)
+            os.chmod(scriptPath, st.st_mode | stat.S_IEXEC)
         for file in os.listdir(directory):
             if file not in package_config:
                 file = os.path.join(directory, file)
@@ -252,7 +261,10 @@ class Fission(System):
     def createPackage(self, packageName: str, path: str, envName: str) -> None:
         logging.info(f'Deploying fission package...')
         self.packageName = packageName
-        subprocess.run(f'fission package create --deployarchive {path} --name {packageName} --env {envName}'.split(), check=True)
+        process = f'fission package create --deployarchive {path} --name {packageName} --env {envName}'
+        if self.shoudCallBuilder:
+            process.join(' --buildcmd ./build.sh')
+        subprocess.run(process.split(), check=True)
     
     def deletePackage(self, packageName: str) -> None:
         logging.info(f'Deleting fission package...')
