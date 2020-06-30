@@ -155,15 +155,15 @@ class Cache:
         :param config: Updated config values to use.
     """
 
-    #def update_function(
+    # def update_function(
     #    self,
     #    deployment: str,
     #    benchmark: str,
     #    language: str,
     #    code_package: str,
     #    config: dict,
-    #):
-
+    # ):
+    #
     #    benchmark_dir = os.path.join(self.cache_dir, benchmark)
     #    cached_dir = os.path.join(benchmark_dir, deployment, language)
     #    # copy code
