@@ -136,7 +136,9 @@ class AWS(System):
 
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
-        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+        utils.execute(
+            "zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory
+        )
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
         logging.info("AWS: Created {} archive".format(benchmark_archive))
 
