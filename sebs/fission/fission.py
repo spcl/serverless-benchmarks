@@ -141,6 +141,14 @@ class Fission(System):
                 stdout=subprocess.DEVNULL, check=True, shell=True
             )
 
+    @staticmethod
+    def add_port_forwarding(port = 5051):
+        pass
+        # podName = subprocess.run(f'kubectl --namespace fission get pod -l svc=router -o name'.split(), stdout=subprocess.PIPE).stdout.decode("utf-8").rstrip()
+        # subprocess.Popen(f'kubectl --namespace fission port-forward {podName} {port}:8888'.split(), stderr=subprocess.DEVNULL)
+        # os.environ["FISSION_ROUTER"] = f"127.0.0.1:{port}"
+        #TODO: ustawic zmienna FISSION_ROUTER globalnie
+
     def shutdown(self) -> None:
         subprocess.run(f'fission httptrigger delete --name {self.httpTriggerName}'.split())
         subprocess.run(f'fission fn delete --name {self.functionName}'.split())
@@ -161,6 +169,7 @@ class Fission(System):
         Fission.check_if_helm_installed()
         Fission.install_fission_using_helm()
         Fission.install_fission_cli_if_needed()
+        Fission.add_port_forwarding()
 
     def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
 
@@ -190,10 +199,7 @@ class Fission(System):
         return benchmark_archive, bytes_size
 
     def update_function(self, name: str, env_name: str, code_path: str):
-        packageName = f'{name}-package'
-        self.deleteFunction(name)
-        self.deletePackage(packageName)
-        self.createPackage(packageName, code_path, )
+        self.create_function(name, env_name, code_path)
 
     def create_env_if_needed(self, name: str, image: str, builder: str):
         try:
@@ -297,14 +303,14 @@ class Fission(System):
         memory = code_package.benchmark_config.memory
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
-            code_location = code_package.code_location
+            code_location = os.path.join(code_package._cache_client.cache_dir, code_package._cached_config["code"])
             logging.info(
                 "Using cached function {fname} in {loc}".format(
                     fname=func_name, loc=code_location
                 )
             )
             self.create_env_if_needed(language, self.available_languages_images[language], self.available_languages_builders[language])
-            self.create_function(func_name, code_package.language_name, code_location)
+            self.update_function(func_name, code_package.language_name, path)
             return FissionFunction(func_name)
         elif code_package.is_cached:
             func_name = code_package.cached_config["name"]
