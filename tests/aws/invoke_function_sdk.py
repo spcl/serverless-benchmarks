@@ -13,7 +13,7 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
         self.client = sebs.SeBS(self.tmp_dir.name)
 
     def invoke_sync(self, func: sebs.aws.LambdaFunction, func_input: dict):
-        ret = func.sync_invoke(func_input)
+        ret = func.triggers[0].sync_invoke(func_input)
         self.assertFalse(ret.stats.failure)
         # check that these values are not empty
         self.assertTrue(ret.request_id)
