@@ -261,7 +261,7 @@ class Fission(System):
     def createFunction(self, packageName: str, name: str) -> None:
         logging.info(f'Deploying fission function...')
         subprocess.run(
-            f'fission fn create --name {name} --pkg {packageName} --entrypoint handler.handler'.split(), check=True
+            f'fission fn create --name {name} --pkg {packageName} --entrypoint handler.handler --env {self.envName}'.split(), check=True
         )
         triggerName = f'{name}-trigger'
         self.functionName = name
