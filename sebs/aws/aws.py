@@ -384,7 +384,10 @@ class AWS(System):
 
     def delete_function(self, func_name: Optional[str]):
         logging.info("Deleting function {}".format(func_name))
-        self.client.delete_function(FunctionName=func_name)
+        try:
+            self.client.delete_function(FunctionName=func_name)
+        except:
+            pass
 
     def get_function(
         self, code_package: Benchmark, func_name: Optional[str] = None
