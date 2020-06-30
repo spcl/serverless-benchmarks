@@ -34,6 +34,10 @@ class AWSCreateFunction(unittest.TestCase):
             }
         }
     }
+    package_files = {
+        "python": ["handler.py", "function/storage.py", "requirements.txt", '.python_packages/'],
+        "nodejs": ["handler.js", "function/storage.js", "package.json", "node_modules/"]
+    }
     benchmark = "110.dynamic-html"
 
     def setUp(self):
@@ -41,13 +45,13 @@ class AWSCreateFunction(unittest.TestCase):
         self.client = sebs.SeBS(self.tmp_dir.name)
 
     def check_function(
-        self, language: str, func: sebs.aws.LambdaFunction, files: List[str]
+        self, language: str, package: sebs.benchmark.Benchmark, files: List[str]
     ):
-        filename, file_extension = os.path.splitext(func.code_package)
+        filename, file_extension = os.path.splitext(package.code_location)
         self.assertEqual(file_extension, ".zip")
 
         # check zip file contents
-        with zipfile.ZipFile(func.code_package) as package:
+        with zipfile.ZipFile(package.code_location) as package:
             package_files = package.namelist()
             for package_file in files:
                 # check directory - ZipFile lists only files, so we must
@@ -61,24 +65,7 @@ class AWSCreateFunction(unittest.TestCase):
     def create_function(
         self, language: str, benchmark_name: str, files: List[str], config: dict
     ):
-        deployment_client = self.client.get_deployment(config["deployment"])
-        deployment_client.initialize()
-        self.assertIsInstance(deployment_client, sebs.AWS)
-        experiment_config = self.client.get_experiment(config["experiments"])
 
-        benchmark = self.client.get_benchmark(
-            benchmark_name, self.tmp_dir.name, deployment_client, experiment_config
-        )
-        self.assertFalse(benchmark.is_cached)
-        self.assertFalse(benchmark.is_cached_valid)
-
-        # generate default variant
-        func = deployment_client.get_function(benchmark)
-        timestamp = os.path.getmtime(benchmark.code_location)
-        self.assertIsInstance(func, sebs.aws.LambdaFunction)
-        self.check_function(language, func, files)
-        self.assertTrue(benchmark.is_cached)
-        self.assertTrue(benchmark.is_cached_valid)
 
         # use cached version
         benchmark = self.client.get_benchmark(
@@ -89,7 +76,7 @@ class AWSCreateFunction(unittest.TestCase):
         func = deployment_client.get_function(benchmark)
         current_timestamp = os.path.getmtime(benchmark.code_location)
         self.assertIsInstance(func, sebs.aws.LambdaFunction)
-        self.check_function(language, func, files)
+        self.check_function(language, benchmark, files)
         # package code has not been rebuilt
         self.assertEqual(timestamp, current_timestamp)
 
@@ -103,10 +90,38 @@ class AWSCreateFunction(unittest.TestCase):
         func = deployment_client.get_function(benchmark)
         current_timestamp = os.path.getmtime(benchmark.code_location)
         self.assertIsInstance(func, sebs.aws.LambdaFunction)
-        self.check_function(language, func, files)
+        self.check_function(benchmark, func, files)
         # package should have been rebuilt
         self.assertLess(timestamp, current_timestamp)
 
+    def test_create_function(self):
+        pass
+
+    def test_retrieve_cache(self):
+        for language in ["python", "nodejs"]:
+            config = self.config[language]
+            deployment_client = self.client.get_deployment(config["deployment"])
+            deployment_client.initialize()
+            self.assertIsInstance(deployment_client, sebs.aws.AWS)
+            experiment_config = self.client.get_experiment(config["experiments"])
+
+            benchmark = self.client.get_benchmark(
+                self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
+            )
+            self.assertFalse(benchmark.is_cached)
+            self.assertFalse(benchmark.is_cached_valid)
+
+            # generate default variant
+            func = deployment_client.get_function(benchmark)
+            timestamp = os.path.getmtime(benchmark.code_location)
+            self.assertIsInstance(func, sebs.aws.LambdaFunction)
+            self.check_function(language, benchmark, self.package_files[language])
+            self.assertTrue(benchmark.is_cached)
+            self.assertTrue(benchmark.is_cached_valid)
+            self.assertEqual(func.name, deployment_client.default_function_name(benchmark))
+
+    def test_rebuild_function(self):
+        pass
 
     def test_incorrect_runtime(self):
         # wrong language version - expect failure
@@ -122,7 +137,7 @@ class AWSCreateFunction(unittest.TestCase):
                     self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
                 )
                 func = deployment_client.get_function(benchmark)
-            self.assertFalse(
+            self.assertTrue(
                 "Unsupported {} version 1.0".format(language) in str(failure.exception)
             )
 
