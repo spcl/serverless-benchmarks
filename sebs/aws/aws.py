@@ -424,7 +424,9 @@ class AWS(System):
                 else "function {} not found in cache.".format(func_name)
             )
             logging.info("Creating new function! Reason: " + msg)
-            return self.create_function(code_package, func_name)
+            ret = self.create_function(code_package, func_name)
+            code_package.query_cache()
+            return ret
         else:
             # retrieve function
             cached_function = functions[func_name]
