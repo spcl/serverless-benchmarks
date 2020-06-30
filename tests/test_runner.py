@@ -34,13 +34,19 @@ class TracingStreamResult(testtools.StreamResult):
         elif kwargs["test_status"] == "fail":
             print('{0[test_id]}: {0[test_status]}'.format(kwargs))
             print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
+        elif kwargs["test_status"] == "success":
+            print('{0[test_id]}: {0[test_status]}'.format(kwargs))
 
 cases = []
 if "aws" in args.deployment:
     from aws import suite
     for case in suite.suite():
         cases.append(case)
-concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((case, None) for case in cases))
+tests = []
+for case in cases:
+    for c in case:
+        tests.append(c)
+concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
 result = TracingStreamResult()
 result.startTestRun()
 concurrent_suite.run(result)
