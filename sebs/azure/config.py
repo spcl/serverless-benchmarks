@@ -134,6 +134,12 @@ class AzureResources(Resources):
         def serialize(self) -> dict:
             return vars(self)
 
+        @staticmethod
+        def deserialize(obj: dict) -> "AzureResources.Storage":
+            return AzureResources.Storage.from_cache(
+                obj["account_name"], obj["connection_string"]
+            )
+
     # FIXME: 3.7 Python, future annotations
     def __init__(
         self,
@@ -236,14 +242,10 @@ class AzureResources(Resources):
         return AzureResources(
             resource_group=dct["resource_group"],
             storage_accounts=[
-                AzureResources.Storage.from_cache(
-                    x["account_name"], x["connection_string"]
-                )
-                for x in dct["storage_accounts"]
+                AzureResources.Storage.deserialize(x) for x in dct["storage_accounts"]
             ],
-            data_storage_account=AzureResources.Storage.from_cache(
-                dct["data_storage_account"]["account_name"],
-                dct["data_storage_account"]["connection_string"],
+            data_storage_account=AzureResources.Storage.deserialize(
+                dct["data_storage_account"]
             ),
         )
 

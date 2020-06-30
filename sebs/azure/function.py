@@ -3,8 +3,9 @@ from sebs.faas.function import Function, ExecutionResult
 
 
 class AzureFunction(Function):
-    def __init__(self, name: str):
+    def __init__(self, name: str, function_storage: AzureResources.Storage):
         super().__init__(name)
+        self.function_storage = function_storage
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         raise NotImplementedError(
@@ -18,11 +19,19 @@ class AzureFunction(Function):
             " Please use triggers instead! "
         )
 
+    def serialize(self) -> dict:
+        return {
+            **super().serialize(),
+            "function_storage": self.function_storage.serialize(),
+        }
+
     @staticmethod
     def deserialize(
         cached_config: dict, data_storage_account: AzureResources.Storage
     ) -> Function:
-        ret = AzureFunction(cached_config["name"])
+        ret = AzureFunction(
+            cached_config["name"], AzureResources.Storage.deserialize(cached_config)
+        )
         from sebs.azure.triggers import HTTPTrigger
 
         # FIXME: remove after fixing cache

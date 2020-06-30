@@ -1,6 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import docker
 
@@ -86,7 +86,9 @@ class System(ABC):
         :return: path to packaged code and its size
     """
 
-    def package_code(self, benchmark: sebs.benchmark.Benchmark) -> Tuple[str, int]:
+    def package_code(
+        self, directory: str, language_name: str, benchmark: str
+    ) -> Tuple[str, int]:
         pass
 
     """
@@ -104,7 +106,14 @@ class System(ABC):
     """
 
     @abstractmethod
-    def get_function(self, code_package: sebs.benchmark.Benchmark) -> Function:
+    def get_function(
+        self, code_package: sebs.benchmark.Benchmark, func_name: Optional[str] = None
+    ) -> Function:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def default_function_name(code_package: sebs.benchmark.Benchmark) -> str:
         pass
 
     # FIXME: trigger allocation API

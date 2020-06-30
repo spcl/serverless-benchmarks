@@ -27,13 +27,14 @@ class S3(PersistentStorage):
 
     def __init__(
         self,
+        session: boto3.session.Session,
         cache_client: Cache,
         location: str,
         access_key: str,
         secret_key: str,
         replace_existing: bool,
     ):
-        self.client = boto3.client(
+        self.client = session.client(
             "s3",
             region_name=location,
             aws_access_key_id=access_key,

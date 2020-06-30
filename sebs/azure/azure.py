@@ -12,7 +12,7 @@ import docker
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
 from sebs.azure.function import AzureFunction
-from sebs.azure.config import AzureConfig
+from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import HTTPTrigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
@@ -242,8 +242,8 @@ class Azure(System):
     def _mount_function_code(self, code_package: Benchmark):
         self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
 
-    def get_function_instance(self, name: str):
-        return AzureFunction(name)
+    def get_function_instance(self, name: str, storage_account: AzureResources.Storage):
+        return AzureFunction(name, storage_account)
 
     """
         a)  if a cached function is present and no update flag is passed,
@@ -301,7 +301,11 @@ class Azure(System):
                 )
             )
 
-            function = self.get_function_instance(func_name)
+            # FIXME: function storage account should have already been known
+            # needs seperation of cache and function
+            function = self.get_function_instance(
+                func_name, self.config.resources.data_storage_account(self.cli_instance)
+            )
             function.add_trigger(
                 HTTPTrigger(
                     url, self.config.resources.data_storage_account(self.cli_instance)
@@ -391,7 +395,7 @@ class Azure(System):
                 },
             )
             # FIXME: fix after dissociating code package and benchmark
-            function = self.get_function_instance(func_name)
+            function = self.get_function_instance(func_name, function_storage_account)
             function.add_trigger(
                 HTTPTrigger(
                     url, self.config.resources.data_storage_account(self.cli_instance)

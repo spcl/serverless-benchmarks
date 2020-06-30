@@ -131,6 +131,9 @@ class Trigger(ABC):
     def async_invoke(self, payload: dict) -> ExecutionResult:
         pass
 
+    @abstractmethod
+    def serialize(self) -> dict:
+        pass
 
 """
     Abstraction base class for FaaS function. Contains a list of associated triggers
@@ -140,13 +143,23 @@ class Trigger(ABC):
 
 
 class Function:
-    def __init__(self, name: str):
+
+    def __init__(self, name: str, code_hash: str):
         self._name = name
+        self._code_package_hash = code_hash
         self._triggers: List[Trigger] = []
 
     @property
     def name(self):
         return self._name
+
+    @property
+    def code_package_hash(self):
+        return self._code_package_hash
+
+    @code_package_hash.setter
+    def code_package_hash(self, new_hash: str):
+        self._code_package_hash = new_hash
 
     @property
     def triggers(self) -> List[Trigger]:
@@ -160,3 +173,10 @@ class Function:
 
     def async_invoke(self, payload: dict) -> ExecutionResult:
         raise Exception("Non-trigger invoke not supported!")
+
+    def serialize(self) -> dict:
+        return {
+            "name": self._name,
+            "hash": self._code_package_hash,
+            "triggers": [x.serialize() for x in self._triggers],
+        }

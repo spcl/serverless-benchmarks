@@ -53,12 +53,14 @@ class AWS(System):
         self._config = config
 
     def initialize(self, config: Dict[str, str] = {}):
+        # thread-safe
+        self.session = boto3.session.Session()
         self.get_lambda_client()
         self.get_storage()
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
-            self.client = boto3.client(
+            self.client = self.session.client(
                 service_name="lambda",
                 aws_access_key_id=self.config.credentials.access_key,
                 aws_secret_access_key=self.config.credentials.secret_key,
@@ -80,6 +82,7 @@ class AWS(System):
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         if not hasattr(self, "storage"):
             self.storage = S3(
+                self.session,
                 self.cache_client,
                 self.config.region,
                 access_key=self.config.credentials.access_key,
@@ -108,16 +111,15 @@ class AWS(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
-
-        directory = benchmark.build()
+    def package_code(
+        self, directory: str, language_name: str, benchmark: str
+    ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        directory = benchmark.code_location
-        package_config = CONFIG_FILES[benchmark.language_name]
+        package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         # move all files to 'function' except handler.py
@@ -126,20 +128,19 @@ class AWS(System):
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
 
-        cur_dir = os.getcwd()
-        os.chdir(directory)
+        # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
-        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark.benchmark), shell=True)
-        benchmark_archive = "{}.zip".format(
-            os.path.join(directory, benchmark.benchmark)
+        utils.execute(
+            "zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory
         )
-        logging.info("Created {} archive".format(benchmark_archive))
+        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+        logging.info("AWS: Created {} archive".format(benchmark_archive))
 
-        bytes_size = os.path.getsize(benchmark_archive)
+        bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
         mbytes = bytes_size / 1024.0 / 1024.0
-        logging.info("Zip archive size {:2f} MB".format(mbytes))
-        os.chdir(cur_dir)
-        return os.path.join(directory, "{}.zip".format(benchmark.benchmark)), bytes_size
+        logging.info("AWS: Zip archive size {:2f} MB".format(mbytes))
+
+        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
     def create_lambda_function(
         self,
@@ -231,7 +232,163 @@ class AWS(System):
         )
         return url
 
-    def get_function(self, code_package: Benchmark) -> Function:
+    def create_function(
+        self, code_package: Benchmark, func_name: Optional[str]
+    ) -> "LambdaFunction":
+
+        package = code_package.code_location
+        benchmark = code_package.benchmark
+        language = code_package.language_name
+        language_runtime = code_package.language_version
+        timeout = code_package.benchmark_config.timeout
+        memory = code_package.benchmark_config.memory
+        code_size = code_package.code_size
+        code_bucket: Optional[str] = None
+
+        if not func_name:
+            func_name = self.default_function_name(code_package)
+
+        # we can either check for exception or use list_functions
+        # there's no API for test
+        try:
+            self.client.get_function(FunctionName=func_name)
+            logging.info(
+                "Function {} exists on AWS, retrieve configuration.".format(func_name)
+            )
+            # Here we assume a single Lambda role
+            lambda_function = LambdaFunction(
+                func_name,
+                code_package.hash,
+                timeout,
+                memory,
+                language_runtime,
+                self.config.resources.lambda_role,
+                self,
+            )
+            self.update_function(lambda_function, code_package)
+            lambda_function.updated_code = True
+            # TODO: get configuration of REST API
+            # url = None
+        except self.client.exceptions.ResourceNotFoundException:
+            logging.info("Creating function {} from {}".format(func_name, package))
+
+            # TODO: create Lambda role
+            # AWS Lambda limit on zip deployment size
+            # Limit to 50 MB
+            # mypy doesn't recognize correctly the case when the same
+            # variable has different types across the path
+            code_config: Dict[str, Union[str, bytes]]
+            if code_size < 50 * 1024 * 1024:
+                package_body = open(package, "rb").read()
+                code_config = {"ZipFile": package_body}
+            # Upload code package to S3, then use it
+            else:
+                code_package_name = cast(str, os.path.basename(package))
+                code_bucket, idx = self.storage.add_input_bucket(benchmark)
+                self.storage.upload(code_bucket, package, code_package_name)
+                logging.info(
+                    "Uploading function {} code to {}".format(func_name, code_bucket)
+                )
+                code_config = {"S3Bucket": code_bucket, "S3Key": code_package_name}
+            self.client.create_function(
+                FunctionName=func_name,
+                Runtime="{}{}".format(language, language_runtime),
+                Handler="handler.handler",
+                Role=self.config.resources.lambda_role,
+                MemorySize=memory,
+                Timeout=timeout,
+                Code=code_config,
+            )
+            # url = self.create_http_trigger(func_name, None, None)
+            # print(url)
+            lambda_function = LambdaFunction(
+                func_name,
+                code_package.hash,
+                timeout,
+                memory,
+                language_runtime,
+                self.config.resources.lambda_role,
+                self,
+                code_bucket,
+            )
+
+        self.cache_client.add_function(
+            deployment_name=self.name(),
+            language_name=language,
+            code_package=code_package,
+            function=lambda_function,
+        )
+
+        return lambda_function
+
+    """
+        Update function code and configuration on AWS.
+
+        :param benchmark: benchmark name
+        :param name: function name
+        :param code_package: path to code package
+        :param code_size: size of code package in bytes
+        :param timeout: function timeout in seconds
+        :param memory: memory limit for function
+    """
+
+    def update_function(self, function: "LambdaFunction", code_package: Benchmark):
+
+        name = function.name
+        code_size = code_package.code_size
+        package = code_package.code_location
+        # Run AWS update
+        # AWS Lambda limit on zip deployment
+        if code_size < 50 * 1024 * 1024:
+            with open(package, "rb") as code_body:
+                self.client.update_function_code(
+                    FunctionName=name, ZipFile=code_body.read()
+                )
+        # Upload code package to S3, then update
+        else:
+            code_package_name = os.path.basename(package)
+            bucket = function.code_bucket(code_package.benchmark)
+            self.storage.upload(bucket, package, code_package_name)
+            self.client.update_function_code(
+                FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
+            )
+        # and update config
+        self.client.update_function_configuration(
+            FunctionName=name, Timeout=function.timeout, MemorySize=function.memory
+        )
+        function.code_package_hash = code_package.hash
+        function.updated_code = True
+        self.cache_client.add_function(
+            self.name(), code_package.language_name, code_package, function
+        )
+
+    @staticmethod
+    def default_function_name(code_package: Benchmark) -> str:
+        # Create function name
+        func_name = "{}-{}-{}".format(
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.benchmark_config.memory,
+        )
+        # AWS Lambda does not allow hyphens in function names
+        func_name = func_name.replace("-", "_")
+        func_name = func_name.replace(".", "_")
+        return func_name
+
+    """
+        FIXME: does not clean the cache
+    """
+
+    def delete_function(self, func_name: Optional[str]):
+        logging.info("Deleting function {}".format(func_name))
+        try:
+            self.client.delete_function(FunctionName=func_name)
+        except Exception:
+            logging.info("Function {} does not exist!".format(func_name))
+
+    def get_function(
+        self, code_package: Benchmark, func_name: Optional[str] = None
+    ) -> Function:
 
         if (
             code_package.language_version
@@ -246,134 +403,43 @@ class AWS(System):
                 )
             )
 
-        benchmark = code_package.benchmark
-        if code_package.is_cached and code_package.is_cached_valid:
-            func_name = code_package.cached_config["name"]
+        code_package.build(self.package_code)
+
+        """
+            Do we have a function with that name or no name provided?
+            a) no -> create new function
+            b) yes -> return function and update code in cloud when needed
+        """
+        functions = code_package.functions
+        if not func_name or func_name not in functions:
+            msg = (
+                "function name not provided."
+                if not func_name
+                else "function {} not found in cache.".format(func_name)
+            )
+            logging.info("Creating new function! Reason: " + msg)
+            return self.create_function(code_package, func_name)
+        else:
+            # retrieve function
+            cached_function = functions[func_name]
             code_location = code_package.code_location
+            lambda_function = LambdaFunction.deserialize(cached_function, self)
             logging.info(
                 "Using cached function {fname} in {loc}".format(
                     fname=func_name, loc=code_location
                 )
             )
-            return LambdaFunction(func_name, code_location, self)
-        elif code_package.is_cached:
-
-            func_name = code_package.cached_config["name"]
-            code_location = code_package.code_location
-            timeout = code_package.benchmark_config.timeout
-            memory = code_package.benchmark_config.memory
-
-            # Run AWS-specific part of building code.
-            package, code_size = self.package_code(code_package)
-            package_body = open(package, "rb").read()
-            self.update_function(
-                benchmark, func_name, package, code_size, timeout, memory
-            )
-
-            cached_cfg = code_package.cached_config
-            cached_cfg["code_size"] = code_size
-            cached_cfg["timeout"] = timeout
-            cached_cfg["memory"] = memory
-            cached_cfg["hash"] = code_package.hash
-            self.cache_client.update_function(
-                self.name(), benchmark, code_package.language_name, package, cached_cfg
-            )
-            # FIXME: fix after dissociating code package and benchmark
-            code_package.query_cache()
-
-            logging.info(
-                "Updating cached function {fname} in {loc}".format(
-                    fname=func_name, loc=code_location
-                )
-            )
-
-            return LambdaFunction(func_name, package, self)
-        # no cached instance, create package and upload code
-        else:
-
-            code_location = code_package.code_location
-            language = code_package.language_name
-            language_runtime = code_package.language_version
-            timeout = code_package.benchmark_config.timeout
-            memory = code_package.benchmark_config.memory
-
-            # Create function name
-            func_name = "{}-{}-{}".format(benchmark, language, memory)
-            # AWS Lambda does not allow hyphens in function names
-            func_name = func_name.replace("-", "_")
-            func_name = func_name.replace(".", "_")
-
-            # Run AWS-specific part of building code.
-            package, code_size = self.package_code(code_package)
-
-            # we can either check for exception or use list_functions
-            # there's no API for test
-            try:
-                self.client.get_function(FunctionName=func_name)
-                self.update_function(
-                    benchmark, func_name, package, code_size, timeout, memory
-                )
-                # TODO: get configuration of REST API
-                url = None
-            except self.client.exceptions.ResourceNotFoundException:
+            # is the function up-to-date?
+            if lambda_function.code_package_hash != code_package.hash:
                 logging.info(
-                    "Creating function {} from {}".format(func_name, code_location)
+                    f"Cached function {func_name} with hash "
+                    f"{lambda_function.code_package_hash} is not up to date with "
+                    f"current build {code_package.hash} in "
+                    f"{code_location}, updating cloud version!"
                 )
-
-                # TODO: create Lambda role
-                # AWS Lambda limit on zip deployment size
-                # Limit to 50 MB
-                # mypy doesn't recognize correctly the case when the same
-                # variable has different types across the path
-                code_config: Dict[str, Union[str, bytes]]
-                if code_size < 50 * 1024 * 1024:
-                    package_body = open(package, "rb").read()
-                    code_config = {"ZipFile": package_body}
-                # Upload code package to S3, then use it
-                else:
-                    code_package_name = cast(str, os.path.basename(package))
-                    bucket, idx = self.storage.add_input_bucket(benchmark)
-                    self.storage.upload(bucket, code_package_name, package)
-                    logging.info(
-                        "Uploading function {} code to {}".format(func_name, bucket)
-                    )
-                    code_config = {"S3Bucket": bucket, "S3Key": code_package_name}
-                self.client.create_function(
-                    FunctionName=func_name,
-                    Runtime="{}{}".format(language, language_runtime),
-                    Handler="handler.handler",
-                    Role=self.config.resources.lambda_role,
-                    MemorySize=memory,
-                    Timeout=timeout,
-                    Code=code_config,
-                )
-                url = self.create_http_trigger(func_name, None, None)
-
-            self.cache_client.add_function(
-                deployment=self.name(),
-                benchmark=benchmark,
-                language=language,
-                code_package=package,
-                language_config={
-                    "name": func_name,
-                    "code_size": code_size,
-                    "runtime": language_runtime,
-                    "role": self.config.resources.lambda_role,
-                    "memory": memory,
-                    "timeout": timeout,
-                    "hash": code_package.hash,
-                    "url": url,
-                },
-                storage_config={
-                    "buckets": {
-                        "input": self.storage.input_buckets,
-                        "output": self.storage.output_buckets,
-                    }
-                },
-            )
-            # FIXME: fix after dissociating code package and benchmark
-            code_package.query_cache()
-            return LambdaFunction(func_name, package, self)
+                self.update_function(lambda_function, code_package)
+                code_package.query_cache()
+            return lambda_function
 
     def create_http_trigger(
         self, func_name: str, api_id: Optional[str], parent_id: Optional[str]
@@ -507,48 +573,6 @@ class AWS(System):
             "{stage_name}/{lambda-function-name}"
         )
         return url.format(**uri_data)
-
-    """
-        Update function code and configuration on AWS.
-
-        :param benchmark: benchmark name
-        :param name: function name
-        :param code_package: path to code package
-        :param code_size: size of code package in bytes
-        :param timeout: function timeout in seconds
-        :param memory: memory limit for function
-    """
-
-    def update_function(
-        self,
-        benchmark: str,
-        name: str,
-        code_package: str,
-        code_size: int,
-        timeout: int,
-        memory: int,
-    ):
-        # AWS Lambda limit on zip deployment
-        if code_size < 50 * 1024 * 1024:
-            with open(code_package, "rb") as code_body:
-                self.client.update_function_code(
-                    FunctionName=name, ZipFile=code_body.read()
-                )
-        # Upload code package to S3, then update
-        else:
-            code_package_name = os.path.basename(code_package)
-            bucket, idx = self.storage.add_input_bucket(benchmark)
-            self.storage.upload(bucket, code_package, code_package_name)
-            self.client.update_function_code(
-                FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
-            )
-        # and update config
-        self.client.update_function_configuration(
-            FunctionName=name, Timeout=timeout, MemorySize=memory
-        )
-        logging.info(
-            "Updating AWS code of function {} from {}".format(name, code_package)
-        )
 
     """
         Prepare AWS resources to store experiment results.
@@ -726,15 +750,6 @@ class AWS(System):
         ]
         return urls, api_id
 
-    def delete_function(self, function_names: List[str]):
-        self.get_lambda_client()
-        for fname in function_names:
-            try:
-                logging.info("Attempting delete")
-                self.client.delete_function(FunctionName=fname)
-            except Exception:
-                pass
-
     def update_function_config(self, fname: str, timeout: int, memory: int):
         self.get_lambda_client()
         self.client.update_function_configuration(
@@ -743,16 +758,63 @@ class AWS(System):
 
 
 class LambdaFunction(Function):
-    @property
-    def code_package(self):
-        return self._code_package
-
-    def __init__(self, name: str, code_package: str, deployment: AWS):
-        super().__init__(name)
-        self._code_package = code_package
+    def __init__(
+        self,
+        name: str,
+        code_package_hash: str,
+        timeout: int,
+        memory: int,
+        runtime: str,
+        role: str,
+        deployment: AWS,
+        bucket: Optional[str] = None,
+    ):
+        super().__init__(name, code_package_hash)
+        self.timeout = timeout
+        self.memory = memory
+        self.runtime = runtime
+        self.role = role
+        self.bucket = bucket
+        self._updated_code = False
         self._deployment = deployment
 
+    @property
+    def updated_code(self) -> bool:
+        return self._updated_code
+
+    @updated_code.setter
+    def updated_code(self, val: bool):
+        self._updated_code = val
+
+    def serialize(self) -> dict:
+        return {
+            **super().serialize(),
+            "timeout": self.timeout,
+            "memory": self.memory,
+            "runtime": self.runtime,
+            "role": self.role,
+            "bucket": self.bucket,
+        }
+
+    @staticmethod
+    def deserialize(cached_config: dict, deployment: AWS) -> "LambdaFunction":
+        return LambdaFunction(
+            cached_config["name"],
+            cached_config["hash"],
+            cached_config["timeout"],
+            cached_config["memory"],
+            cached_config["runtime"],
+            cached_config["role"],
+            deployment,
+            cached_config["bucket"],
+        )
+
+    def code_bucket(self, benchmark: str):
+        self.bucket, idx = self._deployment.storage.add_input_bucket(benchmark)
+
     def sync_invoke(self, payload: dict) -> ExecutionResult:
+        logging.info(f"AWS: Invoke function {self.name}")
+
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self._deployment.get_lambda_client()
         begin = datetime.datetime.now()
@@ -782,6 +844,7 @@ class LambdaFunction(Function):
             )
             aws_result.stats.failure = True
             return aws_result
+        logging.info(f"AWS: Invoke of function {self.name} was successful")
         log = base64.b64decode(ret["LogResult"])
         function_output = json.loads(ret["Payload"].read().decode("utf-8"))
 

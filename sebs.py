@@ -182,7 +182,7 @@ try:
                 experiment_config, deployment_client.config
             )
             result.begin()
-            ret = func.sync_invoke(input_config)
+            ret = func.triggers[0].sync_invoke(input_config)
             result.end()
             result.add_invocation(func.name, ret)
             with open("experiments.json", "w") as out_f:
