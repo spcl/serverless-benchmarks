@@ -31,11 +31,11 @@ def serialize(obj):
 
 
 # Executing with shell provides options such as wildcard expansion
-def execute(cmd, shell=False):
+def execute(cmd, shell=False, cwd=None):
     if not shell:
         cmd = cmd.split()
     ret = subprocess.run(
-        cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        cmd, shell=shell, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
     if ret.returncode:
         raise RuntimeError(

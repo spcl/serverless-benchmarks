@@ -134,17 +134,15 @@ class AWS(System):
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
 
-        cur_dir = os.getcwd()
-        os.chdir(directory)
+        # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
-        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)
+        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
         logging.info("AWS: Created {} archive".format(benchmark_archive))
 
-        bytes_size = os.path.getsize(benchmark_archive)
+        bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
         mbytes = bytes_size / 1024.0 / 1024.0
         logging.info("AWS: Zip archive size {:2f} MB".format(mbytes))
-        os.chdir(cur_dir)
 
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 

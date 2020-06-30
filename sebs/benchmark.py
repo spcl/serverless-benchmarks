@@ -129,6 +129,14 @@ class Benchmark:
             self._hash_value = Benchmark.hash_directory(path, self.language_name)
         return self._hash_value
 
+    """
+        Used only for testing purposes.
+    """
+
+    @hash.setter  # noqa: A003
+    def hash(self, val: str):
+        self._hash_value = val
+
     def __init__(
         self,
         benchmark: str,
@@ -411,13 +419,14 @@ class Benchmark:
                             for chunk in data:
                                 f.write(chunk)
                         with tarfile.open(tar_archive, "r") as tar:
-                            tar.extractall()
+                            tar.extractall(output_dir)
                             # docker packs the entire directory with basename function
-                            for f in os.listdir("function"):
+                            for f in os.listdir(os.path.join(output_dir, "function")):
                                 shutil.move(
-                                    os.path.join("function", f),
+                                    os.path.join(output_dir, "function", f),
                                     os.path.join(output_dir, f),
                                 )
+                            shutil.rmtree(os.path.join(output_dir, "function"))
                         container.stop()
 
                     # Pass to output information on optimizing builds.
