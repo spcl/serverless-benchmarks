@@ -115,7 +115,8 @@ class ExecutionResult:
 class Trigger(ABC):
     class TriggerType(Enum):
         HTTP = 0
-        STORAGE = 1
+        LIBRARY = 1
+        STORAGE = 2
 
     # FIXME: 3.7+, future annotations
     @staticmethod
@@ -135,12 +136,16 @@ class Trigger(ABC):
     def serialize(self) -> dict:
         pass
 
+    @staticmethod
+    def deserialize(cached_config: dict) -> "Trigger":
+        pass
+
+
 """
     Abstraction base class for FaaS function. Contains a list of associated triggers
     and might implement non-trigger execution if supported by the SDK.
     Example: direct function invocation through AWS boto3 SDK.
 """
-
 
 class Function:
 
@@ -168,15 +173,14 @@ class Function:
     def add_trigger(self, trigger: Trigger):
         self._triggers.append(trigger)
 
-    def sync_invoke(self, payload: dict) -> ExecutionResult:
-        raise Exception("Non-trigger invoke not supported!")
-
-    def async_invoke(self, payload: dict) -> ExecutionResult:
-        raise Exception("Non-trigger invoke not supported!")
-
     def serialize(self) -> dict:
         return {
             "name": self._name,
             "hash": self._code_package_hash,
             "triggers": [x.serialize() for x in self._triggers],
         }
+
+    @staticmethod
+    @abstractmethod
+    def deserialize(cached_config: dict) -> "Function":
+        pass

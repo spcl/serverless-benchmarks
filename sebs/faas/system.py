@@ -1,10 +1,11 @@
+import logging
 from abc import ABC
 from abc import abstractmethod
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Type
 
 import docker
 
-import sebs.benchmark
+from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from .config import Config
@@ -48,6 +49,11 @@ class System(ABC):
     def config(self) -> Config:
         pass
 
+    @staticmethod
+    @abstractmethod
+    def function_type() -> "Type[Function]":
+        pass
+
     """
         Initialize the system. After the call the local or remot
         FaaS system should be ready to allocate functions, manage
@@ -86,34 +92,103 @@ class System(ABC):
         :return: path to packaged code and its size
     """
 
+    @abstractmethod
     def package_code(
         self, directory: str, language_name: str, benchmark: str
     ) -> Tuple[str, int]:
         pass
 
-    """
-        a)  if a cached function is present and no update flag is passed,
-            then just return function name
-        b)  if a cached function is present and update flag is passed,
-            then upload new code
-        c)  if no cached function is present, then create code package and
-            either create new function on AWS or update an existing one
-
-        :param benchmark:
-        :param config: JSON config for benchmark
-        :param function_name: Override randomly generated function name
-        :return: function name, code size
-    """
+    @abstractmethod
+    def create_function(self, code_package: Benchmark, func_name: str) -> Function:
+        pass
 
     @abstractmethod
-    def get_function(
-        self, code_package: sebs.benchmark.Benchmark, func_name: Optional[str] = None
-    ) -> Function:
+    def cached_function(self, function: Function):
         pass
+
+    @abstractmethod
+    def update_function(self, function: Function, code_package: Benchmark):
+        pass
+
+    """
+        a)  if a cached function with given name is present and code has not changed,
+            then just return function name
+        b)  if a cached function is present and the cloud code has a different
+            code version, then upload new code
+        c)  if no cached function is present, then create code package and
+            either create new function or update an existing but uncached one
+
+        Benchmark rebuild is requested but will be skipped if source code is
+        not changed and user didn't request update.
+
+    """
+
+    def get_function(
+        self, code_package: Benchmark, func_name: Optional[str] = None
+    ) -> Function:
+
+        if (
+            code_package.language_version
+            not in self.system_config.supported_language_versions(
+                self.name(), code_package.language_name
+            )
+        ):
+            raise Exception(
+                "Unsupported {language} version {version} in {system}!".format(
+                    language=code_package.language_name,
+                    version=code_package.language_version,
+                    system=self.name(),
+                )
+            )
+
+        if not func_name:
+            func_name = self.default_function_name(code_package)
+        code_package.build(self.package_code)
+
+        """
+            There's no function with that name?
+            a) yes -> create new function. Implementation might check if a function
+            with that name already exists in the cloud and update its code.
+            b) no -> retrieve function from the cache. Function code in cloud will
+            be updated if the local version is different.
+        """
+        functions = code_package.functions
+        if func_name not in functions:
+            msg = (
+                "function name not provided."
+                if not func_name
+                else "function {} not found in cache.".format(func_name)
+            )
+            logging.info("Creating new function! Reason: " + msg)
+            ret = self.create_function(code_package, func_name)
+            code_package.query_cache()
+            return ret
+        else:
+            # retrieve function
+            cached_function = functions[func_name]
+            code_location = code_package.code_location
+            function = self.function_type().deserialize(cached_function)
+            self.cached_function(function)
+            logging.info(
+                "Using cached function {fname} in {loc}".format(
+                    fname=func_name, loc=code_location
+                )
+            )
+            # is the function up-to-date?
+            if function.code_package_hash != code_package.hash:
+                logging.info(
+                    f"Cached function {func_name} with hash "
+                    f"{function.code_package_hash} is not up to date with "
+                    f"current build {code_package.hash} in "
+                    f"{code_location}, updating cloud version!"
+                )
+                self.update_function(function, code_package)
+                code_package.query_cache()
+            return function
 
     @staticmethod
     @abstractmethod
-    def default_function_name(code_package: sebs.benchmark.Benchmark) -> str:
+    def default_function_name(code_package: Benchmark) -> str:
         pass
 
     # FIXME: trigger allocation API
