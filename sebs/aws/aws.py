@@ -819,6 +819,9 @@ class LambdaFunction(Function):
         self.bucket, idx = self._deployment.storage.add_input_bucket(benchmark)
 
     def sync_invoke(self, payload: dict):
+
+        logging.info(f"AWS: Invoke function {self.name}")
+
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self._deployment.get_lambda_client()
         begin = datetime.datetime.now()
@@ -848,6 +851,7 @@ class LambdaFunction(Function):
             )
             aws_result.stats.failure = True
             return aws_result
+        logging.info(f"AWS: Invoke of function {self.name} was successful")
         log = base64.b64decode(ret["LogResult"])
         function_output = json.loads(ret["Payload"].read().decode("utf-8"))
 
