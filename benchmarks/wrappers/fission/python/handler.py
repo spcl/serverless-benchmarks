@@ -16,9 +16,16 @@ def handler():
     }
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
-    results_time = 0
-    # how to check it? 
+
+    results_time = (end - begin) / datetime.timedelta(microseconds=1)
+
+    # cold test
     is_cold = False
+    fname = os.path.join('/tmp', 'cold_run')
+    if not os.path.exists(fname):
+        is_cold = True
+        open(fname, 'a').close()
+
     return jsonify(
         json.dumps({
             'begin': begin.strftime('%s.%f'),
@@ -27,4 +34,3 @@ def handler():
             'is_cold': is_cold,
             'result': log_data  
     }))
-    
