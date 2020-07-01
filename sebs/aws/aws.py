@@ -357,7 +357,6 @@ class AWS(System):
         self.client.update_function_configuration(
             FunctionName=name, Timeout=function.timeout, MemorySize=function.memory
         )
-        function.code_package_hash = code_package.hash
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
