@@ -5,15 +5,15 @@ import os
 import shutil
 import time
 import uuid
-from typing import Dict, List, Optional, Tuple  # noqa
+from typing import cast, Dict, List, Optional, Tuple  # noqa
 
 import docker
 
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
 from sebs.azure.function import AzureFunction
-from sebs.azure.config import AzureConfig, AzureResources
-from sebs.azure.triggers import HTTPTrigger
+from sebs.azure.config import AzureConfig
+from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -129,9 +129,10 @@ class Azure(System):
     # - function.json
     # host.json
     # requirements.txt/package.json
-    def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
+    def package_code(
+        self, directory: str, language_name: str, benchmark: str
+    ) -> Tuple[str, int]:
 
-        directory = benchmark.build()
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
         EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js"}
@@ -139,7 +140,7 @@ class Azure(System):
             "python": ["requirements.txt", ".python_packages"],
             "nodejs": ["package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[benchmark.language_name]
+        package_config = CONFIG_FILES[language_name]
 
         handler_dir = os.path.join(directory, "handler")
         os.makedirs(handler_dir)
@@ -152,7 +153,7 @@ class Azure(System):
         # generate function.json
         # TODO: extension to other triggers than HTTP
         default_function_json = {
-            "scriptFile": EXEC_FILES[benchmark.language_name],
+            "scriptFile": EXEC_FILES[language_name],
             "bindings": [
                 {
                     "authLevel": "function",
@@ -182,35 +183,23 @@ class Azure(System):
         code_size = Benchmark.directory_size(directory)
         return directory, code_size
 
-    """
-        Publish function code on Azure.
-        Boolean flag enables repeating publish operation until it succeeds.
-        Useful for publish immediately after function creation where it might
-        take from 30-60 seconds for all Azure caches to be updated.
-
-        :param name: function name
-        :param repeat_on_failure: keep repeating if command fails on unknown name.
-        :return: URL to reach HTTP-triggered function
-    """
-
     def publish_function(
-        self, name: str, code_package: Benchmark, repeat_on_failure: bool = False
+        self,
+        function: Function,
+        code_package: Benchmark,
+        repeat_on_failure: bool = False,
     ) -> str:
-
-        # Mount code package in Docker instance
-        self._mount_function_code(code_package)
         success = False
         url = ""
-        logging.info("Attempting publish of function {}".format(name))
+        logging.info("Attempting publish of function {}".format(function.name))
         while not success:
             try:
                 ret = self.cli_instance.execute(
                     "bash -c 'cd /mnt/function "
                     "&& func azure functionapp publish {} --{} --no-build'".format(
-                        name, self.AZURE_RUNTIMES[code_package.language_name]
+                        function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
                 )
-                print(ret)
                 url = ""
                 for line in ret.split(b"\n"):
                     line = line.decode("utf-8")
@@ -231,7 +220,7 @@ class Azure(System):
                     time.sleep(30)
                     logging.info(
                         "Sleep 30 seconds for Azure to register function app {}".format(
-                            name
+                            function.name
                         )
                     )
                 # escape loop. we failed!
@@ -239,169 +228,112 @@ class Azure(System):
                     raise e
         return url
 
+    """
+        Publish function code on Azure.
+        Boolean flag enables repeating publish operation until it succeeds.
+        Useful for publish immediately after function creation where it might
+        take from 30-60 seconds for all Azure caches to be updated.
+
+        :param name: function name
+        :param repeat_on_failure: keep repeating if command fails on unknown name.
+        :return: URL to reach HTTP-triggered function
+    """
+
+    def update_function(self, function: Function, code_package: Benchmark):
+
+        # Mount code package in Docker instance
+        self._mount_function_code(code_package)
+        url = self.publish_function(function, code_package, True)
+
+        function.add_trigger(
+            HTTPTrigger(
+                url, self.config.resources.data_storage_account(self.cli_instance)
+            )
+        )
+
     def _mount_function_code(self, code_package: Benchmark):
         self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
 
-    def get_function_instance(self, name: str, storage_account: AzureResources.Storage):
-        return AzureFunction(name, storage_account)
+    @staticmethod
+    def default_function_name(code_package: Benchmark) -> str:
+        """
+            Functionapp names must be globally unique in Azure.
+        """
+        uuid_name = str(uuid.uuid1())[0:8]
+        func_name = (
+            "{}-{}-{}".format(code_package.benchmark, code_package.language, uuid_name)
+            .replace(".", "-")
+            .replace("_", "-")
+        )
+        return func_name
 
-    """
-        a)  if a cached function is present and no update flag is passed,
-            then just return function name
-        b)  if a cached function is present and update flag is passed,
-            then upload new code
-        c)  if no cached function is present, then create code package and
-            either create new function on Azure or update an existing one
+    def create_function(self, code_package: Benchmark, func_name: str) -> AzureFunction:
 
-        :param benchmark:
-        :param benchmark_path: Path to benchmark code
-        :param config: JSON config for benchmark
-        :param function_name: Override randomly generated function name
-        :return: function name, code size
-    """
+        language = code_package.language_name
+        language_runtime = code_package.language_version
+        resource_group = self.config.resources.resource_group(self.cli_instance)
+        region = self.config.region
 
-    def get_function(self, code_package: Benchmark) -> Function:
+        config = {
+            "resource_group": resource_group,
+            "func_name": func_name,
+            "region": region,
+            "runtime": self.AZURE_RUNTIMES[language],
+            "runtime_version": language_runtime,
+        }
 
-        benchmark = code_package.benchmark
-        if code_package.is_cached and code_package.is_cached_valid:
-            func_name = code_package.cached_config["name"]
-            code_location = code_package.code_location
-            logging.info(
-                "Using cached function {fname} in {loc}".format(
-                    fname=func_name, loc=code_location
-                )
+        # check if function does not exist
+        # no API to verify existence
+        try:
+            self.cli_instance.execute(
+                (
+                    " az functionapp show --resource-group {resource_group} "
+                    " --name {func_name} "
+                ).format(**config)
             )
-            return AzureFunction.deserialize(
-                code_package.cached_config,
-                self.config.resources.data_storage_account(self.cli_instance),
+            # FIXME: get the current storage account
+        except RuntimeError:
+            function_storage_account = self.config.resources.add_storage_account(
+                self.cli_instance
             )
-        # b) cached_instance, create package and update code
-        elif code_package.is_cached:
-
-            func_name = code_package.cached_config["name"]
-            code_location = code_package.code_location
-
-            # Run Azure-specific part of building code.
-            package, code_size = self.package_code(code_package)
-            # Publish function
-            url = self.publish_function(func_name, code_package, True)
-
-            cached_cfg = code_package.cached_config
-            cached_cfg["code_size"] = code_size
-            cached_cfg["hash"] = code_package.hash
-            self.cache_client.update_function(
-                self.name(), benchmark, code_package.language_name, package, cached_cfg
+            config["storage_account"] = function_storage_account.account_name
+            # FIXME: only Linux type is supported
+            # create function app
+            self.cli_instance.execute(
+                (
+                    " az functionapp create --resource-group {resource_group} "
+                    " --os-type Linux --consumption-plan-location {region} "
+                    " --runtime {runtime} --runtime-version {runtime_version} "
+                    " --name {func_name} --storage-account {storage_account}"
+                ).format(**config)
             )
-            # FIXME: fix after dissociating code package and benchmark
-            code_package.query_cache()
-
-            logging.info(
-                "Updating cached function {fname} in {loc}".format(
-                    fname=func_name, loc=code_location
-                )
-            )
-
-            # FIXME: function storage account should have already been known
-            # needs seperation of cache and function
-            function = self.get_function_instance(
-                func_name, self.config.resources.data_storage_account(self.cli_instance)
-            )
-            function.add_trigger(
-                HTTPTrigger(
-                    url, self.config.resources.data_storage_account(self.cli_instance)
-                )
-            )
-            return function
-        # c) no cached instance, create package and upload code
-        else:
-
-            code_location = code_package.code_location
-            language = code_package.language_name
-            language_runtime = code_package.language_version
-            resource_group = self.config.resources.resource_group(self.cli_instance)
-
-            # create function name
-            region = self.config.region
-            # only hyphens are allowed
-            # and name needs to be globally unique
-            uuid_name = str(uuid.uuid1())[0:8]
-            func_name = (
-                "{}-{}-{}".format(benchmark, language, uuid_name)
-                .replace(".", "-")
-                .replace("_", "-")
+            logging.info("Azure: Created function app {}".format(func_name))
+            function = AzureFunction(
+                name=func_name,
+                code_hash=code_package.hash,
+                function_storage=function_storage_account,
             )
 
-            config = {
-                "resource_group": resource_group,
-                "func_name": func_name,
-                "region": region,
-                "runtime": self.AZURE_RUNTIMES[language],
-                "runtime_version": language_runtime,
-            }
+        logging.info("Azure: Selected {} function app".format(func_name))
+        # update existing function app
+        self.update_function(function, code_package)
 
-            # check if function does not exist
-            # no API to verify existence
-            try:
-                ret = self.cli_instance.execute(
-                    (
-                        " az functionapp show --resource-group {resource_group} "
-                        " --name {func_name} "
-                    ).format(**config)
-                )
-                print(ret.decode())
-                # FIXME: get the current storage account
-            except RuntimeError:
-                function_storage_account = self.config.resources.add_storage_account(
-                    self.cli_instance
-                )
-                config["storage_account"] = function_storage_account.account_name
-                # FIXME: only Linux type is supported
-                # create function app
-                ret = self.cli_instance.execute(
-                    (
-                        " az functionapp create --resource-group {resource_group} "
-                        " --os-type Linux --consumption-plan-location {region} "
-                        " --runtime {runtime} --runtime-version {runtime_version} "
-                        " --name {func_name} --storage-account {storage_account}"
-                    ).format(**config)
-                )
-                logging.info("Created function app {}".format(func_name))
+        self.cache_client.add_function(
+            deployment_name=self.name(),
+            language_name=language,
+            code_package=code_package,
+            function=function,
+        )
+        return function
 
-            logging.info("Selected {} function app".format(func_name))
-            # Run Azure-specific part of building code.
-            package, code_size = self.package_code(code_package)
-            # update existing function app
-            url = self.publish_function(func_name, code_package, True)
+    def cached_function(self, function: Function):
 
-            self.cache_client.add_function(
-                deployment="azure",
-                benchmark=benchmark,
-                language=language,
-                code_package=package,
-                language_config={
-                    "invoke_url": url,
-                    "runtime": language_runtime,
-                    "name": func_name,
-                    "code_size": code_size,
-                    "resource_group": resource_group,
-                    "hash": code_package.hash,
-                },
-                storage_config={
-                    "account": function_storage_account.account_name,
-                    "containers": {
-                        "input": self.storage.input(),
-                        "output": self.storage.output(),
-                    },
-                },
-            )
-            # FIXME: fix after dissociating code package and benchmark
-            function = self.get_function_instance(func_name, function_storage_account)
-            function.add_trigger(
-                HTTPTrigger(
-                    url, self.config.resources.data_storage_account(self.cli_instance)
-                )
-            )
-            return function
+        data_storage_account = self.config.resources.data_storage_account(
+            self.cli_instance
+        )
+        for trigger in function.triggers:
+            azure_trigger = cast(AzureTrigger, trigger)
+            azure_trigger.data_storage_account = data_storage_account
 
     """
         Prepare Azure resources to store experiment results.
