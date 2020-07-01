@@ -189,6 +189,7 @@ class System(ABC):
                     f"{code_location}, updating cloud version!"
                 )
                 self.update_function(function, code_package)
+                function.code_package_hash = code_package.hash
                 function.updated_code = True
                 self.cache_client.add_function(
                     deployment_name=self.name(),
