@@ -21,11 +21,14 @@ class FissionFunction(Function):
         if response.status_code != 200:
             logging.error("Invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(payload))
-            self._deployment.get_invocation_error(
-                function_name=self.name,
-                start_time=int(begin.strftime("%s")) - 1,
-                end_time=int(end.strftime("%s")) + 1,
-            )
+
+            # TODO: this part is form AWS, need to be rethink
+            # self._deployment.get_invocation_error(
+            #     function_name=self.name,
+            #     start_time=int(begin.strftime("%s")) - 1,
+            #     end_time=int(end.strftime("%s")) + 1,
+            # )
+
             fissionResult.stats.failure = True
             return fissionResult
         returnContent = json.loads(json.loads(response.content))
