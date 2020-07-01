@@ -24,7 +24,7 @@ class Fission(System):
     functionName: str
     packageName: str
     envName: str
-    shoudCallBuilder: bool
+    shoudCallBuilder: bool = False
     _config : FissionConfig
     def __init__(
         self, sebs_config: SeBSConfig, config: FissionConfig, cache_client: Cache, docker_client: docker.client

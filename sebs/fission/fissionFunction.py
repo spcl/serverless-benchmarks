@@ -1,6 +1,7 @@
-from sebs.faas.function import Function
+from sebs.faas.function import Function, ExecutionResult
 import subprocess
 import json
+import datetime
 import requests
 import os
 
@@ -14,8 +15,23 @@ class FissionFunction(Function):
         url = "http://localhost:5051/benchmark"
         payload = json.dumps(payload)
         headers = {'content-type': "application/json"}
+        begin = datetime.datetime.now()
         response = requests.request("POST", url, data=payload, headers=headers)
-        return response
+        end = datetime.datetime.now()
+        fissionResult = ExecutionResult(begin, end)
+        if response.status_code != 200:
+            logging.error("Invocation of {} failed!".format(self.name))
+            logging.error("Input: {}".format(payload))
+            self._deployment.get_invocation_error(
+                function_name=self.name,
+                start_time=int(begin.strftime("%s")) - 1,
+                end_time=int(end.strftime("%s")) + 1,
+            )
+            fissionResult.stats.failure = True
+            return fissionResult
+        returnContent = json.loads(json.loads(response.content))
+    
+        return fissionResult
 
     def async_invoke(self, payload: dict):
         raise Exception("Non-trigger invoke not supported!")
