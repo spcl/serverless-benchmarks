@@ -20,7 +20,7 @@ class AzureFunction(Function):
         ret = AzureFunction(
             cached_config["name"],
             cached_config["hash"],
-            AzureResources.Storage.deserialize(cached_config),
+            AzureResources.Storage.deserialize(cached_config["function_storage"])
         )
         from sebs.azure.triggers import HTTPTrigger
 
