@@ -311,13 +311,6 @@ class AWS(System):
         from sebs.aws.triggers import LibraryTrigger
 
         lambda_function.add_trigger(LibraryTrigger(func_name, self))
-        self.cache_client.add_function(
-            deployment_name=self.name(),
-            language_name=language,
-            code_package=code_package,
-            function=lambda_function,
-        )
-
         return lambda_function
 
     def cached_function(self, function: Function):
@@ -365,10 +358,6 @@ class AWS(System):
             FunctionName=name, Timeout=function.timeout, MemorySize=function.memory
         )
         function.code_package_hash = code_package.hash
-        function.updated_code = True
-        self.cache_client.add_function(
-            self.name(), code_package.language_name, code_package, function
-        )
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:

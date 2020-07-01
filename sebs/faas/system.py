@@ -160,9 +160,15 @@ class System(ABC):
                 else "function {} not found in cache.".format(func_name)
             )
             logging.info("Creating new function! Reason: " + msg)
-            ret = self.create_function(code_package, func_name)
+            function = self.create_function(code_package, func_name)
+            self.cache_client.add_function(
+                deployment_name=self.name(),
+                language_name=code_package.language_name,
+                code_package=code_package,
+                function=function,
+            )
             code_package.query_cache()
-            return ret
+            return function
         else:
             # retrieve function
             cached_function = functions[func_name]
@@ -183,6 +189,13 @@ class System(ABC):
                     f"{code_location}, updating cloud version!"
                 )
                 self.update_function(function, code_package)
+                function.updated_code = True
+                self.cache_client.add_function(
+                    deployment_name=self.name(),
+                    language_name=code_package.language_name,
+                    code_package=code_package,
+                    function=function,
+                )
                 code_package.query_cache()
             return function
 
