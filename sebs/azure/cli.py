@@ -23,9 +23,7 @@ class AzureCLI:
                 )
                 docker_client.images.pull(repo_name, image_name)
             except docker.errors.APIError:
-                raise RuntimeError(
-                    "Docker pull of image {} failed!".format(image_name)
-                )
+                raise RuntimeError("Docker pull of image {} failed!".format(image_name))
         self.docker_instance = docker_client.containers.run(
             image=repo_name + ":" + image_name,
             command="/bin/bash",
