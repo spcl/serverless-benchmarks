@@ -157,6 +157,13 @@ class Fission(System):
             subprocess.run(f'fission package delete --name {self.packageName}'.split())
         if hasattr(self, "envName"):
             subprocess.run(f'fission env delete --name {self.envName}'.split())
+        try:
+            minioContainer = self.docker_client.containers.get("minio")
+            minioContainer.stop()       
+        except docker.errors.NotFound:
+            pass
+        logging.info("Minio stopped")
+
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         self.storage = Minio(self.docker_client)

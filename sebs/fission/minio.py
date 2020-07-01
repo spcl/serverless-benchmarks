@@ -29,7 +29,6 @@ class Minio(PersistentStorage):
             actualContainer = self.docker_client.containers.get(minioName)
             actualContainer.stop()
             actualContainer.wait()
-            actualContainer.reload()
             self.startMinio(minioName)
         except docker.errors.NotFound:
             self.startMinio(minioName)
