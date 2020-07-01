@@ -268,7 +268,6 @@ class Cache:
                 functions_config: Dict[str, Any] = {
                     function.name: {
                         **function.serialize(),
-                        "code_version": code_package.hash,
                     }
                 }
 
