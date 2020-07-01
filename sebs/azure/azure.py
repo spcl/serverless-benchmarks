@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 import time
-from typing import cast, Dict, List, Optional, Tuple  # noqa
+from typing import cast, Dict, List, Optional, Tuple, Type # noqa
 
 import docker
 
@@ -37,6 +37,10 @@ class Azure(System):
     @property
     def config(self) -> AzureConfig:
         return self._config
+
+    @staticmethod
+    def function_type() -> Type[Function]:
+        return AzureFunction
 
     def __init__(
         self,
@@ -391,9 +395,8 @@ class Azure(System):
             "%Y-%m-%d %H:%M:%S"
         )
         import pytz
-        from pytz import reference
 
-        tz = reference.LocalTimezone().tzname(datetime.datetime.now())
+        tz = pytz.reference.LocalTimezone().tzname(datetime.datetime.now())
         timezone_str = datetime.datetime.now(pytz.timezone(tz)).strftime("%z")
 
         query = (
