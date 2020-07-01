@@ -24,7 +24,7 @@ class Fission(System):
     functionName: str
     packageName: str
     envName: str
-    shoudCallBuilder: bool = False
+    shouldCallBuilder: bool = False
     _config : FissionConfig
     def __init__(
         self, sebs_config: SeBSConfig, config: FissionConfig, cache_client: Cache, docker_client: docker.client
@@ -145,17 +145,18 @@ class Fission(System):
 
     @staticmethod
     def add_port_forwarding(port = 5051):
-        pass
-        # podName = subprocess.run(f'kubectl --namespace fission get pod -l svc=router -o name'.split(), stdout=subprocess.PIPE).stdout.decode("utf-8").rstrip()
-        # subprocess.Popen(f'kubectl --namespace fission port-forward {podName} {port}:8888'.split(), stderr=subprocess.DEVNULL)
-        # os.environ["FISSION_ROUTER"] = f"127.0.0.1:{port}"
-        #TODO: ustawic zmienna FISSION_ROUTER globalnie
+        podName = subprocess.run(f'kubectl --namespace fission get pod -l svc=router -o name'.split(), stdout=subprocess.PIPE).stdout.decode("utf-8").rstrip()
+        subprocess.Popen(f'kubectl --namespace fission port-forward {podName} {port}:8888'.split(), stderr=subprocess.DEVNULL)
 
     def shutdown(self) -> None:
-        subprocess.run(f'fission httptrigger delete --name {self.httpTriggerName}'.split())
-        subprocess.run(f'fission fn delete --name {self.functionName}'.split())
-        subprocess.run(f'fission package delete --name {self.packageName}'.split())
-        subprocess.run(f'fission env delete --name {self.envName}'.split())
+        if hasattr(self, "httpTriggerName"):
+            subprocess.run(f'fission httptrigger delete --name {self.httpTriggerName}'.split())
+        if hasattr(self, "functionName"):
+            subprocess.run(f'fission fn delete --name {self.functionName}'.split())
+        if hasattr(self, "packageName"):
+            subprocess.run(f'fission package delete --name {self.packageName}'.split())
+        if hasattr(self, "envName"):
+            subprocess.run(f'fission env delete --name {self.envName}'.split())
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         self.storage = Minio(self.docker_client)
@@ -187,7 +188,7 @@ class Fission(System):
         os.makedirs(function_dir)
         if os.path.exists(os.path.join(directory, "requirements.txt")):
             scriptPath = os.path.join(directory,"build.sh")
-            self.shoudCallBuilder = True
+            self.shouldCallBuilder = True
             f = open(scriptPath, "w+")
             f.write("pip3 install -r ${SRC_PKG}/requirements.txt -t ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}")
             f.close()
@@ -262,7 +263,7 @@ class Fission(System):
         logging.info(f'Deploying fission package...')
         self.packageName = packageName
         process = f'fission package create --deployarchive {path} --name {packageName} --env {envName}'
-        if self.shoudCallBuilder:
+        if self.shouldCallBuilder:
             process.join(' --buildcmd ./build.sh')
         subprocess.run(process.split(), check=True)
     
