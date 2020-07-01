@@ -1,6 +1,6 @@
 from flask import request, jsonify, current_app
 
-import json, datetime
+import json, datetime, os
 def handler():
     body = request.get_data().decode("utf-8")
     current_app.logger.info("Body: " + body)
@@ -21,7 +21,7 @@ def handler():
 
     # cold test
     is_cold = False
-    fname = os.path.join('/tmp', 'cold_run')
+    fname = 'cold_run'
     if not os.path.exists(fname):
         is_cold = True
         open(fname, 'a').close()
