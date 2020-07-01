@@ -21,15 +21,6 @@ class LambdaFunction(Function):
         self.runtime = runtime
         self.role = role
         self.bucket = bucket
-        self._updated_code = False
-
-    @property
-    def updated_code(self) -> bool:
-        return self._updated_code
-
-    @updated_code.setter
-    def updated_code(self, val: bool):
-        self._updated_code = val
 
     def serialize(self) -> dict:
         return {

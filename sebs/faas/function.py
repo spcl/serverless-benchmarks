@@ -148,6 +148,7 @@ class Function:
     def __init__(self, name: str, code_hash: str):
         self._name = name
         self._code_package_hash = code_hash
+        self._updated_code = False
         self._triggers: List[Trigger] = []
 
     @property
@@ -161,6 +162,14 @@ class Function:
     @code_package_hash.setter
     def code_package_hash(self, new_hash: str):
         self._code_package_hash = new_hash
+
+    @property
+    def updated_code(self) -> bool:
+        return self._updated_code
+
+    @updated_code.setter
+    def updated_code(self, val: bool):
+        self._updated_code = val
 
     @property
     def triggers(self) -> List[Trigger]:
