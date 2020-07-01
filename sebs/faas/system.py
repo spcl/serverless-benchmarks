@@ -186,9 +186,8 @@ class System(ABC):
                 code_package.query_cache()
             return function
 
-    @staticmethod
     @abstractmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(self, code_package: Benchmark) -> str:
         pass
 
     # FIXME: trigger allocation API

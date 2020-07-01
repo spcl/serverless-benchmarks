@@ -4,7 +4,6 @@ import logging
 import os
 import shutil
 import time
-import uuid
 from typing import cast, Dict, List, Optional, Tuple  # noqa
 
 import docker
@@ -254,14 +253,14 @@ class Azure(System):
     def _mount_function_code(self, code_package: Benchmark):
         self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
 
-    @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(self, code_package: Benchmark) -> str:
         """
             Functionapp names must be globally unique in Azure.
         """
-        uuid_name = str(uuid.uuid1())[0:8]
         func_name = (
-            "{}-{}-{}".format(code_package.benchmark, code_package.language, uuid_name)
+            "{}-{}-{}".format(
+                code_package.benchmark, code_package.language, self.config.resources_id
+            )
             .replace(".", "-")
             .replace("_", "-")
         )
