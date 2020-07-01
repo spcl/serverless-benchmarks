@@ -2,14 +2,14 @@ from sebs.faas.config import Config, Credentials, Resources
 from sebs.cache import Cache
 
 
-
 class FissionCredentials(Credentials):
     def __init__(self):
         pass
 
+    @staticmethod
     def initialize(config: dict, cache: Cache) -> Credentials:
-        pass
-     
+        return FissionCredentials()
+
     def serialize(self) -> dict:
         pass
 
@@ -19,8 +19,9 @@ class FissionResources(Resources):
         pass
 
     def serialize(self) -> dict:
-        pass
+        return {"": ""}
 
+    @staticmethod
     def initialize(config: dict, cache: Cache) -> Resources:
         pass
 
@@ -28,10 +29,11 @@ class FissionResources(Resources):
 class FissionConfig(Config):
     name: str
     cache: Cache
+
     def __init__(self, config: dict, cache: Cache):
-        self.name = config['name']
+        self.name = config["name"]
         self.cache = cache
-    
+
     @staticmethod
     def initialize(config: dict, cache: Cache) -> Config:
         return FissionConfig(config, cache)
