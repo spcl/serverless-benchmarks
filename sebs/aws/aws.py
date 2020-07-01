@@ -3,7 +3,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import cast, Dict, List, Optional, Tuple, Type, Union # noqa
+from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
 import docker

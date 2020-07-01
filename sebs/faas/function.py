@@ -136,10 +136,6 @@ class Trigger(ABC):
     def serialize(self) -> dict:
         pass
 
-    @staticmethod
-    def deserialize(cached_config: dict) -> "Trigger":
-        pass
-
 
 """
     Abstraction base class for FaaS function. Contains a list of associated triggers
@@ -147,8 +143,8 @@ class Trigger(ABC):
     Example: direct function invocation through AWS boto3 SDK.
 """
 
-class Function:
 
+class Function:
     def __init__(self, name: str, code_hash: str):
         self._name = name
         self._code_package_hash = code_hash

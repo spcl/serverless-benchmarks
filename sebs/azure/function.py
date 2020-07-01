@@ -1,23 +1,13 @@
 from sebs.azure.config import AzureResources
-from sebs.faas.function import Function, ExecutionResult
+from sebs.faas.function import Function
 
 
 class AzureFunction(Function):
-    def __init__(self, name: str, function_storage: AzureResources.Storage):
-        super().__init__(name)
+    def __init__(
+        self, name: str, code_hash: str, function_storage: AzureResources.Storage
+    ):
+        super().__init__(name, code_hash)
         self.function_storage = function_storage
-
-    def sync_invoke(self, payload: dict) -> ExecutionResult:
-        raise NotImplementedError(
-            " Client-side invocation not supported for Azure Functions. "
-            " Please use triggers instead! "
-        )
-
-    def async_invoke(self, payload: dict) -> ExecutionResult:
-        raise NotImplementedError(
-            " Client-side invocation not supported for Azure Functions. "
-            " Please use triggers instead! "
-        )
 
     def serialize(self) -> dict:
         return {
@@ -26,20 +16,16 @@ class AzureFunction(Function):
         }
 
     @staticmethod
-    def deserialize(
-        cached_config: dict, data_storage_account: AzureResources.Storage
-    ) -> Function:
+    def deserialize(cached_config: dict) -> Function:
         ret = AzureFunction(
-            cached_config["name"], AzureResources.Storage.deserialize(cached_config)
+            cached_config["name"],
+            cached_config["hash"],
+            AzureResources.Storage.deserialize(cached_config),
         )
         from sebs.azure.triggers import HTTPTrigger
 
-        # FIXME: remove after fixing cache
-        ret.add_trigger(HTTPTrigger(cached_config["invoke_url"], data_storage_account))
-
-        # FIXME: reenableafter fixing cache
-        # for trigger in cached_config["triggers"]:
-        #    trigger_type = {"HTTP": HTTPTrigger}.get(trigger["type"])
-        #    assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
-        #    ret.add_trigger(trigger_type.deserialize(trigger))
+        for trigger in cached_config["triggers"]:
+            trigger_type = {"HTTP": HTTPTrigger}.get(trigger["type"])
+            assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
+            ret.add_trigger(trigger_type.deserialize(trigger))
         return ret

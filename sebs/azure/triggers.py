@@ -1,6 +1,6 @@
 import datetime
 import logging
-from typing import Dict, Any  # noqa
+from typing import Any, Dict, Optional  # noqa
 
 import requests
 
@@ -8,10 +8,26 @@ from sebs.azure.config import AzureResources
 from sebs.faas.function import ExecutionResult, Trigger
 
 
-class HTTPTrigger(Trigger):
-    def __init__(self, url: str, data_storage_account: AzureResources.Storage):
+class AzureTrigger(Trigger):
+    def __init__(self, data_storage_account: Optional[AzureResources.Storage] = None):
+        self._data_storage_account = data_storage_account
+
+    @property
+    def data_storage_account(self) -> AzureResources.Storage:
+        assert self._data_storage_account
+        return self._data_storage_account
+
+    @data_storage_account.setter
+    def data_storage_account(self, data_storage_account: AzureResources.Storage):
+        self._data_storage_account = data_storage_account
+
+
+class HTTPTrigger(AzureTrigger):
+    def __init__(
+        self, url: str, data_storage_account: Optional[AzureResources.Storage] = None
+    ):
+        super().__init__(data_storage_account)
         self.url = url
-        self.data_storage_account = data_storage_account
 
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
@@ -43,5 +59,5 @@ class HTTPTrigger(Trigger):
         return {"type": "HTTP", "url": self.url}
 
     @staticmethod
-    def deserialize(obj: dict, data_storage_account: AzureResources.Storage) -> Trigger:
-        return HTTPTrigger(obj["url"], data_storage_account)
+    def deserialize(obj: dict) -> Trigger:
+        return HTTPTrigger(obj["url"])
