@@ -22,7 +22,7 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
 
     def test_invoke_sync_python(self):
         config = {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "python", "version": "3.6"},
                 "update_code": False,
@@ -34,7 +34,7 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
             },
         }
         benchmark_name = "110.dynamic-html"
-        deployment_client = self.client.get_deployment(config["deployment"])
+        deployment_client = self.client.get_deployment("aws", config["deployment"])
         deployment_client.initialize()
         experiment_config = self.client.get_experiment(config["experiments"])
         benchmark = self.client.get_benchmark(
@@ -48,7 +48,7 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
 
     def test_invoke_sync_nodejs(self):
         config = {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "nodejs", "version": "10.x"},
                 "update_code": False,
@@ -60,7 +60,7 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
             },
         }
         benchmark_name = "110.dynamic-html"
-        deployment_client = self.client.get_deployment(config["deployment"])
+        deployment_client = self.client.get_deployment("aws", config["deployment"])
         deployment_client.initialize()
         experiment_config = self.client.get_experiment(config["experiments"])
         benchmark = self.client.get_benchmark(

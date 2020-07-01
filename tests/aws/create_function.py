@@ -10,7 +10,7 @@ import sebs
 class AWSCreateFunction(unittest.TestCase):
     config = {
         "python": {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "python", "version": "3.6"},
                 "update_code": False,
@@ -22,7 +22,7 @@ class AWSCreateFunction(unittest.TestCase):
             },
         },
         "nodejs": {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "nodejs", "version": "10.x"},
                 "update_code": False,
@@ -48,7 +48,7 @@ class AWSCreateFunction(unittest.TestCase):
             self.function_name_suffixes.append("_test_runner_{}".format(i))
         for language in ["python", "nodejs"]:
             config = self.config[language]
-            deployment_client = self.client.get_deployment(config["deployment"])
+            deployment_client = self.client.get_deployment("aws", config["deployment"])
             deployment_client.initialize()
             experiment_config = self.client.get_experiment(config["experiments"])
             benchmark = self.client.get_benchmark(
@@ -61,7 +61,7 @@ class AWSCreateFunction(unittest.TestCase):
     def tearDown(self):
         for language in ["python", "nodejs"]:
             config = self.config[language]
-            deployment_client = self.client.get_deployment(config["deployment"])
+            deployment_client = self.client.get_deployment("aws", config["deployment"])
             deployment_client.initialize()
             experiment_config = self.client.get_experiment(config["experiments"])
             benchmark = self.client.get_benchmark(
@@ -91,7 +91,7 @@ class AWSCreateFunction(unittest.TestCase):
 
     def generate_benchmark(self, tmp_dir, language: str):
         config = self.config[language]
-        deployment_client = self.client.get_deployment(config["deployment"])
+        deployment_client = self.client.get_deployment("aws", config["deployment"])
         deployment_client.initialize()
         experiment_config = self.client.get_experiment(config["experiments"])
         benchmark = self.client.get_benchmark(
@@ -213,7 +213,7 @@ class AWSCreateFunction(unittest.TestCase):
         # wrong language version - expect failure
         for language in ["python", "nodejs"]:
             config = self.config[language]
-            deployment_client = self.client.get_deployment(config["deployment"])
+            deployment_client = self.client.get_deployment("aws", config["deployment"])
             deployment_client.initialize()
             self.assertIsInstance(deployment_client, sebs.aws.AWS)
             experiment_config = self.client.get_experiment(config["experiments"])
