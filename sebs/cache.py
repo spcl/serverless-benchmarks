@@ -218,7 +218,8 @@ class Cache:
                 # copy code
                 if os.path.isdir(code_package.code_location):
                     cached_location = os.path.join(cached_dir, "code")
-                    # could be replaced with dirs_exists_ok in copytree - availble in 3.8
+                    # could be replaced with dirs_exists_ok in copytree
+                    # availble in 3.8
                     shutil.rmtree(cached_location)
                     shutil.copytree(src=code_package.code_location, dst=cached_location)
                 # copy zip file
@@ -266,9 +267,7 @@ class Cache:
 
             if os.path.exists(cache_config):
                 functions_config: Dict[str, Any] = {
-                    function.name: {
-                        **function.serialize(),
-                    }
+                    function.name: {**function.serialize()}
                 }
 
                 with open(cache_config, "r") as fp:
