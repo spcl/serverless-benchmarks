@@ -5,7 +5,6 @@ from sebs.cache import Cache
 from sebs.faas.config import Config as DeploymentConfig
 from sebs.faas.function import Function, ExecutionResult
 from sebs.experiments.config import Config as ExperimentConfig
-from sebs.utils import serialize
 
 
 class Result:
@@ -48,11 +47,11 @@ class Result:
 
     @staticmethod
     def deserialize(cached_config: dict, cache: Cache) -> "Result":
-        invocations = {}
+        invocations: Dict[str, dict] = {}
         for func, func_invocations in cached_config["_invocations"].items():
             invocations[func] = {}
-            for id, invoc in func_invocations.items():
-                invocations[func][id] = ExecutionResult.deserialize(invoc)
+            for invoc_id, invoc in func_invocations.items():
+                invocations[func][invoc_id] = ExecutionResult.deserialize(invoc)
         ret = Result(
             ExperimentConfig.deserialize(cached_config["config"]["experiments"]),
             DeploymentConfig.deserialize(cached_config["config"]["deployment"], cache),

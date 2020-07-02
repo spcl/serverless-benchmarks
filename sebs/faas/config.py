@@ -26,7 +26,7 @@ class Credentials(ABC):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache) -> "Credentials":
+    def deserialize(config: dict, cache: Cache) -> "Credentials":
         pass
 
     """
@@ -55,7 +55,7 @@ class Resources(ABC):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache) -> "Resources":
+    def deserialize(config: dict, cache: Cache) -> "Resources":
         pass
 
     """
@@ -93,18 +93,16 @@ class Config(ABC):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache) -> "Config":
-        pass
-
-    @staticmethod
     def deserialize(config: dict, cache: Cache) -> "Config":
         from sebs.aws.config import AWSConfig
         from sebs.azure.config import AzureConfig
+
         # FIXME: initialize -> deserialize
-        return {
-            "aws": AWSConfig,
-            "azure": AzureConfig
-        }.get(config["name"]).initialize(config, cache)
+        func = {"aws": AWSConfig.deserialize, "azure": AzureConfig.deserialize}.get(
+            config["name"]
+        )
+        assert func, "Unknown config type!"
+        return func(config, cache)
 
     @abstractmethod
     def serialize(self) -> dict:

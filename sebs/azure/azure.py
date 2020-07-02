@@ -388,7 +388,9 @@ class Azure(System):
                 func_exec_time = request[-1]
                 invocation_id = request[-2]
                 invocations_processed.append(invocation_id)
-                requests[invocation_id].times.provider = float(func_exec_time) * 1000
+                requests[invocation_id].times.provider = int(
+                    float(func_exec_time) * 1000
+                )
             logging.info(
                 f"Azure: Found time metrics for {len(invocations_processed)} "
                 f"out of {len(requests.keys())} invocations."

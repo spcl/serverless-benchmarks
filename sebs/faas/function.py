@@ -25,7 +25,8 @@ class ExecutionTimes:
     def deserialize(cached_obj: dict) -> "ExecutionTimes":
         ret = ExecutionTimes()
         ret.__dict__.update(cached_obj)
-        return ret 
+        return ret
+
 
 class ExecutionStats:
 
@@ -46,7 +47,7 @@ class ExecutionStats:
     def deserialize(cached_obj: dict) -> "ExecutionStats":
         ret = ExecutionStats()
         ret.__dict__.update(cached_obj)
-        return ret 
+        return ret
 
 
 class ExecutionBilling:
@@ -88,7 +89,7 @@ class ExecutionBilling:
     def deserialize(cached_obj: dict) -> "ExecutionBilling":
         ret = ExecutionBilling()
         ret.__dict__.update(cached_obj)
-        return ret 
+        return ret
 
 
 class ExecutionResult:
@@ -107,7 +108,9 @@ class ExecutionResult:
         self.billing = ExecutionBilling()
 
     @staticmethod
-    def from_times(client_time_begin: datetime, client_time_end: datetime) -> "ExecutionResult":
+    def from_times(
+        client_time_begin: datetime, client_time_end: datetime
+    ) -> "ExecutionResult":
         ret = ExecutionResult()
         ret.times.client = int(
             (client_time_end - client_time_begin) / timedelta(microseconds=1)

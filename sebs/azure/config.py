@@ -34,11 +34,11 @@ class AzureCredentials(Credentials):
         return self._password
 
     @staticmethod
-    def deserialize(dct: dict) -> Credentials:
+    def initialize(dct: dict) -> Credentials:
         return AzureCredentials(dct["appId"], dct["tenant"], dct["password"])
 
     @staticmethod
-    def initialize(config: dict, cache: Cache) -> Credentials:
+    def deserialize(config: dict, cache: Cache) -> Credentials:
 
         # FIXME: update return types of both functions to avoid cast
         # needs 3.7+  to support annotations
@@ -49,7 +49,7 @@ class AzureCredentials(Credentials):
             logging.info("Using cached credentials for Azure")
             ret = cast(
                 AzureCredentials,
-                AzureCredentials.deserialize(cached_config["credentials"]),
+                AzureCredentials.initialize(cached_config["credentials"]),
             )
         else:
             logging.info("No cached credentials for Azure found, initialize!")
@@ -57,7 +57,7 @@ class AzureCredentials(Credentials):
             if "credentials" in config:
                 ret = cast(
                     AzureCredentials,
-                    AzureCredentials.deserialize(config["credentials"]),
+                    AzureCredentials.initialize(config["credentials"]),
                 )
             elif "AZURE_SECRET_APPLICATION_ID" in os.environ:
                 ret = AzureCredentials(
@@ -238,7 +238,7 @@ class AzureResources(Resources):
 
     # FIXME: python3.7+ future annotatons
     @staticmethod
-    def deserialize(dct: dict) -> Resources:
+    def initialize(dct: dict) -> Resources:
         return AzureResources(
             resource_group=dct["resource_group"],
             storage_accounts=[
@@ -260,7 +260,7 @@ class AzureResources(Resources):
         return out
 
     @staticmethod
-    def initialize(config: dict, cache: Cache) -> Resources:
+    def deserialize(config: dict, cache: Cache) -> Resources:
 
         cached_config = cache.get_config("azure")
         ret: AzureResources
@@ -268,7 +268,7 @@ class AzureResources(Resources):
         if cached_config and "resources" in cached_config:
             logging.info("Using cached resources for Azure")
             ret = cast(
-                AzureResources, AzureResources.deserialize(cached_config["resources"])
+                AzureResources, AzureResources.initialize(cached_config["resources"])
             )
         else:
             # Check for new config
@@ -277,7 +277,7 @@ class AzureResources(Resources):
                     "No cached resources for Azure found, using user configuration."
                 )
                 ret = cast(
-                    AzureResources, AzureResources.deserialize(config["resources"])
+                    AzureResources, AzureResources.initialize(config["resources"])
                 )
             else:
                 logging.info("No resources for Azure found, initialize!")
@@ -306,7 +306,7 @@ class AzureConfig(Config):
 
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
-    def deserialize(cfg: Config, dct: dict):
+    def initialize(cfg: Config, dct: dict):
         config = cast(AzureConfig, cfg)
         config._region = dct["region"]
         if "resources_id" in dct:
@@ -319,20 +319,22 @@ class AzureConfig(Config):
             )
 
     @staticmethod
-    def initialize(config: dict, cache: Cache) -> Config:
+    def deserialize(config: dict, cache: Cache) -> Config:
 
         cached_config = cache.get_config("azure")
         # FIXME: use future annotations (see sebs/faas/system)
-        credentials = cast(AzureCredentials, AzureCredentials.initialize(config, cache))
-        resources = cast(AzureResources, AzureResources.initialize(config, cache))
+        credentials = cast(
+            AzureCredentials, AzureCredentials.deserialize(config, cache)
+        )
+        resources = cast(AzureResources, AzureResources.deserialize(config, cache))
         config_obj = AzureConfig(credentials, resources)
         # Load cached values
         if cached_config:
             logging.info("Using cached config for Azure")
-            AzureConfig.deserialize(config_obj, cached_config)
+            AzureConfig.initialize(config_obj, cached_config)
         else:
             logging.info("Using user-provided config for Azure")
-            AzureConfig.deserialize(config_obj, config)
+            AzureConfig.initialize(config_obj, config)
         resources.set_region(config_obj.region)
 
         return config_obj

@@ -26,7 +26,7 @@ class SeBS:
     def get_deployment(self, name: str, config: dict) -> FaasSystem:
 
         implementations = {"aws": AWS, "azure": Azure}
-        configs = {"aws": AWSConfig.initialize, "azure": AzureConfig.initialize}
+        configs = {"aws": AWSConfig.deserialize, "azure": AzureConfig.deserialize}
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
