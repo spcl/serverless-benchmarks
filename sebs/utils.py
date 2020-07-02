@@ -26,8 +26,11 @@ class JSONSerializer(json.JSONEncoder):
             return vars(o)
 
 
-def serialize(obj):
-    return json.dumps(obj, cls=JSONSerializer, sort_keys=True, indent=2)
+def serialize(obj) -> str:
+    if hasattr(obj, "serialize"):
+        return json.dumps(obj.serialize(), sort_keys=True, indent=2)
+    else:
+        return json.dumps(obj, cls=JSONSerializer, sort_keys=True, indent=2)
 
 
 # Executing with shell provides options such as wildcard expansion
