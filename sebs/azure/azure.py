@@ -334,7 +334,8 @@ class Azure(System):
         resource_group = self.config.resources.resource_group(self.cli_instance)
         # Avoid warnings in the next step
         ret = self.cli_instance.execute(
-            "az feature register --name AIWorkspacePreview --namespace microsoft.insights"
+            "az feature register --name AIWorkspacePreview "
+            "--namespace microsoft.insights"
         )
         app_id_query = self.cli_instance.execute(
             (
@@ -354,6 +355,7 @@ class Azure(System):
             "%Y-%m-%d %H:%M:%S"
         )
         from tzlocal import get_localzone
+
         timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
 
         query = (
@@ -362,7 +364,7 @@ class Azure(System):
             "invocationId=customDimensions['InvocationId'], "
             "functionTime=customDimensions['FunctionExecutionTimeMs']"
         )
-        invocations_processed = []
+        invocations_processed: List[str] = []
         while len(invocations_processed) != len(requests.keys()):
             logging.info("Azure: Running App Insights query.")
             ret = self.cli_instance.execute(
@@ -384,7 +386,7 @@ class Azure(System):
             ret = ret["tables"][0]
             # time is last, invocation is second to last
             for request in ret["rows"]:
-                duration = request[4]
+                # duration = request[4]
                 func_exec_time = request[-1]
                 invocation_id = request[-2]
                 invocations_processed.append(invocation_id)

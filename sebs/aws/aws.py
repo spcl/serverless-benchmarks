@@ -617,9 +617,9 @@ class AWS(System):
         #    logging.info("Waiting for AWS query to complete ...")
         #    time.sleep(1)
         #    response = self.logs_client.get_query_results(queryId=query_id)
-        ## results contain a list of matches
-        ## each match has multiple parts, we look at `@message` since this one
-        ## contains the report of invocation
+        # # results contain a list of matches
+        # # each match has multiple parts, we look at `@message` since this one
+        # # contains the report of invocation
         # results = response["results"]
         # for val in results:
         #    for result_part in val:
