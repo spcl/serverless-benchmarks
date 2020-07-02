@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 import time
-from typing import cast, Dict, List, Optional, Tuple, Type # noqa
+from typing import cast, Dict, List, Optional, Tuple, Type  # noqa
 
 import docker
 
@@ -68,35 +68,6 @@ class Azure(System):
         if self.cli_instance:
             self.cli_instance.shutdown()
         self.config.update_cache(self.cache_client)
-
-    # """
-    #    Starts an Azure CLI instance in a seperate Docker container.
-    #    The container is used to upload function code, thus it might
-    #    be restarted with a new set of volumes to be mounted.
-    #    TODO: wouldn't it be simpler to just use put_archive method to upload
-    #    function code on-the-fly?
-    # """
-
-    # def start(self, code_package=None, restart=False):
-    #    volumes = {}
-    #    if code_package:
-    #        volumes = {code_package: {"bind": "/mnt/function/", "mode": "rw"}}
-    #    if self.docker_instance and restart:
-    #        self.shutdown()
-    #    if not self.docker_instance or restart:
-    #        # Run Azure CLI docker instance in background
-    #        self.docker_instance = self.docker_client.containers.run(
-    #            image="{}:manage.azure".format(self.system_config.docker_repository()),
-    #            command="/bin/bash",
-    #            user="1000:1000",
-    #            volumes=volumes,
-    #            remove=True,
-    #            stdout=True,
-    #            stderr=True,
-    #            detach=True,
-    #            tty=True,
-    #        )
-    #        logging.info("Starting Azure manage Docker instance")
 
     """
         Create wrapper object for Azure blob storage.
@@ -263,7 +234,9 @@ class Azure(System):
         """
         func_name = (
             "{}-{}-{}".format(
-                code_package.benchmark, code_package.language_name, self.config.resources_id
+                code_package.benchmark,
+                code_package.language_name,
+                self.config.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")
@@ -350,37 +323,23 @@ class Azure(System):
         logs_container = self.storage.add_output_bucket(benchmark, suffix="logs")
         return logs_container
 
-    #    def invoke_sync(self, name: str, payload: dict):
-    #
-    #        payload["connection_string"] = self.storage_connection_string
-    #        begin = datetime.datetime.now()
-    #        ret = requests.request(method="POST", url=self.url, json=payload)
-    #        end = datetime.datetime.now()
-    #
-    #        if ret.status_code != 200:
-    #            logging.error("Invocation of {} failed!".format(name))
-    #            logging.error("Input: {}".format(payload))
-    #            raise RuntimeError()
-    #
-    #        ret = ret.json()
-    #        vals = {}
-    #        vals["return"] = ret
-    #        vals["client_time"] = (end - begin) / datetime.timedelta(microseconds=1)
-    #        return vals
-    #
     def download_metrics(
         self,
-        function_name: str,
+        function: Function,
         start_time: int,
         end_time: int,
-        requests: List[ExecutionResult],
+        requests: Dict[str, ExecutionResult],
     ):
 
         resource_group = self.config.resources.resource_group(self.cli_instance)
+        # Avoid warnings in the next step
+        ret = self.cli_instance.execute(
+            "az feature register --name AIWorkspacePreview --namespace microsoft.insights"
+        )
         app_id_query = self.cli_instance.execute(
             (
                 "az monitor app-insights component show " "--app {} --resource-group {}"
-            ).format(function_name, resource_group)
+            ).format(function.name, resource_group)
         ).decode("utf-8")
         application_id = json.loads(app_id_query)["appId"]
 
@@ -391,13 +350,11 @@ class Azure(System):
         start_time_str = datetime.datetime.fromtimestamp(start_time).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         )
-        end_time_str = datetime.datetime.fromtimestamp(end_time).strftime(
+        end_time_str = datetime.datetime.fromtimestamp(end_time + 1).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        import pytz
-
-        tz = pytz.reference.LocalTimezone().tzname(datetime.datetime.now())
-        timezone_str = datetime.datetime.now(pytz.timezone(tz)).strftime("%z")
+        from tzlocal import get_localzone
+        timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
 
         query = (
             "requests | project timestamp, operation_Name, success, "
@@ -405,31 +362,39 @@ class Azure(System):
             "invocationId=customDimensions['InvocationId'], "
             "functionTime=customDimensions['FunctionExecutionTimeMs']"
         )
-        ret = self.cli_instance.execute(
-            (
-                'az monitor app-insights query --app {} --analytics-query "{}" '
-                "--start-time {} {} --end-time {} {}"
-            ).format(
-                application_id,
-                query,
-                start_time_str,
-                timezone_str,
-                end_time_str,
-                timezone_str,
-            )
-        ).decode("utf-8")
+        invocations_processed = []
+        while len(invocations_processed) != len(requests.keys()):
+            logging.info("Azure: Running App Insights query.")
+            ret = self.cli_instance.execute(
+                (
+                    'az monitor app-insights query --app {} --analytics-query "{}" '
+                    "--start-time {} {} --end-time {} {}"
+                ).format(
+                    application_id,
+                    query,
+                    start_time_str,
+                    timezone_str,
+                    end_time_str,
+                    timezone_str,
+                )
+            ).decode("utf-8")
+            print(ret)
 
-        ret = json.loads(ret)
-        ret = ret["tables"][0]
-        # time is last, invocation is second to last
-        for request in ret["rows"]:
-            duration = request[4]
-            func_exec_time = request[-1]
-            invocation_id = request[-2]
-            requests[invocation_id]["azure"] = {
-                "duration": duration,
-                "func_time": float(func_exec_time),
-            }
+            ret = json.loads(ret)
+            ret = ret["tables"][0]
+            # time is last, invocation is second to last
+            for request in ret["rows"]:
+                duration = request[4]
+                func_exec_time = request[-1]
+                invocation_id = request[-2]
+                invocations_processed.append(invocation_id)
+                requests[invocation_id].times.provider = func_exec_time
+            logging.info(
+                f"Azure: Found time metrics for {len(invocations_processed)} "
+                f"out of {len(requests.keys())} invocations."
+            )
+            if len(invocations_processed) != len(requests.keys()):
+                time.sleep(5)
 
         # TODO: query performance counters for mem
 

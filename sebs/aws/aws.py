@@ -590,51 +590,50 @@ class AWS(System):
 
     def download_metrics(
         self,
-        function_name: str,
-        deployment_config: dict,
+        function: Function,
         start_time: int,
         end_time: int,
-        requests: dict,
+        requests: Dict[str, ExecutionResult],
     ):
+        pass
+        # if not self.logs_client:
+        #    self.logs_client = boto3.client(
+        #        service_name="logs",
+        #        aws_access_key_id=self.config.credentials.access_key,
+        #        aws_secret_access_key=self.config.credentials.secret_key,
+        #        region_name=self.config.region,
+        #    )
 
-        if not self.logs_client:
-            self.logs_client = boto3.client(
-                service_name="logs",
-                aws_access_key_id=self.config.credentials.access_key,
-                aws_secret_access_key=self.config.credentials.secret_key,
-                region_name=self.config.region,
-            )
+        # query = self.logs_client.start_query(
+        #    logGroupName="/aws/lambda/{}".format(function_name),
+        #    queryString="filter @message like /REPORT/",
+        #    startTime=start_time,
+        #    endTime=end_time,
+        # )
+        # query_id = query["queryId"]
+        # response = None
 
-        query = self.logs_client.start_query(
-            logGroupName="/aws/lambda/{}".format(function_name),
-            queryString="filter @message like /REPORT/",
-            startTime=start_time,
-            endTime=end_time,
-        )
-        query_id = query["queryId"]
-        response = None
-
-        while response is None or response["status"] == "Running":
-            logging.info("Waiting for AWS query to complete ...")
-            time.sleep(1)
-            response = self.logs_client.get_query_results(queryId=query_id)
-        # results contain a list of matches
-        # each match has multiple parts, we look at `@message` since this one
-        # contains the report of invocation
-        results = response["results"]
-        for val in results:
-            for result_part in val:
-                if result_part["field"] == "@message":
-                    actual_result = AWS.parse_aws_report(result_part["value"])
-                    request_id = actual_result["REPORT RequestId"]
-                    if request_id not in requests:
-                        logging.info(
-                            "Found invocation {} without result in bucket!".format(
-                                request_id
-                            )
-                        )
-                    del actual_result["REPORT RequestId"]
-                    requests[request_id][self.name()] = actual_result
+        # while response is None or response["status"] == "Running":
+        #    logging.info("Waiting for AWS query to complete ...")
+        #    time.sleep(1)
+        #    response = self.logs_client.get_query_results(queryId=query_id)
+        ## results contain a list of matches
+        ## each match has multiple parts, we look at `@message` since this one
+        ## contains the report of invocation
+        # results = response["results"]
+        # for val in results:
+        #    for result_part in val:
+        #        if result_part["field"] == "@message":
+        #            actual_result = AWS.parse_aws_report(result_part["value"])
+        #            request_id = actual_result["REPORT RequestId"]
+        #            if request_id not in requests:
+        #                logging.info(
+        #                    "Found invocation {} without result in bucket!".format(
+        #                        request_id
+        #                    )
+        #                )
+        #            del actual_result["REPORT RequestId"]
+        #            requests[request_id][self.name()] = actual_result
 
     def create_function_copies(
         self,

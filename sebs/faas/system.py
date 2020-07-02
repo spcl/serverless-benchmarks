@@ -9,7 +9,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from .config import Config
-from .function import Function
+from .function import Function, ExecutionResult
 from .storage import PersistentStorage
 
 """
@@ -204,7 +204,16 @@ class System(ABC):
     def default_function_name(self, code_package: Benchmark) -> str:
         pass
 
-    # FIXME: trigger allocation API
+    @abstractmethod
+    def download_metrics(
+        self,
+        function: Function,
+        start_time: int,
+        end_time: int,
+        requests: Dict[str, ExecutionResult],
+    ):
+        pass
+
     # FIXME: result query API
     # FIXME: metrics query API
     # def update_function(self, code_package):
@@ -213,10 +222,6 @@ class System(ABC):
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,
     #   start_time: int, end_time: int):
-    #    pass
-
-    # @abstractmethod
-    # def download_metrics(self):
     #    pass
 
     """
