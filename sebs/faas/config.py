@@ -96,6 +96,16 @@ class Config(ABC):
     def initialize(config: dict, cache: Cache) -> "Config":
         pass
 
+    @staticmethod
+    def deserialize(config: dict, cache: Cache) -> "Config":
+        from sebs.aws.config import AWSConfig
+        from sebs.azure.config import AzureConfig
+        # FIXME: initialize -> deserialize
+        return {
+            "aws": AWSConfig,
+            "azure": AzureConfig
+        }.get(config["name"]).initialize(config, cache)
+
     @abstractmethod
     def serialize(self) -> dict:
         pass

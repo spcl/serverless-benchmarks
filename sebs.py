@@ -18,6 +18,7 @@ parser.add_argument(
     choices=[
         "publish",
         "test_invoke",
+        "download_metrics",
         "experiment",
         "create",
         "results",
@@ -162,7 +163,7 @@ try:
     deployment_client = sebs_client.get_deployment(deployment, config["deployment"])
     deployment_client.initialize()
 
-    if args.action in ("publish", "test_invoke"):
+    if args.action in ("download_metrics", "test_invoke"):
         benchmark = sebs_client.get_benchmark(
             args.benchmark, output_dir, deployment_client, experiment_config
         )
@@ -170,7 +171,9 @@ try:
             replace_existing=experiment_config.update_storage
         )
         input_config = benchmark.prepare_input(storage=storage, size=args.size)
-        func = deployment_client.get_function(benchmark, deployment_client.default_function_name(benchmark))
+        func = deployment_client.get_function(
+            benchmark, deployment_client.default_function_name(benchmark)
+        )
 
         if args.action == "test_invoke":
             # TODO bucket save of results
@@ -184,10 +187,28 @@ try:
             result.begin()
             ret = func.triggers[0].sync_invoke(input_config)
             result.end()
-            result.add_invocation(func.name, ret)
+            result.add_invocation(func, ret)
             with open("experiments.json", "w") as out_f:
                 out_f.write(sebs.utils.serialize(result))
-            logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+            logging.info(
+                "Save results to {}".format(os.path.abspath("experiments.json"))
+            )
+        elif args.action == "download_metrics":
+            logging.info(
+                "Load results from {}".format(os.path.abspath("experiments.json"))
+            )
+            with open("experiments.json", "r") as in_f:
+                config = json.load(in_f)
+                experiments = sebs.experiments.ExperimentResult.deserialize(config, sebs_client.cache_client)
+
+            deployment_client.download_metrics(
+                func, *experiments.times(), experiments.invocations(func)
+            )
+            with open("results.json", "w") as out_f:
+                out_f.write(sebs.utils.serialize(experiments))
+            logging.info(
+                "Save results to {}".format(os.path.abspath("experiments.json"))
+            )
     #    elif args.action == "experiment":
     #        # Prepare benchmark input
     #        input_config = prepare_input(

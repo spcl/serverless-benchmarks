@@ -380,8 +380,6 @@ class Azure(System):
                     timezone_str,
                 )
             ).decode("utf-8")
-            print(ret)
-
             ret = json.loads(ret)
             ret = ret["tables"][0]
             # time is last, invocation is second to last

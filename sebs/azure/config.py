@@ -352,6 +352,7 @@ class AzureConfig(Config):
 
     def serialize(self) -> dict:
         out = {
+            "name": "azure",
             "region": self._region,
             "resources_id": self.resources_id,
             "credentials": self._credentials.serialize(),

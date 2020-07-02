@@ -163,6 +163,7 @@ class AWSConfig(Config):
 
     def serialize(self) -> dict:
         out = {
+            "name": "aws",
             "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),

@@ -46,7 +46,7 @@ class HTTPTrigger(AzureTrigger):
             raise RuntimeError("Failed synchronous invocation of Azure Function!")
 
         output = ret.json()
-        result = ExecutionResult(begin, end)
+        result = ExecutionResult.from_times(begin, end)
         result.request_id = output["request_id"]
         # General benchmark output parsing
         result.parse_benchmark_output(output)
