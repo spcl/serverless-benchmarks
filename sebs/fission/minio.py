@@ -1,6 +1,7 @@
 from sebs.faas.storage import PersistentStorage
 from typing import List, Tuple
 import logging
+from time import sleep
 import minio
 import secrets
 import docker
@@ -24,19 +25,13 @@ class Minio(PersistentStorage):
     def __init__(self, docker_client):
         self.docker_client = docker_client
         self.start()
+        sleep(10)
         self.connection = self.get_connection()
 
     def start(self):
-        minioName = "minio"
-        try:
-            actualContainer = self.docker_client.containers.get(minioName)
-            actualContainer.stop()
-            actualContainer.wait()
-            self.startMinio(minioName)
-        except docker.errors.NotFound:
-            self.startMinio(minioName)
+        self.startMinio()
 
-    def startMinio(self, minioName: str):
+    def startMinio(self):
         minioVersion = "minio/minio:latest"
         self.access_key = secrets.token_urlsafe(32)
         self.secret_key = secrets.token_hex(32)
@@ -51,7 +46,6 @@ class Minio(PersistentStorage):
                 "MINIO_ACCESS_KEY": self.access_key,
                 "MINIO_SECRET_KEY": self.secret_key,
             },
-            name=minioName,
             remove=True,
             stdout=True,
             stderr=True,
@@ -78,7 +72,7 @@ class Minio(PersistentStorage):
     def add_input_bucket(self, name: str, cache: bool = True) -> Tuple[str, int]:
         input_index = self.input_index
         bucket_name = "{}-{}-input".format(name, input_index)
-        exist = self.connection.bucket_exist(bucket_name)
+        exist = self.connection.bucket_exists(bucket_name)
         try:
             if cache:
                 self.input_index += 1
@@ -91,6 +85,7 @@ class Minio(PersistentStorage):
             if exist:
                 return (bucket_name, input_index)
             self.connection.make_bucket(bucket_name, location=self.location)
+            self.input_buckets.append(bucket_name)
             return (bucket_name, input_index)
         except (
             minio.error.BucketAlreadyOwnedByYou,
@@ -103,22 +98,23 @@ class Minio(PersistentStorage):
     def add_output_bucket(
         self, name: str, suffix: str = "output", cache: bool = True
     ) -> Tuple[str, int]:
-        input_index = self.input_index
-        bucket_name = "{}-{}-{}".format(name, input_index, suffix)
-        exist = self.connection.bucket_exist(bucket_name)
+        output_index = self.output_index
+        bucket_name = "{}-{}-{}".format(name, output_index, suffix)
+        exist = self.connection.bucket_exists(bucket_name)
         try:
             if cache:
-                self.input_index += 1
+                self.output_index += 1
                 if exist:
-                    return (bucket_name, input_index)
+                    return (bucket_name, output_index)
                 else:
                     self.connection.make_bucket(bucket_name, location=self.location)
-                    self.input_buckets.append(bucket_name)
-                    return (bucket_name, input_index)
+                    self.output_buckets.append(bucket_name)
+                    return (bucket_name, output_index)
             if exist:
-                return (bucket_name, input_index)
+                return (bucket_name, output_index)
             self.connection.make_bucket(bucket_name, location=self.location)
-            return (bucket_name, input_index)
+            self.output_buckets.append(bucket_name)
+            return (bucket_name, output_index)
         except (
             minio.error.BucketAlreadyOwnedByYou,
             minio.error.BucketAlreadyExists,

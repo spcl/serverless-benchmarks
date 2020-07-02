@@ -4,6 +4,8 @@ import shutil
 import subprocess
 import docker
 import stat
+import json
+from time import sleep
 from typing import Dict, Tuple, List
 from sebs.faas.storage import PersistentStorage
 from sebs.cache import Cache
@@ -218,12 +220,9 @@ class Fission(System):
             subprocess.run(f"fission package delete --name {self.packageName}".split())
         if hasattr(self, "envName"):
             subprocess.run(f"fission env delete --name {self.envName}".split())
-        try:
-            minioContainer = self.docker_client.containers.get("minio")
-            minioContainer.stop()
-        except docker.errors.NotFound:
-            pass
+        self.storage.storage_container.kill()
         logging.info("Minio stopped")
+        subprocess.run(f"minikube stop".split())
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         self.storage = Minio(self.docker_client)
@@ -240,6 +239,7 @@ class Fission(System):
         Fission.install_fission_using_helm()
         Fission.install_fission_cli_if_needed()
         Fission.add_port_forwarding()
+        sleep(5)
 
     def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
 
@@ -250,7 +250,7 @@ class Fission(System):
                 "handler.py",
                 "requirements.txt",
                 ".python_packages",
-                "build.sh",
+                "build.sh"
             ],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
@@ -258,17 +258,21 @@ class Fission(System):
         package_config = CONFIG_FILES[benchmark.language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
-        if os.path.exists(os.path.join(directory, "requirements.txt")):
-            scriptPath = os.path.join(directory, "build.sh")
-            self.shouldCallBuilder = True
-            f = open(scriptPath, "w+")
-            f.write(
-                "pip3 install -r ${SRC_PKG}/requirements.txt -t ${SRC_PKG} && \
-                cp -r ${SRC_PKG} ${DEPLOY_PKG}"
-            )
-            f.close()
-            st = os.stat(scriptPath)
-            os.chmod(scriptPath, st.st_mode | stat.S_IEXEC)
+        minioConfig = open("./code/minioConfig.json", "w+")
+        minioConfigJson = {"access_key": self.storage.access_key, "secret_key": self.storage.secret_key, "url" : self.storage.url}
+        minioConfig.write(json.dumps(minioConfigJson))
+        minioConfig.close()
+        reqFile = open(os.path.join(directory, "requirements.txt"),"a+")
+        reqFile.writelines(["minio"])
+        reqFile.close()
+        scriptPath = os.path.join(directory, "build.sh")
+        self.shouldCallBuilder = True
+        f = open(scriptPath, "w+")
+        f.write(
+            "#!/bin/sh\npip3 install -r ${SRC_PKG}/requirements.txt -t ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
+        )
+        f.close()
+        subprocess.run(["chmod", "+x", scriptPath])
         for file in os.listdir(directory):
             if file not in package_config:
                 file = os.path.join(directory, file)
@@ -295,7 +299,6 @@ class Fission(System):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             )
-
             subprocess.run(
                 f"grep {name}".split(),
                 check=True,
@@ -307,12 +310,27 @@ class Fission(System):
         except subprocess.CalledProcessError:
             logging.info(f'Creating env for {name} using image "{image}".')
             self.envName = name
-            subprocess.run(
-                f"fission env create --name {name} --image {image} \
-                --builder {builder}".split(),
-                check=True,
-                stdout=subprocess.DEVNULL,
-            )
+            try:
+                subprocess.run(
+                    f"fission env create --name {name} --image {image} \
+                    --builder {builder}".split(),
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                logging.info(f'Creating env {name} failed. Retrying...')
+                sleep(10)
+                try:
+                    subprocess.run(
+                        f"fission env create --name {name} --image {image} \
+                        --builder {builder}".split(),
+                        check=True,
+                        stdout=subprocess.DEVNULL,
+                    )
+                except subprocess.CalledProcessError:
+                    self.storage.storage_container.kill()
+                    logging.info("Minio stopped")
+                    self.initialize()
 
     def create_function(self, name: str, env_name: str, path: str):
         packageName = f"{name}-package"
@@ -342,11 +360,22 @@ class Fission(System):
     def createPackage(self, packageName: str, path: str, envName: str) -> None:
         logging.info(f"Deploying fission package...")
         self.packageName = packageName
-        process = f"fission package create --deployarchive {path} \
-        --name {packageName} --env {envName}"
-        if self.shouldCallBuilder:
-            process.join(" --buildcmd ./build.sh")
+        process = f"fission package create --sourcearchive {path} \
+        --name {packageName} --env {envName} --buildcmd ./build.sh"
         subprocess.run(process.split(), check=True)
+        logging.info("Waiting for package build...")
+        while True:
+            try:
+                packageStatus = subprocess.run(f"fission package info --name {packageName}".split(), stdout=subprocess.PIPE)
+                subprocess.run(f"grep succeeded".split(),check=True, input=packageStatus.stdout, stderr=subprocess.DEVNULL)
+                break
+            except subprocess.CalledProcessError:
+                if "failed" in packageStatus.stdout.decode("utf-8"):
+                    logging.error("Build package failed")
+                    raise Exception("Build package failed")
+                sleep(3)
+                continue
+        logging.info("Package ready")
 
     def deletePackage(self, packageName: str) -> None:
         logging.info(f"Deleting fission package...")

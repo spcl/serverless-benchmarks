@@ -109,7 +109,7 @@
         "images": [],
         "username": "docker_user",
         "deployment": {
-          "files": ["handler.py"],
+          "files": ["handler.py", "storage.py"],
           "packages": []
         }
       },
