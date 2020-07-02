@@ -1,0 +1,43 @@
+[
+    [
+        "workload",
+        {
+            "iterations": 10000,
+            "operator": "-",
+            "type": "float32",
+            "array_size": 1000
+        }
+    ],
+    [
+        "memory",
+        {
+            "size_in_bytes": 1048576
+        }
+    ],
+    [
+        "workload",
+        {
+            "iterations": 10000,
+            "operator": "-",
+            "type": "float32",
+            "array_size": 1000
+        }
+    ],
+    [
+        "function_input",
+        {
+            "input_size":10,
+            "output_size":0
+        }
+    ],
+    [
+        "network",
+        {}
+    ],
+    [
+        "disc",
+        {
+            "block_size": 100000000
+        }
+    ]
+]
