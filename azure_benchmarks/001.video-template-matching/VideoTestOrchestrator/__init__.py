@@ -17,15 +17,15 @@ import azure.durable_functions as df
 
 def orchestrator_function(context: df.DurableOrchestrationContext):
     try:
-        frames = 1
+        frames = 4
         res_split = yield context.call_activity('splitVideo',str(frames))
         frame_file_names = res_split.split()
-        detectTemplate_res = []
+        # detectTemplate_res = []
+        tasks = []
         for file_name in frame_file_names:
-            times  = yield context.call_activity('detectTemplate',file_name)
-            detectTemplate_res.append(str(times))
-        out_list= []
-        out_list.extend(detectTemplate_res)
+            tasks.append(context.call_activity("detectTemplate", file_name))
+        out_list = yield context.task_all(tasks)
+
         return {'statusCode': 200,'time': int(round(time.time() * 1000)),'body': 'Got '+str(len(out_list)) + " frames back", 'events' : out_list}
     except Exception as e:
         return str(e)
