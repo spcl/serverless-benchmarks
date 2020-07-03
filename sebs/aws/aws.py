@@ -56,17 +56,17 @@ class AWS(System):
 
     def initialize(self, config: Dict[str, str] = {}):
         # thread-safe
-        self.session = boto3.session.Session()
+        self.session = boto3.session.Session(
+            aws_access_key_id=self.config.credentials.access_key,
+            aws_secret_access_key=self.config.credentials.secret_key,
+        )
         self.get_lambda_client()
         self.get_storage()
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
             self.client = self.session.client(
-                service_name="lambda",
-                aws_access_key_id=self.config.credentials.access_key,
-                aws_secret_access_key=self.config.credentials.secret_key,
-                region_name=self.config.region,
+                service_name="lambda", region_name=self.config.region,
             )
         return self.client
 
@@ -182,7 +182,7 @@ class AWS(System):
             FunctionName=function_name,
             Runtime="{}{}".format(language, language_runtime),
             Handler="handler.handler",
-            Role=self.config.resources.lambda_role,
+            Role=self.config.resources.lambda_role(self.session),
             MemorySize=memory,
             Timeout=timeout,
             Code=code_config,
@@ -261,7 +261,7 @@ class AWS(System):
                 timeout,
                 memory,
                 language_runtime,
-                self.config.resources.lambda_role,
+                self.config.resources.lambda_role(self.session),
             )
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
@@ -292,7 +292,7 @@ class AWS(System):
                 FunctionName=func_name,
                 Runtime="{}{}".format(language, language_runtime),
                 Handler="handler.handler",
-                Role=self.config.resources.lambda_role,
+                Role=self.config.resources.lambda_role(self.session),
                 MemorySize=memory,
                 Timeout=timeout,
                 Code=code_config,
@@ -305,7 +305,7 @@ class AWS(System):
                 timeout,
                 memory,
                 language_runtime,
-                self.config.resources.lambda_role,
+                self.config.resources.lambda_role(self.session),
                 code_bucket,
             )
         from sebs.aws.triggers import LibraryTrigger
@@ -555,7 +555,7 @@ class AWS(System):
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
 
     def shutdown(self) -> None:
-        pass
+        self.config.update_cache(self.cache_client)
 
     def get_invocation_error(self, function_name: str, start_time: int, end_time: int):
         if not self.logs_client:
