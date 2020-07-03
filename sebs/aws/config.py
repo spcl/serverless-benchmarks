@@ -62,12 +62,6 @@ class AWSCredentials(Credentials):
                     "up environmental variables AWS_ACCESS_KEY_ID and "
                     "AWS_SECRET_ACCESS_KEY"
                 )
-            cache.update_config(
-                val=ret.access_key, keys=["aws", "credentials", "access_key"]
-            )
-            cache.update_config(
-                val=ret.secret_key, keys=["aws", "credentials", "secret_key"]
-            )
         return ret
 
     def update_cache(self, cache: Cache):

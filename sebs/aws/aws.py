@@ -555,7 +555,11 @@ class AWS(System):
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
 
     def shutdown(self) -> None:
-        self.config.update_cache(self.cache_client)
+        try:
+            self.cache_client.lock()
+            self.config.update_cache(self.cache_client)
+        finally:
+            self.cache_client.unlock()
 
     def get_invocation_error(self, function_name: str, start_time: int, end_time: int):
         if not self.logs_client:
