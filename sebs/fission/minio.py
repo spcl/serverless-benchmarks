@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from sebs.faas.storage import PersistentStorage
-from typing import List, Tuple
+from typing import List, Tuple, Any
 import logging
 from time import sleep
 import minio
@@ -10,7 +10,7 @@ import os
 
 class Minio(PersistentStorage):
 
-    storage_container = None
+    storage_container: Any
     input_buckets: List[str] = []
     output_buckets: List[str] = []
     input_index = 0
@@ -19,7 +19,7 @@ class Minio(PersistentStorage):
     secret_key: str = ""
     port = 9000
     location = "fissionBenchmark"
-    connection = None
+    connection: Any
     docker_client = None
 
     def __init__(self, docker_client):
