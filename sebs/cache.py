@@ -43,14 +43,14 @@ class Cache:
 
     def __init__(self, cache_dir: str):
         self.cache_dir = os.path.abspath(cache_dir)
-        self.lock = threading.Lock()
+        self._lock = threading.Lock()
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir, exist_ok=True)
         else:
             self.load_config()
 
     def load_config(self):
-        with self.lock:
+        with self._lock:
             for cloud in ["azure", "aws"]:
                 cloud_config_file = os.path.join(
                     self.cache_dir, "{}.json".format(cloud)
@@ -68,15 +68,15 @@ class Cache:
     """
 
     def update_config(self, val, keys):
-        with self.lock:
+        with self._lock:
             update_dict(self.cached_config, val, keys)
         self.config_updated = True
 
-    def lock_cache(self):
-        self.lock.acquire()
+    def lock(self):
+        self._lock.acquire()
 
-    def unlock_cache(self):
-        self.lock.release()
+    def unlock(self):
+        self._lock.release()
 
     def shutdown(self):
         if self.config_updated:
@@ -149,7 +149,7 @@ class Cache:
 
     def update_storage(self, deployment: str, benchmark: str, config: dict):
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
-        with self.lock:
+        with self._lock:
             with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                 cached_config = json.load(fp)
             cached_config[deployment]["storage"] = config
@@ -159,7 +159,7 @@ class Cache:
     def add_code_package(
         self, deployment_name: str, language_name: str, code_package: "Benchmark"
     ):
-        with self.lock:
+        with self._lock:
             language = code_package.language_name
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
@@ -214,7 +214,7 @@ class Cache:
     def update_code_package(
         self, deployment_name: str, language_name: str, code_package: "Benchmark"
     ):
-        with self.lock:
+        with self._lock:
             language = code_package.language_name
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             # Check if cache directory for this deployment exist
@@ -266,7 +266,7 @@ class Cache:
         code_package: "Benchmark",
         function: "Function",
     ):
-        with self.lock:
+        with self._lock:
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             language = code_package.language_name
             cache_config = os.path.join(benchmark_dir, "config.json")
