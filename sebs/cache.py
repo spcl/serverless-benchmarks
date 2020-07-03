@@ -72,6 +72,12 @@ class Cache:
             update_dict(self.cached_config, val, keys)
         self.config_updated = True
 
+    def lock_cache(self):
+        self.lock.acquire()
+
+    def unlock_cache(self):
+        self.lock.release()
+
     def shutdown(self):
         if self.config_updated:
             for cloud in ["azure", "aws"]:

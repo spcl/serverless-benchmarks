@@ -1,6 +1,10 @@
+import json
 import logging
 import os
+import time
 from typing import cast
+
+import boto3
 
 
 from sebs.cache import Cache
@@ -58,13 +62,15 @@ class AWSCredentials(Credentials):
                     "up environmental variables AWS_ACCESS_KEY_ID and "
                     "AWS_SECRET_ACCESS_KEY"
                 )
-            cache.update_config(
-                val=ret.access_key, keys=["aws", "credentials", "access_key"]
-            )
-            cache.update_config(
-                val=ret.secret_key, keys=["aws", "credentials", "secret_key"]
-            )
         return ret
+
+    def update_cache(self, cache: Cache):
+        cache.update_config(
+            val=self.access_key, keys=["aws", "credentials", "access_key"]
+        )
+        cache.update_config(
+            val=self.secret_key, keys=["aws", "credentials", "secret_key"]
+        )
 
     def serialize(self) -> dict:
         out = {"access_key": self.access_key, "secret_key": self.secret_key}
@@ -75,13 +81,43 @@ class AWSResources(Resources):
     def __init__(self, lambda_role: str):
         self._lambda_role = lambda_role
 
-    @property
-    def lambda_role(self):
+    def lambda_role(self, boto3_session: boto3.session.Session) -> str:
+        if not self._lambda_role:
+            iam_client = boto3_session.client(service_name="iam")
+            trust_policy = {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {"Service": "lambda.amazonaws.com"},
+                        "Action": "sts:AssumeRole",
+                    }
+                ],
+            }
+            role_name = "sebs-lambda-role"
+            attached_policies = [
+                "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+            ]
+            try:
+                out = iam_client.get_role(RoleName=role_name)
+                self._lambda_role = out["Role"]["Arn"]
+                logging.info(f"AWS: Selected {self._lambda_role} IAM role")
+            except iam_client.exceptions.NoSuchEntityException:
+                out = iam_client.create_role(
+                    RoleName=role_name,
+                    AssumeRolePolicyDocument=json.dumps(trust_policy),
+                )
+                self._lambda_role = out["Role"]["Arn"]
+                logging.info(
+                    f"AWS: Created {self._lambda_role} IAM role. "
+                    "Sleep 10 seconds to avoid problems when using role immediately."
+                )
+                time.sleep(10)
+            # Attach basic AWS Lambda and S3 policies.
+            for policy in attached_policies:
+                iam_client.attach_role_policy(RoleName=role_name, PolicyArn=policy)
         return self._lambda_role
-
-    @lambda_role.setter
-    def lambda_role(self, val):
-        self._lambda_role = val
 
     # FIXME: python3.7+ future annotatons
     @staticmethod
@@ -91,6 +127,11 @@ class AWSResources(Resources):
     def serialize(self) -> dict:
         out = {"lambda-role": self._lambda_role}
         return out
+
+    def update_cache(self, cache: Cache):
+        cache.update_config(
+            val=self._lambda_role, keys=["aws", "resources", "lambda-role"]
+        )
 
     @staticmethod
     def deserialize(config: dict, cache: Cache) -> Resources:
@@ -114,12 +155,6 @@ class AWSResources(Resources):
                 logging.info("No resources for AWS found, initialize!")
                 ret = AWSResources(lambda_role="")
 
-        if not ret.lambda_role:
-            # FIXME: hardcoded value for test purposes, add generation here
-            ret.lambda_role = "arn:aws:iam::261490803749:role/aws-role-test"
-        cache.update_config(
-            val=ret.lambda_role, keys=["aws", "resources", "lambda-role"]
-        )
         return ret
 
 
@@ -157,9 +192,20 @@ class AWSConfig(Config):
         else:
             logging.info("Using user-provided config for AWS")
             AWSConfig.initialize(config_obj, config)
-            cache.update_config(val=config_obj.region, keys=["aws", "region"])
 
         return config_obj
+
+    """
+        Update the contents of the user cache.
+        The changes are directly written to the file system.
+
+        Update values: region.
+    """
+
+    def update_cache(self, cache: Cache):
+        cache.update_config(val=self.region, keys=["aws", "region"])
+        self.credentials.update_cache(cache)
+        self.resources.update_cache(cache)
 
     def serialize(self) -> dict:
         out = {
