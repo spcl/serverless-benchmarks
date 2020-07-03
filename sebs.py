@@ -200,6 +200,7 @@ try:
         benchmark = sebs_client.get_benchmark(
             args.benchmark, output_dir, deployment_client, experiment_config
         )
+        print(benchmark)
         storage = deployment_client.get_storage(experiment_config)
         input_config = benchmark.prepare_input(storage=storage, size=args.size)
         func = deployment_client.get_function(benchmark)
@@ -221,7 +222,7 @@ try:
             {
                 "begin": float(begin.strftime("%s.%f")),
                 "end": float(end.strftime("%s.%f")),
-                "result": ret,
+                "result": ret.output,
             }
         ]
         if bucket:
@@ -232,7 +233,7 @@ try:
         }
         with open("experiments.json", "w") as out_f:
             print(benchmark_summary)
-            json.dump(str(benchmark_summary), out_f, indent=2)
+            json.dump(benchmark_summary, out_f, indent=2)
     elif args.action == "experiment":
         # Prepare benchmark input
         input_config = prepare_input(
