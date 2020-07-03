@@ -39,5 +39,11 @@
         {
             "block_size": 100000000
         }
+    ],
+    [
+        "storage",
+        {
+            "entries_number": 1000000
+        }
     ]
 ]

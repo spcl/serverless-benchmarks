@@ -12,17 +12,17 @@ with open(sys.argv[1]) as config_file:
     config = json.load(config_file)
 
 # Generate directory for benchmark
-path_to_benchmark = "./../benchmarks/600.generated/610.generated/python"
+path_to_benchmark = "./../benchmarks/600.generated/620.generated/python"
 if not os.path.exists(path_to_benchmark):
     os.makedirs(path_to_benchmark)
 
-# Push code to benchmarks/600.generated/610.generated/python/function.py
+# Push code to benchmarks/600.generated/620.generated/python/function.py
 
 with open(path_to_benchmark + "/function.py", "w+") as code_file:
     code = code_composer.compose(config)
     code_file.write(code)
 
-# Push requirements to benchmarks/600.generated/610.generated/python/requirements.txt
+# Push requirements to benchmarks/600.generated/620.generated/python/requirements.txt
 with open(path_to_benchmark + "/requirements.txt", "w+") as requirements_file:
     requirements = requirements_composer.compose(config)
     print("Req: " + requirements)
