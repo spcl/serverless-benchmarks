@@ -95,7 +95,7 @@ class S3(PersistentStorage):
         self, name: str, suffix: str = "output", cache: bool = True
     ) -> Tuple[str, int]:
 
-        idx = self.request_input_buckets #are you sure?
+        idx = self.request_input_buckets  # are you sure?
         name = "{}-{}-{}".format(name, idx + 1, suffix)
         if cache:
             self.request_input_buckets += 1
