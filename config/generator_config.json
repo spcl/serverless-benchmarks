@@ -51,5 +51,11 @@
         {
             "duration": 1
         }
+    ],
+    [
+        "artificial_code",
+        {
+            "number_of_elements": 1
+        }
     ]
 ]

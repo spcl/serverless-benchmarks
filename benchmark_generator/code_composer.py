@@ -1,4 +1,5 @@
 import os
+import uuid
 
 def load_benchmark_code(benchmark_name, language="python"):
     current_dir = os.getcwd()
@@ -27,6 +28,11 @@ def intend(body):
         new_body += "\n\t" + line
     return new_body
 
+def generate_huge_dict(number_of_elements):
+    return {
+        str(uuid.uuid1()) + "-" + str(i): str(uuid.uuid1()) for i in range(number_of_elements)      # uuid has more predictible size than plain numbers
+    }
+
 def compose(config):
 
     code = ""
@@ -53,6 +59,10 @@ def compose(config):
         handler_function += "\nnumber = " + str(number) + "\n"
         handler_function += "config = " + str(benchmark_config) + "\n"
         handler_function += code_maps[benchmark_name]["run"]
+
+        if benchmark_name == "artificial_code":
+            number_of_elements = benchmark_config.get("number_of_elements", 0)
+            handler_function += "artificial_dict" + str(number) + " = " + str(generate_huge_dict(number_of_elements))
 
     handler_function += """\nreturn {'result': result }"""     # dummy result, different doesn't work
 
