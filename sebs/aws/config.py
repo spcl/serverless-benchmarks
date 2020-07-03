@@ -71,8 +71,12 @@ class AWSCredentials(Credentials):
         return ret
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.access_key, keys=["aws", "credentials", "access_key"])
-        cache.update_config(val=self.secret_key, keys=["aws", "credentials", "secret_key"])
+        cache.update_config(
+            val=self.access_key, keys=["aws", "credentials", "access_key"]
+        )
+        cache.update_config(
+            val=self.secret_key, keys=["aws", "credentials", "secret_key"]
+        )
 
     def serialize(self) -> dict:
         out = {"access_key": self.access_key, "secret_key": self.secret_key}
@@ -91,9 +95,7 @@ class AWSResources(Resources):
                 "Statement": [
                     {
                         "Effect": "Allow",
-                        "Principal": {
-                            "Service": "lambda.amazonaws.com"
-                        },
+                        "Principal": {"Service": "lambda.amazonaws.com"},
                         "Action": "sts:AssumeRole",
                     }
                 ],
@@ -133,7 +135,9 @@ class AWSResources(Resources):
         return out
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
+        cache.update_config(
+            val=self._lambda_role, keys=["aws", "resources", "lambda-role"]
+        )
 
     @staticmethod
     def initialize(config: dict, cache: Cache) -> Resources:
