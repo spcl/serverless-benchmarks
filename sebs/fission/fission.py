@@ -425,19 +425,19 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
         path, size = self.package_code(code_package)
 
         # TODO: also exception if language not in self.available_languages_images
-        if (
-            code_package.language_version
-            not in self.system_config.supported_language_versions(
-                self.name(), code_package.language_name
-            )
-        ):
-            raise Exception(
-                "Unsupported {language} version {version} in Fission!".format(
-                    language=code_package.language_name,
-                    version=code_package.language_version,
-                )
-            )
-        benchmark = code_package.benchmark.replace(".", "-")
+        # if (
+        #     code_package.language_version
+        #     not in self.system_config.supported_language_versions(
+        #         self.name(), code_package.language_name
+        #     )
+        # ):
+        #     raise Exception(
+        #         "Unsupported {language} version {version} in Fission!".format(
+        #             language=code_package.language_name,
+        #             version=code_package.language_version,
+        #         )
+        #     )
+        benchmark = code_package.benchmark.replace('.','-')
         language = code_package.language_name
         language_runtime = code_package.language_version
         timeout = code_package.benchmark_config.timeout

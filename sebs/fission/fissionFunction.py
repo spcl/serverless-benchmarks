@@ -34,7 +34,7 @@ class FissionFunction(Function):
 
             fissionResult.stats.failure = True
             return fissionResult
-        returnContent = json.loads(json.loads(response.content))
+        returnContent = json.loads(response.content)
         fissionResult.parse_benchmark_output(returnContent)
         return fissionResult
 
