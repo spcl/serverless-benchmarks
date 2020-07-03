@@ -39,7 +39,7 @@ class AWS(System):
         return "aws"
 
     @property
-    def config(self):
+    def config(self) -> AWSConfig:
         return self._config
 
     """
@@ -185,7 +185,7 @@ class AWS(System):
             FunctionName=function_name,
             Runtime="{}{}".format(language, language_runtime),
             Handler="handler.handler",
-            Role=self.config["config"]["lambda-role"],
+            Role=self.config.resources.lambda_role,
             MemorySize=memory,
             Timeout=timeout,
             Code=code_config,
@@ -451,7 +451,7 @@ class AWS(System):
         account_id = sts_client.get_caller_identity()["Account"]
 
         uri_data = {
-            "aws-region": self.config["config"]["region"],
+            "aws-region": self.config.resources.lambda_role,
             "api-version": lambda_version,
             "aws-acct-id": account_id,
             "lambda-function-name": func_name,
@@ -595,7 +595,7 @@ class AWS(System):
         output.billing.memory = int(aws_vals["Memory Size"])
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         pass
 
     def get_invocation_error(self, function_name: str, start_time: int, end_time: int):

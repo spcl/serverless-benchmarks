@@ -2,22 +2,13 @@
 
 
 import argparse
-import datetime
-import importlib
 import json
 import logging
 import os
-import sys
 import traceback
 from typing import Optional
 
-import docker
-
 import sebs
-
-# from scripts.experiments.CloudExperiments import ExperimentRunner, run_burst_experiment
-# from scripts.experiments.function_generator import *
-# from scripts.experiments.get_results import *
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -135,13 +126,10 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-# -1. Get provider config and create cloud object
 config = json.load(open(args.config, "r"))
-# systems_config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
 output_dir = None
-
 sebs_client = sebs.SeBS(args.cache)
-deployment_client: Optional[sebs.faas.System]
+deployment_client: Optional[sebs.faas.System] = None
 
 # 0. Input args
 args = parser.parse_args()
@@ -161,15 +149,8 @@ if args.update_storage:
     config["experiments"]["update_storage"] = args.update_storage
 
 config["experiments"]["benchmark"] = args.benchmark
-deployment_client: sebs.faas.System = None
 
 try:
-    benchmark_summary = {}
-    # if language not in default_config[deployment]['runtime']:
-    #    raise RuntimeError('Language {} is not supported on cloud {}'.format(language, args.deployment))
-    # experiment_config['experiments']['runtime'] = default_config[deployment]['runtime'][language]
-    # experiment_config['experiments']['region'] = default_config[deployment]['region']
-    # 1. Create output dir
     output_dir = sebs.utils.create_output(
         args.output_dir, args.preserve_out, args.verbose
     )
@@ -178,174 +159,130 @@ try:
     deployment_client = sebs_client.get_deployment(config["deployment"])
     deployment_client.initialize()
 
-    if args.action == "publish":
-        # 5. Prepare benchmark input
-        input_config = sebs.utils.prepare_input(
-            client=deployment_client,
-            benchmark=args.benchmark,
-            size=args.size,
-            update_storage=experiment_config["experiments"]["update_storage"],
-        )
-        package = sebs.CodePackage(
-            args.benchmark,
-            experiment_config,
-            output_dir,
-            systems_config[deployment],
-            sebs.cache_client,
-            deployment_client.docker_client,
-            args.update,
-        )
-        func = deployment_client.create_function(package, experiment_config)
-    elif args.action == "test_invoke":
+    if args.action in ("publish", "test_invoke"):
         benchmark = sebs_client.get_benchmark(
             args.benchmark, output_dir, deployment_client, experiment_config
         )
-        print(benchmark)
-        storage = deployment_client.get_storage(experiment_config)
+        storage = deployment_client.get_storage(
+            replace_existing=experiment_config.update_storage
+        )
         input_config = benchmark.prepare_input(storage=storage, size=args.size)
         func = deployment_client.get_function(benchmark)
 
-        # TODO bucket save of results
-        bucket = None
-        # bucket = deployment_client.prepare_experiment(args.benchmark)
-        # input_config['logs'] = { 'bucket': bucket }
+        if args.action == "test_invoke":
+            # TODO bucket save of results
+            bucket = None
+            # bucket = deployment_client.prepare_experiment(args.benchmark)
+            # input_config['logs'] = { 'bucket': bucket }
 
-        begin = datetime.datetime.now()
-        ret = func.sync_invoke(input_config)
-        end = datetime.datetime.now()
-        benchmark_summary["experiment"] = {
-            "function_name": func.name,
-            "begin": float(begin.strftime("%s.%f")),
-            "end": float(end.strftime("%s.%f")),
-        }
-        benchmark_summary["results"] = [
-            {
-                "begin": float(begin.strftime("%s.%f")),
-                "end": float(end.strftime("%s.%f")),
-                "result": ret.output,
-            }
-        ]
-        if bucket:
-            ret["results_bucket"] = bucket
-        benchmark_summary["config"] = {
-            "experiments": experiment_config.serialize(),
-            "deployment": deployment_client.config.serialize(),
-        }
-        with open("experiments.json", "w") as out_f:
-            print(benchmark_summary)
-            json.dump(benchmark_summary, out_f, indent=2)
-    elif args.action == "experiment":
-        # Prepare benchmark input
-        input_config = prepare_input(
-            client=deployment_client,
-            benchmark=args.benchmark,
-            size=args.size,
-            update_storage=experiment_config["experiments"]["update_storage"],
-        )
-        package = CodePackage(
-            args.benchmark,
-            experiment_config,
-            output_dir,
-            systems_config[deployment],
-            cache_client,
-            docker_client,
-            args.update,
-        )
-        assert args.invocations is not None
-        assert args.sleep_time
-        # TODO: experiment JSON config
-        runner = ExperimentRunner(
-            not args.no_update_function,
-            config_file=args.config_experiment_runner,
-            invocations=args.invocations,
-            repetitions=args.repetitions,
-            sleep_time=args.sleep_time,
-            memory=args.memory,
-            times_begin_idx=args.times_begin_idx,
-            times_end_idx=args.times_end_idx,
-            benchmark=args.benchmark,
-            output_dir=output_dir,
-            language=language,
-            input_config=input_config,
-            experiment_config=experiment_config,
-            code_package=package,
-            deployment_client=deployment_client,
-            cache_client=cache_client,
-        )
-    elif args.action == "create":
-        # Prepare benchmark input
-        input_config = prepare_input(
-            client=deployment_client,
-            benchmark=args.benchmark,
-            size=args.size,
-            update_storage=experiment_config["experiments"]["update_storage"],
-        )
-        package = CodePackage(
-            args.benchmark,
-            experiment_config,
-            output_dir,
-            systems_config[deployment],
-            cache_client,
-            docker_client,
-            args.update,
-        )
-        create_functions(
-            deployment_client,
-            cache_client,
-            package,
-            experiment_config,
-            args.benchmark,
-            language,
-            args.memory,
-            args.times_begin_idx,
-            args.times_end_idx,
-            args.sleep_time,
-            args.extend,
-        )
-    elif args.action == "results":
-        assert args.experiment_input is not None
-        experiment = json.load(open(args.experiment_input, "r"))
-        result = get_results(deployment_client, experiment, args.output_dir)
-        with open(os.path.join(args.output_dir, "results.json"), "w") as out_f:
-            json.dump(result, out_f, indent=2)
-    elif args.action == "burst_invoke":
-        input_config = prepare_input(
-            client=deployment_client,
-            benchmark=args.benchmark,
-            size=args.size,
-            update_storage=experiment_config["experiments"]["update_storage"],
-        )
-        begin = datetime.datetime.now()
-        result = run_burst_experiment(
-            config_file=args.config_experiment_runner,
-            invocations=args.invocations,
-            memories=[128, 256, 512, 1024],  # , 1536, 1792, 2048, 3092],
-            repetitions=args.repetitions,
-            benchmark=args.benchmark,
-            output_dir=output_dir,
-            language=language,
-            input_config=input_config,
-            experiment_config=experiment_config,
-            deployment_client=deployment_client,
-            cache_client=cache_client,
-            additional_cfg=experiment_config,
-        )
-        end = datetime.datetime.now()
+            result = sebs.experiments.ExperimentResult(
+                experiment_config, deployment_client.config
+            )
+            result.begin()
+            ret = func.sync_invoke(input_config)
+            result.end()
+            result.add_invocation(func.name, ret)
+            with open("experiments.json", "w") as out_f:
+                out_f.write(sebs.utils.serialize(result))
+    #    elif args.action == "experiment":
+    #        # Prepare benchmark input
+    #        input_config = prepare_input(
+    #            client=deployment_client,
+    #            benchmark=args.benchmark,
+    #            size=args.size,
+    #            update_storage=experiment_config["experiments"]["update_storage"],
+    #        )
+    #        package = CodePackage(
+    #            args.benchmark,
+    #            experiment_config,
+    #            output_dir,
+    #            systems_config[deployment],
+    #            cache_client,
+    #            docker_client,
+    #            args.update,
+    #        )
+    #        assert args.invocations is not None
+    #        assert args.sleep_time
+    #        # TODO: experiment JSON config
+    #        runner = ExperimentRunner(
+    #            not args.no_update_function,
+    #            config_file=args.config_experiment_runner,
+    #            invocations=args.invocations,
+    #            repetitions=args.repetitions,
+    #            sleep_time=args.sleep_time,
+    #            memory=args.memory,
+    #            times_begin_idx=args.times_begin_idx,
+    #            times_end_idx=args.times_end_idx,
+    #            benchmark=args.benchmark,
+    #            output_dir=output_dir,
+    #            language=language,
+    #            input_config=input_config,
+    #            experiment_config=experiment_config,
+    #            code_package=package,
+    #            deployment_client=deployment_client,
+    #            cache_client=cache_client,
+    #        )
+    #    elif args.action == "create":
+    #        # Prepare benchmark input
+    #        input_config = prepare_input(
+    #            client=deployment_client,
+    #            benchmark=args.benchmark,
+    #            size=args.size,
+    #            update_storage=experiment_config["experiments"]["update_storage"],
+    #        )
+    #        package = CodePackage(
+    #            args.benchmark,
+    #            experiment_config,
+    #            output_dir,
+    #            systems_config[deployment],
+    #            cache_client,
+    #            docker_client,
+    #            args.update,
+    #        )
+    #        create_functions(
+    #            deployment_client,
+    #            cache_client,
+    #            package,
+    #            experiment_config,
+    #            args.benchmark,
+    #            language,
+    #            args.memory,
+    #            args.times_begin_idx,
+    #            args.times_end_idx,
+    #            args.sleep_time,
+    #            args.extend,
+    #        )
+    #    elif args.action == "results":
+    #        assert args.experiment_input is not None
+    #        experiment = json.load(open(args.experiment_input, "r"))
+    #        result = get_results(deployment_client, experiment, args.output_dir)
+    #        with open(os.path.join(args.output_dir, "results.json"), "w") as out_f:
+    #            json.dump(result, out_f, indent=2)
+    #    elif args.action == "burst_invoke":
+    #        input_config = prepare_input(
+    #            client=deployment_client,
+    #            benchmark=args.benchmark,
+    #            size=args.size,
+    #            update_storage=experiment_config["experiments"]["update_storage"],
+    #        )
+    #        begin = datetime.datetime.now()
+    #        result = run_burst_experiment(
+    #            config_file=args.config_experiment_runner,
+    #            invocations=args.invocations,
+    #            memories=[128, 256, 512, 1024],  # , 1536, 1792, 2048, 3092],
+    #            repetitions=args.repetitions,
+    #            benchmark=args.benchmark,
+    #            output_dir=output_dir,
+    #            language=language,
+    #            input_config=input_config,
+    #            experiment_config=experiment_config,
+    #            deployment_client=deployment_client,
+    #            cache_client=cache_client,
+    #            additional_cfg=experiment_config,
+    #        )
+    #        end = datetime.datetime.now()
     else:
-        pass
-
-    ## 2. Locate benchmark
-    # benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
-    # if benchmark_path is None:
-    #    raise RuntimeError('Benchmark {} not found in {}!'.format(args.benchmark, benchmarks_dir))
-    # logging.info('Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
-
-    # 6. Create function if it does not exist
-    # func, code_size = deployment_client.create_function(args.benchmark,
-    #        benchmark_path, experiment_config, args.function_name)
-
-    # 7. Invoke!
-
+        raise RuntimeError("Unknown option")
 
 except Exception as e:
     print(e)

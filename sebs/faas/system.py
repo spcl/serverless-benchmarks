@@ -7,6 +7,7 @@ import docker
 import sebs.benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from .config import Config
 from .function import Function
 from .storage import PersistentStorage
 
@@ -41,6 +42,11 @@ class System(ABC):
     @property
     def cache_client(self) -> Cache:
         return self._cache_client
+
+    @property
+    @abstractmethod
+    def config(self) -> Config:
+        pass
 
     """
         Initialize the system. After the call the local or remot
@@ -115,6 +121,14 @@ class System(ABC):
     # @abstractmethod
     # def download_metrics(self):
     #    pass
+
+    """
+        Shutdown local FaaS instances, connections and clients.
+    """
+
+    @abstractmethod
+    def shutdown(self) -> None:
+        pass
 
     @staticmethod
     @abstractmethod

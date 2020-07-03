@@ -97,7 +97,7 @@ class PersistentStorage(ABC):
         been allocated first.
 
         :param benchmark: benchmark name
-        :param buckets: tuple of two values: number of input and number of output buckets
+        :param buckets: number of input and number of output buckets
     """
 
     @abstractmethod

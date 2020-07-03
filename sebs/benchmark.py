@@ -14,9 +14,9 @@ import docker
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path
-from .faas.storage import PersistentStorage
-from .experiments.config import Config as ExperimentConfig
-from .experiments.config import Language
+from sebs.faas.storage import PersistentStorage
+from sebs.experiments.config import Config as ExperimentConfig
+from sebs.experiments.config import Language
 
 
 class BenchmarkConfig:
@@ -333,7 +333,8 @@ class Benchmark:
             if os.path.exists(file):
                 try:
                     logging.info(
-                        "Docker build of benchmark dependencies in container of image {repo}:{image}".format(
+                        "Docker build of benchmark dependencies in container "
+                        "of image {repo}:{image}".format(
                             repo=repo_name, image=image_name
                         )
                     )
@@ -371,9 +372,8 @@ class Benchmark:
                         import tarfile
 
                         logging.info(
-                            "Send benchmark code from path {path} to Docker instance".format(
-                                path=os.path.abspath(output_dir)
-                            )
+                            "Send benchmark code from path {path} to "
+                            "Docker instance".format(path=os.path.abspath(output_dir))
                         )
                         tar_archive = os.path.join(
                             output_dir, os.path.pardir, "function.tar"
