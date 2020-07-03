@@ -437,7 +437,7 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
         #             version=code_package.language_version,
         #         )
         #     )
-        benchmark = code_package.benchmark.replace('.','-')
+        benchmark = code_package.benchmark.replace('.', '-')
         language = code_package.language_name
         language_runtime = code_package.language_version
         timeout = code_package.benchmark_config.timeout
