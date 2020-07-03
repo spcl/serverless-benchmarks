@@ -45,5 +45,11 @@
         {
             "entries_number": 1000000
         }
+    ],
+    [
+        "sleep",
+        {
+            "duration": 1
+        }
     ]
 ]

@@ -54,7 +54,7 @@ def compose(config):
         handler_function += "config = " + str(benchmark_config) + "\n"
         handler_function += code_maps[benchmark_name]["run"]
 
-    handler_function += """\nresult['result'] = 100\nreturn {'result': result }"""     # dummy result, different doesn't work
+    handler_function += """\nreturn {'result': result }"""     # dummy result, different doesn't work
 
     code += intend(handler_function)
 
