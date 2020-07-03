@@ -3,7 +3,6 @@ import os
 import shutil
 import subprocess
 import docker
-import stat
 import json
 from time import sleep
 from typing import Dict, Tuple, List
@@ -250,7 +249,7 @@ class Fission(System):
                 "handler.py",
                 "requirements.txt",
                 ".python_packages",
-                "build.sh"
+                "build.sh",
             ],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
@@ -259,17 +258,22 @@ class Fission(System):
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         minioConfig = open("./code/minioConfig.json", "w+")
-        minioConfigJson = {"access_key": self.storage.access_key, "secret_key": self.storage.secret_key, "url" : self.storage.url}
+        minioConfigJson = {
+            "access_key": self.storage.access_key,
+            "secret_key": self.storage.secret_key,
+            "url": self.storage.url,
+        }
         minioConfig.write(json.dumps(minioConfigJson))
         minioConfig.close()
-        reqFile = open(os.path.join(directory, "requirements.txt"),"a+")
+        reqFile = open(os.path.join(directory, "requirements.txt"), "a+")
         reqFile.writelines(["minio"])
         reqFile.close()
         scriptPath = os.path.join(directory, "build.sh")
         self.shouldCallBuilder = True
         f = open(scriptPath, "w+")
         f.write(
-            "#!/bin/sh\npip3 install -r ${SRC_PKG}/requirements.txt -t ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
+            "#!/bin/sh\npip3 install -r ${SRC_PKG}/requirements.txt -t \
+${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
         )
         f.close()
         subprocess.run(["chmod", "+x", scriptPath])
@@ -318,7 +322,7 @@ class Fission(System):
                     stdout=subprocess.DEVNULL,
                 )
             except subprocess.CalledProcessError:
-                logging.info(f'Creating env {name} failed. Retrying...')
+                logging.info(f"Creating env {name} failed. Retrying...")
                 sleep(10)
                 try:
                     subprocess.run(
@@ -366,8 +370,16 @@ class Fission(System):
         logging.info("Waiting for package build...")
         while True:
             try:
-                packageStatus = subprocess.run(f"fission package info --name {packageName}".split(), stdout=subprocess.PIPE)
-                subprocess.run(f"grep succeeded".split(),check=True, input=packageStatus.stdout, stderr=subprocess.DEVNULL)
+                packageStatus = subprocess.run(
+                    f"fission package info --name {packageName}".split(),
+                    stdout=subprocess.PIPE,
+                )
+                subprocess.run(
+                    f"grep succeeded".split(),
+                    check=True,
+                    input=packageStatus.stdout,
+                    stderr=subprocess.DEVNULL,
+                )
                 break
             except subprocess.CalledProcessError:
                 if "failed" in packageStatus.stdout.decode("utf-8"):

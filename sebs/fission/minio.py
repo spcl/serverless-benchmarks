@@ -1,22 +1,22 @@
+#!/usr/bin/env python3
 from sebs.faas.storage import PersistentStorage
 from typing import List, Tuple
 import logging
 from time import sleep
 import minio
 import secrets
-import docker
 import os
 
 
 class Minio(PersistentStorage):
 
     storage_container = None
-    input_buckets = []
-    output_buckets = []
+    input_buckets: List[str] = []
+    output_buckets: List[str] = []
     input_index = 0
     output_index = 0
-    access_key = None
-    secret_key = None
+    access_key: str = ""
+    secret_key: str = ""
     port = 9000
     location = "fissionBenchmark"
     connection = None
