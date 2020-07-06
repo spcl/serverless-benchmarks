@@ -14,6 +14,7 @@ class LambdaFunction(Function):
         runtime: str,
         role: str,
         bucket: Optional[str] = None,
+        arn: Optional[str] = None
     ):
         super().__init__(name, code_package_hash)
         self.timeout = timeout
@@ -21,6 +22,7 @@ class LambdaFunction(Function):
         self.runtime = runtime
         self.role = role
         self.bucket = bucket
+        self.arn = arn
 
     def serialize(self) -> dict:
         return {
@@ -35,6 +37,7 @@ class LambdaFunction(Function):
     @staticmethod
     def deserialize(cached_config: dict) -> "LambdaFunction":
         from sebs.aws.triggers import LibraryTrigger
+        from sebs.aws.triggers import StorageTrigger
 
         ret = LambdaFunction(
             cached_config["name"],
@@ -46,7 +49,7 @@ class LambdaFunction(Function):
             cached_config["bucket"],
         )
         for trigger in cached_config["triggers"]:
-            trigger_type = {"Library": LibraryTrigger}.get(trigger["type"])
+            trigger_type = {"Library": LibraryTrigger, "Storage": StorageTrigger}.get(trigger["type"])
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret

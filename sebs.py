@@ -9,6 +9,7 @@ import traceback
 from typing import Optional
 
 import sebs
+from sebs.faas.function import Trigger
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -166,7 +167,8 @@ try:
         storage = deployment_client.get_storage(
             replace_existing=experiment_config.update_storage
         )
-        input_config = benchmark.prepare_input(storage=storage, size=args.size)
+        trigger_type = Trigger.TriggerType.STORAGE #example
+        input_config = benchmark.prepare_input(storage=storage, size=args.size, trigger_type=trigger_type)
         func = deployment_client.get_function(benchmark, deployment_client.default_function_name(benchmark))
 
         if args.action == "test_invoke":
@@ -178,13 +180,18 @@ try:
             result = sebs.experiments.ExperimentResult(
                 experiment_config, deployment_client.config
             )
-            result.begin()
-            ret = func.triggers[0].sync_invoke(input_config)
-            result.end()
-            result.add_invocation(func.name, ret)
-            with open("experiments.json", "w") as out_f:
-                out_f.write(sebs.utils.serialize(result))
-            logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+            trigger = func.triggers[0]
+            if trigger_type == Trigger.TriggerType.STORAGE:
+                trigger.deployment_client = deployment_client
+                ret = trigger.async_invoke(input_config)
+            elif trigger_type == Trigger.TriggerType.LIBRARY:
+                result.begin()
+                ret = trigger.sync_invoke(input_config)
+                result.end()
+                result.add_invocation(func.name, ret)
+                with open("experiments.json", "w") as out_f:
+                    out_f.write(sebs.utils.serialize(result))
+                logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
     #    elif args.action == "experiment":
     #        # Prepare benchmark input
     #        input_config = prepare_input(

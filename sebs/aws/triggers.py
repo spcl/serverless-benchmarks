@@ -96,3 +96,65 @@ class LibraryTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return LibraryTrigger(obj["name"])
+
+
+
+class StorageTrigger(Trigger):
+    def __init__(self, funtion_arn: str, bucket_name: str, deployment_client: Optional[AWS] = None):
+        self.function_arn = funtion_arn
+        self.bucket_name = bucket_name
+        self._deployment_client = deployment_client
+
+    @property
+    def deployment_client(self) -> AWS:
+        assert self._deployment_client
+        return self._deployment_client
+
+    @deployment_client.setter
+    def deployment_client(self, deployment_client: AWS):
+        self._deployment_client = deployment_client
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        return Trigger.TriggerType.STORAGE
+
+    def create(self):
+        s3_client = self._deployment_client.storage.client
+        self.add_function_permission('1')
+        s3_client.put_bucket_notification_configuration(
+            Bucket=self.bucket_name,
+            NotificationConfiguration={'LambdaFunctionConfigurations': [
+                {'LambdaFunctionArn': self.function_arn, 'Events': ['s3:ObjectCreated:*']}]})
+
+    def delete(self):
+        s3_client = self._deployment_client.storage.client
+        self.add_function_permission('2')
+        s3_client.put_bucket_notification_configuration(
+            Bucket=self.bucket_name, NotificationConfiguration={})
+
+    def add_function_permission(self, statement_id):
+        try:
+            lambda_client = self._deployment_client.get_lambda_client()
+            lambda_client.add_permission(
+                FunctionName=self.function_arn,
+                StatementId=statement_id,
+                Action='lambda:InvokeFunction',
+                Principal='s3.amazonaws.com'
+            )
+        except:
+            pass #occurs only if function already exists
+
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+        pass
+
+    def async_invoke(self, payload: dict):
+        file_path = payload['file_path']
+        key = payload['key']
+        self._deployment_client.get_storage().upload(self.bucket_name, file_path, key)
+
+    def serialize(self) -> dict:
+        return {"type": "Storage", "arn": self.function_arn, "bucket": self.bucket_name}
+
+    @staticmethod
+    def deserialize(obj: dict) -> Trigger:
+        return StorageTrigger(obj["arn"], obj["bucket"])

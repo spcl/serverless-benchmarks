@@ -13,6 +13,7 @@ import docker
 
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
+from sebs.faas.function import Trigger
 from sebs.utils import find_benchmark, project_absolute_path
 from sebs.faas.storage import PersistentStorage
 from sebs.experiments.config import Config as ExperimentConfig
@@ -508,7 +509,7 @@ class Benchmark:
         :param size: Benchmark workload size
     """
 
-    def prepare_input(self, storage: PersistentStorage, size: str):
+    def prepare_input(self, storage: PersistentStorage, size: str, trigger_type: Trigger.TriggerType):
         benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
         mod = load_benchmark_input(self._benchmark_path)
         buckets = mod.buckets_count()
@@ -520,6 +521,7 @@ class Benchmark:
             storage.input(),
             storage.output(),
             storage.uploader_func,
+            trigger_type
         )
         return input_config
 
@@ -542,6 +544,7 @@ class BenchmarkModuleInterface:
         input_buckets: List[str],
         output_buckets: List[str],
         upload_func: Callable[[int, str, str], None],
+        trigger_type: Trigger.TriggerType
     ) -> Dict[str, str]:
         pass
 

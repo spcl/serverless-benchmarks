@@ -250,7 +250,7 @@ class AWS(System):
         # we can either check for exception or use list_functions
         # there's no API for test
         try:
-            self.client.get_function(FunctionName=func_name)
+            function_response = self.client.get_function(FunctionName=func_name)
             logging.info(
                 "Function {} exists on AWS, retrieve configuration.".format(func_name)
             )
@@ -262,6 +262,8 @@ class AWS(System):
                 memory,
                 language_runtime,
                 self.config.resources.lambda_role,
+                None,
+                function_response['Configuration']['FunctionArn']
             )
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
@@ -288,7 +290,7 @@ class AWS(System):
                     "Uploading function {} code to {}".format(func_name, code_bucket)
                 )
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_package_name}
-            self.client.create_function(
+            function_response = self.client.create_function(
                 FunctionName=func_name,
                 Runtime="{}{}".format(language, language_runtime),
                 Handler="handler.handler",
@@ -307,10 +309,17 @@ class AWS(System):
                 language_runtime,
                 self.config.resources.lambda_role,
                 code_bucket,
+                function_response['FunctionArn']
             )
         from sebs.aws.triggers import LibraryTrigger
 
-        lambda_function.add_trigger(LibraryTrigger(func_name, self))
+        # lambda_function.add_trigger(LibraryTrigger(func_name, self))
+
+        from sebs.aws.triggers import StorageTrigger
+        trigger = StorageTrigger(lambda_function.arn, 'benchmark.bucket.666', self) #tmp
+        trigger.create()
+        lambda_function.add_trigger(trigger)
+
         return lambda_function
 
     def cached_function(self, function: Function):
