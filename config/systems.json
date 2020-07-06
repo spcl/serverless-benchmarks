@@ -1,4 +1,7 @@
 {
+  "general": {
+    "docker_repository": "mcopik/serverless-benchmarks"
+  },
   "local" : {
     "experiments": {
       "python": ["papi", "time", "disk-io", "memory"],

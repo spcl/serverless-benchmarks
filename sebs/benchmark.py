@@ -14,9 +14,9 @@ import docker
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path
-from .faas.storage import PersistentStorage
-from .experiments.config import Config as ExperimentConfig
-from .experiments.config import Language
+from sebs.faas.storage import PersistentStorage
+from sebs.experiments.config import Config as ExperimentConfig
+from sebs.experiments.config import Language
 
 
 class BenchmarkConfig:
@@ -253,10 +253,12 @@ class Benchmark:
         )
         if len(packages):
             package_config = os.path.join(output_dir, "package.json")
-            package_json = json.load(open(package_config, "r"))
+            with open(package_config, "r") as package_file:
+                package_json = json.load(package_file)
             for key, val in packages.items():
                 package_json["dependencies"][key] = val
-            json.dump(package_json, open(package_config, "w"), indent=2)
+            with open(package_config, "w") as package_file:
+                json.dump(package_json, package_file, indent=2)
 
     def add_deployment_package(self, output_dir):
         if self.language == Language.PYTHON:
@@ -286,49 +288,120 @@ class Benchmark:
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
-            container_name = "sebs.build.{deployment}.{language}.{runtime}".format(
+            repo_name = self._system_config.docker_repository()
+            image_name = "build.{deployment}.{language}.{runtime}".format(
                 deployment=self._deployment_name,
                 language=self.language_name,
                 runtime=self.language_version,
             )
             try:
-                self._docker_client.images.get(container_name)
+                self._docker_client.images.get(repo_name + ":" + image_name)
             except docker.errors.ImageNotFound:
-                raise RuntimeError(
-                    "Docker build image {} not found!".format(container_name)
-                )
+                try:
+                    logging.info(
+                        "Docker pull of image {repo}:{image}".format(
+                            repo=repo_name, image=image_name
+                        )
+                    )
+                    self._docker_client.images.pull(repo_name, image_name)
+                except docker.errors.APIError:
+                    raise RuntimeError(
+                        "Docker pull of image {} failed!".format(image_name)
+                    )
 
-            # does this benchmark has package.sh script?
-            volumes = {}
-            package_script = os.path.abspath(
-                os.path.join(self._benchmark_path, self.language_name, "package.sh")
-            )
-            if os.path.exists(package_script):
-                volumes[package_script] = {
-                    "bind": "/mnt/function/package.sh",
-                    "mode": "ro",
+            # Create set of mounted volumes unless Docker volumes are disabled
+            if not self._experiment_config.check_flag("docker_copy_build_files"):
+                volumes = {
+                    os.path.abspath(output_dir): {
+                        "bind": "/mnt/function",
+                        "mode": "rw",
+                    }
                 }
+                package_script = os.path.abspath(
+                    os.path.join(self._benchmark_path, self.language_name, "package.sh")
+                )
+                # does this benchmark has package.sh script?
+                if os.path.exists(package_script):
+                    volumes[package_script] = {
+                        "bind": "/mnt/function/package.sh",
+                        "mode": "ro",
+                    }
 
             # run Docker container to install packages
             PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
-                    stdout = self._docker_client.containers.run(
-                        container_name,
-                        volumes={
-                            **volumes,
-                            os.path.abspath(output_dir): {
-                                "bind": "/mnt/function",
-                                "mode": "rw",
-                            },
-                        },
-                        environment={"APP": self.benchmark},
-                        user="1000:1000",
-                        remove=True,
-                        stdout=True,
-                        stderr=True,
+                    logging.info(
+                        "Docker build of benchmark dependencies in container "
+                        "of image {repo}:{image}".format(
+                            repo=repo_name, image=image_name
+                        )
                     )
+                    # Standard, simplest build
+                    if not self._experiment_config.check_flag(
+                        "docker_copy_build_files"
+                    ):
+                        logging.info(
+                            "Docker mount of benchmark code from path {path}".format(
+                                path=os.path.abspath(output_dir)
+                            )
+                        )
+                        stdout = self._docker_client.containers.run(
+                            "{}:{}".format(repo_name, image_name),
+                            volumes=volumes,
+                            environment={"APP": self.benchmark},
+                            user="1000:1000",
+                            remove=True,
+                            stdout=True,
+                            stderr=True,
+                        )
+                    # Hack to enable builds on platforms where Docker mounted volumes
+                    # are not supported. Example: CircleCI docker environment
+                    else:
+                        container = self._docker_client.containers.run(
+                            "{}:{}".format(repo_name, image_name),
+                            environment={"APP": self.benchmark},
+                            user="1000:1000",
+                            # remove=True,
+                            detach=True,
+                            tty=True,
+                            command="/bin/bash",
+                        )
+                        # copy application files
+                        import tarfile
+
+                        logging.info(
+                            "Send benchmark code from path {path} to "
+                            "Docker instance".format(path=os.path.abspath(output_dir))
+                        )
+                        tar_archive = os.path.join(
+                            output_dir, os.path.pardir, "function.tar"
+                        )
+                        with tarfile.open(tar_archive, "w") as tar:
+                            for f in os.listdir(output_dir):
+                                tar.add(os.path.join(output_dir, f), arcname=f)
+                        with open(tar_archive, "rb") as data:
+                            container.put_archive("/mnt/function", data.read())
+                        # do the build step
+                        exit_code, stdout = container.exec_run(
+                            cmd="/bin/bash installer.sh", stdout=True, stderr=True
+                        )
+                        # copy updated code with package
+                        data, stat = container.get_archive("/mnt/function")
+                        with open(tar_archive, "wb") as f:
+                            for chunk in data:
+                                f.write(chunk)
+                        with tarfile.open(tar_archive, "r") as tar:
+                            tar.extractall()
+                            # docker packs the entire directory with basename function
+                            for f in os.listdir("function"):
+                                shutil.move(
+                                    os.path.join("function", f),
+                                    os.path.join(output_dir, f),
+                                )
+                        container.stop()
+
                     # Pass to output information on optimizing builds.
                     # Useful for AWS where packages have to obey size limits.
                     for line in stdout.decode("utf-8").split("\n"):

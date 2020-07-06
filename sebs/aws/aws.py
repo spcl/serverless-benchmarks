@@ -17,7 +17,7 @@ from sebs import utils
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from ..faas.function import Function
+from ..faas.function import Function, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
@@ -39,7 +39,7 @@ class AWS(System):
         return "aws"
 
     @property
-    def config(self):
+    def config(self) -> AWSConfig:
         return self._config
 
     """
@@ -176,7 +176,7 @@ class AWS(System):
         else:
             code_package_name = cast(str, os.path.basename(package))
             bucket, idx = self.storage.add_input_bucket(function_name)
-            self.storage.upload(bucket, code_package_name, package)
+            self.storage.upload(bucket, package, code_package_name)
             logging.info(
                 "Uploading function {} code to {}".format(function_name, bucket)
             )
@@ -185,7 +185,7 @@ class AWS(System):
             FunctionName=function_name,
             Runtime="{}{}".format(language, language_runtime),
             Handler="handler.handler",
-            Role=self.config["config"]["lambda-role"],
+            Role=self.config.resources.lambda_role,
             MemorySize=memory,
             Timeout=timeout,
             Code=code_config,
@@ -451,7 +451,7 @@ class AWS(System):
         account_id = sts_client.get_caller_identity()["Account"]
 
         uri_data = {
-            "aws-region": self.config["config"]["region"],
+            "aws-region": self.config.resources.lambda_role,
             "api-version": lambda_version,
             "aws-acct-id": account_id,
             "lambda-function-name": func_name,
@@ -536,13 +536,15 @@ class AWS(System):
     ):
         # AWS Lambda limit on zip deployment
         if code_size < 50 * 1024 * 1024:
-            code_body = open(code_package, "rb").read()
-            self.client.update_function_code(FunctionName=name, ZipFile=code_body)
+            with open(code_package, "rb") as code_body:
+                self.client.update_function_code(
+                    FunctionName=name, ZipFile=code_body.read()
+                )
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(code_package)
             bucket, idx = self.storage.add_input_bucket(benchmark)
-            self.storage.upload(bucket, code_package_name, code_package)
+            self.storage.upload(bucket, code_package, code_package_name)
             self.client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
             )
@@ -576,15 +578,24 @@ class AWS(System):
     """
 
     @staticmethod
-    def parse_aws_report(log: str):
+    def parse_aws_report(log: str, output: ExecutionResult):
         aws_vals = {}
         for line in log.split("\t"):
             if not line.isspace():
                 split = line.split(":")
                 aws_vals[split[0]] = split[1].split()[0]
-        return aws_vals
+        output.request_id = aws_vals["START RequestId"]
+        output.times.provider = int(float(aws_vals["Duration"]) * 1000)
+        output.stats.memory_used = float(aws_vals["Max Memory Used"])
+        if "Init Duration" in aws_vals:
+            output.stats.init_time_reported = int(
+                float(aws_vals["Init Duration"]) * 1000
+            )
+        output.billing.billed_time = int(aws_vals["Billed Duration"])
+        output.billing.memory = int(aws_vals["Memory Size"])
+        output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         pass
 
     def get_invocation_error(self, function_name: str, start_time: int, end_time: int):
@@ -756,6 +767,7 @@ class LambdaFunction(Function):
         )
         end = datetime.datetime.now()
 
+        aws_result = ExecutionResult(begin, end)
         if ret["StatusCode"] != 200:
             logging.error("Invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
@@ -764,7 +776,8 @@ class LambdaFunction(Function):
                 start_time=int(begin.strftime("%s")) - 1,
                 end_time=int(end.strftime("%s")) + 1,
             )
-            raise RuntimeError()
+            aws_result.stats.failure = True
+            return aws_result
         if "FunctionError" in ret:
             logging.error("Invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
@@ -773,14 +786,20 @@ class LambdaFunction(Function):
                 start_time=int(begin.strftime("%s")) - 1,
                 end_time=int(end.strftime("%s")) + 1,
             )
-            raise RuntimeError()
+            aws_result.stats.failure = True
+            return aws_result
         log = base64.b64decode(ret["LogResult"])
-        vals = {}
-        vals["aws"] = AWS.parse_aws_report(log.decode("utf-8"))
-        ret = json.loads(ret["Payload"].read().decode("utf-8"))
-        vals["client_time"] = (end - begin) / datetime.timedelta(microseconds=1)
-        vals["return"] = ret
-        return vals
+        function_output = json.loads(ret["Payload"].read().decode("utf-8"))
+
+        # AWS-specific parsing
+        AWS.parse_aws_report(log.decode("utf-8"), aws_result)
+        # General benchmark output parsing
+        # For some reason, the body is dict for NodeJS but a serialized JSON for Python
+        if isinstance(function_output["body"], dict):
+            aws_result.parse_benchmark_output(function_output["body"])
+        else:
+            aws_result.parse_benchmark_output(json.loads(function_output["body"]))
+        return aws_result
 
     def async_invoke(self, payload: dict):
 
@@ -796,3 +815,4 @@ class LambdaFunction(Function):
             logging.error("Async invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             raise RuntimeError()
+        return ret

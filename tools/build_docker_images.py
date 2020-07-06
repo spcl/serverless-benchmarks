@@ -10,7 +10,7 @@ PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.
 DOCKER_DIR = os.path.join(PROJECT_DIR, 'docker')
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
-parser.add_argument('--system', default=None, choices=['local', 'aws', 'azure', 'gcp'], action='store')
+parser.add_argument('--deployment', default=None, choices=['local', 'aws', 'azure', 'gcp'], action='store')
 parser.add_argument('--type', default=None, choices=['build', 'run', 'manage'], action='store')
 parser.add_argument('--language', default=None, choices=['python', 'nodejs'], action='store')
 args = parser.parse_args()
@@ -26,7 +26,7 @@ def build(image_type, system, username, language=None,version=None, version_name
         msg += ' with version *' + version + '*'
     print(msg)
     dockerfile = os.path.join(PROJECT_DIR, 'docker', 'Dockerfile.{}.{}'.format(image_type, system))
-    target = 'sebs.{}.{}'.format(image_type, system)
+    target = 'mcopik/serverless-benchmarks:{}.{}'.format(image_type, system)
     if language:
         dockerfile += '.' + language
         target += '.' + language
@@ -74,10 +74,12 @@ def build_systems(system, system_config):
             for language, language_dict in system_config['languages'].items():
                 build_language(system, language, language_dict)
 
-if args.system is None:
+if args.deployment is None:
     for system, system_dict in config.items():
+        if system == 'general':
+            continue
         build_systems(system, system_dict)
 else:
-    build_systems(args.system, config[args.system])
+    build_systems(args.deployment, config[args.deployment])
                 
 

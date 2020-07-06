@@ -1,10 +1,11 @@
+import json
 import logging
 import os
 import shutil
 import subprocess
 import sys
 
-from .faas.storage import PersistentStorage
+from sebs.faas.storage import PersistentStorage
 
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
@@ -13,6 +14,20 @@ PACK_CODE_APP = "pack_code_{}.sh"
 
 def project_absolute_path(*paths: str):
     return os.path.join(PROJECT_DIR, *paths)
+
+
+class JSONSerializer(json.JSONEncoder):
+    def default(self, o):
+        if hasattr(o, "serialize"):
+            return o.serialize()
+        elif isinstance(o, dict):
+            return str(o)
+        else:
+            return vars(o)
+
+
+def serialize(obj):
+    return json.dumps(obj, cls=JSONSerializer, sort_keys=True, indent=2)
 
 
 # Executing with shell provides options such as wildcard expansion
