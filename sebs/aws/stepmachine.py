@@ -67,23 +67,10 @@ class StateMachine:
         return states
 
 
-# Implement if needed
-# class ChoiceState(State):
-#     def __init__(self, state_name: str):
-#         """
-#         :param state_name:
-#         """
-#         super().__init__(state_name, "Choice")
-#
-#     def state_as_map(self) -> {}:
-#         data = super().state_as_map()
-#         return data
-
-
 class ParallelState(State):
     def __init__(self, state_name: str, branches: [StateMachine], next_step: str):
         """
-        Responsible for parallel execution of it's branches.
+        Responsible for parallel execution of its branches.
 
         :param branches: array of branches to be executed in parallel
         :param next_step: next step to be executed after all the branches finish
@@ -282,7 +269,7 @@ class StepMachine(StateMachine):
         Delete local step machine, if no arn is specified.
 
         :param client: boto3.client object.
-        :param sm_arn: optional state machine arn, if not specified - object's sm is deleted.
+        :param sm_arn: optional state machine arn, if not specified - objects sm is deleted.
         :return:
         """
         arn = sm_arn
