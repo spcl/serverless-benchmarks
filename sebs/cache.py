@@ -43,7 +43,7 @@ class Cache:
 
     def __init__(self, cache_dir: str):
         self.cache_dir = os.path.abspath(cache_dir)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir, exist_ok=True)
         else:
