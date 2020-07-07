@@ -211,13 +211,15 @@ class Fission(System):
             if hasattr(self, "functionName"):
                 subprocess.run(f"fission fn delete --name {self.functionName}".split())
             if hasattr(self, "packageName"):
-                subprocess.run(f"fission package delete --name {self.packageName}".split())
+                subprocess.run(
+                    f"fission package delete --name {self.packageName}".split()
+                )
             if hasattr(self, "envName"):
                 subprocess.run(f"fission env delete --name {self.envName}".split())
             subprocess.run(f"minikube stop".split())
         self.storage.storage_container.kill()
         logging.info("Minio stopped")
-        
+
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         self.storage = Minio(self.docker_client)
         return self.storage
@@ -342,7 +344,10 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
                 "fission package list".split(), stdout=subprocess.PIPE, check=True
             )
             subprocess.run(
-                f"grep {packageName}".split(), check=True, input=packages.stdout, stdout=subprocess.DEVNULL
+                f"grep {packageName}".split(),
+                check=True,
+                input=packages.stdout,
+                stdout=subprocess.DEVNULL,
             )
             logging.info("Package already exist")
         except subprocess.CalledProcessError:
@@ -385,7 +390,10 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
                 f"fission fn list".split(), stdout=subprocess.PIPE, check=True
             )
             subprocess.run(
-                f"grep {name}".split(), check=True, input=triggers.stdout, stdout=subprocess.DEVNULL
+                f"grep {name}".split(),
+                check=True,
+                input=triggers.stdout,
+                stdout=subprocess.DEVNULL,
             )
             logging.info(f"Function {name} already exist")
         except subprocess.CalledProcessError:
@@ -399,7 +407,10 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
                 f"fission httptrigger list".split(), stdout=subprocess.PIPE, check=True
             )
             subprocess.run(
-                f"grep {triggerName}".split(), check=True, input=triggers.stdout, stdout=subprocess.DEVNULL
+                f"grep {triggerName}".split(),
+                check=True,
+                input=triggers.stdout,
+                stdout=subprocess.DEVNULL,
             )
             logging.info(f"Trigger {triggerName} already exist")
         except subprocess.CalledProcessError:
@@ -414,8 +425,12 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
         subprocess.run(f"fission fn delete --name {name}".split())
 
     def get_function(self, code_package: Benchmark) -> Function:
-        self.language_image = self.system_config.benchmark_base_images(self.name(), code_package.language_name)["env"]
-        self.language_builder = self.system_config.benchmark_base_images(self.name(), code_package.language_name)["builder"]
+        self.language_image = self.system_config.benchmark_base_images(
+            self.name(), code_package.language_name
+        )["env"]
+        self.language_builder = self.system_config.benchmark_base_images(
+            self.name(), code_package.language_name
+        )["builder"]
         path, size = self.package_code(code_package)
         benchmark = code_package.benchmark.replace(".", "-")
         language = code_package.language_name
@@ -434,9 +449,7 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
                 )
             )
             self.create_env_if_needed(
-                language,
-                self.language_image,
-                self.language_builder,
+                language, self.language_image, self.language_builder,
             )
             self.update_function(func_name, code_package.language_name, path)
             return FissionFunction(func_name)
@@ -444,9 +457,7 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
             self.create_env_if_needed(
-                language,
-                self.language_image,
-                self.language_builder,
+                language, self.language_image, self.language_builder,
             )
             self.update_function(func_name, code_package.language_name, path)
             cached_cfg = code_package.cached_config
@@ -472,9 +483,7 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
             code_location = code_package.benchmark_path
             func_name = "{}-{}-{}".format(benchmark, language, memory)
             self.create_env_if_needed(
-                language,
-                self.language_image,
-                self.language_builder,
+                language, self.language_image, self.language_builder,
             )
             self.create_function(func_name, language, path)
             self.cache_client.add_function(
