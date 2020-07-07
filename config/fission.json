@@ -10,6 +10,7 @@
     }
   },
   "deployment": {
-    "name": "fission"
+    "name": "fission",
+    "shouldShutdown": false
   }
 }
