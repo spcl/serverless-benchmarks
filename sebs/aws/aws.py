@@ -11,7 +11,7 @@ import docker
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
 from sebs.aws.config import AWSConfig
-from sebs import utils
+from sebs.utils import namedlogging, execute
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -19,7 +19,7 @@ from ..faas.function import Function, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
-
+@namedlogging()
 class AWS(System):
     logs_client = None
     storage: S3
@@ -132,7 +132,7 @@ class AWS(System):
 
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
-        utils.execute(
+        execute(
             "zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory
         )
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))

@@ -20,7 +20,6 @@ from .storage import PersistentStorage
     measurements.
 """
 
-
 class System(ABC):
     def __init__(
         self,
@@ -204,9 +203,6 @@ class System(ABC):
     @abstractmethod
     def default_function_name(code_package: Benchmark) -> str:
         pass
-
-    def logging(self, msg: str):
-        logging.info(f"{self.__class__.__name__}: {msg}")
 
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,

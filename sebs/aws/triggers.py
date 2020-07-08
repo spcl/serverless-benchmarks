@@ -1,14 +1,14 @@
 import base64
 import datetime
 import json
-import logging
 from typing import Dict, Optional  # noqa
 
 
 from sebs.aws.aws import AWS
 from sebs.faas.function import ExecutionResult, Trigger
+from sebs.utils import namedlogging
 
-
+@namedlogging("AWS.LibraryTrigger")
 class LibraryTrigger(Trigger):
     def __init__(self, fname: str, deployment_client: Optional[AWS] = None):
         self.name = fname
@@ -29,7 +29,7 @@ class LibraryTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-        logging.info(f"AWS: Invoke function {self.name}")
+        self.logging(f"Invoke function {self.name}")
 
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
@@ -60,7 +60,7 @@ class LibraryTrigger(Trigger):
             )
             aws_result.stats.failure = True
             return aws_result
-        logging.info(f"AWS: Invoke of function {self.name} was successful")
+        self.logging(f"Invoke of function {self.name} was successful")
         log = base64.b64decode(ret["LogResult"])
         function_output = json.loads(ret["Payload"].read().decode("utf-8"))
 

@@ -6,8 +6,9 @@ import boto3
 
 from sebs.cache import Cache
 from ..faas.storage import PersistentStorage
+from sebs.utils import namedlogging
 
-
+@namedlogging("AWS.S3")
 class S3(PersistentStorage):
     cached = False
     input_buckets: List[str] = []

@@ -5,9 +5,6 @@ import shutil
 import subprocess
 import sys
 
-from sebs.faas.storage import PersistentStorage
-
-
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
 
@@ -100,19 +97,15 @@ def find_benchmark(benchmark: str, path: str):
     return benchmark_path
 
 
-"""
-    Download all files in a storage bucket.
-    Warning: assumes flat directory in a bucket! Does not handle bucket files
-    with directory marks in a name, e.g. 'dir1/dir2/file'
-"""
+def namedlogging(name = None):
 
-
-def download_bucket(
-    storage_client: PersistentStorage, bucket_name: str, output_dir: str
-):
-
-    files = storage_client.list_bucket(bucket_name)
-    for f in files:
-        output_file = os.path.join(output_dir, f)
-        if not os.path.exists(output_file):
-            storage_client.download(bucket_name, f, output_file)
+    def decorated_cls(cls):
+        @classmethod
+        def _logging(cls, msg: str):
+            if name:
+                logging.info(f"{name}: {msg}")
+            else:
+                logging.info(f"{cls.__name__}: {msg}")
+        setattr(cls, 'logging', _logging)
+        return cls
+    return decorated_cls

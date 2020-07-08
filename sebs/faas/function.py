@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import List, Optional  # noqa
 
-
 """
     Times are reported in microseconds.
 """
@@ -111,7 +110,6 @@ class ExecutionResult:
     processing in classes.
 """
 
-
 class Trigger(ABC):
     class TriggerType(Enum):
         HTTP = 0
@@ -146,7 +144,6 @@ class Trigger(ABC):
     and might implement non-trigger execution if supported by the SDK.
     Example: direct function invocation through AWS boto3 SDK.
 """
-
 
 class Function:
     def __init__(self, name: str, code_hash: str):

@@ -2,11 +2,12 @@
 import collections.abc
 import datetime
 import json
-import logging
 import os
 import shutil
 import threading
 from typing import Any, Dict, List, Optional, TYPE_CHECKING  # noqa
+
+from sebs.utils import namedlogging
 
 if TYPE_CHECKING:
     from sebs.benchmark import Benchmark
@@ -31,7 +32,7 @@ def update_dict(cfg, val, keys):
 
     update(cfg, map_keys(cfg, val, keys))
 
-
+@namedlogging()
 class Cache:
 
     cached_config: Dict[str, str] = {}
@@ -85,7 +86,7 @@ class Cache:
                     cloud_config_file = os.path.join(
                         self.cache_dir, "{}.json".format(cloud)
                     )
-                    logging.info("Update cached config {}".format(cloud_config_file))
+                    self.logging("Update cached config {}".format(cloud_config_file))
                     with open(cloud_config_file, "w") as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 

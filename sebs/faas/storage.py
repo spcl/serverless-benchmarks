@@ -4,11 +4,11 @@ from abc import ABC
 from abc import abstractmethod
 from typing import List, Tuple
 
+from sebs.utils import namedlogging
 
 """
     Abstract class
 """
-
 
 class PersistentStorage(ABC):
 
@@ -120,5 +120,19 @@ class PersistentStorage(ABC):
     def uploader_func(self, bucket_idx: int, file: str, filepath: str) -> None:
         pass
 
-    def logging(self, msg: str):
-        logging.info(f"{self.__class__.__name__}: {msg}")
+    """
+        Download all files in a storage bucket.
+        Warning: assumes flat directory in a bucket! Does not handle bucket files
+        with directory marks in a name, e.g. 'dir1/dir2/file'
+    """
+
+
+    def download_bucket(
+        bucket_name: str, output_dir: str
+    ):
+
+        files = self.list_bucket(bucket_name)
+        for f in files:
+            output_file = os.path.join(output_dir, f)
+            if not os.path.exists(output_file):
+                self.download(bucket_name, f, output_file)

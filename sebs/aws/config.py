@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import time
 from typing import cast
@@ -9,8 +8,9 @@ import boto3
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
+from sebs.utils import namedlogging
 
-
+@namedlogging("AWS.Credentials")
 class AWSCredentials(Credentials):
 
     _access_key: str
@@ -41,12 +41,12 @@ class AWSCredentials(Credentials):
         ret: AWSCredentials
         # Load cached values
         if cached_config and "credentials" in cached_config:
-            logging.info("Using cached credentials for AWS")
+            AWSCredentials.logging("Using cached credentials for AWS")
             ret = cast(
                 AWSCredentials, AWSCredentials.deserialize(cached_config["credentials"])
             )
         else:
-            logging.info("No cached credentials for AWS found, initialize!")
+            AWSCredentials.logging("No cached credentials for AWS found, initialize!")
             # Check for new config
             if "credentials" in config:
                 ret = cast(
@@ -76,7 +76,7 @@ class AWSCredentials(Credentials):
         out = {"access_key": self.access_key, "secret_key": self.secret_key}
         return out
 
-
+@namedlogging("AWS.Resources")
 class AWSResources(Resources):
     def __init__(self, lambda_role: str):
         self._lambda_role = lambda_role
@@ -102,14 +102,14 @@ class AWSResources(Resources):
             try:
                 out = iam_client.get_role(RoleName=role_name)
                 self._lambda_role = out["Role"]["Arn"]
-                logging.info(f"AWS: Selected {self._lambda_role} IAM role")
+                self.logging(f"AWS: Selected {self._lambda_role} IAM role")
             except iam_client.exceptions.NoSuchEntityException:
                 out = iam_client.create_role(
                     RoleName=role_name,
                     AssumeRolePolicyDocument=json.dumps(trust_policy),
                 )
                 self._lambda_role = out["Role"]["Arn"]
-                logging.info(
+                self.logging(
                     f"AWS: Created {self._lambda_role} IAM role. "
                     "Sleep 10 seconds to avoid problems when using role immediately."
                 )
@@ -140,24 +140,24 @@ class AWSResources(Resources):
         ret: AWSResources
         # Load cached values
         if cached_config and "resources" in cached_config:
-            logging.info("Using cached resources for AWS")
+            AWSResources.logging("Using cached resources for AWS")
             ret = cast(
                 AWSResources, AWSResources.deserialize(cached_config["resources"])
             )
         else:
             # Check for new config
             if "resources" in config:
-                logging.info(
+                AWSResources.logging(
                     "No cached resources for AWS found, using user configuration."
                 )
                 ret = cast(AWSResources, AWSResources.deserialize(config["resources"]))
             else:
-                logging.info("No resources for AWS found, initialize!")
+                self.logging("No resources for AWS found, initialize!")
                 ret = AWSResources(lambda_role="")
 
         return ret
 
-
+@namedlogging("AWS.Config")
 class AWSConfig(Config):
     def __init__(self, credentials: AWSCredentials, resources: AWSResources):
         self._credentials = credentials
@@ -187,10 +187,10 @@ class AWSConfig(Config):
         config_obj = AWSConfig(credentials, resources)
         # Load cached values
         if cached_config:
-            logging.info("Using cached config for AWS")
+            AWSConfig.logging("Using cached config for AWS")
             AWSConfig.deserialize(config_obj, cached_config)
         else:
-            logging.info("Using user-provided config for AWS")
+            AWSConfig.logging("Using user-provided config for AWS")
             AWSConfig.deserialize(config_obj, config)
 
         return config_obj
