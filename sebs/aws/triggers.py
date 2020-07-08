@@ -6,13 +6,17 @@ from typing import Dict, Optional  # noqa
 
 from sebs.aws.aws import AWS
 from sebs.faas.function import ExecutionResult, Trigger
-from sebs.utils import namedlogging
 
-@namedlogging("AWS.LibraryTrigger")
+
 class LibraryTrigger(Trigger):
     def __init__(self, fname: str, deployment_client: Optional[AWS] = None):
+        super().__init__()
         self.name = fname
         self._deployment_client = deployment_client
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.LibraryTrigger"
 
     @property
     def deployment_client(self) -> AWS:
@@ -29,7 +33,7 @@ class LibraryTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-        self.logging(f"Invoke function {self.name}")
+        self.logging.info(f"Invoke function {self.name}")
 
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
@@ -41,8 +45,8 @@ class LibraryTrigger(Trigger):
 
         aws_result = ExecutionResult(begin, end)
         if ret["StatusCode"] != 200:
-            logging.error("Invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self.logging.error("Invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             self.deployment_client.get_invocation_error(
                 function_name=self.name,
                 start_time=int(begin.strftime("%s")) - 1,
@@ -51,8 +55,8 @@ class LibraryTrigger(Trigger):
             aws_result.stats.failure = True
             return aws_result
         if "FunctionError" in ret:
-            logging.error("Invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self.logging.error("Invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             self.deployment_client.get_invocation_error(
                 function_name=self.name,
                 start_time=int(begin.strftime("%s")) - 1,
@@ -60,7 +64,7 @@ class LibraryTrigger(Trigger):
             )
             aws_result.stats.failure = True
             return aws_result
-        self.logging(f"Invoke of function {self.name} was successful")
+        self.logging.info(f"Invoke of function {self.name} was successful")
         log = base64.b64decode(ret["LogResult"])
         function_output = json.loads(ret["Payload"].read().decode("utf-8"))
 
@@ -85,8 +89,8 @@ class LibraryTrigger(Trigger):
             LogType="Tail",
         )
         if ret["StatusCode"] != 202:
-            logging.error("Async invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self.logging.error("Async invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             raise RuntimeError()
         return ret
 

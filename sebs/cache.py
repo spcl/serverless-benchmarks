@@ -5,9 +5,9 @@ import json
 import os
 import shutil
 import threading
-from typing import Any, Dict, List, Optional, TYPE_CHECKING  # noqa
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING  # noqa
 
-from sebs.utils import namedlogging
+from sebs.utils import LoggingHandler
 
 if TYPE_CHECKING:
     from sebs.benchmark import Benchmark
@@ -32,8 +32,8 @@ def update_dict(cfg, val, keys):
 
     update(cfg, map_keys(cfg, val, keys))
 
-@namedlogging()
-class Cache:
+
+class Cache(LoggingHandler):
 
     cached_config: Dict[str, str] = {}
     """
@@ -43,12 +43,17 @@ class Cache:
     config_updated = False
 
     def __init__(self, cache_dir: str):
+        super().__init__()
         self.cache_dir = os.path.abspath(cache_dir)
         self._lock = threading.RLock()
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir, exist_ok=True)
         else:
             self.load_config()
+
+    @staticmethod
+    def typename() -> str:
+        return "Benchmark"
 
     def load_config(self):
         with self._lock:
@@ -86,7 +91,9 @@ class Cache:
                     cloud_config_file = os.path.join(
                         self.cache_dir, "{}.json".format(cloud)
                     )
-                    self.logging("Update cached config {}".format(cloud_config_file))
+                    self.logging.info(
+                        "Update cached config {}".format(cloud_config_file)
+                    )
                     with open(cloud_config_file, "w") as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 

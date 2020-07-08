@@ -1,4 +1,3 @@
-import logging
 import uuid
 from typing import List, Tuple
 
@@ -6,9 +5,8 @@ import boto3
 
 from sebs.cache import Cache
 from ..faas.storage import PersistentStorage
-from sebs.utils import namedlogging
 
-@namedlogging("AWS.S3")
+
 class S3(PersistentStorage):
     cached = False
     input_buckets: List[str] = []
@@ -17,6 +15,10 @@ class S3(PersistentStorage):
     output_buckets: List[str] = []
     request_output_buckets = 0
     _replace_existing = False
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.S3"
 
     @property
     def replace_existing(self) -> bool:
@@ -35,6 +37,7 @@ class S3(PersistentStorage):
         secret_key: str,
         replace_existing: bool,
     ):
+        super().__init__()
         self.client = session.client(
             "s3",
             region_name=location,
@@ -63,10 +66,10 @@ class S3(PersistentStorage):
             random_name = str(uuid.uuid4())[0:16]
             bucket_name = "{}-{}".format(name, random_name)
             self.client.create_bucket(Bucket=bucket_name)
-            self.logging("Created bucket {}".format(bucket_name))
+            self.logging.info("Created bucket {}".format(bucket_name))
             return bucket_name
         else:
-            self.logging(
+            self.logging.info(
                 "Bucket {} for {} already exists, skipping.".format(
                     existing_bucket_name, name
                 )
@@ -130,10 +133,10 @@ class S3(PersistentStorage):
                         Bucket=bucket, Delete={"Objects": objects}
                     )
             self.cached = True
-            self.logging(
+            self.logging.info(
                 "Using cached storage input buckets {}".format(self.input_buckets)
             )
-            self.logging(
+            self.logging.info(
                 "Using cached storage output buckets {}".format(self.output_buckets)
             )
         else:
@@ -160,7 +163,7 @@ class S3(PersistentStorage):
                 for f in self.input_buckets_files[bucket_idx]["Contents"]:
                     f_name = f["Key"]
                     if key == f_name:
-                        self.logging(
+                        self.logging.info(
                             "Skipping upload of {} to {}".format(filepath, bucket_name)
                         )
                         return
@@ -168,11 +171,11 @@ class S3(PersistentStorage):
         self.upload(bucket_name, filepath, key)
 
     def upload(self, bucket_name: str, filepath: str, key: str):
-        self.logging("Upload {} to {}".format(filepath, bucket_name))
+        self.logging.info("Upload {} to {}".format(filepath, bucket_name))
         self.client.upload_file(Filename=filepath, Bucket=bucket_name, Key=key)
 
     def download(self, bucket_name: str, key: str, filepath: str):
-        self.logging("Download {}:{} to {}".format(bucket_name, key, filepath))
+        self.logging.info("Download {}:{} to {}".format(bucket_name, key, filepath))
         self.client.download_file(Bucket=bucket_name, Key=key, Filename=filepath)
 
     def list_bucket(self, bucket_name: str):

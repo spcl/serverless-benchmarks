@@ -2,7 +2,9 @@ from abc import ABC
 from abc import abstractmethod
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import List, Optional  # noqa
+from typing import Callable, List, Optional  # noqa
+
+from sebs.utils import LoggingHandler
 
 """
     Times are reported in microseconds.
@@ -110,11 +112,16 @@ class ExecutionResult:
     processing in classes.
 """
 
-class Trigger(ABC):
+
+class Trigger(ABC, LoggingHandler):
     class TriggerType(Enum):
         HTTP = 0
         LIBRARY = 1
         STORAGE = 2
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.LibraryTrigger"
 
     # FIXME: 3.7+, future annotations
     @staticmethod
@@ -145,7 +152,8 @@ class Trigger(ABC):
     Example: direct function invocation through AWS boto3 SDK.
 """
 
-class Function:
+
+class Function(LoggingHandler):
     def __init__(self, name: str, code_hash: str):
         self._name = name
         self._code_package_hash = code_hash

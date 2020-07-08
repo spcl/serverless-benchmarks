@@ -1,4 +1,3 @@
-import logging
 import os
 import shutil
 import time
@@ -11,7 +10,7 @@ import docker
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
 from sebs.aws.config import AWSConfig
-from sebs.utils import namedlogging, execute
+from sebs.utils import execute
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -19,7 +18,7 @@ from ..faas.function import Function, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
-@namedlogging()
+
 class AWS(System):
     logs_client = None
     storage: S3
@@ -29,6 +28,10 @@ class AWS(System):
     @staticmethod
     def name():
         return "aws"
+
+    @staticmethod
+    def typename():
+        return "AWS"
 
     @staticmethod
     def function_type() -> "Type[Function]":
@@ -132,15 +135,13 @@ class AWS(System):
 
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
-        execute(
-            "zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory
-        )
+        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
-        self.logging("Created {} archive".format(benchmark_archive))
+        self.logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
         mbytes = bytes_size / 1024.0 / 1024.0
-        self.logging("Zip archive size {:2f} MB".format(mbytes))
+        self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
@@ -158,7 +159,7 @@ class AWS(System):
     ):
         language = benchmark.language_name
         language_runtime = benchmark.language_version
-        self.logging("Creating function {} from {}".format(function_name, package))
+        self.logging.info("Creating function {} from {}".format(function_name, package))
 
         # TODO: create Lambda role
         # AWS Lambda limit on zip deployment size
@@ -174,7 +175,7 @@ class AWS(System):
             code_package_name = cast(str, os.path.basename(package))
             bucket, idx = self.storage.add_input_bucket(function_name)
             self.storage.upload(bucket, package, code_package_name)
-            self.logging(
+            self.logging.info(
                 "Uploading function {} code to {}".format(function_name, bucket)
             )
             code_config = {"S3Bucket": bucket, "S3Key": code_package_name}
@@ -189,16 +190,16 @@ class AWS(System):
         )
         while True:
             try:
-                self.logging(
+                self.logging.info(
                     "Creating HTTP Trigger for function {} from {}".format(
                         function_name, package
                     )
                 )
                 url = self.create_http_trigger(function_name, api_id, parent_id)
-                self.logging(url)
+                self.logging.info(url)
             except Exception as e:
-                self.logging("Exception")
-                self.logging(e)
+                self.logging.info("Exception")
+                self.logging.info(str(e))
                 import traceback
 
                 traceback.print_exc()
@@ -214,7 +215,7 @@ class AWS(System):
                         path = v["pathPart"]
                         if path == function_name:
                             resource_id = v["id"]
-                            self.logging(
+                            self.logging.info(
                                 "Remove resource with path {} from {}".format(
                                     function_name, api_id
                                 )
@@ -225,9 +226,9 @@ class AWS(System):
                             break
                 # throttling on AWS
                 continue
-            self.logging("Done")
+            self.logging.info("Done")
             break
-        self.logging(
+        self.logging.info(
             "Created HTTP Trigger for function {} from {}".format(
                 function_name, package
             )
@@ -251,7 +252,7 @@ class AWS(System):
         # there's no API for test
         try:
             self.client.get_function(FunctionName=func_name)
-            self.logging(
+            self.logging.info(
                 "Function {} exists on AWS, retrieve configuration.".format(func_name)
             )
             # Here we assume a single Lambda role
@@ -268,7 +269,7 @@ class AWS(System):
             # TODO: get configuration of REST API
             # url = None
         except self.client.exceptions.ResourceNotFoundException:
-            self.logging("Creating function {} from {}".format(func_name, package))
+            self.logging.info("Creating function {} from {}".format(func_name, package))
 
             # TODO: create Lambda role
             # AWS Lambda limit on zip deployment size
@@ -284,7 +285,7 @@ class AWS(System):
                 code_package_name = cast(str, os.path.basename(package))
                 code_bucket, idx = self.storage.add_input_bucket(benchmark)
                 self.storage.upload(code_bucket, package, code_package_name)
-                self.logging(
+                self.logging.info(
                     "Uploading function {} code to {}".format(func_name, code_bucket)
                 )
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_package_name}
@@ -376,11 +377,11 @@ class AWS(System):
     """
 
     def delete_function(self, func_name: Optional[str]):
-        self.logging("Deleting function {}".format(func_name))
+        self.logging.info("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
         except Exception:
-            self.logging("Function {} does not exist!".format(func_name))
+            self.logging.info("Function {} does not exist!".format(func_name))
 
     def create_http_trigger(
         self, func_name: str, api_id: Optional[str], parent_id: Optional[str]
@@ -418,14 +419,14 @@ class AWS(System):
                     resource_id = v["id"]
                     break
         if not resource_id:
-            self.logging(func_name)
-            self.logging(parent_id)
+            self.logging.info(func_name)
+            self.logging.info(cast(str, parent_id))
             resource = api_client.create_resource(
                 restApiId=api_id, parentId=cast(str, parent_id), pathPart=func_name
             )
-            self.logging(resource)
+            self.logging.info(str(resource))
             resource_id = resource["id"]
-        self.logging(
+        self.logging.info(
             "AWS: using REST API {api_id} with parent ID {parent_id}"
             "using resource ID {resource_id}".format(
                 api_id=api_id, parent_id=parent_id, resource_id=resource_id
@@ -581,11 +582,11 @@ class AWS(System):
             query_id = query["queryId"]
 
             while response is None or response["status"] == "Running":
-                self.logging("Waiting for AWS query to complete ...")
+                self.logging.info("Waiting for AWS query to complete ...")
                 time.sleep(1)
                 response = self.logs_client.get_query_results(queryId=query_id)
             if len(response["results"]) == 0:
-                self.logging("AWS logs are not yet available, repeat ...")
+                self.logging.info("AWS logs are not yet available, repeat ...")
                 response = None
                 break
             else:
@@ -619,7 +620,7 @@ class AWS(System):
         response = None
 
         while response is None or response["status"] == "Running":
-            self.logging("Waiting for AWS query to complete ...")
+            self.logging.info("Waiting for AWS query to complete ...")
             time.sleep(1)
             response = self.logs_client.get_query_results(queryId=query_id)
         # results contain a list of matches
@@ -632,7 +633,7 @@ class AWS(System):
                     actual_result = AWS.parse_aws_report(result_part["value"])
                     request_id = actual_result["REPORT RequestId"]
                     if request_id not in requests:
-                        self.logging(
+                        self.logging.info(
                             "Found invocation {} without result in bucket!".format(
                                 request_id
                             )
@@ -672,7 +673,7 @@ class AWS(System):
         for r in resource["items"]:
             if r["path"] == "/":
                 parent_id = r["id"]
-        self.logging(
+        self.logging.info(
             "Created API {} with id {} and resource parent id {}".format(
                 api_name, api_id, parent_id
             )

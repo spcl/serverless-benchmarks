@@ -1,16 +1,19 @@
-import logging
+import os
 
 from abc import ABC
 from abc import abstractmethod
 from typing import List, Tuple
 
-from sebs.utils import namedlogging
+from sebs.utils import LoggingHandler
 
 """
     Abstract class
 """
 
-class PersistentStorage(ABC):
+
+class PersistentStorage(ABC, LoggingHandler):
+    def __init__(self):
+        super().__init__()
 
     """
         :return: list of input buckets defined in the storage
@@ -126,10 +129,7 @@ class PersistentStorage(ABC):
         with directory marks in a name, e.g. 'dir1/dir2/file'
     """
 
-
-    def download_bucket(
-        bucket_name: str, output_dir: str
-    ):
+    def download_bucket(self, bucket_name: str, output_dir: str):
 
         files = self.list_bucket(bucket_name)
         for f in files:

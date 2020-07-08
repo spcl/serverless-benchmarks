@@ -12,7 +12,7 @@ import docker
 
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
-from sebs.utils import find_benchmark, project_absolute_path, namedlogging
+from sebs.utils import find_benchmark, project_absolute_path, LoggingHandler
 from sebs.faas.storage import PersistentStorage
 from sebs.experiments.config import Config as ExperimentConfig
 from sebs.experiments.config import Language
@@ -58,8 +58,12 @@ class BenchmarkConfig:
     3)  Otherwise, just return the path to cache code.
 """
 
-@namedlogging()
-class Benchmark:
+
+class Benchmark(LoggingHandler):
+    @staticmethod
+    def typename() -> str:
+        return "Benchmark"
+
     @property
     def benchmark(self):
         return self._benchmark
@@ -145,6 +149,7 @@ class Benchmark:
         cache_client: Cache,
         docker_client: docker.client,
     ):
+        super().__init__()
         self._benchmark = benchmark
         self._deployment_name = deployment_name
         self._experiment_config = config
@@ -245,7 +250,7 @@ class Benchmark:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                 )
-                logging.debug(out.stdout.decode("utf-8"))
+                self.logging.debug(out.stdout.decode("utf-8"))
 
     def add_deployment_files(self, output_dir):
         handlers_dir = project_absolute_path(
@@ -305,7 +310,7 @@ class Benchmark:
         if "build" not in self._system_config.docker_image_types(
             self._deployment_name, self.language_name
         ):
-            self.logging(
+            self.logging.info(
                 (
                     "Docker build image for {deployment} run in {language} "
                     "is not available, skipping"
@@ -322,7 +327,7 @@ class Benchmark:
                 self._docker_client.images.get(repo_name + ":" + image_name)
             except docker.errors.ImageNotFound:
                 try:
-                    self.logging(
+                    self.logging.info(
                         "Docker pull of image {repo}:{image}".format(
                             repo=repo_name, image=image_name
                         )
@@ -356,7 +361,7 @@ class Benchmark:
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
-                    self.logging(
+                    self.logging.info(
                         "Docker build of benchmark dependencies in container "
                         "of image {repo}:{image}".format(
                             repo=repo_name, image=image_name
@@ -366,7 +371,7 @@ class Benchmark:
                     if not self._experiment_config.check_flag(
                         "docker_copy_build_files"
                     ):
-                        self.logging(
+                        self.logging.info(
                             "Docker mount of benchmark code from path {path}".format(
                                 path=os.path.abspath(output_dir)
                             )
@@ -395,7 +400,7 @@ class Benchmark:
                         # copy application files
                         import tarfile
 
-                        self.logging(
+                        self.logging.info(
                             "Send benchmark code from path {path} to "
                             "Docker instance".format(path=os.path.abspath(output_dir))
                         )
@@ -431,10 +436,10 @@ class Benchmark:
                     # Useful for AWS where packages have to obey size limits.
                     for line in stdout.decode("utf-8").split("\n"):
                         if "size" in line:
-                            self.logging("Docker build: {}".format(line))
+                            self.logging.info("Docker build: {}".format(line))
                 except docker.errors.ContainerError as e:
-                    logging.error("Package build failed!")
-                    logging.error(e)
+                    self.logging.error("Package build failed!")
+                    self.logging.error(e)
                     raise e
 
     def recalculate_code_size(self):
@@ -447,7 +452,7 @@ class Benchmark:
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
-            self.logging("Using cached benchmark {}".format(self.benchmark))
+            self.logging.info("Using cached benchmark {}".format(self.benchmark))
             return self.code_location
 
         msg = (
@@ -455,7 +460,9 @@ class Benchmark:
             if not self.is_cached
             else "cached code package is not up to date/build enforced."
         )
-        self.logging("Building benchmark {}. Reason: {}".format(self.benchmark, msg))
+        self.logging.info(
+            "Building benchmark {}. Reason: {}".format(self.benchmark, msg)
+        )
         # clear existing cache information
         self._code_package = None
 
@@ -472,7 +479,7 @@ class Benchmark:
         self._code_location, self._code_size = deployment_build_step(
             os.path.abspath(self._output_dir), self.language_name, self.benchmark
         )
-        self.logging(
+        self.logging.info(
             (
                 "Created code package (source hash: {hash}), for run on {deployment}"
                 + " with {language}:{runtime}"

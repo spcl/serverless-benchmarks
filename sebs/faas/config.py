@@ -2,6 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 
 from sebs.cache import Cache
+from sebs.utils import LoggingHandler
 
 # FIXME: Replace type hints for static generators after migration to 3.7
 # https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
@@ -18,7 +19,9 @@ from sebs.cache import Cache
 """
 
 
-class Credentials(ABC):
+class Credentials(ABC, LoggingHandler):
+    def __init__(self):
+        super().__init__()
 
     """
         Create credentials instance from user config and cached values.
@@ -47,7 +50,9 @@ class Credentials(ABC):
 """
 
 
-class Resources(ABC):
+class Resources(ABC, LoggingHandler):
+    def __init__(self):
+        super().__init__()
 
     """
         Create credentials instance from user config and cached values.
@@ -73,9 +78,12 @@ class Resources(ABC):
 """
 
 
-class Config(ABC):
+class Config(ABC, LoggingHandler):
 
     _region: str
+
+    def __init__(self):
+        super().__init__()
 
     @property
     def region(self) -> str:

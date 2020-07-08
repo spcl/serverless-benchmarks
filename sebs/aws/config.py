@@ -8,17 +8,21 @@ import boto3
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
-from sebs.utils import namedlogging
 
-@namedlogging("AWS.Credentials")
+
 class AWSCredentials(Credentials):
 
     _access_key: str
     _secret_key: str
 
     def __init__(self, access_key: str, secret_key: str):
+        super().__init__()
         self._access_key = access_key
         self._secret_key = secret_key
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.Credentials"
 
     @property
     def access_key(self) -> str:
@@ -41,12 +45,11 @@ class AWSCredentials(Credentials):
         ret: AWSCredentials
         # Load cached values
         if cached_config and "credentials" in cached_config:
-            AWSCredentials.logging("Using cached credentials for AWS")
             ret = cast(
                 AWSCredentials, AWSCredentials.deserialize(cached_config["credentials"])
             )
+            ret.logging.info("Using cached credentials for AWS")
         else:
-            AWSCredentials.logging("No cached credentials for AWS found, initialize!")
             # Check for new config
             if "credentials" in config:
                 ret = cast(
@@ -62,6 +65,7 @@ class AWSCredentials(Credentials):
                     "up environmental variables AWS_ACCESS_KEY_ID and "
                     "AWS_SECRET_ACCESS_KEY"
                 )
+            ret.logging.info("No cached credentials for AWS found, initialize!")
         return ret
 
     def update_cache(self, cache: Cache):
@@ -76,10 +80,15 @@ class AWSCredentials(Credentials):
         out = {"access_key": self.access_key, "secret_key": self.secret_key}
         return out
 
-@namedlogging("AWS.Resources")
+
 class AWSResources(Resources):
     def __init__(self, lambda_role: str):
+        super().__init__()
         self._lambda_role = lambda_role
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.Resources"
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         if not self._lambda_role:
@@ -102,14 +111,14 @@ class AWSResources(Resources):
             try:
                 out = iam_client.get_role(RoleName=role_name)
                 self._lambda_role = out["Role"]["Arn"]
-                self.logging(f"AWS: Selected {self._lambda_role} IAM role")
+                self.logging.info(f"AWS: Selected {self._lambda_role} IAM role")
             except iam_client.exceptions.NoSuchEntityException:
                 out = iam_client.create_role(
                     RoleName=role_name,
                     AssumeRolePolicyDocument=json.dumps(trust_policy),
                 )
                 self._lambda_role = out["Role"]["Arn"]
-                self.logging(
+                self.logging.info(
                     f"AWS: Created {self._lambda_role} IAM role. "
                     "Sleep 10 seconds to avoid problems when using role immediately."
                 )
@@ -140,28 +149,33 @@ class AWSResources(Resources):
         ret: AWSResources
         # Load cached values
         if cached_config and "resources" in cached_config:
-            AWSResources.logging("Using cached resources for AWS")
             ret = cast(
                 AWSResources, AWSResources.deserialize(cached_config["resources"])
             )
+            ret.logging.info("Using cached resources for AWS")
         else:
             # Check for new config
             if "resources" in config:
-                AWSResources.logging(
+                ret = cast(AWSResources, AWSResources.deserialize(config["resources"]))
+                ret.logging.info(
                     "No cached resources for AWS found, using user configuration."
                 )
-                ret = cast(AWSResources, AWSResources.deserialize(config["resources"]))
             else:
-                self.logging("No resources for AWS found, initialize!")
                 ret = AWSResources(lambda_role="")
+                ret.logging.info("No resources for AWS found, initialize!")
 
         return ret
 
-@namedlogging("AWS.Config")
+
 class AWSConfig(Config):
     def __init__(self, credentials: AWSCredentials, resources: AWSResources):
+        super().__init__()
         self._credentials = credentials
         self._resources = resources
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.Config"
 
     @property
     def credentials(self) -> AWSCredentials:
@@ -187,10 +201,10 @@ class AWSConfig(Config):
         config_obj = AWSConfig(credentials, resources)
         # Load cached values
         if cached_config:
-            AWSConfig.logging("Using cached config for AWS")
+            config_obj.logging.info("Using cached config for AWS")
             AWSConfig.deserialize(config_obj, cached_config)
         else:
-            AWSConfig.logging("Using user-provided config for AWS")
+            config_obj.logging.info("Using user-provided config for AWS")
             AWSConfig.deserialize(config_obj, config)
 
         return config_obj

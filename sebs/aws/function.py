@@ -3,9 +3,7 @@ from typing import Optional
 from sebs.aws.s3 import S3
 from sebs.faas.function import Function
 
-from sebs.utils import namedlogging
 
-@namedlogging("AWS.LambdaFunction")
 class LambdaFunction(Function):
     def __init__(
         self,
@@ -23,6 +21,10 @@ class LambdaFunction(Function):
         self.runtime = runtime
         self.role = role
         self.bucket = bucket
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.LambdaFunction"
 
     def serialize(self) -> dict:
         return {

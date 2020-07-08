@@ -1,4 +1,3 @@
-import logging
 from abc import ABC
 from abc import abstractmethod
 from typing import Dict, Optional, Tuple, Type
@@ -8,6 +7,7 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.utils import LoggingHandler
 from .config import Config
 from .function import Function
 from .storage import PersistentStorage
@@ -20,13 +20,15 @@ from .storage import PersistentStorage
     measurements.
 """
 
-class System(ABC):
+
+class System(ABC, LoggingHandler):
     def __init__(
         self,
         system_config: SeBSConfig,
         cache_client: Cache,
         docker_client: docker.client,
     ):
+        super().__init__()
         self._system_config = system_config
         self._docker_client = docker_client
         self._cache_client = cache_client
@@ -158,7 +160,7 @@ class System(ABC):
                 if not func_name
                 else "function {} not found in cache.".format(func_name)
             )
-            self.logging("Creating new function! Reason: " + msg)
+            self.logging.info("Creating new function! Reason: " + msg)
             function = self.create_function(code_package, func_name)
             self.cache_client.add_function(
                 deployment_name=self.name(),
@@ -174,14 +176,14 @@ class System(ABC):
             code_location = code_package.code_location
             function = self.function_type().deserialize(cached_function)
             self.cached_function(function)
-            self.logging(
+            self.logging.info(
                 "Using cached function {fname} in {loc}".format(
                     fname=func_name, loc=code_location
                 )
             )
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash:
-                self.logging(
+                self.logging.info(
                     f"Cached function {func_name} with hash "
                     f"{function.code_package_hash} is not up to date with "
                     f"current build {code_package.hash} in "

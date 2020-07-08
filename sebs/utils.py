@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+from typing import Any, Type, TypeVar
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
@@ -55,7 +56,7 @@ def create_output(directory, preserve_dir, verbose):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     os.chdir(output_dir)
-    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(message)s"
+    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
     logging_date_format = "%H:%M:%S"
 
     # default file log
@@ -97,15 +98,27 @@ def find_benchmark(benchmark: str, path: str):
     return benchmark_path
 
 
-def namedlogging(name = None):
+class LoggingHandler:
+    def __init__(self):
+        if hasattr(self, "typename"):
+            self.logging = logging.getLogger(self.typename())
+        else:
+            self.logging = logging.getLogger(self.__class__.__name__)
 
-    def decorated_cls(cls):
-        @classmethod
+
+C = TypeVar("C", bound=Type[Any])
+
+
+def namedlogging(name=None):
+    def decorated_cls(cls: C) -> C:
+        @classmethod  # type: ignore
         def _logging(cls, msg: str):
             if name:
                 logging.info(f"{name}: {msg}")
             else:
                 logging.info(f"{cls.__name__}: {msg}")
-        setattr(cls, 'logging', _logging)
+
+        setattr(cls, "logging", _logging)
         return cls
+
     return decorated_cls
