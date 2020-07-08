@@ -62,10 +62,10 @@ class S3(PersistentStorage):
             random_name = str(uuid.uuid4())[0:16]
             bucket_name = "{}-{}".format(name, random_name)
             self.client.create_bucket(Bucket=bucket_name)
-            logging.info("Created bucket {}".format(bucket_name))
+            self.logging("Created bucket {}".format(bucket_name))
             return bucket_name
         else:
-            logging.info(
+            self.logging(
                 "Bucket {} for {} already exists, skipping.".format(
                     existing_bucket_name, name
                 )
@@ -129,10 +129,10 @@ class S3(PersistentStorage):
                         Bucket=bucket, Delete={"Objects": objects}
                     )
             self.cached = True
-            logging.info(
+            self.logging(
                 "Using cached storage input buckets {}".format(self.input_buckets)
             )
-            logging.info(
+            self.logging(
                 "Using cached storage output buckets {}".format(self.output_buckets)
             )
         else:
@@ -154,13 +154,12 @@ class S3(PersistentStorage):
         if self.cached and not self.replace_existing:
             return
         bucket_name = self.input_buckets[bucket_idx]
-        print(type(self.replace_existing))
-        if not self.replace_existing():
+        if not self.replace_existing:
             if "Contents" in self.input_buckets_files[bucket_idx]:
                 for f in self.input_buckets_files[bucket_idx]["Contents"]:
                     f_name = f["Key"]
                     if key == f_name:
-                        logging.info(
+                        self.logging(
                             "Skipping upload of {} to {}".format(filepath, bucket_name)
                         )
                         return
@@ -168,11 +167,11 @@ class S3(PersistentStorage):
         self.upload(bucket_name, filepath, key)
 
     def upload(self, bucket_name: str, filepath: str, key: str):
-        logging.info("Upload {} to {}".format(filepath, bucket_name))
+        self.logging("Upload {} to {}".format(filepath, bucket_name))
         self.client.upload_file(Filename=filepath, Bucket=bucket_name, Key=key)
 
     def download(self, bucket_name: str, key: str, filepath: str):
-        logging.info("Download {}:{} to {}".format(bucket_name, key, filepath))
+        self.logging("Download {}:{} to {}".format(bucket_name, key, filepath))
         self.client.download_file(Bucket=bucket_name, Key=key, Filename=filepath)
 
     def list_bucket(self, bucket_name: str):

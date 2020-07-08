@@ -1,3 +1,5 @@
+import logging
+
 from abc import ABC
 from abc import abstractmethod
 from typing import List, Tuple
@@ -117,3 +119,6 @@ class PersistentStorage(ABC):
     @abstractmethod
     def uploader_func(self, bucket_idx: int, file: str, filepath: str) -> None:
         pass
+
+    def logging(self, msg: str):
+        logging.info(f"{self.__class__.__name__}: {msg}")

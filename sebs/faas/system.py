@@ -159,7 +159,7 @@ class System(ABC):
                 if not func_name
                 else "function {} not found in cache.".format(func_name)
             )
-            logging.info("Creating new function! Reason: " + msg)
+            self.logging("Creating new function! Reason: " + msg)
             function = self.create_function(code_package, func_name)
             self.cache_client.add_function(
                 deployment_name=self.name(),
@@ -175,14 +175,14 @@ class System(ABC):
             code_location = code_package.code_location
             function = self.function_type().deserialize(cached_function)
             self.cached_function(function)
-            logging.info(
+            self.logging(
                 "Using cached function {fname} in {loc}".format(
                     fname=func_name, loc=code_location
                 )
             )
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash:
-                logging.info(
+                self.logging(
                     f"Cached function {func_name} with hash "
                     f"{function.code_package_hash} is not up to date with "
                     f"current build {code_package.hash} in "
@@ -205,11 +205,8 @@ class System(ABC):
     def default_function_name(code_package: Benchmark) -> str:
         pass
 
-    # FIXME: trigger allocation API
-    # FIXME: result query API
-    # FIXME: metrics query API
-    # def update_function(self, code_package):
-    #    pass
+    def logging(self, msg: str):
+        logging.info(f"{self.__class__.__name__}: {msg}")
 
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,
