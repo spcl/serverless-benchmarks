@@ -119,6 +119,7 @@ class HTTPTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
+        self.logging.info(f"Invoke function {self.url}")
         begin = datetime.datetime.now()
         ret = requests.request(method="POST", url=self.url, json=payload)
         end = datetime.datetime.now()
@@ -128,6 +129,7 @@ class HTTPTrigger(Trigger):
             self.logging.error("Input: {}".format(payload))
             raise RuntimeError("Failed synchronous invocation of AWS Lambda function!")
 
+        self.logging.info(f"Invoke of function was successful")
         output = ret.json()
         result = ExecutionResult(begin, end)
         result.request_id = output["request_id"]

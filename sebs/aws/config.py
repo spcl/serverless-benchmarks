@@ -168,18 +168,18 @@ class AWSResources(Resources):
 
             # check existing apis
             api_data = None
-            for api in api_client.get_apis()['Items']:
-                if api['Name'] == api_name:
+            for api in api_client.get_apis()["Items"]:
+                if api["Name"] == api_name:
                     self.logging.info(f"Using existing HTTP API {api_name}")
                     api_data = api
                     break
             if not api_data:
                 self.logging.info(f"Creating HTTP API {api_name}")
-                api_data = api_client.create_api(
+                api_data = api_client.create_api(  # type: ignore
                     Name=api_name, ProtocolType="HTTP", Target=func.arn
                 )
-            api_id = api_data['ApiId']
-            endpoint = api_data['ApiEndpoint']
+            api_id = api_data["ApiId"]  # type: ignore
+            endpoint = api_data["ApiEndpoint"]  # type: ignore
 
             # function's arn format is: arn:aws:{region}:{account-id}:{func}
             # easier than querying AWS resources to get account id
@@ -188,6 +188,8 @@ class AWSResources(Resources):
             arn = f"arn:aws:execute-api:us-east-1:{account_id}:{api_id}"
             http_api = AWSResources.HTTPApi(arn, endpoint)
             self._http_apis[api_name] = http_api
+        else:
+            self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
 
     # FIXME: python3.7+ future annotatons
