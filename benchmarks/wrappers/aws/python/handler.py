@@ -9,7 +9,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/si
 def handler(event, context):
 
     # HTTP trigger with API Gateaway
-    if 'httpMethod' in event:
+    if 'body' in event:
         event = json.loads(event['body'])
     begin = datetime.datetime.now()
     from function import function
