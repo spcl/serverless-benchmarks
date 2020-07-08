@@ -1,13 +1,14 @@
 import json
 import os
 import time
-from typing import cast
+from typing import cast, Dict, Optional
 
 import boto3
 
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
+from sebs.aws.function import LambdaFunction
 
 
 class AWSCredentials(Credentials):
@@ -82,13 +83,39 @@ class AWSCredentials(Credentials):
 
 
 class AWSResources(Resources):
+    class HTTPApi:
+        def __init__(self, arn: str, endpoint: str):
+            self._arn = arn
+            self._endpoint = endpoint
+
+        @property
+        def arn(self) -> str:
+            return self._arn
+
+        @property
+        def endpoint(self) -> str:
+            return self._endpoint
+
+        @staticmethod
+        def deserialize(dct: dict) -> "AWSResources.HTTPApi":
+            return AWSResources.HTTPApi(dct["arn"], dct["endpoint"])
+
+        def serialize(self) -> dict:
+            out = {"arn": self.arn, "endpoint": self.endpoint}
+            return out
+
     def __init__(self, lambda_role: str):
         super().__init__()
         self._lambda_role = lambda_role
+        self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
+        self._region: Optional[str] = None
 
     @staticmethod
     def typename() -> str:
         return "AWS.Resources"
+
+    def set_region(self, region: str):
+        self._region = region
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         if not self._lambda_role:
@@ -128,19 +155,67 @@ class AWSResources(Resources):
                 iam_client.attach_role_policy(RoleName=role_name, PolicyArn=policy)
         return self._lambda_role
 
+    def http_api(
+        self, api_name: str, func: LambdaFunction, boto3_session: boto3.session.Session
+    ) -> "AWSResources.HTTPApi":
+
+        http_api = self._http_apis.get(api_name)
+        if not http_api:
+            # get apigateway client
+            api_client = boto3_session.client(
+                service_name="apigatewayv2", region_name=cast(str, self._region)
+            )
+
+            # check existing apis
+            api_data = None
+            for api in api_client.get_apis()['Items']:
+                if api['Name'] == api_name:
+                    self.logging.info(f"Using existing HTTP API {api_name}")
+                    api_data = api
+                    break
+            if not api_data:
+                self.logging.info(f"Creating HTTP API {api_name}")
+                api_data = api_client.create_api(
+                    Name=api_name, ProtocolType="HTTP", Target=func.arn
+                )
+            api_id = api_data['ApiId']
+            endpoint = api_data['ApiEndpoint']
+
+            # function's arn format is: arn:aws:{region}:{account-id}:{func}
+            # easier than querying AWS resources to get account id
+            account_id = func.arn.split(":")[4]
+            # API arn is:
+            arn = f"arn:aws:execute-api:us-east-1:{account_id}:{api_id}"
+            http_api = AWSResources.HTTPApi(arn, endpoint)
+            self._http_apis[api_name] = http_api
+        return http_api
+
     # FIXME: python3.7+ future annotatons
     @staticmethod
     def deserialize(dct: dict) -> Resources:
-        return AWSResources(dct["lambda-role"] if "lambda-role" in dct else "")
+        ret = AWSResources(dct["lambda-role"] if "lambda-role" in dct else "")
+        if "http-apis" in dct:
+            for key, value in dct["http-apis"].items():
+                ret._http_apis[key] = AWSResources.HTTPApi.deserialize(value)
+        return ret
 
     def serialize(self) -> dict:
-        out = {"lambda-role": self._lambda_role}
+        out = {
+            "lambda-role": self._lambda_role,
+            "http-apis": {
+                key: value.serialize() for (key, value) in self._http_apis.items()
+            },
+        }
         return out
 
     def update_cache(self, cache: Cache):
         cache.update_config(
             val=self._lambda_role, keys=["aws", "resources", "lambda-role"]
         )
+        for name, api in self._http_apis.items():
+            cache.update_config(
+                val=api.serialize(), keys=["aws", "resources", "http-apis", name]
+            )
 
     @staticmethod
     def initialize(config: dict, cache: Cache) -> Resources:
@@ -207,6 +282,7 @@ class AWSConfig(Config):
             config_obj.logging.info("Using user-provided config for AWS")
             AWSConfig.deserialize(config_obj, config)
 
+        resources.set_region(config_obj.region)
         return config_obj
 
     """

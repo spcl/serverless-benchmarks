@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import cast, Optional
 
 from sebs.aws.s3 import S3
 from sebs.faas.function import Function
@@ -8,6 +8,7 @@ class LambdaFunction(Function):
     def __init__(
         self,
         name: str,
+        arn: str,
         code_package_hash: str,
         timeout: int,
         memory: int,
@@ -16,6 +17,7 @@ class LambdaFunction(Function):
         bucket: Optional[str] = None,
     ):
         super().__init__(name, code_package_hash)
+        self.arn = arn
         self.timeout = timeout
         self.memory = memory
         self.runtime = runtime
@@ -29,6 +31,7 @@ class LambdaFunction(Function):
     def serialize(self) -> dict:
         return {
             **super().serialize(),
+            "arn": self.arn,
             "timeout": self.timeout,
             "memory": self.memory,
             "runtime": self.runtime,
@@ -38,10 +41,12 @@ class LambdaFunction(Function):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "LambdaFunction":
-        from sebs.aws.triggers import LibraryTrigger
+        from sebs.faas.function import Trigger
+        from sebs.aws.triggers import LibraryTrigger, HTTPTrigger
 
         ret = LambdaFunction(
             cached_config["name"],
+            cached_config["arn"],
             cached_config["hash"],
             cached_config["timeout"],
             cached_config["memory"],
@@ -50,7 +55,10 @@ class LambdaFunction(Function):
             cached_config["bucket"],
         )
         for trigger in cached_config["triggers"]:
-            trigger_type = {"Library": LibraryTrigger}.get(trigger["type"])
+            trigger_type = cast(
+                Trigger,
+                {"Library": LibraryTrigger, "HTTP": HTTPTrigger}.get(trigger["type"]),
+            )
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret

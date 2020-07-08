@@ -303,3 +303,6 @@ class Cache(LoggingHandler):
                         function.name
                     )
                 )
+
+    def update_function(self, function: "Function"):
+        pass

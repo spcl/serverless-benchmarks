@@ -3,6 +3,7 @@ import datetime
 import json
 from typing import Dict, Optional  # noqa
 
+import requests
 
 from sebs.aws.aws import AWS
 from sebs.faas.function import ExecutionResult, Trigger
@@ -100,3 +101,46 @@ class LibraryTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return LibraryTrigger(obj["name"])
+
+
+class HTTPTrigger(Trigger):
+    def __init__(self, url: str, api_id: str):
+        super().__init__()
+        self.url = url
+        self.api_id = api_id
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.HTTPTrigger"
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        return Trigger.TriggerType.HTTP
+
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+
+        begin = datetime.datetime.now()
+        ret = requests.request(method="POST", url=self.url, json=payload)
+        end = datetime.datetime.now()
+
+        if ret.status_code != 200:
+            self.logging.error("Invocation on URL {} failed!".format(self.url))
+            self.logging.error("Input: {}".format(payload))
+            raise RuntimeError("Failed synchronous invocation of AWS Lambda function!")
+
+        output = ret.json()
+        result = ExecutionResult(begin, end)
+        result.request_id = output["request_id"]
+        # General benchmark output parsing
+        result.parse_benchmark_output(output)
+        return result
+
+    def async_invoke(self, payload: dict) -> ExecutionResult:
+        pass
+
+    def serialize(self) -> dict:
+        return {"type": "HTTP", "url": self.url, "api-id": self.api_id}
+
+    @staticmethod
+    def deserialize(obj: dict) -> Trigger:
+        return HTTPTrigger(obj["url"], obj["api-id"])
