@@ -247,6 +247,7 @@ class AWS(System):
         memory = code_package.benchmark_config.memory
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
+        func_name = AWS.format_function_name(func_name)
 
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -269,7 +270,6 @@ class AWS(System):
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
-            # url = None
         except self.client.exceptions.ResourceNotFoundException:
             self.logging.info("Creating function {} from {}".format(func_name, package))
 
@@ -370,6 +370,10 @@ class AWS(System):
             code_package.language_name,
             code_package.benchmark_config.memory,
         )
+        return AWS.format_function_name(func_name)
+
+    @staticmethod
+    def format_function_name(func_name: str) -> str:
         # AWS Lambda does not allow hyphens in function names
         func_name = func_name.replace("-", "_")
         func_name = func_name.replace(".", "_")

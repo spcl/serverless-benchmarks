@@ -448,12 +448,12 @@ class Benchmark(LoggingHandler):
 
     def build(
         self, deployment_build_step: Callable[[str, str, str], Tuple[str, int]]
-    ) -> str:
+    ) -> Tuple[bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info("Using cached benchmark {}".format(self.benchmark))
-            return self.code_location
+            return False, self.code_location
 
         msg = (
             "no cached code package."
@@ -502,7 +502,7 @@ class Benchmark(LoggingHandler):
             )
         self.query_cache()
 
-        return self._code_location
+        return True, self._code_location
 
     """
         Locates benchmark input generator, inspect how many storage buckets

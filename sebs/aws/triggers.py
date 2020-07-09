@@ -127,6 +127,7 @@ class HTTPTrigger(Trigger):
         if ret.status_code != 200:
             self.logging.error("Invocation on URL {} failed!".format(self.url))
             self.logging.error("Input: {}".format(payload))
+            self.logging.error("Output: {}".format(ret.json()))
             raise RuntimeError("Failed synchronous invocation of AWS Lambda function!")
 
         self.logging.info(f"Invoke of function was successful")

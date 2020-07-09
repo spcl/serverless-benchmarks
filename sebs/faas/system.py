@@ -144,7 +144,7 @@ class System(ABC, LoggingHandler):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
-        code_package.build(self.package_code)
+        rebuilt, _ = code_package.build(self.package_code)
 
         """
             There's no function with that name?
@@ -182,7 +182,7 @@ class System(ABC, LoggingHandler):
                 )
             )
             # is the function up-to-date?
-            if function.code_package_hash != code_package.hash:
+            if function.code_package_hash != code_package.hash or rebuilt:
                 self.logging.info(
                     f"Cached function {func_name} with hash "
                     f"{function.code_package_hash} is not up to date with "
