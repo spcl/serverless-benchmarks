@@ -155,7 +155,8 @@ class Trigger(ABC, LoggingHandler):
 
 
 class Function(LoggingHandler):
-    def __init__(self, name: str, code_hash: str):
+    def __init__(self, benchmark: str, name: str, code_hash: str):
+        self._benchmark = benchmark
         self._name = name
         self._code_package_hash = code_hash
         self._updated_code = False
@@ -164,6 +165,10 @@ class Function(LoggingHandler):
     @property
     def name(self):
         return self._name
+
+    @property
+    def benchmark(self):
+        return self._benchmark
 
     @property
     def code_package_hash(self):
@@ -192,6 +197,7 @@ class Function(LoggingHandler):
         return {
             "name": self._name,
             "hash": self._code_package_hash,
+            "benchmark": self._benchmark,
             "triggers": [x.serialize() for x in self._triggers],
         }
 

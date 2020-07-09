@@ -8,6 +8,7 @@ class LambdaFunction(Function):
     def __init__(
         self,
         name: str,
+        benchmark: str,
         arn: str,
         code_package_hash: str,
         timeout: int,
@@ -16,7 +17,7 @@ class LambdaFunction(Function):
         role: str,
         bucket: Optional[str] = None,
     ):
-        super().__init__(name, code_package_hash)
+        super().__init__(benchmark, name, code_package_hash)
         self.arn = arn
         self.timeout = timeout
         self.memory = memory
@@ -46,6 +47,7 @@ class LambdaFunction(Function):
 
         ret = LambdaFunction(
             cached_config["name"],
+            cached_config["benchmark"],
             cached_config["arn"],
             cached_config["hash"],
             cached_config["timeout"],

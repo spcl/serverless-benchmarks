@@ -277,12 +277,7 @@ class Cache(LoggingHandler):
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
-                functions_config: Dict[str, Any] = {
-                    function.name: {
-                        **function.serialize(),
-                        "code_version": code_package.hash,
-                    }
-                }
+                functions_config: Dict[str, Any] = {function.name: function.serialize()}
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
@@ -305,4 +300,26 @@ class Cache(LoggingHandler):
                 )
 
     def update_function(self, function: "Function"):
-        pass
+        with self._lock:
+            benchmark_dir = os.path.join(self.cache_dir, function.benchmark)
+            cache_config = os.path.join(benchmark_dir, "config.json")
+
+            if os.path.exists(cache_config):
+
+                with open(cache_config, "r") as fp:
+                    cached_config = json.load(fp)
+                    for deployment, cfg in cached_config.items():
+                        for language, cfg2 in cfg.items():
+                            for name, func in cfg2["functions"].items():
+                                if name == function.name:
+                                    cached_config[deployment][language]["functions"][
+                                        name
+                                    ] = function.serialize()
+                with open(cache_config, "w") as fp:
+                    json.dump(cached_config, fp, indent=2)
+            else:
+                raise RuntimeError(
+                    "Can't cache function {} for a non-existing code package!".format(
+                        function.name
+                    )
+                )

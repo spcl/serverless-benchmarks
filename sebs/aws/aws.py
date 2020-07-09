@@ -258,6 +258,7 @@ class AWS(System):
             # Here we assume a single Lambda role
             lambda_function = LambdaFunction(
                 func_name,
+                code_package.benchmark,
                 ret["Configuration"]["FunctionArn"],
                 code_package.hash,
                 timeout,
@@ -272,7 +273,6 @@ class AWS(System):
         except self.client.exceptions.ResourceNotFoundException:
             self.logging.info("Creating function {} from {}".format(func_name, package))
 
-            # TODO: create Lambda role
             # AWS Lambda limit on zip deployment size
             # Limit to 50 MB
             # mypy doesn't recognize correctly the case when the same
@@ -303,6 +303,7 @@ class AWS(System):
             # print(url)
             lambda_function = LambdaFunction(
                 func_name,
+                code_package.benchmark,
                 ret["FunctionArn"],
                 code_package.hash,
                 timeout,
