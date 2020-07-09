@@ -1,10 +1,16 @@
+import subprocess
+import logging
+import shutil
+import json
+import os
+from typing import Tuple
+
 import sebs.benchmark
 from sebs.faas import System, PersistentStorage
 from sebs.faas.config import Config
 from sebs.faas.function import Function
 from .config import OpenWhiskConfig
-import subprocess
-import logging
+
 
 
 class OpenWhisk(System):
@@ -94,3 +100,44 @@ class OpenWhisk(System):
     @staticmethod
     def name() -> str:
         return "openwhisk"
+
+    def package_code(self, benchmark: sebs.Benchmark) -> Tuple[str, int]:
+
+        benchmark.build()
+        node = 'nodejs'
+        node_handler = 'handler.js'
+        CONFIG_FILES = {
+            'python': ['virtualenv', '__main__.py'],
+            node: [node_handler, 'package.json', 'node_modules']
+        }
+        directory = benchmark.code_location
+        package_config = CONFIG_FILES[benchmark.language_name]
+        function_dir = os.path.join(directory, "function")
+        os.makedirs(function_dir)
+
+        # openwhisk needs main function to be named ina packaged.json
+        if benchmark.language_name == node:
+            filename = 'package.json'
+            with open(filename, 'r') as f:
+                data = json.load(f)
+                data['main'] = node_handler
+
+            os.remove(filename)
+            with open(filename, 'w') as f:
+                json.dump(data, f, indent=4)
+
+        for file in os.listdir(directory):
+            if file not in package_config:
+                file = os.path.join(directory, file)
+                shutil.move(file, function_dir)
+        os.chdir(directory)
+        subprocess.run(
+            "zip -r {}.zip ./".format(benchmark.benchmark).split(),
+            stdout=subprocess.DEVNULL,
+        )
+        benchmark_archive = "{}.zip".format(
+            os.path.join(directory, benchmark.benchmark)
+        )
+        logging.info("Created {} archive".format(benchmark_archive))
+        bytes_size = os.path.getsize(benchmark_archive)
+        return benchmark_archive, bytes_size
