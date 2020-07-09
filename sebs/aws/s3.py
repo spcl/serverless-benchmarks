@@ -192,11 +192,13 @@ class S3(PersistentStorage):
             benchmark, buckets, self.cache_client.get_storage_config("aws", benchmark),
         )
 
-    # def download_results(self, result_dir):
-    #    result_dir = os.path.join(result_dir, 'storage_output')
-    #    for bucket in self.output_buckets:
-    #        objects = self.connection.list_objects_v2(bucket)
-    #        objects = [obj.object_name for obj in objects]
-    #        for obj in objects:
-    #            self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
-    #
+    def save_storage(self, benchmark: str):
+        self.cache_client.update_storage("aws", benchmark,
+            {
+                "buckets": {
+                    "input": self.input_buckets,
+                    "output": self.output_buckets,
+                }
+            }
+        )
+
