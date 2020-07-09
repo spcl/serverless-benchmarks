@@ -46,9 +46,13 @@ tests = []
 for case in cases:
     for c in case:
         tests.append(c)
+for test in tests:
+    test.setUpClass()
 concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
 result = TracingStreamResult()
 result.startTestRun()
 concurrent_suite.run(result)
 result.stopTestRun()
+for test in tests:
+    test.tearDownClass()
 sys.exit(not result.all_correct)

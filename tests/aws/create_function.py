@@ -54,8 +54,22 @@ class AWSCreateFunction(unittest.TestCase):
             benchmark = self.client.get_benchmark(
                 self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
             )
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp_dir = tempfile.TemporaryDirectory()
+        cls.client = sebs.SeBS(cls.tmp_dir.name)
+        for i in range(0, 4):
+            cls.function_name_suffixes.append("_test_runner_{}".format(i))
+        for language in ["python", "nodejs"]:
+            config = cls.config[language]
+            deployment_client = cls.client.get_deployment(config["deployment"])
+            experiment_config = cls.client.get_experiment(config["experiments"])
+            benchmark = cls.client.get_benchmark(
+                cls.benchmark, cls.tmp_dir.name, deployment_client, experiment_config
+            )
             func_name = deployment_client.default_function_name(benchmark)
-            for suffix in self.function_name_suffixes:
+            for suffix in cls.function_name_suffixes:
                 deployment_client.delete_function(func_name + suffix)
 
     def tearDown(self):
@@ -67,8 +81,18 @@ class AWSCreateFunction(unittest.TestCase):
             benchmark = self.client.get_benchmark(
                 self.benchmark, self.tmp_dir.name, deployment_client, experiment_config
             )
+
+    @classmethod
+    def tearDownClass(cls):
+        for language in ["python", "nodejs"]:
+            config = cls.config[language]
+            deployment_client = cls.client.get_deployment(config["deployment"])
+            experiment_config = cls.client.get_experiment(config["experiments"])
+            benchmark = cls.client.get_benchmark(
+                cls.benchmark, cls.tmp_dir.name, deployment_client, experiment_config
+            )
             func_name = deployment_client.default_function_name(benchmark)
-            for suffix in self.function_name_suffixes:
+            for suffix in cls.function_name_suffixes:
                 deployment_client.delete_function(func_name + suffix)
 
     def check_function(
@@ -197,6 +221,7 @@ class AWSCreateFunction(unittest.TestCase):
 
             # change hash of benchmark - function should be reuploaded
             benchmark.hash = benchmark.hash + "s"
+            deployment_client.cache_client.update_code_package(deployment_client.name(), language, benchmark)
             func = deployment_client.get_function(benchmark, func_name)
             self.assertIsInstance(func, sebs.aws.LambdaFunction)
             self.assertEqual(func.name, func_name)
