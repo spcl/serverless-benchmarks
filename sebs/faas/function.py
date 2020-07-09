@@ -14,27 +14,33 @@ from sebs.utils import LoggingHandler
 class ExecutionTimes:
 
     client: int
-    provider: int
     benchmark: int
+    initialization: int
 
     def __init__(self):
         self.client = 0
-        self.provider = 0
+        self.initialization = 0
         self.benchmark = 0
+
+
+class ProviderTimes:
+
+    initialization: int
+    execution: int
+
+    def __init__(self):
+        self.execution = 0
+        self.initialization = 0
 
 
 class ExecutionStats:
 
     memory_used: Optional[float]
-    init_time_reported: Optional[int]
-    init_time_measured: int
     cold_start: bool
     failure: bool
 
     def __init__(self):
         self.memory_used = None
-        self.init_time_reported = None
-        self.init_time_measured = 0
         self.cold_start = False
         self.failure = False
 
@@ -80,6 +86,7 @@ class ExecutionResult:
     output: dict
     request_id: str
     times: ExecutionTimes
+    provider_times: ProviderTimes
     stats: ExecutionStats
     billing: ExecutionBilling
 
@@ -87,6 +94,7 @@ class ExecutionResult:
         self.output = {}
         self.request_id = ""
         self.times = ExecutionTimes()
+        self.provider_times = ProviderTimes()
         self.times.client = int(
             (client_time_end - client_time_begin) / timedelta(microseconds=1)
         )
