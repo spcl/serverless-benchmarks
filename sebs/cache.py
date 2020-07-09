@@ -237,7 +237,8 @@ class Cache(LoggingHandler):
                 else:
                     package_name = os.path.basename(code_package.code_location)
                     cached_location = os.path.join(cached_dir, package_name)
-                    shutil.copy2(code_package.code_location, cached_dir)
+                    if code_package.code_location != cached_location:
+                        shutil.copy2(code_package.code_location, cached_dir)
 
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                     config = json.load(fp)
@@ -310,6 +311,8 @@ class Cache(LoggingHandler):
                     cached_config = json.load(fp)
                     for deployment, cfg in cached_config.items():
                         for language, cfg2 in cfg.items():
+                            if "functions" not in cfg2:
+                                continue
                             for name, func in cfg2["functions"].items():
                                 if name == function.name:
                                     cached_config[deployment][language]["functions"][
