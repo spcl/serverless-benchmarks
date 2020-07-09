@@ -2,7 +2,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import cast, Dict, List, Optional, Tuple, Type, Union
+from typing import cast, Dict, Optional, Tuple, Type, Union
 
 import boto3
 import docker
@@ -226,6 +226,7 @@ class AWS(System):
         self.storage.save_storage(code_package.benchmark)
 
         from sebs.aws.triggers import LibraryTrigger
+
         lambda_function.add_trigger(LibraryTrigger(func_name, self))
 
         return lambda_function
@@ -428,6 +429,33 @@ class AWS(System):
                     del actual_result["REPORT RequestId"]
                     requests[request_id][self.name()] = actual_result
 
+    def create_trigger(
+        self, function: LambdaFunction, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
+        from sebs.aws.triggers import HTTPTrigger
+
+        if trigger_type == Trigger.TriggerType.HTTP:
+
+            api_name = "{}-http-api".format(function.name)
+            http_api = self.config.resources.http_api(api_name, function, self.session)
+            # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
+            # but this is wrong - source arn must be {api-arn}/*/*
+            self.get_lambda_client().add_permission(
+                FunctionName=function.name,
+                StatementId=str(uuid.uuid1()),
+                Action="lambda:InvokeFunction",
+                Principal="apigateway.amazonaws.com",
+                SourceArn=f"{http_api.arn}/*/*",
+            )
+            trigger = HTTPTrigger(http_api.endpoint, api_name)
+        else:
+            raise RuntimeError("Not supported!")
+
+        function.add_trigger(trigger)
+        self.cache_client.update_function(function)
+        return trigger
+
+
 #    def create_function_copies(
 #        self,
 #        benchmark: Benchmark,
@@ -489,31 +517,6 @@ class AWS(System):
 #            FunctionName=fname, Timeout=timeout, MemorySize=memory
 #        )
 
-#    def create_trigger(
-#        self, function: LambdaFunction, trigger_type: Trigger.TriggerType
-#    ) -> Trigger:
-#        from sebs.aws.triggers import HTTPTrigger
-#
-#        if trigger_type == Trigger.TriggerType.HTTP:
-#
-#            api_name = "{}-http-api".format(function.name)
-#            http_api = self.config.resources.http_api(api_name, function, self.session)
-#            # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
-#            # but this is wrong - source arn must be {api-arn}/*/*
-#            self.get_lambda_client().add_permission(
-#                FunctionName=function.name,
-#                StatementId=str(uuid.uuid1()),
-#                Action="lambda:InvokeFunction",
-#                Principal="apigateway.amazonaws.com",
-#                SourceArn=f"{http_api.arn}/*/*",
-#            )
-#            trigger = HTTPTrigger(http_api.endpoint, api_name)
-#        else:
-#            raise RuntimeError("Not supported!")
-#
-#        function.add_trigger(trigger)
-#        self.cache_client.update_function(function)
-#        return trigger
 #
 #    def create_http_trigger(
 #        self, func_name: str, api_id: Optional[str], parent_id: Optional[str]
@@ -662,7 +665,6 @@ class AWS(System):
 #    ):
 #        language = benchmark.language_name
 #        language_runtime = benchmark.language_version
-#        self.logging.info("Creating function {} from {}".format(function_name, package))
 #
 #        # TODO: create Lambda role
 #        # AWS Lambda limit on zip deployment size

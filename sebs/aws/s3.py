@@ -193,12 +193,8 @@ class S3(PersistentStorage):
         )
 
     def save_storage(self, benchmark: str):
-        self.cache_client.update_storage("aws", benchmark,
-            {
-                "buckets": {
-                    "input": self.input_buckets,
-                    "output": self.output_buckets,
-                }
-            }
+        self.cache_client.update_storage(
+            "aws",
+            benchmark,
+            {"buckets": {"input": self.input_buckets, "output": self.output_buckets}},
         )
-
