@@ -12,13 +12,12 @@ class OpenwhiskFunction(Function):
 
     def sync_invoke(self, payload: dict):
         url = f"http://172.17.0.1:3233/api/v1/namespaces/{self.namespace}/actions/{self.name}?blocking=true&result=true"
-        print(url)
         readyPayload = json.dumps(payload)
         headers = {"content-type": "application/json",
             "Authorization": "Basic Nzg5YzQ2YjEtNzFmNi00ZWQ1LThjNTQtODE2YWE0ZjhjNTAyOmFiY3pPM3haQ0xyTU42djJCS0sxZFhZRnBYbFBrY2NPRnFtMTJDZEFzTWdSVTRWck5aOWx5R1ZDR3VNREdJd1A="}
         begin = datetime.datetime.now()
         logging.info(f"Function {self.name} of namespace {self.namespace} invoking...")
-        response = requests.request("GET", url, data=readyPayload, headers=headers)
+        response = requests.request("POST", url, data=readyPayload, headers=headers)
         end = datetime.datetime.now()
         print(
             f"Function {self.name} returned response with code: {response.status_code}"
