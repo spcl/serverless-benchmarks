@@ -9,8 +9,10 @@ from sebs import Benchmark
 from sebs.faas import System, PersistentStorage
 from sebs.faas.config import Config
 from sebs.faas.function import Function
-from sebs.openwhisk.openwhiskFunction import OpenwhiskFunction
+from .function import OpenwhiskFunction
 from .config import OpenWhiskConfig
+import yaml
+import time
 
 
 class OpenWhisk(System):
@@ -23,7 +25,7 @@ class OpenWhisk(System):
     def get_storage(self, replace_existing: bool) -> PersistentStorage:
         pass
 
-    def get_function(self, code_package: sebs.benchmark.Benchmark) -> Function:
+    def get_function(self, code_package: Benchmark) -> Function:
         pass
 
     def shutdown(self) -> None:
@@ -44,8 +46,8 @@ class OpenWhisk(System):
             logging.info('Checking {} installation...'.format(app))
             OpenWhisk.__run_check_process__(cmd)
             logging.info('Check successful, proceeding...')
-        except subprocess.CalledProcessError:
-            logging.error('Cannot find {}, aborting'.format(app))
+        except subprocess.CalledProcessError as e:
+            logging.error('Cannot find {}, aborting, reason: {}'.format(app, e.output))
             exit(1)
 
     @staticmethod
@@ -68,11 +70,123 @@ class OpenWhisk(System):
 
     @staticmethod
     def check_kubectl_installation() -> None:
-        OpenWhisk.__check_installation__("kubectl", "kubectl version")
+        OpenWhisk.__check_installation__("kubectl", "kubectl version --client=true")
 
     @staticmethod
     def check_helm_installation() -> None:
         OpenWhisk.__check_installation__("helm", "helm version")
+
+    @staticmethod
+    def check_kind_cluster() -> None:
+        try:
+            kind_clusters_process = subprocess.run(
+                "kind get clusters".split(),
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            kind_clusters = set(kind_clusters_process.stdout.decode('utf-8').split())
+            if "kind" not in kind_clusters:
+                logging.info("Creating kind cluster...")
+                OpenWhisk.create_kind_cluster()
+        except subprocess.CalledProcessError as e:
+            logging.error("Cannot check kind cluster, reason: {}".format(e.output))
+
+    @staticmethod
+    def create_kind_cluster() -> None:
+        try:
+            subprocess.run(
+                "kind create cluster --config openwhisk/kind-cluster.yaml".split(),
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            while True:
+                nodes = subprocess.run(
+                    "kubectl get nodes".split(),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                node_grep = subprocess.run(
+                    "grep kind".split(),
+                    input=nodes.stdout,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                awk = subprocess.run(
+                    ["awk", r'{print $2}'],
+                    check=True,
+                    input=node_grep.stdout,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                node_statuses = awk.stdout.decode('utf-8').split()
+                if all(node_status == 'Ready' for node_status in node_statuses):
+                    break
+                time.sleep(1)
+        except subprocess.CalledProcessError as e:
+            logging.error("Cannot create kind cluster. reason: {}".format(e.output))
+
+    @staticmethod
+    def get_worker_ip() -> str:
+        try:
+            logging.info('Attempting to find worker IP...')
+            kind_worker_description = subprocess.run(
+                "kubectl describe node kind-worker".split(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            grep_internal_ip = subprocess.run(
+                "grep InternalIP".split(),
+                check=True,
+                input=kind_worker_description.stdout,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            return grep_internal_ip.stdout.decode("utf-8").split()[1]
+        except subprocess.CalledProcessError as e:
+            logging.error("Error during finding worker IP: {}".format(e.output))
+
+    @staticmethod
+    def label_nodes() -> None:
+        def label_node(node: str, role: str) -> None:
+            subprocess.run(
+                "kubectl label node {} openwhisk-role={}".format(node, role).split(),
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+        try:
+            logging.info('Labelling nodes')
+            label_node('kind-worker', 'core')
+            label_node('kind-worker2', 'invoker')
+        except subprocess.CalledProcessError as e:
+            logging.error('Cannot label nodes, reason: {}'.format(e.output))
+
+    @staticmethod
+    def clone_openwhisk_chart() -> None:
+        try:
+            subprocess.run(
+                "git clone git@github.com:apache/openwhisk-deploy-kube.git /tmp/openwhisk-deploy-kube".split(),
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError as e:
+            logging.error("Cannot clone openwhisk chart, reason: {}".format(e.output))
+
+    @staticmethod
+    def prepare_openwhisk_config() -> None:
+        worker_ip = OpenWhisk.get_worker_ip()
+        with open('openwhisk/mycluster_template.yaml', 'r') as openwhisk_config_template:
+            data = yaml.unsafe_load(openwhisk_config_template)
+            data['whisk']['ingress']['apiHostName'] = worker_ip
+            data['whisk']['ingress']['apiHostPort'] = 31001
+            data['nginx']['httpsNodePort'] = 31001
+        if not os.path.exists('/tmp/openwhisk-deploy-kube/mycluster.yaml'):
+            with open('/tmp/openwhisk-deploy-kube/mycluster.yaml', 'a+') as openwhisk_config:
+                openwhisk_config.write(yaml.dump(data, default_flow_style=False))
 
     @staticmethod
     def check_openwhisk_installation(namespace: str) -> None:
@@ -91,11 +205,49 @@ class OpenWhisk(System):
                 input=namespaces.stdout,
             )
             logging.info("Openwhisk installed!")
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
             logging.info("Openwhisk is not installed, proceeding with installation...")
+            OpenWhisk.helm_install()
+
+    @staticmethod
+    def helm_install() -> None:
+        try:
             subprocess.run(
-                "helm install owdev "
+                "helm install owdev /tmp/openwhisk-deploy-kube/helm/openwhisk -n openwhisk --create-namespace -f "
+                "/tmp/openwhisk-deploy-kube/mycluster.yaml".split(),
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
+            while True:
+                pods = subprocess.run(
+                    "kubectl get pods -n openwhisk".split(),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                install_packages_grep = subprocess.run(
+                    "grep install-packages".split(),
+                    input=pods.stdout,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                install_packages_status = install_packages_grep.stdout.decode('utf-8').split()[2]
+                if install_packages_status == 'Completed':
+                    break
+                time.sleep(1)
+        except subprocess.CalledProcessError as e:
+            logging.error("Cannot install openwhisk, reason: {}".format(e.output))
+
+    @staticmethod
+    def install_openwhisk() -> None:
+        OpenWhisk.check_kind_installation()
+        OpenWhisk.check_kubectl_installation()
+        OpenWhisk.check_helm_installation()
+        OpenWhisk.check_kind_cluster()
+        OpenWhisk.label_nodes()
+        OpenWhisk.clone_openwhisk_chart()
+        OpenWhisk.prepare_openwhisk_config()
+        OpenWhisk.check_openwhisk_installation('openwhisk')
 
     @staticmethod
     def name() -> str:
@@ -145,8 +297,8 @@ class OpenWhisk(System):
     def get_function(self, code_package: Benchmark) -> Function:
 
         if (
-            code_package.language_version
-            not in self.system_config.supported_language_versions(self.name(), code_package.language_name)
+                code_package.language_version
+                not in self.system_config.supported_language_versions(self.name(), code_package.language_name)
         ):
             raise Exception(
                 "Unsupported {language} version {version} in Openwhisk!".format(
