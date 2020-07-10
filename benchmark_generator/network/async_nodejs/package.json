@@ -1,0 +1,13 @@
+{
+  "name": "sleep",
+  "version": "1.0.0",
+  "description": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "speedtest-net": "2.1.1",
+    "rewire": "5.0.0"
+  },
+  "devDependencies": {
+  }
+}

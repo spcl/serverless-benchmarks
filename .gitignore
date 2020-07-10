@@ -180,3 +180,6 @@ benchmarks/600.generated
 # generated code by sebs
 scripts/code
 scripts/experiments.json
+
+#
+node_modules/

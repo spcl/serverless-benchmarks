@@ -55,8 +55,7 @@ def test_storage(dict_to_upload, config, storage_type="bucket"):
     elif True:
         # not implemented
         pass
-    return {}
-    
+    return {}   
 #run
 output_bucket = event.get('bucket').get('output')
 entries_number = config.get("entries_number", 10)
