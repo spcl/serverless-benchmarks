@@ -54,7 +54,15 @@ class OpenWhisk(System):
     def install_kind() -> None:
         try:
             logging.info('Installing kind...')
-            OpenWhisk.__run_check_process__('GO111MODULE="on" go get sigs.k8s.io/kind@v0.8.1')
+            env = os.environ.copy()
+            env['GO111MODULE'] = 'on'
+            subprocess.run(
+                'go get sigs.k8s.io/kind@v0.8.1'.split(),
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env,
+            )
             logging.info('Kind has been installed')
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error('Cannot install kind, reason: {}'.format(e))
@@ -242,7 +250,7 @@ class OpenWhisk(System):
     def expose_couchdb():
         try:
             subprocess.run(
-                "kubectl apply -f openwhisk/couchdb-service.yaml",
+                "kubectl apply -f openwhisk/couchdb-service.yaml".split(),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=True,
@@ -260,6 +268,7 @@ class OpenWhisk(System):
         OpenWhisk.clone_openwhisk_chart()
         OpenWhisk.prepare_openwhisk_config()
         OpenWhisk.check_openwhisk_installation('openwhisk')
+        OpenWhisk.expose_couchdb()
 
     @staticmethod
     def name() -> str:
