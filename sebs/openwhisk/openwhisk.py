@@ -46,7 +46,7 @@ class OpenWhisk(System):
             logging.info('Checking {} installation...'.format(app))
             OpenWhisk.__run_check_process__(cmd)
             logging.info('Check successful, proceeding...')
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error('Cannot find {}, aborting, reason: {}'.format(app, e.output))
             exit(1)
 
@@ -56,7 +56,7 @@ class OpenWhisk(System):
             logging.info('Installing kind...')
             OpenWhisk.__run_check_process__('GO111MODULE="on" go get sigs.k8s.io/kind@v0.8.1')
             logging.info('Kind has been installed')
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error('Cannot install kind, reason: {}'.format(e.output))
             exit(1)
 
@@ -64,7 +64,7 @@ class OpenWhisk(System):
     def check_kind_installation() -> None:
         try:
             OpenWhisk.__run_check_process__('kind --version')
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             logging.error('Cannot find kind executable, installing...')
             OpenWhisk.install_kind()
 
@@ -89,7 +89,7 @@ class OpenWhisk(System):
             if "kind" not in kind_clusters:
                 logging.info("Creating kind cluster...")
                 OpenWhisk.create_kind_cluster()
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error("Cannot check kind cluster, reason: {}".format(e.output))
 
     @staticmethod
@@ -124,7 +124,7 @@ class OpenWhisk(System):
                 if all(node_status == 'Ready' for node_status in node_statuses):
                     break
                 time.sleep(1)
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error("Cannot create kind cluster. reason: {}".format(e.output))
 
     @staticmethod
@@ -144,7 +144,7 @@ class OpenWhisk(System):
                 stderr=subprocess.DEVNULL,
             )
             return grep_internal_ip.stdout.decode("utf-8").split()[1]
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error("Error during finding worker IP: {}".format(e.output))
 
     @staticmethod
@@ -161,7 +161,7 @@ class OpenWhisk(System):
             logging.info('Labelling nodes')
             label_node('kind-worker', 'core')
             label_node('kind-worker2', 'invoker')
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error('Cannot label nodes, reason: {}'.format(e.output))
 
     @staticmethod
@@ -173,7 +173,7 @@ class OpenWhisk(System):
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error("Cannot clone openwhisk chart, reason: {}".format(e.output))
 
     @staticmethod
@@ -205,7 +205,7 @@ class OpenWhisk(System):
                 input=namespaces.stdout,
             )
             logging.info("Openwhisk installed!")
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             logging.info("Openwhisk is not installed, proceeding with installation...")
             OpenWhisk.helm_install()
 
@@ -235,7 +235,7 @@ class OpenWhisk(System):
                 if install_packages_status == 'Completed':
                     break
                 time.sleep(1)
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error("Cannot install openwhisk, reason: {}".format(e.output))
 
     @staticmethod
