@@ -7,7 +7,7 @@ var number = 0;
 //#import
 //#function
 const sleep = async time => {
-  setTimeout(() => {}, time)
+  setTimeout(() => {}, time * 1000)   // ms to s
   return {
     "sleep_time": time
   }
