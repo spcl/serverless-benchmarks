@@ -47,7 +47,7 @@ class OpenWhisk(System):
             OpenWhisk.__run_check_process__(cmd)
             logging.info('Check successful, proceeding...')
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logging.error('Cannot find {}, aborting, reason: {}'.format(app, e.output))
+            logging.error('Cannot find {}, aborting, reason: {}'.format(app, e))
             exit(1)
 
     @staticmethod
@@ -57,7 +57,7 @@ class OpenWhisk(System):
             OpenWhisk.__run_check_process__('GO111MODULE="on" go get sigs.k8s.io/kind@v0.8.1')
             logging.info('Kind has been installed')
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logging.error('Cannot install kind, reason: {}'.format(e.output))
+            logging.error('Cannot install kind, reason: {}'.format(e))
             exit(1)
 
     @staticmethod
@@ -90,7 +90,7 @@ class OpenWhisk(System):
                 logging.info("Creating kind cluster...")
                 OpenWhisk.create_kind_cluster()
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logging.error("Cannot check kind cluster, reason: {}".format(e.output))
+            logging.error("Cannot check kind cluster, reason: {}".format(e))
 
     @staticmethod
     def create_kind_cluster() -> None:
@@ -125,7 +125,7 @@ class OpenWhisk(System):
                     break
                 time.sleep(1)
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logging.error("Cannot create kind cluster. reason: {}".format(e.output))
+            logging.error("Cannot create kind cluster. reason: {}".format(e))
 
     @staticmethod
     def get_worker_ip() -> str:
@@ -145,7 +145,7 @@ class OpenWhisk(System):
             )
             return grep_internal_ip.stdout.decode("utf-8").split()[1]
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logging.error("Error during finding worker IP: {}".format(e.output))
+            logging.error("Error during finding worker IP: {}".format(e))
 
     @staticmethod
     def label_nodes() -> None:
@@ -162,7 +162,7 @@ class OpenWhisk(System):
             label_node('kind-worker', 'core')
             label_node('kind-worker2', 'invoker')
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logging.error('Cannot label nodes, reason: {}'.format(e.output))
+            logging.error('Cannot label nodes, reason: {}'.format(e))
 
     @staticmethod
     def clone_openwhisk_chart() -> None:
@@ -174,7 +174,7 @@ class OpenWhisk(System):
                 stderr=subprocess.DEVNULL,
             )
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logging.error("Cannot clone openwhisk chart, reason: {}".format(e.output))
+            logging.error("Cannot clone openwhisk chart, reason: {}".format(e))
 
     @staticmethod
     def prepare_openwhisk_config() -> None:
@@ -236,7 +236,19 @@ class OpenWhisk(System):
                     break
                 time.sleep(1)
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logging.error("Cannot install openwhisk, reason: {}".format(e.output))
+            logging.error("Cannot install openwhisk, reason: {}".format(e))
+
+    @staticmethod
+    def expose_couchdb():
+        try:
+            subprocess.run(
+                "kubectl apply -f openwhisk/couchdb-service.yaml",
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logging.error("Cannot expose Couch DB, reason: {}".format(e))
 
     @staticmethod
     def install_openwhisk() -> None:

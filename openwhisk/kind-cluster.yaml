@@ -4,6 +4,8 @@ nodes:
 - role: control-plane
 - role: worker
   extraPortMappings:
+    - hostPort: 31201
+      containerPort: 31201
     - hostPort: 31001
       containerPort: 31001
 - role: worker
