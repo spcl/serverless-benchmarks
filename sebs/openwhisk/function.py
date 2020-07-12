@@ -48,14 +48,13 @@ class OpenwhiskFunction(Function):
         print(url)
         headers = {"content-type": "application/json",
             "Authorization": "Basic Nzg5YzQ2YjEtNzFmNi00ZWQ1LThjNTQtODE2YWE0ZjhjNTAyOmFiY3pPM3haQ0xyTU42djJCS0sxZFhZRnBYbFBrY2NPRnFtMTJDZEFzTWdSVTRWck5aOWx5R1ZDR3VNREdJd1A="}
-        begin = datetime.datetime.now()
+
         logging.info(f"Function {self.name} of namespace {self.namespace} invoking...")
         response = requests.request("POST", url, data=readyPayload, headers=headers, verify=False)
-        end = datetime.datetime.now()
+
         print(
             f"Function {self.name} returned response with code: {response.status_code}"
         )
-        openwhiskResult = ExecutionResult(begin, end)
         if response.status_code != 202:
             logging.error("Invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(readyPayload))
@@ -85,7 +84,7 @@ class OpenwhiskFunction(Function):
             f"Function {self.name} returned response with code: {response.status_code}"
         )
         result = json.loads(response.content)
-        print(result)
+
         if response.status_code != 200:
             logging.error("Invocation of {} failed!".format(self.name))
             logging.error("Input: {}".format(readyPayload))
