@@ -167,7 +167,7 @@ try:
         storage = deployment_client.get_storage(
             replace_existing=experiment_config.update_storage
         )
-        trigger_type = Trigger.TriggerType.STORAGE #example
+        trigger_type = benchmark.benchmark_config.trigger_config.type
         input_config = benchmark.prepare_input(storage=storage, size=args.size, trigger_type=trigger_type)
         func = deployment_client.get_function(benchmark, deployment_client.default_function_name(benchmark))
 

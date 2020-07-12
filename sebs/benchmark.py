@@ -19,12 +19,38 @@ from sebs.faas.storage import PersistentStorage
 from sebs.experiments.config import Config as ExperimentConfig
 from sebs.experiments.config import Language
 
+class TriggerConfig:
+    def __init__(self, type: Trigger.TriggerType, params: dict):
+        self._type = type
+        self._params = params
+
+    @property
+    def type(self) -> Trigger.TriggerType:
+        return self._type
+
+    @property
+    def params(self) -> dict:
+        return self._params
+
+    @staticmethod
+    def deserialize(json_object: dict) -> "TriggerConfig":
+        if "trigger" in json_object:
+            trigger = json_object["trigger"]
+            trigger_type = Trigger.TriggerType[trigger["type"]]
+            if "params" in trigger:
+                params = trigger["params"]
+            else:
+                params = {}
+            return TriggerConfig(trigger_type, params)
+        else:
+            return TriggerConfig(Trigger.TriggerType.LIBRARY, {})
 
 class BenchmarkConfig:
-    def __init__(self, timeout: int, memory: int, languages: List[Language]):
+    def __init__(self, timeout: int, memory: int, languages: List[Language], trigger_config: TriggerConfig):
         self._timeout = timeout
         self._memory = memory
         self._languages = languages
+        self._trigger_config = trigger_config
 
     @property
     def timeout(self) -> int:
@@ -38,13 +64,19 @@ class BenchmarkConfig:
     def languages(self) -> List[Language]:
         return self._languages
 
+    @property
+    def trigger_config(self) -> TriggerConfig:
+        return self._trigger_config
+
     # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
+
         return BenchmarkConfig(
             json_object["timeout"],
             json_object["memory"],
             [Language.deserialize(x) for x in json_object["languages"]],
+            TriggerConfig.deserialize(json_object)
         )
 
 

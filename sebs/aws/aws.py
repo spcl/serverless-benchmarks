@@ -246,6 +246,7 @@ class AWS(System):
         memory = code_package.benchmark_config.memory
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
+        trigger_config = code_package.benchmark_config.trigger_config
 
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -311,15 +312,20 @@ class AWS(System):
                 code_bucket,
                 function_response['FunctionArn']
             )
-        from sebs.aws.triggers import LibraryTrigger
 
-        # lambda_function.add_trigger(LibraryTrigger(func_name, self))
-
-        from sebs.aws.triggers import StorageTrigger
-        trigger = StorageTrigger(lambda_function.arn, 'benchmark.bucket.666', self) #tmp
-        trigger.create()
-        lambda_function.add_trigger(trigger)
-
+        from sebs.aws.triggers import Trigger, LibraryTrigger, StorageTrigger
+        if trigger_config.type == Trigger.TriggerType.LIBRARY:
+            lambda_function.add_trigger(LibraryTrigger(func_name, self))
+        else:
+            if trigger_config.type == Trigger.TriggerType.STORAGE:
+                if "bucketName" in trigger_config.params:
+                    bucket_name = trigger_config.params["bucketName"]
+                    trigger = StorageTrigger(lambda_function.arn, bucket_name, self)
+                else:
+                    unique_bucket_name = '{}{}'.format(''.join(filter(str.isalnum, func_name)), time.time())
+                    trigger = StorageTrigger(lambda_function.arn, unique_bucket_name, self)
+                trigger.create()
+                lambda_function.add_trigger(trigger)
         return lambda_function
 
     def cached_function(self, function: Function):

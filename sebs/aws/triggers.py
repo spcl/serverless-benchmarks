@@ -119,6 +119,7 @@ class StorageTrigger(Trigger):
         return Trigger.TriggerType.STORAGE
 
     def create(self):
+        self.bucket_name = self._deployment_client.storage.create_bucket(self.bucket_name)
         s3_client = self._deployment_client.storage.client
         self.add_function_permission('1')
         s3_client.put_bucket_notification_configuration(
