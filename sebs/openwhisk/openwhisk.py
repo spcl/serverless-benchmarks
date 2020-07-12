@@ -32,12 +32,16 @@ class OpenWhisk(System):
         pass
 
     @staticmethod
-    def __run_check_process__(cmd: str) -> None:
+    def __run_check_process__(cmd: str, **kwargs) -> None:
+        env = os.environ.copy()
+        env = {**env, **kwargs}
+
         subprocess.run(
             cmd.split(),
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            env=env,
         )
 
     @staticmethod
@@ -54,15 +58,7 @@ class OpenWhisk(System):
     def install_kind() -> None:
         try:
             logging.info('Installing kind...')
-            env = os.environ.copy()
-            env['GO111MODULE'] = 'on'
-            subprocess.run(
-                'go get sigs.k8s.io/kind@v0.8.1'.split(),
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                env=env,
-            )
+            OpenWhisk.__run_check_process__('go get sigs.k8s.io/kind@v0.8.1', GO111MODULE='on')
             logging.info('Kind has been installed')
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error('Cannot install kind, reason: {}'.format(e))
@@ -78,11 +74,53 @@ class OpenWhisk(System):
 
     @staticmethod
     def check_kubectl_installation() -> None:
-        OpenWhisk.__check_installation__("kubectl", "kubectl version --client=true")
+        try:
+            logging.info("Checking kubectl installation...")
+            OpenWhisk.__run_check_process__('kubectl version --clien=true')
+            logging.info("Kubectl is installed")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logging.info("Kubectl is not installed, proceeding to install...")
+            OpenWhisk.install_kubectl()
+
+    @staticmethod
+    def install_kubectl() -> None:
+        try:
+            logging.info('Installing kubectl...')
+            home_path = os.environ['HOME']
+            kubectl_path = '{}/.local/bin/kubectl'.format(home_path)
+            OpenWhisk.__run_check_process__("curl -L -o {} "
+                                            "https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin"
+                                            "/linux/amd64/kubectl".format(kubectl_path))
+            OpenWhisk.__run_check_process__("chmod +x {}".format(kubectl_path))
+            logging.info('Kubectl has been installed')
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logging.error('Cannot install kubectl, reason: {}'.format(e))
+            exit(1)
 
     @staticmethod
     def check_helm_installation() -> None:
         OpenWhisk.__check_installation__("helm", "helm version")
+
+    @staticmethod
+    def install_helm() -> None:
+        try:
+            logging.info('Installing helm...')
+            helm_package = subprocess.run(
+                "curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3".split(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                "sh -".split(),
+                input=helm_package.stdout,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
+            logging.info('Helm has been installed')
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logging.error('Cannot install helm, reason: {}'.format(e))
+            exit(1)
 
     @staticmethod
     def check_kind_cluster() -> None:
@@ -103,12 +141,7 @@ class OpenWhisk(System):
     @staticmethod
     def create_kind_cluster() -> None:
         try:
-            subprocess.run(
-                "kind create cluster --config openwhisk/kind-cluster.yaml".split(),
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            OpenWhisk.__run_check_process__("kind create cluster --config openwhisk/kind-cluster.yaml")
             while True:
                 nodes = subprocess.run(
                     "kubectl get nodes".split(),
@@ -158,12 +191,7 @@ class OpenWhisk(System):
     @staticmethod
     def label_nodes() -> None:
         def label_node(node: str, role: str) -> None:
-            subprocess.run(
-                "kubectl label node {} openwhisk-role={}".format(node, role).split(),
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            OpenWhisk.__run_check_process__("kubectl label node {} openwhisk-role={}".format(node, role))
 
         try:
             logging.info('Labelling nodes')
@@ -175,12 +203,8 @@ class OpenWhisk(System):
     @staticmethod
     def clone_openwhisk_chart() -> None:
         try:
-            subprocess.run(
-                "git clone git@github.com:apache/openwhisk-deploy-kube.git /tmp/openwhisk-deploy-kube".split(),
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            OpenWhisk.__run_check_process__(
+                "git clone git@github.com:apache/openwhisk-deploy-kube.git /tmp/openwhisk-deploy-kube")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error("Cannot clone openwhisk chart, reason: {}".format(e))
 
@@ -220,13 +244,8 @@ class OpenWhisk(System):
     @staticmethod
     def helm_install() -> None:
         try:
-            subprocess.run(
-                "helm install owdev /tmp/openwhisk-deploy-kube/helm/openwhisk -n openwhisk --create-namespace -f "
-                "/tmp/openwhisk-deploy-kube/mycluster.yaml".split(),
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            OpenWhisk.__run_check_process__("helm install owdev /tmp/openwhisk-deploy-kube/helm/openwhisk -n "
+                                            "openwhisk --create-namespace -f /tmp/openwhisk-deploy-kube/mycluster.yaml")
             while True:
                 pods = subprocess.run(
                     "kubectl get pods -n openwhisk".split(),
@@ -247,14 +266,9 @@ class OpenWhisk(System):
             logging.error("Cannot install openwhisk, reason: {}".format(e))
 
     @staticmethod
-    def expose_couchdb():
+    def expose_couchdb() -> None:
         try:
-            subprocess.run(
-                "kubectl apply -f openwhisk/couchdb-service.yaml".split(),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=True,
-            )
+            OpenWhisk.__run_check_process__("kubectl apply -f openwhisk/couchdb-service.yaml")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.error("Cannot expose Couch DB, reason: {}".format(e))
 
@@ -273,6 +287,25 @@ class OpenWhisk(System):
     @staticmethod
     def name() -> str:
         return "openwhisk"
+
+    @staticmethod
+    def get_openwhisk_url() -> str:
+        ip = OpenWhisk.get_worker_ip()
+        return '{}:{}'.format(ip, 31001)
+
+    @staticmethod
+    def get_couchdb_url() -> str:
+        ip = OpenWhisk.get_worker_ip()
+        return '{}:{}'.format(ip, 31201)
+
+    @staticmethod
+    def delete_cluster():
+        try:
+            logging.info('Deleting KinD cluster...')
+            OpenWhisk.__run_check_process__('kind delete cluster')
+            logging.info('KinD cluster deleted...')
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logging.error("Cannot delete cluster, reason: {}".format(e))
 
     def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
 
