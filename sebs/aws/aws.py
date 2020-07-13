@@ -59,6 +59,7 @@ class AWS(System):
         self.session = boto3.session.Session()
         self.get_lambda_client()
         self.get_storage()
+        self.get_events_client()
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
@@ -94,6 +95,16 @@ class AWS(System):
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
+
+    def get_events_client(self):
+        if not hasattr(self, "events_client"):
+            self.events_client = self.session.client(
+                service_name="events",
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
+                region_name=self.config.region,
+            )
+        return self.events_client
 
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.
@@ -313,19 +324,24 @@ class AWS(System):
                 function_response['FunctionArn']
             )
 
-        from sebs.aws.triggers import Trigger, LibraryTrigger, StorageTrigger
+        from sebs.aws.triggers import Trigger, LibraryTrigger, StorageTrigger, TimerTrigger
+
         if trigger_config.type == Trigger.TriggerType.LIBRARY:
-            lambda_function.add_trigger(LibraryTrigger(func_name, self))
-        else:
-            if trigger_config.type == Trigger.TriggerType.STORAGE:
-                if "bucketName" in trigger_config.params:
-                    bucket_name = trigger_config.params["bucketName"]
-                    trigger = StorageTrigger(lambda_function.arn, bucket_name, self)
-                else:
-                    unique_bucket_name = '{}{}'.format(''.join(filter(str.isalnum, func_name)), time.time())
-                    trigger = StorageTrigger(lambda_function.arn, unique_bucket_name, self)
-                trigger.create()
-                lambda_function.add_trigger(trigger)
+            trigger = LibraryTrigger(func_name, self)
+        elif trigger_config.type == Trigger.TriggerType.STORAGE:
+            if "bucketName" in trigger_config.params:
+                bucket_name = trigger_config.params["bucketName"]
+                trigger = StorageTrigger(lambda_function.arn, bucket_name, self)
+            else:
+                unique_bucket_name = '{}{}'.format(''.join(filter(str.isalnum, func_name)), time.time())
+                trigger = StorageTrigger(lambda_function.arn, unique_bucket_name, self)
+            trigger.create()
+        elif trigger_config.type == Trigger.TriggerType.TIMER:
+            schedule_pattern = trigger_config.params["pattern"]
+            name = None if "ruleName" not in trigger_config.params else trigger_config.params["ruleName"]
+            trigger = TimerTrigger(func_name, lambda_function.arn, schedule_pattern, self, name)
+            trigger.create()
+        lambda_function.add_trigger(trigger)
         return lambda_function
 
     def cached_function(self, function: Function):

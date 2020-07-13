@@ -3,9 +3,10 @@
   "memory": 128,
   "languages": ["python", "nodejs"],
   "trigger": {
-    "type": "STORAGE",
+    "type": "TIMER",
     "params": {
-      "bucketName": "benchmark.bucket.666"
+      "pattern": "rate(1 hour)",
+      "ruleName": "testRule"
     }
   }
 }

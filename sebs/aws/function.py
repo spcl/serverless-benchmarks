@@ -36,8 +36,7 @@ class LambdaFunction(Function):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "LambdaFunction":
-        from sebs.aws.triggers import LibraryTrigger
-        from sebs.aws.triggers import StorageTrigger
+        from sebs.aws.triggers import LibraryTrigger, StorageTrigger, TimerTrigger
 
         ret = LambdaFunction(
             cached_config["name"],
@@ -49,7 +48,7 @@ class LambdaFunction(Function):
             cached_config["bucket"],
         )
         for trigger in cached_config["triggers"]:
-            trigger_type = {"Library": LibraryTrigger, "Storage": StorageTrigger}.get(trigger["type"])
+            trigger_type = {"Library": LibraryTrigger, "Storage": StorageTrigger, "Timer": TimerTrigger}.get(trigger["type"])
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret

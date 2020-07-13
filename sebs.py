@@ -184,6 +184,8 @@ try:
             if trigger_type == Trigger.TriggerType.STORAGE:
                 trigger.deployment_client = deployment_client
                 ret = trigger.async_invoke(input_config)
+            elif trigger_type == Trigger.TriggerType.TIMER:
+                pass #It's a cron-like trigger
             elif trigger_type == Trigger.TriggerType.LIBRARY:
                 result.begin()
                 ret = trigger.sync_invoke(input_config)
