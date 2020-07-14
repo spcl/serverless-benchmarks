@@ -104,23 +104,29 @@
   "fission": { 
     "languages": {
       "python": {
-        "base_images": {"3.6":""},
+        "base_images": {
+          "env":"fission/python-env:latest",
+          "builder":"fission/python-builder:latest"
+        },
         "versions": ["3.6"],
         "images": [],
         "username": "docker_user",
         "deployment": {
           "files": ["handler.py", "storage.py"],
-          "packages": []
+          "packages": {"minio" : "^5.0.10"}
         }
       },
       "nodejs": {
-        "base_images": {"8":""},
+        "base_images": {
+          "env":"fission/node-env:latest",
+          "builder":"fission/node-builder:latest"
+        },
         "versions": ["10.x", "12.x"],
         "images": [],
         "username": "docker_user",
         "deployment": {
           "files": ["handler.js"],
-          "packages": []
+          "packages": {"minio" : "^7.0.16"}
         }
       }
     }

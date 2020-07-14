@@ -20,14 +20,8 @@ from tools.fission_preparation import check_if_minikube_installed, run_minikube,
 
 
 class Fission(System):
-    available_languages_images = {
-        "python": "fission/python-env:latest",
-        "nodejs": "fission/node-env:latest",
-    }
-    available_languages_builders = {
-        "python": "fission/python-builder:latest",
-        "nodejs": "fission/node-builder:latest",
-    }
+    language_image: str
+    language_builder: str
     storage: Minio
     httpTriggerName: str
     functionName: str
@@ -71,19 +65,22 @@ class Fission(System):
         )
 
     def shutdown(self) -> None:
-        if hasattr(self, "httpTriggerName"):
-            subprocess.run(
-                f"fission httptrigger delete --name {self.httpTriggerName}".split()
-            )
-        if hasattr(self, "functionName"):
-            subprocess.run(f"fission fn delete --name {self.functionName}".split())
-        if hasattr(self, "packageName"):
-            subprocess.run(f"fission package delete --name {self.packageName}".split())
-        if hasattr(self, "envName"):
-            subprocess.run(f"fission env delete --name {self.envName}".split())
+        if self.config.shouldShutdown:
+            if hasattr(self, "httpTriggerName"):
+                subprocess.run(
+                    f"fission httptrigger delete --name {self.httpTriggerName}".split()
+                )
+            if hasattr(self, "functionName"):
+                subprocess.run(f"fission fn delete --name {self.functionName}".split())
+            if hasattr(self, "packageName"):
+                subprocess.run(
+                    f"fission package delete --name {self.packageName}".split()
+                )
+            if hasattr(self, "envName"):
+                subprocess.run(f"fission env delete --name {self.envName}".split())
+            stop_minikube()
         self.storage.storage_container.kill()
         logging.info("Minio stopped")
-        stop_minikube()
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         self.storage = Minio(self.docker_client)
@@ -125,9 +122,6 @@ class Fission(System):
         }
         minioConfig.write(json.dumps(minioConfigJson))
         minioConfig.close()
-        reqFile = open(os.path.join(directory, "requirements.txt"), "a+")
-        reqFile.writelines(["minio"])
-        reqFile.close()
         scriptPath = os.path.join(directory, "build.sh")
         self.shouldCallBuilder = True
         f = open(scriptPath, "w+")
@@ -157,6 +151,7 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
         self.create_function(name, env_name, code_path)
 
     def create_env_if_needed(self, name: str, image: str, builder: str):
+        self.envName = name
         try:
             fission_env_list = subprocess.run(
                 "fission env list ".split(),
@@ -170,10 +165,9 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
                 stderr=subprocess.DEVNULL,
                 input=fission_env_list.stdout,
             )
-            self.envName = name
+            logging.info(f"Env {name} already exist")
         except subprocess.CalledProcessError:
             logging.info(f'Creating env for {name} using image "{image}".')
-            self.envName = name
             try:
                 subprocess.run(
                     f"fission env create --name {name} --image {image} \
@@ -195,81 +189,90 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
                     self.storage.storage_container.kill()
                     logging.info("Minio stopped")
                     self.initialize()
+                    self.create_env_if_needed(name, image, builder)
 
     def create_function(self, name: str, env_name: str, path: str):
         packageName = f"{name}-package"
+        self.createPackage(packageName, path, env_name)
+        self.createFunction(packageName, name)
+
+    def createPackage(self, packageName: str, path: str, envName: str) -> None:
+        logging.info(f"Deploying fission package...")
+        self.packageName = packageName
         try:
             packages = subprocess.run(
                 "fission package list".split(), stdout=subprocess.PIPE, check=True
             )
             subprocess.run(
-                f"grep {packageName}".split(), check=True, input=packages.stdout
+                f"grep {packageName}".split(),
+                check=True,
+                input=packages.stdout,
+                stdout=subprocess.DEVNULL,
             )
-            try:
-                self.deleteFunction(name)
-                self.deletePackage(packageName)
-                self.createPackage(packageName, path, env_name)
-                functions = subprocess.run(
-                    "fission function list".split(), stdout=subprocess.PIPE, check=True
-                )
-                subprocess.run(
-                    f"grep {name}".split(), check=True, input=functions.stdout
-                )
-            except subprocess.CalledProcessError:
-                self.createFunction(packageName, name)
+            logging.info("Package already exist")
         except subprocess.CalledProcessError:
-            self.createPackage(packageName, path, env_name)
-            self.createFunction(packageName, name)
-
-    def createPackage(self, packageName: str, path: str, envName: str) -> None:
-        logging.info(f"Deploying fission package...")
-        self.packageName = packageName
-        process = f"fission package create --sourcearchive {path} \
-        --name {packageName} --env {envName} --buildcmd ./build.sh"
-        subprocess.run(process.split(), check=True)
-        logging.info("Waiting for package build...")
-        while True:
-            try:
-                packageStatus = subprocess.run(
-                    f"fission package info --name {packageName}".split(),
-                    stdout=subprocess.PIPE,
-                )
-                subprocess.run(
-                    f"grep succeeded".split(),
-                    check=True,
-                    input=packageStatus.stdout,
-                    stderr=subprocess.DEVNULL,
-                )
-                break
-            except subprocess.CalledProcessError:
-                if "failed" in packageStatus.stdout.decode("utf-8"):
-                    logging.error("Build package failed")
-                    raise Exception("Build package failed")
-                sleep(3)
-                continue
-        logging.info("Package ready")
+            process = f"fission package create --sourcearchive {path} \
+            --name {packageName} --env {envName} --buildcmd ./build.sh"
+            subprocess.run(process.split(), check=True)
+            logging.info("Waiting for package build...")
+            while True:
+                try:
+                    packageStatus = subprocess.run(
+                        f"fission package info --name {packageName}".split(),
+                        stdout=subprocess.PIPE,
+                    )
+                    subprocess.run(
+                        f"grep succeeded".split(),
+                        check=True,
+                        input=packageStatus.stdout,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    break
+                except subprocess.CalledProcessError:
+                    if "failed" in packageStatus.stdout.decode("utf-8"):
+                        logging.error("Build package failed")
+                        raise Exception("Build package failed")
+                    sleep(3)
+                    continue
+            logging.info("Package ready")
 
     def deletePackage(self, packageName: str) -> None:
         logging.info(f"Deleting fission package...")
         subprocess.run(f"fission package delete --name {packageName}".split())
 
     def createFunction(self, packageName: str, name: str) -> None:
-        logging.info(f"Deploying fission function...")
-        subprocess.run(
-            f"fission fn create --name {name} --pkg {packageName} \
-                --entrypoint handler.handler --env {self.envName}".split(),
-            check=True,
-        )
         triggerName = f"{name}-trigger"
         self.functionName = name
         self.httpTriggerName = triggerName
+        logging.info(f"Deploying fission function...")
+        try:
+            triggers = subprocess.run(
+                f"fission fn list".split(), stdout=subprocess.PIPE, check=True
+            )
+            subprocess.run(
+                f"grep {name}".split(),
+                check=True,
+                input=triggers.stdout,
+                stdout=subprocess.DEVNULL,
+            )
+            logging.info(f"Function {name} already exist")
+        except subprocess.CalledProcessError:
+            subprocess.run(
+                f"fission fn create --name {name} --pkg {packageName} \
+                    --entrypoint handler.handler --env {self.envName}".split(),
+                check=True,
+            )
         try:
             triggers = subprocess.run(
                 f"fission httptrigger list".split(), stdout=subprocess.PIPE, check=True
             )
             subprocess.run(
-                f"grep {triggerName}".split(), check=True, input=triggers.stdout
+                f"grep {triggerName}".split(),
+                check=True,
+                input=triggers.stdout,
+                stdout=subprocess.DEVNULL,
             )
+            logging.info(f"Trigger {triggerName} already exist")
         except subprocess.CalledProcessError:
             subprocess.run(
                 f"fission httptrigger create --url /benchmark --method POST \
@@ -282,22 +285,14 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
         subprocess.run(f"fission fn delete --name {name}".split())
 
     def get_function(self, code_package: Benchmark) -> Function:
+        self.language_image = self.system_config.benchmark_base_images(
+            self.name(), code_package.language_name
+        )["env"]
+        self.language_builder = self.system_config.benchmark_base_images(
+            self.name(), code_package.language_name
+        )["builder"]
         path, size = self.package_code(code_package)
-
-        # TODO: also exception if language not in self.available_languages_images
-        # if (
-        #     code_package.language_version
-        #     not in self.system_config.supported_language_versions(
-        #         self.name(), code_package.language_name
-        #     )
-        # ):
-        #     raise Exception(
-        #         "Unsupported {language} version {version} in Fission!".format(
-        #             language=code_package.language_name,
-        #             version=code_package.language_version,
-        #         )
-        #     )
-        benchmark = code_package.benchmark.replace('.', '-')
+        benchmark = code_package.benchmark.replace(".", "-")
         language = code_package.language_name
         language_runtime = code_package.language_version
         timeout = code_package.benchmark_config.timeout
@@ -314,9 +309,7 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
                 )
             )
             self.create_env_if_needed(
-                language,
-                self.available_languages_images[language],
-                self.available_languages_builders[language],
+                language, self.language_image, self.language_builder,
             )
             self.update_function(func_name, code_package.language_name, path)
             return FissionFunction(func_name)
@@ -324,9 +317,7 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
             self.create_env_if_needed(
-                language,
-                self.available_languages_images[language],
-                self.available_languages_builders[language],
+                language, self.language_image, self.language_builder,
             )
             self.update_function(func_name, code_package.language_name, path)
             cached_cfg = code_package.cached_config
@@ -352,9 +343,7 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
             code_location = code_package.benchmark_path
             func_name = "{}-{}-{}".format(benchmark, language, memory)
             self.create_env_if_needed(
-                language,
-                self.available_languages_images[language],
-                self.available_languages_builders[language],
+                language, self.language_image, self.language_builder,
             )
             self.create_function(func_name, language, path)
             self.cache_client.add_function(

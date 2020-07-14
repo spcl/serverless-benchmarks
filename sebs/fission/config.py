@@ -19,7 +19,7 @@ class FissionResources(Resources):
         pass
 
     def serialize(self) -> dict:
-        return {"": ""}
+        return {}
 
     @staticmethod
     def initialize(config: dict, cache: Cache) -> Resources:
@@ -29,9 +29,11 @@ class FissionResources(Resources):
 class FissionConfig(Config):
     name: str
     cache: Cache
+    shouldShutdown: bool
 
     def __init__(self, config: dict, cache: Cache):
         self.name = config["name"]
+        self.shouldShutdown = config["shouldShutdown"]
         self.cache = cache
 
     @staticmethod
