@@ -68,10 +68,21 @@ use script `init.sh` (see an example in `110.dynamic-html`).
 
 ### Experiments
 
-TODO :-(
+#### Performance&Cost
 
+TODO: moving experiment code from previous scripts.
 
-#### Performance&Cost Variability
+#### Cold Start Prediction
+
+TODO: moving experiment code from previous scripts.
+
+#### Scalability
+
+TODO: moving experiment code from previous scripts.
+
+#### Performance Modeling
+
+WiP
 
 ### Installation
 
@@ -118,7 +129,7 @@ Pass lambda role in config JSON, see an example in `config/example.json`.
 
 **temporarily disabled**
 
-Azure provides 2000 USD for the first month.
+Azure provides 200 USD for the first month.
 You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
 enable non-interactive login through CLI. Since this process has [an easy, one-step
 CLI solution](https://docs.microsoft.com/en-us/cli/azure/ad/sp?view=azure-cli-latest#az-ad-sp-create-for-rbac),
