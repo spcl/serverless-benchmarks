@@ -76,7 +76,7 @@ class OpenWhisk(System):
     def check_kubectl_installation() -> None:
         try:
             logging.info("Checking kubectl installation...")
-            OpenWhisk.__run_check_process__('kubectl version --clien=true')
+            OpenWhisk.__run_check_process__('kubectl version --client=true')
             logging.info("Kubectl is installed")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logging.info("Kubectl is not installed, proceeding to install...")

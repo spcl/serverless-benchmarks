@@ -100,5 +100,38 @@
         "username": "docker_user"
       }
     }
+  },
+  "openwhisk": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.6": "openwhisk/python3action:1.14.0",
+          "2.7": "openwhisk/python2action"
+        },
+        "versions": ["3.6", "2.7"],
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "__main__.py", "storage.py"],
+          "packages": []
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "8" : "openwhisk/action-nodejs-v8",
+          "10" : "openwhisk/action-nodejs-v10",
+          "12" : "openwhisk/action-nodejs-v12"
+        },
+        "versions": [ "8", "10", "12"],
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "handler.js", "storage.js"],
+          "packages": {
+            "uuid": "3.4.0"
+          }
+        }
+      }
+    }
   }
 }
