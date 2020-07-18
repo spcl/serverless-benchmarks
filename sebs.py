@@ -181,11 +181,13 @@ try:
                 experiment_config, deployment_client.config
             )
             trigger = func.triggers[0]
+            trigger.deployment_client = deployment_client
             if trigger_type == Trigger.TriggerType.STORAGE:
-                trigger.deployment_client = deployment_client
                 ret = trigger.async_invoke(input_config)
             elif trigger_type == Trigger.TriggerType.TIMER:
                 pass #It's a cron-like trigger
+            elif trigger_type == Trigger.TriggerType.DB:
+                trigger.async_invoke(input_config)
             elif trigger_type == Trigger.TriggerType.LIBRARY:
                 result.begin()
                 ret = trigger.sync_invoke(input_config)

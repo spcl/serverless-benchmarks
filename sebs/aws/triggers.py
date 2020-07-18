@@ -192,7 +192,7 @@ class TimerTrigger(Trigger):
 
     def delete(self):
         events_client = self._deployment_client.get_events_client()
-        TriggerUtils.add_function_permission(self._deployment_client.get_lambda_client(), "2", self.function_arn, 'events.amazonaws.com')
+        TriggerUtils.add_function_permission(events_client, "2", self.function_arn, 'events.amazonaws.com')
         events_client.remove_targets(Rule=self.unique_rule_name, Ids=["1"])
         events_client.delete_rule(Name=self.unique_rule_name)
 
@@ -208,6 +208,99 @@ class TimerTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return TimerTrigger(None, None, None, None, obj["ruleName"])
+
+class DbTrigger(Trigger):
+    def __init__(self, function_arn: str, config: dict, deployment_client: Optional[AWS] = None):
+        self.function_arn = function_arn
+        self.base_table_name = config["tableName"] if "tableName" in config else None
+        self.config = config
+        self.unique_table_name = config["uniqueTableName"] if "uniqueTableName" in config else None
+        self.event_mapping_uuid = config["mappingUuid"] if "mappingUuid" in config else None
+        self._deployment_client = deployment_client
+
+    @property
+    def deployment_client(self) -> AWS:
+        assert self._deployment_client
+        return self._deployment_client
+
+    @deployment_client.setter
+    def deployment_client(self, deployment_client: AWS):
+        self._deployment_client = deployment_client
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        return Trigger.TriggerType.DB
+
+    def create(self):
+        lambda_client = self._deployment_client.get_lambda_client()
+        db_client = self._deployment_client.get_db_client()
+        self.unique_table_name = '{}{}'.format(self.base_table_name, time.time())
+        db_client.create_table(
+            AttributeDefinitions=self.config["AttributeDefinitions"],
+            TableName=self.unique_table_name,
+            KeySchema=self.config["KeySchema"],
+            ProvisionedThroughput=self.config["ProvisionedThroughput"],
+            StreamSpecification={
+                "StreamEnabled": True,
+                "StreamViewType": self.config["StreamViewType"]
+            }
+        )
+        for _ in range(0, 5):
+            try:
+                table = db_client.describe_table(TableName=self.unique_table_name)
+                mapping = lambda_client.create_event_source_mapping(
+                    EventSourceArn=table["Table"]['LatestStreamArn'],
+                    FunctionName=self.function_arn,
+                    StartingPosition="TRIM_HORIZON",
+                    BatchSize=1,
+                )
+                self.event_mapping_uuid = mapping["UUID"]
+                break
+            except Exception as e:
+                print("Retrying event_source_mapping...", str(e))
+                time.sleep(1)
+        if self.event_mapping_uuid is None:
+            raise Exception("Failed to create event source mapping")
+
+    def delete(self):
+        lambda_client = self._deployment_client.get_lambda_client()
+        lambda_client.delete_event_source_mapping(
+            UUID=self.event_mapping_uuid
+        )
+
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+        pass
+
+    def async_invoke(self, payload: dict):
+        db_client = self._deployment_client.get_db_client()
+        success = False
+        for i in range(0, 5):
+            try:
+                db_client.put_item(
+                    Item=payload,
+                    TableName=self.unique_table_name
+                )
+                success = True
+                break
+            except Exception as e:
+                print("Retrying put_item...", str(e))
+                time.sleep(5)
+        if not success:
+            raise Exception("Faied to put item to DynamoDB")
+
+
+    def serialize(self) -> dict:
+        return {
+            "type": "Db",
+            "config": {
+                "uniqueTableName": self.unique_table_name,
+                "eventMappingUuid": self.event_mapping_uuid
+            }
+        }
+
+    @staticmethod
+    def deserialize(obj: dict) -> Trigger:
+        return DbTrigger(None, obj["config"])
 
 class TriggerUtils:
     @staticmethod

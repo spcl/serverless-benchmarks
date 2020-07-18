@@ -118,6 +118,7 @@ class Trigger(ABC):
         LIBRARY = 1
         STORAGE = 2
         TIMER = 3
+        DB = 4
 
     # FIXME: 3.7+, future annotations
     @staticmethod

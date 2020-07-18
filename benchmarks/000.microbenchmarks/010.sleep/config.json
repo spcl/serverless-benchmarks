@@ -1,12 +1,39 @@
 {
   "timeout": 120,
   "memory": 128,
-  "languages": ["python", "nodejs"],
+  "languages": [
+    "python",
+    "nodejs"
+  ],
   "trigger": {
-    "type": "TIMER",
+    "type": "DB",
     "params": {
-      "pattern": "rate(1 hour)",
-      "ruleName": "testRule"
+      "tableName": "tabeleczka",
+      "AttributeDefinitions": [
+        {
+          "AttributeName": "attr1",
+          "AttributeType": "S"
+        },
+        {
+          "AttributeName": "attr2",
+          "AttributeType": "N"
+        }
+      ],
+      "KeySchema": [
+        {
+          "AttributeName": "attr1",
+          "KeyType": "HASH"
+        },
+        {
+          "AttributeName": "attr2",
+          "KeyType": "RANGE"
+        }
+      ],
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 1,
+        "WriteCapacityUnits": 1
+      },
+      "StreamViewType": "NEW_IMAGE"
     }
   }
 }

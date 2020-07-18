@@ -96,6 +96,13 @@ class AWS(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
+    """
+        Create a client instance for Event Bridge
+        
+        :return: events client
+    """
+
+
     def get_events_client(self):
         if not hasattr(self, "events_client"):
             self.events_client = self.session.client(
@@ -105,6 +112,22 @@ class AWS(System):
                 region_name=self.config.region,
             )
         return self.events_client
+
+    """
+        Create a client instance for Dynamo DB
+
+        :return: db client
+    """
+
+    def get_db_client(self):
+        if not hasattr(self, "db_client"):
+            self.db_client = self.session.client(
+                service_name="dynamodb",
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
+                region_name=self.config.region,
+            )
+        return self.db_client
 
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.
@@ -324,7 +347,7 @@ class AWS(System):
                 function_response['FunctionArn']
             )
 
-        from sebs.aws.triggers import Trigger, LibraryTrigger, StorageTrigger, TimerTrigger
+        from sebs.aws.triggers import Trigger, LibraryTrigger, StorageTrigger, TimerTrigger, DbTrigger
 
         if trigger_config.type == Trigger.TriggerType.LIBRARY:
             trigger = LibraryTrigger(func_name, self)
@@ -340,6 +363,9 @@ class AWS(System):
             schedule_pattern = trigger_config.params["pattern"]
             name = None if "ruleName" not in trigger_config.params else trigger_config.params["ruleName"]
             trigger = TimerTrigger(func_name, lambda_function.arn, schedule_pattern, self, name)
+            trigger.create()
+        elif trigger_config.type == Trigger.TriggerType.DB:
+            trigger = DbTrigger(lambda_function.arn, trigger_config.params, self)
             trigger.create()
         lambda_function.add_trigger(trigger)
         return lambda_function
