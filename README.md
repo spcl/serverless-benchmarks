@@ -15,15 +15,15 @@ types of workloads, from simple web applications up to computationally intensive
 video processing, scientific computations and deep learning inference. Each
 benchmark comes with **test**, **small** and **large** inputs for automatic invokation.
 
-| Type | Name | Languages |
-| ---- | ---- | --------- |
+| Type | Name | Languages | Description |
+| ---- | ---- | --------- | ----------- |
 | Webapps | dynamic-html | Python, NodeJS | Dynamic HTML generation. |
 | Webapps | uploader | Python, NodeJS | Uploading file to cloud storage. |
 | Multimedia | thumbnailer | Python, NodeJS | Resizing user-provided image. |
 | Multimedia | video-processing | Python | Adding watermark and gif conversion with ffmpeg. |
 | Utilities | compression | Python | Zip compression of storage bucket. |
 | Utilities | data-vis | Python | Visualization of DNA data. |
-| Inference | image-recognition | Deep learning inference with pytorch and ResNet. |
+| Inference | image-recognition | Python | Deep learning inference with pytorch and ResNet. |
 | Scientific | graph-pagerank | Python | Graph processing example. |
 | Scientific | graph-mst | Python | Graph processing example. |
 | Scientific | graph-bfs | Python | Graph processing example. |
