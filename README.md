@@ -10,15 +10,31 @@ using them to evaluate different parts of FaaS systems. See [installation instru
 
 ### Benchmark Applications
 
-TODO: description of benchmarks
+Benchmarks are organized into different categories, representing different
+types of workloads, from simple web applications up to computationally intensive
+video processing, scientific computations and deep learning inference. Each
+benchmark comes with **test**, **small** and **large** inputs for automatic invokation.
+
+| Type | Name | Languages |
+| ---- | ---- | --------- |
+| Webapps | dynamic-html | Python, NodeJS | Dynamic HTML generation. |
+| Webapps | uploader | Python, NodeJS | Uploading file to cloud storage. |
+| Multimedia | thumbnailer | Python, NodeJS | Resizing user-provided image. |
+| Multimedia | video-processing | Python | Adding watermark and gif conversion with ffmpeg. |
+| Utilities | compression | Python | Zip compression of storage bucket. |
+| Utilities | data-vis | Python | Visualization of DNA data. |
+| Inference | image-recognition | Deep learning inference with pytorch and ResNet. |
+| Scientific | graph-pagerank | Python | Graph processing example. |
+| Scientific | graph-mst | Python | Graph processing example. |
+| Scientific | graph-bfs | Python | Graph processing example. |
 
 #### How to add new benchmarks?
 
 Benchmarks follow the naming structure `x.y.z` where x is benchmark group, y is benchmark
 ID and z is benchmark version. For examples of implementations, look at `210.thumbnailer`
-or `311.compression`. Benchmark requires the following files:
+or `311.compression`. Each benchmark requires the following files:
 
-**config.json**
+**config.json** - Defines capabilities and minimum requirements for execution.
 ```json
 {
   "timeout": 60,
@@ -27,10 +43,11 @@ or `311.compression`. Benchmark requires the following files:
 }
 ```
 
-**input.py**
+**input.py** - Defines the benchmark input and output, including storage buckets (containers)
+allocated, and creates a set of inputs used for invocation.
 ```python
 '''
-  :return: number of input and output buckets necessary 
+  :return: number of input and output buckets used by the benchmark
 '''
 def buckets_count():
     return (1, 1)
@@ -42,7 +59,7 @@ def buckets_count():
     :param size: workload size
     :param input_buckets: input storage containers for this benchmark
     :param output_buckets:
-    :param upload_func: upload function taking three params(bucket_idx, key, filepath)
+    :param upload_func: upload function taking three params(bucket_idx, filepath, key)
     :return: input config for benchmark
 '''
 def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
@@ -50,7 +67,7 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
 ```
 
 Input files for benchmark, e.g. pretrained model and test images for deep learning
-inference, will be uploaded to input benchmark according `generate_input`.
+inference, will be uploaded to input benchmark in the function `generate_input`.
 Output buckets are cleaned after experiments. The function should return input
 configuration in form of a dictionary that will be passed to the function at
 invocation.
