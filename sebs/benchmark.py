@@ -170,7 +170,7 @@ class Benchmark(LoggingHandler):
         self._docker_client = docker_client
         self._system_config = system_config
         self._hash_value = None
-        self._output_dir = os.path.join(output_dir, "code")
+        self._output_dir = os.path.join(output_dir, f"{benchmark}_code")
 
         # verify existence of function in cache
         self.query_cache()
@@ -557,4 +557,7 @@ def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
     loader = importlib.machinery.SourceFileLoader(
         "input", os.path.join(benchmark_path, "input.py")
     )
-    return loader.load_module()  # type: ignore
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod # type: ignore
