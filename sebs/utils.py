@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Any, Type, TypeVar
+from typing import Any, Type, TypeVar, Optional
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
@@ -56,30 +56,39 @@ def create_output(directory, preserve_dir, verbose):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     os.chdir(output_dir)
+
+    configure_logging(output_dir, verbose)
+
+    return output_dir
+
+def configure_logging(verbose: bool = False, output_dir: Optional[str] = None):
     logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
     logging_date_format = "%H:%M:%S"
 
     # default file log
-    logging.basicConfig(
-        filename=os.path.join(output_dir, "out.log"),
-        filemode="w",
-        format=logging_format,
-        datefmt=logging_date_format,
-        level=logging.DEBUG if verbose else logging.INFO,
-    )
+    options = {
+        "format": logging_format,
+        "datefmt": logging_date_format,
+        "level": logging.DEBUG if verbose else logging.INFO
+    }
+    if output_dir:
+        options = {
+            **options,
+            "filename": os.path.join(output_dir, "out.log"),
+            "filemode": "w"
+        }
+    logging.basicConfig(**options)
     # Add stdout output
-    stdout = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter(logging_format, logging_date_format)
-    stdout.setFormatter(formatter)
-    stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
-    logging.getLogger().addHandler(stdout)
-
+    if output_dir:
+        stdout = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter(logging_format, logging_date_format)
+        stdout.setFormatter(formatter)
+        stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
+        logging.getLogger().addHandler(stdout)
     # disable information from libraries logging to decrease output noise
     for name in logging.root.manager.loggerDict:
-        if name.startswith("urllib3"):
+        if name.startswith("urllib3") or name.startswith("docker") or name.startswith("botocore"):
             logging.getLogger(name).setLevel(logging.ERROR)
-
-    return output_dir
 
 
 """
