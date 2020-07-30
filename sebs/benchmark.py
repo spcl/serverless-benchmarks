@@ -1,11 +1,9 @@
 import glob
 import hashlib
-import importlib
 import json
 import os
 import shutil
 import subprocess
-import sys
 from typing import Any, Callable, Dict, List, Tuple
 
 import docker
@@ -554,5 +552,9 @@ class BenchmarkModuleInterface:
 
 def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
     # Look for input generator file in the directory containing benchmark
-    sys.path.append(benchmark_path)
-    return importlib.import_module("input")  # type: ignore
+    import importlib.machinery
+
+    loader = importlib.machinery.SourceFileLoader(
+        "input", os.path.join(benchmark_path, "input.py")
+    )
+    return loader.load_module()  # type: ignore
