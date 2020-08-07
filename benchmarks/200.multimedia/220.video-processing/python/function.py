@@ -61,8 +61,8 @@ def handler(event):
 
     # Restore executable permission
     ffmpeg_binary = os.path.join(SCRIPT_DIR, 'ffmpeg', 'ffmpeg')
-    st = os.stat(ffmpeg_binary)
-    os.chmod(ffmpeg_binary, st.st_mode | stat.S_IEXEC)
+    #st = os.stat(ffmpeg_binary)
+    #os.chmod(ffmpeg_binary, st.st_mode | stat.S_IEXEC)
 
     download_begin = datetime.datetime.now()
     client.download(input_bucket, key, download_path)
