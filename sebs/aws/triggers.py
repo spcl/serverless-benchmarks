@@ -44,14 +44,17 @@ class LibraryTrigger(Trigger):
         )
         end = datetime.datetime.now()
 
+        import math
+        start_time = math.floor(datetime.datetime.timestamp(begin)) - 1
+        end_time = math.ceil(datetime.datetime.timestamp(end)) + 1
         aws_result = ExecutionResult(begin, end)
         if ret["StatusCode"] != 200:
             self.logging.error("Invocation of {} failed!".format(self.name))
             self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             self.deployment_client.get_invocation_error(
                 function_name=self.name,
-                start_time=int(begin.strftime("%s")) - 1,
-                end_time=int(end.strftime("%s")) + 1,
+                start_time=start_time,
+                end_time=end_time
             )
             aws_result.stats.failure = True
             return aws_result
@@ -60,8 +63,8 @@ class LibraryTrigger(Trigger):
             self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             self.deployment_client.get_invocation_error(
                 function_name=self.name,
-                start_time=int(begin.strftime("%s")) - 1,
-                end_time=int(end.strftime("%s")) + 1,
+                start_time=start_time,
+                end_time=end_time
             )
             aws_result.stats.failure = True
             return aws_result

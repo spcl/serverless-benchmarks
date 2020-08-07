@@ -22,13 +22,18 @@ class SeBS:
     def docker_client(self) -> docker.client:
         return self._docker_client
 
-    def __init__(self, cache_dir: str):
+    @property
+    def logging_handlers(self) -> LoggingHandlers:
+        return self._logging_handlers
+
+    def __init__(self, cache_dir: str, logging_filename: Optional[str]):
         self._cache_client = Cache(cache_dir)
         self._docker_client = docker.from_env()
         self._config = SeBSConfig()
+        self._handlers = LoggingHandlers(filename=logging_filename)
 
     def get_deployment(
-        self, config: dict, logging_filename: Optional[str]
+        self, config: dict
     ) -> FaasSystem:
 
         implementations = {"aws": AWS}
@@ -37,7 +42,6 @@ class SeBS:
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(**config))
 
-        handlers = LoggingHandlers(filename=logging_filename)
         # FIXME: future annotations, requires Python 3.7+
         deployment_config = configs[name](config, self.cache_client, handlers)
         deployment_client = implementations[name](
@@ -45,7 +49,7 @@ class SeBS:
             deployment_config,  # type: ignore
             self.cache_client,
             self.docker_client,
-            handlers,
+            self.logging_handlers
         )
         return deployment_client
 
@@ -72,6 +76,7 @@ class SeBS:
             self.cache_client,
             self.docker_client,
         )
+        benchmark.logging_handlers = self.logging_handlers
         return benchmark
 
     def shutdown(self):

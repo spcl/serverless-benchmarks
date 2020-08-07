@@ -88,7 +88,6 @@ class AWS(System):
     """
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        print(self.storage)
         if not self.storage:
             self.storage = S3(
                 self.session,
@@ -231,9 +230,9 @@ class AWS(System):
 
         from sebs.aws.triggers import LibraryTrigger
 
-        lambda_function.add_trigger(LibraryTrigger(func_name, self))
-
-        lambda_function.logging_handlers = self.logging_handlers
+        trigger = LibraryTrigger(func_name, self)
+        trigger.logging_handlers = logging_handlers
+        lambda_function.add_trigger(trigger)
 
         return lambda_function
 
@@ -243,6 +242,7 @@ class AWS(System):
 
         for trigger in function.triggers:
             if isinstance(trigger, LibraryTrigger):
+                trigger.logging_handlers = logging_handlers
                 trigger.deployment_client = self
 
     """
@@ -369,7 +369,8 @@ class AWS(System):
         while True:
             query = self.logs_client.start_query(
                 logGroupName="/aws/lambda/{}".format(function_name),
-                queryString="filter @message like /REPORT/",
+                #queryString="filter @message like /REPORT/",
+                queryString="fields @message",
                 startTime=start_time,
                 endTime=end_time,
             )
@@ -377,15 +378,19 @@ class AWS(System):
 
             while response is None or response["status"] == "Running":
                 self.logging.info("Waiting for AWS query to complete ...")
-                time.sleep(1)
+                time.sleep(5)
                 response = self.logs_client.get_query_results(queryId=query_id)
             if len(response["results"]) == 0:
-                self.logging.info("AWS logs are not yet available, repeat ...")
+                self.logging.info("AWS logs are not yet available, repeat after 15s...")
+                time.sleep(15)
                 response = None
-                break
             else:
                 break
-        print(response)
+        self.logging.error(f"Invocation error for AWS Lambda function {function_name}")
+        for message in response['results']:
+            for value in message:
+                if value['field'] == '@message':
+                    self.logging.error(value['value'])
 
     def download_metrics(
         self,
