@@ -287,10 +287,10 @@ class AWSConfig(Config):
         config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:
-            logging.info("Using cached config for AWS")
+            config_obj.logging.info("Using cached config for AWS")
             AWSConfig.initialize(config_obj, cached_config)
         else:
-            logging.info("Using user-provided config for AWS")
+            config_obj.logging.info("Using user-provided config for AWS")
             AWSConfig.initialize(config_obj, config)
 
         resources.set_region(config_obj.region)

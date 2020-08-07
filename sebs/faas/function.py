@@ -189,6 +189,7 @@ class Trigger(ABC, LoggingBase):
     def deserialize(cached_config: dict) -> "Trigger":
         pass
 
+
 """
     Abstraction base class for FaaS function. Contains a list of associated triggers
     and might implement non-trigger execution if supported by the SDK.

@@ -412,7 +412,7 @@ class AWS(System):
             )
 
         query = self.logs_client.start_query(
-            logGroupName="/aws/lambda/{}".format(function_name),
+            logGroupName="/aws/lambda/{}".format(function.name),
             queryString="filter @message like /REPORT/",
             startTime=start_time,
             endTime=end_time,
