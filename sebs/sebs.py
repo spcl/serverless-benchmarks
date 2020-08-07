@@ -1,3 +1,5 @@
+from typing import Optional
+
 import docker
 
 from sebs.aws.aws import AWS, AWSConfig
@@ -5,6 +7,9 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaasSystem
+from sebs.utils import LoggingHandlers
+
+# from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
 
 
@@ -22,7 +27,9 @@ class SeBS:
         self._docker_client = docker.from_env()
         self._config = SeBSConfig()
 
-    def get_deployment(self, config: dict) -> FaasSystem:
+    def get_deployment(
+        self, config: dict, logging_filename: Optional[str]
+    ) -> FaasSystem:
 
         implementations = {"aws": AWS}
         configs = {"aws": AWSConfig.initialize}
@@ -30,13 +37,15 @@ class SeBS:
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(**config))
 
+        handlers = LoggingHandlers(filename=logging_filename)
         # FIXME: future annotations, requires Python 3.7+
-        deployment_config = configs[name](config, self.cache_client)
+        deployment_config = configs[name](config, self.cache_client, handlers)
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore
             self.cache_client,
             self.docker_client,
+            handlers,
         )
         return deployment_client
 
@@ -44,6 +53,8 @@ class SeBS:
 
         experiment_config = ExperimentConfig.deserialize(config)
         return experiment_config
+        # implementations = {"perfcost": PerfCost}
+        # return implementations[config["type"]](config)
 
     def get_benchmark(
         self,

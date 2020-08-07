@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, List, Optional  # noqa
 
-from sebs.utils import LoggingHandler
+from sebs.utils import LoggingBase
 
 """
     Times are reported in microseconds.
@@ -121,7 +121,7 @@ class ExecutionResult:
 """
 
 
-class Trigger(ABC, LoggingHandler):
+class Trigger(ABC, LoggingBase):
     class TriggerType(Enum):
         HTTP = 0
         LIBRARY = 1
@@ -162,8 +162,9 @@ class Trigger(ABC, LoggingHandler):
 """
 
 
-class Function(LoggingHandler):
+class Function(LoggingBase):
     def __init__(self, benchmark: str, name: str, code_hash: str):
+        super().__init__()
         self._benchmark = benchmark
         self._name = name
         self._code_package_hash = code_hash

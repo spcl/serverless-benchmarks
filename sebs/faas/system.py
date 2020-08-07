@@ -7,7 +7,7 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingHandler
+from sebs.utils import LoggingBase
 from .config import Config
 from .function import Function
 from .storage import PersistentStorage
@@ -21,7 +21,7 @@ from .storage import PersistentStorage
 """
 
 
-class System(ABC, LoggingHandler):
+class System(ABC, LoggingBase):
     def __init__(
         self,
         system_config: SeBSConfig,

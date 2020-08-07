@@ -156,7 +156,10 @@ try:
     )
     logging.info("Created experiment output at {}".format(args.output_dir))
     experiment_config = sebs_client.get_experiment(config["experiments"])
-    deployment_client = sebs_client.get_deployment(config["deployment"])
+    deployment_client = sebs_client.get_deployment(
+        config["deployment"],
+        logging_filename = os.path.join(args.output_dir, "out.log")
+    )
     deployment_client.initialize()
 
     if args.action in ("publish", "test_invoke"):

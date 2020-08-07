@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+import uuid
 from typing import Any, Type, TypeVar, Optional
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
@@ -56,39 +57,53 @@ def create_output(directory, preserve_dir, verbose):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     os.chdir(output_dir)
-
-    configure_logging(output_dir, verbose)
+    configure_logging()
 
     return output_dir
 
-def configure_logging(verbose: bool = False, output_dir: Optional[str] = None):
-    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
-    logging_date_format = "%H:%M:%S"
 
-    # default file log
-    options = {
-        "format": logging_format,
-        "datefmt": logging_date_format,
-        "level": logging.DEBUG if verbose else logging.INFO
-    }
-    if output_dir:
-        options = {
-            **options,
-            "filename": os.path.join(output_dir, "out.log"),
-            "filemode": "w"
-        }
-    logging.basicConfig(**options)
-    # Add stdout output
-    if output_dir:
-        stdout = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(logging_format, logging_date_format)
-        stdout.setFormatter(formatter)
-        stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
-        logging.getLogger().addHandler(stdout)
+def configure_logging():
+
     # disable information from libraries logging to decrease output noise
+    loggers = ["urrlib3", "docker", "botocore"]
     for name in logging.root.manager.loggerDict:
-        if name.startswith("urllib3") or name.startswith("docker") or name.startswith("botocore"):
-            logging.getLogger(name).setLevel(logging.ERROR)
+        for logger in loggers:
+            if name.startswith(logger):
+                logging.getLogger(name).setLevel(logging.ERROR)
+
+
+# def configure_logging(verbose: bool = False, output_dir: Optional[str] = None):
+#    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
+#    logging_date_format = "%H:%M:%S"
+#
+#    # default file log
+#    options = {
+#        "format": logging_format,
+#        "datefmt": logging_date_format,
+#        "level": logging.DEBUG if verbose else logging.INFO,
+#    }
+#    if output_dir:
+#        options = {
+#            **options,
+#            "filename": os.path.join(output_dir, "out.log"),
+#            "filemode": "w",
+#        }
+#    logging.basicConfig(**options)
+#    # Add stdout output
+#    if output_dir:
+#        stdout = logging.StreamHandler(sys.stdout)
+#        formatter = logging.Formatter(logging_format, logging_date_format)
+#        stdout.setFormatter(formatter)
+#        stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
+#        logging.getLogger().addHandler(stdout)
+#    # disable information from libraries logging to decrease output noise
+#    for name in logging.root.manager.loggerDict:
+#        if (
+#            name.startswith("urllib3")
+#            or name.startswith("docker")
+#            or name.startswith("botocore")
+#        ):
+#            logging.getLogger(name).setLevel(logging.ERROR)
 
 
 """
@@ -107,12 +122,46 @@ def find_benchmark(benchmark: str, path: str):
     return benchmark_path
 
 
-class LoggingHandler:
+class LoggingHandlers:
+    def __init__(self, verbose: bool = False, filename: Optional[str] = None):
+        logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
+        logging_date_format = "%H:%M:%S"
+        formatter = logging.Formatter(logging_format, logging_date_format)
+        self.handlers = []
+
+        # Add stdout output
+        stdout = logging.StreamHandler(sys.stdout)
+        stdout.setFormatter(formatter)
+        stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
+        self.handlers.append(stdout)
+
+        # Add file output if needed
+        if filename:
+            file_out = logging.FileHandler(filename=filename, mode="w")
+            file_out.setFormatter(formatter)
+            file_out.setLevel(logging.DEBUG if verbose else logging.INFO)
+            self.handlers.append(file_out)
+
+
+class LoggingBase:
     def __init__(self):
+        uuid_name = str(uuid.uuid4())[0:4]
         if hasattr(self, "typename"):
-            self.logging = logging.getLogger(self.typename())
+            self.logging = logging.getLogger(f"{self.typename()}-{uuid_name}")
         else:
-            self.logging = logging.getLogger(self.__class__.__name__)
+            self.logging = logging.getLogger(f"{self.__class__.__name__}-{uuid_name}")
+        self.logging.setLevel(logging.INFO)
+
+    @property
+    def logging_handlers(self) -> LoggingHandlers:
+        return self._logging_handlers
+
+    @logging_handlers.setter
+    def logging_handlers(self, handlers: LoggingHandlers):
+        self._logging_handlers = handlers
+        self.logging.propagate = False
+        for handler in handlers.handlers:
+            self.logging.addHandler(handler)
 
 
 C = TypeVar("C", bound=Type[Any])

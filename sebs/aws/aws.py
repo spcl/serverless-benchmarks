@@ -14,6 +14,7 @@ from sebs.utils import execute
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.utils import LoggingHandlers
 from ..faas.function import Function, ExecutionResult, Trigger
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
@@ -21,7 +22,6 @@ from ..faas.system import System
 
 class AWS(System):
     logs_client = None
-    storage: S3
     cached = False
     _config: AWSConfig
 
@@ -53,9 +53,12 @@ class AWS(System):
         config: AWSConfig,
         cache_client: Cache,
         docker_client: docker.client,
+        logger_handlers: LoggingHandlers,
     ):
         super().__init__(sebs_config, cache_client, docker_client)
+        self.logging_handlers = logger_handlers
         self._config = config
+        self.storage: Optional[S3] = None
 
     def initialize(self, config: Dict[str, str] = {}):
         # thread-safe
@@ -85,7 +88,8 @@ class AWS(System):
     """
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        if not hasattr(self, "storage"):
+        print(self.storage)
+        if not self.storage:
             self.storage = S3(
                 self.session,
                 self.cache_client,
@@ -94,6 +98,7 @@ class AWS(System):
                 secret_key=self.config.credentials.secret_key,
                 replace_existing=replace_existing,
             )
+            self.storage.logging_handlers = self.logging_handlers
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
@@ -227,6 +232,8 @@ class AWS(System):
         from sebs.aws.triggers import LibraryTrigger
 
         lambda_function.add_trigger(LibraryTrigger(func_name, self))
+
+        lambda_function.logging_handlers = self.logging_handlers
 
         return lambda_function
 

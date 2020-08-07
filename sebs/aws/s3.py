@@ -8,13 +8,6 @@ from ..faas.storage import PersistentStorage
 
 
 class S3(PersistentStorage):
-    cached = False
-    input_buckets: List[str] = []
-    request_input_buckets = 0
-    input_buckets_files: List[str] = []
-    output_buckets: List[str] = []
-    request_output_buckets = 0
-    _replace_existing = False
 
     @staticmethod
     def typename() -> str:
@@ -46,6 +39,12 @@ class S3(PersistentStorage):
         )
         self.cache_client = cache_client
         self._replace_existing = replace_existing
+        self.cached = False
+        self.input_buckets: List[str] = []
+        self.request_input_buckets = 0
+        self.input_buckets_files: List[str] = []
+        self.output_buckets: List[str] = []
+        self.request_output_buckets = 0
 
     def input(self):  # noqa: A003
         return self.input_buckets

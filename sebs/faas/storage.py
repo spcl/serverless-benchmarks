@@ -4,14 +4,14 @@ from abc import ABC
 from abc import abstractmethod
 from typing import List, Tuple
 
-from sebs.utils import LoggingHandler
+from sebs.utils import LoggingBase
 
 """
     Abstract class
 """
 
 
-class PersistentStorage(ABC, LoggingHandler):
+class PersistentStorage(ABC, LoggingBase):
     def __init__(self):
         super().__init__()
 

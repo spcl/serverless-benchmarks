@@ -67,3 +67,4 @@ class LambdaFunction(Function):
 
     def code_bucket(self, benchmark: str, storage_client: S3):
         self.bucket, idx = storage_client.add_input_bucket(benchmark)
+        return self.bucket

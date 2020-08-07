@@ -10,7 +10,7 @@ import docker
 
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
-from sebs.utils import find_benchmark, project_absolute_path, LoggingHandler
+from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
 from sebs.experiments.config import Config as ExperimentConfig
 from sebs.experiments.config import Language
@@ -57,7 +57,7 @@ class BenchmarkConfig:
 """
 
 
-class Benchmark(LoggingHandler):
+class Benchmark(LoggingBase):
     @staticmethod
     def typename() -> str:
         return "Benchmark"
@@ -560,4 +560,4 @@ def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
     spec = importlib.util.spec_from_loader(loader.name, loader)
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
-    return mod # type: ignore
+    return mod  # type: ignore

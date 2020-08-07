@@ -7,7 +7,7 @@ import shutil
 import threading
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING  # noqa
 
-from sebs.utils import LoggingHandler
+from sebs.utils import LoggingBase
 
 if TYPE_CHECKING:
     from sebs.benchmark import Benchmark
@@ -33,7 +33,7 @@ def update_dict(cfg, val, keys):
     update(cfg, map_keys(cfg, val, keys))
 
 
-class Cache(LoggingHandler):
+class Cache(LoggingBase):
 
     cached_config: Dict[str, str] = {}
     """

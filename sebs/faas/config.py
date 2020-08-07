@@ -2,7 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 
 from sebs.cache import Cache
-from sebs.utils import LoggingHandler
+from sebs.utils import LoggingBase, LoggingHandlers
 
 # FIXME: Replace type hints for static generators after migration to 3.7
 # https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
@@ -19,7 +19,7 @@ from sebs.utils import LoggingHandler
 """
 
 
-class Credentials(ABC, LoggingHandler):
+class Credentials(ABC, LoggingBase):
     def __init__(self):
         super().__init__()
 
@@ -29,7 +29,9 @@ class Credentials(ABC, LoggingHandler):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache) -> "Credentials":
+    def initialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> "Credentials":
         pass
 
     """
@@ -50,7 +52,7 @@ class Credentials(ABC, LoggingHandler):
 """
 
 
-class Resources(ABC, LoggingHandler):
+class Resources(ABC, LoggingBase):
     def __init__(self):
         super().__init__()
 
@@ -60,7 +62,9 @@ class Resources(ABC, LoggingHandler):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache) -> "Resources":
+    def initialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> "Resources":
         pass
 
     """
@@ -78,7 +82,7 @@ class Resources(ABC, LoggingHandler):
 """
 
 
-class Config(ABC, LoggingHandler):
+class Config(ABC, LoggingBase):
 
     _region: str
 
@@ -101,7 +105,7 @@ class Config(ABC, LoggingHandler):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache) -> "Config":
+    def initialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         pass
 
     @abstractmethod

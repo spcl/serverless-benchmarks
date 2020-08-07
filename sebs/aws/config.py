@@ -9,6 +9,7 @@ import boto3
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
 from sebs.aws.function import LambdaFunction
+from sebs.utils import LoggingHandlers
 
 
 class AWSCredentials(Credentials):
@@ -38,7 +39,9 @@ class AWSCredentials(Credentials):
         return AWSCredentials(dct["access_key"], dct["secret_key"])
 
     @staticmethod
-    def initialize(config: dict, cache: Cache) -> Credentials:
+    def initialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> Credentials:
 
         # FIXME: update return types of both functions to avoid cast
         # needs 3.7+  to support annotations
@@ -49,6 +52,7 @@ class AWSCredentials(Credentials):
             ret = cast(
                 AWSCredentials, AWSCredentials.deserialize(cached_config["credentials"])
             )
+            ret.logging_handlers = handlers
             ret.logging.info("Using cached credentials for AWS")
         else:
             # Check for new config
@@ -66,6 +70,7 @@ class AWSCredentials(Credentials):
                     "up environmental variables AWS_ACCESS_KEY_ID and "
                     "AWS_SECRET_ACCESS_KEY"
                 )
+            ret.logging_handlers = handlers
             ret.logging.info("No cached credentials for AWS found, initialize!")
         return ret
 
@@ -220,7 +225,7 @@ class AWSResources(Resources):
             )
 
     @staticmethod
-    def initialize(config: dict, cache: Cache) -> Resources:
+    def initialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
 
         cached_config = cache.get_config("aws")
         ret: AWSResources
@@ -229,16 +234,19 @@ class AWSResources(Resources):
             ret = cast(
                 AWSResources, AWSResources.deserialize(cached_config["resources"])
             )
+            ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for AWS")
         else:
             # Check for new config
             if "resources" in config:
                 ret = cast(AWSResources, AWSResources.deserialize(config["resources"]))
+                ret.logging_handlers = handlers
                 ret.logging.info(
                     "No cached resources for AWS found, using user configuration."
                 )
             else:
                 ret = AWSResources(lambda_role="")
+                ret.logging_handlers = handlers
                 ret.logging.info("No resources for AWS found, initialize!")
 
         return ret
@@ -269,13 +277,16 @@ class AWSConfig(Config):
         config._region = dct["region"]
 
     @staticmethod
-    def initialize(config: dict, cache: Cache) -> Config:
+    def initialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
 
         cached_config = cache.get_config("aws")
         # FIXME: use future annotations (see sebs/faas/system)
-        credentials = cast(AWSCredentials, AWSCredentials.initialize(config, cache))
-        resources = cast(AWSResources, AWSResources.initialize(config, cache))
+        credentials = cast(
+            AWSCredentials, AWSCredentials.initialize(config, cache, handlers)
+        )
+        resources = cast(AWSResources, AWSResources.initialize(config, cache, handlers))
         config_obj = AWSConfig(credentials, resources)
+        config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:
             config_obj.logging.info("Using cached config for AWS")

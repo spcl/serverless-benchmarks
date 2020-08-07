@@ -18,11 +18,17 @@ parser.add_argument("--deployment", choices=["aws", "azure", "local"], nargs="+"
 
 benchmarks = [
     "110.dynamic-html",
-    #"120.uploader",
-    "210.thumbnailer"
+    "120.uploader",
+    "210.thumbnailer",
+    "220.video-processing",
+    "311.compression",
+    #"411.image-recognition",
+    #"501.graph-pagerank",
+    #"502.graph-mst",
+    #"503.graph-bfs",
+    #"504.dna-visualisation"
 ]
 tmp_dir = tempfile.TemporaryDirectory()
-sebs.utils.configure_logging()
 client = sebs.SeBS(tmp_dir.name)
 
 args = parser.parse_args()
@@ -40,7 +46,7 @@ class TestSequenceMeta(type):
 
         def gen_test(benchmark_name):
             def test(self):
-                deployment_client = client.get_deployment(self.config)
+                deployment_client = client.get_deployment(self.config, f"regression_test_{benchmark_name}.log")
                 logging.info(
                     f"Begin regression test of {benchmark_name} on "
                     f"{deployment_client.name()}"
@@ -112,12 +118,11 @@ class TracingStreamResult(testtools.StreamResult):
                 self.output[test_id] = b""
             self.output[test_id] += kwargs["file_bytes"]
         elif kwargs["test_status"] == "fail":
-            #print('{0[test_id]}: {0[test_status]}'.format(kwargs))
-            #print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
+            print('{0[test_id]}: {0[test_status]}'.format(kwargs))
+            print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
             self.failures.add(test_name)
         elif kwargs["test_status"] == "success":
             self.success.add(test_name)
-            #logging.info('{0[test_id]}: {0[test_status]}'.format(kwargs))
 
 
 suite = unittest.TestSuite()
