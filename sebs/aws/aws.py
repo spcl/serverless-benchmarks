@@ -162,6 +162,7 @@ class AWS(System):
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
         func_name = AWS.format_function_name(func_name)
+        storage_client = self.get_storage()
 
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -198,8 +199,8 @@ class AWS(System):
             # Upload code package to S3, then use it
             else:
                 code_package_name = cast(str, os.path.basename(package))
-                code_bucket, idx = self.storage.add_input_bucket(benchmark)
-                self.storage.upload(code_bucket, package, code_package_name)
+                code_bucket, idx = storage_client.add_input_bucket(benchmark)
+                storage_client.upload(code_bucket, package, code_package_name)
                 self.logging.info(
                     "Uploading function {} code to {}".format(func_name, code_bucket)
                 )
@@ -226,12 +227,13 @@ class AWS(System):
                 self.config.resources.lambda_role(self.session),
                 code_bucket,
             )
-        self.storage.save_storage(code_package.benchmark)
+        storage_client.save_storage(code_package.benchmark)
 
+        # Add LibraryTrigger to a new function
         from sebs.aws.triggers import LibraryTrigger
 
         trigger = LibraryTrigger(func_name, self)
-        trigger.logging_handlers = logging_handlers
+        trigger.logging_handlers = self.logging_handlers
         lambda_function.add_trigger(trigger)
 
         return lambda_function
@@ -242,7 +244,7 @@ class AWS(System):
 
         for trigger in function.triggers:
             if isinstance(trigger, LibraryTrigger):
-                trigger.logging_handlers = logging_handlers
+                trigger.logging_handlers = self.logging_handlers
                 trigger.deployment_client = self
 
     """
@@ -272,8 +274,9 @@ class AWS(System):
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(package)
-            bucket = function.code_bucket(code_package.benchmark, self.storage)
-            self.storage.upload(bucket, package, code_package_name)
+            storage = cast(S3, self.get_storage())
+            bucket = function.code_bucket(code_package.benchmark, storage)
+            storage.upload(bucket, package, code_package_name)
             self.client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
             )
@@ -319,7 +322,7 @@ class AWS(System):
     """
 
     def prepare_experiment(self, benchmark: str):
-        logs_bucket = self.storage.add_output_bucket(benchmark, suffix="logs")
+        logs_bucket = self.get_storage().add_output_bucket(benchmark, suffix="logs")
         return logs_bucket
 
     """
@@ -369,7 +372,7 @@ class AWS(System):
         while True:
             query = self.logs_client.start_query(
                 logGroupName="/aws/lambda/{}".format(function_name),
-                #queryString="filter @message like /REPORT/",
+                # queryString="filter @message like /REPORT/",
                 queryString="fields @message",
                 startTime=start_time,
                 endTime=end_time,
@@ -387,10 +390,10 @@ class AWS(System):
             else:
                 break
         self.logging.error(f"Invocation error for AWS Lambda function {function_name}")
-        for message in response['results']:
+        for message in response["results"]:
             for value in message:
-                if value['field'] == '@message':
-                    self.logging.error(value['value'])
+                if value["field"] == "@message":
+                    self.logging.error(value["value"])
 
     def download_metrics(
         self,

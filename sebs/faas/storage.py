@@ -124,6 +124,14 @@ class PersistentStorage(ABC, LoggingBase):
         pass
 
     """
+        Save benchmark input/output buckets to cache.
+    """
+
+    @abstractmethod
+    def save_storage(self, benchmark: str):
+        pass
+
+    """
         Download all files in a storage bucket.
         Warning: assumes flat directory in a bucket! Does not handle bucket files
         with directory marks in a name, e.g. 'dir1/dir2/file'

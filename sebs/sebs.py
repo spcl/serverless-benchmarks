@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 
 import docker
 
@@ -22,18 +22,24 @@ class SeBS:
     def docker_client(self) -> docker.client:
         return self._docker_client
 
-    @property
-    def logging_handlers(self) -> LoggingHandlers:
-        return self._logging_handlers
+    def logging_handlers(
+        self, logging_filename: Optional[str] = None
+    ) -> LoggingHandlers:
+        if logging_filename in self._logging_handlers:
+            return self._logging_handlers[logging_filename]
+        else:
+            handlers = LoggingHandlers(filename=logging_filename)
+            self._logging_handlers[logging_filename] = handlers
+            return handlers
 
-    def __init__(self, cache_dir: str, logging_filename: Optional[str]):
+    def __init__(self, cache_dir: str):
         self._cache_client = Cache(cache_dir)
         self._docker_client = docker.from_env()
         self._config = SeBSConfig()
-        self._handlers = LoggingHandlers(filename=logging_filename)
+        self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
     def get_deployment(
-        self, config: dict
+        self, config: dict, logging_filename: Optional[str] = None
     ) -> FaasSystem:
 
         implementations = {"aws": AWS}
@@ -43,13 +49,14 @@ class SeBS:
             raise RuntimeError("Deployment {name} not supported!".format(**config))
 
         # FIXME: future annotations, requires Python 3.7+
+        handlers = self.logging_handlers(logging_filename)
         deployment_config = configs[name](config, self.cache_client, handlers)
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore
             self.cache_client,
             self.docker_client,
-            self.logging_handlers
+            handlers,
         )
         return deployment_client
 
@@ -66,6 +73,7 @@ class SeBS:
         output_dir: str,
         deployment: FaasSystem,
         config: ExperimentConfig,
+        logging_filename: Optional[str] = None,
     ) -> Benchmark:
         benchmark = Benchmark(
             name,
@@ -76,7 +84,7 @@ class SeBS:
             self.cache_client,
             self.docker_client,
         )
-        benchmark.logging_handlers = self.logging_handlers
+        benchmark.logging_handlers = self.logging_handlers(logging_filename)
         return benchmark
 
     def shutdown(self):

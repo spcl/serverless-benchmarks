@@ -157,20 +157,25 @@ try:
     logging.info("Created experiment output at {}".format(args.output_dir))
     experiment_config = sebs_client.get_experiment(config["experiments"])
     deployment_client = sebs_client.get_deployment(
-        config["deployment"],
-        logging_filename = os.path.join(args.output_dir, "out.log")
+        config["deployment"], logging_filename=os.path.join(args.output_dir, "out.log")
     )
     deployment_client.initialize()
 
     if args.action in ("publish", "test_invoke"):
         benchmark = sebs_client.get_benchmark(
-            args.benchmark, output_dir, deployment_client, experiment_config
+            args.benchmark,
+            output_dir,
+            deployment_client,
+            experiment_config,
+            logging_filename=os.path.join(args.output_dir, "out.log"),
         )
         storage = deployment_client.get_storage(
             replace_existing=experiment_config.update_storage
         )
         input_config = benchmark.prepare_input(storage=storage, size=args.size)
-        func = deployment_client.get_function(benchmark, deployment_client.default_function_name(benchmark))
+        func = deployment_client.get_function(
+            benchmark, deployment_client.default_function_name(benchmark)
+        )
 
         if args.action == "test_invoke":
             # TODO bucket save of results
@@ -187,7 +192,9 @@ try:
             result.add_invocation(func.name, ret)
             with open("experiments.json", "w") as out_f:
                 out_f.write(sebs.utils.serialize(result))
-            logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+            logging.info(
+                "Save results to {}".format(os.path.abspath("experiments.json"))
+            )
     #    elif args.action == "experiment":
     #        # Prepare benchmark input
     #        input_config = prepare_input(

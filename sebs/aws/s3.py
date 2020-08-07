@@ -8,7 +8,6 @@ from ..faas.storage import PersistentStorage
 
 
 class S3(PersistentStorage):
-
     @staticmethod
     def typename() -> str:
         return "AWS.S3"
