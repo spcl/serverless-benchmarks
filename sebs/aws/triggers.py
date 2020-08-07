@@ -1,9 +1,9 @@
 import base64
 import datetime
 import json
-import logging
 from typing import Dict, Optional  # noqa
 
+import requests
 
 from sebs.aws.aws import AWS
 from sebs.faas.function import ExecutionResult, Trigger
@@ -11,8 +11,13 @@ from sebs.faas.function import ExecutionResult, Trigger
 
 class LibraryTrigger(Trigger):
     def __init__(self, fname: str, deployment_client: Optional[AWS] = None):
+        super().__init__()
         self.name = fname
         self._deployment_client = deployment_client
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.LibraryTrigger"
 
     @property
     def deployment_client(self) -> AWS:
@@ -29,7 +34,7 @@ class LibraryTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-        logging.info(f"AWS: Invoke function {self.name}")
+        self.logging.info(f"Invoke function {self.name}")
 
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
@@ -39,28 +44,28 @@ class LibraryTrigger(Trigger):
         )
         end = datetime.datetime.now()
 
-        aws_result = ExecutionResult.from_times(begin, end)
+        import math
+
+        start_time = math.floor(datetime.datetime.timestamp(begin)) - 1
+        end_time = math.ceil(datetime.datetime.timestamp(end)) + 1
+        aws_result = ExecutionResult(begin, end)
         if ret["StatusCode"] != 200:
-            logging.error("Invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self.logging.error("Invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             self.deployment_client.get_invocation_error(
-                function_name=self.name,
-                start_time=int(begin.strftime("%s")) - 1,
-                end_time=int(end.strftime("%s")) + 1,
+                function_name=self.name, start_time=start_time, end_time=end_time
             )
             aws_result.stats.failure = True
             return aws_result
         if "FunctionError" in ret:
-            logging.error("Invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self.logging.error("Invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             self.deployment_client.get_invocation_error(
-                function_name=self.name,
-                start_time=int(begin.strftime("%s")) - 1,
-                end_time=int(end.strftime("%s")) + 1,
+                function_name=self.name, start_time=start_time, end_time=end_time
             )
             aws_result.stats.failure = True
             return aws_result
-        logging.info(f"AWS: Invoke of function {self.name} was successful")
+        self.logging.info(f"Invoke of function {self.name} was successful")
         log = base64.b64decode(ret["LogResult"])
         function_output = json.loads(ret["Payload"].read().decode("utf-8"))
 
@@ -85,8 +90,8 @@ class LibraryTrigger(Trigger):
             LogType="Tail",
         )
         if ret["StatusCode"] != 202:
-            logging.error("Async invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self.logging.error("Async invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             raise RuntimeError()
         return ret
 
@@ -96,3 +101,49 @@ class LibraryTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return LibraryTrigger(obj["name"])
+
+
+class HTTPTrigger(Trigger):
+    def __init__(self, url: str, api_id: str):
+        super().__init__()
+        self.url = url
+        self.api_id = api_id
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.HTTPTrigger"
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        return Trigger.TriggerType.HTTP
+
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+
+        self.logging.info(f"Invoke function {self.url}")
+        begin = datetime.datetime.now()
+        ret = requests.request(method="POST", url=self.url, json=payload)
+        end = datetime.datetime.now()
+
+        if ret.status_code != 200:
+            self.logging.error("Invocation on URL {} failed!".format(self.url))
+            self.logging.error("Input: {}".format(payload))
+            self.logging.error("Output: {}".format(ret.json()))
+            raise RuntimeError("Failed synchronous invocation of AWS Lambda function!")
+
+        self.logging.info(f"Invoke of function was successful")
+        output = ret.json()
+        result = ExecutionResult(begin, end)
+        result.request_id = output["request_id"]
+        # General benchmark output parsing
+        result.parse_benchmark_output(output)
+        return result
+
+    def async_invoke(self, payload: dict) -> ExecutionResult:
+        pass
+
+    def serialize(self) -> dict:
+        return {"type": "HTTP", "url": self.url, "api-id": self.api_id}
+
+    @staticmethod
+    def deserialize(obj: dict) -> Trigger:
+        return HTTPTrigger(obj["url"], obj["api-id"])

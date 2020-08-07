@@ -1,14 +1,19 @@
+import os
+
 from abc import ABC
 from abc import abstractmethod
 from typing import List, Tuple
 
+from sebs.utils import LoggingBase
 
 """
     Abstract class
 """
 
 
-class PersistentStorage(ABC):
+class PersistentStorage(ABC, LoggingBase):
+    def __init__(self):
+        super().__init__()
 
     """
         :return: list of input buckets defined in the storage
@@ -117,3 +122,25 @@ class PersistentStorage(ABC):
     @abstractmethod
     def uploader_func(self, bucket_idx: int, file: str, filepath: str) -> None:
         pass
+
+    """
+        Save benchmark input/output buckets to cache.
+    """
+
+    @abstractmethod
+    def save_storage(self, benchmark: str):
+        pass
+
+    """
+        Download all files in a storage bucket.
+        Warning: assumes flat directory in a bucket! Does not handle bucket files
+        with directory marks in a name, e.g. 'dir1/dir2/file'
+    """
+
+    def download_bucket(self, bucket_name: str, output_dir: str):
+
+        files = self.list_bucket(bucket_name)
+        for f in files:
+            output_file = os.path.join(output_dir, f)
+            if not os.path.exists(output_file):
+                self.download(bucket_name, f, output_file)

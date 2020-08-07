@@ -2,11 +2,12 @@
 import collections.abc
 import datetime
 import json
-import logging
 import os
 import shutil
 import threading
-from typing import Any, Dict, List, Optional, TYPE_CHECKING  # noqa
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING  # noqa
+
+from sebs.utils import LoggingBase
 
 if TYPE_CHECKING:
     from sebs.benchmark import Benchmark
@@ -32,7 +33,7 @@ def update_dict(cfg, val, keys):
     update(cfg, map_keys(cfg, val, keys))
 
 
-class Cache:
+class Cache(LoggingBase):
 
     cached_config: Dict[str, str] = {}
     """
@@ -42,12 +43,17 @@ class Cache:
     config_updated = False
 
     def __init__(self, cache_dir: str):
+        super().__init__()
         self.cache_dir = os.path.abspath(cache_dir)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir, exist_ok=True)
         else:
             self.load_config()
+
+    @staticmethod
+    def typename() -> str:
+        return "Benchmark"
 
     def load_config(self):
         with self._lock:
@@ -85,7 +91,9 @@ class Cache:
                     cloud_config_file = os.path.join(
                         self.cache_dir, "{}.json".format(cloud)
                     )
-                    logging.info("Update cached config {}".format(cloud_config_file))
+                    self.logging.info(
+                        "Update cached config {}".format(cloud_config_file)
+                    )
                     with open(cloud_config_file, "w") as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 
@@ -232,7 +240,8 @@ class Cache:
                 else:
                     package_name = os.path.basename(code_package.code_location)
                     cached_location = os.path.join(cached_dir, package_name)
-                    shutil.copy2(code_package.code_location, cached_dir)
+                    if code_package.code_location != cached_location:
+                        shutil.copy2(code_package.code_location, cached_dir)
 
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                     config = json.load(fp)
@@ -289,6 +298,33 @@ class Cache:
                     config = cached_config
                 with open(cache_config, "w") as fp:
                     json.dump(config, fp, indent=2)
+            else:
+                raise RuntimeError(
+                    "Can't cache function {} for a non-existing code package!".format(
+                        function.name
+                    )
+                )
+
+    def update_function(self, function: "Function"):
+        with self._lock:
+            benchmark_dir = os.path.join(self.cache_dir, function.benchmark)
+            cache_config = os.path.join(benchmark_dir, "config.json")
+
+            if os.path.exists(cache_config):
+
+                with open(cache_config, "r") as fp:
+                    cached_config = json.load(fp)
+                    for deployment, cfg in cached_config.items():
+                        for language, cfg2 in cfg.items():
+                            if "functions" not in cfg2:
+                                continue
+                            for name, func in cfg2["functions"].items():
+                                if name == function.name:
+                                    cached_config[deployment][language]["functions"][
+                                        name
+                                    ] = function.serialize()
+                with open(cache_config, "w") as fp:
+                    json.dump(cached_config, fp, indent=2)
             else:
                 raise RuntimeError(
                     "Can't cache function {} for a non-existing code package!".format(

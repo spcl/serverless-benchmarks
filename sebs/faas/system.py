@@ -1,4 +1,3 @@
-import logging
 from abc import ABC
 from abc import abstractmethod
 from typing import Dict, Optional, Tuple, Type
@@ -8,6 +7,7 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.utils import LoggingBase
 from .config import Config
 from .function import Function, ExecutionResult
 from .storage import PersistentStorage
@@ -21,13 +21,14 @@ from .storage import PersistentStorage
 """
 
 
-class System(ABC):
+class System(ABC, LoggingBase):
     def __init__(
         self,
         system_config: SeBSConfig,
         cache_client: Cache,
         docker_client: docker.client,
     ):
+        super().__init__()
         self._system_config = system_config
         self._docker_client = docker_client
         self._cache_client = cache_client
@@ -143,7 +144,7 @@ class System(ABC):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
-        code_package.build(self.package_code)
+        rebuilt, _ = code_package.build(self.package_code)
 
         """
             There's no function with that name?
@@ -159,7 +160,7 @@ class System(ABC):
                 if not func_name
                 else "function {} not found in cache.".format(func_name)
             )
-            logging.info("Creating new function! Reason: " + msg)
+            self.logging.info("Creating new function! Reason: " + msg)
             function = self.create_function(code_package, func_name)
             self.cache_client.add_function(
                 deployment_name=self.name(),
@@ -175,14 +176,14 @@ class System(ABC):
             code_location = code_package.code_location
             function = self.function_type().deserialize(cached_function)
             self.cached_function(function)
-            logging.info(
+            self.logging.info(
                 "Using cached function {fname} in {loc}".format(
                     fname=func_name, loc=code_location
                 )
             )
             # is the function up-to-date?
-            if function.code_package_hash != code_package.hash:
-                logging.info(
+            if function.code_package_hash != code_package.hash or rebuilt:
+                self.logging.info(
                     f"Cached function {func_name} with hash "
                     f"{function.code_package_hash} is not up to date with "
                     f"current build {code_package.hash} in "
@@ -213,11 +214,6 @@ class System(ABC):
         requests: Dict[str, ExecutionResult],
     ):
         pass
-
-    # FIXME: result query API
-    # FIXME: metrics query API
-    # def update_function(self, code_package):
-    #    pass
 
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,

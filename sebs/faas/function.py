@@ -2,8 +2,9 @@ from abc import ABC
 from abc import abstractmethod
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import List, Optional  # noqa
+from typing import Callable, List, Optional  # noqa
 
+from sebs.utils import LoggingBase
 
 """
     Times are reported in microseconds.
@@ -13,12 +14,12 @@ from typing import List, Optional  # noqa
 class ExecutionTimes:
 
     client: int
-    provider: int
     benchmark: int
+    initialization: int
 
     def __init__(self):
         self.client = 0
-        self.provider = 0
+        self.initialization = 0
         self.benchmark = 0
 
     @staticmethod
@@ -28,18 +29,24 @@ class ExecutionTimes:
         return ret
 
 
+class ProviderTimes:
+
+    initialization: int
+    execution: int
+
+    def __init__(self):
+        self.execution = 0
+        self.initialization = 0
+
+
 class ExecutionStats:
 
     memory_used: Optional[float]
-    init_time_reported: Optional[int]
-    init_time_measured: int
     cold_start: bool
     failure: bool
 
     def __init__(self):
         self.memory_used = None
-        self.init_time_reported = None
-        self.init_time_measured = 0
         self.cold_start = False
         self.failure = False
 
@@ -97,6 +104,7 @@ class ExecutionResult:
     output: dict
     request_id: str
     times: ExecutionTimes
+    provider_times: ProviderTimes
     stats: ExecutionStats
     billing: ExecutionBilling
 
@@ -104,6 +112,7 @@ class ExecutionResult:
         self.output = {}
         self.request_id = ""
         self.times = ExecutionTimes()
+        self.provider_times = ProviderTimes()
         self.stats = ExecutionStats()
         self.billing = ExecutionBilling()
 
@@ -147,11 +156,15 @@ class ExecutionResult:
 """
 
 
-class Trigger(ABC):
+class Trigger(ABC, LoggingBase):
     class TriggerType(Enum):
         HTTP = 0
         LIBRARY = 1
         STORAGE = 2
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.LibraryTrigger"
 
     # FIXME: 3.7+, future annotations
     @staticmethod
@@ -171,6 +184,10 @@ class Trigger(ABC):
     def serialize(self) -> dict:
         pass
 
+    @staticmethod
+    @abstractmethod
+    def deserialize(cached_config: dict) -> "Trigger":
+        pass
 
 """
     Abstraction base class for FaaS function. Contains a list of associated triggers
@@ -179,8 +196,10 @@ class Trigger(ABC):
 """
 
 
-class Function:
-    def __init__(self, name: str, code_hash: str):
+class Function(LoggingBase):
+    def __init__(self, benchmark: str, name: str, code_hash: str):
+        super().__init__()
+        self._benchmark = benchmark
         self._name = name
         self._code_package_hash = code_hash
         self._updated_code = False
@@ -189,6 +208,10 @@ class Function:
     @property
     def name(self):
         return self._name
+
+    @property
+    def benchmark(self):
+        return self._benchmark
 
     @property
     def code_package_hash(self):
@@ -217,6 +240,7 @@ class Function:
         return {
             "name": self._name,
             "hash": self._code_package_hash,
+            "benchmark": self._benchmark,
             "triggers": [x.serialize() for x in self._triggers],
         }
 

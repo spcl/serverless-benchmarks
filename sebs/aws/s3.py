@@ -1,4 +1,3 @@
-import logging
 import uuid
 from typing import List, Tuple
 
@@ -9,13 +8,9 @@ from ..faas.storage import PersistentStorage
 
 
 class S3(PersistentStorage):
-    cached = False
-    input_buckets: List[str] = []
-    request_input_buckets = 0
-    input_buckets_files: List[str] = []
-    output_buckets: List[str] = []
-    request_output_buckets = 0
-    _replace_existing = False
+    @staticmethod
+    def typename() -> str:
+        return "AWS.S3"
 
     @property
     def replace_existing(self) -> bool:
@@ -34,6 +29,7 @@ class S3(PersistentStorage):
         secret_key: str,
         replace_existing: bool,
     ):
+        super().__init__()
         self.client = session.client(
             "s3",
             region_name=location,
@@ -42,6 +38,12 @@ class S3(PersistentStorage):
         )
         self.cache_client = cache_client
         self._replace_existing = replace_existing
+        self.cached = False
+        self.input_buckets: List[str] = []
+        self.request_input_buckets = 0
+        self.input_buckets_files: List[str] = []
+        self.output_buckets: List[str] = []
+        self.request_output_buckets = 0
 
     def input(self):  # noqa: A003
         return self.input_buckets
@@ -62,10 +64,10 @@ class S3(PersistentStorage):
             random_name = str(uuid.uuid4())[0:16]
             bucket_name = "{}-{}".format(name, random_name)
             self.client.create_bucket(Bucket=bucket_name)
-            logging.info("Created bucket {}".format(bucket_name))
+            self.logging.info("Created bucket {}".format(bucket_name))
             return bucket_name
         else:
-            logging.info(
+            self.logging.info(
                 "Bucket {} for {} already exists, skipping.".format(
                     existing_bucket_name, name
                 )
@@ -129,10 +131,10 @@ class S3(PersistentStorage):
                         Bucket=bucket, Delete={"Objects": objects}
                     )
             self.cached = True
-            logging.info(
+            self.logging.info(
                 "Using cached storage input buckets {}".format(self.input_buckets)
             )
-            logging.info(
+            self.logging.info(
                 "Using cached storage output buckets {}".format(self.output_buckets)
             )
         else:
@@ -154,13 +156,12 @@ class S3(PersistentStorage):
         if self.cached and not self.replace_existing:
             return
         bucket_name = self.input_buckets[bucket_idx]
-        print(type(self.replace_existing))
-        if not self.replace_existing():
+        if not self.replace_existing:
             if "Contents" in self.input_buckets_files[bucket_idx]:
                 for f in self.input_buckets_files[bucket_idx]["Contents"]:
                     f_name = f["Key"]
                     if key == f_name:
-                        logging.info(
+                        self.logging.info(
                             "Skipping upload of {} to {}".format(filepath, bucket_name)
                         )
                         return
@@ -168,11 +169,11 @@ class S3(PersistentStorage):
         self.upload(bucket_name, filepath, key)
 
     def upload(self, bucket_name: str, filepath: str, key: str):
-        logging.info("Upload {} to {}".format(filepath, bucket_name))
+        self.logging.info("Upload {} to {}".format(filepath, bucket_name))
         self.client.upload_file(Filename=filepath, Bucket=bucket_name, Key=key)
 
     def download(self, bucket_name: str, key: str, filepath: str):
-        logging.info("Download {}:{} to {}".format(bucket_name, key, filepath))
+        self.logging.info("Download {}:{} to {}".format(bucket_name, key, filepath))
         self.client.download_file(Bucket=bucket_name, Key=key, Filename=filepath)
 
     def list_bucket(self, bucket_name: str):
@@ -189,11 +190,9 @@ class S3(PersistentStorage):
             benchmark, buckets, self.cache_client.get_storage_config("aws", benchmark),
         )
 
-    # def download_results(self, result_dir):
-    #    result_dir = os.path.join(result_dir, 'storage_output')
-    #    for bucket in self.output_buckets:
-    #        objects = self.connection.list_objects_v2(bucket)
-    #        objects = [obj.object_name for obj in objects]
-    #        for obj in objects:
-    #            self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
-    #
+    def save_storage(self, benchmark: str):
+        self.cache_client.update_storage(
+            "aws",
+            benchmark,
+            {"buckets": {"input": self.input_buckets, "output": self.output_buckets}},
+        )

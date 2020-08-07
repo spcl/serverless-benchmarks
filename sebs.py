@@ -160,12 +160,18 @@ try:
     )
     logging.info("Created experiment output at {}".format(args.output_dir))
     experiment_config = sebs_client.get_experiment(config["experiments"])
-    deployment_client = sebs_client.get_deployment(deployment, config["deployment"])
+    deployment_client = sebs_client.get_deployment(
+        config["deployment"], logging_filename=os.path.join(args.output_dir, "out.log")
+    )
     deployment_client.initialize()
 
     if args.action in ("download_metrics", "test_invoke"):
         benchmark = sebs_client.get_benchmark(
-            args.benchmark, output_dir, deployment_client, experiment_config
+            args.benchmark,
+            output_dir,
+            deployment_client,
+            experiment_config,
+            logging_filename=os.path.join(args.output_dir, "out.log"),
         )
         storage = deployment_client.get_storage(
             replace_existing=experiment_config.update_storage
