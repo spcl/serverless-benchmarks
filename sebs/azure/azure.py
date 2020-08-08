@@ -11,11 +11,12 @@ import docker
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
 from sebs.azure.function import AzureFunction
-from sebs.azure.config import AzureConfig
+from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.utils import LoggingHandlers
 from ..faas.function import Function, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
@@ -48,8 +49,10 @@ class Azure(System):
         config: AzureConfig,
         cache_client: Cache,
         docker_client: docker.client,
+        logger_handlers: LoggingHandlers,
     ):
         super().__init__(sebs_config, cache_client, docker_client)
+        self.logging_handlers = logger_handlers
         self._config = config
 
     """
@@ -261,13 +264,19 @@ class Azure(System):
         # check if function does not exist
         # no API to verify existence
         try:
-            self.cli_instance.execute(
+            ret = self.cli_instance.execute(
                 (
-                    " az functionapp show --resource-group {resource_group} "
+                    " az functionapp config appsettings list "
+                    " --resource-group {resource_group} "
                     " --name {func_name} "
                 ).format(**config)
             )
-            # FIXME: get the current storage account
+            for setting in json.loads(ret.decode()):
+                if setting["name"] == "AzureWebJobsStorage":
+                    connection_string = setting["value"]
+                    elems = [z for y in connection_string.split(";") for z in y.split("=")]
+                    account_name = elems.index("AccountName") + 1
+                    function_storage_account = AzureResources.Storage.from_cache(account_name, connection_string)
         except RuntimeError:
             function_storage_account = self.config.resources.add_storage_account(
                 self.cli_instance
@@ -284,12 +293,12 @@ class Azure(System):
                 ).format(**config)
             )
             logging.info("Azure: Created function app {}".format(func_name))
-            function = AzureFunction(
-                name=func_name,
-                benchmark=code_package.benchmark,
-                code_hash=code_package.hash,
-                function_storage=function_storage_account,
-            )
+        function = AzureFunction(
+            name=func_name,
+            benchmark=code_package.benchmark,
+            code_hash=code_package.hash,
+            function_storage=function_storage_account,
+        )
 
         logging.info("Azure: Selected {} function app".format(func_name))
         # update existing function app
