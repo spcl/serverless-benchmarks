@@ -8,6 +8,7 @@ from typing import cast, Any, Dict, List, Optional  # noqa
 from sebs.azure.cli import AzureCLI
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
+from sebs.utils import LoggingBase, LoggingHandlers
 
 
 class AzureCredentials(Credentials):
@@ -38,7 +39,9 @@ class AzureCredentials(Credentials):
         return AzureCredentials(dct["appId"], dct["tenant"], dct["password"])
 
     @staticmethod
-    def deserialize(config: dict, cache: Cache) -> Credentials:
+    def deserialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> Credentials:
 
         # FIXME: update return types of both functions to avoid cast
         # needs 3.7+  to support annotations
@@ -46,13 +49,14 @@ class AzureCredentials(Credentials):
         ret: AzureCredentials
         # Load cached values
         if cached_config and "credentials" in cached_config:
-            logging.info("Using cached credentials for Azure")
             ret = cast(
                 AzureCredentials,
                 AzureCredentials.initialize(cached_config["credentials"]),
             )
+            ret.logging.info("Using cached credentials for Azure")
+            ret.logging_handlers = handlers
         else:
-            logging.info("No cached credentials for Azure found, initialize!")
+            ret.logging.info("No cached credentials for Azure found, initialize!")
             # Check for new config
             if "credentials" in config:
                 ret = cast(
@@ -71,6 +75,7 @@ class AzureCredentials(Credentials):
                     "up environmental variables AZURE_SECRET_APPLICATION_ID and "
                     "AZURE_SECRET_TENANT and AZURE_SECRET_PASSWORD"
                 )
+            ret.logging_handlers = handlers
             cache.update_config(val=ret.appId, keys=["azure", "credentials", "appId"])
             cache.update_config(val=ret.tenant, keys=["azure", "credentials", "tenant"])
             cache.update_config(
@@ -87,7 +92,7 @@ class AzureCredentials(Credentials):
 
 
 class AzureResources(Resources):
-    class Storage:
+    class Storage(LoggingBase):
         def __init__(self, account_name: str, connection_string: str):
             self.account_name = account_name
             self.connection_string = connection_string
@@ -109,7 +114,13 @@ class AzureResources(Resources):
             connection_string = AzureResources.Storage.query_connection_string(
                 account_name, cli_instance
             )
-            return AzureResources.Storage(account_name, connection_string)
+            ret = AzureResources.Storage(account_name, connection_string)
+            ret.logging.info(
+                "Storage connection string {} for account {}.".format(
+                    connection_string, account_name
+                )
+            )
+            return ret
 
         """
             Query the storage string in Azure using selected storage account.
@@ -124,11 +135,6 @@ class AzureResources(Resources):
             )
             ret = json.loads(ret.decode("utf-8"))
             connection_string = ret["connectionString"]
-            logging.info(
-                "Storage connection string {} for account {}.".format(
-                    connection_string, account_name
-                )
-            )
             return connection_string
 
         def serialize(self) -> dict:
@@ -171,7 +177,7 @@ class AzureResources(Resources):
             uuid_name = str(uuid.uuid1())[0:8]
             # Only underscore and alphanumeric characters are allowed
             self._resource_group = "sebs_resource_group_{}".format(uuid_name)
-            logging.info(
+            self.logging.info(
                 "Starting allocation of resource group {}.".format(self._resource_group)
             )
             cli_instance.execute(
@@ -179,8 +185,10 @@ class AzureResources(Resources):
                     self._resource_group, self._region
                 )
             )
-            logging.info("Resource group {} created.".format(self._resource_group))
-        logging.info("Azure resource group {} selected".format(self._resource_group))
+            self.logging.info("Resource group {} created.".format(self._resource_group))
+        self.logging.info(
+            "Azure resource group {} selected".format(self._resource_group)
+        )
         return self._resource_group
 
     """
@@ -214,7 +222,9 @@ class AzureResources(Resources):
         # Create account. Only alphanumeric characters are allowed
         uuid_name = str(uuid.uuid1())[0:8]
         account_name = "sebsstorage{}".format(uuid_name)
-        logging.info("Starting allocation of storage account {}.".format(account_name))
+        self.logging.info(
+            "Starting allocation of storage account {}.".format(account_name)
+        )
         cli_instance.execute(
             (
                 "az storage account create --name {0} --location {1} "
@@ -223,7 +233,7 @@ class AzureResources(Resources):
                 account_name, self._region, self.resource_group(cli_instance), sku,
             )
         )
-        logging.info("Storage account {} created.".format(account_name))
+        self.logging.info("Storage account {} created.".format(account_name))
         return AzureResources.Storage.from_allocation(account_name, cli_instance)
 
     """
@@ -260,7 +270,7 @@ class AzureResources(Resources):
         return out
 
     @staticmethod
-    def deserialize(config: dict, cache: Cache) -> Resources:
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
 
         cached_config = cache.get_config("azure")
         ret: AzureResources
@@ -273,16 +283,17 @@ class AzureResources(Resources):
         else:
             # Check for new config
             if "resources" in config:
-                logging.info(
-                    "No cached resources for Azure found, using user configuration."
-                )
                 ret = cast(
                     AzureResources, AzureResources.initialize(config["resources"])
                 )
+                ret.logging.info(
+                    "No cached resources for Azure found, using user configuration."
+                )
             else:
-                logging.info("No resources for Azure found, initialize!")
                 ret = AzureResources()
+                ret.logging.info("No resources for Azure found, initialize!")
 
+        ret.logging_handlers = handlers
         return ret
 
 
@@ -313,29 +324,32 @@ class AzureConfig(Config):
             config._resources_id = dct["resources_id"]
         else:
             config._resources_id = str(uuid.uuid1())[0:8]
-            logging.info(
+            config.logging.info(
                 f"Azure: generating unique resource name for"
                 f"the experiments: {config._resources_id}"
             )
 
     @staticmethod
-    def deserialize(config: dict, cache: Cache) -> Config:
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
 
         cached_config = cache.get_config("azure")
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(
-            AzureCredentials, AzureCredentials.deserialize(config, cache)
+            AzureCredentials, AzureCredentials.deserialize(config, cache, handlers)
         )
-        resources = cast(AzureResources, AzureResources.deserialize(config, cache))
+        resources = cast(
+            AzureResources, AzureResources.deserialize(config, cache, handlers)
+        )
         config_obj = AzureConfig(credentials, resources)
         # Load cached values
         if cached_config:
-            logging.info("Using cached config for Azure")
+            config_obj.logging.info("Using cached config for Azure")
             AzureConfig.initialize(config_obj, cached_config)
         else:
-            logging.info("Using user-provided config for Azure")
+            config_obj.logging.info("Using user-provided config for Azure")
             AzureConfig.initialize(config_obj, config)
         resources.set_region(config_obj.region)
+        config_obj.logging_handlers = handlers
 
         return config_obj
 

@@ -16,6 +16,10 @@ class BlobStorage(PersistentStorage):
     output_containers: List[str] = []
     _replace_existing = False
 
+    @staticmethod
+    def deployment_name():
+        return "aws"
+
     @property
     def replace_existing(self):
         return self._replace_existing
@@ -25,13 +29,15 @@ class BlobStorage(PersistentStorage):
         self._replace_existing = val
 
     def __init__(self, cache_client: Cache, conn_string: str, replace_existing: bool):
+        super().__init__(cache_client)
         self.client = BlobServiceClient.from_connection_string(conn_string)
-        self.cache_client = cache_client
         self.replace_existing = replace_existing
 
+    @property
     def input(self):  # noqa: A003
         return self.input_containers
 
+    @property
     def output(self):
         return self.output_containers
 

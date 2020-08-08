@@ -4,6 +4,7 @@ from abc import ABC
 from abc import abstractmethod
 from typing import List, Tuple
 
+from sebs.cache import Cache
 from sebs.utils import LoggingBase
 
 """
@@ -12,13 +13,24 @@ from sebs.utils import LoggingBase
 
 
 class PersistentStorage(ABC, LoggingBase):
-    def __init__(self):
+    @staticmethod
+    @abstractmethod
+    def deployment_name() -> str:
+        pass
+
+    @property
+    def cache_client(self) -> Cache:
+        return self._cache_client
+
+    def __init__(self, cache_client: Cache):
         super().__init__()
+        self._cache_client = cache_client
 
     """
         :return: list of input buckets defined in the storage
     """
 
+    @property
     @abstractmethod  # noqa: A003
     def input(self) -> List[str]:
         pass
@@ -56,6 +68,7 @@ class PersistentStorage(ABC, LoggingBase):
         :return: list of output buckets defined in the storage
     """
 
+    @property
     @abstractmethod
     def output(self) -> List[str]:
         pass
@@ -127,9 +140,12 @@ class PersistentStorage(ABC, LoggingBase):
         Save benchmark input/output buckets to cache.
     """
 
-    @abstractmethod
     def save_storage(self, benchmark: str):
-        pass
+        self.cache_client.update_storage(
+            self.deployment_name(),
+            benchmark,
+            {"buckets": {"input": self.input, "output": self.output}},
+        )
 
     """
         Download all files in a storage bucket.

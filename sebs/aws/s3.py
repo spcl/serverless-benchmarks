@@ -12,6 +12,10 @@ class S3(PersistentStorage):
     def typename() -> str:
         return "AWS.S3"
 
+    @staticmethod
+    def deployment_name():
+        return "aws"
+
     @property
     def replace_existing(self) -> bool:
         return self._replace_existing
@@ -29,14 +33,13 @@ class S3(PersistentStorage):
         secret_key: str,
         replace_existing: bool,
     ):
-        super().__init__()
+        super().__init__(cache_client)
         self.client = session.client(
             "s3",
             region_name=location,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
         )
-        self.cache_client = cache_client
         self._replace_existing = replace_existing
         self.cached = False
         self.input_buckets: List[str] = []
@@ -45,10 +48,12 @@ class S3(PersistentStorage):
         self.output_buckets: List[str] = []
         self.request_output_buckets = 0
 
-    def input(self):  # noqa: A003
+    @property
+    def input(self) -> List[str]:  # noqa: A003
         return self.input_buckets
 
-    def output(self):
+    @property
+    def output(self) -> List[str]:
         return self.output_buckets
 
     def create_bucket(self, name, buckets=None):
@@ -188,11 +193,4 @@ class S3(PersistentStorage):
     def allocate_buckets(self, benchmark: str, buckets: Tuple[int, int]):
         self.create_buckets(
             benchmark, buckets, self.cache_client.get_storage_config("aws", benchmark),
-        )
-
-    def save_storage(self, benchmark: str):
-        self.cache_client.update_storage(
-            "aws",
-            benchmark,
-            {"buckets": {"input": self.input_buckets, "output": self.output_buckets}},
         )

@@ -286,6 +286,7 @@ class Azure(System):
             logging.info("Azure: Created function app {}".format(func_name))
             function = AzureFunction(
                 name=func_name,
+                benchmark=code_package.benchmark,
                 code_hash=code_package.hash,
                 function_storage=function_storage_account,
             )
@@ -388,7 +389,7 @@ class Azure(System):
                 func_exec_time = request[-1]
                 invocation_id = request[-2]
                 invocations_processed.append(invocation_id)
-                requests[invocation_id].times.provider = int(
+                requests[invocation_id].provider_times.execution = int(
                     float(func_exec_time) * 1000
                 )
             logging.info(

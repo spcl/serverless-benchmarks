@@ -70,8 +70,8 @@ class AWSCredentials(Credentials):
                     "up environmental variables AWS_ACCESS_KEY_ID and "
                     "AWS_SECRET_ACCESS_KEY"
                 )
-            ret.logging_handlers = handlers
             ret.logging.info("No cached credentials for AWS found, initialize!")
+            ret.logging_handlers = handlers
         return ret
 
     def update_cache(self, cache: Cache):
@@ -239,7 +239,7 @@ class AWSResources(Resources):
         else:
             # Check for new config
             if "resources" in config:
-                ret = cast(AWSResources, AWSResources.deserialize(config["resources"]))
+                ret = cast(AWSResources, AWSResources.initialize(config["resources"]))
                 ret.logging_handlers = handlers
                 ret.logging.info(
                     "No cached resources for AWS found, using user configuration."
@@ -281,8 +281,12 @@ class AWSConfig(Config):
 
         cached_config = cache.get_config("aws")
         # FIXME: use future annotations (see sebs/faas/system)
-        credentials = cast(AWSCredentials, AWSCredentials.deserialize(config, cache))
-        resources = cast(AWSResources, AWSResources.deserialize(config, cache))
+        credentials = cast(
+            AWSCredentials, AWSCredentials.deserialize(config, cache, handlers)
+        )
+        resources = cast(
+            AWSResources, AWSResources.deserialize(config, cache, handlers)
+        )
         config_obj = AWSConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         # Load cached values

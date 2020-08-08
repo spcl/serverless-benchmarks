@@ -161,7 +161,9 @@ try:
     logging.info("Created experiment output at {}".format(args.output_dir))
     experiment_config = sebs_client.get_experiment(config["experiments"])
     deployment_client = sebs_client.get_deployment(
-        config["deployment"], logging_filename=os.path.join(args.output_dir, "out.log")
+        deployment,
+        config["deployment"],
+        logging_filename=os.path.join(args.output_dir, "out.log"),
     )
     deployment_client.initialize()
 
@@ -205,7 +207,9 @@ try:
             )
             with open("experiments.json", "r") as in_f:
                 config = json.load(in_f)
-                experiments = sebs.experiments.ExperimentResult.deserialize(config, sebs_client.cache_client)
+                experiments = sebs.experiments.ExperimentResult.deserialize(
+                    config, sebs_client.cache_client
+                )
 
             deployment_client.download_metrics(
                 func, *experiments.times(), experiments.invocations(func)

@@ -48,7 +48,7 @@ class LibraryTrigger(Trigger):
 
         start_time = math.floor(datetime.datetime.timestamp(begin)) - 1
         end_time = math.ceil(datetime.datetime.timestamp(end)) + 1
-        aws_result = ExecutionResult(begin, end)
+        aws_result = ExecutionResult.from_times(begin, end)
         if ret["StatusCode"] != 200:
             self.logging.error("Invocation of {} failed!".format(self.name))
             self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
@@ -132,7 +132,7 @@ class HTTPTrigger(Trigger):
 
         self.logging.info(f"Invoke of function was successful")
         output = ret.json()
-        result = ExecutionResult(begin, end)
+        result = ExecutionResult.from_times(begin, end)
         result.request_id = output["request_id"]
         # General benchmark output parsing
         result.parse_benchmark_output(output)
