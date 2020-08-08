@@ -8,7 +8,7 @@ from typing import cast, Any, Dict, List, Optional  # noqa
 from sebs.azure.cli import AzureCLI
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
-from sebs.utils import LoggingBase, LoggingHandlers
+from sebs.utils import LoggingHandlers
 
 
 class AzureCredentials(Credentials):
@@ -18,6 +18,7 @@ class AzureCredentials(Credentials):
     _password: str
 
     def __init__(self, appId: str, tenant: str, password: str):
+        super().__init__()
         self._appId = appId
         self._tenant = tenant
         self._password = password
@@ -53,10 +54,9 @@ class AzureCredentials(Credentials):
                 AzureCredentials,
                 AzureCredentials.initialize(cached_config["credentials"]),
             )
-            ret.logging.info("Using cached credentials for Azure")
             ret.logging_handlers = handlers
+            ret.logging.info("Using cached credentials for Azure")
         else:
-            ret.logging.info("No cached credentials for Azure found, initialize!")
             # Check for new config
             if "credentials" in config:
                 ret = cast(
@@ -76,11 +76,7 @@ class AzureCredentials(Credentials):
                     "AZURE_SECRET_TENANT and AZURE_SECRET_PASSWORD"
                 )
             ret.logging_handlers = handlers
-            cache.update_config(val=ret.appId, keys=["azure", "credentials", "appId"])
-            cache.update_config(val=ret.tenant, keys=["azure", "credentials", "tenant"])
-            cache.update_config(
-                val=ret.password, keys=["azure", "credentials", "password"]
-            )
+            ret.logging.info("No cached credentials for Azure found, initialize!")
         return ret
 
     def serialize(self) -> dict:
@@ -92,8 +88,9 @@ class AzureCredentials(Credentials):
 
 
 class AzureResources(Resources):
-    class Storage(LoggingBase):
+    class Storage:
         def __init__(self, account_name: str, connection_string: str):
+            super().__init__()
             self.account_name = account_name
             self.connection_string = connection_string
 
@@ -115,11 +112,6 @@ class AzureResources(Resources):
                 account_name, cli_instance
             )
             ret = AzureResources.Storage(account_name, connection_string)
-            ret.logging.info(
-                "Storage connection string {} for account {}.".format(
-                    connection_string, account_name
-                )
-            )
             return ret
 
         """
@@ -153,6 +145,7 @@ class AzureResources(Resources):
         storage_accounts: List["AzureResources.Storage"] = [],
         data_storage_account: Optional["AzureResources.Storage"] = None,
     ):
+        super().__init__()
         self._resource_group = resource_group
         self._storage_accounts = storage_accounts
         self._data_storage_account = data_storage_account
@@ -286,19 +279,20 @@ class AzureResources(Resources):
                 ret = cast(
                     AzureResources, AzureResources.initialize(config["resources"])
                 )
+                ret.logging_handlers = handlers
                 ret.logging.info(
                     "No cached resources for Azure found, using user configuration."
                 )
             else:
                 ret = AzureResources()
+                ret.logging_handlers = handlers
                 ret.logging.info("No resources for Azure found, initialize!")
-
-        ret.logging_handlers = handlers
         return ret
 
 
 class AzureConfig(Config):
     def __init__(self, credentials: AzureCredentials, resources: AzureResources):
+        super().__init__()
         self._resources_id = ""
         self._credentials = credentials
         self._resources = resources
@@ -341,6 +335,7 @@ class AzureConfig(Config):
             AzureResources, AzureResources.deserialize(config, cache, handlers)
         )
         config_obj = AzureConfig(credentials, resources)
+        config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:
             config_obj.logging.info("Using cached config for Azure")
@@ -349,7 +344,6 @@ class AzureConfig(Config):
             config_obj.logging.info("Using user-provided config for Azure")
             AzureConfig.initialize(config_obj, config)
         resources.set_region(config_obj.region)
-        config_obj.logging_handlers = handlers
 
         return config_obj
 
@@ -361,6 +355,7 @@ class AzureConfig(Config):
     """
 
     def update_cache(self, cache: Cache):
+        print("update cache")
         cache.update_config(val=self.region, keys=["azure", "region"])
         cache.update_config(val=self.resources_id, keys=["azure", "resources_id"])
         self.credentials.update_cache(cache)
