@@ -109,12 +109,12 @@ class Config(ABC, LoggingBase):
         from sebs.aws.config import AWSConfig
         from sebs.azure.config import AzureConfig
 
-        # FIXME: initialize -> deserialize
+        name = config["name"]
         func = {"aws": AWSConfig.deserialize, "azure": AzureConfig.deserialize}.get(
-            config["name"]
+            name
         )
         assert func, "Unknown config type!"
-        return func(config, cache, handlers)
+        return func(config[name], cache, handlers)
 
     @abstractmethod
     def serialize(self) -> dict:

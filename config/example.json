@@ -10,7 +10,7 @@
     }
   },
   "deployment": {
-    "default": "azure",
+    "name": "azure",
     "aws": {
       "region": "us-east-1",
       "lambda-role": ""

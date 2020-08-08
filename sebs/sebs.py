@@ -41,9 +41,10 @@ class SeBS:
         self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
     def get_deployment(
-        self, name: str, config: dict, logging_filename: Optional[str] = None
+        self, config: dict, logging_filename: Optional[str] = None
     ) -> FaaSSystem:
 
+        name = config["name"]
         implementations = {"aws": AWS, "azure": Azure}
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
