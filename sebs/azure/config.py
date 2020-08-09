@@ -179,9 +179,6 @@ class AzureResources(Resources):
                 )
             )
             self.logging.info("Resource group {} created.".format(self._resource_group))
-        self.logging.info(
-            "Azure resource group {} selected".format(self._resource_group)
-        )
         return self._resource_group
 
     """
@@ -355,7 +352,6 @@ class AzureConfig(Config):
     """
 
     def update_cache(self, cache: Cache):
-        print("update cache")
         cache.update_config(val=self.region, keys=["azure", "region"])
         cache.update_config(val=self.resources_id, keys=["azure", "resources_id"])
         self.credentials.update_cache(cache)

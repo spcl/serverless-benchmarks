@@ -1,5 +1,4 @@
 import datetime
-import logging
 from typing import Any, Dict, Optional  # noqa
 
 import requests
@@ -10,6 +9,7 @@ from sebs.faas.function import ExecutionResult, Trigger
 
 class AzureTrigger(Trigger):
     def __init__(self, data_storage_account: Optional[AzureResources.Storage] = None):
+        super().__init__()
         self._data_storage_account = data_storage_account
 
     @property
@@ -41,8 +41,8 @@ class HTTPTrigger(AzureTrigger):
         end = datetime.datetime.now()
 
         if ret.status_code != 200:
-            logging.error("Invocation on URL {} failed!".format(self.url))
-            logging.error("Input: {}".format(payload))
+            self.logging.error("Invocation on URL {} failed!".format(self.url))
+            self.logging.error("Input: {}".format(payload))
             raise RuntimeError("Failed synchronous invocation of Azure Function!")
 
         output = ret.json()

@@ -1,6 +1,5 @@
 import datetime
 import json
-import logging
 import os
 import shutil
 import time
@@ -94,6 +93,7 @@ class Azure(System):
                 ).connection_string,
                 replace_existing=replace_existing,
             )
+            self.storage.logging_handlers = self.logging_handlers
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
@@ -168,7 +168,7 @@ class Azure(System):
     ) -> str:
         success = False
         url = ""
-        logging.info("Attempting publish of function {}".format(function.name))
+        self.logging.info("Attempting publish of function {}".format(function.name))
         while not success:
             try:
                 ret = self.cli_instance.execute(
@@ -195,7 +195,7 @@ class Azure(System):
                     # Sleep because of problems when publishing immediately
                     # after creating function app.
                     time.sleep(30)
-                    logging.info(
+                    self.logging.info(
                         "Sleep 30 seconds for Azure to register function app {}".format(
                             function.name
                         )
@@ -222,11 +222,11 @@ class Azure(System):
         self._mount_function_code(code_package)
         url = self.publish_function(function, code_package, True)
 
-        function.add_trigger(
-            HTTPTrigger(
-                url, self.config.resources.data_storage_account(self.cli_instance)
-            )
+        trigger = HTTPTrigger(
+            url, self.config.resources.data_storage_account(self.cli_instance)
         )
+        trigger.logging_handlers = self.logging_handlers
+        function.add_trigger(trigger)
 
     def _mount_function_code(self, code_package: Benchmark):
         self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
@@ -274,9 +274,14 @@ class Azure(System):
             for setting in json.loads(ret.decode()):
                 if setting["name"] == "AzureWebJobsStorage":
                     connection_string = setting["value"]
-                    elems = [z for y in connection_string.split(";") for z in y.split("=")]
-                    account_name = elems.index("AccountName") + 1
-                    function_storage_account = AzureResources.Storage.from_cache(account_name, connection_string)
+                    elems = [
+                        z for y in connection_string.split(";") for z in y.split("=")
+                    ]
+                    account_name = elems[elems.index("AccountName") + 1]
+                    function_storage_account = AzureResources.Storage.from_cache(
+                        account_name, connection_string
+                    )
+            self.logging.info("Azure: Selected {} function app".format(func_name))
         except RuntimeError:
             function_storage_account = self.config.resources.add_storage_account(
                 self.cli_instance
@@ -292,7 +297,7 @@ class Azure(System):
                     " --name {func_name} --storage-account {storage_account}"
                 ).format(**config)
             )
-            logging.info("Azure: Created function app {}".format(func_name))
+            self.logging.info("Azure: Created function app {}".format(func_name))
         function = AzureFunction(
             name=func_name,
             benchmark=code_package.benchmark,
@@ -300,7 +305,6 @@ class Azure(System):
             function_storage=function_storage_account,
         )
 
-        logging.info("Azure: Selected {} function app".format(func_name))
         # update existing function app
         self.update_function(function, code_package)
 
@@ -319,6 +323,7 @@ class Azure(System):
         )
         for trigger in function.triggers:
             azure_trigger = cast(AzureTrigger, trigger)
+            azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
 
     """
@@ -376,7 +381,7 @@ class Azure(System):
         )
         invocations_processed: List[str] = []
         while len(invocations_processed) != len(requests.keys()):
-            logging.info("Azure: Running App Insights query.")
+            self.logging.info("Azure: Running App Insights query.")
             ret = self.cli_instance.execute(
                 (
                     'az monitor app-insights query --app {} --analytics-query "{}" '
@@ -401,7 +406,7 @@ class Azure(System):
                 requests[invocation_id].provider_times.execution = int(
                     float(func_exec_time) * 1000
                 )
-            logging.info(
+            self.logging.info(
                 f"Azure: Found time metrics for {len(invocations_processed)} "
                 f"out of {len(requests.keys())} invocations."
             )
