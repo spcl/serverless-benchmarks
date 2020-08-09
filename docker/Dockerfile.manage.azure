@@ -12,10 +12,10 @@ RUN apt-get clean && apt-get update\
     | tee /etc/apt/sources.list.d/azure-cli.list\
   && echo "deb [arch=amd64] https://packages.microsoft.com/debian/9/prod $(lsb_release -cs) main" > /etc/apt/sources.list.d/dotnetdev.list\
   && apt-get update\
-  && apt-get install -y azure-cli azure-functions-core-tools\
+  && apt-get install -y azure-cli azure-functions-core-tools-3\
 # Install NodeJS 10.x to test functions locally with func host
   && curl -sL https://deb.nodesource.com/setup_10.x | bash - && apt-get install -y nodejs\
-  && apt-get purge -y --auto-remove curl ca-certificates apt-transport-https lsb-release gnupg
+  && apt-get purge -y --auto-remove curl lsb-release gnupg
 
 # https://github.com/moby/moby/issues/20295
 # https://github.com/moby/moby/issues/20295
