@@ -20,8 +20,8 @@ benchmarks = [
     "110.dynamic-html",
     "120.uploader",
     "210.thumbnailer",
-    "220.video-processing",
-    "311.compression",
+    #"220.video-processing",
+    #"311.compression",
     #"411.image-recognition",
     #"501.graph-pagerank",
     #"502.graph-mst",
@@ -29,7 +29,7 @@ benchmarks = [
     #"504.dna-visualisation"
 ]
 tmp_dir = tempfile.TemporaryDirectory()
-client = sebs.SeBS(tmp_dir.name)
+client = sebs.SeBS("regression-cache")
 
 args = parser.parse_args()
 if not args.deployment:
@@ -37,16 +37,17 @@ if not args.deployment:
 
 class TestSequenceMeta(type):
 
-    def __init__(cls, name, bases, attrs, config, experiment_config):
+    def __init__(cls, name, bases, attrs, deployment_name, config, experiment_config):
         type.__init__(cls, name, bases, attrs)
+        cls.deployment_name = deployment_name
         cls.config = config
         cls.experiment_config = experiment_config
 
-    def __new__(mcs, name, bases, dict, config, experiment_config):
+    def __new__(mcs, name, bases, dict, deployment_name, config, experiment_config):
 
         def gen_test(benchmark_name):
             def test(self):
-                deployment_client = client.get_deployment(self.config, f"regression_test_{benchmark_name}.log")
+                deployment_client = client.get_deployment(self.config, f"regression_test_{deployment_name}_{benchmark_name}.log")
                 logging.info(
                     f"Begin regression test of {benchmark_name} on "
                     f"{deployment_client.name()}"
@@ -76,9 +77,33 @@ class TestSequenceMeta(type):
 
 class AWSTestSequence(unittest.TestCase,
         metaclass=TestSequenceMeta,
+        deployment_name="aws",
         config = {
             "name": "aws",
-            "region": "us-east-1"
+            "aws": {
+                "region": "us-east-1"
+            }
+        },
+        experiment_config = {
+            "update_code": False,
+            "update_storage": False,
+            "download_results": False,
+            "runtime": {
+              "language": "python",
+              "version": "3.6"
+            }
+        }
+    ):
+    pass
+
+class AzureTestSequence(unittest.TestCase,
+        metaclass=TestSequenceMeta,
+        deployment_name="azure",
+        config = {
+            "name": "azure",
+            "azure": {
+                "region": "westeurope"
+            }
         },
         experiment_config = {
             "update_code": False,
@@ -128,6 +153,8 @@ class TracingStreamResult(testtools.StreamResult):
 suite = unittest.TestSuite()
 if "aws" in args.deployment:
     suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequence))
+if "azure" in args.deployment:
+    suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequence))
 tests = []
 for case in suite:
     for test in case:
