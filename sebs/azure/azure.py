@@ -340,7 +340,7 @@ class Azure(System):
 
     def download_metrics(
         self,
-        function: Function,
+        function_name: str,
         start_time: int,
         end_time: int,
         requests: Dict[str, ExecutionResult],
@@ -355,7 +355,7 @@ class Azure(System):
         app_id_query = self.cli_instance.execute(
             (
                 "az monitor app-insights component show " "--app {} --resource-group {}"
-            ).format(function.name, resource_group)
+            ).format(function_name, resource_group)
         ).decode("utf-8")
         application_id = json.loads(app_id_query)["appId"]
 

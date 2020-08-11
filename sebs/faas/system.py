@@ -208,7 +208,7 @@ class System(ABC, LoggingBase):
     @abstractmethod
     def download_metrics(
         self,
-        function: Function,
+        function_name: str,
         start_time: int,
         end_time: int,
         requests: Dict[str, ExecutionResult],

@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Dict, Optional, Tuple  # noqa
+from typing import Dict, List, Optional, Tuple  # noqa
 
 from sebs.cache import Cache
 from sebs.faas.config import Config as DeploymentConfig
 from sebs.faas.function import Function, ExecutionResult
+from sebs.utils import LoggingHandlers
 from sebs.experiments.config import Config as ExperimentConfig
 
 
@@ -42,11 +43,14 @@ class Result:
         else:
             self._invocations[func.name] = {invocation.request_id: invocation}
 
-    def invocations(self, func: Function) -> Dict[str, ExecutionResult]:
-        return self._invocations[func.name]
+    def functions(self) -> List[str]:
+        return self._invocations.keys()
+
+    def invocations(self, func: str) -> Dict[str, ExecutionResult]:
+        return self._invocations[func]
 
     @staticmethod
-    def deserialize(cached_config: dict, cache: Cache) -> "Result":
+    def deserialize(cached_config: dict, cache: Cache, handlers: LoggingHandlers) -> "Result":
         invocations: Dict[str, dict] = {}
         for func, func_invocations in cached_config["_invocations"].items():
             invocations[func] = {}
@@ -54,7 +58,7 @@ class Result:
                 invocations[func][invoc_id] = ExecutionResult.deserialize(invoc)
         ret = Result(
             ExperimentConfig.deserialize(cached_config["config"]["experiments"]),
-            DeploymentConfig.deserialize(cached_config["config"]["deployment"], cache),
+            DeploymentConfig.deserialize(cached_config["config"]["deployment"], cache, handlers),
             invocations,
             cached_config["result_bucket"],
         )

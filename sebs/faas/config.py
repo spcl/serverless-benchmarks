@@ -114,7 +114,7 @@ class Config(ABC, LoggingBase):
             name
         )
         assert func, "Unknown config type!"
-        return func(config[name], cache, handlers)
+        return func(config[name] if name in config else config, cache, handlers)
 
     @abstractmethod
     def serialize(self) -> dict:
