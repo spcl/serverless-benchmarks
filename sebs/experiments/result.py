@@ -44,13 +44,15 @@ class Result:
             self._invocations[func.name] = {invocation.request_id: invocation}
 
     def functions(self) -> List[str]:
-        return self._invocations.keys()
+        return list(self._invocations.keys())
 
     def invocations(self, func: str) -> Dict[str, ExecutionResult]:
         return self._invocations[func]
 
     @staticmethod
-    def deserialize(cached_config: dict, cache: Cache, handlers: LoggingHandlers) -> "Result":
+    def deserialize(
+        cached_config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> "Result":
         invocations: Dict[str, dict] = {}
         for func, func_invocations in cached_config["_invocations"].items():
             invocations[func] = {}
@@ -58,7 +60,9 @@ class Result:
                 invocations[func][invoc_id] = ExecutionResult.deserialize(invoc)
         ret = Result(
             ExperimentConfig.deserialize(cached_config["config"]["experiments"]),
-            DeploymentConfig.deserialize(cached_config["config"]["deployment"], cache, handlers),
+            DeploymentConfig.deserialize(
+                cached_config["config"]["deployment"], cache, handlers
+            ),
             invocations,
             cached_config["result_bucket"],
         )

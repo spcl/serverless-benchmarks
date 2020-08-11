@@ -336,7 +336,9 @@ class AWS(System):
     """
 
     @staticmethod
-    def parse_aws_report(log: str, requests: Union[ExecutionResult, Dict[str, ExecutionResult]]) -> str:
+    def parse_aws_report(
+        log: str, requests: Union[ExecutionResult, Dict[str, ExecutionResult]]
+    ) -> str:
         aws_vals = {}
         for line in log.split("\t"):
             if not line.isspace():
@@ -425,7 +427,7 @@ class AWS(System):
             logGroupName="/aws/lambda/{}".format(function_name),
             queryString="filter @message like /REPORT/",
             startTime=math.floor(start_time),
-            endTime=math.ceil(end_time + 1)
+            endTime=math.ceil(end_time + 1),
         )
         query_id = query["queryId"]
         response = None
@@ -448,8 +450,8 @@ class AWS(System):
                                 request_id
                             )
                         )
-                    #del actual_result["REPORT RequestId"]
-                    #requests[request_id][self.name()] = actual_result
+                    # del actual_result["REPORT RequestId"]
+                    # requests[request_id][self.name()] = actual_result
 
     def create_trigger(
         self, function: LambdaFunction, trigger_type: Trigger.TriggerType
