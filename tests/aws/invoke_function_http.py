@@ -21,7 +21,7 @@ class AWSInvokeFunctionHTTP(unittest.TestCase):
 
     def test_invoke_sync_python(self):
         config = {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"name": "aws", "aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "python", "version": "3.6"},
                 "update_code": False,
@@ -49,7 +49,7 @@ class AWSInvokeFunctionHTTP(unittest.TestCase):
 
     def test_invoke_sync_nodejs(self):
         config = {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"name": "aws", "aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "nodejs", "version": "10.x"},
                 "update_code": False,

@@ -18,6 +18,7 @@ parser.add_argument(
     choices=[
         "publish",
         "test_invoke",
+        "download_metrics",
         "experiment",
         "create",
         "results",
@@ -141,6 +142,7 @@ if args.language:
 if args.language_version:
     config["experiments"]["runtime"]["version"] = args.language_version
 # deployment
+deployment: str
 if args.deployment:
     config["deployment"]["name"] = args.deployment
 if args.update_code:
@@ -149,6 +151,8 @@ if args.update_storage:
     config["experiments"]["update_storage"] = args.update_storage
 
 config["experiments"]["benchmark"] = args.benchmark
+logging_filename = os.path.abspath(os.path.join(args.output_dir, "out.log"))
+print(logging_filename)
 
 try:
     output_dir = sebs.utils.create_output(
@@ -157,27 +161,28 @@ try:
     logging.info("Created experiment output at {}".format(args.output_dir))
     experiment_config = sebs_client.get_experiment(config["experiments"])
     deployment_client = sebs_client.get_deployment(
-        config["deployment"], logging_filename=os.path.join(args.output_dir, "out.log")
+        config["deployment"], logging_filename=logging_filename
     )
     deployment_client.initialize()
 
-    if args.action in ("publish", "test_invoke"):
+    if args.action in ("download_metrics", "test_invoke"):
+
         benchmark = sebs_client.get_benchmark(
             args.benchmark,
             output_dir,
             deployment_client,
             experiment_config,
-            logging_filename=os.path.join(args.output_dir, "out.log"),
-        )
-        storage = deployment_client.get_storage(
-            replace_existing=experiment_config.update_storage
-        )
-        input_config = benchmark.prepare_input(storage=storage, size=args.size)
-        func = deployment_client.get_function(
-            benchmark, deployment_client.default_function_name(benchmark)
+            logging_filename=logging_filename
         )
 
         if args.action == "test_invoke":
+            func = deployment_client.get_function(
+                benchmark, deployment_client.default_function_name(benchmark)
+            )
+            storage = deployment_client.get_storage(
+                replace_existing=experiment_config.update_storage
+            )
+            input_config = benchmark.prepare_input(storage=storage, size=args.size)
             # TODO bucket save of results
             bucket = None
             # bucket = deployment_client.prepare_experiment(args.benchmark)
@@ -189,9 +194,28 @@ try:
             result.begin()
             ret = func.triggers[0].sync_invoke(input_config)
             result.end()
-            result.add_invocation(func.name, ret)
+            result.add_invocation(func, ret)
             with open("experiments.json", "w") as out_f:
                 out_f.write(sebs.utils.serialize(result))
+            logging.info(
+                "Save results to {}".format(os.path.abspath("experiments.json"))
+            )
+        elif args.action == "download_metrics":
+            logging.info(
+                "Load results from {}".format(os.path.abspath("experiments.json"))
+            )
+            with open("experiments.json", "r") as in_f:
+                config = json.load(in_f)
+                experiments = sebs.experiments.ExperimentResult.deserialize(
+                    config, sebs_client.cache_client, sebs_client.logging_handlers(logging_filename)
+                )
+
+            for func in experiments.functions():
+                deployment_client.download_metrics(
+                    func, *experiments.times(), experiments.invocations(func)
+                )
+            with open("results.json", "w") as out_f:
+                out_f.write(sebs.utils.serialize(experiments))
             logging.info(
                 "Save results to {}".format(os.path.abspath("experiments.json"))
             )

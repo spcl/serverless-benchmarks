@@ -521,8 +521,8 @@ class Benchmark(LoggingBase):
         input_config = mod.generate_input(
             benchmark_data_path,
             size,
-            storage.input(),
-            storage.output(),
+            storage.input,
+            storage.output,
             storage.uploader_func,
         )
         return input_config

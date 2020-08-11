@@ -116,9 +116,8 @@ Pass lambda role in config JSON, see an example in `config/example.json`.
 
 #### Azure
 
-**temporarily disabled**
 
-Azure provides 2000 USD for the first month.
+Azure provides 200 USD for the first month.
 You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
 enable non-interactive login through CLI. Since this process has [an easy, one-step
 CLI solution](https://docs.microsoft.com/en-us/cli/azure/ad/sp?view=azure-cli-latest#az-ad-sp-create-for-rbac),
@@ -134,14 +133,20 @@ To sign in, use a web browser to open the page https://microsoft.com/devicelogin
 Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}                                          
 Created service principal http://XXXXX
 
-AZURE_SECRET_APPLICATION_ID = 2a49e1e9-b47d-422b-8d81-461af9e1a61f                                                         
-AZURE_SECRET_TENANT = 93ea0232-1fea-4dc8-a174-4ff4a312127a                                                                                                                                     
-AZURE_SECRET_PASSWORD = 1u0WtswVq-3gLtPpfJYh_KdUJCWY2J2flg
+AZURE_SECRET_APPLICATION_ID = XXXXXXXXXXXXXXXX
+AZURE_SECRET_TENANT = XXXXXXXXXXXX
+AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
 ```
 
 Save these credentials - the password is non retrievable! Provide them to SeBS
 through environmental variables and we will create additional resources (storage account, resource group)
 to deploy functions.
+
+###### Resources
+
+* By default, all functions are allocated in the single resource group.
+* Each function has a seperate storage account allocated, following [Azure guidelines](https://docs.microsoft.com/en-us/azure/azure-functions/functions-best-practices#scalability-best-practices).
+* All benchmark data is stored in the same storage account.
 
 ### Usage
 

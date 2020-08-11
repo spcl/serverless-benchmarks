@@ -10,7 +10,7 @@ import sebs
 class AWSCreateFunction(unittest.TestCase):
     config = {
         "python": {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"name": "aws", "aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "python", "version": "3.6"},
                 "update_code": False,
@@ -22,7 +22,7 @@ class AWSCreateFunction(unittest.TestCase):
             },
         },
         "nodejs": {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"name": "aws", "aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "nodejs", "version": "10.x"},
                 "update_code": False,

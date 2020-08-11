@@ -22,6 +22,12 @@ class ExecutionTimes:
         self.initialization = 0
         self.benchmark = 0
 
+    @staticmethod
+    def deserialize(cached_obj: dict) -> "ExecutionTimes":
+        ret = ExecutionTimes()
+        ret.__dict__.update(cached_obj)
+        return ret
+
 
 class ProviderTimes:
 
@@ -43,6 +49,12 @@ class ExecutionStats:
         self.memory_used = None
         self.cold_start = False
         self.failure = False
+
+    @staticmethod
+    def deserialize(cached_obj: dict) -> "ExecutionStats":
+        ret = ExecutionStats()
+        ret.__dict__.update(cached_obj)
+        return ret
 
 
 class ExecutionBilling:
@@ -80,6 +92,12 @@ class ExecutionBilling:
     def gb_seconds(self, val: int):
         self._gb_seconds = val
 
+    @staticmethod
+    def deserialize(cached_obj: dict) -> "ExecutionBilling":
+        ret = ExecutionBilling()
+        ret.__dict__.update(cached_obj)
+        return ret
+
 
 class ExecutionResult:
 
@@ -90,16 +108,23 @@ class ExecutionResult:
     stats: ExecutionStats
     billing: ExecutionBilling
 
-    def __init__(self, client_time_begin: datetime, client_time_end: datetime):
+    def __init__(self):
         self.output = {}
         self.request_id = ""
         self.times = ExecutionTimes()
         self.provider_times = ProviderTimes()
-        self.times.client = int(
-            (client_time_end - client_time_begin) / timedelta(microseconds=1)
-        )
         self.stats = ExecutionStats()
         self.billing = ExecutionBilling()
+
+    @staticmethod
+    def from_times(
+        client_time_begin: datetime, client_time_end: datetime
+    ) -> "ExecutionResult":
+        ret = ExecutionResult()
+        ret.times.client = int(
+            (client_time_end - client_time_begin) / timedelta(microseconds=1)
+        )
+        return ret
 
     def parse_benchmark_output(self, output: dict):
         self.output = output
@@ -111,6 +136,16 @@ class ExecutionResult:
             )
             / timedelta(microseconds=1)
         )
+
+    @staticmethod
+    def deserialize(cached_config: dict) -> "ExecutionResult":
+        ret = ExecutionResult()
+        ret.times = ExecutionTimes.deserialize(cached_config["times"])
+        ret.billing = ExecutionBilling.deserialize(cached_config["billing"])
+        ret.stats = ExecutionStats.deserialize(cached_config["stats"])
+        ret.request_id = cached_config["request_id"]
+        ret.output = cached_config["output"]
+        return ret
 
 
 """

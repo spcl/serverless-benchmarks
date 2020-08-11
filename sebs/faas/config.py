@@ -29,7 +29,7 @@ class Credentials(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def initialize(
+    def deserialize(
         config: dict, cache: Cache, handlers: LoggingHandlers
     ) -> "Credentials":
         pass
@@ -62,7 +62,7 @@ class Resources(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def initialize(
+    def deserialize(
         config: dict, cache: Cache, handlers: LoggingHandlers
     ) -> "Resources":
         pass
@@ -105,8 +105,16 @@ class Config(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
-        pass
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
+        from sebs.aws.config import AWSConfig
+        from sebs.azure.config import AzureConfig
+
+        name = config["name"]
+        func = {"aws": AWSConfig.deserialize, "azure": AzureConfig.deserialize}.get(
+            name
+        )
+        assert func, "Unknown config type!"
+        return func(config[name] if name in config else config, cache, handlers)
 
     @abstractmethod
     def serialize(self) -> dict:

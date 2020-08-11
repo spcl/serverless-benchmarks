@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Tuple
+from typing import List
 
 import boto3
 
@@ -11,6 +11,10 @@ class S3(PersistentStorage):
     @staticmethod
     def typename() -> str:
         return "AWS.S3"
+
+    @staticmethod
+    def deployment_name():
+        return "aws"
 
     @property
     def replace_existing(self) -> bool:
@@ -29,127 +33,32 @@ class S3(PersistentStorage):
         secret_key: str,
         replace_existing: bool,
     ):
-        super().__init__()
+        super().__init__(cache_client, replace_existing)
         self.client = session.client(
             "s3",
             region_name=location,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
         )
-        self.cache_client = cache_client
-        self._replace_existing = replace_existing
         self.cached = False
-        self.input_buckets: List[str] = []
-        self.request_input_buckets = 0
-        self.input_buckets_files: List[str] = []
-        self.output_buckets: List[str] = []
-        self.request_output_buckets = 0
 
-    def input(self):  # noqa: A003
-        return self.input_buckets
+    def correct_name(self, name: str) -> str:
+        return name
 
-    def output(self):
-        return self.output_buckets
-
-    def create_bucket(self, name, buckets=None):
-        found_bucket = False
-        if buckets:
-            for b in buckets:
-                existing_bucket_name = b["Name"]
-                if name in existing_bucket_name:
-                    found_bucket = True
-                    break
-        # none found, create
-        if not found_bucket:
-            random_name = str(uuid.uuid4())[0:16]
-            bucket_name = "{}-{}".format(name, random_name)
-            self.client.create_bucket(Bucket=bucket_name)
-            self.logging.info("Created bucket {}".format(bucket_name))
-            return bucket_name
-        else:
-            self.logging.info(
-                "Bucket {} for {} already exists, skipping.".format(
-                    existing_bucket_name, name
-                )
-            )
-            return existing_bucket_name
-
-    def add_input_bucket(self, name: str, cache: bool = True) -> Tuple[str, int]:
-
-        idx = self.request_input_buckets
-        name = "{}-{}-input".format(name, idx)
-        if cache:
-            self.request_input_buckets += 1
-            # there's cached bucket we could use
-            for bucket in self.input_buckets:
-                if name in bucket:
-                    return bucket, idx
-        # otherwise add one
-        bucket_name = self.create_bucket(name)
-        if cache:
-            self.input_buckets.append(bucket_name)
-        return bucket_name, idx
-
-    """
-        :param cache: if true then bucket will be counted and mentioned in cache
-    """
-
-    def add_output_bucket(
-        self, name: str, suffix: str = "output", cache: bool = True
-    ) -> Tuple[str, int]:
-
-        idx = self.request_input_buckets
-        name = "{}-{}-{}".format(name, idx + 1, suffix)
-        if cache:
-            self.request_input_buckets += 1
-            # there's cached bucket we could use
-            for bucket in self.input_buckets:
-                if name in bucket:
-                    return bucket, idx
-        # otherwise add one
-        bucket_name = self.create_bucket(name)
-        if cache:
-            self.input_buckets.append(bucket_name)
-        return bucket_name, idx
-
-    def create_buckets(self, benchmark, buckets, cached_buckets):
-
-        self.request_input_buckets = buckets[0]
-        self.request_output_buckets = buckets[1]
-        if cached_buckets:
-            self.input_buckets = cached_buckets["buckets"]["input"]
-            for bucket in self.input_buckets:
-                self.input_buckets_files.append(
-                    self.client.list_objects_v2(Bucket=self.input_buckets[-1])
-                )
-            self.output_buckets = cached_buckets["buckets"]["output"]
-            for bucket in self.output_buckets:
-                objects = self.client.list_objects_v2(Bucket=bucket)
-                if "Contents" in objects:
-                    objects = [{"Key": obj["Key"]} for obj in objects["Contents"]]
-                    self.client.delete_objects(
-                        Bucket=bucket, Delete={"Objects": objects}
+    def _create_bucket(self, name: str, buckets: List[str] = []):
+        for bucket_name in buckets:
+            if name in bucket_name:
+                self.logging.info(
+                    "Bucket {} for {} already exists, skipping.".format(
+                        bucket_name, name
                     )
-            self.cached = True
-            self.logging.info(
-                "Using cached storage input buckets {}".format(self.input_buckets)
-            )
-            self.logging.info(
-                "Using cached storage output buckets {}".format(self.output_buckets)
-            )
-        else:
-            s3_buckets = self.client.list_buckets()["Buckets"]
-            for i in range(0, buckets[0]):
-                self.input_buckets.append(
-                    self.create_bucket("{}-{}-input".format(benchmark, i), s3_buckets)
                 )
-                self.input_buckets_files.append(
-                    self.client.list_objects_v2(Bucket=self.input_buckets[-1])
-                )
-            for i in range(0, buckets[1]):
-                self.output_buckets.append(
-                    self.create_bucket("{}-{}-output".format(benchmark, i), s3_buckets)
-                )
+                return bucket_name
+        random_name = str(uuid.uuid4())[0:16]
+        bucket_name = "{}-{}".format(name, random_name)
+        self.client.create_bucket(Bucket=bucket_name)
+        self.logging.info("Created bucket {}".format(bucket_name))
+        return bucket_name
 
     def uploader_func(self, bucket_idx, key, filepath):
         # Skip upload when using cached buckets and not updating storage.
@@ -185,14 +94,18 @@ class S3(PersistentStorage):
             objects = []
         return objects
 
-    def allocate_buckets(self, benchmark: str, buckets: Tuple[int, int]):
-        self.create_buckets(
-            benchmark, buckets, self.cache_client.get_storage_config("aws", benchmark),
-        )
+    def list_buckets(self, bucket_name: str) -> List[str]:
+        s3_buckets = self.client.list_buckets()["Buckets"]
+        return [
+            bucket["Name"] for bucket in s3_buckets if bucket_name in bucket["Name"]
+        ]
 
-    def save_storage(self, benchmark: str):
-        self.cache_client.update_storage(
-            "aws",
-            benchmark,
-            {"buckets": {"input": self.input_buckets, "output": self.output_buckets}},
-        )
+    def clean_bucket(self, bucket: str):
+        objects = self.client.list_objects_v2(Bucket=bucket)
+        if "Contents" in objects:
+            objects = [
+                {"Key": obj["Key"]} for obj in objects["Contents"]  # type: ignore
+            ]
+            self.client.delete_objects(
+                Bucket=bucket, Delete={"Objects": objects}  # type: ignore
+            )

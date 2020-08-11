@@ -232,7 +232,10 @@ class Cache(LoggingBase):
                 # copy code
                 if os.path.isdir(code_package.code_location):
                     cached_location = os.path.join(cached_dir, "code")
-                    shutil.copytree(code_package.code_location, cached_location)
+                    # could be replaced with dirs_exists_ok in copytree
+                    # availble in 3.8
+                    shutil.rmtree(cached_location)
+                    shutil.copytree(src=code_package.code_location, dst=cached_location)
                 # copy zip file
                 else:
                     package_name = os.path.basename(code_package.code_location)
@@ -278,7 +281,9 @@ class Cache(LoggingBase):
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
-                functions_config: Dict[str, Any] = {function.name: function.serialize()}
+                functions_config: Dict[str, Any] = {
+                    function.name: {**function.serialize()}
+                }
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)

@@ -10,8 +10,13 @@
     }
   },
   "deployment": {
-    "name": "aws",
-    "region": "us-east-1",
-    "lambda-role": ""
+    "name": "azure",
+    "aws": {
+      "region": "us-east-1",
+      "lambda-role": ""
+    },
+    "azure": {
+      "region": "westeurope"
+    }
   }
 }

@@ -4,6 +4,7 @@ from abc import ABC
 from abc import abstractmethod
 from typing import List, Tuple
 
+from sebs.cache import Cache
 from sebs.utils import LoggingBase
 
 """
@@ -12,16 +13,58 @@ from sebs.utils import LoggingBase
 
 
 class PersistentStorage(ABC, LoggingBase):
-    def __init__(self):
-        super().__init__()
-
-    """
-        :return: list of input buckets defined in the storage
-    """
-
-    @abstractmethod  # noqa: A003
-    def input(self) -> List[str]:
+    @staticmethod
+    @abstractmethod
+    def deployment_name() -> str:
         pass
+
+    @property
+    def cache_client(self) -> Cache:
+        return self._cache_client
+
+    @property
+    def replace_existing(self):
+        return self._replace_existing
+
+    @replace_existing.setter
+    def replace_existing(self, val: bool):
+        self._replace_existing = val
+
+    def __init__(self, cache_client: Cache, replace_existing: bool):
+        super().__init__()
+        self._cache_client = cache_client
+        self.cached = False
+        self.input_buckets: List[str] = []
+        self.output_buckets: List[str] = []
+        self.input_buckets_files: List[List[str]] = []
+        self._replace_existing = replace_existing
+
+    @property
+    def input(self) -> List[str]:  # noqa: A003
+        return self.input_buckets
+
+    @property
+    def output(self) -> List[str]:
+        return self.output_buckets
+
+    @abstractmethod
+    def correct_name(self, name: str) -> str:
+        pass
+
+    @abstractmethod
+    def _create_bucket(self, name: str, buckets: List[str] = []):
+        pass
+
+    def add_bucket(self, name: str, suffix: str, buckets: List[str]) -> Tuple[str, int]:
+
+        name = self.correct_name(f"{name}-{len(buckets)}-{suffix}")
+        # there's cached bucket we could use
+        for idx, bucket in enumerate(buckets):
+            if name in bucket:
+                return bucket, idx
+        bucket_name = self._create_bucket(name)
+        buckets.append(bucket_name)
+        return bucket_name, len(buckets) - 1
 
     """
         Add an input bucket or retrieve an existing one.
@@ -32,9 +75,8 @@ class PersistentStorage(ABC, LoggingBase):
         :return: bucket name and index
     """
 
-    @abstractmethod
-    def add_input_bucket(self, name: str, cache: bool = True) -> Tuple[str, int]:
-        pass
+    def add_input_bucket(self, name: str) -> Tuple[str, int]:
+        return self.add_bucket(name, "input", self.input_buckets)
 
     """
         Add an input bucket or retrieve an existing one.
@@ -46,19 +88,8 @@ class PersistentStorage(ABC, LoggingBase):
         :return: bucket name and index
     """
 
-    @abstractmethod
-    def add_output_bucket(
-        self, name: str, suffix: str = "output", cache: bool = True
-    ) -> Tuple[str, int]:
-        pass
-
-    """
-        :return: list of output buckets defined in the storage
-    """
-
-    @abstractmethod
-    def output(self) -> List[str]:
-        pass
+    def add_output_bucket(self, name: str, suffix: str = "output") -> Tuple[str, int]:
+        return self.add_bucket(name, suffix, self.output_buckets)
 
     """
         Download a file from a bucket.
@@ -96,6 +127,14 @@ class PersistentStorage(ABC, LoggingBase):
     def list_bucket(self, bucket_name: str) -> List[str]:
         pass
 
+    @abstractmethod
+    def list_buckets(self, bucket_name: str) -> List[str]:
+        pass
+
+    @abstractmethod
+    def clean_bucket(self, bucket_name: str):
+        pass
+
     """
         Allocate a set of input/output buckets for the benchmark.
         The routine checks the cache first to verify that buckets have not
@@ -105,9 +144,42 @@ class PersistentStorage(ABC, LoggingBase):
         :param buckets: number of input and number of output buckets
     """
 
-    @abstractmethod
-    def allocate_buckets(self, benchmark: str, buckets: Tuple[int, int]):
-        pass
+    def allocate_buckets(self, benchmark: str, requested_buckets: Tuple[int, int]):
+
+        # Load cached information
+        cached_buckets = self.cache_client.get_storage_config(
+            self.deployment_name(), benchmark
+        )
+        if cached_buckets:
+            self.input_buckets = cached_buckets["buckets"]["input"]
+            for bucket in self.input_buckets:
+                self.input_buckets_files.append(self.list_bucket(bucket))
+            self.output_buckets = cached_buckets["buckets"]["output"]
+            for bucket in self.output_buckets:
+                self.clean_bucket(bucket)
+            self.cached = True
+            self.logging.info(
+                "Using cached storage input buckets {}".format(self.input_buckets)
+            )
+            self.logging.info(
+                "Using cached storage output buckets {}".format(self.output_buckets)
+            )
+            return
+
+        buckets = self.list_buckets(self.correct_name(benchmark))
+        for i in range(0, requested_buckets[0]):
+            self.input_buckets.append(
+                self._create_bucket(
+                    self.correct_name("{}-{}-input".format(benchmark, i)), buckets
+                )
+            )
+            self.input_buckets_files.append(self.list_bucket(self.input_buckets[-1]))
+        for i in range(0, requested_buckets[1]):
+            self.output_buckets.append(
+                self._create_bucket(
+                    self.correct_name("{}-{}-output".format(benchmark, i)), buckets
+                )
+            )
 
     """
         Implements a handy routine for uploading input data by benchmarks.
@@ -127,9 +199,12 @@ class PersistentStorage(ABC, LoggingBase):
         Save benchmark input/output buckets to cache.
     """
 
-    @abstractmethod
     def save_storage(self, benchmark: str):
-        pass
+        self.cache_client.update_storage(
+            self.deployment_name(),
+            benchmark,
+            {"buckets": {"input": self.input, "output": self.output}},
+        )
 
     """
         Download all files in a storage bucket.

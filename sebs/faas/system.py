@@ -9,7 +9,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingBase
 from .config import Config
-from .function import Function
+from .function import Function, ExecutionResult
 from .storage import PersistentStorage
 
 """
@@ -201,18 +201,23 @@ class System(ABC, LoggingBase):
                 code_package.query_cache()
             return function
 
-    @staticmethod
     @abstractmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(self, code_package: Benchmark) -> str:
+        pass
+
+    @abstractmethod
+    def download_metrics(
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict[str, ExecutionResult],
+    ):
         pass
 
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,
     #   start_time: int, end_time: int):
-    #    pass
-
-    # @abstractmethod
-    # def download_metrics(self):
     #    pass
 
     """

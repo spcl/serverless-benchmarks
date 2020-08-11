@@ -1,8 +1,9 @@
+import math
 import os
 import shutil
 import time
 import uuid
-from typing import cast, Dict, Optional, Tuple, Type, Union
+from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
 import docker
@@ -307,11 +308,11 @@ class AWS(System):
     """
 
     def delete_function(self, func_name: Optional[str]):
-        self.logging.info("Deleting function {}".format(func_name))
+        self.logging.debug("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
         except Exception:
-            self.logging.info("Function {} does not exist!".format(func_name))
+            self.logging.debug("Function {} does not exist!".format(func_name))
 
     """
         Prepare AWS resources to store experiment results.
@@ -335,13 +336,23 @@ class AWS(System):
     """
 
     @staticmethod
-    def parse_aws_report(log: str, output: ExecutionResult):
+    def parse_aws_report(
+        log: str, requests: Union[ExecutionResult, Dict[str, ExecutionResult]]
+    ) -> str:
         aws_vals = {}
         for line in log.split("\t"):
             if not line.isspace():
                 split = line.split(":")
                 aws_vals[split[0]] = split[1].split()[0]
-        output.request_id = aws_vals["START RequestId"]
+        if "START RequestId" in aws_vals:
+            request_id = aws_vals["START RequestId"]
+        else:
+            request_id = aws_vals["REPORT RequestId"]
+        if isinstance(requests, ExecutionResult):
+            output = cast(ExecutionResult, requests)
+        else:
+            output = requests[request_id]
+        output.request_id = request_id
         output.provider_times.execution = int(float(aws_vals["Duration"]) * 1000)
         output.stats.memory_used = float(aws_vals["Max Memory Used"])
         if "Init Duration" in aws_vals:
@@ -351,6 +362,7 @@ class AWS(System):
         output.billing.billed_time = int(aws_vals["Billed Duration"])
         output.billing.memory = int(aws_vals["Memory Size"])
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
+        return request_id
 
     def shutdown(self) -> None:
         try:
@@ -398,10 +410,9 @@ class AWS(System):
     def download_metrics(
         self,
         function_name: str,
-        deployment_config: dict,
         start_time: int,
         end_time: int,
-        requests: dict,
+        requests: Dict[str, ExecutionResult],
     ):
 
         if not self.logs_client:
@@ -415,8 +426,8 @@ class AWS(System):
         query = self.logs_client.start_query(
             logGroupName="/aws/lambda/{}".format(function_name),
             queryString="filter @message like /REPORT/",
-            startTime=start_time,
-            endTime=end_time,
+            startTime=math.floor(start_time),
+            endTime=math.ceil(end_time + 1),
         )
         query_id = query["queryId"]
         response = None
@@ -432,16 +443,15 @@ class AWS(System):
         for val in results:
             for result_part in val:
                 if result_part["field"] == "@message":
-                    actual_result = AWS.parse_aws_report(result_part["value"])
-                    request_id = actual_result["REPORT RequestId"]
+                    request_id = AWS.parse_aws_report(result_part["value"], requests)
                     if request_id not in requests:
                         self.logging.info(
                             "Found invocation {} without result in bucket!".format(
                                 request_id
                             )
                         )
-                    del actual_result["REPORT RequestId"]
-                    requests[request_id][self.name()] = actual_result
+                    # del actual_result["REPORT RequestId"]
+                    # requests[request_id][self.name()] = actual_result
 
     def create_trigger(
         self, function: LambdaFunction, trigger_type: Trigger.TriggerType

@@ -2,11 +2,13 @@ from typing import Optional, Dict
 
 import docker
 
-from sebs.aws.aws import AWS, AWSConfig
+from sebs.aws import AWS
+from sebs.azure.azure import Azure
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
-from sebs.faas.system import System as FaasSystem
+from sebs.faas.system import System as FaaSSystem
+from sebs.faas.config import Config
 from sebs.utils import LoggingHandlers
 
 # from sebs.experiments.experiment import Experiment
@@ -40,17 +42,16 @@ class SeBS:
 
     def get_deployment(
         self, config: dict, logging_filename: Optional[str] = None
-    ) -> FaasSystem:
+    ) -> FaaSSystem:
 
-        implementations = {"aws": AWS}
-        configs = {"aws": AWSConfig.initialize}
         name = config["name"]
+        implementations = {"aws": AWS, "azure": Azure}
         if name not in implementations:
-            raise RuntimeError("Deployment {name} not supported!".format(**config))
+            raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.logging_handlers(logging_filename)
-        deployment_config = configs[name](config, self.cache_client, handlers)
+        deployment_config = Config.deserialize(config, self.cache_client, handlers)
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore
@@ -71,7 +72,7 @@ class SeBS:
         self,
         name: str,
         output_dir: str,
-        deployment: FaasSystem,
+        deployment: FaaSSystem,
         config: ExperimentConfig,
         logging_filename: Optional[str] = None,
     ) -> Benchmark:
