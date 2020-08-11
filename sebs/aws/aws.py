@@ -307,11 +307,11 @@ class AWS(System):
     """
 
     def delete_function(self, func_name: Optional[str]):
-        self.logging.info("Deleting function {}".format(func_name))
+        self.logging.debug("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
         except Exception:
-            self.logging.info("Function {} does not exist!".format(func_name))
+            self.logging.debug("Function {} does not exist!".format(func_name))
 
     """
         Prepare AWS resources to store experiment results.
