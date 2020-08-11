@@ -151,6 +151,7 @@ if args.update_storage:
     config["experiments"]["update_storage"] = args.update_storage
 
 config["experiments"]["benchmark"] = args.benchmark
+logging_filename = os.path.join(args.output_dir, "out.log")
 
 try:
     output_dir = sebs.utils.create_output(
@@ -159,27 +160,28 @@ try:
     logging.info("Created experiment output at {}".format(args.output_dir))
     experiment_config = sebs_client.get_experiment(config["experiments"])
     deployment_client = sebs_client.get_deployment(
-        config["deployment"], logging_filename=os.path.join(args.output_dir, "out.log")
+        config["deployment"], logging_filename=logging_filename
     )
     deployment_client.initialize()
 
     if args.action in ("download_metrics", "test_invoke"):
+
         benchmark = sebs_client.get_benchmark(
             args.benchmark,
             output_dir,
             deployment_client,
             experiment_config,
-            logging_filename=os.path.join(args.output_dir, "out.log"),
+            logging_filename=logging_filename
         )
-        storage = deployment_client.get_storage(
-            replace_existing=experiment_config.update_storage
-        )
-        input_config = benchmark.prepare_input(storage=storage, size=args.size)
         func = deployment_client.get_function(
             benchmark, deployment_client.default_function_name(benchmark)
         )
 
         if args.action == "test_invoke":
+            storage = deployment_client.get_storage(
+                replace_existing=experiment_config.update_storage
+            )
+            input_config = benchmark.prepare_input(storage=storage, size=args.size)
             # TODO bucket save of results
             bucket = None
             # bucket = deployment_client.prepare_experiment(args.benchmark)
@@ -204,7 +206,7 @@ try:
             with open("experiments.json", "r") as in_f:
                 config = json.load(in_f)
                 experiments = sebs.experiments.ExperimentResult.deserialize(
-                    config, sebs_client.cache_client
+                    config, sebs_client.cache_client, sebs_client.logging_handlers(logging_filename)
                 )
 
             deployment_client.download_metrics(
