@@ -24,13 +24,13 @@ class BlobStorage(PersistentStorage):
         Internal implementation of creating a new container.
     """
 
-    def _create_bucket(self, name: str, containers: List[dict] = []) -> str:
+    def _create_bucket(self, name: str, containers: List[str] = []) -> str:
         for c in containers:
-            if name in c["name"]:
+            if name in c:
                 self.logging.info(
                     "Container {} for {} already exists, skipping.".format(c, name)
                 )
-                return c["name"]
+                return c
         random_name = str(uuid.uuid4())[0:16]
         name = "{}-{}".format(name, random_name)
         self.client.create_container(name)
@@ -44,8 +44,11 @@ class BlobStorage(PersistentStorage):
     def correct_name(self, name: str) -> str:
         return name.replace(".", "-")
 
-    def list_buckets(self, bucket_name: str) -> List[dict]:
-        return self.client.list_containers(name_starts_with=bucket_name)
+    def list_buckets(self, bucket_name: str) -> List[str]:
+        return [
+            container["name"]
+            for container in self.client.list_containers(name_starts_with=bucket_name)
+        ]
 
     def uploader_func(self, container_idx, file, filepath):
         # Skip upload when using cached containers

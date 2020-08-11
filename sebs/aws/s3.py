@@ -45,9 +45,8 @@ class S3(PersistentStorage):
     def correct_name(self, name: str) -> str:
         return name
 
-    def _create_bucket(self, name: str, buckets: List[dict] = []):
-        for b in buckets:
-            bucket_name = b["Name"]
+    def _create_bucket(self, name: str, buckets: List[str] = []):
+        for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
                     "Bucket {} for {} already exists, skipping.".format(
@@ -95,12 +94,18 @@ class S3(PersistentStorage):
             objects = []
         return objects
 
-    def list_buckets(self, bucket_name: str) -> List[dict]:
+    def list_buckets(self, bucket_name: str) -> List[str]:
         s3_buckets = self.client.list_buckets()["Buckets"]
-        return [bucket for bucket in s3_buckets if bucket_name in bucket]
+        return [
+            bucket["Name"] for bucket in s3_buckets if bucket_name in bucket["Name"]
+        ]
 
     def clean_bucket(self, bucket: str):
         objects = self.client.list_objects_v2(Bucket=bucket)
         if "Contents" in objects:
-            objects = [{"Key": obj["Key"]} for obj in objects["Contents"]]
-            self.client.delete_objects(Bucket=bucket, Delete={"Objects": objects})
+            objects = [
+                {"Key": obj["Key"]} for obj in objects["Contents"]  # type: ignore
+            ]
+            self.client.delete_objects(
+                Bucket=bucket, Delete={"Objects": objects}  # type: ignore
+            )

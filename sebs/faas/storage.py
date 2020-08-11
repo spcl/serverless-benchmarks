@@ -52,7 +52,7 @@ class PersistentStorage(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def _create_bucket(self, name: str, buckets: List[dict] = []):
+    def _create_bucket(self, name: str, buckets: List[str] = []):
         pass
 
     def add_bucket(self, name: str, suffix: str, buckets: List[str]) -> Tuple[str, int]:
@@ -128,7 +128,7 @@ class PersistentStorage(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def list_buckets(self, bucket_name: str) -> List[dict]:
+    def list_buckets(self, bucket_name: str) -> List[str]:
         pass
 
     @abstractmethod
