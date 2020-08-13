@@ -17,7 +17,7 @@ parser.add_argument(
     "action",
     choices=[
         "publish",
-        "test_invoke",
+        "invoke",
         "download_metrics",
         "experiment",
         "create",
@@ -152,21 +152,20 @@ if args.update_storage:
 
 config["experiments"]["benchmark"] = args.benchmark
 logging_filename = os.path.abspath(os.path.join(args.output_dir, "out.log"))
-print(logging_filename)
 
 try:
     output_dir = sebs.utils.create_output(
         args.output_dir, args.preserve_out, args.verbose
     )
     logging.info("Created experiment output at {}".format(args.output_dir))
-    experiment_config = sebs_client.get_experiment(config["experiments"])
     deployment_client = sebs_client.get_deployment(
         config["deployment"], logging_filename=logging_filename
     )
     deployment_client.initialize()
 
-    if args.action in ("download_metrics", "test_invoke"):
+    if args.action in ("download_metrics", "invoke"):
 
+        experiment_config = sebs_client.get_experiment_config(config["experiments"])
         benchmark = sebs_client.get_benchmark(
             args.benchmark,
             output_dir,
@@ -184,7 +183,7 @@ try:
             )
             input_config = benchmark.prepare_input(storage=storage, size=args.size)
             # TODO bucket save of results
-            bucket = None
+            #bucket = None
             # bucket = deployment_client.prepare_experiment(args.benchmark)
             # input_config['logs'] = { 'bucket': bucket }
 
@@ -219,7 +218,8 @@ try:
             logging.info(
                 "Save results to {}".format(os.path.abspath("experiments.json"))
             )
-    #    elif args.action == "experiment":
+    elif args.action == "experiment":
+        experiment = sebs_client.get_experiment(config["experiments"])
     #        # Prepare benchmark input
     #        input_config = prepare_input(
     #            client=deployment_client,

@@ -7,6 +7,10 @@
     "runtime": {
       "language": "python",
       "version": "3.6"
+    },
+    "type": "startup-time",
+    "startup-time": {
+      "convergence": 10
     }
   },
   "deployment": {

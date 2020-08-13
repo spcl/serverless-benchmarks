@@ -11,8 +11,8 @@ from sebs.faas.system import System as FaaSSystem
 from sebs.faas.config import Config
 from sebs.utils import LoggingHandlers
 
-# from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
+from sebs.experiments import Experiment, PerfCost, StartupTime
 
 
 class SeBS:
@@ -61,12 +61,16 @@ class SeBS:
         )
         return deployment_client
 
-    def get_experiment(self, config: dict) -> ExperimentConfig:
+    def get_experiment_config(self, config: dict) -> ExperimentConfig:
+        return ExperimentConfig.deserialize(config)
 
-        experiment_config = ExperimentConfig.deserialize(config)
-        return experiment_config
-        # implementations = {"perfcost": PerfCost}
-        # return implementations[config["type"]](config)
+    def get_experiment(
+        self, config: dict, logging_filename: Optional[str] = None
+    ) -> Experiment:
+        implementations = {"perf-cost": PerfCost, "startup-time": StartupTime}
+        experiment = implementations[config["type"]](self.get_experiment_config(config))
+        experiment.logging_handlers = self.logging_handlers(logging_filename)
+        return experiment
 
     def get_benchmark(
         self,
