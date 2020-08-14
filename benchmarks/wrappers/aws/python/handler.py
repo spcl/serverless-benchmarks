@@ -11,6 +11,8 @@ def handler(event, context):
     # HTTP trigger with API Gateaway
     if 'body' in event:
         event = json.loads(event['body'])
+    req_id = context.aws_request_id
+    event['request-id'] = req_id
     begin = datetime.datetime.now()
     from function import function
     ret = function.handler(event)
@@ -27,7 +29,6 @@ def handler(event, context):
         from function import storage
         storage_inst = storage.storage.get_instance()
         b = event.get('logs').get('bucket')
-        req_id = context.aws_request_id
         storage_inst.upload_stream(b, '{}.json'.format(req_id),
                 io.BytesIO(json.dumps(log_data).encode('utf-8')))
         results_end = datetime.datetime.now()
