@@ -30,9 +30,9 @@ class NetworkPingPong(Experiment):
         )
         self.benchmark_input = benchmark.prepare_input(storage=self._storage, size="test")
         self._out_dir = os.path.join(sebs_client.output_dir, 'network-ping-pong')
-        if os.path.exists(self._out_dir):
-            shutil.rmtree(self._out_dir)
-        os.mkdir(self._out_dir)
+        if not os.path.exists(self._out_dir):
+            #shutil.rmtree(self._out_dir)
+            os.mkdir(self._out_dir)
 
     def run(self):
        
@@ -55,10 +55,40 @@ class NetworkPingPong(Experiment):
         time.sleep(5)
         self._storage.download_bucket(self.benchmark_input['output-bucket'], self._out_dir)
 
+    def process(self, directory: str):
+
+        import glob
+        import pandas as pd
+        full_data = {}
+        for f in glob.glob(os.path.join(directory, 'network-ping-pong', '*.csv')):
+
+            request_id = os.path.basename(f).split('-', 1)[1].split('.')[0]
+            data = pd.read_csv(f, sep=',').drop(['id'], axis=1)
+            if request_id in full_data:
+                full_data[request_id] = pd.concat([full_data[request_id], data], axis=1)
+            else:
+                full_data[request_id] = data
+        df = pd.concat(full_data.values()).reset_index(drop=True)
+        df['rtt'] = (df['server_rcv'] - df['client_send']) + (df['client_rcv'] - df['server_send'])
+        print('Rows: ', df.shape[0])
+        print('Mean: ', df['rtt'].mean())
+        print('STD: ', df['rtt'].std())
+        print('CV: ', df['rtt'].std() / df['rtt'].mean())
+        print('P50: ', df['rtt'].quantile(0.5))
+        print('P75: ', df['rtt'].quantile(0.75))
+        print('P95: ', df['rtt'].quantile(0.95))
+        print('P99: ', df['rtt'].quantile(0.99))
+        print('P99,9: ', df['rtt'].quantile(0.999))
+        ax = df['rtt'].hist(bins=2000)
+        #ax.set_xlim([0.01, 0.04])
+        fig = ax.get_figure()
+        fig.savefig(os.path.join(directory, 'histogram.png'))
+
     def receive_datagrams(self, repetitions: int, port: int, ip: str):
 
         import csv, socket
         print(f"Starting invocation with {repetitions} repetitions on port {port}")
+        socket.setdefaulttimeout(2)
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind(('', port))
 
@@ -69,16 +99,22 @@ class NetworkPingPong(Experiment):
             **self.benchmark_input
         }
         self._function.triggers[0].async_invoke(input_benchmark)
-        
+       
+        begin = datetime.now()
         times = []
         i = 0
         j = 0
         update_counter = int(repetitions / 10)
         while i < repetitions + 1:
-            message, address = server_socket.recvfrom(1024)
-            timestamp_rcv = datetime.now().timestamp()
-            timestamp_send = datetime.now().timestamp()
-            server_socket.sendto(message, address)
+            try:
+                message, address = server_socket.recvfrom(1024)
+                timestamp_rcv = datetime.now().timestamp()
+                timestamp_send = datetime.now().timestamp()
+                server_socket.sendto(message, address)
+            except socket.timeout:
+                i += 1
+                print("Packet loss!")
+                continue
             if i > 0:
                 times.append([i, timestamp_rcv, timestamp_send])
             if j == update_counter:
@@ -87,6 +123,8 @@ class NetworkPingPong(Experiment):
             i += 1
             j += 1
         request_id = message.decode()
+        end = datetime.now()
+        print(f"Finished {request_id} in {end - begin} [s]")
 
         output_file = os.path.join(self._out_dir, f"server-{request_id}.csv")
         with open(output_file, 'w') as csvfile:
