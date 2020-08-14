@@ -43,6 +43,7 @@ class HTTPTrigger(AzureTrigger):
         if ret.status_code != 200:
             self.logging.error("Invocation on URL {} failed!".format(self.url))
             self.logging.error("Input: {}".format(payload))
+            self.logging.error("Output: {}".format(ret.reason))
             raise RuntimeError("Failed synchronous invocation of Azure Function!")
 
         output = ret.json()
@@ -53,7 +54,9 @@ class HTTPTrigger(AzureTrigger):
         return result
 
     def async_invoke(self, payload: dict) -> ExecutionResult:
-        pass
+        import concurrent
+        pool = concurrent.futures.ThreadPoolExecutor()
+        fut = pool.submit(self.sync_invoke, payload)
 
     def serialize(self) -> dict:
         return {"type": "HTTP", "url": self.url}
