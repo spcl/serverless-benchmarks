@@ -10,6 +10,7 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     req_json = req.get_json()
     if 'connection_string' in req_json:
         os.environ['STORAGE_CONNECTION_STRING'] = req_json['connection_string']
+    req_json['request-id'] = context.invocation_id
     begin = datetime.datetime.now()
     # We are deployed in the same directory
     from . import function
