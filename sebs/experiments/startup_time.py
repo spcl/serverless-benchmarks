@@ -7,5 +7,9 @@ class StartupTime(Experiment):
         super().__init__(config)
 
     @staticmethod
+    def name() -> str:
+        return "startup-time"
+
+    @staticmethod
     def typename() -> str:
         return "Experiment.StartupTime"

@@ -12,12 +12,14 @@ from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
-from sebs.experiments.config import Config as ExperimentConfig
-from sebs.experiments.config import Language
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from sebs.experiments.config import Config as ExperimentConfig
+    from sebs.experiments.config import Language
 
 
 class BenchmarkConfig:
-    def __init__(self, timeout: int, memory: int, languages: List[Language]):
+    def __init__(self, timeout: int, memory: int, languages: List["Language"]):
         self._timeout = timeout
         self._memory = memory
         self._languages = languages
@@ -31,12 +33,13 @@ class BenchmarkConfig:
         return self._memory
 
     @property
-    def languages(self) -> List[Language]:
+    def languages(self) -> List["Language"]:
         return self._languages
 
     # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
+        from sebs.experiments.config import Language
         return BenchmarkConfig(
             json_object["timeout"],
             json_object["memory"],
@@ -112,7 +115,7 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     @property
-    def language(self) -> Language:
+    def language(self) -> "Language":
         return self._language
 
     @property
@@ -141,7 +144,7 @@ class Benchmark(LoggingBase):
         self,
         benchmark: str,
         deployment_name: str,
-        config: ExperimentConfig,
+        config: "ExperimentConfig",
         system_config: SeBSConfig,
         output_dir: str,
         cache_client: Cache,
@@ -288,6 +291,7 @@ class Benchmark(LoggingBase):
                 json.dump(package_json, package_file, indent=2)
 
     def add_deployment_package(self, output_dir):
+        from sebs.experiments.config import Language
         if self.language == Language.PYTHON:
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:

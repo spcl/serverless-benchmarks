@@ -7,5 +7,9 @@ class PerfCost(Experiment):
         super().__init__(config)
 
     @staticmethod
+    def name() -> str:
+        return "perf-cost"
+
+    @staticmethod
     def typename() -> str:
         return "Experiment.PerfCost"
