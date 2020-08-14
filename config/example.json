@@ -3,18 +3,21 @@
     "update_code": false,
     "update_storage": false,
     "download_results": false,
-    "deployment": "aws",
     "runtime": {
       "language": "python",
       "version": "3.6"
     },
-    "type": "startup-time",
+    "type": "network-ping-pong",
     "startup-time": {
       "convergence": 10
+    },
+    "network-ping-pong": {
+      "invocations": 5,
+      "repetitions": 10
     }
   },
   "deployment": {
-    "name": "azure",
+    "name": "aws",
     "aws": {
       "region": "us-east-1",
       "lambda-role": ""
