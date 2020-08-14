@@ -128,8 +128,8 @@ parser.add_argument(
 args = parser.parse_args()
 
 config = json.load(open(args.config, "r"))
-output_dir = None
-sebs_client = sebs.SeBS(args.cache)
+output_dir = args.output_dir
+sebs_client = sebs.SeBS(args.cache, output_dir)
 deployment_client: Optional[sebs.faas.System] = None
 
 # 0. Input args
@@ -220,6 +220,8 @@ try:
             )
     elif args.action == "experiment":
         experiment = sebs_client.get_experiment(config["experiments"])
+        experiment.prepare(sebs_client, deployment_client)
+        experiment.run()
     #        # Prepare benchmark input
     #        input_config = prepare_input(
     #            client=deployment_client,

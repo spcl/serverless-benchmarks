@@ -12,7 +12,7 @@ from sebs.faas.config import Config
 from sebs.utils import LoggingHandlers
 
 from sebs.experiments.config import Config as ExperimentConfig
-from sebs.experiments import Experiment, PerfCost, StartupTime
+from sebs.experiments import Experiment, PerfCost, NetworkPingPong, StartupTime
 
 
 class SeBS:
@@ -24,6 +24,10 @@ class SeBS:
     def docker_client(self) -> docker.client:
         return self._docker_client
 
+    @property
+    def output_dir(self) -> str:
+        return self._output_dir
+
     def logging_handlers(
         self, logging_filename: Optional[str] = None
     ) -> LoggingHandlers:
@@ -34,10 +38,11 @@ class SeBS:
             self._logging_handlers[logging_filename] = handlers
             return handlers
 
-    def __init__(self, cache_dir: str):
+    def __init__(self, cache_dir: str, output_dir: str):
         self._cache_client = Cache(cache_dir)
         self._docker_client = docker.from_env()
         self._config = SeBSConfig()
+        self._output_dir = output_dir
         self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
     def get_deployment(
@@ -67,7 +72,7 @@ class SeBS:
     def get_experiment(
         self, config: dict, logging_filename: Optional[str] = None
     ) -> Experiment:
-        implementations = {"perf-cost": PerfCost, "startup-time": StartupTime}
+        implementations = {"perf-cost": PerfCost, "network-ping-pong": NetworkPingPong, "startup-time": StartupTime}
         experiment = implementations[config["type"]](self.get_experiment_config(config))
         experiment.logging_handlers = self.logging_handlers(logging_filename)
         return experiment
@@ -75,7 +80,6 @@ class SeBS:
     def get_benchmark(
         self,
         name: str,
-        output_dir: str,
         deployment: FaaSSystem,
         config: ExperimentConfig,
         logging_filename: Optional[str] = None,
@@ -85,7 +89,7 @@ class SeBS:
             deployment.name(),
             config,
             self._config,
-            output_dir,
+            self._output_dir,
             self.cache_client,
             self.docker_client,
         )
