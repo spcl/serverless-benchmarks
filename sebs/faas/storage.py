@@ -180,6 +180,7 @@ class PersistentStorage(ABC, LoggingBase):
                     self.correct_name("{}-{}-output".format(benchmark, i)), buckets
                 )
             )
+        self.save_storage(benchmark)
 
     """
         Implements a handy routine for uploading input data by benchmarks.

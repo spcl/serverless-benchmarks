@@ -228,7 +228,6 @@ class AWS(System):
                 self.config.resources.lambda_role(self.session),
                 code_bucket,
             )
-        storage_client.save_storage(code_package.benchmark)
 
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import LibraryTrigger
