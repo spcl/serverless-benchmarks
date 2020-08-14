@@ -20,6 +20,7 @@ parser.add_argument(
         "invoke",
         "download_metrics",
         "experiment",
+        "process_experiment",
         "create",
         "results",
         "logs",
@@ -222,6 +223,10 @@ try:
         experiment = sebs_client.get_experiment(config["experiments"])
         experiment.prepare(sebs_client, deployment_client)
         experiment.run()
+    elif args.action == "process_experiment":
+        experiment = sebs_client.get_experiment(config["experiments"])
+        # TODO: additional params
+        experiment.process(output_dir)
     #        # Prepare benchmark input
     #        input_config = prepare_input(
     #            client=deployment_client,
