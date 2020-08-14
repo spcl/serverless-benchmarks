@@ -12,8 +12,9 @@
       "convergence": 10
     },
     "network-ping-pong": {
-      "invocations": 5,
-      "repetitions": 10
+      "invocations": 50,
+      "repetitions": 1000,
+      "threads": 1
     }
   },
   "deployment": {

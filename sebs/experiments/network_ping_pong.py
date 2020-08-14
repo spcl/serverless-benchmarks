@@ -41,8 +41,9 @@ class NetworkPingPong(Experiment):
         settings = self.config.experiment_settings(self.name())
         invocations = settings['invocations']
         repetitions = settings['repetitions']
+        threads = settings['threads']
 
-        pool = ThreadPool(invocations)
+        pool = ThreadPool(threads)
         ports = range(12000, 12000 + invocations)
         ret = pool.starmap(self.receive_datagrams,
             zip(repeat(repetitions, invocations), ports, repeat(ip, invocations))
@@ -51,7 +52,7 @@ class NetworkPingPong(Experiment):
         #for val in ret:
         #    print(val)
         import time
-        time.sleep(1)
+        time.sleep(5)
         self._storage.download_bucket(self.benchmark_input['output-bucket'], self._out_dir)
 
     def receive_datagrams(self, repetitions: int, port: int, ip: str):
@@ -71,6 +72,8 @@ class NetworkPingPong(Experiment):
         
         times = []
         i = 0
+        j = 0
+        update_counter = int(repetitions / 10)
         while i < repetitions + 1:
             message, address = server_socket.recvfrom(1024)
             timestamp_rcv = datetime.now().timestamp()
@@ -78,7 +81,11 @@ class NetworkPingPong(Experiment):
             server_socket.sendto(message, address)
             if i > 0:
                 times.append([i, timestamp_rcv, timestamp_send])
+            if j == update_counter:
+                print(f"Invocation on port {port} processed {i} requests.")
+                j = 0
             i += 1
+            j += 1
         request_id = message.decode()
 
         output_file = os.path.join(self._out_dir, f"server-{request_id}.csv")
