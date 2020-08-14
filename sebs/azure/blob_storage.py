@@ -104,9 +104,7 @@ class BlobStorage(PersistentStorage):
         return objects
 
     def clean_bucket(self, bucket: str):
-        pass
-        # TODO: reenable with a try/except for failed deletions
-        # self.logging.info("Clean output container {}".format(container))
-        # container_client = self.client.get_container_client(container)
-        # blobs = list(map(lambda x: x["name"], container_client.list_blobs()))
-        # container_client.delete_blobs(*blobs)
+        self.logging.info("Clean output container {}".format(bucket))
+        container_client = self.client.get_container_client(bucket)
+        blobs = list(map(lambda x: x["name"], container_client.list_blobs()))
+        container_client.delete_blobs(*blobs)
