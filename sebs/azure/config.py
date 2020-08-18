@@ -265,7 +265,11 @@ class AzureResources(Resources):
         cached_config = cache.get_config("azure")
         ret: AzureResources
         # Load cached values
-        if cached_config and "resources" in cached_config and len(cached_config["resources"]) > 0:
+        if (
+            cached_config
+            and "resources" in cached_config
+            and len(cached_config["resources"]) > 0
+        ):
             logging.info("Using cached resources for Azure")
             ret = cast(
                 AzureResources, AzureResources.initialize(cached_config["resources"])

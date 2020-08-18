@@ -55,8 +55,10 @@ class HTTPTrigger(AzureTrigger):
 
     def async_invoke(self, payload: dict) -> ExecutionResult:
         import concurrent
+
         pool = concurrent.futures.ThreadPoolExecutor()
         fut = pool.submit(self.sync_invoke, payload)
+        return fut
 
     def serialize(self) -> dict:
         return {"type": "HTTP", "url": self.url}
