@@ -250,9 +250,9 @@ class AzureResources(Resources):
         )
 
     def serialize(self) -> dict:
-        out: Dict[str, Any] = {
-            "storage_accounts": [x.serialize() for x in self._storage_accounts],
-        }
+        out: Dict[str, Any] = {}
+        if len(self._storage_accounts) > 0:
+            out["storage_accounts"] = [x.serialize() for x in self._storage_accounts]
         if self._resource_group:
             out["resource_group"] = self._resource_group
         if self._data_storage_account:
@@ -265,7 +265,7 @@ class AzureResources(Resources):
         cached_config = cache.get_config("azure")
         ret: AzureResources
         # Load cached values
-        if cached_config and "resources" in cached_config:
+        if cached_config and "resources" in cached_config and len(cached_config["resources"]) > 0:
             logging.info("Using cached resources for Azure")
             ret = cast(
                 AzureResources, AzureResources.initialize(cached_config["resources"])
