@@ -478,6 +478,8 @@ class AWS(System):
         self.cache_client.update_function(function)
         return trigger
 
+    def enforce_cold_start(self, function: Function):
+        raise NotImplementedError()
 
 #    def create_function_copies(
 #        self,

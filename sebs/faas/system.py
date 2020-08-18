@@ -206,6 +206,10 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
+    def enforce_cold_start(self, function: Function):
+        pass
+
+    @abstractmethod
     def download_metrics(
         self,
         function_name: str,
