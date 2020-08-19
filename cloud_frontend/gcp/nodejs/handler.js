@@ -26,7 +26,7 @@ exports.handler = async function(req, res) {
           results_time: 0,
           result: result,
           is_cold: is_cold,
-          request_id: begin // FIXME: How to determine request_id without context?
+          request_id: req.headers["function-execution-id"]
         });
     },
     (error) => {
