@@ -6,10 +6,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/si
 def handler(req):
     req_json = req.get_json()
     begin = datetime.datetime.now()
-    # We are deployed in the same directory
+    # We are deployed in the same directorygit status
     from function import function
     ret = function.handler(req_json)
     end = datetime.datetime.now()
+
+    req_id = req.headers.get('Function-Execution-Id')
 
     log_data = {
         'result': ret['result']
@@ -22,8 +24,7 @@ def handler(req):
         from function import storage
         storage_inst = storage.storage.get_instance()
         b = req_json.get('logs').get('bucket')
-        # FIXME: AWS and Azure have context for it. What to use here for filename?
-        storage_inst.upload_stream(b, '{}.json'.format(results_begin),
+        storage_inst.upload_stream(b, '{}.json'.format(req_id),
                                    io.BytesIO(json.dumps(log_data).encode('utf-8')))
         results_end = datetime.datetime.now()
         results_time = (results_end - results_begin) / datetime.timedelta(microseconds=1)
@@ -43,6 +44,5 @@ def handler(req):
             'results_time': results_time,
             'is_cold': is_cold,
             'result': log_data,
-            # FIXME: As above
-            'request_id': str(datetime.datetime.now())
+            'request_id': req_id
         }), 200, {'ContentType': 'application/json'}
