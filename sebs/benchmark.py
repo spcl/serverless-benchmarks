@@ -12,6 +12,7 @@ from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
+from sebs.utils import project_absolute_path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -132,7 +133,7 @@ class Benchmark(LoggingBase):
     def hash(self):
         if not self._hash_value:
             path = os.path.join(self.benchmark_path, self.language_name)
-            self._hash_value = Benchmark.hash_directory(path, self.language_name)
+            self._hash_value = Benchmark.hash_directory(path, self._deployment_name, self.language_name)
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -187,12 +188,16 @@ class Benchmark(LoggingBase):
     """
 
     @staticmethod
-    def hash_directory(directory: str, language: str):
+    def hash_directory(directory: str, deployment: str, language: str):
 
         hash_sum = hashlib.md5()
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+        }
+        WRAPPERS = {
+            "python": "*.py",
+            "nodejs": "*.js"
         }
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
@@ -201,6 +206,12 @@ class Benchmark(LoggingBase):
                 path = os.path.join(directory, f)
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
+        # wrappers
+        wrappers = project_absolute_path("benchmarks", "wrappers", deployment, language, WRAPPERS[language])
+        for f in glob.glob(wrappers):
+            path = os.path.join(directory, f)
+            with open(path, "rb") as opened_file:
+                hash_sum.update(opened_file.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:
