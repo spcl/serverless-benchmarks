@@ -2,8 +2,10 @@ from typing import Dict, Tuple, List
 
 import docker
 from googleapiclient.discovery import build
+from google.cloud import monitoring_v3
 import os
 import datetime
+import math
 import time
 import logging
 import shutil
@@ -347,7 +349,40 @@ class GCP(System):
 
     def download_metrics(self, function_name: str, deployment_config: dict,
                          start_time: int, end_time: int, requests: dict):
-        pass
+        client = monitoring_v3.MetricServiceClient()
+        project_name = client.project_path(self.config.project_name)
+        interval = monitoring_v3.types.TimeInterval()
+
+        interval.start_time.seconds = int(start_time - 60)
+        interval.end_time.seconds = int(end_time + 60)
+
+        results = client.list_time_series(
+            project_name,
+            'metric.type = "cloudfunctions.googleapis.com/function/execution_times"',
+            interval,
+            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL)
+        for result in results:
+            if result.resource.labels.get("function_name") == function_name:
+                for point in result.points:
+                    print(point.value.distribution_value.mean)
+                    requests[function_name]["execution_times"] += [{
+                        "time": point.value.distribution_value.mean,
+                        "executions_count": point.value.distribution_value.count
+                    }]
+
+        results = client.list_time_series(
+            project_name,
+            'metric.type = "cloudfunctions.googleapis.com/function/user_memory_bytes"',
+            interval,
+            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL)
+        for result in results:
+            if result.resource.labels.get("function_name") == function_name:
+                for point in result.points:
+                    print(point.value.distribution_value.mean)
+                    requests[function_name]["user_memory_bytes"] += [{
+                        "memory": point.value.distribution_value.mean,
+                        "executions_count": point.value.distribution_value.count
+                    }]
 
     def create_function_copies(self, function_names: List[str], api_name: str, memory: int, timeout: int,
                                code_package: Benchmark, experiment_config: dict, api_id: str = None):

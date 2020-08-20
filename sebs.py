@@ -23,6 +23,7 @@ parser.add_argument(
         "results",
         "logs",
         "burst_invoke",
+        "download_metrics"
     ],
     help="Benchmark name",
 )
@@ -159,7 +160,7 @@ try:
     deployment_client = sebs_client.get_deployment(config["deployment"])
     deployment_client.initialize()
 
-    if args.action in ("publish", "test_invoke"):
+    if args.action in ("publish", "test_invoke", "download_metrics"):
         benchmark = sebs_client.get_benchmark(
             args.benchmark, output_dir, deployment_client, experiment_config
         )
@@ -184,6 +185,23 @@ try:
             result.add_invocation(func.name, ret)
             with open("experiments.json", "w") as out_f:
                 out_f.write(sebs.utils.serialize(result))
+
+        elif args.action == "download_metrics":
+            logging.info(
+                "Load results from {}".format(os.path.abspath("experiments.json"))
+            )
+            with open("experiments.json", "r") as in_f:
+                config = json.load(in_f)
+
+            result = {func.name: {"execution_times": [], "user_memory_bytes": []}}
+
+            deployment_client.download_metrics(func.name, {}, config["begin_time"], config["end_time"], result)
+
+            with open("results.json", "w") as out_f:
+                out_f.write(sebs.utils.serialize(result))
+            logging.info(
+                "Save results to {}".format(os.path.abspath("results.json"))
+            )
     #    elif args.action == "experiment":
     #        # Prepare benchmark input
     #        input_config = prepare_input(
