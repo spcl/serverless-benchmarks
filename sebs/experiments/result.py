@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 from typing import Dict, Optional
 
 from sebs.faas.config import Config as DeploymentConfig
@@ -32,4 +33,5 @@ class Result:
                 invocation.request_id
             ] = invocation
         else:
-            self.invocations[func_name] = {invocation.request_id: invocation}
+            # TODO: dirty hack to make current implementation of GCP runnable (works only with GCP)
+            self.invocations[func_name] = {json.loads(invocation["return"])["request_id"]: invocation}

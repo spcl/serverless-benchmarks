@@ -364,9 +364,8 @@ class GCP(System):
         for result in results:
             if result.resource.labels.get("function_name") == function_name:
                 for point in result.points:
-                    print(point.value.distribution_value.mean)
                     requests[function_name]["execution_times"] += [{
-                        "time": point.value.distribution_value.mean,
+                        "mean_time": point.value.distribution_value.mean,
                         "executions_count": point.value.distribution_value.count
                     }]
 
@@ -378,9 +377,8 @@ class GCP(System):
         for result in results:
             if result.resource.labels.get("function_name") == function_name:
                 for point in result.points:
-                    print(point.value.distribution_value.mean)
                     requests[function_name]["user_memory_bytes"] += [{
-                        "memory": point.value.distribution_value.mean,
+                        "mean_memory": point.value.distribution_value.mean,
                         "executions_count": point.value.distribution_value.count
                     }]
 

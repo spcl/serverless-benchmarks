@@ -94,6 +94,11 @@ class GCPStorage(PersistentStorage):
         bucket_name = self.create_bucket(name)
         return bucket_name
 
+    # TODO: added to make current implementation of GCP runnable
+    def add_output_bucket(self, bucket_name: str, suffix='output') -> List[str]:
+        name = '{}-{}'.format(bucket_name, suffix)
+        bucket_name = self.create_bucket(name)
+        return bucket_name
 
     #cached_buckets? ...
     def allocate_buckets(self, benchmark: str, buckets: Tuple[int, int], cached_buckets = None):
