@@ -203,6 +203,30 @@ def delete_cluster():
 
 # openwhisk deployment utils
 
+def check_wsk_installation() -> None:
+    try:
+        logging.info("Checking wsk installation...")
+        run_check_process('wsk')
+        logging.info("wsk is installed")
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        logging.error(f'Cannot find wsk, reason: {e}')
+        exit(1)
+
+
+def prepare_wsk() -> None:
+    try:
+        ip = get_worker_ip()
+        auth = "23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCGuMDGIwP"
+        subprocess.run(
+            f"wsk property set --apihost {ip} --auth {auth}",
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        logging.error(f"Cannot find wsk on system, reason: {e}")
+        exit(1)
+
 def expose_couchdb() -> None:
     try:
         run_check_process("kubectl apply -f openwhisk/couchdb-service.yaml")
