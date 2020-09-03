@@ -10,15 +10,31 @@ using them to evaluate different parts of FaaS systems. See [installation instru
 
 ### Benchmark Applications
 
-TODO: description of benchmarks
+Benchmarks are organized into different categories, representing different
+types of workloads, from simple web applications up to computationally intensive
+video processing, scientific computations and deep learning inference. Each
+benchmark comes with **test**, **small** and **large** inputs for automatic invokation.
+
+| Type | Name | Languages |
+| ---- | ---- | --------- |
+| Webapps | dynamic-html | Python, NodeJS | Dynamic HTML generation. |
+| Webapps | uploader | Python, NodeJS | Uploading file to cloud storage. |
+| Multimedia | thumbnailer | Python, NodeJS | Resizing user-provided image. |
+| Multimedia | video-processing | Python | Adding watermark and gif conversion with ffmpeg. |
+| Utilities | compression | Python | Zip compression of storage bucket. |
+| Utilities | data-vis | Python | Visualization of DNA data. |
+| Inference | image-recognition | Deep learning inference with pytorch and ResNet. |
+| Scientific | graph-pagerank | Python | Graph processing example. |
+| Scientific | graph-mst | Python | Graph processing example. |
+| Scientific | graph-bfs | Python | Graph processing example. |
 
 #### How to add new benchmarks?
 
 Benchmarks follow the naming structure `x.y.z` where x is benchmark group, y is benchmark
 ID and z is benchmark version. For examples of implementations, look at `210.thumbnailer`
-or `311.compression`. Benchmark requires the following files:
+or `311.compression`. Each benchmark requires the following files:
 
-**config.json**
+**config.json** - Defines capabilities and minimum requirements for execution.
 ```json
 {
   "timeout": 60,
@@ -27,10 +43,11 @@ or `311.compression`. Benchmark requires the following files:
 }
 ```
 
-**input.py**
+**input.py** - Defines the benchmark input and output, including storage buckets (containers)
+allocated, and creates a set of inputs used for invocation.
 ```python
 '''
-  :return: number of input and output buckets necessary 
+  :return: number of input and output buckets used by the benchmark
 '''
 def buckets_count():
     return (1, 1)
@@ -42,7 +59,7 @@ def buckets_count():
     :param size: workload size
     :param input_buckets: input storage containers for this benchmark
     :param output_buckets:
-    :param upload_func: upload function taking three params(bucket_idx, key, filepath)
+    :param upload_func: upload function taking three params(bucket_idx, filepath, key)
     :return: input config for benchmark
 '''
 def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
@@ -50,7 +67,7 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
 ```
 
 Input files for benchmark, e.g. pretrained model and test images for deep learning
-inference, will be uploaded to input benchmark according `generate_input`.
+inference, will be uploaded to input benchmark in the function `generate_input`.
 Output buckets are cleaned after experiments. The function should return input
 configuration in form of a dictionary that will be passed to the function at
 invocation.
@@ -68,10 +85,25 @@ use script `init.sh` (see an example in `110.dynamic-html`).
 
 ### Experiments
 
-TODO :-(
+#### Performance&Cost
 
+TODO: moving experiment code from previous scripts.
 
-#### Performance&Cost Variability
+#### Cold Start Prediction
+
+TODO: moving experiment code from previous scripts.
+
+#### Scalability
+
+TODO: moving experiment code from previous scripts.
+
+### Invocation overhead
+
+WiP - branch network-experiment
+
+#### Performance Modeling
+
+WiP
 
 ### Installation
 
@@ -116,10 +148,8 @@ Pass lambda role in config JSON, see an example in `config/example.json`.
 
 #### Azure
 
-**temporarily disabled**
 
-Azure provides 2000 USD for the first month.
-You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
+Azure provides 200 USD for the first month. You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
 enable non-interactive login through CLI. Since this process has [an easy, one-step
 CLI solution](https://docs.microsoft.com/en-us/cli/azure/ad/sp?view=azure-cli-latest#az-ad-sp-create-for-rbac),
 we added a small tool **tools/create_azure_credentials** that uses the interactive web-browser
@@ -150,11 +180,7 @@ with necessaries and information on cloud storage resources. Benchmarks will be 
 after change in source code fails (hopefully). If you see in the logs that a cached
 entry is still used, pass flag `--update` to force rebuild.
 
-#### Cloud
-
-Use `sebs.py` with options `test`, `publish` and `invoke`. Right now
-only a single `test` is supported. Experiments and log querying are coming up now.
-
+Use `sebs.py` with options `test_invoke`, `download_metrics`, `experiment` and `process_experiment`.
 Example (please modify the `config/example.json` for your needs).
 
 ```
@@ -163,23 +189,5 @@ sebs.py --repetitions 1 test_invoke ${benchmark} ${out_dir} ${input_size} config
 
 where `input_size` could be `test`, `small`, `large`. `out_dir` is used to store
 local results. Command line options allow to override config (`--deployment`, `--language`).
-
-#### Local
-
-**Might not work currently**
-
-Use `scripts/run_experiments.py` to execute code locally with thelp of minio,
-object storage service, running in a container. There are four types of experiments
-that can be run: `time`, `memory`, `disk-io` and `papi`. The last one works only
-for Python and memory/disk-io are WiP for NodeJS.
-
-If your benchmark fails for some reason, you should see an error directly. If not,
-inspect files in `${out_dir}/${experiment}/instance_0/logs`. Use `scripts/clean.sh`
-to kill measurement processes if we didn't work.
-
-Containers are usually shutdown after an experiment. The flag `--no-shutdown-containers`
-provides a way to leave them alive and inspect the environment for problems.
-Simply run `./run.sh ${experiment}.json`.
-
 
 
