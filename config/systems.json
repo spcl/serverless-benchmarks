@@ -109,11 +109,13 @@
           "2.7": "openwhisk/python2action"
         },
         "versions": ["3.6", "2.7"],
-        "images": ["build"],
+        "images": [],
         "username": "docker_user",
         "deployment": {
           "files": [ "__main__.py", "storage.py"],
-          "packages": []
+          "packages": {
+            "minio": "^5.0.10"
+          }
         }
       },
       "nodejs": {
@@ -123,12 +125,12 @@
           "12" : "openwhisk/action-nodejs-v12"
         },
         "versions": [ "8", "10", "12"],
-        "images": ["build"],
+        "images": [],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.js", "storage.js"],
+          "files": [ "index.js", "storage.js"],
           "packages": {
-            "uuid": "3.4.0"
+            "minio": "^7.0.16"
           }
         }
       }
