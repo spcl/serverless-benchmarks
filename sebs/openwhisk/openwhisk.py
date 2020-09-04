@@ -10,7 +10,6 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.faas import System, PersistentStorage
-from sebs.faas.config import Config
 from sebs.faas.function import Function
 from sebs.openwhisk.minio import Minio
 from .config import OpenWhiskConfig
@@ -28,18 +27,19 @@ class OpenWhisk(System):
         self._config = config
 
     @property
-    def config(self) -> Config:
+    def config(self) -> OpenWhiskConfig:
         return self._config
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         self.storage = Minio(self.docker_client)
         return self.storage
 
-    def get_function(self, code_package: Benchmark) -> Function:
-        pass
-
     def shutdown(self) -> None:
-        pass
+        if self.config.shutdownStorage:
+            self.storage.storage_container.kill()
+        if self.config.removeCluster:
+            from tools.openwhisk_preparation import delete_cluster
+            delete_cluster()
 
     @staticmethod
     def name() -> str:
@@ -57,6 +57,14 @@ class OpenWhisk(System):
         package_config = CONFIG_FILES[benchmark.language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
+
+        with open('./code/minioConfig.json', 'w+') as minio_config:
+            minio_config_json = {
+                'access_key': self.storage.access_key,
+                'secret_key': self.storage.secret_key,
+                'url': self.storage.url,
+            }
+            minio_config.write(json.dumps(minio_config_json))
 
         # openwhisk needs main function to be named in a package.json
 

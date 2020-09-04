@@ -110,7 +110,7 @@ class OpenwhiskFunction(Function):
 
         logging.info(f"Function {self.name} with id {id_match} finished successfully")
 
-        returnContent = response
+        returnContent = json.loads(response)
         openwhiskResult = ExecutionResult(begin, end)
         openwhiskResult.parse_benchmark_output(returnContent)
         return openwhiskResult

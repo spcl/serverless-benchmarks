@@ -26,10 +26,13 @@ class OpenWhiskResources(Resources):
 
 class OpenWhiskConfig(Config):
     name: str
+    shutdownStorage: bool
     cache: Cache
 
     def __init__(self, config: dict, cache: Cache):
         self.name = config['name']
+        self.shutdownStorage = config['shutdownStorage']
+        self.removeCluster = config['removeCluster']
         self.cache = cache
 
     @property

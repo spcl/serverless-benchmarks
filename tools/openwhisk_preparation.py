@@ -227,6 +227,7 @@ def prepare_wsk() -> None:
         logging.error(f"Cannot find wsk on system, reason: {e}")
         exit(1)
 
+
 def expose_couchdb() -> None:
     try:
         run_check_process("kubectl apply -f openwhisk/couchdb-service.yaml")

@@ -5,10 +5,10 @@ from time import sleep
 import minio
 import secrets
 import os
+import docker.errors
 
 
 class Minio(PersistentStorage):
-
     storage_container: Any
     input_buckets: List[str] = []
     output_buckets: List[str] = []
@@ -17,7 +17,7 @@ class Minio(PersistentStorage):
     access_key: str = ""
     secret_key: str = ""
     port = 9000
-    location = "fissionBenchmark"
+    location = "openwhiskBenchmark"
     connection: Any
     docker_client = None
 
@@ -32,30 +32,39 @@ class Minio(PersistentStorage):
 
     def startMinio(self):
         minioVersion = "minio/minio:latest"
-        self.access_key = secrets.token_urlsafe(32)
-        self.secret_key = secrets.token_hex(32)
-        logging.info("Minio container starting")
+        try:
+            self.storage_container = self.docker_client.containers.get("minio")
+            logging.info("Minio container already exists")
+            envs = self.storage_container.attrs["Config"]["Env"]
+            self.access_key = envs['MINIO_ACCESS_KEY']
+            self.secret_key = envs['MINIO_SECRET_KEY']
+        except docker.errors.NotFound:
+            logging.info("Minio container does not exists, starting")
+            self.access_key = secrets.token_urlsafe(32)
+            self.secret_key = secrets.token_hex(32)
+            self.storage_container = self.docker_client.containers.run(
+                minioVersion,
+                command="server /data",
+                ports={str(self.port): self.port},
+                environment={
+                    "MINIO_ACCESS_KEY": self.access_key,
+                    "MINIO_SECRET_KEY": self.secret_key,
+                },
+                remove=True,
+                stdout=True,
+                stderr=True,
+                detach=True,
+                name="minio"
+            )
+
         logging.info("ACCESS_KEY={}".format(self.access_key))
         logging.info("SECRET_KEY={}".format(self.secret_key))
-        self.storage_container = self.docker_client.containers.run(
-            minioVersion,
-            command="server /data",
-            ports={str(self.port): self.port},
-            environment={
-                "MINIO_ACCESS_KEY": self.access_key,
-                "MINIO_SECRET_KEY": self.secret_key,
-            },
-            remove=True,
-            stdout=True,
-            stderr=True,
-            detach=True,
-        )
         self.storage_container.reload()
         networks = self.storage_container.attrs["NetworkSettings"]["Networks"]
         self.url = "{IPAddress}:{Port}".format(
             IPAddress=networks["bridge"]["IPAddress"], Port=self.port
         )
-        logging.info("Started minio instance at {}".format(self.url))
+        logging.info("Minio runs at {}".format(self.url))
 
     def get_connection(self):
         return minio.Minio(
