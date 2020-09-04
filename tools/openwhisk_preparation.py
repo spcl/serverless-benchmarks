@@ -291,10 +291,43 @@ def get_couchdb_url() -> str:
     return '{}:{}'.format(ip, 31201)
 
 
+def install_wsk() -> None:
+    try:
+        logging.info('Installing wsk...')
+        home_path = os.environ['HOME']
+        wsk_path = '{}/.local/bin/wsk'.format(home_path)
+        subprocess.run("go get github.com/apache/openwhisk-cli".split())
+        run_check_process("go get -u github.com/jteeuwen/go-bindata/...")
+        instalation_dir = "{}/src/github.com/apache/openwhisk-cli".format(os.environ['GOPATH'])
+
+        def custom_subproces(comand):
+            subprocess.run(comand.split(),
+                           cwd=instalation_dir,
+                           check=True)
+        custom_subproces("go-bindata -pkg wski18n -o wski18n/i18n_resources.go wski18n/resources")
+        custom_subproces("go build -o wsk")
+        run_check_process("ln -sf {}/wsk {}".format(instalation_dir, wsk_path))
+        run_check_process("chmod +x {}".format(wsk_path))
+        logging.info('Wsk has been installed')
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        logging.error('Cannot install wsk, reason: {}'.format(e))
+        exit(1)
+
+
+def check_wsk_installation() -> None:
+    try:
+        logging.info("Checking wsk installation...")
+        run_check_process("wsk")
+        logging.info("Wsk is installed")
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        logging.info("Wsk is not installed, proceeding to install...")
+        install_wsk()
 # mixup
+
 
 def initiate_all():
     check_kubectl_installation()
+    check_wsk_installation()
     check_helm_installation()
     check_kind_installation()
     check_kind_cluster()
