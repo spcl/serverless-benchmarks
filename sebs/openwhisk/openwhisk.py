@@ -119,7 +119,7 @@ class OpenWhisk(System):
         logging.info("Creating action on openwhisk")
         try:
             actions = subprocess.run(
-                "wsk action list".split(),
+                "wsk -i action list".split(),
                 stderr=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
             )
@@ -139,7 +139,7 @@ class OpenWhisk(System):
                 if benchmark.language_name == "python":
                     language_version = language_version[0]
                 subprocess.run(
-                    f"wsk action -i create {function_name} --kind {benchmark.language_name}:{language_version} "
+                    f"wsk -i action create {function_name} --kind {benchmark.language_name}:{language_version} "
                     f"{zip_path}".split(),
                     stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,

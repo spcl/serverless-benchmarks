@@ -3,8 +3,9 @@ import subprocess
 from sebs.faas.function import Function, ExecutionResult
 import json
 import datetime
-import requests
 import logging
+import re
+from typing import List
 
 
 class OpenwhiskFunction(Function):
@@ -12,19 +13,21 @@ class OpenwhiskFunction(Function):
         super().__init__(name)
         self.namespace = namespace
 
-    def sync_invoke(self, payload: dict):
-        from tools.openwhisk_preparation import get_openwhisk_url
-        ip = get_openwhisk_url()
-        command = f"wsk -i action invoke --result {self.name}"
+    def __add_params__(self, command: List[str], payload: dict) -> List[str]:
         for key, value in payload.items():
-            command = command + f" --param {key} {value}"
+            command.append("--param")
+            command.append(key)
+            command.append(str(value))
+        return command
 
+    def sync_invoke(self, payload: dict):
         logging.info(f"Function {self.name} of namespace {self.namespace} invoking...")
+        command = self.__add_params__(f"wsk -i action invoke --result {self.name}".split(), payload)
         error = None
         try:
             begin = datetime.datetime.now()
             response = subprocess.run(
-                command.split(),
+                command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 check=True,
@@ -49,63 +52,65 @@ class OpenwhiskFunction(Function):
         return openwhiskResult
 
     def async_invoke(self, payload: dict):
-        from sebs.openwhisk.openwhisk import OpenWhisk
         import time
         import datetime
-        ip = OpenWhisk.get_openwhisk_url()
-        url = f"https://{ip}/api/v1/namespaces/{self.namespace}/actions/{self.name}?result=true"
-        readyPayload = json.dumps(payload)
-        logging.info("OpenWhisk url: {}".format(url))
-        headers = {"content-type": "application/json",
-                   "Authorization": "Basic Nzg5YzQ2YjEtNzFmNi00ZWQ1LThjNTQtODE2YWE0ZjhjNTAyOmFiY3pPM3haQ0xyTU42djJCS0sxZFhZRnBYbFBrY2NPRnFtMTJDZEFzTWdSVTRWck5aOWx5R1ZDR3VNREdJd1A="}
-
         logging.info(f"Function {self.name} of namespace {self.namespace} invoking...")
-        response = requests.request("POST", url, data=readyPayload, headers=headers, verify=False)
-
-        print(
-            f"Function {self.name} returned response with code: {response.status_code}"
-        )
-        if response.status_code != 202:
-            logging.error("Invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(readyPayload))
-            logging.error("Input: {}".format(response.content))
-
+        command = self.__add_params__(f"wsk -i action invoke --result {self.name}".split(), payload)
+        error = None
+        try:
+            begin = datetime.datetime.now()
+            response = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
+            end = datetime.datetime.now()
+            response = response.stdout.decode("utf-8")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            end = datetime.datetime.now()
+            logging.error(f"Cannot asynchronously invoke action {self.name}, reason: {e}")
+            error = e
+        openwhiskResult = ExecutionResult(begin, end)
+        if error is not None:
+            logging.error(f"Invocation of {self.name} failed!")
             openwhiskResult.stats.failure = True
             return openwhiskResult
-        activationId = json.loads(response.content)['activationId']
-
-        url = f"https://{ip}/api/v1/namespaces/_/activations/{activationId}"
-        readyPayload = json.dumps(payload)
-        headers = {"content-type": "application/json",
-                   "Authorization": "Basic Nzg5YzQ2YjEtNzFmNi00ZWQ1LThjNTQtODE2YWE0ZjhjNTAyOmFiY3pPM3haQ0xyTU42djJCS0sxZFhZRnBYbFBrY2NPRnFtMTJDZEFzTWdSVTRWck5aOWx5R1ZDR3VNREdJd1A="}
-        begin = datetime.datetime.now()
+        id_pattern = re.compile(r"with id ([a-zA-Z0-9]+)$")
+        id_match = id_pattern.search(response).group(1)
+        if id_match is None:
+            logging.error("Cannot parse activation id")
+            openwhiskResult.stats.failure = True
+            return openwhiskResult
         attempt = 1
         while True:
-            print(f"Function {self.name} of namespace getting result. Attempt: {attempt}")
-
-            response = requests.request("GET", url, data=readyPayload, headers=headers, verify=False)
-            if response.status_code == 404:
+            logging.info(f"Function {self.name} of namespace getting result. Attempt: {attempt}")
+            command = f"wsk -i activation result {id_match}"
+            try:
+                response = subprocess.run(
+                    command.split(),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    check=True,
+                )
+                response = response.stdout.decode("utf-8")
+                end = datetime.datetime.now()
+                error = None
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                logging.info("No result yet, proceeding...")
                 time.sleep(0.05)
                 attempt += 1
+                error = e
                 continue
             break
-
-        print(
-            f"Function {self.name} returned response with code: {response.status_code}"
-        )
-        result = json.loads(response.content)
-
-        if response.status_code != 200:
-            logging.error("Invocation of {} failed!".format(self.name))
-            logging.error("Input: {}".format(readyPayload))
-            logging.error("Input: {}".format(response.content))
-
+        if error is not None:
+            logging.error(f"Function {self.name} with id {id_match} finished unsuccessfully")
             openwhiskResult.stats.failure = True
             return openwhiskResult
 
-        begin = datetime.datetime.fromtimestamp(result['start'] / 1e3)
-        end = datetime.datetime.fromtimestamp(result['end'] / 1e3)
-        returnContent = result['response']['result']
+        logging.info(f"Function {self.name} with id {id_match} finished successfully")
+
+        returnContent = response
         openwhiskResult = ExecutionResult(begin, end)
         openwhiskResult.parse_benchmark_output(returnContent)
         return openwhiskResult
