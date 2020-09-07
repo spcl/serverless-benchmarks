@@ -7,10 +7,12 @@ import azure.functions as func
 # TODO: usual trigger
 # implement support for blob and others
 def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
+    income_timestamp = datetime.datetime.now().timestamp()
     req_json = req.get_json()
     if 'connection_string' in req_json:
         os.environ['STORAGE_CONNECTION_STRING'] = req_json['connection_string']
     req_json['request-id'] = context.invocation_id
+    req_json['income-timestamp'] = income_timestamp
     begin = datetime.datetime.now()
     # We are deployed in the same directory
     from . import function
