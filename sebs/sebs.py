@@ -6,6 +6,8 @@ from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaasSystem
 from sebs.experiments.config import Config as ExperimentConfig
+from sebs.openwhisk import OpenWhisk
+from sebs.openwhisk.config import OpenWhiskConfig
 
 
 class SeBS:
@@ -24,8 +26,8 @@ class SeBS:
 
     def get_deployment(self, config: dict) -> FaasSystem:
 
-        implementations = {"aws": AWS}
-        configs = {"aws": AWSConfig.initialize}
+        implementations = {"aws": AWS, "openwhisk": OpenWhisk}
+        configs = {"aws": AWSConfig.initialize, "openwhisk": OpenWhiskConfig.initialize}
         name = config["name"]
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(**config))
