@@ -1,0 +1,61 @@
+[
+    [
+        "workload",
+        {
+            "iterations": 10000,
+            "operator": "-",
+            "type": "float32",
+            "array_size": 1000
+        }
+    ],
+    [
+        "memory",
+        {
+            "size_in_bytes": 1048576
+        }
+    ],
+    [
+        "workload",
+        {
+            "iterations": 10000,
+            "operator": "-",
+            "type": "float32",
+            "array_size": 1000
+        }
+    ],
+    [
+        "function_input",
+        {
+            "input_size":10,
+            "output_size":0
+        }
+    ],
+    [
+        "network",
+        {}
+    ],
+    [
+        "disc",
+        {
+            "block_size": 100000000
+        }
+    ],
+    [
+        "storage",
+        {
+            "entries_number": 1000000
+        }
+    ],
+    [
+        "sleep",
+        {
+            "duration": 1
+        }
+    ],
+    [
+        "artificial_code",
+        {
+            "number_of_elements": 1
+        }
+    ]
+]

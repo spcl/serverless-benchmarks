@@ -170,3 +170,16 @@ dmypy.json
 sebs-*
 # cache
 cache
+
+# generated benchmarks
+benchmarks/600.generated
+
+# csv
+*.csv
+
+# generated code by sebs
+scripts/code
+scripts/experiments.json
+
+#
+node_modules/
