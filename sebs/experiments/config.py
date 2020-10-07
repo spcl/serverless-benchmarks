@@ -98,9 +98,9 @@ class Config:
         cfg._runtime = Runtime.deserialize(config["runtime"])
         cfg._flags = config["flags"] if "flags" in config else {}
 
-        from sebs.experiments import NetworkPingPong, PerfCost, StartupTime
+        from sebs.experiments import NetworkPingPong, PerfCost, StartupTime, EvictionModel
 
-        for exp in [NetworkPingPong, PerfCost, StartupTime]:
+        for exp in [NetworkPingPong, PerfCost, StartupTime, EvictionModel]:
             if exp.name() in config:
                 cfg._experiment_configs[exp.name()] = config[exp.name()]
 
