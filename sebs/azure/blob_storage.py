@@ -107,4 +107,5 @@ class BlobStorage(PersistentStorage):
         self.logging.info("Clean output container {}".format(bucket))
         container_client = self.client.get_container_client(bucket)
         blobs = list(map(lambda x: x["name"], container_client.list_blobs()))
-        container_client.delete_blobs(*blobs)
+        if len(blobs) > 0:
+            container_client.delete_blobs(*blobs)
