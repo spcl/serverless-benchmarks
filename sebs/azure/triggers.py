@@ -1,7 +1,4 @@
-import datetime
 from typing import Any, Dict, Optional  # noqa
-
-import requests
 
 from sebs.azure.config import AzureResources
 from sebs.faas.function import ExecutionResult, Trigger
@@ -36,56 +33,11 @@ class HTTPTrigger(AzureTrigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
         payload["connection_string"] = self.data_storage_account.connection_string
-        #begin = datetime.datetime.now()
-        #ret = requests.request(method="POST", url=self.url, json=payload)
-        #end = datetime.datetime.now()
-
-        #if ret.status_code != 200:
-        #    self.logging.error("Invocation on URL {} failed!".format(self.url))
-        #    self.logging.error("Input: {}".format(payload))
-        #    self.logging.error("Output: {}".format(ret.reason))
-        #    raise RuntimeError("Failed synchronous invocation of Azure Function!")
-
-        #output = ret.json()
-        #result = ExecutionResult.from_times(begin, end)
-        #result.request_id = output["request_id"]
-        ## General benchmark output parsing
-        #result.parse_benchmark_output(output)
-        #return result
-        self.logging.info(f"Invoke function {self.url}")
-        import pycurl, json
-        from io import BytesIO
-        c = pycurl.Curl()
-        c.setopt(pycurl.HTTPHEADER, ['Content-Type: application/json']) 
-        c.setopt(pycurl.POST, 1)
-        c.setopt(pycurl.URL, self.url)
-        data = BytesIO()
-        c.setopt(c.WRITEFUNCTION, data.write)
-
-        c.setopt(pycurl.POSTFIELDS, json.dumps(payload))
-        begin = datetime.datetime.now()
-        c.perform()
-        end = datetime.datetime.now()
-        status_code = c.getinfo(pycurl.RESPONSE_CODE)
-        conn_time = c.getinfo(pycurl.PRETRANSFER_TIME)
-        output = json.loads(data.getvalue())
-        print(output)
-        if status_code != 200:
-            self.logging.error("Invocation on URL {} failed!".format(self.url))
-            #self.logging.error("Input: {}".format(payload))
-            self.logging.error("Output: {}".format(output))
-            raise RuntimeError("Failed synchronous invocation of AWS Lambda function!")
-
-        self.logging.info(f"Invoke of function was successful")
-        #output = ret.json()
-        result = ExecutionResult.from_times(begin, end)
-        result.request_id = output["request_id"]
-        # General benchmark output parsing
-        result.parse_benchmark_output(output)
-        return result, conn_time, begin
+        return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: dict) -> ExecutionResult:
         import concurrent
+
         pool = concurrent.futures.ThreadPoolExecutor()
         fut = pool.submit(self.sync_invoke, payload)
         return fut

@@ -1,4 +1,5 @@
 from abc import ABC
+from abc import abstractmethod
 from multiprocessing import Semaphore
 
 # from multiprocessing.pool import ThreadPool
@@ -25,4 +26,14 @@ class Experiment(ABC, LoggingBase):
         pass
 
     def allocate_functions(self, use_existing: bool):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def name() -> str:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def typename() -> str:
         pass

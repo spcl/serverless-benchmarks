@@ -1,3 +1,4 @@
+import json
 from abc import ABC
 from abc import abstractmethod
 from datetime import datetime, timedelta
@@ -14,8 +15,12 @@ from sebs.utils import LoggingBase
 class ExecutionTimes:
 
     client: int
+    client_begin: datetime
+    client_end: datetime
     benchmark: int
     initialization: int
+    http_startup: int
+    http_first_byte_return: int
 
     def __init__(self):
         self.client = 0
@@ -121,6 +126,8 @@ class ExecutionResult:
         client_time_begin: datetime, client_time_end: datetime
     ) -> "ExecutionResult":
         ret = ExecutionResult()
+        ret.times.client_begin = client_time_begin
+        ret.times.client_end = client_time_end
         ret.times.client = int(
             (client_time_end - client_time_begin) / timedelta(microseconds=1)
         )
@@ -165,6 +172,39 @@ class Trigger(ABC, LoggingBase):
     @staticmethod
     def typename() -> str:
         return "AWS.LibraryTrigger"
+
+    def _http_invoke(self, payload: dict, url: str) -> ExecutionResult:
+        import pycurl
+        from io import BytesIO
+
+        c = pycurl.Curl()
+        c.setopt(pycurl.HTTPHEADER, ["Content-Type: application/json"])
+        c.setopt(pycurl.POST, 1)
+        c.setopt(pycurl.URL, url)
+        data = BytesIO()
+        c.setopt(pycurl.WRITEFUNCTION, data.write)
+
+        c.setopt(pycurl.POSTFIELDS, json.dumps(payload))
+        begin = datetime.now()
+        c.perform()
+        end = datetime.now()
+        status_code = c.getinfo(pycurl.RESPONSE_CODE)
+        conn_time = c.getinfo(pycurl.PRETRANSFER_TIME)
+        receive_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
+        output = json.loads(data.getvalue())
+        if status_code != 200:
+            self.logging.error("Invocation on URL {} failed!".format(url))
+            self.logging.error("Output: {}".format(output))
+            raise RuntimeError("Failed synchronous invocation of AWS Lambda function!")
+
+        self.logging.info(f"Invoke of function was successful")
+        result = ExecutionResult.from_times(begin, end)
+        result.times.http_startup = conn_time
+        result.times.http_first_byte_return = receive_time
+        result.request_id = output["request_id"]
+        # General benchmark output parsing
+        result.parse_benchmark_output(output)
+        return result
 
     # FIXME: 3.7+, future annotations
     @staticmethod

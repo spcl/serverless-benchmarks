@@ -3,8 +3,6 @@ import datetime
 import json
 from typing import Dict, Optional  # noqa
 
-import requests
-
 from sebs.aws.aws import AWS
 from sebs.faas.function import ExecutionResult, Trigger
 
@@ -120,44 +118,7 @@ class HTTPTrigger(Trigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
         self.logging.info(f"Invoke function {self.url}")
-        import pycurl
-        from io import BytesIO
-        c = pycurl.Curl()
-        c.setopt(pycurl.HTTPHEADER, ['Content-Type: application/json'])
-        c.setopt(pycurl.POST, 1)
-        c.setopt(pycurl.URL, self.url)
-        data = BytesIO()
-        c.setopt(c.WRITEFUNCTION, data.write)
-
-
-        #body_as_json_string = json.dumps(payload)
-        #body_as_file_object = StringIO(body_as_json_string)
-        c.setopt(pycurl.POSTFIELDS, json.dumps(payload))
-        #begin = datetime.datetime.now()
-        #ret = requests.request(method="POST", url=self.url, json=payload)
-        #end = datetime.datetime.now()
-        begin = datetime.datetime.now()
-        c.perform()
-        #ret = requests.request(method="POST", url=self.url, json=payload)
-        end = datetime.datetime.now()
-        status_code = c.getinfo(pycurl.RESPONSE_CODE)
-        conn_time = c.getinfo(pycurl.PRETRANSFER_TIME)
-        output = json.loads(data.getvalue())
-        print(output)
-
-        if status_code != 200:
-            self.logging.error("Invocation on URL {} failed!".format(self.url))
-            #self.logging.error("Input: {}".format(payload))
-            self.logging.error("Output: {}".format(output))
-            raise RuntimeError("Failed synchronous invocation of AWS Lambda function!")
-
-        self.logging.info(f"Invoke of function was successful")
-        #output = ret.json()
-        result = ExecutionResult.from_times(begin, end)
-        result.request_id = output["request_id"]
-        # General benchmark output parsing
-        result.parse_benchmark_output(output)
-        return result, conn_time, begin
+        return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: dict) -> ExecutionResult:
         import concurrent

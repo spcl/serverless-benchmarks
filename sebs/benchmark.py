@@ -13,6 +13,7 @@ from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from sebs.experiments.config import Config as ExperimentConfig
     from sebs.experiments.config import Language
@@ -40,6 +41,7 @@ class BenchmarkConfig:
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
         from sebs.experiments.config import Language
+
         return BenchmarkConfig(
             json_object["timeout"],
             json_object["memory"],
@@ -291,6 +293,7 @@ class Benchmark(LoggingBase):
 
     def add_deployment_package(self, output_dir):
         from sebs.experiments.config import Language
+
         if self.language == Language.PYTHON:
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:

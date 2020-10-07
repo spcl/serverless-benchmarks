@@ -15,7 +15,7 @@ from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingHandlers
+from sebs.utils import LoggingHandlers, execute
 from ..faas.function import Function, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
@@ -158,6 +158,7 @@ class Azure(System):
         )
 
         code_size = Benchmark.directory_size(directory)
+        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
         return directory, code_size
 
     def publish_function(
@@ -177,6 +178,14 @@ class Azure(System):
                         function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
                 )
+                # ret = self.cli_instance.execute(
+                #    "bash -c 'cd /mnt/function "
+                #    "&& az functionapp deployment source config-zip "
+                #    "--src {}.zip -g {} -n {} --build-remote false '".format(
+                #        code_package.benchmark, resource_group, function.name
+                #    )
+                # )
+                # print(ret)
                 url = ""
                 for line in ret.split(b"\n"):
                     line = line.decode("utf-8")
@@ -414,6 +423,9 @@ class Azure(System):
                 time.sleep(5)
 
         # TODO: query performance counters for mem
+
+    def enforce_cold_start(self, function: Function, code_package: Benchmark):
+        self.update_function(function, code_package)
 
 
 #

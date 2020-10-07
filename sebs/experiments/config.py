@@ -46,8 +46,6 @@ class Runtime:
 
 
 class Config:
-
-
     def __init__(self):
         self._update_code: bool = False
         self._update_storage: bool = False
@@ -85,7 +83,7 @@ class Config:
             "download_results": self._download_results,
             "runtime": self._runtime.serialize(),
             "flags": self._flags,
-            "experiments": self._experiment_configs
+            "experiments": self._experiment_configs,
         }
         return out
 
@@ -100,7 +98,13 @@ class Config:
         cfg._runtime = Runtime.deserialize(config["runtime"])
         cfg._flags = config["flags"] if "flags" in config else {}
 
-        from sebs.experiments import NetworkPingPong, PerfCost, StartupTime, InvocationOverhead
+        from sebs.experiments import (
+            NetworkPingPong,
+            PerfCost,
+            StartupTime,
+            InvocationOverhead,
+        )
+
         for exp in [NetworkPingPong, PerfCost, StartupTime, InvocationOverhead]:
             if exp.name() in config:
                 cfg._experiment_configs[exp.name()] = config[exp.name()]
