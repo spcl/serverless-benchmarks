@@ -169,13 +169,12 @@ try:
         experiment_config = sebs_client.get_experiment_config(config["experiments"])
         benchmark = sebs_client.get_benchmark(
             args.benchmark,
-            output_dir,
             deployment_client,
             experiment_config,
             logging_filename=logging_filename
         )
 
-        if args.action == "test_invoke":
+        if args.action == "invoke":
             func = deployment_client.get_function(
                 benchmark, deployment_client.default_function_name(benchmark)
             )
