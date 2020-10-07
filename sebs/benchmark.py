@@ -128,9 +128,8 @@ class Benchmark(LoggingBase):
 
     @property  # noqa: A003
     def hash(self):
-        if not self._hash_value:
-            path = os.path.join(self.benchmark_path, self.language_name)
-            self._hash_value = Benchmark.hash_directory(path, self.language_name)
+        path = os.path.join(self.benchmark_path, self.language_name)
+        self._hash_value = Benchmark.hash_directory(path, self.language_name)
         return self._hash_value
 
     @hash.setter  # noqa: A003
