@@ -241,12 +241,11 @@ class AWS(System):
 
     def cached_function(self, function: Function):
 
-        from sebs.aws.triggers import LibraryTrigger
+        from sebs.faas.function import Trigger
 
-        for trigger in function.triggers:
-            if isinstance(trigger, LibraryTrigger):
-                trigger.logging_handlers = self.logging_handlers
-                trigger.deployment_client = self
+        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
+            trigger.logging_handlers = self.logging_handlers
+            trigger.deployment_client = self
 
     """
         Update function code and configuration on AWS.

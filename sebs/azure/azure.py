@@ -330,7 +330,7 @@ class Azure(System):
         data_storage_account = self.config.resources.data_storage_account(
             self.cli_instance
         )
-        for trigger in function.triggers:
+        for trigger in function.triggers_all:
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account

@@ -3,7 +3,7 @@ from abc import ABC
 from abc import abstractmethod
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, List, Optional  # noqa
+from typing import Callable, Dict, List, Optional  # noqa
 
 from sebs.utils import LoggingBase
 
@@ -244,7 +244,7 @@ class Function(LoggingBase):
         self._name = name
         self._code_package_hash = code_hash
         self._updated_code = False
-        self._triggers: List[Trigger] = []
+        self._triggers: Dict[Trigger.TriggerType, List[Trigger]] = {}
 
     @property
     def name(self):
@@ -270,19 +270,31 @@ class Function(LoggingBase):
     def updated_code(self, val: bool):
         self._updated_code = val
 
-    @property
-    def triggers(self) -> List[Trigger]:
-        return self._triggers
+    def triggers_all(self) -> List[Trigger]:
+        return [trigger for trigger_type, trigger in self._triggers]
+
+    def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
+        try:
+            return self._triggers[trigger_type]
+        except KeyError:
+            return []
 
     def add_trigger(self, trigger: Trigger):
-        self._triggers.append(trigger)
+        if trigger.trigger_type() not in self._triggers:
+            self._triggers[trigger.trigger_type()] = [trigger]
+        else:
+            self._triggers[trigger.trigger_type()].append(trigger)
 
     def serialize(self) -> dict:
         return {
             "name": self._name,
             "hash": self._code_package_hash,
             "benchmark": self._benchmark,
-            "triggers": [x.serialize() for x in self._triggers],
+            "triggers": [
+                obj.serialize()
+                for t_type, triggers in self._triggers.items()
+                for obj in triggers
+            ]
         }
 
     @staticmethod

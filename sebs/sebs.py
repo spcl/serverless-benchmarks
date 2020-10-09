@@ -12,14 +12,7 @@ from sebs.faas.config import Config
 from sebs.utils import LoggingHandlers
 
 from sebs.experiments.config import Config as ExperimentConfig
-from sebs.experiments import (
-    Experiment,
-    PerfCost,
-    NetworkPingPong,
-    StartupTime,
-    InvocationOverhead,
-)
-
+from sebs.experiments import Experiment
 
 class SeBS:
     @property
@@ -78,6 +71,13 @@ class SeBS:
     def get_experiment(
         self, config: dict, logging_filename: Optional[str] = None
     ) -> Experiment:
+        from sebs.experiments import (
+            Experiment,
+            PerfCost,
+            NetworkPingPong,
+            StartupTime,
+            InvocationOverhead,
+        )
         implementations = {
             "perf-cost": PerfCost,
             "network-ping-pong": NetworkPingPong,

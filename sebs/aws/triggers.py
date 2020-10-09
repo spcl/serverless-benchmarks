@@ -79,6 +79,7 @@ class LibraryTrigger(Trigger):
 
     def async_invoke(self, payload: dict):
 
+        # FIXME: proper return type
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
         ret = client.invoke(
