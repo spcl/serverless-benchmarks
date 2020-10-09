@@ -1,14 +1,63 @@
 import csv
 import os
+import random
 import shutil
 from datetime import datetime
 from itertools import repeat
 from multiprocessing.dummy import Pool as ThreadPool
 
+from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
 
+class CodePackageSize:
+    def __init__(self, benchmark: Benchmark, settings: dict):
+        import math
+        from numpy import linspace
+        points = linspace(
+            settings["code_package_begin"],
+            settings["code_package_end"],
+            settings["code_package_points"]
+        )
+        # estimate the size after zip compression
+        self.pts = [int(pt) - 4*1024 for pt in points]
+        from sebs.utils import find_benchmark
+        self._benchmark_path = find_benchmark(
+            "030.clock-synchronization", "benchmarks"
+        )
+        self._benchmark = benchmark
+        random.seed(1410)
+
+    def before(self, size: int, input_benchmark: dict):
+        arr = bytearray((random.getrandbits(8) for i in range(size)))
+        with open(os.path.join(self._benchmark_path, "python", "file.py"), "wb") as f:
+            f.write(arr)
+        self._benchmark.query_cache()
+        function = self._deployment_client.get_function(self._benchmark)
+        self._deployment_client.update_function(
+            function, self._benchmark
+        )
+
+class PayloadSize:
+
+    def __init__(self, settings: dict):
+        import math
+        from numpy import linspace
+        points = linspace(
+            settings["payload_begin"],
+            settings["payload_end"],
+            settings["payload_points"]
+        )
+        # why?
+        self.pts = [math.floor((pt - 123)*3/4) for pt in points]
+
+    def before(self, size: int, input_benchmark: dict):
+        import base64
+        from io import BytesIO
+        f = BytesIO()
+        f.write(bytearray(size))
+        input_benchmark["data"] = base64.b64encode(f.getvalue()).decode()
 
 class InvocationOverhead(Experiment):
     def __init__(self, config: ExperimentConfig):
@@ -17,27 +66,26 @@ class InvocationOverhead(Experiment):
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
 
         # deploy network test function
-        from sebs import Benchmark
         from sebs import SeBS
+        from sebs.faas.function import Trigger
 
-        benchmark = sebs_client.get_benchmark(
+        self._benchmark = sebs_client.get_benchmark(
             "030.clock-synchronization", deployment_client, self.config
         )
-        self._benchmark = benchmark
-        self._function = deployment_client.get_function(benchmark)
+        self._function = deployment_client.get_function(self._benchmark)
 
-        # TODO: Azure -> no trigger creation; get HTTP trigger
-        # if len(self._function.triggers) == 1:
-        #    from sebs.faas.function import Trigger
-        #    deployment_client.create_trigger(self._function, Trigger.TriggerType.HTTP)
+        triggers = self._function.triggers(Trigger.TriggerType.HTTP)
+        if len(triggers) == 0:
+          self._trigger = deployment_client.create_trigger(self._function, Trigger.TriggerType.HTTP)
+        else:
+          self._trigger = triggers[0]
 
         self._storage = deployment_client.get_storage(replace_existing=True)
-        self.benchmark_input = benchmark.prepare_input(
+        self.benchmark_input = self._benchmark.prepare_input(
             storage=self._storage, size="test"
         )
         self._out_dir = os.path.join(sebs_client.output_dir, "invocation-overhead")
         if not os.path.exists(self._out_dir):
-            # shutil.rmtree(self._out_dir)
             os.mkdir(self._out_dir)
 
         self._deployment_client = deployment_client
@@ -52,24 +100,24 @@ class InvocationOverhead(Experiment):
         repetitions = settings["repetitions"]
         N = settings["N"]
         threads = settings["threads"]
-        begin_payload_size = settings["payload_begin"]
-        end_payload_size = settings["payload_end"]
-        payload_pts = settings["payload_points"]
+
+        if settings["type"] == "code":
+            experiment = CodePackageSize(self._benchmark, settings)
+        else:
+            experiment = PayloadSize(settings)
 
         input_benchmark = {
             "server-address": ip,
             "repetitions": N,
             **self.benchmark_input,
         }
-        from io import BytesIO
-        import base64, math, json
 
         output_file = os.path.join(self._out_dir, "result.csv")
         with open(output_file, "w") as csvfile:
             writer = csv.writer(csvfile, delimiter=",")
             writer.writerow(
                 [
-                    "payload_size",
+                    "size",
                     "repetition",
                     "is_cold",
                     "connection_time",
@@ -79,34 +127,16 @@ class InvocationOverhead(Experiment):
                 ]
             )
 
-            from numpy import linspace
+            for size in experiment.pts:
+                experiment.before(size, input_benchmark)
 
-            pts = linspace(begin_payload_size, end_payload_size, payload_pts)
-            for pt in pts:
-                print(pt)
-                size = int(pt) - 4 * 1024
-                print(size)
-                arr = bytearray((random.getrandbits(8) for i in range(size)))
-                from sebs.utils import find_benchmark
-
-                benchmark_path = find_benchmark(
-                    "030.clock-synchronization", "benchmarks"
-                )
-                with open(os.path.join(benchmark_path, "python", "file.py"), "wb") as f:
-                    f.write(arr)
-                self._benchmark.query_cache()
-                self._function = self._deployment_client.get_function(self._benchmark)
-
-                # print(json.dumps(input_benchmark))
                 for i in range(repetitions + 1):
-                    print(f"Starting with {pt} bytes, repetition {i}")
-                    self._deployment_client.update_function(
+                    print(f"Starting with {size} bytes, repetition {i}")
+                    self._deployment_client.enforce_cold_start(
                         self._function, self._benchmark
                     )
-                    # self._deployment_client.enforce_cold_start(self._function)
-                    # self._deployment_client.enforce_cold_start(self._function, self._benchmark)
                     row = self.receive_datagrams(input_benchmark, N, 12000, ip)
-                    writer.writerow([pt, i] + row)
+                    writer.writerow([size, i] + row)
 
         # pool = ThreadPool(threads)
         # ports = range(12000, 12000 + invocations)
@@ -216,9 +246,7 @@ class InvocationOverhead(Experiment):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind(("", port))
 
-        # TODO: tirgger 1 for AWS
-        # fut = self._function.triggers[1].async_invoke(input_benchmark)
-        fut = self._function.triggers[0].async_invoke(input_benchmark)
+        fut = self._trigger.async_invoke(input_benchmark)
 
         begin = datetime.now()
         times = []
@@ -250,7 +278,7 @@ class InvocationOverhead(Experiment):
         # request_id = message.decode()
         end = datetime.now()
 
-        res, conn_time, client_timestamp = fut.result()
+        res = fut.result()
         server_timestamp = res.output["result"]["result"]["timestamp"]
         request_id = res.output["request_id"]
         is_cold = 1 if res.output["is_cold"] else 0
@@ -266,8 +294,8 @@ class InvocationOverhead(Experiment):
 
         return [
             is_cold,
-            conn_time,
-            client_timestamp.timestamp(),
+            res.times.http_startup,
+            res.times.client_begin.timestamp(),
             server_timestamp,
             request_id,
         ]

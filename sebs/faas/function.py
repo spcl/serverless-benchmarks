@@ -191,20 +191,28 @@ class Trigger(ABC, LoggingBase):
         status_code = c.getinfo(pycurl.RESPONSE_CODE)
         conn_time = c.getinfo(pycurl.PRETRANSFER_TIME)
         receive_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
-        output = json.loads(data.getvalue())
-        if status_code != 200:
-            self.logging.error("Invocation on URL {} failed!".format(url))
-            self.logging.error("Output: {}".format(output))
-            raise RuntimeError("Failed synchronous invocation of AWS Lambda function!")
 
-        self.logging.info(f"Invoke of function was successful")
-        result = ExecutionResult.from_times(begin, end)
-        result.times.http_startup = conn_time
-        result.times.http_first_byte_return = receive_time
-        result.request_id = output["request_id"]
-        # General benchmark output parsing
-        result.parse_benchmark_output(output)
-        return result
+        try:
+            output = json.loads(data.getvalue())
+
+            if status_code != 200:
+                self.logging.error("Invocation on URL {} failed!".format(url))
+                self.logging.error("Output: {}".format(output))
+                raise RuntimeError("Failed invocation Lambda function!")
+
+            self.logging.info(f"Invoke of function was successful")
+            result = ExecutionResult.from_times(begin, end)
+            result.times.http_startup = conn_time
+            result.times.http_first_byte_return = receive_time
+            result.request_id = output["request_id"]
+            # General benchmark output parsing
+            result.parse_benchmark_output(output)
+            return result
+        except json.decoder.JSONDecodeError:
+            self.logging.error("Invocation on URL {} failed!".format(url))
+            self.logging.error("Output: {}".format(data.getvalue()))
+            raise RuntimeError("Failed invocation of function!")
+
 
     # FIXME: 3.7+, future annotations
     @staticmethod
