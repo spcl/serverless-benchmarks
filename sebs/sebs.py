@@ -75,14 +75,14 @@ class SeBS:
             Experiment,
             PerfCost,
             NetworkPingPong,
-            StartupTime,
             InvocationOverhead,
+            ServiceAccessLatency
         )
         implementations = {
             "perf-cost": PerfCost,
             "network-ping-pong": NetworkPingPong,
-            "startup-time": StartupTime,
             "invocation-overhead": InvocationOverhead,
+            "service-access-latency": ServiceAccessLatency
         }
         experiment = implementations[config["type"]](self.get_experiment_config(config))
         experiment.logging_handlers = self.logging_handlers(logging_filename)

@@ -7,12 +7,15 @@
       "language": "python",
       "version": "3.6"
     },
-    "type": "invocation-overhead",
-    "startup-time": {
-      "convergence": 10
+    "type": "service-access-latency",
+    "service-access-latency": {
+      "repetitions": 50,
+      "local-port": 12000,
+      "holepunching-address": "93.184.30.144",
+      "holepunching-port": 13000
     },
     "network-ping-pong": {
-      "invocations": 50,
+      "invocations": 5,
       "repetitions": 1000,
       "threads": 1
     },
@@ -26,7 +29,8 @@
       "payload_points": 20,
       "code_begin": 1048576,
       "code_end": 261619712,
-      "code_points": 20
+      "code_points": 20,
+      "type": "payload"
     }
   },
   "deployment": {
