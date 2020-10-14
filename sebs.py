@@ -25,22 +25,22 @@ parser.add_argument(
     help="Benchmark name",
 )
 #FIXME: add invoke of function with repetitions, benchmark size
-#parser.add_argument("benchmark", type=str, help="Benchmark name")
-#parser.add_argument(
-#    "size", choices=["test", "small", "large"], help="Benchmark input test size"
-#)
+parser.add_argument("--benchmark", type=str, help="Benchmark name")
+parser.add_argument(
+    "--size", choices=["test", "small", "large"], default="test", help="Benchmark input test size"
+)
 parser.add_argument("output_dir", type=str, help="Output dir")
 parser.add_argument("config", type=str, help="Config JSON for experiments")
 parser.add_argument(
     "--deployment", choices=["azure", "aws", "local"], help="Cloud to use"
 )
 #parser.add_argument("--experiment", choices=["time_warm"], help="Experiment to run")
-#parser.add_argument(
-#    "--language", choices=["python", "nodejs"], default=None, help="Benchmark language"
-#)
-#parser.add_argument(
-#    "--language-version", type=str, default=None, help="Benchmark language version"
-#)
+parser.add_argument(
+    "--language", choices=["python", "nodejs"], default=None, help="Benchmark language"
+)
+parser.add_argument(
+    "--language-version", type=str, default=None, help="Benchmark language version"
+)
 #parser.add_argument(
 #    "--repetitions",
 #    action="store",
