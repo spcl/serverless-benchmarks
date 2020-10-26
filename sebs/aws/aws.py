@@ -246,6 +246,8 @@ class AWS(System):
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             trigger.logging_handlers = self.logging_handlers
             trigger.deployment_client = self
+        for trigger in function.triggers(Trigger.TriggerType.HTTP):
+            trigger.logging_handlers = self.logging_handlers
 
     """
         Update function code and configuration on AWS.

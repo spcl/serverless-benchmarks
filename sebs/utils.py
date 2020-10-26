@@ -45,6 +45,7 @@ def execute(cmd, shell=False, cwd=None):
         )
     return ret.stdout.decode("utf-8")
 
+
 def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
     if value:
         # make sure parent keys exist
@@ -173,20 +174,3 @@ class LoggingBase:
         for handler in handlers.handlers:
             self.logging.addHandler(handler)
 
-
-C = TypeVar("C", bound=Type[Any])
-
-
-def namedlogging(name=None):
-    def decorated_cls(cls: C) -> C:
-        @classmethod  # type: ignore
-        def _logging(cls, msg: str):
-            if name:
-                logging.info(f"{name}: {msg}")
-            else:
-                logging.info(f"{cls.__name__}: {msg}")
-
-        setattr(cls, "logging", _logging)
-        return cls
-
-    return decorated_cls
