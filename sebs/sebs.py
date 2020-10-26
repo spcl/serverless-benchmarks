@@ -14,6 +14,7 @@ from sebs.utils import LoggingHandlers
 from sebs.experiments.config import Config as ExperimentConfig
 from sebs.experiments import Experiment
 
+
 class SeBS:
     @property
     def cache_client(self) -> Cache:
@@ -78,6 +79,7 @@ class SeBS:
             StartupTime,
             InvocationOverhead,
         )
+
         implementations = {
             "perf-cost": PerfCost,
             "network-ping-pong": NetworkPingPong,
