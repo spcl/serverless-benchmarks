@@ -1,201 +1,281 @@
 #!/usr/bin/env python3
 
 
-import argparse
 import json
 import logging
+import functools
 import os
 import traceback
 from typing import Optional
 
+import click
+
 import sebs
+from sebs import SeBS
+from sebs.utils import update_nested_dict
+from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
-parser = argparse.ArgumentParser(description="Run cloud experiments.")
-parser.add_argument(
-    "action",
-    choices=[
-        "invoke",
-        "download_metrics",
-        "experiment",
-        "process_experiment",
-    ],
-    help="Benchmark name",
-)
-#FIXME: add invoke of function with repetitions, benchmark size
-parser.add_argument("--benchmark", type=str, help="Benchmark name")
-parser.add_argument(
-    "--size", choices=["test", "small", "large"], default="test", help="Benchmark input test size"
-)
-parser.add_argument("output_dir", type=str, help="Output dir")
-parser.add_argument("config", type=str, help="Config JSON for experiments")
-parser.add_argument(
-    "--deployment", choices=["azure", "aws", "local"], help="Cloud to use"
-)
-#parser.add_argument("--experiment", choices=["time_warm"], help="Experiment to run")
-parser.add_argument(
-    "--language", choices=["python", "nodejs"], default=None, help="Benchmark language"
-)
-parser.add_argument(
-    "--language-version", type=str, default=None, help="Benchmark language version"
-)
-#parser.add_argument(
-#    "--repetitions",
-#    action="store",
-#    default=5,
-#    type=int,
-#    help="Number of experimental repetitions",
-#)
-parser.add_argument(
-    "--cache", action="store", default="cache", type=str, help="Cache directory"
-)
-parser.add_argument(
-    "--function-name",
-    action="store",
-    default="",
-    type=str,
-    help="Override function name for random generation.",
-)
-parser.add_argument(
-    "--update-code",
-    action="store_true",
-    default=False,
-    help="Update function code in cache and deployment.",
-)
-parser.add_argument(
-    "--update-storage",
-    action="store_true",
-    default=False,
-    help="Update storage files in deployment.",
-)
-parser.add_argument(
-    "--preserve-out",
-    action="store_true",
-    default=True,
-    help="Dont clean output directory [default false]",
-)
-parser.add_argument(
-    "--no-update-function",
-    action="store_true",
-    default=False,
-    help="Dont clean output directory [default false]",
-)
-parser.add_argument(
-    "--verbose", action="store", default=False, type=bool, help="Verbose output"
-)
-args = parser.parse_args()
 
-config = json.load(open(args.config, "r"))
-output_dir = args.output_dir
-sebs_client = sebs.SeBS(args.cache, output_dir)
-deployment_client: Optional[sebs.faas.System] = None
+deployment_client: Optional[FaaSSystem] = None
+sebs_client: Optional[SeBS] = None
 
-# 0. Input args
-args = parser.parse_args()
-verbose = args.verbose
-# CLI overrides JSON options
-# Language
-if args.language:
-    config["experiments"]["runtime"]["language"] = args.language
-if args.language_version:
-    config["experiments"]["runtime"]["version"] = args.language_version
-# deployment
-deployment: str
-if args.deployment:
-    config["deployment"]["name"] = args.deployment
-if args.update_code:
-    config["experiments"]["update_code"] = args.update_code
-if args.update_storage:
-    config["experiments"]["update_storage"] = args.update_storage
 
-config["experiments"]["benchmark"] = args.benchmark
-logging_filename = os.path.abspath(os.path.join(args.output_dir, "out.log"))
+class ExceptionProcesser(click.Group):
+    def __call__(self, *args, **kwargs):
+        try:
+            return self.main(*args, **kwargs)
+        except Exception as e:
+            logging.error(e)
+            traceback.print_exc()
+            logging.info("# Experiments failed! See out.log for details")
+        finally:
+            # Close
+            if deployment_client is not None:
+                deployment_client.shutdown()
+            if sebs_client is not None:
+                sebs_client.shutdown()
 
-try:
-    output_dir = sebs.utils.create_output(
-        args.output_dir, args.preserve_out, args.verbose
+
+def common_params(func):
+    @click.option(
+        "--config",
+        required=True,
+        type=click.Path(readable=True),
+        help="Location of experiment config.",
     )
-    logging.info("Created experiment output at {}".format(args.output_dir))
+    @click.option(
+        "--output-dir", default=os.path.curdir, help="Output directory for results."
+    )
+    @click.option(
+        "--cache",
+        default=os.path.join(os.path.curdir, "cache"),
+        help="Location of experiments cache.",
+    )
+    @click.option("--verbose", default=False, help="Verbose output.")
+    @click.option(
+        "--preserve-out",
+        default=True,
+        help="Preserve current results in output directory.",
+    )
+    @click.option(
+        "--update-code",
+        default=False,
+        help="Update function code in cache and cloud deployment.",
+    )
+    @click.option(
+        "--update-storage",
+        default=False,
+        help="Update benchmark storage files in cloud deployment.",
+    )
+    @click.option(
+        "--deployment",
+        default=None,
+        type=click.Choice(["azure", "aws", "gcp"]),
+        help="Cloud deployment to use.",
+    )
+    @click.option(
+        "--language",
+        default=None,
+        type=click.Choice(["python", "nodejs"]),
+        help="Benchmark language",
+    )
+    @click.option(
+        "--language-version", default=None, type=str, help="Benchmark language version"
+    )
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def parse_common_params(
+    config,
+    output_dir,
+    cache,
+    verbose,
+    preserve_out,
+    update_code,
+    update_storage,
+    deployment,
+    language,
+    language_version,
+):
+    global sebs_client, deployment_client
+
+    config_obj = json.load(open(config, "r"))
+    sebs_client = sebs.SeBS(cache, output_dir)
+    output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
+    logging.info("Created experiment output at {}".format(output_dir))
+
+    # CLI overrides JSON options
+    update_nested_dict(config_obj, ["experiments", "runtime", "language"], language)
+    update_nested_dict(
+        config_obj, ["experiments", "runtime", "version"], language_version
+    )
+    update_nested_dict(config_obj, ["deployment", "name"], deployment)
+    update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
+    update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
+    update_nested_dict(config_obj, ["experiments", "benchmark"], benchmark)
+
+    logging_filename = os.path.abspath(os.path.join(output_dir, "out.log"))
     deployment_client = sebs_client.get_deployment(
-        config["deployment"], logging_filename=logging_filename
+        config_obj["deployment"], logging_filename=logging_filename
     )
     deployment_client.initialize()
 
-    if args.action in ("download_metrics", "invoke"):
+    return config_obj, output_dir, logging_filename, sebs_client, deployment_client
 
-        experiment_config = sebs_client.get_experiment_config(config["experiments"])
-        benchmark = sebs_client.get_benchmark(
-            args.benchmark,
-            output_dir,
-            deployment_client,
-            experiment_config,
-            logging_filename=logging_filename
+
+@click.group(cls=ExceptionProcesser)
+def cli():
+    pass
+
+
+@cli.group()
+def benchmark():
+    pass
+
+
+@benchmark.command()
+@click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
+@click.argument(
+    "benchmark-input-size", type=click.Choice(["test", "small", "large"])
+)  # help="Input test size")
+@click.option(
+    "--repetitions", default=5, type=int, help="Number of experimental repetitions."
+)
+@click.option(
+    "--function-name",
+    default=None,
+    type=str,
+    help="Override function name for random generation.",
+)
+@common_params
+def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs):
+
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+    func = deployment_client.get_function(
+        benchmark_obj, deployment_client.default_function_name(benchmark_obj)
+    )
+    storage = deployment_client.get_storage(
+        replace_existing=experiment_config.update_storage
+    )
+    input_config = benchmark_obj.prepare_input(
+        storage=storage, size=benchmark_input_size
+    )
+
+    result = sebs.experiments.ExperimentResult(
+        experiment_config, deployment_client.config
+    )
+    result.begin()
+    # FIXME: repetitions
+    # FIXME: trigger type
+    ret = func.triggers.get(Trigger.TriggerType.STORAGE).async_invoke(input_config)
+    result.end()
+    result.add_invocation(func, ret)
+    with open("experiments.json", "w") as out_f:
+        out_f.write(sebs.utils.serialize(result))
+    logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+
+
+@benchmark.command()
+@common_params
+def process(**kwargs):
+
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    logging.info("Load results from {}".format(os.path.abspath("experiments.json")))
+    with open("experiments.json", "r") as in_f:
+        config = json.load(in_f)
+        experiments = sebs.experiments.ExperimentResult.deserialize(
+            config,
+            sebs_client.cache_client,
+            sebs_client.logging_handlers(logging_filename),
         )
 
-        if args.action == "invoke":
-            func = deployment_client.get_function(
-                benchmark, deployment_client.default_function_name(benchmark)
-            )
-            storage = deployment_client.get_storage(
-                replace_existing=experiment_config.update_storage
-            )
-            input_config = benchmark.prepare_input(storage=storage, size=args.size)
-            # TODO bucket save of results
-            #bucket = None
-            # bucket = deployment_client.prepare_experiment(args.benchmark)
-            # input_config['logs'] = { 'bucket': bucket }
+    for func in experiments.functions():
+        deployment_client.download_metrics(
+            func, *experiments.times(), experiments.invocations(func)
+        )
+    with open("results.json", "w") as out_f:
+        out_f.write(sebs.utils.serialize(experiments))
+    logging.info("Save results to {}".format(os.path.abspath("results.json")))
 
-            result = sebs.experiments.ExperimentResult(
-                experiment_config, deployment_client.config
-            )
-            result.begin()
-            ret = func.triggers.get(Trigger.TriggerType.HTTP).sync_invoke(input_config)
-            result.end()
-            result.add_invocation(func, ret)
-            with open("experiments.json", "w") as out_f:
-                out_f.write(sebs.utils.serialize(result))
-            logging.info(
-                "Save results to {}".format(os.path.abspath("experiments.json"))
-            )
-        elif args.action == "download_metrics":
-            logging.info(
-                "Load results from {}".format(os.path.abspath("experiments.json"))
-            )
-            with open("experiments.json", "r") as in_f:
-                config = json.load(in_f)
-                experiments = sebs.experiments.ExperimentResult.deserialize(
-                    config, sebs_client.cache_client, sebs_client.logging_handlers(logging_filename)
-                )
 
-            for func in experiments.functions():
-                deployment_client.download_metrics(
-                    func, *experiments.times(), experiments.invocations(func)
-                )
-            with open("results.json", "w") as out_f:
-                out_f.write(sebs.utils.serialize(experiments))
-            logging.info(
-                "Save results to {}".format(os.path.abspath("experiments.json"))
-            )
-    elif args.action == "experiment":
-        experiment = sebs_client.get_experiment(config["experiments"])
-        experiment.prepare(sebs_client, deployment_client)
-        experiment.run()
-    elif args.action == "process_experiment":
-        experiment = sebs_client.get_experiment(config["experiments"])
-        # TODO: additional params
-        experiment.process(output_dir)
-    else:
-        raise RuntimeError("Unknown option")
+@benchmark.command()
+@click.option(
+    "--repetitions", default=5, type=int, help="Number of experimental repetitions."
+)
+@common_params
+def regression(benchmark, benchmark_input_size, repetitions, function_name, **kwargs):
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    raise NotImplementedError()
 
-except Exception as e:
-    print(e)
-    traceback.print_exc()
-    if output_dir:
-        print("# Experiments failed! See {}/out.log for details".format(output_dir))
-finally:
-    # Close
-    if deployment_client is not None:
-        deployment_client.shutdown()
-    sebs_client.shutdown()
+
+@cli.group()
+def experiment():
+    pass
+
+
+@experiment.command("invoke")
+@click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
+@common_params
+def experiment_invoke(experiment, **kwargs):
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    experiment = sebs_client.get_experiment(config["experiments"])
+    experiment.prepare(sebs_client, deployment_client)
+    experiment.run()
+
+
+@experiment.command("process")
+@click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
+@common_params
+def experment_process(experiment, **kwargs):
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    experiment = sebs_client.get_experiment(config["experiments"])
+    experiment.process(output_dir)
+
+
+if __name__ == "__main__":
+    cli()
+

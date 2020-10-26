@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 import uuid
-from typing import Any, Type, TypeVar, Optional
+from typing import Any, List, Type, TypeVar, Optional
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
@@ -44,6 +44,13 @@ def execute(cmd, shell=False, cwd=None):
             "Running {} failed!\n Output: {}".format(cmd, ret.stdout.decode("utf-8"))
         )
     return ret.stdout.decode("utf-8")
+
+def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
+    if value:
+        # make sure parent keys exist
+        for key in keys[:-1]:
+            cfg = cfg.setdefault(key, {})
+        cfg[keys[-1]] = value
 
 
 def find(name, path):

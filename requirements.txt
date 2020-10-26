@@ -18,3 +18,4 @@ pandas==1.1.3
 numpy==1.19.2
 #
 pycurl==7.43
+click==7.1.2
