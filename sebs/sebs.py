@@ -69,7 +69,7 @@ class SeBS:
         return ExperimentConfig.deserialize(config)
 
     def get_experiment(
-        self, config: dict, logging_filename: Optional[str] = None
+        self, experiment_type: str, config: dict, logging_filename: Optional[str] = None
     ) -> Experiment:
         from sebs.experiments import (
             Experiment,
@@ -84,7 +84,7 @@ class SeBS:
             "startup-time": StartupTime,
             "invocation-overhead": InvocationOverhead,
         }
-        experiment = implementations[config["type"]](self.get_experiment_config(config))
+        experiment = implementations[experiment_type](self.get_experiment_config(config))
         experiment.logging_handlers = self.logging_handlers(logging_filename)
         return experiment
 
