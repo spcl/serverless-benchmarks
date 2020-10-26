@@ -24,6 +24,7 @@ class CodePackageSize:
         )
         # estimate the size after zip compression
         self.pts = [int(pt) - 4 * 1024 for pt in points]
+        self.pts = [math.floor((pt - 123) * 3 / 4) for pt in points]
         from sebs.utils import find_benchmark
 
         self._benchmark_path = find_benchmark("030.clock-synchronization", "benchmarks")
@@ -49,8 +50,7 @@ class PayloadSize:
             settings["payload_end"],
             settings["payload_points"],
         )
-        # why?
-        self.pts = [math.floor((pt - 123) * 3 / 4) for pt in points]
+        self.pts = [int(pt) for pt in points]
 
     def before_sample(self, size: int, input_benchmark: dict):
         import base64
@@ -64,6 +64,7 @@ class PayloadSize:
 class InvocationOverhead(Experiment):
     def __init__(self, config: ExperimentConfig):
         super().__init__(config)
+        self.settings = self.config.experiment_settings(self.name())
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
 
@@ -88,7 +89,9 @@ class InvocationOverhead(Experiment):
         self.benchmark_input = self._benchmark.prepare_input(
             storage=self._storage, size="test"
         )
-        self._out_dir = os.path.join(sebs_client.output_dir, "invocation-overhead")
+        self._out_dir = os.path.join(
+            sebs_client.output_dir, "invocation-overhead", self.settings["type"]
+        )
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
 
@@ -99,16 +102,15 @@ class InvocationOverhead(Experiment):
         from requests import get
 
         ip = get("http://checkip.amazonaws.com/").text.rstrip()
-        settings = self.config.experiment_settings(self.name())
-        invocations = settings["invocations"]
-        repetitions = settings["repetitions"]
-        N = settings["N"]
-        threads = settings["threads"]
+        invocations = self.settings["invocations"]
+        repetitions = self.settings["repetitions"]
+        N = self.settings["N"]
+        threads = self.settings["threads"]
 
-        if settings["type"] == "code":
-            experiment = CodePackageSize(self._benchmark, settings)
+        if self.settings["type"] == "code":
+            experiment = CodePackageSize(self._benchmark, self.settings)
         else:
-            experiment = PayloadSize(settings)
+            experiment = PayloadSize(self.settings)
 
         input_benchmark = {
             "server-address": ip,
@@ -266,22 +268,27 @@ class InvocationOverhead(Experiment):
                 timestamp_send = datetime.now().timestamp()
                 server_socket.sendto(message, address)
                 j = 0
-            except socket.timeout:
+            except socket.timeout as e:
                 j += 1
-                print("Packet loss!")
+                self.logging.warning("Packet loss!")
+                # stop after 5 attempts
                 if j == 5:
+                    self.logging.error(
+                        "Failing after 5 unsuccesfull attempts to communicate with the function!"
+                    )
                     break
+                # check if function invocation failed, and if yes: raise the exception
+                if fut.done():
+                    raise RuntimeError("Function invocation failed") from None
+                # continue to next iteration
                 continue
             if i > 0:
                 times.append([i, timestamp_rcv, timestamp_send])
-            # if j == update_counter:
-            #    print(f"Invocation on port {port} processed {i} requests.")
-            #    j = 0
             i += 1
             j += 1
-        # request_id = message.decode()
         end = datetime.now()
 
+        # Save results even in case of failure - it might have happened in n-th iteration
         res = fut.result()
         server_timestamp = res.output["result"]["result"]["timestamp"]
         request_id = res.output["request_id"]
