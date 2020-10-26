@@ -86,7 +86,9 @@ class SeBS:
             "startup-time": StartupTime,
             "invocation-overhead": InvocationOverhead,
         }
-        experiment = implementations[experiment_type](self.get_experiment_config(config))
+        experiment = implementations[experiment_type](
+            self.get_experiment_config(config)
+        )
         experiment.logging_handlers = self.logging_handlers(logging_filename)
         return experiment
 
