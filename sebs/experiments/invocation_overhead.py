@@ -136,7 +136,7 @@ class InvocationOverhead(Experiment):
             for size in experiment.pts:
                 experiment.before_sample(size, input_benchmark)
 
-                for i in range(repetitions + 1):
+                for i in range(repetitions):
                     self.logging.info(f"Starting with {size} bytes, repetition {i}")
                     self._deployment_client.enforce_cold_start(
                         self._function, self._benchmark
