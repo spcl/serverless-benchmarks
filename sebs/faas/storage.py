@@ -155,8 +155,8 @@ class PersistentStorage(ABC, LoggingBase):
             for bucket in self.input_buckets:
                 self.input_buckets_files.append(self.list_bucket(bucket))
             self.output_buckets = cached_buckets["buckets"]["output"]
-            for bucket in self.output_buckets:
-                self.clean_bucket(bucket)
+            # for bucket in self.output_buckets:
+            #    self.clean_bucket(bucket)
             self.cached = True
             self.logging.info(
                 "Using cached storage input buckets {}".format(self.input_buckets)

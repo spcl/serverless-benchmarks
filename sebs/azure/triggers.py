@@ -1,7 +1,4 @@
-import datetime
 from typing import Any, Dict, Optional  # noqa
-
-import requests
 
 from sebs.azure.config import AzureResources
 from sebs.faas.function import ExecutionResult, Trigger
@@ -36,22 +33,7 @@ class HTTPTrigger(AzureTrigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
         payload["connection_string"] = self.data_storage_account.connection_string
-        begin = datetime.datetime.now()
-        ret = requests.request(method="POST", url=self.url, json=payload)
-        end = datetime.datetime.now()
-
-        if ret.status_code != 200:
-            self.logging.error("Invocation on URL {} failed!".format(self.url))
-            self.logging.error("Input: {}".format(payload))
-            self.logging.error("Output: {}".format(ret.reason))
-            raise RuntimeError("Failed synchronous invocation of Azure Function!")
-
-        output = ret.json()
-        result = ExecutionResult.from_times(begin, end)
-        result.request_id = output["request_id"]
-        # General benchmark output parsing
-        result.parse_benchmark_output(output)
-        return result
+        return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: dict) -> ExecutionResult:
         import concurrent

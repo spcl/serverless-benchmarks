@@ -135,11 +135,11 @@ class EvictionModel(Experiment):
             os.mkdir(self._out_dir)
         self.functions = []
 
-        for fname in self.functions_names:
+        #for fname in self.functions_names:
             #if self._benchmark.functions and fname in self._benchmark.functions:
                 # self.logging.info(f"Skip {fname}, exists already.")
             #    continue
-            self.functions.append(deployment_client.get_function(self._benchmark, func_name=fname))
+        #    self.functions.append(deployment_client.get_function(self._benchmark, func_name=fname))
 
     def run(self):
 
@@ -166,7 +166,7 @@ class EvictionModel(Experiment):
                 for _, t in enumerate(self.times):
                     results[t].append([])
                 local_results = []
-                #self._deployment_client.enforce_cold_starts(functions)
+                self._deployment_client.enforce_cold_starts(functions)
                 for j in range(0, invocations):
                     local_results.append(
                         pool.apply_async(EvictionModel.process_function,

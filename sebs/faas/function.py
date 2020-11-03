@@ -1,8 +1,9 @@
+import json
 from abc import ABC
 from abc import abstractmethod
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, List, Optional  # noqa
+from typing import Callable, Dict, List, Optional  # noqa
 
 from sebs.utils import LoggingBase
 
@@ -14,8 +15,12 @@ from sebs.utils import LoggingBase
 class ExecutionTimes:
 
     client: int
+    client_begin: datetime
+    client_end: datetime
     benchmark: int
     initialization: int
+    http_startup: int
+    http_first_byte_return: int
 
     def __init__(self):
         self.client = 0
@@ -121,6 +126,8 @@ class ExecutionResult:
         client_time_begin: datetime, client_time_end: datetime
     ) -> "ExecutionResult":
         ret = ExecutionResult()
+        ret.times.client_begin = client_time_begin
+        ret.times.client_end = client_time_end
         ret.times.client = int(
             (client_time_end - client_time_begin) / timedelta(microseconds=1)
         )
@@ -166,6 +173,47 @@ class Trigger(ABC, LoggingBase):
     def typename() -> str:
         return "AWS.LibraryTrigger"
 
+    def _http_invoke(self, payload: dict, url: str) -> ExecutionResult:
+        import pycurl
+        from io import BytesIO
+
+        c = pycurl.Curl()
+        c.setopt(pycurl.HTTPHEADER, ["Content-Type: application/json"])
+        c.setopt(pycurl.POST, 1)
+        c.setopt(pycurl.URL, url)
+        data = BytesIO()
+        c.setopt(pycurl.WRITEFUNCTION, data.write)
+
+        c.setopt(pycurl.POSTFIELDS, json.dumps(payload))
+        begin = datetime.now()
+        c.perform()
+        end = datetime.now()
+        status_code = c.getinfo(pycurl.RESPONSE_CODE)
+        conn_time = c.getinfo(pycurl.PRETRANSFER_TIME)
+        receive_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
+
+        try:
+            output = json.loads(data.getvalue())
+
+            if status_code != 200:
+                self.logging.error("Invocation on URL {} failed!".format(url))
+                self.logging.error("Output: {}".format(output))
+                raise RuntimeError("Failed invocation Lambda function!")
+
+            self.logging.info(f"Invoke of function was successful")
+            result = ExecutionResult.from_times(begin, end)
+            result.times.http_startup = conn_time
+            result.times.http_first_byte_return = receive_time
+            result.request_id = output["request_id"]
+            # General benchmark output parsing
+            result.parse_benchmark_output(output)
+            return result
+        except json.decoder.JSONDecodeError:
+            self.logging.error("Invocation on URL {} failed!".format(url))
+            self.logging.error("Output: {}".format(data.getvalue()))
+            raise RuntimeError("Failed invocation of function!")
+
+
     # FIXME: 3.7+, future annotations
     @staticmethod
     @abstractmethod
@@ -204,7 +252,7 @@ class Function(LoggingBase):
         self._name = name
         self._code_package_hash = code_hash
         self._updated_code = False
-        self._triggers: List[Trigger] = []
+        self._triggers: Dict[Trigger.TriggerType, List[Trigger]] = {}
 
     @property
     def name(self):
@@ -230,19 +278,31 @@ class Function(LoggingBase):
     def updated_code(self, val: bool):
         self._updated_code = val
 
-    @property
-    def triggers(self) -> List[Trigger]:
-        return self._triggers
+    def triggers_all(self) -> List[Trigger]:
+        return [trigger for trigger_type, trigger in self._triggers]
+
+    def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
+        try:
+            return self._triggers[trigger_type]
+        except KeyError:
+            return []
 
     def add_trigger(self, trigger: Trigger):
-        self._triggers.append(trigger)
+        if trigger.trigger_type() not in self._triggers:
+            self._triggers[trigger.trigger_type()] = [trigger]
+        else:
+            self._triggers[trigger.trigger_type()].append(trigger)
 
     def serialize(self) -> dict:
         return {
             "name": self._name,
             "hash": self._code_package_hash,
             "benchmark": self._benchmark,
-            "triggers": [x.serialize() for x in self._triggers],
+            "triggers": [
+                obj.serialize()
+                for t_type, triggers in self._triggers.items()
+                for obj in triggers
+            ]
         }
 
     @staticmethod

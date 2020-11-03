@@ -60,6 +60,7 @@ class AWS(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self.storage: Optional[S3] = None
+        self.cold_start_counter = 0
 
     def initialize(self, config: Dict[str, str] = {}):
         # thread-safe
@@ -240,12 +241,11 @@ class AWS(System):
 
     def cached_function(self, function: Function):
 
-        from sebs.aws.triggers import LibraryTrigger
+        from sebs.faas.function import Trigger
 
-        for trigger in function.triggers:
-            if isinstance(trigger, LibraryTrigger):
-                trigger.logging_handlers = self.logging_handlers
-                trigger.deployment_client = self
+        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
+            trigger.logging_handlers = self.logging_handlers
+            trigger.deployment_client = self
 
     """
         Update function code and configuration on AWS.
@@ -284,6 +284,7 @@ class AWS(System):
         self.client.update_function_configuration(
             FunctionName=name, Timeout=function.timeout, MemorySize=function.memory
         )
+        self.logging.info("Published new function code")
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -478,8 +479,25 @@ class AWS(System):
         self.cache_client.update_function(function)
         return trigger
 
-    def enforce_cold_start(self, function: Function):
-        raise NotImplementedError()
+    def enforce_cold_start(self, function: LambdaFunction, code_package: Benchmark):
+        # self.get_lambda_client().update_function_configuration(
+        #    FunctionName=function.name,
+        #    Timeout=function.timeout+ 10,
+        #    MemorySize=function.memory + 128,
+        #    Environment = {
+        #        "Variables": {
+        #            "ForceColdStart": "1"
+        #        }
+        #    }
+        # )
+        # time.sleep(5)
+        self.cold_start_counter += 1
+        self.get_lambda_client().update_function_configuration(
+            FunctionName=function.name,
+            Timeout=function.timeout,
+            MemorySize=function.memory,
+            Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
+        )
 
 #    def create_function_copies(
 #        self,

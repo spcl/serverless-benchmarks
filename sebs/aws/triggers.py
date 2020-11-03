@@ -3,8 +3,6 @@ import datetime
 import json
 from typing import Dict, Optional  # noqa
 
-import requests
-
 from sebs.aws.aws import AWS
 from sebs.faas.function import ExecutionResult, Trigger
 
@@ -81,6 +79,7 @@ class LibraryTrigger(Trigger):
 
     def async_invoke(self, payload: dict):
 
+        # FIXME: proper return type
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
         ret = client.invoke(
@@ -120,26 +119,14 @@ class HTTPTrigger(Trigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
         self.logging.info(f"Invoke function {self.url}")
-        begin = datetime.datetime.now()
-        ret = requests.request(method="POST", url=self.url, json=payload)
-        end = datetime.datetime.now()
-
-        if ret.status_code != 200:
-            self.logging.error("Invocation on URL {} failed!".format(self.url))
-            self.logging.error("Input: {}".format(payload))
-            self.logging.error("Output: {}".format(ret.json()))
-            raise RuntimeError("Failed synchronous invocation of AWS Lambda function!")
-
-        self.logging.info(f"Invoke of function was successful")
-        output = ret.json()
-        result = ExecutionResult.from_times(begin, end)
-        result.request_id = output["request_id"]
-        # General benchmark output parsing
-        result.parse_benchmark_output(output)
-        return result
+        return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: dict) -> ExecutionResult:
-        pass
+        import concurrent
+
+        pool = concurrent.futures.ThreadPoolExecutor()
+        fut = pool.submit(self.sync_invoke, payload)
+        return fut
 
     def serialize(self) -> dict:
         return {"type": "HTTP", "url": self.url, "api-id": self.api_id}

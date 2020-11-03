@@ -20,7 +20,6 @@ from sebs.experiments import (
     EvictionModel,
 )
 
-
 class SeBS:
     @property
     def cache_client(self) -> Cache:
@@ -76,15 +75,22 @@ class SeBS:
         return ExperimentConfig.deserialize(config)
 
     def get_experiment(
-        self, config: dict, logging_filename: Optional[str] = None
+        self, experiment_type: str, config: dict, logging_filename: Optional[str] = None
     ) -> Experiment:
+        from sebs.experiments import (
+            Experiment,
+            PerfCost,
+            NetworkPingPong,
+            InvocationOverhead,
+            EvictionModel
+        )
         implementations = {
             "perf-cost": PerfCost,
             "network-ping-pong": NetworkPingPong,
-            "eviction-model": EvictionModel,
-            "startup-time": StartupTime,
+            "invocation-overhead": InvocationOverhead,
+            "eviction-model": EvictionModel
         }
-        experiment = implementations[config["type"]](self.get_experiment_config(config))
+        experiment = implementations[experiment_type](self.get_experiment_config(config))
         experiment.logging_handlers = self.logging_handlers(logging_filename)
         return experiment
 

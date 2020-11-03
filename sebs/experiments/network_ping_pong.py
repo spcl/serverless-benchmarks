@@ -1,5 +1,4 @@
 import os
-import shutil
 from datetime import datetime
 from itertools import repeat
 from multiprocessing.dummy import Pool as ThreadPool
@@ -14,10 +13,6 @@ class NetworkPingPong(Experiment):
         super().__init__(config)
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
-
-        # deploy network test function
-        from sebs import Benchmark
-        from sebs import SeBS
 
         benchmark = sebs_client.get_benchmark(
             "020.network-benchmark", deployment_client, self.config
@@ -146,4 +141,4 @@ class NetworkPingPong(Experiment):
 
     @staticmethod
     def typename() -> str:
-        return "Experiment.PerfCost"
+        return "Experiment.NetworkPingPong"

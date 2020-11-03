@@ -8,11 +8,14 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/si
 # implement support for S3 and others
 def handler(event, context):
 
+    income_timestamp = datetime.datetime.now().timestamp()
+
     # HTTP trigger with API Gateaway
     if 'body' in event:
         event = json.loads(event['body'])
     req_id = context.aws_request_id
     event['request-id'] = req_id
+    event['income-timestamp'] = income_timestamp
     begin = datetime.datetime.now()
     from function import function
     ret = function.handler(event)
