@@ -102,7 +102,7 @@ class Config:
             NetworkPingPong,
             PerfCost,
             InvocationOverhead,
-            EvictionModel
+            EvictionModel,
         )
 
         for exp in [NetworkPingPong, PerfCost, InvocationOverhead, EvictionModel]:

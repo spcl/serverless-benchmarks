@@ -12,7 +12,6 @@ from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
-from sebs.utils import project_absolute_path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -194,10 +193,7 @@ class Benchmark(LoggingBase):
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
         }
-        WRAPPERS = {
-            "python": "*.py",
-            "nodejs": "*.js"
-        }
+        WRAPPERS = {"python": "*.py", "nodejs": "*.js"}
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
@@ -206,7 +202,9 @@ class Benchmark(LoggingBase):
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
         # wrappers
-        wrappers = project_absolute_path("benchmarks", "wrappers", deployment, language, WRAPPERS[language])
+        wrappers = project_absolute_path(
+            "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
+        )
         for f in glob.glob(wrappers):
             path = os.path.join(directory, f)
             with open(path, "rb") as opened_file:

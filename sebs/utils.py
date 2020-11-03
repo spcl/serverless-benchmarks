@@ -45,6 +45,7 @@ def execute(cmd, shell=False, cwd=None):
         )
     return ret.stdout.decode("utf-8")
 
+
 def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
     if value:
         # make sure parent keys exist
