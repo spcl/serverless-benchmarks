@@ -4,7 +4,6 @@ import os
 import shutil
 import time
 from typing import cast, Dict, List, Optional, Tuple, Type  # noqa
-from time import sleep
 
 import docker
 
@@ -54,6 +53,7 @@ class Azure(System):
         super().__init__(sebs_config, cache_client, docker_client)
         self.logging_handlers = logger_handlers
         self._config = config
+        self.cold_start_counter = 0
 
     """
         Start the Docker container running Azure CLI tools.
@@ -429,45 +429,14 @@ class Azure(System):
 
         fname = function.name
         resource_group = self.config.resources.resource_group(self.cli_instance)
+        self.cold_start_counter += 1
 
-        # Sleep is necessary. If enabling is performed too fast, there might
-        # be no effect when it comes to killing active instances.
-        # Starting invocation too fast after re-enabling might lead to failures.
-        ret = self.cli_instance.execute(
+        self.cli_instance.execute(
             f"az functionapp config appsettings set --name {fname} "
             f" --resource-group {resource_group} "
-            f" --settings AzureWebJobs.handler.Disabled=true"
+            f" --settings ForceColdStart={self.cold_start_counter}"
         )
-        sleep(30)
-        ret = self.cli_instance.execute(
-            f"az functionapp config appsettings set --name {fname} "
-            f" --resource-group {resource_group} "
-            f" --settings AzureWebJobs.handler.Disabled=false"
-        )
-        sleep(30)
 
-    def enforce_cold_starts(self, functions: List[Function]):
-
-        resource_group = self.config.resources.resource_group(self.cli_instance)
-        for function in functions:
-            fname = function.name
-            # Sleep is necessary. If enabling is performed too fast, there might
-            # be no effect when it comes to killing active instances.
-            # Starting invocation too fast after re-enabling might lead to failures.
-            ret = self.cli_instance.execute(
-                f"az functionapp config appsettings set --name {fname} "
-                f" --resource-group {resource_group} "
-                f" --settings AzureWebJobs.handler.Disabled=true"
-            )
-        sleep(10)
-        for function in functions:
-            fname = function.name
-            ret = self.cli_instance.execute(
-                f"az functionapp config appsettings set --name {fname} "
-                f" --resource-group {resource_group} "
-                f" --settings AzureWebJobs.handler.Disabled=false"
-            )
-        sleep(10)
 
 #
 #    def create_azure_function(self, fname, config):
