@@ -184,7 +184,7 @@ class GCP(System):
                     fname=func_name, loc=code_location
                 )
             )
-            return GCPFunction(func_name, code_location, self)
+            return GCPFunction(func_name, benchmark, code_package.hash, self)
 
         elif code_package.is_cached:
             func_name = code_package.cached_config["name"]
@@ -222,7 +222,7 @@ class GCP(System):
                 )
             )
 
-            return GCPFunction(func_name, package, self)
+            return GCPFunction(func_name, benchmark, code_package.hash, self)
         else:
             code_location = code_package.code_location
             timeout = code_package.benchmark_config.timeout
@@ -333,7 +333,7 @@ class GCP(System):
                     }
                 },
             )
-            return GCPFunction(func_name, package, self)
+            return GCPFunction(func_name, benchmark, code_package.hash, self)
 
     # FIXME: trigger allocation API
     # FIXME: result query API

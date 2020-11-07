@@ -1,17 +1,17 @@
-from ..faas.function import Function
+from sebs.faas.function import Function
 import json
 import datetime
 import logging
 import time
 
-
 class GCPFunction(Function):
+
     @property
     def code_package(self):
         return self._code_package
 
-    def __init__(self, name: str, code_package: str, deployment):
-        super().__init__(name)
+    def __init__(self, name: str, benchmark: str, code_package_hash: str, deployment: "GCP"):
+        super().__init__(benchmark, name, code_package_hash)
         self._code_package = code_package
         self._deployment = deployment
 

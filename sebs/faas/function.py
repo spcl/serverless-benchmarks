@@ -210,7 +210,7 @@ class Trigger(ABC, LoggingBase):
             return result
         except json.decoder.JSONDecodeError:
             self.logging.error("Invocation on URL {} failed!".format(url))
-            self.logging.error("Output: {}".format(data.getvalue()))
+            self.logging.error("Output: {}".format(data.getvalue().decode()))
             raise RuntimeError("Failed invocation of function!")
 
     # FIXME: 3.7+, future annotations

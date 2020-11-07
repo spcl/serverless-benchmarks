@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple  # noqa
 
@@ -37,16 +38,16 @@ class Result:
 
     def add_invocation(self, func: Function, invocation: ExecutionResult):
         if func.name in self._invocations:
-            self._invocations.get(func.name)[  # type: ignore
+            self.invocations.get(func.name)[  # type: ignore
                 invocation.request_id
             ] = invocation
         else:
             if "return" in invocation:
-                self.invocations[func_name] = {
+                self.invocations[func.name] = {
                     json.loads(invocation["return"])["request_id"]: invocation
                 }
             else:
-                self._invocations[func.name] = {invocation.request_id: invocation}
+                self.invocations[func.name] = {invocation.request_id: invocation}
 
     def functions(self) -> List[str]:
         return list(self._invocations.keys())
