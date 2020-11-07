@@ -3,15 +3,40 @@
     "update_code": false,
     "update_storage": false,
     "download_results": false,
-    "deployment": "aws",
     "runtime": {
       "language": "python",
       "version": "3.6"
+    },
+    "type": "invocation-overhead",
+    "startup-time": {
+      "convergence": 10
+    },
+    "network-ping-pong": {
+      "invocations": 50,
+      "repetitions": 1000,
+      "threads": 1
+    },
+    "invocation-overhead": {
+      "invocations": 1,
+      "repetitions": 5,
+      "N": 20,
+      "threads": 1,
+      "payload_begin": 1024,
+      "payload_end": 6251000,
+      "payload_points": 20,
+      "code_begin": 1048576,
+      "code_end": 261619712,
+      "code_points": 20
     }
   },
   "deployment": {
     "name": "aws",
-    "region": "us-east-1",
-    "lambda-role": ""
+    "aws": {
+      "region": "us-east-1",
+      "lambda-role": ""
+    },
+    "azure": {
+      "region": "westeurope"
+    }
   }
 }

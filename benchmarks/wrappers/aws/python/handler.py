@@ -8,9 +8,14 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/si
 # implement support for S3 and others
 def handler(event, context):
 
+    income_timestamp = datetime.datetime.now().timestamp()
+
     # HTTP trigger with API Gateaway
-    if 'httpMethod' in event:
+    if 'body' in event:
         event = json.loads(event['body'])
+    req_id = context.aws_request_id
+    event['request-id'] = req_id
+    event['income-timestamp'] = income_timestamp
     begin = datetime.datetime.now()
     from function import function
     ret = function.handler(event)
@@ -27,7 +32,6 @@ def handler(event, context):
         from function import storage
         storage_inst = storage.storage.get_instance()
         b = event.get('logs').get('bucket')
-        req_id = context.aws_request_id
         storage_inst.upload_stream(b, '{}.json'.format(req_id),
                 io.BytesIO(json.dumps(log_data).encode('utf-8')))
         results_end = datetime.datetime.now()

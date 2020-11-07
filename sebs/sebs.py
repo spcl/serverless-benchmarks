@@ -1,13 +1,19 @@
+from typing import Optional, Dict
+
 import docker
 
-from sebs.aws.aws import AWS, AWSConfig
-from sebs.gcp.gcp import GCP, GCPConfig
+from sebs.aws import AWS
+from sebs.azure.azure import Azure
+from sebs.gcp import GCP
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
-from sebs.faas.system import System as FaasSystem
-from sebs.experiments.config import Config as ExperimentConfig
+from sebs.faas.system import System as FaaSSystem
+from sebs.faas.config import Config
+from sebs.utils import LoggingHandlers
 
+from sebs.experiments.config import Config as ExperimentConfig
+from sebs.experiments import Experiment
 
 class SeBS:
     @property
@@ -18,50 +24,88 @@ class SeBS:
     def docker_client(self) -> docker.client:
         return self._docker_client
 
-    def __init__(self, cache_dir: str):
+    @property
+    def output_dir(self) -> str:
+        return self._output_dir
+
+    def logging_handlers(
+        self, logging_filename: Optional[str] = None
+    ) -> LoggingHandlers:
+        if logging_filename in self._logging_handlers:
+            return self._logging_handlers[logging_filename]
+        else:
+            handlers = LoggingHandlers(filename=logging_filename)
+            self._logging_handlers[logging_filename] = handlers
+            return handlers
+
+    def __init__(self, cache_dir: str, output_dir: str):
         self._cache_client = Cache(cache_dir)
         self._docker_client = docker.from_env()
         self._config = SeBSConfig()
+        self._output_dir = output_dir
+        self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
-    def get_deployment(self, config: dict) -> FaasSystem:
+    def get_deployment(
+        self, config: dict, logging_filename: Optional[str] = None
+    ) -> FaaSSystem:
 
-        implementations = {"aws": AWS, "gcp": GCP}
-        configs = {"aws": AWSConfig.initialize, "gcp": GCPConfig.initialize}
         name = config["name"]
+        implementations = {"aws": AWS, "azure": Azure, "gcp": GCP}
         if name not in implementations:
-            raise RuntimeError("Deployment {name} not supported!".format(**config))
+            raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
         # FIXME: future annotations, requires Python 3.7+
-        deployment_config = configs[name](config, self.cache_client)
+        handlers = self.logging_handlers(logging_filename)
+        deployment_config = Config.deserialize(config, self.cache_client, handlers)
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore
             self.cache_client,
             self.docker_client,
+            handlers,
         )
         return deployment_client
 
-    def get_experiment(self, config: dict) -> ExperimentConfig:
+    def get_experiment_config(self, config: dict) -> ExperimentConfig:
+        return ExperimentConfig.deserialize(config)
 
-        experiment_config = ExperimentConfig.deserialize(config)
-        return experiment_config
+    def get_experiment(
+        self, experiment_type: str, config: dict, logging_filename: Optional[str] = None
+    ) -> Experiment:
+        from sebs.experiments import (
+            Experiment,
+            PerfCost,
+            NetworkPingPong,
+            StartupTime,
+            InvocationOverhead,
+        )
+        implementations = {
+            "perf-cost": PerfCost,
+            "network-ping-pong": NetworkPingPong,
+            "startup-time": StartupTime,
+            "invocation-overhead": InvocationOverhead,
+        }
+        experiment = implementations[experiment_type](self.get_experiment_config(config))
+        experiment.logging_handlers = self.logging_handlers(logging_filename)
+        return experiment
 
     def get_benchmark(
         self,
         name: str,
-        output_dir: str,
-        deployment: FaasSystem,
+        deployment: FaaSSystem,
         config: ExperimentConfig,
+        logging_filename: Optional[str] = None,
     ) -> Benchmark:
         benchmark = Benchmark(
             name,
             deployment.name(),
             config,
             self._config,
-            output_dir,
+            self._output_dir,
             self.cache_client,
             self.docker_client,
         )
+        benchmark.logging_handlers = self.logging_handlers(logging_filename)
         return benchmark
 
     def shutdown(self):

@@ -46,12 +46,13 @@ class Runtime:
 
 
 class Config:
-
-    _update_code: bool
-    _update_storage: bool
-    _download_results: bool
-    _flags: Dict[str, bool]
-    _runtime: Runtime
+    def __init__(self):
+        self._update_code: bool = False
+        self._update_storage: bool = False
+        self._download_results: bool = False
+        self._flags: Dict[str, bool] = {}
+        self._experiment_configs: Dict[str, dict] = {}
+        self._runtime = Runtime()
 
     @property
     def update_code(self) -> bool:
@@ -72,6 +73,9 @@ class Config:
     def runtime(self) -> Runtime:
         return self._runtime
 
+    def experiment_settings(self, name: str) -> dict:
+        return self._experiment_configs[name]
+
     def serialize(self) -> dict:
         out = {
             "update_code": self._update_code,
@@ -79,6 +83,7 @@ class Config:
             "download_results": self._download_results,
             "runtime": self._runtime.serialize(),
             "flags": self._flags,
+            "experiments": self._experiment_configs,
         }
         return out
 
@@ -92,4 +97,16 @@ class Config:
         cfg._download_results = config["download_results"]
         cfg._runtime = Runtime.deserialize(config["runtime"])
         cfg._flags = config["flags"] if "flags" in config else {}
+
+        from sebs.experiments import (
+            NetworkPingPong,
+            PerfCost,
+            StartupTime,
+            InvocationOverhead,
+        )
+
+        for exp in [NetworkPingPong, PerfCost, StartupTime, InvocationOverhead]:
+            if exp.name() in config:
+                cfg._experiment_configs[exp.name()] = config[exp.name()]
+
         return cfg

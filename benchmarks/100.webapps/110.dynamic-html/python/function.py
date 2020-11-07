@@ -2,6 +2,7 @@ from datetime import datetime
 from random import sample  
 from os import path
 from time import time                                                           
+import os
 
 from jinja2 import Template
 
