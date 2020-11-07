@@ -18,7 +18,7 @@ from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.storage import GCPStorage
-from sebs.gcp.GCPFunction import GCPFunction
+from sebs.gcp.function import GCPFunction
 
 """
     This class provides basic abstractions for the FaaS system.
