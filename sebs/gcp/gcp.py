@@ -2,6 +2,7 @@ import docker
 import os
 import logging
 import shutil
+import time
 from typing import cast, Dict, Optional, Tuple, List, Type
 
 from googleapiclient.discovery import build
@@ -171,7 +172,6 @@ class GCP(System):
         timeout = code_package.benchmark_config.timeout
         memory = code_package.benchmark_config.memory
         code_bucket: Optional[str] = None
-        func_name = GCP.format_function_name(func_name)
         storage_client = self.get_storage()
         location = self.config.region
         project_name = self.config.project_name
@@ -231,6 +231,7 @@ class GCP(System):
                         "availableMemoryMb": memory,
                         "timeout": str(timeout) + "s",
                         "httpsTrigger": {},
+                        "ingressSettings": "ALLOW_ALL",
                         "sourceArchiveUrl": "gs://"
                         + code_bucket
                         + "/"
@@ -241,16 +242,47 @@ class GCP(System):
             print("request: ", req)
             res = req.execute()
             print("response:", res)
+            self.logging.info(f"Function {func_name} has been created!")
+            req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .setIamPolicy(
+                    resource=full_func_name,
+                    body={
+                        "policy": {
+                            "bindings": [
+                                {
+                                    "role": "roles/cloudfunctions.invoker",
+                                    "members": "allUsers",
+                                }
+                            ]
+                        }
+                    },
+                )
+            )
+            res = req.execute()
+            print(res)
+            self.logging.info(
+                f"Function {func_name} accepts now unauthenticated invocations!"
+            )
 
+            self.logging.info(f"Function {func_name} - waiting for deployment...")
             our_function_req = (
                 self.function_client.projects()
                 .locations()
                 .functions()
                 .get(name=full_func_name)
             )
-            res = our_function_req.execute()
-            invoke_url = res["httpsTrigger"]["url"]
-            print("RESPONSE: ", res)
+            deployed = False
+            while not deployed:
+                status_res = our_function_req.execute()
+                if status_res["status"] == "ACTIVE":
+                    deployed = True
+                else:
+                    time.sleep(3)
+            self.logging.info(f"Function {func_name} - deployed!")
+            invoke_url = status_res["httpsTrigger"]["url"]
 
             function = GCPFunction(
                 func_name, benchmark, code_package.hash, timeout, memory, code_bucket
@@ -388,4 +420,3 @@ class GCP(System):
     # @abstractmethod
     # def download_metrics(self):
     #    pass
-
