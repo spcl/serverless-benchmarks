@@ -68,11 +68,16 @@ class GCPStorage(PersistentStorage):
         )  # workaround for connection timeout
         blob.upload_from_filename(filepath)
 
-    def list_bucket(self, bucket_name: str):
-        raise NotImplementedError()
+    def list_bucket(self, bucket_name: str) -> List[str]:
+        bucket_instance = self.client.get_bucket(bucket_name)
+        all_blobs = list(self.client.list_blobs(bucket_instance))
+        blobs = [blob.name for blob in all_blobs]
+        return blobs
 
     def list_buckets(self, bucket_name: str) -> List[str]:
-        raise NotImplementedError()
+        all_buckets = list(self.client.list_buckets())
+        buckets = [bucket.name for bucket in all_buckets]
+        return buckets
 
     def clean_bucket(self, bucket: str):
         raise NotImplementedError()
