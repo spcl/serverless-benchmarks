@@ -2,7 +2,9 @@ testtools==2.4.0
 docker==4.2.0
 boto3==1.11.6
 azure-storage-blob==12.1.0
-google-cloud-storage
+google-cloud-storage==1.32.0
+google-api-python-client==1.12.5
+google-cloud-monitoring==2.0.0
 minio==5.0.10
 testtools==2.4.0
 tzlocal==2.1
