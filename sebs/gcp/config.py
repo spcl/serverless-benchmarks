@@ -24,6 +24,7 @@ class GCPCredentials(Credentials):
     _gcp_credentials: str
 
     def __init__(self, gcp_credentials: str):
+        super().__init__()
         self._gcp_credentials = gcp_credentials
 
     @property
@@ -90,6 +91,7 @@ class GCPCredentials(Credentials):
 
 class GCPResources(Resources):
     def __init__(self, project_name: str, region: str):
+        super().__init__()
         self._project_name = project_name
         self._region = region
 
@@ -160,6 +162,7 @@ class GCPConfig(Config):
     _project_name: str
 
     def __init__(self, credentials: GCPCredentials, resources: GCPResources):
+        super().__init__()
         self._credentials = credentials
         self._resources = resources
 
