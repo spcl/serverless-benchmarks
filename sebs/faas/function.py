@@ -213,7 +213,6 @@ class Trigger(ABC, LoggingBase):
             self.logging.error("Output: {}".format(data.getvalue()))
             raise RuntimeError("Failed invocation of function!")
 
-
     # FIXME: 3.7+, future annotations
     @staticmethod
     @abstractmethod
@@ -302,7 +301,7 @@ class Function(LoggingBase):
                 obj.serialize()
                 for t_type, triggers in self._triggers.items()
                 for obj in triggers
-            ]
+            ],
         }
 
     @staticmethod

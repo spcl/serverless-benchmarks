@@ -42,7 +42,9 @@ class Result:
             ] = invocation
         else:
             if "return" in invocation:
-                self.invocations[func_name] = {json.loads(invocation["return"])["request_id"]: invocation}
+                self.invocations[func_name] = {
+                    json.loads(invocation["return"])["request_id"]: invocation
+                }
             else:
                 self._invocations[func.name] = {invocation.request_id: invocation}
 
@@ -72,4 +74,3 @@ class Result:
         ret.begin_time = cached_config["begin_time"]
         ret.end_time = cached_config["end_time"]
         return ret
-

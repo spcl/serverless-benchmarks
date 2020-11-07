@@ -53,11 +53,9 @@ class GCPCredentials(Credentials):
                 )
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
             elif "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
-                ret = GCPCredentials(
-                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
-                )
+                ret = GCPCredentials(os.environ["GOOGLE_APPLICATION_CREDENTIALS"])
                 cache.update_config(
-                    val=ret.gcp_credentials, keys=['gcp', 'secrets', 'gcp_credentials']
+                    val=ret.gcp_credentials, keys=["gcp", "secrets", "gcp_credentials"]
                 )
             else:
                 raise RuntimeError("GCP login credentials are missing!")
@@ -82,7 +80,6 @@ class GCPCredentials(Credentials):
 
 
 class GCPResources(Resources):
-
     def __init__(self, project_name: str, region: str):
         self._project_name = project_name
         self._region = region
@@ -97,8 +94,10 @@ class GCPResources(Resources):
 
     @staticmethod
     def deserialize(dct: dict) -> Resources:
-        return GCPResources(dct["project_name"] if "project_name" in dct else "",
-                            dct["region"] if "region" in dct else "")
+        return GCPResources(
+            dct["project_name"] if "project_name" in dct else "",
+            dct["region"] if "region" in dct else "",
+        )
 
     """
             Serialize to JSON for storage in cache.
@@ -114,7 +113,9 @@ class GCPResources(Resources):
         ret: GCPResources
         if cached_config and "resources" in cached_config:
             logging.info("Using cached resources for AWS")
-            ret = cast(GCPResources, GCPResources.deserialize(cached_config["resources"]))
+            ret = cast(
+                GCPResources, GCPResources.deserialize(cached_config["resources"])
+            )
         else:
             if "resources" in config:
                 logging.info(
@@ -170,7 +171,9 @@ class GCPConfig(Config):
             logging.info("Using user-provided config for GCP")
             GCPConfig.deserialize(config_obj, config)
             cache.update_config(val=config_obj.region, keys=["gcp", "region"])
-            cache.update_config(val=config_obj.project_name, keys=["gcp", "project_name"])
+            cache.update_config(
+                val=config_obj.project_name, keys=["gcp", "project_name"]
+            )
 
         return config_obj
 
@@ -183,6 +186,6 @@ class GCPConfig(Config):
     def serialize(self) -> dict:
         out = {
             "credentials": self._credentials.serialize(),
-            "resources": self._resources.serialize()
+            "resources": self._resources.serialize(),
         }
         return out

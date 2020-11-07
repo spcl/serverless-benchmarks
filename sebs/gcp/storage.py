@@ -21,6 +21,7 @@ class GCPStorage(PersistentStorage):
 
     def input(self) -> List[str]:
         return self.input_buckets
+
     """
         Add an input bucket or retrieve an existing one.
         Bucket name format: name-idx-input
@@ -33,7 +34,7 @@ class GCPStorage(PersistentStorage):
 
         # TODO Do we want to increment that when the cache is used?
         self.request_input_buckets += 1
-        name = '{}-{}-input'.format(name, idx)
+        name = "{}-{}-input".format(name, idx)
         for bucket in self.input_buckets:
             if name in bucket:
                 return bucket, idx
@@ -62,25 +63,31 @@ class GCPStorage(PersistentStorage):
 
         if not found_bucket:
             random_name = str(uuid.uuid4())[0:16]
-            bucket_name = '{}-{}'.format(name, random_name).replace(".", "_")
+            bucket_name = "{}-{}".format(name, random_name).replace(".", "_")
             self.client.create_bucket(bucket_name)
-            logging.info('Created bucket {}'.format(bucket_name))
+            logging.info("Created bucket {}".format(bucket_name))
             return bucket_name
         else:
-            logging.info('Bucket {} for {} already exists, skipping.'.format(existing_bucket_name, name))
+            logging.info(
+                "Bucket {} for {} already exists, skipping.".format(
+                    existing_bucket_name, name
+                )
+            )
             return existing_bucket_name
 
     def download(self, bucket_name: str, file: str, filepath: str) -> None:
-        logging.info('Download {}:{} to {}'.format(bucket_name, file, filepath))
+        logging.info("Download {}:{} to {}".format(bucket_name, file, filepath))
         bucket_instance = self.client.bucket(bucket_name)
         blob = bucket_instance.blob(file)
         blob.download_to_filename(filepath)
 
     def upload(self, bucket_name: str, file: str, filepath: str):
-        logging.info('Upload {} to {}'.format(filepath, bucket_name))
+        logging.info("Upload {} to {}".format(filepath, bucket_name))
         bucket_instance = self.client.bucket(bucket_name)
         blob = bucket_instance.blob(file, chunk_size=4 * 1024 * 1024)
-        gcp_storage.blob._MAX_MULTIPART_SIZE = 5 * 1024 * 1024  # workaround for connection timeout
+        gcp_storage.blob._MAX_MULTIPART_SIZE = (
+            5 * 1024 * 1024
+        )  # workaround for connection timeout
         blob.upload_from_filename(filepath)
 
     """
@@ -88,46 +95,60 @@ class GCPStorage(PersistentStorage):
         :return: list of files in a given bucket
     """
 
-    #for sure ??? method add_output_bucket here?
-    def list_bucket(self, bucket_name: str, suffix='output') -> List[str]:
-        name = '{}-{}'.format(bucket_name, suffix)
+    # for sure ??? method add_output_bucket here?
+    def list_bucket(self, bucket_name: str, suffix="output") -> List[str]:
+        name = "{}-{}".format(bucket_name, suffix)
         bucket_name = self.create_bucket(name)
         return bucket_name
 
     # TODO: added to make current implementation of GCP runnable
-    def add_output_bucket(self, bucket_name: str, suffix='output') -> List[str]:
-        name = '{}-{}'.format(bucket_name, suffix)
+    def add_output_bucket(self, bucket_name: str, suffix="output") -> List[str]:
+        name = "{}-{}".format(bucket_name, suffix)
         bucket_name = self.create_bucket(name)
         return bucket_name
 
-    #cached_buckets? ...
-    def allocate_buckets(self, benchmark: str, buckets: Tuple[int, int], cached_buckets = None):
+    # cached_buckets? ...
+    def allocate_buckets(
+        self, benchmark: str, buckets: Tuple[int, int], cached_buckets=None
+    ):
         self.request_input_buckets = buckets[0]
         self.request_output_buckets = buckets[1]
         if cached_buckets:
-            self.input_buckets = cached_buckets['buckets']['input']
+            self.input_buckets = cached_buckets["buckets"]["input"]
             for bucket_name in self.input_buckets:
-                self.input_buckets_files.append(list(self.client.bucket(bucket_name).list_blobs()))
+                self.input_buckets_files.append(
+                    list(self.client.bucket(bucket_name).list_blobs())
+                )
 
-            self.output_buckets = cached_buckets['buckets']['output']
+            self.output_buckets = cached_buckets["buckets"]["output"]
             for bucket_name in self.output_buckets:
                 for blob in self.client.bucket(bucket_name).list_blobs():
                     blob.delete()
 
             self.cached = True
-            logging.info('Using cached storage input containers {}'.format(self.input_buckets))
-            logging.info('Using cached storage output containers {}'.format(self.output_buckets))
+            logging.info(
+                "Using cached storage input containers {}".format(self.input_buckets)
+            )
+            logging.info(
+                "Using cached storage output containers {}".format(self.output_buckets)
+            )
 
         else:
             gcp_buckets = list(self.client.list_buckets())
             for i in range(buckets[0]):
-                self.input_buckets.append(self.create_bucket('{}-{}-input'.format(benchmark, i), gcp_buckets))
+                self.input_buckets.append(
+                    self.create_bucket("{}-{}-input".format(benchmark, i), gcp_buckets)
+                )
 
                 # TODO why in AWS and Azure only one (the last) bucket is used?
-                self.input_buckets_files.append(list(self.client.bucket(self.input_buckets[i]).list_blobs()))
+                self.input_buckets_files.append(
+                    list(self.client.bucket(self.input_buckets[i]).list_blobs())
+                )
 
             for i in range(buckets[1]):
-                self.output_buckets.append(self.create_bucket('{}-{}-output'.format(benchmark, i), gcp_buckets))
+                self.output_buckets.append(
+                    self.create_bucket("{}-{}-output".format(benchmark, i), gcp_buckets)
+                )
 
     def uploader_func(self, bucket_idx: int, file: str, filepath: str) -> None:
         if self.cached and not self.replace_existing:
@@ -136,8 +157,9 @@ class GCPStorage(PersistentStorage):
         if not self.replace_existing:
             for blob in self.input_buckets_files[bucket_idx]:
                 if file == blob.name:
-                    logging.info('Skipping upload of {} to {}'.format(filepath, bucket_name))
+                    logging.info(
+                        "Skipping upload of {} to {}".format(filepath, bucket_name)
+                    )
                     return
         bucket_name = self.input_buckets[bucket_idx]
         self.upload(bucket_name, file, filepath)
-

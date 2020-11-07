@@ -5,7 +5,6 @@ from googleapiclient.discovery import build
 from google.cloud import monitoring_v3
 import os
 import datetime
-import math
 import time
 import logging
 import shutil
@@ -35,11 +34,11 @@ class GCP(System):
     _config: GCPConfig
 
     def __init__(
-            self,
-            system_config: SeBSConfig,
-            config: GCPConfig,
-            cache_client: Cache,
-            docker_client: docker.client,
+        self,
+        system_config: SeBSConfig,
+        config: GCPConfig,
+        cache_client: Cache,
+        docker_client: docker.client,
     ):
         # self._system_config = system_config
         # self._docker_client = docker_client
@@ -87,10 +86,16 @@ class GCP(System):
         :param replace_existing: replace benchmark input data if exists already
     """
 
-    def get_storage(self, replace_existing: bool = False, benchmark=None, buckets=None, ) -> PersistentStorage:
+    def get_storage(
+        self, replace_existing: bool = False, benchmark=None, buckets=None,
+    ) -> PersistentStorage:
         self.storage = GCPStorage(replace_existing)
         if benchmark and buckets:
-            self.storage.allocate_buckets(benchmark, buckets, self.cache_client.get_storage_config('gcp', benchmark))
+            self.storage.allocate_buckets(
+                benchmark,
+                buckets,
+                self.cache_client.get_storage_config("gcp", benchmark),
+            )
         return self.storage
 
     """
@@ -113,23 +118,23 @@ class GCP(System):
         directory = benchmark.build()
 
         CONFIG_FILES = {
-            'python': ['handler.py', '.python_packages'],
-            'nodejs': ['handler.js', 'node_modules']
+            "python": ["handler.py", ".python_packages"],
+            "nodejs": ["handler.js", "node_modules"],
         }
         HANDLER = {
-            'python': ('handler.py', 'main.py'),
-            'nodejs': ('handler.js', 'index.js')
+            "python": ("handler.py", "main.py"),
+            "nodejs": ("handler.js", "index.js"),
         }
         package_config = CONFIG_FILES[benchmark.language_name]
-        function_dir = os.path.join(directory, 'function')
+        function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         for file in os.listdir(directory):
             if file not in package_config:
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
 
-        requirements = open(os.path.join(directory, 'requirements.txt'), 'w')
-        requirements.write('google-cloud-storage')
+        requirements = open(os.path.join(directory, "requirements.txt"), "w")
+        requirements.write("google-cloud-storage")
         requirements.close()
 
         cur_dir = os.getcwd()
@@ -138,8 +143,10 @@ class GCP(System):
         shutil.move(old_name, new_name)
 
         utils.execute("zip -qu -r9 {}.zip * .".format(benchmark.benchmark), shell=True)
-        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark.benchmark))
-        logging.info('Created {} archive'.format(benchmark_archive))
+        benchmark_archive = "{}.zip".format(
+            os.path.join(directory, benchmark.benchmark)
+        )
+        logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(benchmark_archive)
         mbytes = bytes_size / 1024.0 / 1024.0
@@ -172,23 +179,32 @@ class GCP(System):
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
-            logging.info('Using cached function {fname} in {loc}'.format(
-                fname=func_name,
-                loc=code_location
-            ))
+            logging.info(
+                "Using cached function {fname} in {loc}".format(
+                    fname=func_name, loc=code_location
+                )
+            )
             return GCPFunction(func_name, code_location, self)
 
         elif code_package.is_cached:
             func_name = code_package.cached_config["name"]
-            full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(
-                project_name=project_name, location=location, func_name=func_name)
+            full_func_name = (
+                f"projects/{project_name}/locations/{location}/functions/{func_name}"
+            )
             code_location = code_package.code_location
             timeout = code_package.benchmark_config.timeout
             memory = code_package.benchmark_config.memory
 
             package, code_size = self.package_code(code_package)
             code_package_name = os.path.basename(package)
-            self.update_function(benchmark, full_func_name, code_package_name, code_package, timeout, memory)
+            self.update_function(
+                benchmark,
+                full_func_name,
+                code_package_name,
+                code_package,
+                timeout,
+                memory,
+            )
             code_size = Benchmark.directory_size(code_location)
 
             cached_cfg = code_package.cached_config
@@ -196,12 +212,15 @@ class GCP(System):
             cached_cfg["timeout"] = timeout
             cached_cfg["memory"] = memory
             cached_cfg["hash"] = code_package.hash
-            self.cache_client.update_function('gcp', benchmark, code_package.language_name, package, cached_cfg)
+            self.cache_client.update_function(
+                "gcp", benchmark, code_package.language_name, package, cached_cfg
+            )
 
-            logging.info("Updating cached function {fname} in {loc}".format(
-                fname=func_name,
-                loc=code_location
-            ))
+            logging.info(
+                "Updating cached function {fname} in {loc}".format(
+                    fname=func_name, loc=code_location
+                )
+            )
 
             return GCPFunction(func_name, package, self)
         else:
@@ -209,49 +228,86 @@ class GCP(System):
             timeout = code_package.benchmark_config.timeout
             memory = code_package.benchmark_config.memory
 
-            func_name = 'foo_{}-{}-{}'.format(benchmark, code_package.language_name, memory)
-            func_name = func_name.replace('-', '_')
-            func_name = func_name.replace('.', '_')
+            func_name = "foo_{}-{}-{}".format(
+                benchmark, code_package.language_name, memory
+            )
+            func_name = func_name.replace("-", "_")
+            func_name = func_name.replace(".", "_")
 
             package, code_size = self.package_code(code_package)
 
             code_package_name = os.path.basename(package)
             bucket, idx = self.storage.add_input_bucket(benchmark)
             self.storage.upload(bucket, code_package_name, package)
-            logging.info('Uploading function {} code to {}'.format(func_name, bucket))
-            blob = self.storage.client.bucket(bucket).blob(code_package_name)
+            logging.info("Uploading function {} code to {}".format(func_name, bucket))
+            # blob = self.storage.client.bucket(bucket).blob(code_package_name)
 
             print("config: ", self.config)
-            req = self.function_client.projects().locations().functions().list(
-                parent="projects/{project_name}/locations/{location}"
-                    .format(project_name=project_name, location=location))
+            req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .list(
+                    parent="projects/{project_name}/locations/{location}".format(
+                        project_name=project_name, location=location
+                    )
+                )
+            )
             res = req.execute()
 
-            full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(
-                project_name=project_name, location=location, func_name=func_name)
-            if "functions" in res.keys() and full_func_name in [f["name"] for f in res["functions"]]:
-                self.update_function(benchmark, full_func_name, code_package_name, code_package, timeout, memory)
+            full_func_name = (
+                f"projects/{project_name}/locations/{location}/functions/{func_name}"
+            )
+            if "functions" in res.keys() and full_func_name in [
+                f["name"] for f in res["functions"]
+            ]:
+                self.update_function(
+                    benchmark,
+                    full_func_name,
+                    code_package_name,
+                    code_package,
+                    timeout,
+                    memory,
+                )
             else:
                 language_runtime = code_package.language_version
-                print("language runtime: ", code_package.language_name + language_runtime.replace(".", ""))
-                req = self.function_client.projects().locations().functions().create(
-                    location="projects/{project_name}/locations/{location}".format(project_name=project_name,
-                                                                                   location=location),
-                    body={
-                        "name": full_func_name,
-                        "entryPoint": "handler",
-                        "runtime": code_package.language_name + language_runtime.replace(".", ""),
-                        "availableMemoryMb": memory,
-                        "timeout": str(timeout) + "s",
-                        "httpsTrigger": {},
-                        "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-                    }
+                print(
+                    "language runtime: ",
+                    code_package.language_name + language_runtime.replace(".", ""),
+                )
+                req = (
+                    self.function_client.projects()
+                    .locations()
+                    .functions()
+                    .create(
+                        location="projects/{project_name}/locations/{location}".format(
+                            project_name=project_name, location=location
+                        ),
+                        body={
+                            "name": full_func_name,
+                            "entryPoint": "handler",
+                            "runtime": code_package.language_name
+                            + language_runtime.replace(".", ""),
+                            "availableMemoryMb": memory,
+                            "timeout": str(timeout) + "s",
+                            "httpsTrigger": {},
+                            "sourceArchiveUrl": "gs://"
+                            + bucket
+                            + "/"
+                            + code_package_name,
+                        },
+                    )
                 )
                 print("request: ", req)
                 res = req.execute()
                 print("response:", res)
 
-            our_function_req = self.function_client.projects().locations().functions().get(name=full_func_name)
+            our_function_req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .get(name=full_func_name)
+            )
             res = our_function_req.execute()
             invoke_url = res["httpsTrigger"]["url"]
             print("RESPONSE: ", res)
@@ -265,67 +321,92 @@ class GCP(System):
                     "name": func_name,
                     "code_size": code_size,
                     "runtime": code_package.language_version,
-                    'memory': memory,
-                    'timeout': timeout,
-                    'hash': code_package.hash,
-                    'url': invoke_url
+                    "memory": memory,
+                    "timeout": timeout,
+                    "hash": code_package.hash,
+                    "url": invoke_url,
                 },
                 storage_config={
                     "buckets": {
                         "input": self.storage.input_buckets,
-                        "output": self.storage.output_buckets
+                        "output": self.storage.output_buckets,
                     }
-                }
+                },
             )
             return GCPFunction(func_name, package, self)
 
     # FIXME: trigger allocation API
     # FIXME: result query API
     # FIXME: metrics query API
-    def update_function(self, benchmark, full_func_name, code_package_name, code_package, timeout, memory):
+    def update_function(
+        self,
+        benchmark,
+        full_func_name,
+        code_package_name,
+        code_package,
+        timeout,
+        memory,
+    ):
         language_runtime = code_package.language_version
         bucket, idx = self.storage.add_input_bucket(benchmark)
-        req = self.function_client.projects().locations().functions().patch(
-            name=full_func_name,
-            body={
-                "name": full_func_name,
-                "entryPoint": "handler",
-                "runtime": code_package.language_name + language_runtime.replace(".", ""),
-                "availableMemoryMb": memory,
-                "timeout": str(timeout) + "s",
-                "httpsTrigger": {},
-                "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-            })
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .patch(
+                name=full_func_name,
+                body={
+                    "name": full_func_name,
+                    "entryPoint": "handler",
+                    "runtime": code_package.language_name
+                    + language_runtime.replace(".", ""),
+                    "availableMemoryMb": memory,
+                    "timeout": str(timeout) + "s",
+                    "httpsTrigger": {},
+                    "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+                },
+            )
+        )
         res = req.execute()
         print("response:", res)
-        logging.info('Updating GCP code of function {} from {}'.format(full_func_name, code_package))
+        logging.info(
+            "Updating GCP code of function {} from {}".format(
+                full_func_name, code_package
+            )
+        )
 
     def prepare_experiment(self, benchmark):
-        logs_bucket = self.storage.add_output_bucket(benchmark, suffix='logs')
+        logs_bucket = self.storage.add_output_bucket(benchmark, suffix="logs")
         return logs_bucket
 
-
     def invoke_sync(self, name: str, payload: dict):
-        full_func_name = "projects/{project_name}/locations/{location}/functions/{func_name}".format(
-            project_name=self.project_name, location=self.location, func_name=name)
+        full_func_name = (
+            f"projects/{self.project_name}/locations/"
+            f"{self.location}/functions/{self.func_name}"
+        )
         print(payload)
         payload = json.dumps(payload)
         print(payload)
 
-        status_req = self.function_client.projects().locations().functions().get(name=full_func_name)
+        status_req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .get(name=full_func_name)
+        )
         deployed = False
         while not deployed:
             status_res = status_req.execute()
-            if status_res['status'] == 'ACTIVE':
+            if status_res["status"] == "ACTIVE":
                 deployed = True
             else:
                 time.sleep(5)
 
-        req = self.function_client.projects().locations().functions().call(
-            name=full_func_name,
-            body={
-                "data": payload
-            }
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .call(name=full_func_name, body={"data": payload})
         )
         begin = datetime.datetime.now()
         res = req.execute()
@@ -334,12 +415,15 @@ class GCP(System):
         print("RES: ", res)
 
         if "error" in res.keys() and res["error"] != "":
-            logging.error('Invocation of {} failed!'.format(name))
-            logging.error('Input: {}'.format(payload))
+            logging.error("Invocation of {} failed!".format(name))
+            logging.error("Input: {}".format(payload))
             raise RuntimeError()
 
         print("Result", res["result"])
-        return {"return": res["result"], "client_time": (end - begin) / datetime.timedelta(microseconds=1)}
+        return {
+            "return": res["result"],
+            "client_time": (end - begin) / datetime.timedelta(microseconds=1),
+        }
 
     def invoke_async(self, name: str, payload: dict):
         print("Nope")
@@ -347,8 +431,14 @@ class GCP(System):
     def shutdown(self):
         pass
 
-    def download_metrics(self, function_name: str, deployment_config: dict,
-                         start_time: int, end_time: int, requests: dict):
+    def download_metrics(
+        self,
+        function_name: str,
+        deployment_config: dict,
+        start_time: int,
+        end_time: int,
+        requests: dict,
+    ):
         client = monitoring_v3.MetricServiceClient()
         project_name = client.project_path(self.config.project_name)
         interval = monitoring_v3.types.TimeInterval()
@@ -360,30 +450,44 @@ class GCP(System):
             project_name,
             'metric.type = "cloudfunctions.googleapis.com/function/execution_times"',
             interval,
-            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL)
+            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
+        )
         for result in results:
             if result.resource.labels.get("function_name") == function_name:
                 for point in result.points:
-                    requests[function_name]["execution_times"] += [{
-                        "mean_time": point.value.distribution_value.mean,
-                        "executions_count": point.value.distribution_value.count
-                    }]
+                    requests[function_name]["execution_times"] += [
+                        {
+                            "mean_time": point.value.distribution_value.mean,
+                            "executions_count": point.value.distribution_value.count,
+                        }
+                    ]
 
         results = client.list_time_series(
             project_name,
             'metric.type = "cloudfunctions.googleapis.com/function/user_memory_bytes"',
             interval,
-            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL)
+            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
+        )
         for result in results:
             if result.resource.labels.get("function_name") == function_name:
                 for point in result.points:
-                    requests[function_name]["user_memory_bytes"] += [{
-                        "mean_memory": point.value.distribution_value.mean,
-                        "executions_count": point.value.distribution_value.count
-                    }]
+                    requests[function_name]["user_memory_bytes"] += [
+                        {
+                            "mean_memory": point.value.distribution_value.mean,
+                            "executions_count": point.value.distribution_value.count,
+                        }
+                    ]
 
-    def create_function_copies(self, function_names: List[str], api_name: str, memory: int, timeout: int,
-                               code_package: Benchmark, experiment_config: dict, api_id: str = None):
+    def create_function_copies(
+        self,
+        function_names: List[str],
+        api_name: str,
+        memory: int,
+        timeout: int,
+        code_package: Benchmark,
+        experiment_config: dict,
+        api_id: str = None,
+    ):
         pass
 
     # @abstractmethod
