@@ -111,9 +111,11 @@ class Config(ABC, LoggingBase):
         from sebs.gcp.config import GCPConfig
 
         name = config["name"]
-        func = {"aws": AWSConfig.deserialize, "azure": AzureConfig.deserialize, "gcp": GCPConfig.deserialize}.get(
-            name
-        )
+        func = {
+            "aws": AWSConfig.deserialize,
+            "azure": AzureConfig.deserialize,
+            "gcp": GCPConfig.deserialize,
+        }.get(name)
         assert func, "Unknown config type!"
         return func(config[name] if name in config else config, cache, handlers)
 

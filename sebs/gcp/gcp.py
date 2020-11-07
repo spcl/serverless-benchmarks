@@ -2,7 +2,7 @@ import docker
 import os
 import logging
 import shutil
-from typing import cast, Dict, Optional, Tuple, List
+from typing import cast, Dict, Optional, Tuple, List, Type
 
 from googleapiclient.discovery import build
 from google.cloud import monitoring_v3
@@ -35,7 +35,7 @@ class GCP(System):
         config: GCPConfig,
         cache_client: Cache,
         docker_client: docker.client,
-        logging_handlers: LoggingHandlers
+        logging_handlers: LoggingHandlers,
     ):
         super().__init__(system_config, cache_client, docker_client)
         self._config = config
@@ -389,6 +389,3 @@ class GCP(System):
     # def download_metrics(self):
     #    pass
 
-    @staticmethod
-    def name() -> str:
-        return "gcp"
