@@ -101,7 +101,7 @@ class GCPResources(Resources):
 
     @property
     def region(self):
-        return self.region
+        return self._region
 
     @staticmethod
     def initialize(dct: dict) -> Resources:

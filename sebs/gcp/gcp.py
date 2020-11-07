@@ -17,6 +17,7 @@ from ..faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
+from sebs.utils import LoggingHandlers
 
 """
     This class provides basic abstractions for the FaaS system.
@@ -34,26 +35,28 @@ class GCP(System):
         config: GCPConfig,
         cache_client: Cache,
         docker_client: docker.client,
+        logging_handlers: LoggingHandlers
     ):
         super().__init__(system_config, cache_client, docker_client)
         self._config = config
         self.storage: Optional[GCPStorage] = None
-
-    @property
-    def system_config(self) -> SeBSConfig:
-        return self._system_config
-
-    @property
-    def docker_client(self) -> docker.client:
-        return self._docker_client
-
-    @property
-    def cache_client(self) -> Cache:
-        return self._cache_client
+        self.logging_handlers = logging_handlers
 
     @property
     def config(self) -> GCPConfig:
         return self._config
+
+    @staticmethod
+    def name():
+        return "gcp"
+
+    @staticmethod
+    def typename():
+        return "GCP"
+
+    @staticmethod
+    def function_type() -> "Type[Function]":
+        return GCPFunction
 
     """
         Initialize the system. After the call the local or remote

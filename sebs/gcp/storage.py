@@ -26,6 +26,7 @@ class GCPStorage(PersistentStorage):
         self._replace_existing = val
 
     def __init__(self, cache_client: Cache, replace_existing: bool):
+        super().__init__(cache_client, replace_existing)
         self.replace_existing = replace_existing
         self.client = gcp_storage.Client()
         self.cached = False
