@@ -92,7 +92,7 @@ class GCPStorage(PersistentStorage):
     #    bucket_name = self.create_bucket(name)
     #    return bucket_name
 
-    def uploader_func(self, bucket_idx: int, file: str, filepath: str) -> None:
+    def uploader_func(self, bucket_idx: int, key: str, filepath: str) -> None:
         if self.cached and not self.replace_existing:
             return
         bucket_name = self.input_buckets[bucket_idx]
@@ -104,4 +104,4 @@ class GCPStorage(PersistentStorage):
                     )
                     return
         bucket_name = self.input_buckets[bucket_idx]
-        self.upload(bucket_name, file, filepath)
+        self.upload(bucket_name, filepath, key)
