@@ -103,10 +103,10 @@ class GCP(System):
 
     @staticmethod
     def format_function_name(func_name: str) -> str:
-        # AWS Lambda does not allow hyphens in function names
+        # GCP functions must begin with a letter
         func_name = func_name.replace("-", "_")
         func_name = func_name.replace(".", "_")
-        return func_name
+        return f"function-{func_name}"
 
     """
         Apply the system-specific code packaging routine to build benchmark.
