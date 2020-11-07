@@ -73,6 +73,11 @@ class GCPCredentials(Credentials):
         out = {"gcp_credentials": self.gcp_credentials}
         return out
 
+    def update_cache(self, cache: Cache):
+        cache.update_config(
+            val=self.gcp_credentials, keys=["gcp", "credentials", "gcp_credentials"]
+        )
+
 
 """
     Class grouping resources allocated at the FaaS system to execute functions
@@ -136,6 +141,12 @@ class GCPResources(Resources):
                 ret.logging.info("No resources for GCP found, initialize!")
         return ret
 
+    def update_cache(self, cache: Cache):
+        cache.update_config(
+            val=self.project_name, keys=["gcp", "resources", "project_name"]
+        )
+        cache.update_config(val=self.region, keys=["gcp", "resources", "region"])
+
 
 """
     FaaS system config defining cloud region (if necessary), credentials and
@@ -145,6 +156,7 @@ class GCPResources(Resources):
 
 class GCPConfig(Config):
 
+    # FIXME: project_name and region shouldn't be in resources
     _project_name: str
 
     def __init__(self, credentials: GCPCredentials, resources: GCPResources):
@@ -203,3 +215,7 @@ class GCPConfig(Config):
             "resources": self._resources.serialize(),
         }
         return out
+
+    def update_cache(self, cache: Cache):
+        self.credentials.update_cache(cache)
+        self.resources.update_cache(cache)

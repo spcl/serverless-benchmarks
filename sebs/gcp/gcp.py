@@ -1,17 +1,15 @@
-from typing import Dict, Tuple, List
-
 import docker
-from googleapiclient.discovery import build
-from google.cloud import monitoring_v3
 import os
-import datetime
-import time
 import logging
 import shutil
+from typing import cast, Dict, Optional, Tuple, List
+
+from googleapiclient.discovery import build
+from google.cloud import monitoring_v3
+
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
-import json
 from sebs import utils
 from ..faas.function import Function
 from .storage import PersistentStorage
@@ -30,9 +28,6 @@ from sebs.gcp.function import GCPFunction
 
 
 class GCP(System):
-    storage: GCPStorage
-    _config: GCPConfig
-
     def __init__(
         self,
         system_config: SeBSConfig,
@@ -40,12 +35,9 @@ class GCP(System):
         cache_client: Cache,
         docker_client: docker.client,
     ):
-        # self._system_config = system_config
-        # self._docker_client = docker_client
-        # self._cache_client = cache_client
-
         super().__init__(system_config, cache_client, docker_client)
         self._config = config
+        self.storage: Optional[GCPStorage] = None
 
     @property
     def system_config(self) -> SeBSConfig:
@@ -89,14 +81,29 @@ class GCP(System):
     def get_storage(
         self, replace_existing: bool = False, benchmark=None, buckets=None,
     ) -> PersistentStorage:
-        self.storage = GCPStorage(replace_existing)
-        if benchmark and buckets:
-            self.storage.allocate_buckets(
-                benchmark,
-                buckets,
-                self.cache_client.get_storage_config("gcp", benchmark),
-            )
+        if not self.storage:
+            self.storage = GCPStorage(self.cache_client, replace_existing)
+            self.storage.logging_handlers = self.logging_handlers
+        else:
+            self.storage.replace_existing = replace_existing
         return self.storage
+
+    @staticmethod
+    def default_function_name(code_package: Benchmark) -> str:
+        # Create function name
+        func_name = "{}-{}-{}".format(
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.benchmark_config.memory,
+        )
+        return GCP.format_function_name(func_name)
+
+    @staticmethod
+    def format_function_name(func_name: str) -> str:
+        # AWS Lambda does not allow hyphens in function names
+        func_name = func_name.replace("-", "_")
+        func_name = func_name.replace(".", "_")
+        return func_name
 
     """
         Apply the system-specific code packaging routine to build benchmark.
@@ -113,9 +120,9 @@ class GCP(System):
         :return: path to packaged code and its size
     """
 
-    def package_code(self, benchmark: Benchmark) -> Tuple[str, int]:
-
-        directory = benchmark.build()
+    def package_code(
+        self, directory: str, language_name: str, benchmark: str
+    ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],
@@ -125,7 +132,7 @@ class GCP(System):
             "python": ("handler.py", "main.py"),
             "nodejs": ("handler.js", "index.js"),
         }
-        package_config = CONFIG_FILES[benchmark.language_name]
+        package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         for file in os.listdir(directory):
@@ -139,13 +146,11 @@ class GCP(System):
 
         cur_dir = os.getcwd()
         os.chdir(directory)
-        old_name, new_name = HANDLER[benchmark.language_name]
+        old_name, new_name = HANDLER[language_name]
         shutil.move(old_name, new_name)
 
-        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark.benchmark), shell=True)
-        benchmark_archive = "{}.zip".format(
-            os.path.join(directory, benchmark.benchmark)
-        )
+        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)
+        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
         logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(benchmark_archive)
@@ -153,154 +158,86 @@ class GCP(System):
         logging.info("Zip archive size {:2f} MB".format(mbytes))
         shutil.move(new_name, old_name)
         os.chdir(cur_dir)
-        return os.path.join(directory, "{}.zip".format(benchmark.benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
-    """
-        a)  if a cached function is present and no update flag is passed,
-            then just return function name
-        b)  if a cached function is present and update flag is passed,
-            then upload new code
-        c)  if no cached function is present, then create code package and
-            either create new function on AWS or update an existing one
+    def create_function(self, code_package: Benchmark, func_name: str) -> "GCPFunction":
 
-        :param benchmark:
-        :param config: JSON config for benchmark
-        :param function_name: Override randomly generated function name
-        :return: function name, code size
-    """
-
-    def get_function(self, code_package: Benchmark) -> Function:
+        package = code_package.code_location
         benchmark = code_package.benchmark
-        self.location = self.config.region
-        self.project_name = self.config.project_name
-        project_name = self.project_name
-        location = self.location
+        language_runtime = code_package.language_version
+        timeout = code_package.benchmark_config.timeout
+        memory = code_package.benchmark_config.memory
+        code_bucket: Optional[str] = None
+        func_name = GCP.format_function_name(func_name)
+        storage_client = self.get_storage()
+        location = self.config.region
+        project_name = self.config.project_name
 
-        if code_package.is_cached and code_package.is_cached_valid:
-            func_name = code_package.cached_config["name"]
-            code_location = code_package.code_location
-            logging.info(
-                "Using cached function {fname} in {loc}".format(
-                    fname=func_name, loc=code_location
+        code_package_name = cast(str, os.path.basename(package))
+        code_bucket, idx = storage_client.add_input_bucket(benchmark)
+        storage_client.upload(code_bucket, package, code_package_name)
+        self.logging.info(
+            "Uploading function {} code to {}".format(func_name, code_bucket)
+        )
+
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .list(
+                parent="projects/{project_name}/locations/{location}".format(
+                    project_name=project_name, location=location
                 )
             )
-            return GCPFunction(func_name, benchmark, code_package.hash, self)
+        )
+        res = req.execute()
 
-        elif code_package.is_cached:
-            func_name = code_package.cached_config["name"]
-            full_func_name = (
-                f"projects/{project_name}/locations/{location}/functions/{func_name}"
-            )
-            code_location = code_package.code_location
-            timeout = code_package.benchmark_config.timeout
-            memory = code_package.benchmark_config.memory
-
-            package, code_size = self.package_code(code_package)
-            code_package_name = os.path.basename(package)
-            self.update_function(
-                benchmark,
-                full_func_name,
-                code_package_name,
-                code_package,
-                timeout,
-                memory,
-            )
-            code_size = Benchmark.directory_size(code_location)
-
-            cached_cfg = code_package.cached_config
-            cached_cfg["code_size"] = code_size
-            cached_cfg["timeout"] = timeout
-            cached_cfg["memory"] = memory
-            cached_cfg["hash"] = code_package.hash
-            self.cache_client.update_function(
-                "gcp", benchmark, code_package.language_name, package, cached_cfg
-            )
-
-            logging.info(
-                "Updating cached function {fname} in {loc}".format(
-                    fname=func_name, loc=code_location
-                )
-            )
-
-            return GCPFunction(func_name, benchmark, code_package.hash, self)
+        full_func_name = GCP.get_full_function_name(project_name, location, func_name)
+        if "functions" in res.keys() and full_func_name in [
+            f["name"] for f in res["functions"]
+        ]:
+            # FIXME: retrieve existing configuration, update code and return object
+            raise NotImplementedError()
+            # self.update_function(
+            #    benchmark,
+            #    full_func_name,
+            #    code_package_name,
+            #    code_package,
+            #    timeout,
+            #    memory,
+            # )
         else:
-            code_location = code_package.code_location
-            timeout = code_package.benchmark_config.timeout
-            memory = code_package.benchmark_config.memory
-
-            func_name = "foo_{}-{}-{}".format(
-                benchmark, code_package.language_name, memory
+            language_runtime = code_package.language_version
+            print(
+                "language runtime: ",
+                code_package.language_name + language_runtime.replace(".", ""),
             )
-            func_name = func_name.replace("-", "_")
-            func_name = func_name.replace(".", "_")
-
-            package, code_size = self.package_code(code_package)
-
-            code_package_name = os.path.basename(package)
-            bucket, idx = self.storage.add_input_bucket(benchmark)
-            self.storage.upload(bucket, code_package_name, package)
-            logging.info("Uploading function {} code to {}".format(func_name, bucket))
-            # blob = self.storage.client.bucket(bucket).blob(code_package_name)
-
-            print("config: ", self.config)
             req = (
                 self.function_client.projects()
                 .locations()
                 .functions()
-                .list(
-                    parent="projects/{project_name}/locations/{location}".format(
+                .create(
+                    location="projects/{project_name}/locations/{location}".format(
                         project_name=project_name, location=location
-                    )
+                    ),
+                    body={
+                        "name": full_func_name,
+                        "entryPoint": "handler",
+                        "runtime": code_package.language_name
+                        + language_runtime.replace(".", ""),
+                        "availableMemoryMb": memory,
+                        "timeout": str(timeout) + "s",
+                        "httpsTrigger": {},
+                        "sourceArchiveUrl": "gs://"
+                        + code_bucket
+                        + "/"
+                        + code_package_name,
+                    },
                 )
             )
+            print("request: ", req)
             res = req.execute()
-
-            full_func_name = (
-                f"projects/{project_name}/locations/{location}/functions/{func_name}"
-            )
-            if "functions" in res.keys() and full_func_name in [
-                f["name"] for f in res["functions"]
-            ]:
-                self.update_function(
-                    benchmark,
-                    full_func_name,
-                    code_package_name,
-                    code_package,
-                    timeout,
-                    memory,
-                )
-            else:
-                language_runtime = code_package.language_version
-                print(
-                    "language runtime: ",
-                    code_package.language_name + language_runtime.replace(".", ""),
-                )
-                req = (
-                    self.function_client.projects()
-                    .locations()
-                    .functions()
-                    .create(
-                        location="projects/{project_name}/locations/{location}".format(
-                            project_name=project_name, location=location
-                        ),
-                        body={
-                            "name": full_func_name,
-                            "entryPoint": "handler",
-                            "runtime": code_package.language_name
-                            + language_runtime.replace(".", ""),
-                            "availableMemoryMb": memory,
-                            "timeout": str(timeout) + "s",
-                            "httpsTrigger": {},
-                            "sourceArchiveUrl": "gs://"
-                            + bucket
-                            + "/"
-                            + code_package_name,
-                        },
-                    )
-                )
-                print("request: ", req)
-                res = req.execute()
-                print("response:", res)
+            print("response:", res)
 
             our_function_req = (
                 self.function_client.projects()
@@ -312,43 +249,43 @@ class GCP(System):
             invoke_url = res["httpsTrigger"]["url"]
             print("RESPONSE: ", res)
 
-            self.cache_client.add_function(
-                deployment="gcp",
-                benchmark=benchmark,
-                language=code_package.language_name,
-                code_package=package,
-                language_config={
-                    "name": func_name,
-                    "code_size": code_size,
-                    "runtime": code_package.language_version,
-                    "memory": memory,
-                    "timeout": timeout,
-                    "hash": code_package.hash,
-                    "url": invoke_url,
-                },
-                storage_config={
-                    "buckets": {
-                        "input": self.storage.input_buckets,
-                        "output": self.storage.output_buckets,
-                    }
-                },
+            function = GCPFunction(
+                func_name, benchmark, code_package.hash, timeout, memory, code_bucket
             )
-            return GCPFunction(func_name, benchmark, code_package.hash, self)
 
-    # FIXME: trigger allocation API
-    # FIXME: result query API
-    # FIXME: metrics query API
-    def update_function(
-        self,
-        benchmark,
-        full_func_name,
-        code_package_name,
-        code_package,
-        timeout,
-        memory,
-    ):
+        # Add LibraryTrigger to a new function
+        from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger
+
+        trigger = LibraryTrigger(func_name, self)
+        trigger.logging_handlers = self.logging_handlers
+        function.add_trigger(trigger)
+
+        http_trigger = HTTPTrigger(invoke_url)
+        http_trigger.logging_handlers = self.logging_handlers
+        function.add_trigger(http_trigger)
+
+        return function
+
+    def cached_function(self, function: Function):
+
+        from sebs.faas.function import Trigger
+        from sebs.gcp.triggers import LibraryTrigger
+
+        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
+            gcp_trigger = cast(LibraryTrigger, trigger)
+            gcp_trigger.logging_handlers = self.logging_handlers
+            gcp_trigger.deployment_client = self
+
+    def update_function(self, function: Function, code_package: Benchmark):
+
+        function = cast(GCPFunction, function)
         language_runtime = code_package.language_version
-        bucket, idx = self.storage.add_input_bucket(benchmark)
+        code_package_name = os.path.basename(code_package.code_location)
+        storage = cast(GCPStorage, self.get_storage())
+        bucket = function.code_bucket(code_package.benchmark, storage)
+        full_func_name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, function.name
+        )
         req = (
             self.function_client.projects()
             .locations()
@@ -360,8 +297,8 @@ class GCP(System):
                     "entryPoint": "handler",
                     "runtime": code_package.language_name
                     + language_runtime.replace(".", ""),
-                    "availableMemoryMb": memory,
-                    "timeout": str(timeout) + "s",
+                    "availableMemoryMb": function.memory,
+                    "timeout": str(function.timeout) + "s",
                     "httpsTrigger": {},
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
                 },
@@ -369,75 +306,25 @@ class GCP(System):
         )
         res = req.execute()
         print("response:", res)
-        logging.info(
-            "Updating GCP code of function {} from {}".format(
-                full_func_name, code_package
-            )
-        )
+        self.logging.info("Published new function code")
+
+    @staticmethod
+    def get_full_function_name(project_name: str, location: str, func_name: str):
+        return f"projects/{project_name}/locations/{location}/functions/{func_name}"
 
     def prepare_experiment(self, benchmark):
         logs_bucket = self.storage.add_output_bucket(benchmark, suffix="logs")
         return logs_bucket
 
-    def invoke_sync(self, name: str, payload: dict):
-        full_func_name = (
-            f"projects/{self.project_name}/locations/"
-            f"{self.location}/functions/{self.func_name}"
-        )
-        print(payload)
-        payload = json.dumps(payload)
-        print(payload)
-
-        status_req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .get(name=full_func_name)
-        )
-        deployed = False
-        while not deployed:
-            status_res = status_req.execute()
-            if status_res["status"] == "ACTIVE":
-                deployed = True
-            else:
-                time.sleep(5)
-
-        req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .call(name=full_func_name, body={"data": payload})
-        )
-        begin = datetime.datetime.now()
-        res = req.execute()
-        end = datetime.datetime.now()
-
-        print("RES: ", res)
-
-        if "error" in res.keys() and res["error"] != "":
-            logging.error("Invocation of {} failed!".format(name))
-            logging.error("Input: {}".format(payload))
-            raise RuntimeError()
-
-        print("Result", res["result"])
-        return {
-            "return": res["result"],
-            "client_time": (end - begin) / datetime.timedelta(microseconds=1),
-        }
-
-    def invoke_async(self, name: str, payload: dict):
-        print("Nope")
-
-    def shutdown(self):
-        pass
+    def shutdown(self) -> None:
+        try:
+            self.cache_client.lock()
+            self.config.update_cache(self.cache_client)
+        finally:
+            self.cache_client.unlock()
 
     def download_metrics(
-        self,
-        function_name: str,
-        deployment_config: dict,
-        start_time: int,
-        end_time: int,
-        requests: dict,
+        self, function_name: str, start_time: int, end_time: int, requests: dict,
     ):
         client = monitoring_v3.MetricServiceClient()
         project_name = client.project_path(self.config.project_name)
