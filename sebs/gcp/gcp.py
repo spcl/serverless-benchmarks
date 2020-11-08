@@ -1,8 +1,10 @@
 import docker
 import os
 import logging
+import re
 import shutil
 import time
+from datetime import datetime, timezone
 from typing import cast, Dict, Optional, Tuple, List, Type
 
 from googleapiclient.discovery import build
@@ -361,44 +363,98 @@ class GCP(System):
     def download_metrics(
         self, function_name: str, start_time: int, end_time: int, requests: dict,
     ):
-        client = monitoring_v3.MetricServiceClient()
-        project_name = client.project_path(self.config.project_name)
-        interval = monitoring_v3.types.TimeInterval()
 
-        interval.start_time.seconds = int(start_time - 60)
-        interval.end_time.seconds = int(end_time + 60)
+        """
+            Use GCP's logging system to find execution time of each function invocation.
 
-        results = client.list_time_series(
-            project_name,
-            'metric.type = "cloudfunctions.googleapis.com/function/execution_times"',
-            interval,
-            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
+            There shouldn't be problem of waiting for complete results,
+            since logs appear very quickly here.
+        """
+        from google.cloud import logging as gcp_logging
+
+        logging_client = gcp_logging.Client()
+        logger = logging_client.logger(
+            "cloudfunctions.googleapis.com%2Fcloud-functions"
         )
-        for result in results:
-            if result.resource.labels.get("function_name") == function_name:
-                for point in result.points:
-                    requests[function_name]["execution_times"] += [
-                        {
-                            "mean_time": point.value.distribution_value.mean,
-                            "executions_count": point.value.distribution_value.count,
-                        }
-                    ]
 
-        results = client.list_time_series(
-            project_name,
-            'metric.type = "cloudfunctions.googleapis.com/function/user_memory_bytes"',
-            interval,
-            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
+        """
+            GCP accepts only single date format: 'YYYY-MM-DDTHH:MM:SSZ'.
+            Thus, we first convert timestamp to UTC timezone.
+            Then, we generate correct format.
+
+            Add 1 second to end time to ensure that removing
+            milliseconds doesn't affect query.
+        """
+        timestamps = []
+        for timestamp in [start_time, end_time + 1]:
+            utc_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+        invocations = logger.list_entries(
+            filter_=(f'resource.labels.function_name = "{function_name}" '
+                    f'timestamp >= "{timestamps[0]}" '
+                    f'timestamp <= "{timestamps[1]}"')
         )
-        for result in results:
-            if result.resource.labels.get("function_name") == function_name:
-                for point in result.points:
-                    requests[function_name]["user_memory_bytes"] += [
-                        {
-                            "mean_memory": point.value.distribution_value.mean,
-                            "executions_count": point.value.distribution_value.count,
-                        }
-                    ]
+        invocations_processed = 0
+        for invoc in invocations:
+            if "execution took" in invoc.payload:
+                execution_id = invoc.labels["execution_id"]
+                # might happen that we get invocation from another experiment
+                if execution_id not in requests:
+                    continue
+                # find number of miliseconds
+                exec_time = re.search(r"\d+ ms", invoc.payload).group().split()[0]
+                requests[execution_id].provider_times.execution = int(exec_time)
+                invocations_processed += 1
+        self.logging.info(
+            f"GCP: Found time metrics for {invocations_processed} "
+            f"out of {len(requests.keys())} invocations."
+        )
+
+        """
+            Use metrics to find estimated values for maximum memory used, active instances
+            and network traffic.
+            https://cloud.google.com/monitoring/api/metrics_gcp#gcp-cloudfunctions
+        """
+        # FIXME: temporary disable
+        # client = monitoring_v3.MetricServiceClient()
+        # project_name = client.common_project_path(self.config.project_name)
+        # interval = monitoring_v3.types.TimeInterval()
+        # print(interval.start_time)
+        # interval.start_time.seconds = int(start_time - 60)
+        # interval.end_time.seconds = int(end_time + 60)
+
+        # results = client.list_time_series(
+        #    project_name,
+        #    'metric.type = "cloudfunctions.googleapis.com/function/execution_times"',
+        #    interval,
+        #    monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
+        # )
+        # for result in results:
+        #    if result.resource.labels.get("function_name") == function_name:
+        #        for point in result.points:
+        #            requests[function_name]["execution_times"] += [
+        #                {
+        #                    "mean_time": point.value.distribution_value.mean,
+        #                    "executions_count": point.value.distribution_value.count,
+        #                }
+        #            ]
+
+        # results = client.list_time_series(
+        #    project_name,
+        #    'metric.type = "cloudfunctions.googleapis.com/function/user_memory_bytes"',
+        #    interval,
+        #    monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
+        # )
+        # for result in results:
+        #    if result.resource.labels.get("function_name") == function_name:
+        #        for point in result.points:
+        #            requests[function_name]["user_memory_bytes"] += [
+        #                {
+        #                    "mean_memory": point.value.distribution_value.mean,
+        #                    "executions_count": point.value.distribution_value.count,
+        #                }
+        #            ]
 
     def create_function_copies(
         self,
