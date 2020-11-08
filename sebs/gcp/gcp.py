@@ -44,6 +44,9 @@ class GCP(System):
         self._config = config
         self.storage: Optional[GCPStorage] = None
         self.logging_handlers = logging_handlers
+        from random import randrange
+
+        self.cold_start_counter = randrange(100)
 
     @property
     def config(self) -> GCPConfig:
@@ -291,7 +294,9 @@ class GCP(System):
 
             location = self.config.region
             project_name = self.config.project_name
-            full_func_name = GCP.get_full_function_name(project_name, location, function.name)
+            full_func_name = GCP.get_full_function_name(
+                project_name, location, function.name
+            )
             self.logging.info(f"Function {function.name} - waiting for deployment...")
             our_function_req = (
                 self.function_client.projects()
@@ -306,15 +311,14 @@ class GCP(System):
                     deployed = True
                 else:
                     time.sleep(3)
-            self.logging.info(f"Function {func_name} - deployed!")
+            self.logging.info(f"Function {function.name} - deployed!")
             invoke_url = status_res["httpsTrigger"]["url"]
 
-            http_trigger = HTTPTrigger(invoke_url)
-            http_trigger.logging_handlers = self.logging_handlers
-            function.add_trigger(http_trigger)
+            trigger = HTTPTrigger(invoke_url)
         else:
             raise RuntimeError("Not supported!")
 
+        trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
         self.cache_client.update_function(function)
         return trigger
@@ -407,9 +411,11 @@ class GCP(System):
             timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
         invocations = logger.list_entries(
-            filter_=(f'resource.labels.function_name = "{function_name}" '
-                    f'timestamp >= "{timestamps[0]}" '
-                    f'timestamp <= "{timestamps[1]}"')
+            filter_=(
+                f'resource.labels.function_name = "{function_name}" '
+                f'timestamp >= "{timestamps[0]}" '
+                f'timestamp <= "{timestamps[1]}"'
+            )
         )
         invocations_processed = 0
         for invoc in invocations:
@@ -473,12 +479,58 @@ class GCP(System):
         #            ]
 
     def enforce_cold_start(self, function: Function, code_package: Benchmark):
-        pass
 
-    def enforce_cold_starts(self, function: List[Function], code_package: Benchmark):
-        pass
+        # FIXME: error handling
+        # FIXME: wait until applied
+        name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, function.name
+        )
+        self.cold_start_counter += 1
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .patch(
+                name=name,
+                updateMask="environmentVariables",
+                body={
+                    "environmentVariables": {"cold_start": str(self.cold_start_counter)}
+                },
+            )
+        )
+        res = req.execute()
+        new_version = res["versionId"]
 
-    def get_functions(self, code_package: Benchmark, function_names: List[str]) -> List["Function"]:
+        return new_version
+
+    def enforce_cold_starts(self, functions: List[Function], code_package: Benchmark):
+
+        new_versions = []
+        for func in functions:
+            new_versions.append((func, self.enforce_cold_start(func, code_package)))
+            self.cold_start_counter -= 1
+
+        # verify deployment
+        undeployed_functions = []
+        deployment_done = False
+        while not deployment_done:
+            for versionId, func in new_versions:
+                if not self.is_deployed(func.name, versionId):
+                    undeployed_functions.append(func)
+            deployed = len(new_versions) - len(undeployed_functions)
+            self.logging.info(f"Redeployed {deployed} out of {len(new_versions)}")
+            if deployed == len(new_versions):
+                deployment_done = True
+                break
+            time.sleep(5)
+            new_versions = undeployed_functions
+            undeployed_functions = []
+
+        self.cold_start_counter += 1
+
+    def get_functions(
+        self, code_package: Benchmark, function_names: List[str]
+    ) -> List["Function"]:
 
         functions: List["Function"] = []
         undeployed_functions_before = []
@@ -491,35 +543,41 @@ class GCP(System):
         undeployed_functions = []
         deployment_done = False
         while not deployment_done:
-            for func in functions:
+            for func in undeployed_functions_before:
                 if not self.is_deployed(func.name):
                     undeployed_functions.append(func)
             deployed = len(undeployed_functions_before) - len(undeployed_functions)
-            self.logging.info(f"Deployed {deployed} out of {len(undeployed_functions_before)}")
+            self.logging.info(
+                f"Deployed {deployed} out of {len(undeployed_functions_before)}"
+            )
             if deployed == len(undeployed_functions_before):
                 deployment_done = True
                 break
             time.sleep(5)
             undeployed_functions_before = undeployed_functions
             undeployed_functions = []
+            self.logging.info(f"Waiting on {undeployed_functions_before}")
 
         return functions
 
-    def is_deployed(self, func_name: str) -> bool:
-        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
-        function_client = self.get_function_client()
-        status_req = (
-            function_client.projects().locations().functions().get(name=name)
+    def is_deployed(self, func_name: str, versionId: int = -1) -> bool:
+        name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
         )
+        function_client = self.get_function_client()
+        status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()
-        return status_res["status"] == "ACTIVE"
+        if versionId == -1:
+            return status_res["status"] == "ACTIVE"
+        else:
+            return status_res["versionId"] == versionId
 
     def deployment_version(self, func: Function) -> int:
-        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
-        function_client = self.deployment_client.get_function_client()
-        status_req = (
-            function_client.projects().locations().functions().get(name=name)
+        name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, func.name
         )
+        function_client = self.deployment_client.get_function_client()
+        status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()
         return int(status_res["versionId"])
 
