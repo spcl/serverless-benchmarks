@@ -272,7 +272,7 @@ def experment_process(experiment, **kwargs):
         deployment_client,
     ) = parse_common_params(**kwargs)
     experiment = sebs_client.get_experiment(experiment, config["experiments"])
-    experiment.process(output_dir)
+    experiment.process(sebs_client, deployment_client, output_dir, logging_filename)
 
 
 if __name__ == "__main__":
