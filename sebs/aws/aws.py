@@ -42,6 +42,14 @@ class AWS(System):
     def config(self) -> AWSConfig:
         return self._config
 
+    @property
+    def cold_start_counter(self) -> int:
+        return self._cold_start_counter
+
+    @cold_start_counter.setter
+    def cold_start_counter(self, val: int):
+        self._cold_start_counter = val
+
     """
         :param cache_client: Function cache instance
         :param config: Experiments config
@@ -60,7 +68,7 @@ class AWS(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self.storage: Optional[S3] = None
-        self.cold_start_counter = 0
+        self._cold_start_counter = 0
 
     def initialize(self, config: Dict[str, str] = {}):
         # thread-safe
@@ -491,13 +499,15 @@ class AWS(System):
         #    }
         # )
         # time.sleep(5)
-        self.cold_start_counter += 1
+        self._cold_start_counter += 1
         self.get_lambda_client().update_function_configuration(
             FunctionName=function.name,
             Timeout=function.timeout,
             MemorySize=function.memory,
             Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
+        #import time
+        #time.sleep(1)
 
 
 #    def create_function_copies(
