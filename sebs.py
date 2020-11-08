@@ -271,7 +271,7 @@ def experment_process(experiment, **kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    experiment = sebs_client.get_experiment(config["experiments"])
+    experiment = sebs_client.get_experiment(experiment, config["experiments"])
     experiment.process(output_dir)
 
 
