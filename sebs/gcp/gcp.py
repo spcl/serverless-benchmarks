@@ -280,10 +280,6 @@ class GCP(System):
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
 
-        http_trigger = HTTPTrigger(invoke_url)
-        http_trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(http_trigger)
-
         return function
 
     def create_trigger(
@@ -482,15 +478,36 @@ class GCP(System):
     def enforce_cold_starts(self, function: List[Function], code_package: Benchmark):
         pass
 
-    def create_functions(self, code_package: Benchmark, function_names: List[str]) -> List["Function"]:
+    def get_functions(self, code_package: Benchmark, function_names: List[str]) -> List["Function"]:
 
         functions: List["Function"] = []
+        undeployed_functions_before = []
         for func_name in function_names:
-            self.create_function(code_package, func_name)
+            func = self.get_function(code_package, func_name)
+            functions.append(func)
+            undeployed_functions_before.append(func)
+
+        # verify deployment
+        undeployed_functions = []
+        deployment_done = False
+        while not deployment_done:
+            for func in functions:
+                if not self.is_deployed(func.name):
+                    undeployed_functions.append(func)
+            deployed = len(undeployed_functions_before) - len(undeployed_functions)
+            self.logging.info(f"Deployed {deployed} out of {len(undeployed_functions_before)}")
+            if deployed == len(undeployed_functions_before):
+                deployment_done = True
+                break
+            time.sleep(5)
+            undeployed_functions_before = undeployed_functions
+            undeployed_functions = []
+
+        return functions
 
     def is_deployed(self, func_name: str) -> bool:
         name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
-        function_client = self.deployment_client.get_function_client()
+        function_client = self.get_function_client()
         status_req = (
             function_client.projects().locations().functions().get(name=name)
         )
