@@ -61,11 +61,11 @@ class PerfCost(Experiment):
         memory_sizes = settings["memory-sizes"]
         if len(memory_sizes) == 0:
             self.logging.info("Begin experiment")
-            self.run_configuration(settings["invocations"], settings["repetitions"])
+            self.run_configuration(settings, settings["repetitions"])
         for memory in memory_sizes:
             self.logging.info(f"Begin experiment on memory size {memory}")
             self.run_configuration(
-                settings["invocations"], settings["repetitions"], suffix=str(memory)
+                settings, settings["repetitions"], suffix=str(memory)
             )
 
     def compute_statistics(self, times: List[float]):
@@ -87,7 +87,7 @@ class PerfCost(Experiment):
                 f"CI {alpha} from {ci_interval[0]} to {ci_interval[1]}, within {ratio}% of mean"
             )
 
-    def run_configuration(self, invocations: int, repetitions: int, suffix: str = ""):
+    def run_configuration(self, settings: dict, repetitions: int, suffix: str = ""):
 
         # Randomize starting value to ensure that it's not the same as in the previous run.
         # Otherwise we could not change anything and containers won't be killed.
@@ -98,64 +98,80 @@ class PerfCost(Experiment):
         # FIXME: update memory configuration
         # FIXME: repetitions
 
-        with ThreadPool(invocations) as pool:
-            """
-                Cold experiment: schedule all invocations in parallel.
-            """
-            file_name = f"cold_results_{suffix}.json" if suffix else "cold_results.json"
-            self.logging.info(f"Begin cold experiments")
-            with open(os.path.join(self._out_dir, file_name), "w") as out_f:
-
-                result = ExperimentResult(self.config, self._deployment_client.config)
-                client_times = []
-
-                result.begin()
-                results = []
-                for i in range(0, invocations):
-                    results.append(
-                        pool.apply_async(
-                            self._trigger.sync_invoke, args=(self._benchmark_input,)
-                        )
+        """
+            Cold experiment: schedule all invocations in parallel.
+        """
+        file_name = f"cold_results_{suffix}.json" if suffix else "cold_results.json"
+        self.logging.info(f"Begin cold experiments")
+        with open(os.path.join(self._out_dir, file_name), "w") as out_f:
+            samples_gathered = 0
+            invocations = settings["cold-invocations"]
+            client_times = []
+            with ThreadPool(invocations) as pool:
+                while samples_gathered < repetitions:
+                    result = ExperimentResult(
+                        self.config, self._deployment_client.config
                     )
-                result.end()
+                    client_times = []
 
-                for res in results:
-                    ret = res.get()
-                    result.add_invocation(self._function, ret)
-                    client_times.append(ret.times.client / 1000.0)
-                    if not ret.stats.cold_start:
-                        self.logging.info(f"Invocation {ret.request_id} not cold!")
-                self.compute_statistics(client_times)
+                    result.begin()
+                    results = []
+                    for i in range(0, invocations):
+                        results.append(
+                            pool.apply_async(
+                                self._trigger.sync_invoke, args=(self._benchmark_input,)
+                            )
+                        )
+                    result.end()
+
+                    for res in results:
+                        ret = res.get()
+                        result.add_invocation(self._function, ret)
+                        client_times.append(ret.times.client / 1000.0)
+                        if not ret.stats.cold_start:
+                            self.logging.info(f"Invocation {ret.request_id} not cold!")
+
+                    self.compute_statistics(client_times)
+                    # FIXME: should we simply remove non-cold samples?
+                    samples_gathered += len(results)
                 out_f.write(serialize(result))
 
-            """
-                Warm experiment: schedule many invocations in parallel.
-                Here however it doesn't matter if they're perfectly aligned.
-            """
-            file_name = f"warm_results_{suffix}.json" if suffix else "warm_results.json"
-            self.logging.info(f"Begin warm experiments")
-            with open(os.path.join(self._out_dir, file_name), "w") as out_f:
-
-                result = ExperimentResult(self.config, self._deployment_client.config)
-                client_times = []
-
-                result.begin()
-                results = []
-                for i in range(0, invocations):
-                    results.append(
-                        pool.apply_async(
-                            self._trigger.sync_invoke, args=(self._benchmark_input,)
-                        )
+        """
+            Warm experiment: schedule many invocations in parallel.
+            Here however it doesn't matter if they're perfectly aligned.
+        """
+        file_name = f"warm_results_{suffix}.json" if suffix else "warm_results.json"
+        self.logging.info(f"Begin warm experiments")
+        with open(os.path.join(self._out_dir, file_name), "w") as out_f:
+            samples_gathered = 0
+            invocations = settings["warm-invocations"]
+            client_times = []
+            with ThreadPool(invocations) as pool:
+                while samples_gathered < repetitions:
+                    result = ExperimentResult(
+                        self.config, self._deployment_client.config
                     )
-                result.end()
 
-                for res in results:
-                    ret = res.get()
-                    result.add_invocation(self._function, ret)
-                    client_times.append(ret.times.client / 1000.0)
-                    if not ret.stats.cold_start:
-                        self.logging.info(f"Invocation {ret.request_id} cold!")
-                self.compute_statistics(client_times)
+                    result.begin()
+                    results = []
+                    for i in range(0, invocations):
+                        results.append(
+                            pool.apply_async(
+                                self._trigger.sync_invoke, args=(self._benchmark_input,)
+                            )
+                        )
+                    result.end()
+
+                    for res in results:
+                        ret = res.get()
+                        result.add_invocation(self._function, ret)
+                        client_times.append(ret.times.client / 1000.0)
+                        if not ret.stats.cold_start:
+                            self.logging.info(f"Invocation {ret.request_id} cold!")
+
+                    self.compute_statistics(client_times)
+                    # FIXME: should we simply remove non-cold samples?
+                    samples_gathered += len(results)
                 out_f.write(serialize(result))
 
     def process(
@@ -210,4 +226,3 @@ class PerfCost(Experiment):
                                     invoc.provider_times.execution,
                                 ]
                             )
-
