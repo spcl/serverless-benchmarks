@@ -1,5 +1,7 @@
 import os
 from multiprocessing.pool import ThreadPool
+from typing import List
+
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.function import Trigger
 from sebs.experiments.experiment import Experiment
@@ -63,6 +65,21 @@ class PerfCost(Experiment):
             self.logging.info(f"Begin experiment on memory size {memory}")
             self.run_configuration(settings["invocations"], settings["repetitions"], suffix=str(memory))
 
+    def compute_statistics(self, times: List[float]):
+
+        import numpy as np
+        import scipy.stats as st
+
+        mean = np.mean(times)
+        std = np.std(times)
+        cv = std/mean*100
+        self.logging.info(f"Mean {mean}, std {std}, CV {cv}")
+        for alpha in [0.9, 0.95, 0.99]:
+            ci_interval = st.t.interval(alpha, len(times)-1, loc=mean, scale=st.sem(times))
+            interval_width = ci_interval[1] - ci_interval[0]
+            ratio = 100*interval_width / mean / 2.0
+            self.logging.info(f"CI {alpha} from {ci_interval[0]} to {ci_interval[1]}, within {ratio}% of mean")
+
     def run_configuration(self, invocations: int, repetitions: int, suffix: str =""):
 
         # Randomize starting value to ensure that it's not the same as in the previous run.
@@ -83,6 +100,7 @@ class PerfCost(Experiment):
                 result = ExperimentResult(
                     self.config, self._deployment_client.config
                 )
+                client_times = []
 
                 result.begin()
                 results = []
@@ -95,9 +113,10 @@ class PerfCost(Experiment):
                 for res in results:
                     ret = res.get()
                     result.add_invocation(self._function, ret)
+                    client_times.append(ret.times.client / 1000.0)
                     if not ret.stats.cold_start:
                         self.logging.info(f"Invocation {ret.request_id} not cold!")
-
+                self.compute_statistics(client_times)
                 out_f.write(serialize(result))
 
             """
@@ -110,6 +129,7 @@ class PerfCost(Experiment):
                 result = ExperimentResult(
                     self.config, self._deployment_client.config
                 )
+                client_times = []
 
                 result.begin()
                 results = []
@@ -122,7 +142,8 @@ class PerfCost(Experiment):
                 for res in results:
                     ret = res.get()
                     result.add_invocation(self._function, ret)
-
+                    client_times.append(ret.times.client / 1000.0)
+                self.compute_statistics(client_times)
                 out_f.write(serialize(result))
 
     def process(self, directory: str):
