@@ -52,6 +52,7 @@ class PerfCost(Experiment):
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
         self._deployment_client = deployment_client
+        self._sebs_client = sebs_client
 
     def run(self):
 
@@ -64,6 +65,8 @@ class PerfCost(Experiment):
             self.run_configuration(settings, settings["repetitions"])
         for memory in memory_sizes:
             self.logging.info(f"Begin experiment on memory size {memory}")
+            self._function.memory = memory
+            self._sebs_client.cache_client.update_function(self._function)
             self.run_configuration(
                 settings, settings["repetitions"], suffix=str(memory)
             )
@@ -95,8 +98,6 @@ class PerfCost(Experiment):
 
         self._deployment_client.cold_start_counter = randrange(100)
         self._deployment_client.enforce_cold_start(self._function, self._benchmark)
-        # FIXME: update memory configuration
-        # FIXME: repetitions
 
         """
             Cold experiment: schedule all invocations in parallel.
