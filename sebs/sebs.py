@@ -4,6 +4,7 @@ import docker
 
 from sebs.aws import AWS
 from sebs.azure.azure import Azure
+from sebs.gcp import GCP
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
@@ -50,7 +51,7 @@ class SeBS:
     ) -> FaaSSystem:
 
         name = config["name"]
-        implementations = {"aws": AWS, "azure": Azure}
+        implementations = {"aws": AWS, "azure": Azure, "gcp": GCP}
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 

@@ -11,21 +11,22 @@ from sebs.faas.system import System as FaaSSystem
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
 
+
 class CodePackageSize:
     def __init__(self, benchmark: Benchmark, settings: dict):
         import math
         from numpy import linspace
+
         points = linspace(
             settings["code_package_begin"],
             settings["code_package_end"],
-            settings["code_package_points"]
+            settings["code_package_points"],
         )
         # estimate the size after zip compression
-        self.pts = [int(pt) - 4*1024 for pt in points]
+        self.pts = [int(pt) - 4 * 1024 for pt in points]
         from sebs.utils import find_benchmark
-        self._benchmark_path = find_benchmark(
-            "030.clock-synchronization", "benchmarks"
-        )
+
+        self._benchmark_path = find_benchmark("030.clock-synchronization", "benchmarks")
         self._benchmark = benchmark
         random.seed(1410)
 
@@ -35,29 +36,30 @@ class CodePackageSize:
             f.write(arr)
         self._benchmark.query_cache()
         function = self._deployment_client.get_function(self._benchmark)
-        self._deployment_client.update_function(
-            function, self._benchmark
-        )
+        self._deployment_client.update_function(function, self._benchmark)
+
 
 class PayloadSize:
-
     def __init__(self, settings: dict):
         import math
         from numpy import linspace
+
         points = linspace(
             settings["payload_begin"],
             settings["payload_end"],
-            settings["payload_points"]
+            settings["payload_points"],
         )
         # why?
-        self.pts = [math.floor((pt - 123)*3/4) for pt in points]
+        self.pts = [math.floor((pt - 123) * 3 / 4) for pt in points]
 
     def before(self, size: int, input_benchmark: dict):
         import base64
         from io import BytesIO
+
         f = BytesIO()
         f.write(bytearray(size))
         input_benchmark["data"] = base64.b64encode(f.getvalue()).decode()
+
 
 class InvocationOverhead(Experiment):
     def __init__(self, config: ExperimentConfig):
@@ -76,9 +78,11 @@ class InvocationOverhead(Experiment):
 
         triggers = self._function.triggers(Trigger.TriggerType.HTTP)
         if len(triggers) == 0:
-          self._trigger = deployment_client.create_trigger(self._function, Trigger.TriggerType.HTTP)
+            self._trigger = deployment_client.create_trigger(
+                self._function, Trigger.TriggerType.HTTP
+            )
         else:
-          self._trigger = triggers[0]
+            self._trigger = triggers[0]
 
         self._storage = deployment_client.get_storage(replace_existing=True)
         self.benchmark_input = self._benchmark.prepare_input(
