@@ -33,20 +33,11 @@ class LibraryTrigger(Trigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
         self.logging.info(f"Invoke function {self.name}")
-        config = self.deployment_client.config
-        full_func_name = (
-            f"projects/{config.project_name}/locations/"
-            f"{config.region}/functions/{self.name}"
-        )
-        function_client = self.deployment_client.get_function_client()
-        status_req = (
-            function_client.projects().locations().functions().get(name=full_func_name)
-        )
 
         deployed = False
         while not deployed:
             status_res = status_req.execute()
-            if status_res["status"] == "ACTIVE":
+            if self.deployment_client.is_deployed(self.fname):
                 deployed = True
             else:
                 time.sleep(5)

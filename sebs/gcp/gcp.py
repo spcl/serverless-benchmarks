@@ -14,7 +14,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from sebs import utils
-from ..faas.function import Function
+from ..faas.function import Function, Trigger
 from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
@@ -269,23 +269,6 @@ class GCP(System):
                 f"Function {func_name} accepts now unauthenticated invocations!"
             )
 
-            self.logging.info(f"Function {func_name} - waiting for deployment...")
-            our_function_req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .get(name=full_func_name)
-            )
-            deployed = False
-            while not deployed:
-                status_res = our_function_req.execute()
-                if status_res["status"] == "ACTIVE":
-                    deployed = True
-                else:
-                    time.sleep(3)
-            self.logging.info(f"Function {func_name} - deployed!")
-            invoke_url = status_res["httpsTrigger"]["url"]
-
             function = GCPFunction(
                 func_name, benchmark, code_package.hash, timeout, memory, code_bucket
             )
@@ -302,6 +285,43 @@ class GCP(System):
         function.add_trigger(http_trigger)
 
         return function
+
+    def create_trigger(
+        self, function: Function, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
+        from sebs.gcp.triggers import HTTPTrigger
+
+        if trigger_type == Trigger.TriggerType.HTTP:
+
+            location = self.config.region
+            project_name = self.config.project_name
+            full_func_name = GCP.get_full_function_name(project_name, location, function.name)
+            self.logging.info(f"Function {function.name} - waiting for deployment...")
+            our_function_req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .get(name=full_func_name)
+            )
+            deployed = False
+            while not deployed:
+                status_res = our_function_req.execute()
+                if status_res["status"] == "ACTIVE":
+                    deployed = True
+                else:
+                    time.sleep(3)
+            self.logging.info(f"Function {func_name} - deployed!")
+            invoke_url = status_res["httpsTrigger"]["url"]
+
+            http_trigger = HTTPTrigger(invoke_url)
+            http_trigger.logging_handlers = self.logging_handlers
+            function.add_trigger(http_trigger)
+        else:
+            raise RuntimeError("Not supported!")
+
+        function.add_trigger(trigger)
+        self.cache_client.update_function(function)
+        return trigger
 
     def cached_function(self, function: Function):
 
@@ -459,11 +479,32 @@ class GCP(System):
     def enforce_cold_start(self, function: Function, code_package: Benchmark):
         pass
 
-    def enforce_cold_starts(self, functions: List[Function], code_package: Benchmark):
+    def enforce_cold_starts(self, function: List[Function], code_package: Benchmark):
         pass
 
-    def create_functions(self, code_package: Benchmark, func_names: List[str]) -> List["GCPFunction"]:
-        pass
+    def create_functions(self, code_package: Benchmark, function_names: List[str]) -> List["Function"]:
+
+        functions: List["Function"] = []
+        for func_name in function_names:
+            self.create_function(code_package, func_name)
+
+    def is_deployed(self, func_name: str) -> bool:
+        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
+        function_client = self.deployment_client.get_function_client()
+        status_req = (
+            function_client.projects().locations().functions().get(name=name)
+        )
+        status_res = status_req.execute()
+        return status_res["status"] == "ACTIVE"
+
+    def deployment_version(self, func: Function) -> int:
+        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
+        function_client = self.deployment_client.get_function_client()
+        status_req = (
+            function_client.projects().locations().functions().get(name=name)
+        )
+        status_res = status_req.execute()
+        return int(status_res["versionId"])
 
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,
