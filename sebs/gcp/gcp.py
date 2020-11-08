@@ -4,6 +4,7 @@ import logging
 import re
 import shutil
 import time
+import math
 from datetime import datetime, timezone
 from typing import cast, Dict, Optional, Tuple, List, Type
 
@@ -198,7 +199,7 @@ class GCP(System):
         res = req.execute()
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
-        if "functions" in res.keys() and full_func_name in [
+        if False and "functions" in res.keys() and full_func_name in [
             f["name"] for f in res["functions"]
         ]:
             # FIXME: retrieve existing configuration, update code and return object
@@ -416,45 +417,56 @@ class GCP(System):
             and network traffic.
             https://cloud.google.com/monitoring/api/metrics_gcp#gcp-cloudfunctions
         """
-        # FIXME: temporary disable
-        # client = monitoring_v3.MetricServiceClient()
-        # project_name = client.common_project_path(self.config.project_name)
-        # interval = monitoring_v3.types.TimeInterval()
-        # print(interval.start_time)
-        # interval.start_time.seconds = int(start_time - 60)
-        # interval.end_time.seconds = int(end_time + 60)
 
-        # results = client.list_time_series(
-        #    project_name,
-        #    'metric.type = "cloudfunctions.googleapis.com/function/execution_times"',
-        #    interval,
-        #    monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
-        # )
-        # for result in results:
-        #    if result.resource.labels.get("function_name") == function_name:
-        #        for point in result.points:
-        #            requests[function_name]["execution_times"] += [
-        #                {
-        #                    "mean_time": point.value.distribution_value.mean,
-        #                    "executions_count": point.value.distribution_value.count,
-        #                }
-        #            ]
+        client = monitoring_v3.MetricServiceClient()
+        project_name = client.common_project_path(self.config.project_name)
 
-        # results = client.list_time_series(
-        #    project_name,
-        #    'metric.type = "cloudfunctions.googleapis.com/function/user_memory_bytes"',
-        #    interval,
-        #    monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
-        # )
-        # for result in results:
-        #    if result.resource.labels.get("function_name") == function_name:
-        #        for point in result.points:
-        #            requests[function_name]["user_memory_bytes"] += [
-        #                {
-        #                    "mean_memory": point.value.distribution_value.mean,
-        #                    "executions_count": point.value.distribution_value.count,
-        #                }
-        #            ]
+        end_time_nanos, end_time_seconds = math.modf(end_time)
+        start_time_nanos, start_time_seconds = math.modf(start_time)
+
+        interval = monitoring_v3.TimeInterval(
+            {
+                "end_time": {"seconds": int(end_time_seconds) + 60},
+                "start_time": {"seconds": int(start_time_seconds) - 60},
+            }
+        )
+
+        requests[function_name] = {"execution_times": [], "user_memory_bytes": []}
+
+        list_execution_times = monitoring_v3.ListTimeSeriesRequest(
+            name=project_name,
+            filter='metric.type = "cloudfunctions.googleapis.com/function/execution_times"',
+            interval=interval
+        )
+
+        results = client.list_time_series(list_execution_times)
+        for result in results:
+            if result.resource.labels.get("function_name") == function_name:
+                for point in result.points:
+                    requests[function_name]["execution_times"] += [
+                        {
+                            "mean_time": point.value.distribution_value.mean,
+                            "executions_count": point.value.distribution_value.count,
+                        }
+                    ]
+
+        list_user_memory_bytes = monitoring_v3.ListTimeSeriesRequest(
+            name=project_name,
+            filter='metric.type = "cloudfunctions.googleapis.com/function/user_memory_bytes"',
+            interval=interval
+        )
+
+        results = client.list_time_series(list_user_memory_bytes)
+        for result in results:
+            if result.resource.labels.get("function_name") == function_name:
+                for point in result.points:
+                    requests[function_name]["user_memory_bytes"] += [
+                        {
+                           "mean_memory": point.value.distribution_value.mean,
+                           "executions_count": point.value.distribution_value.count,
+                        }
+                    ]
+
 
     def create_function_copies(
         self,
