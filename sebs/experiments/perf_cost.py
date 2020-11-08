@@ -9,6 +9,7 @@ from sebs.experiments.experiment import Experiment
 from sebs.experiments.result import Result as ExperimentResult
 from sebs.experiments.config import Config as ExperimentConfig
 from sebs.utils import serialize
+from sebs.statistics import *
 
 
 class PerfCost(Experiment):
@@ -76,19 +77,23 @@ class PerfCost(Experiment):
         import numpy as np
         import scipy.stats as st
 
-        mean = np.mean(times)
-        std = np.std(times)
-        cv = std / mean * 100
-        self.logging.info(f"Mean {mean}, std {std}, CV {cv}")
-        for alpha in [0.9, 0.95, 0.99]:
-            ci_interval = st.t.interval(
-                alpha, len(times) - 1, loc=mean, scale=st.sem(times)
-            )
+        mean, median, std, cv = basic_stats(times)
+        self.logging.info(f"Mean {mean}, median {median}, std {std}, CV {cv}")
+        for alpha in [0.95, 0.99]:
+            ci_interval = ci_tstudents(alpha, times)
             interval_width = ci_interval[1] - ci_interval[0]
             ratio = 100 * interval_width / mean / 2.0
             self.logging.info(
-                f"CI {alpha} from {ci_interval[0]} to {ci_interval[1]}, within {ratio}% of mean"
+                f"Parametric CI (Student's t-distribution) {alpha} from {ci_interval[0]} to {ci_interval[1]}, within {ratio}% of mean"
             )
+
+            if len(times) > 20:
+                ci_interval = ci_le_boudec(alpha, times)
+                interval_width = ci_interval[1] - ci_interval[0]
+                ratio = 100 * interval_width / median / 2.0
+                self.logging.info(
+                    f"Non-parametric CI {alpha} from {ci_interval[0]} to {ci_interval[1]}, within {ratio}% of median"
+                )
 
     def run_configuration(self, settings: dict, repetitions: int, suffix: str = ""):
 
@@ -165,14 +170,14 @@ class PerfCost(Experiment):
 
                     for res in results:
                         ret = res.get()
-                        result.add_invocation(self._function, ret)
-                        client_times.append(ret.times.client / 1000.0)
-                        if not ret.stats.cold_start:
+                        if ret.stats.cold_start:
                             self.logging.info(f"Invocation {ret.request_id} cold!")
+                        else:
+                            result.add_invocation(self._function, ret)
+                            client_times.append(ret.times.client / 1000.0)
+                            samples_gathered += 1
 
                     self.compute_statistics(client_times)
-                    # FIXME: should we simply remove non-cold samples?
-                    samples_gathered += len(results)
                 out_f.write(serialize(result))
 
     def process(
