@@ -43,7 +43,8 @@ class GCPCredentials(Credentials):
         ret: GCPCredentials
         if cached_config and "credentials" in cached_config:
             ret = cast(
-                GCPCredentials, GCPCredentials.initialize(cached_config["credentials"]["keys_json"])
+                GCPCredentials,
+                GCPCredentials.initialize(cached_config["credentials"]["keys_json"]),
             )
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
             ret.logging_handlers = handlers
