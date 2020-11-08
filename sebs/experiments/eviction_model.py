@@ -35,7 +35,9 @@ class EvictionModel(Experiment):
         # 1080,
         # 1200,
     ]
-    function_copies_per_time = 5
+    # TODO: temporal fix
+    #function_copies_per_time = 5
+    function_copies_per_time = 1
 
     def __init__(self, config: ExperimentConfig):
         super().__init__(config)
@@ -48,11 +50,55 @@ class EvictionModel(Experiment):
     def typename() -> str:
         return "Experiment.EvictionModel"
 
+
+    @staticmethod
+    def accept_replies(port: int, invocations: int):
+
+        with open(f'server_{invocations}.log', 'w') as f:
+            import socket
+
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            s.bind(('', port))
+            s.listen(invocations + 1)
+
+            print(f"Listen on {port} and wait for {invocations}", file=f)
+            # First repetition
+            connections = []
+            # wait for functions to connect
+            while len(connections) < invocations:
+                c, addr = s.accept()
+                print(f"Accept connection from {addr}", file=f)
+                connections.append((c, addr))
+
+            for c in connections:
+                connection, addr = c
+                print(f"Send message to {addr}", file=f)
+                connection.send(b"accepted")
+                connection.close()
+
+            # Second repetition
+            connections = []
+            # wait for functions to connect
+            while len(connections) < invocations:
+                c, addr = s.accept()
+                print(f"Accept connection from {addr}", file=f)
+                connections.append((c, addr))
+
+            for c in connections:
+                connection, addr = c
+                print(f"Send message to {addr}", file=f)
+                connection.send(b"accepted")
+                connection.close()
+
+            s.close()
+
     @staticmethod
     def execute_instance(sleep_time: int, pid: int, tid: int, func: Function, payload: dict):
 
         try:
-            print(f"Process {pid} Thread {tid} Invoke function {func.name} now!")
+            print(f"Process {pid} Thread {tid} Invoke function {func.name} with {payload} now!")
             begin = datetime.now()
             res = func.triggers(Trigger.TriggerType.HTTP)[0].sync_invoke(payload)
             end = datetime.now()
@@ -103,12 +149,20 @@ class EvictionModel(Experiment):
         final_results = []
         with ThreadPool(threads) as pool:
             results = [None] * threads
+            """
+                Invoke multiple functions with different sleep times.
+                Start with the largest sleep time to overlap executions; total
+                time should be equal to maximum execution time.
+            """
             for idx in reversed(range(0, len(functions))):
+                payload_copy = payload.copy()
+                payload_copy["port"] += idx
                 b.acquire()
                 results[idx] = pool.apply_async(
                     EvictionModel.execute_instance,
-                    args=(times[idx], pid, idx, functions[idx], payload),
+                    args=(times[idx], pid, idx, functions[idx], payload_copy),
                 )
+
             failed = False
             for result in results:
                 try:
@@ -129,7 +183,7 @@ class EvictionModel(Experiment):
         from sebs import SeBS
 
         self._benchmark = sebs_client.get_benchmark(
-            "010.sleep", deployment_client, self.config
+            "040.server-reply", deployment_client, self.config
         )
         self._deployment_client = deployment_client
         self._result = ExperimentResult(self.config, deployment_client.config)
@@ -159,12 +213,19 @@ class EvictionModel(Experiment):
         sleep = settings["sleep"]
         repetitions = settings["repetitions"]
         invocation_idx = settings["function_copy_idx"]
+        port = settings["client-port"]
+        from requests import get
+        ip = get("http://checkip.amazonaws.com/").text.rstrip()
+
+        """
+            
+        """
         function_names = self.functions_names[
             invocation_idx :: self.function_copies_per_time
         ]
         functions = self.functions[invocation_idx :: self.function_copies_per_time]
         results = {}
-        payload = {"sleep": sleep}
+
 
         # Disable logging - otherwise we have RLock that can't get be pickled
         for func in functions:
@@ -186,28 +247,53 @@ class EvictionModel(Experiment):
 
             The result: repeated N invocations for M different imes.
         """
-        with multiprocessing.Pool(processes=invocations) as pool:
+        threads = len(self.times)
+        with multiprocessing.Pool(processes=(invocations+threads)) as pool:
             for i in range(0, repetitions):
                 """
                     Attempt to kill all existing containers.
                 """
-                for func in functions:
-                    self._deployment_client.enforce_cold_start(func)
-                time.sleep(5)
+                #for func in functions:
+                #    self._deployment_client.enforce_cold_start(func)
+                #time.sleep(5)
                 for _, t in enumerate(self.times):
                     results[t].append([])
                 local_results = []
+                servers_results = []
+
+                """
+                    Start M server intances. Each one handles one set of invocations.
+                """
+                for j in range(0, threads):
+                    servers_results.append(
+                        pool.apply_async(
+                            EvictionModel.accept_replies,
+                            args=(port+j, invocations)
+                        )
+                    )
                 
                 """
-                    Start parallel invocations
+                    Start N parallel invocations
                 """
                 for j in range(0, invocations):
+                    payload = {"ip-address": ip, "port": port}
+                    print(payload)
                     local_results.append(
                         pool.apply_async(
                             EvictionModel.process_function,
                             args=(i, j, invocations, functions, self.times, payload),
                         )
                     )
+
+                time.sleep(10)
+                import sys
+                sys.stdout.flush()
+                """
+                    Rethrow exceptions if appear
+                """
+                for result in servers_results:
+                    ret = result.get()
+
                 for result in local_results:
                     ret = result.get()
                     for i, val in enumerate(ret):
