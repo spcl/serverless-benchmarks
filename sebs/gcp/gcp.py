@@ -456,16 +456,13 @@ class GCP(System):
         #                }
         #            ]
 
-    def create_function_copies(
-        self,
-        function_names: List[str],
-        api_name: str,
-        memory: int,
-        timeout: int,
-        code_package: Benchmark,
-        experiment_config: dict,
-        api_id: str = None,
-    ):
+    def enforce_cold_start(self, function: Function, code_package: Benchmark):
+        pass
+
+    def enforce_cold_starts(self, functions: List[Function], code_package: Benchmark):
+        pass
+
+    def create_functions(self, code_package: Benchmark, func_names: List[str]) -> List["GCPFunction"]:
         pass
 
     # @abstractmethod
