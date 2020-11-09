@@ -340,7 +340,10 @@ class GCP(System):
         language_runtime = code_package.language_version
         code_package_name = os.path.basename(code_package.code_location)
         storage = cast(GCPStorage, self.get_storage())
+
         bucket = function.code_bucket(code_package.benchmark, storage)
+        storage.upload(bucket, code_package.code_location, code_package_name)
+        self.logging.info(f"Uploaded new code package to {bucket}/{code_package_name}")
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
@@ -422,19 +425,21 @@ class GCP(System):
                 f'resource.labels.function_name = "{function_name}" '
                 f'timestamp >= "{timestamps[0]}" '
                 f'timestamp <= "{timestamps[1]}"'
-            )
+            ),
+            page_size = 100
         )
         invocations_processed = 0
-        for invoc in invocations:
-            if "execution took" in invoc.payload:
-                execution_id = invoc.labels["execution_id"]
-                # might happen that we get invocation from another experiment
-                if execution_id not in requests:
-                    continue
-                # find number of miliseconds
-                exec_time = re.search(r"\d+ ms", invoc.payload).group().split()[0]
-                requests[execution_id].provider_times.execution = int(exec_time)
-                invocations_processed += 1
+        for page in invocations.pages:
+            for invoc in page:
+                if "execution took" in invoc.payload:
+                    execution_id = invoc.labels["execution_id"]
+                    # might happen that we get invocation from another experiment
+                    if execution_id not in requests:
+                        continue
+                    # find number of miliseconds
+                    exec_time = re.search(r"\d+ ms", invoc.payload).group().split()[0]
+                    requests[execution_id].provider_times.execution = int(exec_time)
+                    invocations_processed += 1
         self.logging.info(
             f"GCP: Found time metrics for {invocations_processed} "
             f"out of {len(requests.keys())} invocations."
