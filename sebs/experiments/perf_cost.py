@@ -109,6 +109,7 @@ class PerfCost(Experiment):
         """
         file_name = f"cold_results_{suffix}.json" if suffix else "cold_results.json"
         self.logging.info(f"Begin cold experiments")
+        warm_not_cold_summary = []
         with open(os.path.join(self._out_dir, file_name), "w") as out_f:
             samples_gathered = 0
             invocations = settings["cold-invocations"]
@@ -117,10 +118,10 @@ class PerfCost(Experiment):
                 result = ExperimentResult(
                     self.config, self._deployment_client.config
                 )
+                result.begin()
                 while samples_gathered < repetitions:
                     self._deployment_client.enforce_cold_start([self._function])
 
-                    result.begin()
                     results = []
                     for i in range(0, invocations):
                         results.append(
@@ -128,19 +129,28 @@ class PerfCost(Experiment):
                                 self._trigger.sync_invoke, args=(self._benchmark_input,)
                             )
                         )
-                    result.end()
 
                     for res in results:
                         ret = res.get()
+                        warm_not_cold = []
                         if not ret.stats.cold_start:
                             self.logging.info(f"Invocation {ret.request_id} not cold!")
+                            warm_not_cold.append(ret)
                         else:
                             result.add_invocation(self._function, ret)
                             client_times.append(ret.times.client / 1000.0)
                             samples_gathered += 1
+                    self.logging.info(f"Processed {samples_gathered}  samples out of {repetitions}")
+                    
+                    if len(warm_not_cold) > 0:
+                        warm_not_cold_summary.append(warm_not_cold)
 
+                result.end()
                 self.compute_statistics(client_times)
                 out_f.write(serialize(result))
+        file_name = f"cold_notenforced_{suffix}.json" if suffix else "cold_notenforced.json"
+        with open(os.path.join(self._out_dir, file_name), "w") as out_f:
+            out_f.write(serialize(warm_not_cold_summary))
 
         """
             Warm experiment: schedule many invocations in parallel.
@@ -156,9 +166,9 @@ class PerfCost(Experiment):
                 result = ExperimentResult(
                     self.config, self._deployment_client.config
                 )
+                result.begin()
                 while samples_gathered < repetitions:
 
-                    result.begin()
                     results = []
                     for i in range(0, invocations):
                         results.append(
@@ -166,7 +176,6 @@ class PerfCost(Experiment):
                                 self._trigger.sync_invoke, args=(self._benchmark_input,)
                             )
                         )
-                    result.end()
 
                     for res in results:
                         ret = res.get()
@@ -177,6 +186,7 @@ class PerfCost(Experiment):
                             client_times.append(ret.times.client / 1000.0)
                             samples_gathered += 1
 
+                result.end()
                 self.compute_statistics(client_times)
                 out_f.write(serialize(result))
 
