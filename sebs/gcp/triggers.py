@@ -92,7 +92,7 @@ class HTTPTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-        self.logging.info(f"Invoke function {self.url}")
+        self.logging.debug(f"Invoke function {self.url}")
         return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: dict) -> ExecutionResult:

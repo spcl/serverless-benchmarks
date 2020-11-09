@@ -363,6 +363,12 @@ class GCP(System):
             )
         )
         res = req.execute()
+        versionId = res["metadata"]["versionId"]
+        while True:
+            if not self.is_deployed(function.name, versionId):
+                time.sleep(5)
+            else:
+                break
         print("response:", res)
         self.logging.info("Published new function code")
 
@@ -490,7 +496,7 @@ class GCP(System):
                     ]
 
 
-    def enforce_cold_start(self, function: Function, code_package: Benchmark):
+    def _enforce_cold_start(self, function: Function):
 
         # FIXME: error handling
         # FIXME: wait until applied
@@ -511,15 +517,15 @@ class GCP(System):
             )
         )
         res = req.execute()
-        new_version = res["versionId"]
+        new_version = res["metadata"]["versionId"]
 
         return new_version
 
-    def enforce_cold_starts(self, functions: List[Function], code_package: Benchmark):
+    def enforce_cold_start(self, functions: List[Function]):
 
         new_versions = []
         for func in functions:
-            new_versions.append((func, self.enforce_cold_start(func, code_package)))
+            new_versions.append((self._enforce_cold_start(func), func))
             self.cold_start_counter -= 1
 
         # verify deployment
@@ -528,7 +534,7 @@ class GCP(System):
         while not deployment_done:
             for versionId, func in new_versions:
                 if not self.is_deployed(func.name, versionId):
-                    undeployed_functions.append(func)
+                    undeployed_functions.append((versionId, func))
             deployed = len(new_versions) - len(undeployed_functions)
             self.logging.info(f"Redeployed {deployed} out of {len(new_versions)}")
             if deployed == len(new_versions):
