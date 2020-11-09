@@ -278,7 +278,11 @@ class Function(LoggingBase):
         self._updated_code = val
 
     def triggers_all(self) -> List[Trigger]:
-        return [trigger for trigger_type, trigger in self._triggers]
+        return [
+            trig
+            for trigger_type, triggers in self._triggers.items()
+            for trig in triggers
+        ]
 
     def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
         try:

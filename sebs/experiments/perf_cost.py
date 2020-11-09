@@ -102,7 +102,6 @@ class PerfCost(Experiment):
         from random import randrange
 
         self._deployment_client.cold_start_counter = randrange(100)
-        self._deployment_client.enforce_cold_start(self._function, self._benchmark)
 
         """
             Cold experiment: schedule all invocations in parallel.
@@ -114,10 +113,11 @@ class PerfCost(Experiment):
             invocations = settings["cold-invocations"]
             client_times = []
             with ThreadPool(invocations) as pool:
+                result = ExperimentResult(
+                    self.config, self._deployment_client.config
+                )
                 while samples_gathered < repetitions:
-                    result = ExperimentResult(
-                        self.config, self._deployment_client.config
-                    )
+                    self._deployment_client.enforce_cold_start(self._function, self._benchmark)
                     client_times = []
 
                     result.begin()
@@ -132,14 +132,14 @@ class PerfCost(Experiment):
 
                     for res in results:
                         ret = res.get()
-                        result.add_invocation(self._function, ret)
-                        client_times.append(ret.times.client / 1000.0)
                         if not ret.stats.cold_start:
                             self.logging.info(f"Invocation {ret.request_id} not cold!")
+                        else:
+                            result.add_invocation(self._function, ret)
+                            client_times.append(ret.times.client / 1000.0)
+                            samples_gathered += 1
 
-                    self.compute_statistics(client_times)
-                    # FIXME: should we simply remove non-cold samples?
-                    samples_gathered += len(results)
+                self.compute_statistics(client_times)
                 out_f.write(serialize(result))
 
         """
@@ -153,10 +153,10 @@ class PerfCost(Experiment):
             invocations = settings["warm-invocations"]
             client_times = []
             with ThreadPool(invocations) as pool:
+                result = ExperimentResult(
+                    self.config, self._deployment_client.config
+                )
                 while samples_gathered < repetitions:
-                    result = ExperimentResult(
-                        self.config, self._deployment_client.config
-                    )
 
                     result.begin()
                     results = []
@@ -177,7 +177,7 @@ class PerfCost(Experiment):
                             client_times.append(ret.times.client / 1000.0)
                             samples_gathered += 1
 
-                    self.compute_statistics(client_times)
+                self.compute_statistics(client_times)
                 out_f.write(serialize(result))
 
     def process(

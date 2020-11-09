@@ -131,7 +131,9 @@ class Benchmark(LoggingBase):
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
-        self._hash_value = Benchmark.hash_directory(path, self.language_name)
+        self._hash_value = Benchmark.hash_directory(
+            path, self._deployment_name, self.language_name
+        )
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -186,13 +188,14 @@ class Benchmark(LoggingBase):
     """
 
     @staticmethod
-    def hash_directory(directory: str, language: str):
+    def hash_directory(directory: str, deployment: str, language: str):
 
         hash_sum = hashlib.md5()
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
         }
+        WRAPPERS = {"python": "*.py", "nodejs": "*.js"}
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
@@ -200,6 +203,14 @@ class Benchmark(LoggingBase):
                 path = os.path.join(directory, f)
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
+        # wrappers
+        wrappers = project_absolute_path(
+            "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
+        )
+        for f in glob.glob(wrappers):
+            path = os.path.join(directory, f)
+            with open(path, "rb") as opened_file:
+                hash_sum.update(opened_file.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:

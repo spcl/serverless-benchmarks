@@ -53,6 +53,7 @@ class Azure(System):
         super().__init__(sebs_config, cache_client, docker_client)
         self.logging_handlers = logger_handlers
         self._config = config
+        self.cold_start_counter = 0
 
     """
         Start the Docker container running Azure CLI tools.
@@ -330,7 +331,7 @@ class Azure(System):
         data_storage_account = self.config.resources.data_storage_account(
             self.cli_instance
         )
-        for trigger in function.triggers_all:
+        for trigger in function.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
@@ -424,8 +425,17 @@ class Azure(System):
 
         # TODO: query performance counters for mem
 
-    def enforce_cold_start(self, function: Function, code_package: Benchmark):
-        self.update_function(function, code_package)
+    def enforce_cold_start(self, function: Function):
+
+        fname = function.name
+        resource_group = self.config.resources.resource_group(self.cli_instance)
+        self.cold_start_counter += 1
+
+        self.cli_instance.execute(
+            f"az functionapp config appsettings set --name {fname} "
+            f" --resource-group {resource_group} "
+            f" --settings ForceColdStart={self.cold_start_counter}"
+        )
 
 
 #

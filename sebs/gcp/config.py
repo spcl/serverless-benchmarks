@@ -43,7 +43,8 @@ class GCPCredentials(Credentials):
         ret: GCPCredentials
         if cached_config and "credentials" in cached_config:
             ret = cast(
-                GCPCredentials, GCPCredentials.initialize(cached_config["credentials"])
+                GCPCredentials,
+                GCPCredentials.initialize(cached_config["credentials"]["keys_json"]),
             )
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
             ret.logging_handlers = handlers
@@ -58,7 +59,7 @@ class GCPCredentials(Credentials):
             elif "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
                 ret = GCPCredentials(os.environ["GOOGLE_APPLICATION_CREDENTIALS"])
                 cache.update_config(
-                    val=ret.gcp_credentials, keys=["gcp", "secrets", "gcp_credentials"]
+                    val=ret.gcp_credentials, keys=["gcp", "credentials", "keys_json"]
                 )
             else:
                 raise RuntimeError("GCP login credentials are missing!")
@@ -71,12 +72,12 @@ class GCPCredentials(Credentials):
     """
 
     def serialize(self) -> dict:
-        out = {"gcp_credentials": self.gcp_credentials}
+        out = {"keys_json": self.gcp_credentials}
         return out
 
     def update_cache(self, cache: Cache):
         cache.update_config(
-            val=self.gcp_credentials, keys=["gcp", "credentials", "gcp_credentials"]
+            val=self.gcp_credentials, keys=["gcp", "credentials", "keys_json"]
         )
 
 
@@ -214,6 +215,7 @@ class GCPConfig(Config):
 
     def serialize(self) -> dict:
         out = {
+            "name": "gcp",
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }

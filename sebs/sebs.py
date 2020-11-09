@@ -77,15 +77,15 @@ class SeBS:
             Experiment,
             PerfCost,
             NetworkPingPong,
-            StartupTime,
             InvocationOverhead,
+            EvictionModel,
         )
 
         implementations = {
             "perf-cost": PerfCost,
             "network-ping-pong": NetworkPingPong,
-            "startup-time": StartupTime,
             "invocation-overhead": InvocationOverhead,
+            "eviction-model": EvictionModel,
         }
         experiment = implementations[experiment_type](
             self.get_experiment_config(config)

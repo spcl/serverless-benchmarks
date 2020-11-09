@@ -29,7 +29,7 @@ benchmarks = [
     #"504.dna-visualisation"
 ]
 tmp_dir = tempfile.TemporaryDirectory()
-client = sebs.SeBS("regression-cache")
+client = sebs.SeBS("regression-cache", "regression-output")
 
 args = parser.parse_args()
 if not args.deployment:

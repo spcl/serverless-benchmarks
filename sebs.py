@@ -186,7 +186,14 @@ def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs
     result.begin()
     # FIXME: repetitions
     # FIXME: trigger type
-    ret = func.triggers(Trigger.TriggerType.HTTP)[0].sync_invoke(input_config)
+    triggers = func.triggers(Trigger.TriggerType.HTTP)
+    if len(triggers) == 0:
+        trigger = deployment_client.create_trigger(
+            func, Trigger.TriggerType.HTTP
+        )
+    else:
+        trigger = triggers[0]
+    ret = trigger.sync_invoke(input_config)
     result.end()
     result.add_invocation(func, ret)
     with open("experiments.json", "w") as out_f:

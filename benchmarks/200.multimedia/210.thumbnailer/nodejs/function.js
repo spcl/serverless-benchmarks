@@ -5,6 +5,7 @@ const sharp = require('sharp'),
 let storage_handler = new storage.storage();
 
 exports.handler = async function(event) {
+  console.log(event)
   input_bucket = event.bucket.input
   output_bucket = event.bucket.output
   let key = event.object.key

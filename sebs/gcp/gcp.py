@@ -1,8 +1,11 @@
 import docker
 import os
 import logging
+import re
 import shutil
 import time
+import math
+from datetime import datetime, timezone
 from typing import cast, Dict, Optional, Tuple, List, Type
 
 from googleapiclient.discovery import build
@@ -12,7 +15,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from sebs import utils
-from ..faas.function import Function
+from ..faas.function import Function, Trigger
 from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
@@ -42,6 +45,9 @@ class GCP(System):
         self._config = config
         self.storage: Optional[GCPStorage] = None
         self.logging_handlers = logging_handlers
+        from random import randrange
+
+        self.cold_start_counter = randrange(100)
 
     @property
     def config(self) -> GCPConfig:
@@ -196,7 +202,7 @@ class GCP(System):
         res = req.execute()
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
-        if "functions" in res.keys() and full_func_name in [
+        if False and "functions" in res.keys() and full_func_name in [
             f["name"] for f in res["functions"]
         ]:
             # FIXME: retrieve existing configuration, update code and return object
@@ -267,7 +273,32 @@ class GCP(System):
                 f"Function {func_name} accepts now unauthenticated invocations!"
             )
 
-            self.logging.info(f"Function {func_name} - waiting for deployment...")
+            function = GCPFunction(
+                func_name, benchmark, code_package.hash, timeout, memory, code_bucket
+            )
+
+        # Add LibraryTrigger to a new function
+        from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger
+
+        trigger = LibraryTrigger(func_name, self)
+        trigger.logging_handlers = self.logging_handlers
+        function.add_trigger(trigger)
+
+        return function
+
+    def create_trigger(
+        self, function: Function, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
+        from sebs.gcp.triggers import HTTPTrigger
+
+        if trigger_type == Trigger.TriggerType.HTTP:
+
+            location = self.config.region
+            project_name = self.config.project_name
+            full_func_name = GCP.get_full_function_name(
+                project_name, location, function.name
+            )
+            self.logging.info(f"Function {function.name} - waiting for deployment...")
             our_function_req = (
                 self.function_client.projects()
                 .locations()
@@ -281,25 +312,17 @@ class GCP(System):
                     deployed = True
                 else:
                     time.sleep(3)
-            self.logging.info(f"Function {func_name} - deployed!")
+            self.logging.info(f"Function {function.name} - deployed!")
             invoke_url = status_res["httpsTrigger"]["url"]
 
-            function = GCPFunction(
-                func_name, benchmark, code_package.hash, timeout, memory, code_bucket
-            )
+            trigger = HTTPTrigger(invoke_url)
+        else:
+            raise RuntimeError("Not supported!")
 
-        # Add LibraryTrigger to a new function
-        from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger
-
-        trigger = LibraryTrigger(func_name, self)
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
-
-        http_trigger = HTTPTrigger(invoke_url)
-        http_trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(http_trigger)
-
-        return function
+        self.cache_client.update_function(function)
+        return trigger
 
     def cached_function(self, function: Function):
 
@@ -361,19 +384,84 @@ class GCP(System):
     def download_metrics(
         self, function_name: str, start_time: int, end_time: int, requests: dict,
     ):
-        client = monitoring_v3.MetricServiceClient()
-        project_name = client.project_path(self.config.project_name)
-        interval = monitoring_v3.types.TimeInterval()
 
-        interval.start_time.seconds = int(start_time - 60)
-        interval.end_time.seconds = int(end_time + 60)
+        """
+            Use GCP's logging system to find execution time of each function invocation.
 
-        results = client.list_time_series(
-            project_name,
-            'metric.type = "cloudfunctions.googleapis.com/function/execution_times"',
-            interval,
-            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
+            There shouldn't be problem of waiting for complete results,
+            since logs appear very quickly here.
+        """
+        from google.cloud import logging as gcp_logging
+
+        logging_client = gcp_logging.Client()
+        logger = logging_client.logger(
+            "cloudfunctions.googleapis.com%2Fcloud-functions"
         )
+
+        """
+            GCP accepts only single date format: 'YYYY-MM-DDTHH:MM:SSZ'.
+            Thus, we first convert timestamp to UTC timezone.
+            Then, we generate correct format.
+
+            Add 1 second to end time to ensure that removing
+            milliseconds doesn't affect query.
+        """
+        timestamps = []
+        for timestamp in [start_time, end_time + 1]:
+            utc_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+        invocations = logger.list_entries(
+            filter_=(
+                f'resource.labels.function_name = "{function_name}" '
+                f'timestamp >= "{timestamps[0]}" '
+                f'timestamp <= "{timestamps[1]}"'
+            )
+        )
+        invocations_processed = 0
+        for invoc in invocations:
+            if "execution took" in invoc.payload:
+                execution_id = invoc.labels["execution_id"]
+                # might happen that we get invocation from another experiment
+                if execution_id not in requests:
+                    continue
+                # find number of miliseconds
+                exec_time = re.search(r"\d+ ms", invoc.payload).group().split()[0]
+                requests[execution_id].provider_times.execution = int(exec_time)
+                invocations_processed += 1
+        self.logging.info(
+            f"GCP: Found time metrics for {invocations_processed} "
+            f"out of {len(requests.keys())} invocations."
+        )
+
+        """
+            Use metrics to find estimated values for maximum memory used, active instances
+            and network traffic.
+            https://cloud.google.com/monitoring/api/metrics_gcp#gcp-cloudfunctions
+        """
+
+        client = monitoring_v3.MetricServiceClient()
+        project_name = client.common_project_path(self.config.project_name)
+
+        end_time_nanos, end_time_seconds = math.modf(end_time)
+        start_time_nanos, start_time_seconds = math.modf(start_time)
+
+        interval = monitoring_v3.TimeInterval(
+            {
+                "end_time": {"seconds": int(end_time_seconds) + 60},
+                "start_time": {"seconds": int(start_time_seconds) - 60},
+            }
+        )
+
+        requests[function_name] = {"execution_times": [], "user_memory_bytes": []}
+
+        list_execution_times = monitoring_v3.ListTimeSeriesRequest(
+            name=project_name,
+            filter='metric.type = "cloudfunctions.googleapis.com/function/execution_times"',
+            interval=interval
+        )
+
+        results = client.list_time_series(list_execution_times)
         for result in results:
             if result.resource.labels.get("function_name") == function_name:
                 for point in result.points:
@@ -384,33 +472,126 @@ class GCP(System):
                         }
                     ]
 
-        results = client.list_time_series(
-            project_name,
-            'metric.type = "cloudfunctions.googleapis.com/function/user_memory_bytes"',
-            interval,
-            monitoring_v3.enums.ListTimeSeriesRequest.TimeSeriesView.FULL,
+        list_user_memory_bytes = monitoring_v3.ListTimeSeriesRequest(
+            name=project_name,
+            filter='metric.type = "cloudfunctions.googleapis.com/function/user_memory_bytes"',
+            interval=interval
         )
+
+        results = client.list_time_series(list_user_memory_bytes)
         for result in results:
             if result.resource.labels.get("function_name") == function_name:
                 for point in result.points:
                     requests[function_name]["user_memory_bytes"] += [
                         {
-                            "mean_memory": point.value.distribution_value.mean,
-                            "executions_count": point.value.distribution_value.count,
+                           "mean_memory": point.value.distribution_value.mean,
+                           "executions_count": point.value.distribution_value.count,
                         }
                     ]
 
-    def create_function_copies(
-        self,
-        function_names: List[str],
-        api_name: str,
-        memory: int,
-        timeout: int,
-        code_package: Benchmark,
-        experiment_config: dict,
-        api_id: str = None,
-    ):
-        pass
+
+    def enforce_cold_start(self, function: Function, code_package: Benchmark):
+
+        # FIXME: error handling
+        # FIXME: wait until applied
+        name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, function.name
+        )
+        self.cold_start_counter += 1
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .patch(
+                name=name,
+                updateMask="environmentVariables",
+                body={
+                    "environmentVariables": {"cold_start": str(self.cold_start_counter)}
+                },
+            )
+        )
+        res = req.execute()
+        new_version = res["versionId"]
+
+        return new_version
+
+    def enforce_cold_starts(self, functions: List[Function], code_package: Benchmark):
+
+        new_versions = []
+        for func in functions:
+            new_versions.append((func, self.enforce_cold_start(func, code_package)))
+            self.cold_start_counter -= 1
+
+        # verify deployment
+        undeployed_functions = []
+        deployment_done = False
+        while not deployment_done:
+            for versionId, func in new_versions:
+                if not self.is_deployed(func.name, versionId):
+                    undeployed_functions.append(func)
+            deployed = len(new_versions) - len(undeployed_functions)
+            self.logging.info(f"Redeployed {deployed} out of {len(new_versions)}")
+            if deployed == len(new_versions):
+                deployment_done = True
+                break
+            time.sleep(5)
+            new_versions = undeployed_functions
+            undeployed_functions = []
+
+        self.cold_start_counter += 1
+
+    def get_functions(
+        self, code_package: Benchmark, function_names: List[str]
+    ) -> List["Function"]:
+
+        functions: List["Function"] = []
+        undeployed_functions_before = []
+        for func_name in function_names:
+            func = self.get_function(code_package, func_name)
+            functions.append(func)
+            undeployed_functions_before.append(func)
+
+        # verify deployment
+        undeployed_functions = []
+        deployment_done = False
+        while not deployment_done:
+            for func in undeployed_functions_before:
+                if not self.is_deployed(func.name):
+                    undeployed_functions.append(func)
+            deployed = len(undeployed_functions_before) - len(undeployed_functions)
+            self.logging.info(
+                f"Deployed {deployed} out of {len(undeployed_functions_before)}"
+            )
+            if deployed == len(undeployed_functions_before):
+                deployment_done = True
+                break
+            time.sleep(5)
+            undeployed_functions_before = undeployed_functions
+            undeployed_functions = []
+            self.logging.info(f"Waiting on {undeployed_functions_before}")
+
+        return functions
+
+    def is_deployed(self, func_name: str, versionId: int = -1) -> bool:
+        name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+        function_client = self.get_function_client()
+        status_req = function_client.projects().locations().functions().get(name=name)
+        status_res = status_req.execute()
+        if versionId == -1:
+            return status_res["status"] == "ACTIVE"
+        else:
+            return status_res["versionId"] == versionId
+
+    def deployment_version(self, func: Function) -> int:
+        name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, func.name
+        )
+        function_client = self.deployment_client.get_function_client()
+        status_req = function_client.projects().locations().functions().get(name=name)
+        status_res = status_req.execute()
+        return int(status_res["versionId"])
 
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,

@@ -487,23 +487,13 @@ class AWS(System):
         self.cache_client.update_function(function)
         return trigger
 
-    def enforce_cold_start(self, function: LambdaFunction, code_package: Benchmark):
-        # self.get_lambda_client().update_function_configuration(
-        #    FunctionName=function.name,
-        #    Timeout=function.timeout+ 10,
-        #    MemorySize=function.memory + 128,
-        #    Environment = {
-        #        "Variables": {
-        #            "ForceColdStart": "1"
-        #        }
-        #    }
-        # )
-        # time.sleep(5)
-        self._cold_start_counter += 1
+    def enforce_cold_start(self, function: Function):
+        self.cold_start_counter += 1
+        func = cast(LambdaFunction, function)
         self.get_lambda_client().update_function_configuration(
-            FunctionName=function.name,
-            Timeout=function.timeout,
-            MemorySize=function.memory,
+            FunctionName=func.name,
+            Timeout=func.timeout,
+            MemorySize=func.memory,
             Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
         import time
