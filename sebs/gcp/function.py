@@ -54,5 +54,6 @@ class GCPFunction(Function):
         return ret
 
     def code_bucket(self, benchmark: str, storage_client: GCPStorage):
-        self.bucket, idx = storage_client.add_input_bucket(benchmark)
+        if not self.bucket:
+            self.bucket, idx = storage_client.add_input_bucket(benchmark)
         return self.bucket
