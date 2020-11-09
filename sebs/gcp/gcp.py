@@ -451,6 +451,9 @@ class GCP(System):
             https://cloud.google.com/monitoring/api/metrics_gcp#gcp-cloudfunctions
         """
 
+        # Set expected metrics here
+        metrics = ["execution_times", "user_memory_bytes", "network_egress"]
+
         client = monitoring_v3.MetricServiceClient()
         project_name = client.common_project_path(self.config.project_name)
 
@@ -460,45 +463,32 @@ class GCP(System):
         interval = monitoring_v3.TimeInterval(
             {
                 "end_time": {"seconds": int(end_time_seconds) + 60},
-                "start_time": {"seconds": int(start_time_seconds) - 60},
+                "start_time": {"seconds": int(start_time_seconds)},
             }
         )
 
-        requests[function_name] = {"execution_times": [], "user_memory_bytes": []}
+        requests[function_name] = {}
 
-        list_execution_times = monitoring_v3.ListTimeSeriesRequest(
-            name=project_name,
-            filter='metric.type = "cloudfunctions.googleapis.com/function/execution_times"',
-            interval=interval
-        )
+        for metric in metrics:
 
-        results = client.list_time_series(list_execution_times)
-        for result in results:
-            if result.resource.labels.get("function_name") == function_name:
-                for point in result.points:
-                    requests[function_name]["execution_times"] += [
-                        {
-                            "mean_time": point.value.distribution_value.mean,
-                            "executions_count": point.value.distribution_value.count,
-                        }
-                    ]
+            requests[function_name][metric] = []
 
-        list_user_memory_bytes = monitoring_v3.ListTimeSeriesRequest(
-            name=project_name,
-            filter='metric.type = "cloudfunctions.googleapis.com/function/user_memory_bytes"',
-            interval=interval
-        )
+            list_request = monitoring_v3.ListTimeSeriesRequest(
+                name=project_name,
+                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric),
+                interval=interval
+            )
 
-        results = client.list_time_series(list_user_memory_bytes)
-        for result in results:
-            if result.resource.labels.get("function_name") == function_name:
-                for point in result.points:
-                    requests[function_name]["user_memory_bytes"] += [
-                        {
-                           "mean_memory": point.value.distribution_value.mean,
-                           "executions_count": point.value.distribution_value.count,
-                        }
-                    ]
+            results = client.list_time_series(list_request)
+            for result in results:
+                if result.resource.labels.get("function_name") == function_name:
+                    for point in result.points:
+                        requests[function_name][metric] += [
+                            {
+                                "mean_value": point.value.distribution_value.mean,
+                                "executions_count": point.value.distribution_value.count,
+                            }
+                        ]
 
 
     def _enforce_cold_start(self, function: Function):
