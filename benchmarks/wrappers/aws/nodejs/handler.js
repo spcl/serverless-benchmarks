@@ -13,7 +13,7 @@ exports.handler = async function(event, context) {
   var start = process.hrtime();
   var func = require('./function/function')
   var http_trigger = "body" in event;
-  var ret = func.handler(http_trigger ? event.body : event);
+  var ret = func.handler(http_trigger ? JSON.parse(event.body) : event);
   return ret.then(
     (result) => {
       var elapsed = process.hrtime(start);
