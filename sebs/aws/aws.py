@@ -506,8 +506,8 @@ class AWS(System):
             MemorySize=function.memory,
             Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
-        #import time
-        #time.sleep(1)
+        import time
+        time.sleep(3)
 
 
 #    def create_function_copies(
