@@ -97,7 +97,7 @@ class InvocationOverhead(Experiment):
             sebs_client.output_dir, "invocation-overhead", self.settings["type"]
         )
         if not os.path.exists(self._out_dir):
-            os.mkdir(self._out_dir)
+            os.makedirs(self._out_dir)
 
         self._deployment_client = deployment_client
 
@@ -137,16 +137,24 @@ class InvocationOverhead(Experiment):
                 ]
             )
 
+            import time
             for size in experiment.pts:
                 experiment.before_sample(size, input_benchmark)
 
                 for i in range(repetitions):
-                    self.logging.info(f"Starting with {size} bytes, repetition {i}")
-                    self._deployment_client.enforce_cold_start(
-                        self._function, self._benchmark
-                    )
-                    row = self.receive_datagrams(input_benchmark, N, 12000, ip)
-                    writer.writerow([size, i] + row)
+                    succesful = False
+                    while not succesful:
+                        self.logging.info(f"Starting with {size} bytes, repetition {i}")
+                        self._deployment_client.enforce_cold_start(
+                            [self._function,]
+                        )
+                        time.sleep(1)
+                        row = self.receive_datagrams(input_benchmark, N, 12000, ip)
+                        if not row[0]:
+                            self.logging.info("Not cold!")
+                            continue
+                        writer.writerow([size, i] + row)
+                        succesful = True
 
         # pool = ThreadPool(threads)
         # ports = range(12000, 12000 + invocations)
@@ -163,13 +171,13 @@ class InvocationOverhead(Experiment):
             self.benchmark_input["output-bucket"], self._out_dir
         )
 
-    def process(self, directory: str):
+    def process(self, sebs_client: "SeBS", deployment_client, directory: str, logging_filename: str):
 
         import pandas as pd
         import glob
 
         full_data = {}
-        for f in glob.glob(os.path.join(directory, "invocation-overhead", "*.csv")):
+        for f in glob.glob(os.path.join(directory, "invocation-overhead", self.settings["type"], "*.csv")):
 
             if "result.csv" in f or "result-processed.csv" in f:
                 continue
@@ -191,10 +199,10 @@ class InvocationOverhead(Experiment):
         print(df)
 
         with open(
-            os.path.join(directory, "invocation-overhead", "result.csv")
+            os.path.join(directory, "invocation-overhead", self.settings["type"],"result.csv")
         ) as csvfile:
             with open(
-                os.path.join(directory, "invocation-overhead", "result-processed.csv"),
+                os.path.join(directory, "invocation-overhead", self.settings["type"],"result-processed.csv"),
                 "w",
             ) as csvfile2:
                 reader = csv.reader(csvfile, delimiter=",")
@@ -305,6 +313,7 @@ class InvocationOverhead(Experiment):
                 writer.writerow(row)
 
         self.logging.info(f"Finished {request_id} in {end - begin} [s]")
+        self.logging.info(f"is_cold? {is_cold} Time w/o clock drift {server_timestamp - res.times.client_begin.timestamp()} [s]")
 
         return [
             is_cold,
