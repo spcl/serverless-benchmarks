@@ -46,6 +46,10 @@ def handler(event, context):
         is_cold = True
         open(fname, 'a').close()
 
+    cold_start_var = ""
+    if "cold_start" in os.environ:
+        cold_start_var = os.environ["cold_start"]
+
     return {
         'statusCode': 200,
         'body': json.dumps({
@@ -54,7 +58,8 @@ def handler(event, context):
             'results_time': results_time,
             'is_cold': is_cold,
             'result': log_data,
-            'request_id': context.aws_request_id
+            'request_id': context.aws_request_id,
+            'cold_start_var': cold_start_var
         })
     }
 
