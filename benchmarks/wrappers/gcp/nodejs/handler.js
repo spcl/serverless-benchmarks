@@ -1,19 +1,11 @@
 
 const path = require('path'), fs = require('fs');
 
-function process_output(data, http_trigger) {
-  if(http_trigger)
-    return JSON.stringify(data);
-  else
-    return data;
-}
-
-exports.handler = async function(event, context) {
+exports.handler = async function(req, res) {
   var begin = Date.now()/1000;
   var start = process.hrtime();
   var func = require('./function/function')
-  var http_trigger = "body" in event;
-  var ret = func.handler(http_trigger ? JSON.parse(event.body) : event);
+  var ret = func.handler(req.body);
   return ret.then(
     (result) => {
       var elapsed = process.hrtime(start);
@@ -26,18 +18,16 @@ exports.handler = async function(event, context) {
         is_cold = true;
         fs.closeSync(fs.openSync(fname, 'w'));
       }
-      return {
-        statusCode: 200,
-        body: process_output({
+
+      res.status(200).json({
           begin: begin,
           end: end,
           compute_time: micro,
           results_time: 0,
           result: result,
           is_cold: is_cold,
-          request_id: context.awsRequestId
-        }, http_trigger)
-      };
+          request_id: req.headers["function-execution-id"]
+        });
     },
     (error) => {
       throw(error);

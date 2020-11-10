@@ -32,10 +32,13 @@ if deployment == 'aws':
     from cloud_frontend.aws import aws
     deployment_client = aws.aws(cache_client, experiment['config'],
             language, docker_client)
-else:
+elif deployment == 'azure':
     from cloud_frontend.azure import azure
     deployment_client = azure.azure(cache_client, experiment['config'],
             language, docker_client)
+else:
+    from cloud_frontend.gcp import gcp
+    deployment_client = gcp.gcp(cache_client, experiment['config'], language, docker_client)
 storage_client = deployment_client.get_storage()
 
 def recursive_visit(json_data: dict):

@@ -1,5 +1,5 @@
 
-import datetime, io, json, os
+import datetime, io, json, os, uuid
 
 import azure.functions as func
 
@@ -43,7 +43,20 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     fname = os.path.join('/tmp','cold_run')
     if not os.path.exists(fname):
         is_cold = True
-        open(fname, 'a').close()
+        container_id = str(uuid.uuid4())[0:8]
+        with open(fname, 'a') as f:
+            f.write(container_id)
+    else:
+        with open(fname, 'r') as f:
+            container_id = f.read()
+
+    is_cold_worker = False
+    global cold_marker
+    try:
+        _ = cold_marker
+    except NameError:
+        cold_marker = True
+        is_cold_worker = True
 
     return func.HttpResponse(
         json.dumps({
@@ -52,6 +65,8 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
             'results_time': results_time,
             'result': log_data,
             'is_cold': is_cold,
+            'is_cold_worker': is_cold_worker,
+            'container_id': container_id,
             'environ': list(os.environ.items()),
             'request_id': context.invocation_id
         }),

@@ -32,7 +32,7 @@ class LibraryTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-        self.logging.info(f"Invoke function {self.name}")
+        self.logging.debug(f"Invoke function {self.name}")
 
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
@@ -63,7 +63,7 @@ class LibraryTrigger(Trigger):
             )
             aws_result.stats.failure = True
             return aws_result
-        self.logging.info(f"Invoke of function {self.name} was successful")
+        self.logging.debug(f"Invoke of function {self.name} was successful")
         log = base64.b64decode(ret["LogResult"])
         function_output = json.loads(ret["Payload"].read().decode("utf-8"))
 
@@ -118,7 +118,7 @@ class HTTPTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-        self.logging.info(f"Invoke function {self.url}")
+        self.logging.debug(f"Invoke function {self.url}")
         return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: dict) -> ExecutionResult:

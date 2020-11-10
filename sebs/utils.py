@@ -22,7 +22,10 @@ class JSONSerializer(json.JSONEncoder):
         elif isinstance(o, dict):
             return str(o)
         else:
-            return vars(o)
+            try:
+                return vars(o)
+            except:
+                return str(o)
 
 
 def serialize(obj) -> str:

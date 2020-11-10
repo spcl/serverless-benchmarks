@@ -200,7 +200,7 @@ class Trigger(ABC, LoggingBase):
                 self.logging.error("Output: {}".format(output))
                 raise RuntimeError("Failed invocation Lambda function!")
 
-            self.logging.info(f"Invoke of function was successful")
+            self.logging.debug(f"Invoke of function was successful")
             result = ExecutionResult.from_times(begin, end)
             result.times.http_startup = conn_time
             result.times.http_first_byte_return = receive_time
@@ -210,7 +210,7 @@ class Trigger(ABC, LoggingBase):
             return result
         except json.decoder.JSONDecodeError:
             self.logging.error("Invocation on URL {} failed!".format(url))
-            self.logging.error("Output: {}".format(data.getvalue()))
+            self.logging.error("Output: {}".format(data.getvalue().decode()))
             raise RuntimeError("Failed invocation of function!")
 
     # FIXME: 3.7+, future annotations
@@ -278,7 +278,11 @@ class Function(LoggingBase):
         self._updated_code = val
 
     def triggers_all(self) -> List[Trigger]:
-        return [trigger for trigger_type, trigger in self._triggers]
+        return [
+            trig
+            for trigger_type, triggers in self._triggers.items()
+            for trig in triggers
+        ]
 
     def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
         try:

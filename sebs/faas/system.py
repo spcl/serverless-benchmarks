@@ -7,6 +7,7 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.faas.function import Function, Trigger
 from sebs.utils import LoggingBase
 from .config import Config
 from .function import Function, ExecutionResult
@@ -206,6 +207,10 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
+    def enforce_cold_start(self, function: Function):
+        pass
+
+    @abstractmethod
     def download_metrics(
         self,
         function_name: str,
@@ -213,6 +218,12 @@ class System(ABC, LoggingBase):
         end_time: int,
         requests: Dict[str, ExecutionResult],
     ):
+        pass
+
+    @abstractmethod
+    def create_trigger(
+        self, function: Function, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
         pass
 
     # @abstractmethod
