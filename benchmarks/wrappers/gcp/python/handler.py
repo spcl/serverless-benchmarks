@@ -4,14 +4,19 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/si
 
 
 def handler(req):
+    income_timestamp = datetime.datetime.now().timestamp()
+    req_id = req.headers.get('Function-Execution-Id')
+
+
     req_json = req.get_json()
+    req_json['request-id'] = req_id
+    req_json['income-timestamp'] = income_timestamp
     begin = datetime.datetime.now()
     # We are deployed in the same directorygit status
     from function import function
     ret = function.handler(req_json)
     end = datetime.datetime.now()
 
-    req_id = req.headers.get('Function-Execution-Id')
 
     log_data = {
         'result': ret['result']
