@@ -198,7 +198,7 @@ class Trigger(ABC, LoggingBase):
             if status_code != 200:
                 self.logging.error("Invocation on URL {} failed!".format(url))
                 self.logging.error("Output: {}".format(output))
-                raise RuntimeError("Failed invocation Lambda function!")
+                raise RuntimeError(f"Failed invocation of function! Output: {output}")
 
             self.logging.debug(f"Invoke of function was successful")
             result = ExecutionResult.from_times(begin, end)
@@ -211,7 +211,7 @@ class Trigger(ABC, LoggingBase):
         except json.decoder.JSONDecodeError:
             self.logging.error("Invocation on URL {} failed!".format(url))
             self.logging.error("Output: {}".format(data.getvalue().decode()))
-            raise RuntimeError("Failed invocation of function!")
+            raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
 
     # FIXME: 3.7+, future annotations
     @staticmethod
