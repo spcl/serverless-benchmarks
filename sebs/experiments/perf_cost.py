@@ -110,19 +110,19 @@ class PerfCost(Experiment):
         file_name = f"cold_results_{suffix}.json" if suffix else "cold_results.json"
         self.logging.info(f"Begin cold experiments")
         warm_not_cold_summary = []
+        errors = []
         with open(os.path.join(self._out_dir, file_name), "w") as out_f:
             samples_gathered = 0
             invocations = settings["cold-invocations"]
             client_times = []
             with ThreadPool(invocations) as pool:
-                result = ExperimentResult(
-                    self.config, self._deployment_client.config
-                )
+                result = ExperimentResult(self.config, self._deployment_client.config)
                 result.begin()
                 while samples_gathered < repetitions:
                     self._deployment_client.enforce_cold_start([self._function])
 
                     results = []
+                    errors_count = 0
                     for i in range(0, invocations):
                         results.append(
                             pool.apply_async(
@@ -131,26 +131,39 @@ class PerfCost(Experiment):
                         )
 
                     for res in results:
-                        ret = res.get()
-                        warm_not_cold = []
-                        if not ret.stats.cold_start:
-                            self.logging.info(f"Invocation {ret.request_id} not cold!")
-                            warm_not_cold.append(ret)
-                        else:
-                            result.add_invocation(self._function, ret)
-                            client_times.append(ret.times.client / 1000.0)
-                            samples_gathered += 1
-                    self.logging.info(f"Processed {samples_gathered}  samples out of {repetitions}")
-                    
+                        try:
+                            ret = res.get()
+                            warm_not_cold = []
+                            if not ret.stats.cold_start:
+                                self.logging.info(
+                                    f"Invocation {ret.request_id} not cold!"
+                                )
+                                warm_not_cold.append(ret)
+                            else:
+                                result.add_invocation(self._function, ret)
+                                client_times.append(ret.times.client / 1000.0)
+                                samples_gathered += 1
+                        except Exception as e:
+                            errors_count += 1
+                            errors.append(str(e))
+                    self.logging.info(
+                        f"Processed {samples_gathered} samples out of {repetitions}, {errors_count} errors"
+                    )
+
                     if len(warm_not_cold) > 0:
                         warm_not_cold_summary.append(warm_not_cold)
 
                 result.end()
                 self.compute_statistics(client_times)
                 out_f.write(serialize(result))
-        file_name = f"cold_notenforced_{suffix}.json" if suffix else "cold_notenforced.json"
+        file_name = (
+            f"cold_notenforced_{suffix}.json" if suffix else "cold_notenforced.json"
+        )
         with open(os.path.join(self._out_dir, file_name), "w") as out_f:
             out_f.write(serialize(warm_not_cold_summary))
+        file_name = f"cold_errors_{suffix}.json" if suffix else "cold_errors.json"
+        with open(os.path.join(self._out_dir, file_name), "w") as out_f:
+            out_f.write(serialize(errors))
 
         """
             Warm experiment: schedule many invocations in parallel.
@@ -158,18 +171,18 @@ class PerfCost(Experiment):
         """
         file_name = f"warm_results_{suffix}.json" if suffix else "warm_results.json"
         self.logging.info(f"Begin warm experiments")
+        errors = []
         with open(os.path.join(self._out_dir, file_name), "w") as out_f:
             samples_gathered = 0
             invocations = settings["warm-invocations"]
             client_times = []
             with ThreadPool(invocations) as pool:
-                result = ExperimentResult(
-                    self.config, self._deployment_client.config
-                )
+                result = ExperimentResult(self.config, self._deployment_client.config)
                 result.begin()
                 while samples_gathered < repetitions:
 
                     results = []
+                    errors_count = 0
                     for i in range(0, invocations):
                         results.append(
                             pool.apply_async(
@@ -178,17 +191,27 @@ class PerfCost(Experiment):
                         )
 
                     for res in results:
-                        ret = res.get()
-                        if ret.stats.cold_start:
-                            self.logging.info(f"Invocation {ret.request_id} cold!")
-                        else:
-                            result.add_invocation(self._function, ret)
-                            client_times.append(ret.times.client / 1000.0)
-                            samples_gathered += 1
+                        try:
+                            ret = res.get()
+                            if ret.stats.cold_start:
+                                self.logging.info(f"Invocation {ret.request_id} cold!")
+                            else:
+                                result.add_invocation(self._function, ret)
+                                client_times.append(ret.times.client / 1000.0)
+                                samples_gathered += 1
+                        except Exception as e:
+                            errors_count += 1
+                            errors.append(str(e))
+                    self.logging.info(
+                        f"Processed {samples_gathered} samples out of {repetitions}, {errors_count} errors"
+                    )
 
                 result.end()
                 self.compute_statistics(client_times)
                 out_f.write(serialize(result))
+        file_name = f"warm_errors_{suffix}.json" if suffix else "warm_errors.json"
+        with open(os.path.join(self._out_dir, file_name), "w") as out_f:
+            out_f.write(serialize(errors))
 
     def process(
         self,
