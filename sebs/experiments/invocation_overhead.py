@@ -13,7 +13,7 @@ from sebs.experiments.config import Config as ExperimentConfig
 
 
 class CodePackageSize:
-    def __init__(self, benchmark: Benchmark, settings: dict):
+    def __init__(self, deployment_client: FaaSSystem, benchmark: Benchmark, settings: dict):
         import math
         from numpy import linspace
 
@@ -22,20 +22,24 @@ class CodePackageSize:
             settings["code_package_end"],
             settings["code_package_points"],
         )
-        # estimate the size after zip compression
-        self.pts = [int(pt) - 4 * 1024 for pt in points]
-        self.pts = [math.floor((pt - 123) * 3 / 4) for pt in points]
         from sebs.utils import find_benchmark
-
         self._benchmark_path = find_benchmark("030.clock-synchronization", "benchmarks")
         self._benchmark = benchmark
         random.seed(1410)
 
+        # estimate the size after zip compression
+        self.pts = [int(pt) - 4 * 1024 for pt in points]
+        self.pts = [math.floor((pt - 123) * 3 / 4) for pt in points]
+
+        self._deployment_client = deployment_client
+        self._benchmark = benchmark
+
     def before_sample(self, size: int, input_benchmark: dict):
         arr = bytearray((random.getrandbits(8) for i in range(size)))
-        with open(os.path.join(self._benchmark_path, "python", "file.py"), "wb") as f:
-            f.write(arr)
-        self._benchmark.query_cache()
+        #with open(os.path.join(self._benchmark_path, "python", "file.py"), "wb") as f:
+        #    f.write(arr)
+        #self._benchmark.query_cache()
+        self._benchmark.code_package_modify("randomdata.bin", arr)
         function = self._deployment_client.get_function(self._benchmark)
         self._deployment_client.update_function(function, self._benchmark)
 
@@ -108,7 +112,7 @@ class InvocationOverhead(Experiment):
         threads = self.settings["threads"]
 
         if self.settings["type"] == "code":
-            experiment = CodePackageSize(self._benchmark, self.settings)
+            experiment = CodePackageSize(self._deployment_client, self._benchmark, self.settings)
         else:
             experiment = PayloadSize(self.settings)
 
