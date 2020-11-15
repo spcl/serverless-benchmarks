@@ -483,11 +483,11 @@ class GCP(System):
             }
         )
 
-        requests[function_name] = {}
+        requests["metrics"][function_name] = {}
 
         for metric in metrics:
 
-            requests[function_name][metric] = []
+            requests["metrics"][function_name][metric] = []
 
             list_request = monitoring_v3.ListTimeSeriesRequest(
                 name=project_name,
@@ -499,7 +499,7 @@ class GCP(System):
             for result in results:
                 if result.resource.labels.get("function_name") == function_name:
                     for point in result.points:
-                        requests[function_name][metric] += [
+                        requests["metrics"][function_name][metric] += [
                             {
                                 "mean_value": point.value.distribution_value.mean,
                                 "executions_count": point.value.distribution_value.count,
