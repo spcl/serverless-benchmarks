@@ -14,14 +14,17 @@ class Result:
         self,
         experiment_config: ExperimentConfig,
         deployment_config: DeploymentConfig,
-        invocations: Dict[str, Dict[str, ExecutionResult]] = {},
+        invocations: Optional[Dict[str, Dict[str, ExecutionResult]]] = None,
         result_bucket: Optional[str] = None,
     ):
         self.config = {
             "experiments": experiment_config,
             "deployment": deployment_config,
         }
-        self._invocations = invocations
+        if not invocations:
+            self._invocations = {}
+        else:
+            self._invocations = invocations
         self.result_bucket = result_bucket
 
     def begin(self):
@@ -56,6 +59,8 @@ class Result:
     ) -> "Result":
         invocations: Dict[str, dict] = {}
         for func, func_invocations in cached_config["_invocations"].items():
+            if func == "metrics":
+                continue
             invocations[func] = {}
             for invoc_id, invoc in func_invocations.items():
                 invocations[func][invoc_id] = ExecutionResult.deserialize(invoc)

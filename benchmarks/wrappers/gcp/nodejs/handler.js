@@ -24,7 +24,7 @@ exports.handler = async function(req, res) {
           end: end,
           compute_time: micro,
           results_time: 0,
-          result: result,
+          result: {output: result},
           is_cold: is_cold,
           request_id: req.headers["function-execution-id"]
         });

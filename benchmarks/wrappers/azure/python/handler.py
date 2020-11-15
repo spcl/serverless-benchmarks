@@ -20,7 +20,7 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     end = datetime.datetime.now()
 
     log_data = {
-        'result': ret['result']
+        'output': ret['result']
     }
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']

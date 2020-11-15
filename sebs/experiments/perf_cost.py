@@ -303,20 +303,13 @@ class PerfCost(Experiment):
                         # compress! remove output since it can be large but it's useless for us
                         for func in experiments.functions():
                             for id, invoc in experiments.invocations(func).items():
-                                # FIXME: - we add metric results here, should go somewhere else
-                                if isinstance(invoc, dict):
-                                    continue
-                                # FIXME: this is not consisten across Python and Nodejs (naming of results)
-                                #del invoc.output["result"]["result"]
+                                del invoc.output["result"]["output"]
 
                         name, extension = os.path.splitext(f)
                         with open(os.path.join(directory, "perf-cost", f"{name}-processed{extension}"), "w") as out_f:
                             out_f.write(serialize(experiments))
                 for func in experiments.functions():
                     for request_id, invoc in experiments.invocations(func).items():
-                        # FIXME: - we add metric results here, should go somewhere else
-                        if isinstance(invoc, dict):
-                            continue
                         writer.writerow(
                             [
                                 memory,

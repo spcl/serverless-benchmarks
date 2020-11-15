@@ -14,7 +14,7 @@ def handler(req):
     req_id = req.headers.get('Function-Execution-Id')
 
     log_data = {
-        'result': ret['result']
+        'output': ret['result']
     }
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']

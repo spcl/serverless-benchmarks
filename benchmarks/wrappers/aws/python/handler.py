@@ -22,7 +22,7 @@ def handler(event, context):
     end = datetime.datetime.now()
 
     log_data = {
-        'result': ret['result']
+        'output': ret['result']
     }
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
