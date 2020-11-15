@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from multiprocessing.pool import ThreadPool
 from typing import List
 
@@ -111,6 +112,8 @@ class PerfCost(Experiment):
         self.logging.info(f"Begin cold experiments")
         warm_not_cold_summary = []
         errors = []
+        failures = 0
+        warms = 0
         with open(os.path.join(self._out_dir, file_name), "w") as out_f:
             samples_gathered = 0
             invocations = settings["cold-invocations"]
@@ -118,6 +121,7 @@ class PerfCost(Experiment):
             with ThreadPool(invocations) as pool:
                 result = ExperimentResult(self.config, self._deployment_client.config)
                 result.begin()
+                samples_generated = 0
                 while samples_gathered < repetitions:
                     self._deployment_client.enforce_cold_start([self._function])
 
@@ -129,11 +133,12 @@ class PerfCost(Experiment):
                                 self._trigger.sync_invoke, args=(self._benchmark_input,)
                             )
                         )
+                    samples_generated += invocations
 
+                    warm_not_cold = []
                     for res in results:
                         try:
                             ret = res.get()
-                            warm_not_cold = []
                             if not ret.stats.cold_start:
                                 self.logging.info(
                                     f"Invocation {ret.request_id} not cold!"
@@ -149,21 +154,24 @@ class PerfCost(Experiment):
                     self.logging.info(
                         f"Processed {samples_gathered} samples out of {repetitions}, {errors_count} errors"
                     )
+                    failures += errors_count
 
                     if len(warm_not_cold) > 0:
                         warm_not_cold_summary.append(warm_not_cold)
+                        warms += len(warm_not_cold)
 
                 result.end()
                 self.compute_statistics(client_times)
-                out_f.write(serialize(result))
-        file_name = (
-            f"cold_notenforced_{suffix}.json" if suffix else "cold_notenforced.json"
-        )
-        with open(os.path.join(self._out_dir, file_name), "w") as out_f:
-            out_f.write(serialize(warm_not_cold_summary))
-        file_name = f"cold_errors_{suffix}.json" if suffix else "cold_errors.json"
-        with open(os.path.join(self._out_dir, file_name), "w") as out_f:
-            out_f.write(serialize(errors))
+                out_f.write(serialize({
+                    **json.loads(serialize(result)),
+                    "statistics": {
+                        "samples_generated":  samples_gathered,
+                        "failures": errors,
+                        "failures_count": failures,
+                        "unexpected_warms": warm_not_cold_summary,
+                        "unexpected_warms_count": warms
+                    }
+                }))
 
         """
             Warm experiment: schedule many invocations in parallel.
@@ -172,6 +180,9 @@ class PerfCost(Experiment):
         file_name = f"warm_results_{suffix}.json" if suffix else "warm_results.json"
         self.logging.info(f"Begin warm experiments")
         errors = []
+        cold_not_warm_summary = []
+        failures = 0
+        colds = 0
         with open(os.path.join(self._out_dir, file_name), "w") as out_f:
             samples_gathered = 0
             invocations = settings["warm-invocations"]
@@ -189,12 +200,13 @@ class PerfCost(Experiment):
                                 self._trigger.sync_invoke, args=(self._benchmark_input,)
                             )
                         )
-
+                    cold_not_warm = []
                     for res in results:
                         try:
                             ret = res.get()
                             if ret.stats.cold_start:
                                 self.logging.info(f"Invocation {ret.request_id} cold!")
+                                cold_not_warm.append(ret)
                             else:
                                 result.add_invocation(self._function, ret)
                                 client_times.append(ret.times.client / 1000.0)
@@ -202,16 +214,26 @@ class PerfCost(Experiment):
                         except Exception as e:
                             errors_count += 1
                             errors.append(str(e))
+                    failures += errors_count
                     self.logging.info(
                         f"Processed {samples_gathered} samples out of {repetitions}, {errors_count} errors"
                     )
+                    if len(warm_not_cold) > 0:
+                        cold_not_warm_summary.append(cold_not_warm)
+                        colds += len(cold_not_warm)
 
                 result.end()
                 self.compute_statistics(client_times)
-                out_f.write(serialize(result))
-        file_name = f"warm_errors_{suffix}.json" if suffix else "warm_errors.json"
-        with open(os.path.join(self._out_dir, file_name), "w") as out_f:
-            out_f.write(serialize(errors))
+                out_f.write(serialize({
+                    **json.loads(serialize(result)),
+                    "statistics": {
+                        "samples_generated":  samples_gathered,
+                        "failures": errors,
+                        "failures_count": failures,
+                        "unexpected_colds": cold_not_warm_summary,
+                        "unexpected_colds_count": colds
+                    }
+                }))
 
     def process(
         self,
@@ -219,6 +241,7 @@ class PerfCost(Experiment):
         deployment_client: FaaSSystem,
         directory: str,
         logging_filename: str,
+        extend_time_interval: int
     ):
 
         import glob
@@ -238,30 +261,71 @@ class PerfCost(Experiment):
                 ]
             )
             for f in glob.glob(os.path.join(directory, "perf-cost", "*.json")):
-                self.logging.info(f"Processing data in {f}")
-                fname = os.path.splitext(os.path.basename(f))[0].split("_")
-                memory = int(fname[2])
-                exp_type = fname[0]
-                with open(f, "r") as in_f:
-                    config = json.load(in_f)
-                    experiments = ExperimentResult.deserialize(
-                        config,
-                        sebs_client.cache_client,
-                        sebs_client.logging_handlers(logging_filename),
-                    )
-                    for func in experiments.functions():
-                        deployment_client.download_metrics(
-                            func, *experiments.times(), experiments.invocations(func)
+                name, extension = os.path.splitext(f)
+                if "processed" in f:
+                    with open(f) as in_f:
+                        config = json.load(in_f)
+                        experiments = ExperimentResult.deserialize(
+                            config,
+                            sebs_client.cache_client,
+                            sebs_client.logging_handlers(logging_filename),
                         )
-                        for request_id, invoc in experiments.invocations(func).items():
-                            writer.writerow(
-                                [
-                                    memory,
-                                    exp_type,
-                                    invoc.stats.cold_start,
-                                    invoc.times.benchmark,
-                                    invoc.times.http_startup,
-                                    invoc.times.client,
-                                    invoc.provider_times.execution,
+                    fname = os.path.splitext(os.path.basename(f))[0].split("_")
+                    memory = int(fname[2].split('-')[0])
+                    exp_type = fname[0]
+                else:
+
+                    if os.path.exists(os.path.join(directory, "perf-cost", f"{name}-processed{extension}")):
+                        self.logging.info(f"Skipping already processed {f}")
+                        continue
+                    self.logging.info(f"Processing data in {f}")
+                    fname = os.path.splitext(os.path.basename(f))[0].split("_")
+                    memory = int(fname[2])
+                    exp_type = fname[0]
+                    with open(f, "r") as in_f:
+                        config = json.load(in_f)
+                        experiments = ExperimentResult.deserialize(
+                            config,
+                            sebs_client.cache_client,
+                            sebs_client.logging_handlers(logging_filename),
+                        )
+                        for func in experiments.functions():
+                            if extend_time_interval > 0:
+                                times = [
+                                    - extend_time_interval * 60 + experiments.times()[0],
+                                    extend_time_interval * 60 + experiments.times()[1]
                                 ]
+                            else:
+                                times = experiments.times()
+                            deployment_client.download_metrics(
+                                func, *times, experiments.invocations(func)
                             )
+                        # compress! remove output since it can be large but it's useless for us
+                        for func in experiments.functions():
+                            for id, invoc in experiments.invocations(func).items():
+                                # FIXME: - we add metric results here, should go somewhere else
+                                if isinstance(invoc, dict):
+                                    continue
+                                # FIXME: this is not consisten across Python and Nodejs (naming of results)
+                                #del invoc.output["result"]["result"]
+
+                        name, extension = os.path.splitext(f)
+                        with open(os.path.join(directory, "perf-cost", f"{name}-processed{extension}"), "w") as out_f:
+                            out_f.write(serialize(experiments))
+                for func in experiments.functions():
+                    for request_id, invoc in experiments.invocations(func).items():
+                        # FIXME: - we add metric results here, should go somewhere else
+                        if isinstance(invoc, dict):
+                            continue
+                        writer.writerow(
+                            [
+                                memory,
+                                exp_type,
+                                invoc.stats.cold_start,
+                                invoc.times.benchmark,
+                                invoc.times.http_startup,
+                                invoc.times.client,
+                                invoc.provider_times.execution,
+                            ]
+                        )
+
