@@ -1,8 +1,11 @@
+# forward references
+from __future__ import annotations
+
 import json
 import os
-import time
+from enum import Enum
 from multiprocessing.pool import ThreadPool
-from typing import List
+from typing import List, TYPE_CHECKING
 
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.function import Trigger
@@ -10,7 +13,11 @@ from sebs.experiments.experiment import Experiment
 from sebs.experiments.result import Result as ExperimentResult
 from sebs.experiments.config import Config as ExperimentConfig
 from sebs.utils import serialize
-from sebs.statistics import *
+from sebs.statistics import basic_stats, ci_tstudents, ci_le_boudec
+
+# import cycle
+if TYPE_CHECKING:
+    from sebs import SeBS
 
 
 class PerfCost(Experiment):
@@ -25,9 +32,16 @@ class PerfCost(Experiment):
     def typename() -> str:
         return "Experiment.PerfCost"
 
-    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
+    class RunType(Enum):
+        WARM = 0
+        COLD = 1
+        BURST = 2
+        SEQUENTIAL = 3
 
-        from sebs import SeBS
+        def str(self) -> str:
+            return self.name.lower()
+
+    def prepare(self, sebs_client: SeBS, deployment_client: FaaSSystem):
 
         # create benchmark instance
         settings = self.config.experiment_settings(self.name())
@@ -76,9 +90,6 @@ class PerfCost(Experiment):
 
     def compute_statistics(self, times: List[float]):
 
-        import numpy as np
-        import scipy.stats as st
-
         mean, median, std, cv = basic_stats(times)
         self.logging.info(f"Mean {mean}, median {median}, std {std}, CV {cv}")
         for alpha in [0.95, 0.99]:
@@ -86,7 +97,8 @@ class PerfCost(Experiment):
             interval_width = ci_interval[1] - ci_interval[0]
             ratio = 100 * interval_width / mean / 2.0
             self.logging.info(
-                f"Parametric CI (Student's t-distribution) {alpha} from {ci_interval[0]} to {ci_interval[1]}, within {ratio}% of mean"
+                f"Parametric CI (Student's t-distribution) {alpha} from "
+                f"{ci_interval[0]} to {ci_interval[1]}, within {ratio}% of mean"
             )
 
             if len(times) > 20:
@@ -94,12 +106,20 @@ class PerfCost(Experiment):
                 interval_width = ci_interval[1] - ci_interval[0]
                 ratio = 100 * interval_width / median / 2.0
                 self.logging.info(
-                    f"Non-parametric CI {alpha} from {ci_interval[0]} to {ci_interval[1]}, within {ratio}% of median"
+                    f"Non-parametric CI {alpha} from {ci_interval[0]} to "
+                    f"{ci_interval[1]}, within {ratio}% of median"
                 )
 
-    def run_configuration(self, settings: dict, repetitions: int, suffix: str = ""):
+    def _run_configuration(
+        self,
+        run_type: "PerfCost.RunType",
+        settings: dict,
+        repetitions: int,
+        suffix: str = "",
+    ):
 
-        # Randomize starting value to ensure that it's not the same as in the previous run.
+        # Randomize starting value to ensure that it's not the same
+        # as in the previous run.
         # Otherwise we could not change anything and containers won't be killed.
         from random import randrange
 
@@ -108,25 +128,29 @@ class PerfCost(Experiment):
         """
             Cold experiment: schedule all invocations in parallel.
         """
-        file_name = f"cold_results_{suffix}.json" if suffix else "cold_results.json"
-        self.logging.info(f"Begin cold experiments")
-        warm_not_cold_summary = []
-        errors = []
-        failures = 0
-        warms = 0
+        file_name = (
+            f"{run_type.str()}_results_{suffix}.json" if suffix else "cold_results.json"
+        )
+        self.logging.info(f"Begin {run_type.str()} experiments")
+        incorrect_executions = []
+        error_executions = []
+        error_count = 0
+        incorrect_count = 0
         with open(os.path.join(self._out_dir, file_name), "w") as out_f:
             samples_gathered = 0
-            invocations = settings["cold-invocations"]
+            invocations = settings[f"concurrent-invocations"]
             client_times = []
             with ThreadPool(invocations) as pool:
                 result = ExperimentResult(self.config, self._deployment_client.config)
                 result.begin()
                 samples_generated = 0
+
                 while samples_gathered < repetitions:
-                    self._deployment_client.enforce_cold_start([self._function])
+
+                    if run_type == PerfCost.RunType.COLD:
+                        self._deployment_client.enforce_cold_start([self._function])
 
                     results = []
-                    errors_count = 0
                     for i in range(0, invocations):
                         results.append(
                             pool.apply_async(
@@ -135,113 +159,82 @@ class PerfCost(Experiment):
                         )
                     samples_generated += invocations
 
-                    warm_not_cold = []
+                    incorrect = []
                     for res in results:
                         try:
                             ret = res.get()
-                            if not ret.stats.cold_start:
+                            if (
+                                run_type == PerfCost.RunType.COLD
+                                and not ret.stats.cold_start
+                            ) or (
+                                run_type == PerfCost.RunType.WARM
+                                and ret.stats.cold_start
+                            ):
                                 self.logging.info(
-                                    f"Invocation {ret.request_id} not cold!"
+                                    f"Invocation {ret.request_id} "
+                                    f"cold: {ret.stats.cold_start} "
+                                    f"on experiment {run_type.str()}!"
                                 )
-                                warm_not_cold.append(ret)
+                                incorrect.append(ret)
                             else:
                                 result.add_invocation(self._function, ret)
                                 client_times.append(ret.times.client / 1000.0)
                                 samples_gathered += 1
                         except Exception as e:
-                            errors_count += 1
-                            errors.append(str(e))
+                            error_count += 1
+                            error_executions.append(str(e))
                     self.logging.info(
-                        f"Processed {samples_gathered} samples out of {repetitions}, {errors_count} errors"
+                        f"Processed {samples_gathered} samples out of {repetitions}, {error_count} errors"
                     )
-                    failures += errors_count
 
-                    if len(warm_not_cold) > 0:
-                        warm_not_cold_summary.append(warm_not_cold)
-                        warms += len(warm_not_cold)
+                    if len(incorrect) > 0:
+                        incorrect_executions.extend(incorrect)
+                        incorrect_count += len(incorrect)
 
                 result.end()
                 self.compute_statistics(client_times)
-                out_f.write(serialize({
-                    **json.loads(serialize(result)),
-                    "statistics": {
-                        "samples_generated":  samples_gathered,
-                        "failures": errors,
-                        "failures_count": failures,
-                        "unexpected_warms": warm_not_cold_summary,
-                        "unexpected_warms_count": warms
-                    }
-                }))
-
-        """
-            Warm experiment: schedule many invocations in parallel.
-            Here however it doesn't matter if they're perfectly aligned.
-        """
-        file_name = f"warm_results_{suffix}.json" if suffix else "warm_results.json"
-        self.logging.info(f"Begin warm experiments")
-        errors = []
-        cold_not_warm_summary = []
-        failures = 0
-        colds = 0
-        with open(os.path.join(self._out_dir, file_name), "w") as out_f:
-            samples_gathered = 0
-            invocations = settings["warm-invocations"]
-            client_times = []
-            with ThreadPool(invocations) as pool:
-                result = ExperimentResult(self.config, self._deployment_client.config)
-                result.begin()
-                while samples_gathered < repetitions:
-
-                    results = []
-                    errors_count = 0
-                    for i in range(0, invocations):
-                        results.append(
-                            pool.apply_async(
-                                self._trigger.sync_invoke, args=(self._benchmark_input,)
-                            )
-                        )
-                    cold_not_warm = []
-                    for res in results:
-                        try:
-                            ret = res.get()
-                            if ret.stats.cold_start:
-                                self.logging.info(f"Invocation {ret.request_id} cold!")
-                                cold_not_warm.append(ret)
-                            else:
-                                result.add_invocation(self._function, ret)
-                                client_times.append(ret.times.client / 1000.0)
-                                samples_gathered += 1
-                        except Exception as e:
-                            errors_count += 1
-                            errors.append(str(e))
-                    failures += errors_count
-                    self.logging.info(
-                        f"Processed {samples_gathered} samples out of {repetitions}, {errors_count} errors"
+                out_f.write(
+                    serialize(
+                        {
+                            **json.loads(serialize(result)),
+                            "statistics": {
+                                "samples_generated": samples_gathered,
+                                "failures": error_executions,
+                                "failures_count": error_count,
+                                "incorrect": incorrect_executions,
+                                "incorrect_count": incorrect_count,
+                            },
+                        }
                     )
-                    if len(warm_not_cold) > 0:
-                        cold_not_warm_summary.append(cold_not_warm)
-                        colds += len(cold_not_warm)
+                )
 
-                result.end()
-                self.compute_statistics(client_times)
-                out_f.write(serialize({
-                    **json.loads(serialize(result)),
-                    "statistics": {
-                        "samples_generated":  samples_gathered,
-                        "failures": errors,
-                        "failures_count": failures,
-                        "unexpected_colds": cold_not_warm_summary,
-                        "unexpected_colds_count": colds
-                    }
-                }))
+    def run_configuration(self, settings: dict, repetitions: int, suffix: str = ""):
+
+        for experiment_type in settings["experiments"]:
+            if experiment_type == "cold":
+                self._run_configuration(
+                    PerfCost.RunType.COLD, settings, repetitions, suffix
+                )
+            elif experiment_type == "warm":
+                self._run_configuration(
+                    PerfCost.RunType.WARM, settings, repetitions, suffix
+                )
+            elif experiment_type == "burst":
+                pass  # self._run_configuration(PerfCost.RunType.COLD, settings, repetitions, suffix)
+            elif experiment_type == "sequential":
+                pass  # self._run_configuration(PerfCost.RunType.COLD, settings, repetitions, suffix)
+            else:
+                raise RuntimeError(
+                    f"Unknown experiment type {experiment_type} for Perf-Cost!"
+                )
 
     def process(
         self,
-        sebs_client: "SeBS",
+        sebs_client: SeBS,
         deployment_client: FaaSSystem,
         directory: str,
         logging_filename: str,
-        extend_time_interval: int
+        extend_time_interval: int,
     ):
 
         import glob
@@ -271,11 +264,15 @@ class PerfCost(Experiment):
                             sebs_client.logging_handlers(logging_filename),
                         )
                     fname = os.path.splitext(os.path.basename(f))[0].split("_")
-                    memory = int(fname[2].split('-')[0])
+                    memory = int(fname[2].split("-")[0])
                     exp_type = fname[0]
                 else:
 
-                    if os.path.exists(os.path.join(directory, "perf-cost", f"{name}-processed{extension}")):
+                    if os.path.exists(
+                        os.path.join(
+                            directory, "perf-cost", f"{name}-processed{extension}"
+                        )
+                    ):
                         self.logging.info(f"Skipping already processed {f}")
                         continue
                     self.logging.info(f"Processing data in {f}")
@@ -292,8 +289,8 @@ class PerfCost(Experiment):
                         for func in experiments.functions():
                             if extend_time_interval > 0:
                                 times = [
-                                    - extend_time_interval * 60 + experiments.times()[0],
-                                    extend_time_interval * 60 + experiments.times()[1]
+                                    -extend_time_interval * 60 + experiments.times()[0],
+                                    extend_time_interval * 60 + experiments.times()[1],
                                 ]
                             else:
                                 times = experiments.times()
@@ -306,7 +303,12 @@ class PerfCost(Experiment):
                                 del invoc.output["result"]["output"]
 
                         name, extension = os.path.splitext(f)
-                        with open(os.path.join(directory, "perf-cost", f"{name}-processed{extension}"), "w") as out_f:
+                        with open(
+                            os.path.join(
+                                directory, "perf-cost", f"{name}-processed{extension}"
+                            ),
+                            "w",
+                        ) as out_f:
                             out_f.write(serialize(experiments))
                 for func in experiments.functions():
                     for request_id, invoc in experiments.invocations(func).items():
@@ -321,4 +323,3 @@ class PerfCost(Experiment):
                                 invoc.provider_times.execution,
                             ]
                         )
-
