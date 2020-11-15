@@ -1,5 +1,5 @@
 
-import datetime, io, json, os, sys
+import datetime, io, json, os, sys, uuid
 
 # Add current directory to allow location of packages
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
@@ -41,10 +41,15 @@ def handler(event, context):
 
     # cold test
     is_cold = False
-    fname = os.path.join('/tmp','cold_run')
+    fname = os.path.join('/tmp', 'cold_run')
     if not os.path.exists(fname):
         is_cold = True
-        open(fname, 'a').close()
+        container_id = str(uuid.uuid4())[0:8]
+        with open(fname, 'a') as f:
+            f.write(container_id)
+    else:
+        with open(fname, 'r') as f:
+            container_id = f.read()
 
     cold_start_var = ""
     if "cold_start" in os.environ:
@@ -59,7 +64,8 @@ def handler(event, context):
             'is_cold': is_cold,
             'result': log_data,
             'request_id': context.aws_request_id,
-            'cold_start_var': cold_start_var
+            'cold_start_var': cold_start_var,
+            'container_id': container_id,
         })
     }
 
