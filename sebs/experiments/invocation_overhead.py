@@ -157,7 +157,7 @@ class InvocationOverhead(Experiment):
             self.benchmark_input["output-bucket"], self._out_dir
         )
 
-    def process(self, directory: str):
+    def process(self, sebs_client, deployment_client, directory: str, logging_filename: str):
 
         import pandas as pd
         import glob
