@@ -2,6 +2,7 @@ import csv
 import os
 import random
 import shutil
+import time
 from datetime import datetime
 from itertools import repeat
 from multiprocessing.dummy import Pool as ThreadPool
@@ -137,34 +138,34 @@ class InvocationOverhead(Experiment):
                 ]
             )
 
-            import time
-            for size in experiment.pts:
-                experiment.before_sample(size, input_benchmark)
+            for result_type in ["warm", "cold"]:
+                # warm up
+                if result_type == "warm":
+                    self.logging.info("Warm up invocation!")
+                    self.receive_datagrams(input_benchmark, N, 12000, ip)
+                for size in experiment.pts:
+                    experiment.before_sample(size, input_benchmark)
 
-                for i in range(repetitions):
-                    succesful = False
-                    while not succesful:
-                        self.logging.info(f"Starting with {size} bytes, repetition {i}")
-                        self._deployment_client.enforce_cold_start(
-                            [self._function,]
-                        )
-                        time.sleep(1)
-                        row = self.receive_datagrams(input_benchmark, N, 12000, ip)
-                        if not row[0]:
-                            self.logging.info("Not cold!")
-                            continue
-                        writer.writerow([size, i] + row)
-                        succesful = True
-
-        # pool = ThreadPool(threads)
-        # ports = range(12000, 12000 + invocations)
-        # ret = pool.starmap(self.receive_datagrams,
-        #    zip(repeat(repetitions, invocations), ports, repeat(ip, invocations))
-        # )
-        # requests = []
-        # for val in ret:
-        #    print(val)
-        import time
+                    for i in range(repetitions):
+                        succesful = False
+                        while not succesful:
+                            self.logging.info(f"Starting with {size} bytes, repetition {i}")
+                            if result_type == "cold":
+                                self._deployment_client.enforce_cold_start(
+                                    [self._function,]
+                                )
+                                time.sleep(1)
+                            row = self.receive_datagrams(input_benchmark, N, 12000, ip)
+                            if result_type == "cold":
+                                if not row[0]:
+                                    self.logging.info("Not cold!")
+                                    continue
+                            else:
+                                if row[0]:
+                                    self.logging.info("cold!")
+                                    continue
+                            writer.writerow([size, i] + row)
+                            succesful = True
 
         time.sleep(5)
         self._storage.download_bucket(
