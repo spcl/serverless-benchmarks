@@ -394,6 +394,19 @@ class GCP(System):
         self, function_name: str, start_time: int, end_time: int, requests: dict,
     ):
 
+        from google.api_core import exceptions
+        from time import sleep
+
+        def wrapper(gen):
+            while True:
+                try:
+                    yield next(gen)
+                except StopIteration:
+                    break
+                except exceptions.ResourceExhausted as e:
+                    print("Exhausted")
+                    sleep(30)
+
         """
             Use GCP's logging system to find execution time of each function invocation.
 
@@ -426,11 +439,14 @@ class GCP(System):
                 f'timestamp >= "{timestamps[0]}" '
                 f'timestamp <= "{timestamps[1]}"'
             ),
-            page_size = 100
+            page_size = 1000
         )
         invocations_processed = 0
-        for page in invocations.pages:
+        pages = list(wrapper(invocations.pages))
+        entries = 0
+        for page in pages:#invocations.pages:
             for invoc in page:
+                entries += 1
                 if "execution took" in invoc.payload:
                     execution_id = invoc.labels["execution_id"]
                     # might happen that we get invocation from another experiment
@@ -441,7 +457,7 @@ class GCP(System):
                     requests[execution_id].provider_times.execution = int(exec_time)
                     invocations_processed += 1
         self.logging.info(
-            f"GCP: Found time metrics for {invocations_processed} "
+            f"GCP: Received {entries} entries, found time metrics for {invocations_processed} "
             f"out of {len(requests.keys())} invocations."
         )
 
