@@ -269,8 +269,9 @@ def experiment_invoke(experiment, **kwargs):
 
 @experiment.command("process")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
+@click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
 @common_params
-def experment_process(experiment, **kwargs):
+def experment_process(experiment, extend_time_interval, **kwargs):
     (
         config,
         output_dir,
@@ -279,7 +280,7 @@ def experment_process(experiment, **kwargs):
         deployment_client,
     ) = parse_common_params(**kwargs)
     experiment = sebs_client.get_experiment(experiment, config["experiments"])
-    experiment.process(sebs_client, deployment_client, output_dir, logging_filename)
+    experiment.process(sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval)
 
 
 if __name__ == "__main__":
