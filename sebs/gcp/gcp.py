@@ -509,8 +509,6 @@ class GCP(System):
 
     def _enforce_cold_start(self, function: Function):
 
-        # FIXME: error handling
-        # FIXME: wait until applied
         name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
