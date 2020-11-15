@@ -43,6 +43,12 @@ class ProviderTimes:
         self.execution = 0
         self.initialization = 0
 
+    @staticmethod
+    def deserialize(cached_obj: dict) -> "ExecutionStats":
+        ret = ProviderTimes()
+        ret.__dict__.update(cached_obj)
+        return ret
+
 
 class ExecutionStats:
 
@@ -149,6 +155,7 @@ class ExecutionResult:
         ret = ExecutionResult()
         ret.times = ExecutionTimes.deserialize(cached_config["times"])
         ret.billing = ExecutionBilling.deserialize(cached_config["billing"])
+        ret.provider_times = ProviderTimes.deserialize(cached_config["provider_times"])
         ret.stats = ExecutionStats.deserialize(cached_config["stats"])
         ret.request_id = cached_config["request_id"]
         ret.output = cached_config["output"]
