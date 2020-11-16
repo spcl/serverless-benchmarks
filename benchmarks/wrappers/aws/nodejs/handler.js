@@ -11,9 +11,10 @@ function process_output(data, http_trigger) {
 exports.handler = async function(event, context) {
   var begin = Date.now()/1000;
   var start = process.hrtime();
-  var func = require('./function/function')
   var http_trigger = "body" in event;
-  var ret = func.handler(http_trigger ? JSON.parse(event.body) : event);
+  var input_data = http_trigger ? JSON.parse(event.body) : event
+  var func = require('./function/function')
+  var ret = func.handler(input_data);
   return ret.then(
     (result) => {
       var elapsed = process.hrtime(start);
