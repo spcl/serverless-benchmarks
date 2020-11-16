@@ -423,6 +423,7 @@ class AWS(System):
         start_time: int,
         end_time: int,
         requests: Dict[str, ExecutionResult],
+        metrics: dict
     ):
 
         if not self.logs_client:

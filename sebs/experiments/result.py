@@ -15,6 +15,7 @@ class Result:
         experiment_config: ExperimentConfig,
         deployment_config: DeploymentConfig,
         invocations: Optional[Dict[str, Dict[str, ExecutionResult]]] = None,
+        metrics: Optional[Dict[str, dict]] = None,
         result_bucket: Optional[str] = None,
     ):
         self.config = {
@@ -25,6 +26,10 @@ class Result:
             self._invocations = {}
         else:
             self._invocations = invocations
+        if not metrics:
+            self._metrics = {}
+        else:
+            self._metrics = metrics
         self.result_bucket = result_bucket
 
     def begin(self):
@@ -53,14 +58,18 @@ class Result:
     def invocations(self, func: str) -> Dict[str, ExecutionResult]:
         return self._invocations[func]
 
+    def metrics(self, func: str) -> dict:
+        if func not in self._metrics:
+            self._metrics[func] = {}
+        return self._metrics[func]
+
+
     @staticmethod
     def deserialize(
         cached_config: dict, cache: Cache, handlers: LoggingHandlers
     ) -> "Result":
         invocations: Dict[str, dict] = {}
         for func, func_invocations in cached_config["_invocations"].items():
-            if func == "metrics":
-                continue
             invocations[func] = {}
             for invoc_id, invoc in func_invocations.items():
                 invocations[func][invoc_id] = ExecutionResult.deserialize(invoc)
@@ -70,6 +79,8 @@ class Result:
                 cached_config["config"]["deployment"], cache, handlers
             ),
             invocations,
+            # FIXME: compatibility with old results
+            cached_config["metrics"] if "metrics" in cached_config else {},
             cached_config["result_bucket"],
         )
         ret.begin_time = cached_config["begin_time"]

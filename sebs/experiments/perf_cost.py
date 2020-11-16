@@ -258,6 +258,7 @@ class PerfCost(Experiment):
                 if "processed" in f:
                     with open(f) as in_f:
                         config = json.load(in_f)
+                        print(f)
                         experiments = ExperimentResult.deserialize(
                             config,
                             sebs_client.cache_client,
@@ -286,6 +287,7 @@ class PerfCost(Experiment):
                             sebs_client.cache_client,
                             sebs_client.logging_handlers(logging_filename),
                         )
+                        metrics = {}
                         for func in experiments.functions():
                             if extend_time_interval > 0:
                                 times = [
@@ -294,13 +296,15 @@ class PerfCost(Experiment):
                                 ]
                             else:
                                 times = experiments.times()
-                            deployment_client.download_metrics(
-                                func, *times, experiments.invocations(func)
-                            )
+                            deployment_client.download_metrics(func, *times, experiments.invocations(func), experiments.metrics(func))
                         # compress! remove output since it can be large but it's useless for us
                         for func in experiments.functions():
                             for id, invoc in experiments.invocations(func).items():
-                                del invoc.output["result"]["output"]
+                                # FIXME: compatibility with old results
+                                if "output" in invoc.output["result"]:
+                                    del invoc.output["result"]["output"]
+                                elif "result" in invoc.output["result"]:
+                                    del invoc.output["result"]["result"]
 
                         name, extension = os.path.splitext(f)
                         with open(

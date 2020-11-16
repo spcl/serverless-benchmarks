@@ -391,7 +391,7 @@ class GCP(System):
             self.cache_client.unlock()
 
     def download_metrics(
-        self, function_name: str, start_time: int, end_time: int, requests: dict,
+        self, function_name: str, start_time: int, end_time: int, requests: dict, metrics: dict
     ):
 
         from google.api_core import exceptions
@@ -454,7 +454,8 @@ class GCP(System):
                         continue
                     # find number of miliseconds
                     exec_time = re.search(r"\d+ ms", invoc.payload).group().split()[0]
-                    requests[execution_id].provider_times.execution = int(exec_time)
+                    # convert into microseconds
+                    requests[execution_id].provider_times.execution = int(exec_time) * 1000
                     invocations_processed += 1
         self.logging.info(
             f"GCP: Received {entries} entries, found time metrics for {invocations_processed} "
@@ -468,7 +469,7 @@ class GCP(System):
         """
 
         # Set expected metrics here
-        metrics = ["execution_times", "user_memory_bytes", "network_egress"]
+        available_metrics = ["execution_times", "user_memory_bytes", "network_egress"]
 
         client = monitoring_v3.MetricServiceClient()
         project_name = client.common_project_path(self.config.project_name)
@@ -483,11 +484,10 @@ class GCP(System):
             }
         )
 
-        requests["metrics"][function_name] = {}
 
-        for metric in metrics:
+        for metric in available_metrics:
 
-            requests["metrics"][function_name][metric] = []
+            metrics[metric] = []
 
             list_request = monitoring_v3.ListTimeSeriesRequest(
                 name=project_name,
@@ -499,7 +499,7 @@ class GCP(System):
             for result in results:
                 if result.resource.labels.get("function_name") == function_name:
                     for point in result.points:
-                        requests["metrics"][function_name][metric] += [
+                        metrics[metric] += [
                             {
                                 "mean_value": point.value.distribution_value.mean,
                                 "executions_count": point.value.distribution_value.count,
