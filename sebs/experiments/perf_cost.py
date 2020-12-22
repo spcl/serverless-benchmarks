@@ -114,9 +114,7 @@ class PerfCost(Experiment):
             invocations = settings["cold-invocations"]
             client_times = []
             with ThreadPool(invocations) as pool:
-                result = ExperimentResult(
-                    self.config, self._deployment_client.config
-                )
+                result = ExperimentResult(self.config, self._deployment_client.config)
                 while samples_gathered < repetitions:
                     self._deployment_client.enforce_cold_start([self._function])
 
@@ -153,9 +151,7 @@ class PerfCost(Experiment):
             invocations = settings["warm-invocations"]
             client_times = []
             with ThreadPool(invocations) as pool:
-                result = ExperimentResult(
-                    self.config, self._deployment_client.config
-                )
+                result = ExperimentResult(self.config, self._deployment_client.config)
                 while samples_gathered < repetitions:
 
                     result.begin()

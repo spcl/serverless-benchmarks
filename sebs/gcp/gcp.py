@@ -202,9 +202,11 @@ class GCP(System):
         res = req.execute()
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
-        if False and "functions" in res.keys() and full_func_name in [
-            f["name"] for f in res["functions"]
-        ]:
+        if (
+            False
+            and "functions" in res.keys()
+            and full_func_name in [f["name"] for f in res["functions"]]
+        ):
             # FIXME: retrieve existing configuration, update code and return object
             raise NotImplementedError()
             # self.update_function(
@@ -426,7 +428,7 @@ class GCP(System):
                 f'timestamp >= "{timestamps[0]}" '
                 f'timestamp <= "{timestamps[1]}"'
             ),
-            page_size = 100
+            page_size=100,
         )
         invocations_processed = 0
         for page in invocations.pages:
@@ -475,8 +477,10 @@ class GCP(System):
 
             list_request = monitoring_v3.ListTimeSeriesRequest(
                 name=project_name,
-                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric),
-                interval=interval
+                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(
+                    metric
+                ),
+                interval=interval,
             )
 
             results = client.list_time_series(list_request)
@@ -489,7 +493,6 @@ class GCP(System):
                                 "executions_count": point.value.distribution_value.count,
                             }
                         ]
-
 
     def _enforce_cold_start(self, function: Function):
 

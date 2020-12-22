@@ -443,6 +443,7 @@ class Azure(System):
     ) -> Trigger:
         pass
 
+
 #
 #    def create_azure_function(self, fname, config):
 #

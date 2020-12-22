@@ -550,7 +550,9 @@ class Benchmark(LoggingBase):
         if self.code_package_is_archive():
             self._update_zip(self.code_location, filename, data)
             new_size = self.code_package_recompute_size() / 1024.0 / 1024.0
-            self.logging.info(f"Modified zip package {self.code_location}, new size {new_size} MB")
+            self.logging.info(
+                f"Modified zip package {self.code_location}, new size {new_size} MB"
+            )
         else:
             raise NotImplementedError()
 
@@ -558,6 +560,7 @@ class Benchmark(LoggingBase):
         AWS: .zip file
         Azure: directory
     """
+
     def code_package_is_archive(self) -> bool:
         if os.path.isfile(self.code_location):
             extension = os.path.splitext(self.code_location)[1]
@@ -571,7 +574,7 @@ class Benchmark(LoggingBase):
 
     #  https://stackoverflow.com/questions/25738523/how-to-update-one-file-inside-zip-file-using-python
     @staticmethod
-    def _update_zip(zipname :str, filename: str, data: io.BytesIO):
+    def _update_zip(zipname: str, filename: str, data: io.BytesIO):
         import zipfile
         import tempfile
 
@@ -580,9 +583,9 @@ class Benchmark(LoggingBase):
         os.close(tmpfd)
 
         # create a temp copy of the archive without filename
-        with zipfile.ZipFile(zipname, 'r') as zin:
-            with zipfile.ZipFile(tmpname, 'w') as zout:
-                zout.comment = zin.comment # preserve the comment
+        with zipfile.ZipFile(zipname, "r") as zin:
+            with zipfile.ZipFile(tmpname, "w") as zout:
+                zout.comment = zin.comment  # preserve the comment
                 for item in zin.infolist():
                     if item.filename != filename:
                         zout.writestr(item, zin.read(item.filename))
@@ -592,8 +595,9 @@ class Benchmark(LoggingBase):
         os.rename(tmpname, zipname)
 
         # now add filename with its new data
-        with zipfile.ZipFile(zipname, mode='a', compression=zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(zipname, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr(filename, data)
+
 
 """
     The interface of `input` module of each benchmark.

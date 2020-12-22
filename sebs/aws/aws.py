@@ -499,6 +499,7 @@ class AWS(System):
             Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
         import time
+
         time.sleep(3)
 
 

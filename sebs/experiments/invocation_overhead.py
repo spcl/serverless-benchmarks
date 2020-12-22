@@ -14,7 +14,9 @@ from sebs.experiments.config import Config as ExperimentConfig
 
 
 class CodePackageSize:
-    def __init__(self, deployment_client: FaaSSystem, benchmark: Benchmark, settings: dict):
+    def __init__(
+        self, deployment_client: FaaSSystem, benchmark: Benchmark, settings: dict
+    ):
         import math
         from numpy import linspace
 
@@ -24,6 +26,7 @@ class CodePackageSize:
             settings["code_package_points"],
         )
         from sebs.utils import find_benchmark
+
         self._benchmark_path = find_benchmark("030.clock-synchronization", "benchmarks")
         self._benchmark = benchmark
         random.seed(1410)
@@ -37,9 +40,9 @@ class CodePackageSize:
 
     def before_sample(self, size: int, input_benchmark: dict):
         arr = bytearray((random.getrandbits(8) for i in range(size)))
-        #with open(os.path.join(self._benchmark_path, "python", "file.py"), "wb") as f:
+        # with open(os.path.join(self._benchmark_path, "python", "file.py"), "wb") as f:
         #    f.write(arr)
-        #self._benchmark.query_cache()
+        # self._benchmark.query_cache()
         self._benchmark.code_package_modify("randomdata.bin", arr)
         function = self._deployment_client.get_function(self._benchmark)
         self._deployment_client.update_function(function, self._benchmark)
@@ -113,7 +116,9 @@ class InvocationOverhead(Experiment):
         threads = self.settings["threads"]
 
         if self.settings["type"] == "code":
-            experiment = CodePackageSize(self._deployment_client, self._benchmark, self.settings)
+            experiment = CodePackageSize(
+                self._deployment_client, self._benchmark, self.settings
+            )
         else:
             experiment = PayloadSize(self.settings)
 
@@ -149,7 +154,9 @@ class InvocationOverhead(Experiment):
                     for i in range(repetitions):
                         succesful = False
                         while not succesful:
-                            self.logging.info(f"Starting with {size} bytes, repetition {i}")
+                            self.logging.info(
+                                f"Starting with {size} bytes, repetition {i}"
+                            )
                             if result_type == "cold":
                                 self._deployment_client.enforce_cold_start(
                                     [self._function,]
@@ -172,13 +179,23 @@ class InvocationOverhead(Experiment):
             self.benchmark_input["output-bucket"], self._out_dir
         )
 
-    def process(self, sebs_client: "SeBS", deployment_client, directory: str, logging_filename: str):
+    def process(
+        self,
+        sebs_client: "SeBS",
+        deployment_client,
+        directory: str,
+        logging_filename: str,
+    ):
 
         import pandas as pd
         import glob
 
         full_data = {}
-        for f in glob.glob(os.path.join(directory, "invocation-overhead", self.settings["type"], "*.csv")):
+        for f in glob.glob(
+            os.path.join(
+                directory, "invocation-overhead", self.settings["type"], "*.csv"
+            )
+        ):
 
             if "result.csv" in f or "result-processed.csv" in f:
                 continue
@@ -200,10 +217,17 @@ class InvocationOverhead(Experiment):
         print(df)
 
         with open(
-            os.path.join(directory, "invocation-overhead", self.settings["type"],"result.csv")
+            os.path.join(
+                directory, "invocation-overhead", self.settings["type"], "result.csv"
+            )
         ) as csvfile:
             with open(
-                os.path.join(directory, "invocation-overhead", self.settings["type"],"result-processed.csv"),
+                os.path.join(
+                    directory,
+                    "invocation-overhead",
+                    self.settings["type"],
+                    "result-processed.csv",
+                ),
                 "w",
             ) as csvfile2:
                 reader = csv.reader(csvfile, delimiter=",")
@@ -260,7 +284,9 @@ class InvocationOverhead(Experiment):
         import socket
 
         input_benchmark["server-port"] = port
-        self.logging.info(f"Starting invocation with {repetitions} repetitions on port {port}")
+        self.logging.info(
+            f"Starting invocation with {repetitions} repetitions on port {port}"
+        )
         socket.setdefaulttimeout(4)
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind(("", port))
@@ -314,7 +340,9 @@ class InvocationOverhead(Experiment):
                 writer.writerow(row)
 
         self.logging.info(f"Finished {request_id} in {end - begin} [s]")
-        self.logging.info(f"is_cold? {is_cold} Time w/o clock drift {server_timestamp - res.times.client_begin.timestamp()} [s]")
+        self.logging.info(
+            f"is_cold? {is_cold} Time w/o clock drift {server_timestamp - res.times.client_begin.timestamp()} [s]"
+        )
 
         return [
             is_cold,

@@ -176,4 +176,3 @@ class LoggingBase:
         self.logging.propagate = False
         for handler in handlers.handlers:
             self.logging.addHandler(handler)
-
