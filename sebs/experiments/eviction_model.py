@@ -36,7 +36,7 @@ class EvictionModel(Experiment):
         # 1200,
     ]
     # TODO: temporal fix
-    #function_copies_per_time = 5
+    # function_copies_per_time = 5
     function_copies_per_time = 1
 
     def __init__(self, config: ExperimentConfig):
@@ -50,17 +50,16 @@ class EvictionModel(Experiment):
     def typename() -> str:
         return "Experiment.EvictionModel"
 
-
     @staticmethod
     def accept_replies(port: int, invocations: int):
 
-        with open(f'server_{invocations}.log', 'w') as f:
+        with open(f"server_{invocations}.log", "w") as f:
             import socket
 
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            s.bind(('', port))
+            s.bind(("", port))
             s.listen(invocations + 1)
 
             print(f"Listen on {port} and wait for {invocations}", file=f)
@@ -95,10 +94,14 @@ class EvictionModel(Experiment):
             s.close()
 
     @staticmethod
-    def execute_instance(sleep_time: int, pid: int, tid: int, func: Function, payload: dict):
+    def execute_instance(
+        sleep_time: int, pid: int, tid: int, func: Function, payload: dict
+    ):
 
         try:
-            print(f"Process {pid} Thread {tid} Invoke function {func.name} with {payload} now!")
+            print(
+                f"Process {pid} Thread {tid} Invoke function {func.name} with {payload} now!"
+            )
             begin = datetime.now()
             res = func.triggers(Trigger.TriggerType.HTTP)[0].sync_invoke(payload)
             end = datetime.now()
@@ -215,6 +218,7 @@ class EvictionModel(Experiment):
         invocation_idx = settings["function_copy_idx"]
         port = settings["client-port"]
         from requests import get
+
         ip = get("http://checkip.amazonaws.com/").text.rstrip()
 
         """
@@ -225,7 +229,6 @@ class EvictionModel(Experiment):
         ]
         functions = self.functions[invocation_idx :: self.function_copies_per_time]
         results = {}
-
 
         # Disable logging - otherwise we have RLock that can't get be pickled
         for func in functions:
@@ -248,14 +251,14 @@ class EvictionModel(Experiment):
             The result: repeated N invocations for M different imes.
         """
         threads = len(self.times)
-        with multiprocessing.Pool(processes=(invocations+threads)) as pool:
+        with multiprocessing.Pool(processes=(invocations + threads)) as pool:
             for i in range(0, repetitions):
                 """
                     Attempt to kill all existing containers.
                 """
-                #for func in functions:
+                # for func in functions:
                 #    self._deployment_client.enforce_cold_start(func)
-                #time.sleep(5)
+                # time.sleep(5)
                 for _, t in enumerate(self.times):
                     results[t].append([])
                 local_results = []
@@ -267,11 +270,10 @@ class EvictionModel(Experiment):
                 for j in range(0, threads):
                     servers_results.append(
                         pool.apply_async(
-                            EvictionModel.accept_replies,
-                            args=(port+j, invocations)
+                            EvictionModel.accept_replies, args=(port + j, invocations)
                         )
                     )
-                
+
                 """
                     Start N parallel invocations
                 """
@@ -287,6 +289,7 @@ class EvictionModel(Experiment):
 
                 time.sleep(10)
                 import sys
+
                 sys.stdout.flush()
                 """
                     Rethrow exceptions if appear
@@ -303,10 +306,10 @@ class EvictionModel(Experiment):
                     Make sure that parallel invocations are truly parallel,
                     i.e. no execution happens after another one finished.
                 """
-                #verify_results(results)
+                # verify_results(results)
 
             with open(os.path.join(self._out_dir, fname), "w") as out_f:
-                #print(results)
+                # print(results)
                 print(f"Write results to {os.path.join(self._out_dir, fname)}")
                 out_f.write(serialize(results))
         # func = self._deployment_client.get_function(

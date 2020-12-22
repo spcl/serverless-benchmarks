@@ -391,9 +391,11 @@ class GCP(System):
             timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
         invocations = logger.list_entries(
-            filter_=(f'resource.labels.function_name = "{function_name}" '
-                    f'timestamp >= "{timestamps[0]}" '
-                    f'timestamp <= "{timestamps[1]}"')
+            filter_=(
+                f'resource.labels.function_name = "{function_name}" '
+                f'timestamp >= "{timestamps[0]}" '
+                f'timestamp <= "{timestamps[1]}"'
+            )
         )
         invocations_processed = 0
         for invoc in invocations:

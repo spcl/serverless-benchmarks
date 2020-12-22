@@ -29,4 +29,3 @@ class Experiment(ABC, LoggingBase):
     @abstractmethod
     def typename() -> str:
         pass
-
