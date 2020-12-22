@@ -12,6 +12,7 @@ from sebs.azure.cli import AzureCLI
 from sebs.azure.function import AzureFunction
 from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
+from sebs.faas.function import Trigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -437,6 +438,10 @@ class Azure(System):
             f" --settings ForceColdStart={self.cold_start_counter}"
         )
 
+    def create_trigger(
+        self, function: Function, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
+        pass
 
 #
 #    def create_azure_function(self, fname, config):
