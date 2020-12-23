@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from enum import Enum
 from multiprocessing.pool import ThreadPool
 from typing import List, TYPE_CHECKING
@@ -114,6 +115,7 @@ class PerfCost(Experiment):
         self,
         run_type: "PerfCost.RunType",
         settings: dict,
+        invocations: int,
         repetitions: int,
         suffix: str = "",
     ):
@@ -129,26 +131,34 @@ class PerfCost(Experiment):
             Cold experiment: schedule all invocations in parallel.
         """
         file_name = (
-            f"{run_type.str()}_results_{suffix}.json" if suffix else "cold_results.json"
+            f"{run_type.str()}_results_{suffix}.json" if suffix else f"{run_type.str()}_results.json"
         )
         self.logging.info(f"Begin {run_type.str()} experiments")
         incorrect_executions = []
         error_executions = []
         error_count = 0
         incorrect_count = 0
+        colds_count = 0
         with open(os.path.join(self._out_dir, file_name), "w") as out_f:
             samples_gathered = 0
-            invocations = settings[f"concurrent-invocations"]
             client_times = []
             with ThreadPool(invocations) as pool:
                 result = ExperimentResult(self.config, self._deployment_client.config)
                 result.begin()
                 samples_generated = 0
 
+                # Warm up container
+                # For "warm" runs, we do it automatically by pruning cold results
+                if run_type == PerfCost.RunType.SEQUENTIAL:
+                    self._trigger.sync_invoke(self._benchmark_input)
+
+                first_iteration = True
                 while samples_gathered < repetitions:
 
-                    if run_type == PerfCost.RunType.COLD:
-                        self._deployment_client.enforce_cold_start([self._function])
+                    if run_type == PerfCost.RunType.COLD or run_type == PerfCost.RunType.BURST:
+                        self._deployment_client.enforce_cold_start([self._function], self._benchmark)
+
+                    time.sleep(5)
 
                     results = []
                     for i in range(0, invocations):
@@ -157,12 +167,13 @@ class PerfCost(Experiment):
                                 self._trigger.sync_invoke, args=(self._benchmark_input,)
                             )
                         )
-                    samples_generated += invocations
 
                     incorrect = []
                     for res in results:
                         try:
                             ret = res.get()
+                            if first_iteration:
+                                continue
                             if (
                                 run_type == PerfCost.RunType.COLD
                                 and not ret.stats.cold_start
@@ -178,6 +189,7 @@ class PerfCost(Experiment):
                                 incorrect.append(ret)
                             else:
                                 result.add_invocation(self._function, ret)
+                                colds_count += ret.stats.cold_start
                                 client_times.append(ret.times.client / 1000.0)
                                 samples_gathered += 1
                         except Exception as e:
@@ -186,10 +198,19 @@ class PerfCost(Experiment):
                     self.logging.info(
                         f"Processed {samples_gathered} samples out of {repetitions}, {error_count} errors"
                     )
+                    samples_generated += invocations
+                    if first_iteration:
+                        self.logging.info(
+                            f"Processed {samples_gathered} warm-up samples, ignore results."
+                        )
+
+                    first_iteration = False
 
                     if len(incorrect) > 0:
                         incorrect_executions.extend(incorrect)
                         incorrect_count += len(incorrect)
+                    
+                    time.sleep(5)
 
                 result.end()
                 self.compute_statistics(client_times)
@@ -203,6 +224,7 @@ class PerfCost(Experiment):
                                 "failures_count": error_count,
                                 "incorrect": incorrect_executions,
                                 "incorrect_count": incorrect_count,
+                                "cold_count": colds_count
                             },
                         }
                     )
@@ -213,16 +235,16 @@ class PerfCost(Experiment):
         for experiment_type in settings["experiments"]:
             if experiment_type == "cold":
                 self._run_configuration(
-                    PerfCost.RunType.COLD, settings, repetitions, suffix
+                    PerfCost.RunType.COLD, settings, settings["concurrent-invocations"], repetitions, suffix
                 )
             elif experiment_type == "warm":
                 self._run_configuration(
-                    PerfCost.RunType.WARM, settings, repetitions, suffix
+                    PerfCost.RunType.WARM, settings, settings["concurrent-invocations"], repetitions, suffix
                 )
             elif experiment_type == "burst":
-                pass  # self._run_configuration(PerfCost.RunType.COLD, settings, repetitions, suffix)
+                self._run_configuration(PerfCost.RunType.BURST, settings, settings["concurrent-invocations"], repetitions, suffix)
             elif experiment_type == "sequential":
-                pass  # self._run_configuration(PerfCost.RunType.COLD, settings, repetitions, suffix)
+                self._run_configuration(PerfCost.RunType.SEQUENTIAL, settings, 1, repetitions, suffix)
             else:
                 raise RuntimeError(
                     f"Unknown experiment type {experiment_type} for Perf-Cost!"
@@ -251,6 +273,7 @@ class PerfCost(Experiment):
                     "connection_time",
                     "client_time",
                     "provider_time",
+                    "mem_used"
                 ]
             )
             for f in glob.glob(os.path.join(directory, "perf-cost", "*.json")):
@@ -258,14 +281,16 @@ class PerfCost(Experiment):
                 if "processed" in f:
                     with open(f) as in_f:
                         config = json.load(in_f)
-                        print(f)
                         experiments = ExperimentResult.deserialize(
                             config,
                             sebs_client.cache_client,
                             sebs_client.logging_handlers(logging_filename),
                         )
                     fname = os.path.splitext(os.path.basename(f))[0].split("_")
-                    memory = int(fname[2].split("-")[0])
+                    if len(fname) > 2:
+                        memory = int(fname[2].split("-")[0])
+                    else:
+                        memory = 0
                     exp_type = fname[0]
                 else:
 
@@ -278,10 +303,14 @@ class PerfCost(Experiment):
                         continue
                     self.logging.info(f"Processing data in {f}")
                     fname = os.path.splitext(os.path.basename(f))[0].split("_")
-                    memory = int(fname[2])
+                    if len(fname) > 2:
+                        memory = int(fname[2])
+                    else:
+                        memory = 0
                     exp_type = fname[0]
                     with open(f, "r") as in_f:
                         config = json.load(in_f)
+                        statistics = config["statistics"]
                         experiments = ExperimentResult.deserialize(
                             config,
                             sebs_client.cache_client,
@@ -313,7 +342,10 @@ class PerfCost(Experiment):
                             ),
                             "w",
                         ) as out_f:
-                            out_f.write(serialize(experiments))
+                            out_f.write(serialize({
+                                **json.loads(serialize(experiments)),
+                                "statistics": statistics
+                            }))
                 for func in experiments.functions():
                     for request_id, invoc in experiments.invocations(func).items():
                         writer.writerow(
@@ -325,5 +357,6 @@ class PerfCost(Experiment):
                                 invoc.times.http_startup,
                                 invoc.times.client,
                                 invoc.provider_times.execution,
+                                invoc.stats.memory_used
                             ]
                         )
