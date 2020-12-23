@@ -94,10 +94,14 @@ class EvictionModel(Experiment):
             s.close()
 
     @staticmethod
-    def execute_instance(sleep_time: int, pid: int, tid: int, func: Function, payload: dict):
+    def execute_instance(
+        sleep_time: int, pid: int, tid: int, func: Function, payload: dict
+    ):
 
         try:
-            print(f"Process {pid} Thread {tid} Invoke function {func.name} with {payload} now!")
+            print(
+                f"Process {pid} Thread {tid} Invoke function {func.name} with {payload} now!"
+            )
             begin = datetime.now()
             res = func.triggers(Trigger.TriggerType.HTTP)[0].sync_invoke(payload)
             end = datetime.now()

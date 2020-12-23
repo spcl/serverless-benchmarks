@@ -372,8 +372,21 @@ class GCP(System):
             self.cache_client.unlock()
 
     def download_metrics(
-        self, function_name: str, start_time: int, end_time: int, requests: dict,
+        self, function_name: str, start_time: int, end_time: int, requests: dict, metrics: dict
     ):
+
+        from google.api_core import exceptions
+        from time import sleep
+
+        def wrapper(gen):
+            while True:
+                try:
+                    yield next(gen)
+                except StopIteration:
+                    break
+                except exceptions.ResourceExhausted as e:
+                    print("Exhausted")
+                    sleep(30)
 
         """
             Use GCP's logging system to find execution time of each function invocation.
@@ -405,11 +418,14 @@ class GCP(System):
                 f'timestamp >= "{timestamps[0]}" '
                 f'timestamp <= "{timestamps[1]}"'
             ),
-            page_size=100,
+            page_size = 1000
         )
         invocations_processed = 0
-        for page in invocations.pages:
+        pages = list(wrapper(invocations.pages))
+        entries = 0
+        for page in pages:#invocations.pages:
             for invoc in page:
+                entries += 1
                 if "execution took" in invoc.payload:
                     execution_id = invoc.labels["execution_id"]
                     # might happen that we get invocation from another experiment
@@ -417,10 +433,11 @@ class GCP(System):
                         continue
                     # find number of miliseconds
                     exec_time = re.search(r"\d+ ms", invoc.payload).group().split()[0]
-                    requests[execution_id].provider_times.execution = int(exec_time)
+                    # convert into microseconds
+                    requests[execution_id].provider_times.execution = int(exec_time) * 1000
                     invocations_processed += 1
         self.logging.info(
-            f"GCP: Found time metrics for {invocations_processed} "
+            f"GCP: Received {entries} entries, found time metrics for {invocations_processed} "
             f"out of {len(requests.keys())} invocations."
         )
 
@@ -431,7 +448,7 @@ class GCP(System):
         """
 
         # Set expected metrics here
-        metrics = ["execution_times", "user_memory_bytes", "network_egress"]
+        available_metrics = ["execution_times", "user_memory_bytes", "network_egress"]
 
         client = monitoring_v3.MetricServiceClient()
         project_name = client.common_project_path(self.config.project_name)
@@ -446,11 +463,10 @@ class GCP(System):
             }
         )
 
-        requests[function_name] = {}
 
-        for metric in metrics:
+        for metric in available_metrics:
 
-            requests[function_name][metric] = []
+            metrics[metric] = []
 
             list_request = monitoring_v3.ListTimeSeriesRequest(
                 name=project_name,
@@ -462,7 +478,7 @@ class GCP(System):
             for result in results:
                 if result.resource.labels.get("function_name") == function_name:
                     for point in result.points:
-                        requests[function_name][metric] += [
+                        metrics[metric] += [
                             {
                                 "mean_value": point.value.distribution_value.mean,
                                 "executions_count": point.value.distribution_value.count,
@@ -471,8 +487,6 @@ class GCP(System):
 
     def _enforce_cold_start(self, function: Function):
 
-        # FIXME: error handling
-        # FIXME: wait until applied
         name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )

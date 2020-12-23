@@ -171,7 +171,7 @@ def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs
         logging_filename=logging_filename,
     )
     func = deployment_client.get_function(
-        benchmark_obj, deployment_client.default_function_name(benchmark_obj)
+        benchmark_obj, function_name if function_name else deployment_client.default_function_name(benchmark_obj)
     )
     storage = deployment_client.get_storage(
         replace_existing=experiment_config.update_storage
@@ -269,8 +269,9 @@ def experiment_invoke(experiment, **kwargs):
 
 @experiment.command("process")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
+@click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
 @common_params
-def experment_process(experiment, **kwargs):
+def experment_process(experiment, extend_time_interval, **kwargs):
     (
         config,
         output_dir,
@@ -279,7 +280,7 @@ def experment_process(experiment, **kwargs):
         deployment_client,
     ) = parse_common_params(**kwargs)
     experiment = sebs_client.get_experiment(experiment, config["experiments"])
-    experiment.process(sebs_client, deployment_client, output_dir, logging_filename)
+    experiment.process(sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval)
 
 
 if __name__ == "__main__":
