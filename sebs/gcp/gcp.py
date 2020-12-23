@@ -130,9 +130,7 @@ class GCP(System):
         :return: path to packaged code and its size
     """
 
-    def package_code(
-        self, directory: str, language_name: str, benchmark: str
-    ) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],
@@ -185,9 +183,7 @@ class GCP(System):
         code_package_name = cast(str, os.path.basename(package))
         code_bucket, idx = storage_client.add_input_bucket(benchmark)
         storage_client.upload(code_bucket, package, code_package_name)
-        self.logging.info(
-            "Uploading function {} code to {}".format(func_name, code_bucket)
-        )
+        self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
 
         req = (
             self.function_client.projects()
@@ -234,16 +230,12 @@ class GCP(System):
                     body={
                         "name": full_func_name,
                         "entryPoint": "handler",
-                        "runtime": code_package.language_name
-                        + language_runtime.replace(".", ""),
+                        "runtime": code_package.language_name + language_runtime.replace(".", ""),
                         "availableMemoryMb": memory,
                         "timeout": str(timeout) + "s",
                         "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
-                        "sourceArchiveUrl": "gs://"
-                        + code_bucket
-                        + "/"
-                        + code_package_name,
+                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_package_name,
                     },
                 )
             )
@@ -260,10 +252,7 @@ class GCP(System):
                     body={
                         "policy": {
                             "bindings": [
-                                {
-                                    "role": "roles/cloudfunctions.invoker",
-                                    "members": "allUsers",
-                                }
+                                {"role": "roles/cloudfunctions.invoker", "members": "allUsers",}
                             ]
                         }
                     },
@@ -271,9 +260,7 @@ class GCP(System):
             )
             res = req.execute()
             print(res)
-            self.logging.info(
-                f"Function {func_name} accepts now unauthenticated invocations!"
-            )
+            self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
                 func_name, benchmark, code_package.hash, timeout, memory, code_bucket
@@ -288,24 +275,17 @@ class GCP(System):
 
         return function
 
-    def create_trigger(
-        self, function: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.gcp.triggers import HTTPTrigger
 
         if trigger_type == Trigger.TriggerType.HTTP:
 
             location = self.config.region
             project_name = self.config.project_name
-            full_func_name = GCP.get_full_function_name(
-                project_name, location, function.name
-            )
+            full_func_name = GCP.get_full_function_name(project_name, location, function.name)
             self.logging.info(f"Function {function.name} - waiting for deployment...")
             our_function_req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .get(name=full_func_name)
+                self.function_client.projects().locations().functions().get(name=full_func_name)
             )
             deployed = False
             while not deployed:
@@ -358,8 +338,7 @@ class GCP(System):
                 body={
                     "name": full_func_name,
                     "entryPoint": "handler",
-                    "runtime": code_package.language_name
-                    + language_runtime.replace(".", ""),
+                    "runtime": code_package.language_name + language_runtime.replace(".", ""),
                     "availableMemoryMb": function.memory,
                     "timeout": str(function.timeout) + "s",
                     "httpsTrigger": {},
@@ -405,9 +384,7 @@ class GCP(System):
         from google.cloud import logging as gcp_logging
 
         logging_client = gcp_logging.Client()
-        logger = logging_client.logger(
-            "cloudfunctions.googleapis.com%2Fcloud-functions"
-        )
+        logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")
 
         """
             GCP accepts only single date format: 'YYYY-MM-DDTHH:MM:SSZ'.
@@ -477,9 +454,7 @@ class GCP(System):
 
             list_request = monitoring_v3.ListTimeSeriesRequest(
                 name=project_name,
-                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(
-                    metric
-                ),
+                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric),
                 interval=interval,
             )
 
@@ -509,9 +484,7 @@ class GCP(System):
             .patch(
                 name=name,
                 updateMask="environmentVariables",
-                body={
-                    "environmentVariables": {"cold_start": str(self.cold_start_counter)}
-                },
+                body={"environmentVariables": {"cold_start": str(self.cold_start_counter)}},
             )
         )
         res = req.execute()
@@ -544,9 +517,7 @@ class GCP(System):
 
         self.cold_start_counter += 1
 
-    def get_functions(
-        self, code_package: Benchmark, function_names: List[str]
-    ) -> List["Function"]:
+    def get_functions(self, code_package: Benchmark, function_names: List[str]) -> List["Function"]:
 
         functions: List["Function"] = []
         undeployed_functions_before = []
@@ -563,9 +534,7 @@ class GCP(System):
                 if not self.is_deployed(func.name):
                     undeployed_functions.append(func)
             deployed = len(undeployed_functions_before) - len(undeployed_functions)
-            self.logging.info(
-                f"Deployed {deployed} out of {len(undeployed_functions_before)}"
-            )
+            self.logging.info(f"Deployed {deployed} out of {len(undeployed_functions_before)}")
             if deployed == len(undeployed_functions_before):
                 deployment_done = True
                 break
@@ -577,9 +546,7 @@ class GCP(System):
         return functions
 
     def is_deployed(self, func_name: str, versionId: int = -1) -> bool:
-        name = GCP.get_full_function_name(
-            self.config.project_name, self.config.region, func_name
-        )
+        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
         function_client = self.get_function_client()
         status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()
@@ -589,9 +556,7 @@ class GCP(System):
             return status_res["versionId"] == versionId
 
     def deployment_version(self, func: Function) -> int:
-        name = GCP.get_full_function_name(
-            self.config.project_name, self.config.region, func.name
-        )
+        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func.name)
         function_client = self.deployment_client.get_function_client()
         status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()

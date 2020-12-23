@@ -90,9 +90,7 @@ class Azure(System):
         if not hasattr(self, "storage"):
             self.storage = BlobStorage(
                 self.cache_client,
-                self.config.resources.data_storage_account(
-                    self.cli_instance
-                ).connection_string,
+                self.config.resources.data_storage_account(self.cli_instance).connection_string,
                 replace_existing=replace_existing,
             )
             self.storage.logging_handlers = self.logging_handlers
@@ -108,9 +106,7 @@ class Azure(System):
     # - function.json
     # host.json
     # requirements.txt/package.json
-    def package_code(
-        self, directory: str, language_name: str, benchmark: str
-    ) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
@@ -155,19 +151,14 @@ class Azure(System):
                 "version": "[1.*, 2.0.0)",
             },
         }
-        json.dump(
-            default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2
-        )
+        json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
         return directory, code_size
 
     def publish_function(
-        self,
-        function: Function,
-        code_package: Benchmark,
-        repeat_on_failure: bool = False,
+        self, function: Function, code_package: Benchmark, repeat_on_failure: bool = False,
     ) -> str:
         success = False
         url = ""
@@ -195,9 +186,7 @@ class Azure(System):
                         url = line.split("Invoke url:")[1].strip()
                         break
                 if url == "":
-                    raise RuntimeError(
-                        "Couldnt find URL in {}".format(ret.decode("utf-8"))
-                    )
+                    raise RuntimeError("Couldnt find URL in {}".format(ret.decode("utf-8")))
                 success = True
             except RuntimeError as e:
                 error = str(e)
@@ -233,9 +222,7 @@ class Azure(System):
         self._mount_function_code(code_package)
         url = self.publish_function(function, code_package, True)
 
-        trigger = HTTPTrigger(
-            url, self.config.resources.data_storage_account(self.cli_instance)
-        )
+        trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
 
@@ -248,9 +235,7 @@ class Azure(System):
         """
         func_name = (
             "{}-{}-{}".format(
-                code_package.benchmark,
-                code_package.language_name,
-                self.config.resources_id,
+                code_package.benchmark, code_package.language_name, self.config.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")
@@ -285,18 +270,14 @@ class Azure(System):
             for setting in json.loads(ret.decode()):
                 if setting["name"] == "AzureWebJobsStorage":
                     connection_string = setting["value"]
-                    elems = [
-                        z for y in connection_string.split(";") for z in y.split("=")
-                    ]
+                    elems = [z for y in connection_string.split(";") for z in y.split("=")]
                     account_name = elems[elems.index("AccountName") + 1]
                     function_storage_account = AzureResources.Storage.from_cache(
                         account_name, connection_string
                     )
             self.logging.info("Azure: Selected {} function app".format(func_name))
         except RuntimeError:
-            function_storage_account = self.config.resources.add_storage_account(
-                self.cli_instance
-            )
+            function_storage_account = self.config.resources.add_storage_account(self.cli_instance)
             config["storage_account"] = function_storage_account.account_name
             # FIXME: only Linux type is supported
             # create function app
@@ -329,9 +310,7 @@ class Azure(System):
 
     def cached_function(self, function: Function):
 
-        data_storage_account = self.config.resources.data_storage_account(
-            self.cli_instance
-        )
+        data_storage_account = self.config.resources.data_storage_account(self.cli_instance)
         for trigger in function.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
@@ -360,13 +339,12 @@ class Azure(System):
         resource_group = self.config.resources.resource_group(self.cli_instance)
         # Avoid warnings in the next step
         ret = self.cli_instance.execute(
-            "az feature register --name AIWorkspacePreview "
-            "--namespace microsoft.insights"
+            "az feature register --name AIWorkspacePreview " "--namespace microsoft.insights"
         )
         app_id_query = self.cli_instance.execute(
-            (
-                "az monitor app-insights component show " "--app {} --resource-group {}"
-            ).format(function_name, resource_group)
+            ("az monitor app-insights component show " "--app {} --resource-group {}").format(
+                function_name, resource_group
+            )
         ).decode("utf-8")
         application_id = json.loads(app_id_query)["appId"]
 
@@ -377,9 +355,7 @@ class Azure(System):
         start_time_str = datetime.datetime.fromtimestamp(start_time).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         )
-        end_time_str = datetime.datetime.fromtimestamp(end_time + 1).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        end_time_str = datetime.datetime.fromtimestamp(end_time + 1).strftime("%Y-%m-%d %H:%M:%S")
         from tzlocal import get_localzone
 
         timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
@@ -398,12 +374,7 @@ class Azure(System):
                     'az monitor app-insights query --app {} --analytics-query "{}" '
                     "--start-time {} {} --end-time {} {}"
                 ).format(
-                    application_id,
-                    query,
-                    start_time_str,
-                    timezone_str,
-                    end_time_str,
-                    timezone_str,
+                    application_id, query, start_time_str, timezone_str, end_time_str, timezone_str,
                 )
             ).decode("utf-8")
             ret = json.loads(ret)
@@ -414,9 +385,7 @@ class Azure(System):
                 func_exec_time = request[-1]
                 invocation_id = request[-2]
                 invocations_processed.append(invocation_id)
-                requests[invocation_id].provider_times.execution = int(
-                    float(func_exec_time) * 1000
-                )
+                requests[invocation_id].provider_times.execution = int(float(func_exec_time) * 1000)
             self.logging.info(
                 f"Azure: Found time metrics for {len(invocations_processed)} "
                 f"out of {len(requests.keys())} invocations."
@@ -438,9 +407,7 @@ class Azure(System):
             f" --settings ForceColdStart={self.cold_start_counter}"
         )
 
-    def create_trigger(
-        self, function: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         pass
 
 

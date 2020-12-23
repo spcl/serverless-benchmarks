@@ -69,9 +69,7 @@ class PerfCost(Experiment):
             self._function.memory = memory
             self._deployment_client.update_function(self._function, self._benchmark)
             self._sebs_client.cache_client.update_function(self._function)
-            self.run_configuration(
-                settings, settings["repetitions"], suffix=str(memory)
-            )
+            self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
 
     def compute_statistics(self, times: List[float]):
 

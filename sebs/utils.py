@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 import uuid
-from typing import Any, List, Type, TypeVar, Optional
+from typing import List, Optional
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
@@ -24,7 +24,7 @@ class JSONSerializer(json.JSONEncoder):
         else:
             try:
                 return vars(o)
-            except:
+            except TypeError:
                 return str(o)
 
 

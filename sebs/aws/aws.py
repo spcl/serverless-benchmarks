@@ -130,9 +130,7 @@ class AWS(System):
         benchmark: benchmark name
     """
 
-    def package_code(
-        self, directory: str, language_name: str, benchmark: str
-    ) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -159,9 +157,7 @@ class AWS(System):
 
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
-    def create_function(
-        self, code_package: Benchmark, func_name: str
-    ) -> "LambdaFunction":
+    def create_function(self, code_package: Benchmark, func_name: str) -> "LambdaFunction":
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -211,9 +207,7 @@ class AWS(System):
                 code_package_name = cast(str, os.path.basename(package))
                 code_bucket, idx = storage_client.add_input_bucket(benchmark)
                 storage_client.upload(code_bucket, package, code_package_name)
-                self.logging.info(
-                    "Uploading function {} code to {}".format(func_name, code_bucket)
-                )
+                self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_package_name}
             ret = self.client.create_function(
                 FunctionName=func_name,
@@ -278,9 +272,7 @@ class AWS(System):
         # AWS Lambda limit on zip deployment
         if code_size < 50 * 1024 * 1024:
             with open(package, "rb") as code_body:
-                self.client.update_function_code(
-                    FunctionName=name, ZipFile=code_body.read()
-                )
+                self.client.update_function_code(FunctionName=name, ZipFile=code_body.read())
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(package)
@@ -366,9 +358,7 @@ class AWS(System):
         output.provider_times.execution = int(float(aws_vals["Duration"]) * 1000)
         output.stats.memory_used = float(aws_vals["Max Memory Used"])
         if "Init Duration" in aws_vals:
-            output.provider_times.initialization = int(
-                float(aws_vals["Init Duration"]) * 1000
-            )
+            output.provider_times.initialization = int(float(aws_vals["Init Duration"]) * 1000)
         output.billing.billed_time = int(aws_vals["Billed Duration"])
         output.billing.memory = int(aws_vals["Memory Size"])
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
@@ -456,9 +446,7 @@ class AWS(System):
                     request_id = AWS.parse_aws_report(result_part["value"], requests)
                     if request_id not in requests:
                         self.logging.info(
-                            "Found invocation {} without result in bucket!".format(
-                                request_id
-                            )
+                            "Found invocation {} without result in bucket!".format(request_id)
                         )
                     # del actual_result["REPORT RequestId"]
                     # requests[request_id][self.name()] = actual_result

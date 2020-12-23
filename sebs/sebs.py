@@ -29,9 +29,7 @@ class SeBS:
     def output_dir(self) -> str:
         return self._output_dir
 
-    def logging_handlers(
-        self, logging_filename: Optional[str] = None
-    ) -> LoggingHandlers:
+    def logging_handlers(self, logging_filename: Optional[str] = None) -> LoggingHandlers:
         if logging_filename in self._logging_handlers:
             return self._logging_handlers[logging_filename]
         else:
@@ -46,9 +44,7 @@ class SeBS:
         self._output_dir = output_dir
         self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
-    def get_deployment(
-        self, config: dict, logging_filename: Optional[str] = None
-    ) -> FaaSSystem:
+    def get_deployment(self, config: dict, logging_filename: Optional[str] = None) -> FaaSSystem:
 
         name = config["name"]
         implementations = {"aws": AWS, "azure": Azure, "gcp": GCP}
@@ -87,9 +83,7 @@ class SeBS:
             "invocation-overhead": InvocationOverhead,
             "eviction-model": EvictionModel,
         }
-        experiment = implementations[experiment_type](
-            self.get_experiment_config(config)
-        )
+        experiment = implementations[experiment_type](self.get_experiment_config(config))
         experiment.logging_handlers = self.logging_handlers(logging_filename)
         return experiment
 

@@ -4,7 +4,6 @@ from collections import namedtuple
 
 import numpy as np
 import scipy.stats as st
-from scipy.stats import norm
 
 BasicStats = namedtuple("BasicStats", "mean median std cv")
 

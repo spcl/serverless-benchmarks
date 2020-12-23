@@ -122,15 +122,11 @@ class ExecutionResult:
         self.billing = ExecutionBilling()
 
     @staticmethod
-    def from_times(
-        client_time_begin: datetime, client_time_end: datetime
-    ) -> "ExecutionResult":
+    def from_times(client_time_begin: datetime, client_time_end: datetime) -> "ExecutionResult":
         ret = ExecutionResult()
         ret.times.client_begin = client_time_begin
         ret.times.client_end = client_time_end
-        ret.times.client = int(
-            (client_time_end - client_time_begin) / timedelta(microseconds=1)
-        )
+        ret.times.client = int((client_time_end - client_time_begin) / timedelta(microseconds=1))
         return ret
 
     def parse_benchmark_output(self, output: dict):
@@ -278,11 +274,7 @@ class Function(LoggingBase):
         self._updated_code = val
 
     def triggers_all(self) -> List[Trigger]:
-        return [
-            trig
-            for trigger_type, triggers in self._triggers.items()
-            for trig in triggers
-        ]
+        return [trig for trigger_type, triggers in self._triggers.items() for trig in triggers]
 
     def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
         try:
@@ -302,9 +294,7 @@ class Function(LoggingBase):
             "hash": self._code_package_hash,
             "benchmark": self._benchmark,
             "triggers": [
-                obj.serialize()
-                for t_type, triggers in self._triggers.items()
-                for obj in triggers
+                obj.serialize() for t_type, triggers in self._triggers.items() for obj in triggers
             ],
         }
 

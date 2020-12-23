@@ -36,9 +36,7 @@ class GCPCredentials(Credentials):
         return GCPCredentials(gcp_credentials)
 
     @staticmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> Credentials:
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
         cached_config = cache.get_config("gcp")
         ret: GCPCredentials
         if cached_config and "credentials" in cached_config:
@@ -52,9 +50,7 @@ class GCPCredentials(Credentials):
         else:
             # Check for new config
             if "credentials" in config:
-                ret = cast(
-                    GCPCredentials, GCPCredentials.initialize(config["credentials"])
-                )
+                ret = cast(GCPCredentials, GCPCredentials.initialize(config["credentials"]))
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
             elif "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
                 ret = GCPCredentials(os.environ["GOOGLE_APPLICATION_CREDENTIALS"])
@@ -76,9 +72,7 @@ class GCPCredentials(Credentials):
         return out
 
     def update_cache(self, cache: Cache):
-        cache.update_config(
-            val=self.gcp_credentials, keys=["gcp", "credentials", "keys_json"]
-        )
+        cache.update_config(val=self.gcp_credentials, keys=["gcp", "credentials", "keys_json"])
 
 
 """
@@ -120,24 +114,18 @@ class GCPResources(Resources):
         return out
 
     @staticmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> "Resources":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
         cached_config = cache.get_config("gcp")
         ret: GCPResources
         if cached_config and "resources" in cached_config:
-            ret = cast(
-                GCPResources, GCPResources.initialize(cached_config["resources"])
-            )
+            ret = cast(GCPResources, GCPResources.initialize(cached_config["resources"]))
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for AWS")
         else:
             if "resources" in config:
                 ret = cast(GCPResources, GCPResources.initialize(config["resources"]))
                 ret.logging_handlers = handlers
-                ret.logging.info(
-                    "No cached resources for GCP found, using user configuration."
-                )
+                ret.logging.info("No cached resources for GCP found, using user configuration.")
             else:
                 ret = GCPResources(project_name="", region="")
                 ret.logging_handlers = handlers
@@ -145,9 +133,7 @@ class GCPResources(Resources):
         return ret
 
     def update_cache(self, cache: Cache):
-        cache.update_config(
-            val=self.project_name, keys=["gcp", "resources", "project_name"]
-        )
+        cache.update_config(val=self.project_name, keys=["gcp", "resources", "project_name"])
         cache.update_config(val=self.region, keys=["gcp", "resources", "region"])
 
 
@@ -186,12 +172,8 @@ class GCPConfig(Config):
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         cached_config = cache.get_config("gcp")
-        credentials = cast(
-            GCPCredentials, GCPCredentials.deserialize(config, cache, handlers)
-        )
-        resources = cast(
-            GCPResources, GCPResources.deserialize(config, cache, handlers)
-        )
+        credentials = cast(GCPCredentials, GCPCredentials.deserialize(config, cache, handlers))
+        resources = cast(GCPResources, GCPResources.deserialize(config, cache, handlers))
         config_obj = GCPConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         if cached_config:
@@ -201,9 +183,7 @@ class GCPConfig(Config):
             config_obj.logging.info("Using user-provided config for GCP")
             GCPConfig.initialize(config_obj, config)
             cache.update_config(val=config_obj.region, keys=["gcp", "region"])
-            cache.update_config(
-                val=config_obj.project_name, keys=["gcp", "project_name"]
-            )
+            cache.update_config(val=config_obj.project_name, keys=["gcp", "project_name"])
 
         return config_obj
 
