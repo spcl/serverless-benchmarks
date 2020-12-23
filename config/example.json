@@ -22,10 +22,9 @@
       "threads": 1
     },
     "invocation-overhead": {
-      "invocations": 1,
       "repetitions": 5,
       "N": 20,
-      "threads": 1,
+      "type": "payload",
       "payload_begin": 1024,
       "payload_end": 6251000,
       "payload_points": 20,
