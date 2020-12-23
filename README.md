@@ -102,7 +102,7 @@ time in AWS Lambda. To work with AWS, you need to provide access and secret keys
 with permissions sufficient to manage functions and S3 resources. Additionally,
 the account must have `AmazonAPIGatewayAdministrator` permission to set-up automatically
 AWS HTTP trigger. Additionally, you
-neet to provide Lambda [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
+need to provide Lambda [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
 with permissions to Lambda and S3. 
 
 Pass them as environmental variables for the first run. They will be cached for future use.
@@ -141,12 +141,25 @@ AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
 Save these credentials - the password is non retrievable! Provide them to SeBS
 through environmental variables and we will create additional resources (storage account, resource group)
 to deploy functions.
+We will create storage account and resource group and handle access keys.
 
 ###### Resources
 
 * By default, all functions are allocated in the single resource group.
 * Each function has a seperate storage account allocated, following [Azure guidelines](https://docs.microsoft.com/en-us/azure/azure-functions/functions-best-practices#scalability-best-practices).
 * All benchmark data is stored in the same storage account.
+
+#### GCP
+
+The Google Cloud Free Tier gives free resources to learn about Google Cloud services.
+It has two parts:
+- A 12-month free trial with $300 credit to use with any Google Cloud services.
+- Always Free, which provides limited access to many common Google Cloud resources, free of charge.
+
+You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to
+permit operating on storage and functions.
+
+Pass service account's JSON key path in config JSON, see an example in `config/example.json`
 
 ### Usage
 
@@ -185,6 +198,5 @@ to kill measurement processes if we didn't work.
 Containers are usually shutdown after an experiment. The flag `--no-shutdown-containers`
 provides a way to leave them alive and inspect the environment for problems.
 Simply run `./run.sh ${experiment}.json`.
-
 
 

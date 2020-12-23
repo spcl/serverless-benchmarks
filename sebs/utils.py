@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 import uuid
-from typing import Any, List, Type, TypeVar, Optional
+from typing import List, Optional
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
@@ -22,7 +22,10 @@ class JSONSerializer(json.JSONEncoder):
         elif isinstance(o, dict):
             return str(o)
         else:
-            return vars(o)
+            try:
+                return vars(o)
+            except TypeError:
+                return str(o)
 
 
 def serialize(obj) -> str:
@@ -44,6 +47,7 @@ def execute(cmd, shell=False, cwd=None):
             "Running {} failed!\n Output: {}".format(cmd, ret.stdout.decode("utf-8"))
         )
     return ret.stdout.decode("utf-8")
+
 
 def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
     if value:
@@ -172,21 +176,3 @@ class LoggingBase:
         self.logging.propagate = False
         for handler in handlers.handlers:
             self.logging.addHandler(handler)
-
-
-C = TypeVar("C", bound=Type[Any])
-
-
-def namedlogging(name=None):
-    def decorated_cls(cls: C) -> C:
-        @classmethod  # type: ignore
-        def _logging(cls, msg: str):
-            if name:
-                logging.info(f"{name}: {msg}")
-            else:
-                logging.info(f"{cls.__name__}: {msg}")
-
-        setattr(cls, "logging", _logging)
-        return cls
-
-    return decorated_cls

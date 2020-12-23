@@ -57,10 +57,8 @@ class Cache(LoggingBase):
 
     def load_config(self):
         with self._lock:
-            for cloud in ["azure", "aws"]:
-                cloud_config_file = os.path.join(
-                    self.cache_dir, "{}.json".format(cloud)
-                )
+            for cloud in ["azure", "aws", "gcp"]:
+                cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
                 if os.path.exists(cloud_config_file):
                     self.cached_config[cloud] = json.load(open(cloud_config_file, "r"))
 
@@ -86,14 +84,10 @@ class Cache(LoggingBase):
 
     def shutdown(self):
         if self.config_updated:
-            for cloud in ["azure", "aws"]:
+            for cloud in ["azure", "aws", "gcp"]:
                 if cloud in self.cached_config:
-                    cloud_config_file = os.path.join(
-                        self.cache_dir, "{}.json".format(cloud)
-                    )
-                    self.logging.info(
-                        "Update cached config {}".format(cloud_config_file)
-                    )
+                    cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
+                    self.logging.info("Update cached config {}".format(cloud_config_file))
                     with open(cloud_config_file, "w") as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 
@@ -164,9 +158,7 @@ class Cache(LoggingBase):
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
-    def add_code_package(
-        self, deployment_name: str, language_name: str, code_package: "Benchmark"
-    ):
+    def add_code_package(self, deployment_name: str, language_name: str, code_package: "Benchmark"):
         with self._lock:
             language = code_package.language_name
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
@@ -246,12 +238,8 @@ class Cache(LoggingBase):
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                     config = json.load(fp)
                     date = str(datetime.datetime.now())
-                    config[deployment_name][language]["code_package"]["date"][
-                        "modified"
-                    ] = date
-                    config[deployment_name][language]["code_package"][
-                        "hash"
-                    ] = code_package.hash
+                    config[deployment_name][language]["code_package"]["date"]["modified"] = date
+                    config[deployment_name][language]["code_package"]["hash"] = code_package.hash
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
             else:
@@ -281,16 +269,12 @@ class Cache(LoggingBase):
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
-                functions_config: Dict[str, Any] = {
-                    function.name: {**function.serialize()}
-                }
+                functions_config: Dict[str, Any] = {function.name: {**function.serialize()}}
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
                     if "functions" not in cached_config[deployment_name][language]:
-                        cached_config[deployment_name][language][
-                            "functions"
-                        ] = functions_config
+                        cached_config[deployment_name][language]["functions"] = functions_config
                     else:
                         cached_config[deployment_name][language]["functions"].update(
                             functions_config
@@ -300,9 +284,7 @@ class Cache(LoggingBase):
                     json.dump(config, fp, indent=2)
             else:
                 raise RuntimeError(
-                    "Can't cache function {} for a non-existing code package!".format(
-                        function.name
-                    )
+                    "Can't cache function {} for a non-existing code package!".format(function.name)
                 )
 
     def update_function(self, function: "Function"):
@@ -327,7 +309,5 @@ class Cache(LoggingBase):
                     json.dump(cached_config, fp, indent=2)
             else:
                 raise RuntimeError(
-                    "Can't cache function {} for a non-existing code package!".format(
-                        function.name
-                    )
+                    "Can't cache function {} for a non-existing code package!".format(function.name)
                 )

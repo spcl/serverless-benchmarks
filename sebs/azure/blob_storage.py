@@ -27,9 +27,7 @@ class BlobStorage(PersistentStorage):
     def _create_bucket(self, name: str, containers: List[str] = []) -> str:
         for c in containers:
             if name in c:
-                self.logging.info(
-                    "Container {} for {} already exists, skipping.".format(c, name)
-                )
+                self.logging.info("Container {} for {} already exists, skipping.".format(c, name))
                 return c
         random_name = str(uuid.uuid4())[0:16]
         name = "{}-{}".format(name, random_name)
@@ -96,10 +94,7 @@ class BlobStorage(PersistentStorage):
 
     def list_bucket(self, container: str):
         objects = list(
-            map(
-                lambda x: x["name"],
-                self.client.get_container_client(container).list_blobs(),
-            )
+            map(lambda x: x["name"], self.client.get_container_client(container).list_blobs(),)
         )
         return objects
 

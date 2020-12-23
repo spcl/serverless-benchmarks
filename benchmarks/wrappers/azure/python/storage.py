@@ -15,7 +15,7 @@ class storage:
 
     @staticmethod
     def unique_name(name):
-        name, extension = name.split('.')
+        name, extension = os.path.splitext('.')
         return '{name}.{random}.{extension}'.format(
                     name=name,
                     extension=extension,

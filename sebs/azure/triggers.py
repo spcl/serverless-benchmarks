@@ -20,9 +20,7 @@ class AzureTrigger(Trigger):
 
 
 class HTTPTrigger(AzureTrigger):
-    def __init__(
-        self, url: str, data_storage_account: Optional[AzureResources.Storage] = None
-    ):
+    def __init__(self, url: str, data_storage_account: Optional[AzureResources.Storage] = None):
         super().__init__(data_storage_account)
         self.url = url
 

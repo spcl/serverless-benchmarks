@@ -7,6 +7,7 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.faas.function import Function, Trigger
 from sebs.utils import LoggingBase
 from .config import Config
 from .function import Function, ExecutionResult
@@ -23,10 +24,7 @@ from .storage import PersistentStorage
 
 class System(ABC, LoggingBase):
     def __init__(
-        self,
-        system_config: SeBSConfig,
-        cache_client: Cache,
-        docker_client: docker.client,
+        self, system_config: SeBSConfig, cache_client: Cache, docker_client: docker.client,
     ):
         super().__init__()
         self._system_config = system_config
@@ -94,9 +92,7 @@ class System(ABC, LoggingBase):
     """
 
     @abstractmethod
-    def package_code(
-        self, directory: str, language_name: str, benchmark: str
-    ) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
         pass
 
     @abstractmethod
@@ -124,15 +120,10 @@ class System(ABC, LoggingBase):
 
     """
 
-    def get_function(
-        self, code_package: Benchmark, func_name: Optional[str] = None
-    ) -> Function:
+    def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
 
-        if (
-            code_package.language_version
-            not in self.system_config.supported_language_versions(
-                self.name(), code_package.language_name
-            )
+        if code_package.language_version not in self.system_config.supported_language_versions(
+            self.name(), code_package.language_name
         ):
             raise Exception(
                 "Unsupported {language} version {version} in {system}!".format(
@@ -177,9 +168,7 @@ class System(ABC, LoggingBase):
             function = self.function_type().deserialize(cached_function)
             self.cached_function(function)
             self.logging.info(
-                "Using cached function {fname} in {loc}".format(
-                    fname=func_name, loc=code_location
-                )
+                "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
             )
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash or rebuilt:
@@ -206,6 +195,10 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
+    def enforce_cold_start(self, function: Function):
+        pass
+
+    @abstractmethod
     def download_metrics(
         self,
         function_name: str,
@@ -213,6 +206,10 @@ class System(ABC, LoggingBase):
         end_time: int,
         requests: Dict[str, ExecutionResult],
     ):
+        pass
+
+    @abstractmethod
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         pass
 
     # @abstractmethod

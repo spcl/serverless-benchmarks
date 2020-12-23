@@ -28,6 +28,17 @@
       "nodejs": 10
     }
   },
+  "gcp": {
+    "secrets": {
+      "gcp_credentials": "/home/kacper/Downloads/oauth.json"
+    },
+    "region": "europe-west1",
+    "project_name": "sincere-baton-277510",
+    "runtime": {
+      "python": 3.6,
+      "nodejs": 10
+    }
+  },
   "local": {
     "runtime": {
       "python": 3.6,

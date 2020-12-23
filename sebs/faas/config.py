@@ -29,9 +29,7 @@ class Credentials(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> "Credentials":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Credentials":
         pass
 
     """
@@ -62,9 +60,7 @@ class Resources(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> "Resources":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
         pass
 
     """
@@ -108,11 +104,14 @@ class Config(ABC, LoggingBase):
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         from sebs.aws.config import AWSConfig
         from sebs.azure.config import AzureConfig
+        from sebs.gcp.config import GCPConfig
 
         name = config["name"]
-        func = {"aws": AWSConfig.deserialize, "azure": AzureConfig.deserialize}.get(
-            name
-        )
+        func = {
+            "aws": AWSConfig.deserialize,
+            "azure": AzureConfig.deserialize,
+            "gcp": GCPConfig.deserialize,
+        }.get(name)
         assert func, "Unknown config type!"
         return func(config[name] if name in config else config, cache, handlers)
 

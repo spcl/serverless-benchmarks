@@ -18,7 +18,6 @@ from sebs.faas.function import Trigger
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
-
 deployment_client: Optional[FaaSSystem] = None
 sebs_client: Optional[SeBS] = None
 
@@ -187,7 +186,14 @@ def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs
     result.begin()
     # FIXME: repetitions
     # FIXME: trigger type
-    ret = func.triggers.get(Trigger.TriggerType.STORAGE).async_invoke(input_config)
+    triggers = func.triggers(Trigger.TriggerType.HTTP)
+    if len(triggers) == 0:
+        trigger = deployment_client.create_trigger(
+            func, Trigger.TriggerType.HTTP
+        )
+    else:
+        trigger = triggers[0]
+    ret = trigger.sync_invoke(input_config)
     result.end()
     result.add_invocation(func, ret)
     with open("experiments.json", "w") as out_f:
@@ -272,8 +278,8 @@ def experment_process(experiment, **kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    experiment = sebs_client.get_experiment(config["experiments"])
-    experiment.process(output_dir)
+    experiment = sebs_client.get_experiment(experiment, config["experiments"])
+    experiment.process(sebs_client, deployment_client, output_dir, logging_filename)
 
 
 if __name__ == "__main__":

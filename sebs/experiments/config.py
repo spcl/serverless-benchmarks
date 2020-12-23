@@ -101,11 +101,11 @@ class Config:
         from sebs.experiments import (
             NetworkPingPong,
             PerfCost,
-            StartupTime,
             InvocationOverhead,
+            EvictionModel,
         )
 
-        for exp in [NetworkPingPong, PerfCost, StartupTime, InvocationOverhead]:
+        for exp in [NetworkPingPong, PerfCost, InvocationOverhead, EvictionModel]:
             if exp.name() in config:
                 cfg._experiment_configs[exp.name()] = config[exp.name()]
 

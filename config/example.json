@@ -8,8 +8,13 @@
       "version": "3.6"
     },
     "type": "invocation-overhead",
-    "startup-time": {
-      "convergence": 10
+    "perf-cost": {
+      "benchmark": "110.dynamic-html",
+      "input-size": "test",
+      "repetitions": 50,
+      "cold-invocations": 50,
+      "warm-invocations": 10,
+      "memory-sizes": [128, 256]
     },
     "network-ping-pong": {
       "invocations": 50,
@@ -17,10 +22,9 @@
       "threads": 1
     },
     "invocation-overhead": {
-      "invocations": 1,
       "repetitions": 5,
       "N": 20,
-      "threads": 1,
+      "type": "payload",
       "payload_begin": 1024,
       "payload_end": 6251000,
       "payload_points": 20,

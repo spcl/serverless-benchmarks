@@ -19,9 +19,7 @@ class NetworkPingPong(Experiment):
         )
         self._function = deployment_client.get_function(benchmark)
         self._storage = deployment_client.get_storage(replace_existing=True)
-        self.benchmark_input = benchmark.prepare_input(
-            storage=self._storage, size="test"
-        )
+        self.benchmark_input = benchmark.prepare_input(storage=self._storage, size="test")
         self._out_dir = os.path.join(sebs_client.output_dir, "network-ping-pong")
         if not os.path.exists(self._out_dir):
             # shutil.rmtree(self._out_dir)
@@ -49,9 +47,7 @@ class NetworkPingPong(Experiment):
         import time
 
         time.sleep(5)
-        self._storage.download_bucket(
-            self.benchmark_input["output-bucket"], self._out_dir
-        )
+        self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
 
     def process(self, directory: str):
 
@@ -68,9 +64,7 @@ class NetworkPingPong(Experiment):
             else:
                 full_data[request_id] = data
         df = pd.concat(full_data.values()).reset_index(drop=True)
-        df["rtt"] = (df["server_rcv"] - df["client_send"]) + (
-            df["client_rcv"] - df["server_send"]
-        )
+        df["rtt"] = (df["server_rcv"] - df["client_send"]) + (df["client_rcv"] - df["server_send"])
         print("Rows: ", df.shape[0])
         print("Mean: ", df["rtt"].mean())
         print("STD: ", df["rtt"].std())
