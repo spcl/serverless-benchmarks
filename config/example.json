@@ -8,8 +8,13 @@
       "version": "3.6"
     },
     "type": "invocation-overhead",
-    "startup-time": {
-      "convergence": 10
+    "perf-cost": {
+      "benchmark": "110.dynamic-html",
+      "experiments": ["cold", "warm", "burst", "sequential"],
+      "input-size": "test",
+      "repetitions": 50,
+      "concurrent-invocations": 50,
+      "memory-sizes": [128, 256]
     },
     "network-ping-pong": {
       "invocations": 50,

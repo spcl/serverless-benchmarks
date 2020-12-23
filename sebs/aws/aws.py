@@ -42,6 +42,14 @@ class AWS(System):
     def config(self) -> AWSConfig:
         return self._config
 
+    @property
+    def cold_start_counter(self) -> int:
+        return self._cold_start_counter
+
+    @cold_start_counter.setter
+    def cold_start_counter(self, val: int):
+        self._cold_start_counter = val
+
     """
         :param cache_client: Function cache instance
         :param config: Experiments config
@@ -60,7 +68,7 @@ class AWS(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self.storage: Optional[S3] = None
-        self.cold_start_counter = 0
+        self._cold_start_counter = 0
 
     def initialize(self, config: Dict[str, str] = {}):
         # thread-safe
@@ -351,6 +359,8 @@ class AWS(System):
         if isinstance(requests, ExecutionResult):
             output = cast(ExecutionResult, requests)
         else:
+            if request_id not in requests:
+                return request_id
             output = requests[request_id]
         output.request_id = request_id
         output.provider_times.execution = int(float(aws_vals["Duration"]) * 1000)
@@ -413,6 +423,7 @@ class AWS(System):
         start_time: int,
         end_time: int,
         requests: Dict[str, ExecutionResult],
+        metrics: dict
     ):
 
         if not self.logs_client:
@@ -428,6 +439,7 @@ class AWS(System):
             queryString="filter @message like /REPORT/",
             startTime=math.floor(start_time),
             endTime=math.ceil(end_time + 1),
+            limit=10000
         )
         query_id = query["queryId"]
         response = None
@@ -440,18 +452,17 @@ class AWS(System):
         # each match has multiple parts, we look at `@message` since this one
         # contains the report of invocation
         results = response["results"]
+        results_count = len(requests.keys())
+        results_processed = 0
+        requests_ids = set(requests.keys())
         for val in results:
             for result_part in val:
                 if result_part["field"] == "@message":
                     request_id = AWS.parse_aws_report(result_part["value"], requests)
-                    if request_id not in requests:
-                        self.logging.info(
-                            "Found invocation {} without result in bucket!".format(
-                                request_id
-                            )
-                        )
-                    # del actual_result["REPORT RequestId"]
-                    # requests[request_id][self.name()] = actual_result
+                    if request_id in requests:
+                        results_processed += 1
+                        requests_ids.remove(request_id)
+        self.logging.info(f"Received {len(results)} entries, found results for {results_processed} out of {results_count} invocations")
 
     def create_trigger(
         self, function: LambdaFunction, trigger_type: Trigger.TriggerType
@@ -479,8 +490,7 @@ class AWS(System):
         self.cache_client.update_function(function)
         return trigger
 
-    def enforce_cold_start(self, function: Function):
-        self.cold_start_counter += 1
+    def _enforce_cold_start(self, function: Function):
         func = cast(LambdaFunction, function)
         self.get_lambda_client().update_function_configuration(
             FunctionName=func.name,
@@ -489,287 +499,10 @@ class AWS(System):
             Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
 
+    def enforce_cold_start(self, functions: List[Function]):
+        self.cold_start_counter += 1
+        for func in functions:
+            self._enforce_cold_start(func)
+        import time
+        time.sleep(5)
 
-#    def create_function_copies(
-#        self,
-#        benchmark: Benchmark,
-#        function_names: List[str],
-#        api_name: str,
-#        memory: int,
-#        timeout: int,
-#        code_package: Benchmark,
-#        experiment_config: dict,
-#        api_id: str = None,
-#    ):
-#
-#        code_location = code_package.code_location
-#        code_size = code_package.code_size
-#        timeout = code_package.benchmark_config.timeout
-#        memory = code_package.benchmark_config.memory
-#
-#        self.get_lambda_client()
-#        api_client = boto3.client(
-#            service_name="apigateway",
-#            aws_access_key_id=self.config.credentials.access_key,
-#            aws_secret_access_key=self.config.credentials.secret_key,
-#            region_name=self.config.region,
-#        )
-#        # api_name = '{api_name}_API'.format(api_name=api_name)
-#        if api_id is None:
-#            api = api_client.create_rest_api(name=api_name)
-#            api_id = api["id"]
-#        resource = api_client.get_resources(restApiId=api_id)
-#        for r in resource["items"]:
-#            if r["path"] == "/":
-#                parent_id = r["id"]
-#        self.logging.info(
-#            "Created API {} with id {} and resource parent id {}".format(
-#                api_name, api_id, parent_id
-#            )
-#        )
-#
-#        # Run AWS-specific part of building code.
-#        urls = [
-#            self.create_lambda_function(
-#                benchmark,
-#                fname,
-#                api_id,
-#                parent_id,
-#                code_location,
-#                code_size,
-#                memory,
-#                timeout,
-#                experiment_config,
-#            )
-#            for fname in function_names
-#        ]
-#        return urls, api_id
-
-#    def update_function_config(self, fname: str, timeout: int, memory: int):
-#        self.get_lambda_client()
-#        self.client.update_function_configuration(
-#            FunctionName=fname, Timeout=timeout, MemorySize=memory
-#        )
-
-#
-#    def create_http_trigger(
-#        self, func_name: str, api_id: Optional[str], parent_id: Optional[str]
-#    ):
-#
-#        # https://github.com/boto/boto3/issues/572
-#        # assumed we have: function name, region
-#
-#        api_client = boto3.client(
-#            service_name="apigateway",
-#            aws_access_key_id=self.config.credentials.access_key,
-#            aws_secret_access_key=self.config.credentials.secret_key,
-#            region_name=self.config.region,
-#        )
-#
-#        # create REST API
-#        if api_id is None:
-#            api_name = func_name
-#            api = api_client.create_rest_api(name=api_name)
-#            api_id = api["id"]
-#        if parent_id is None:
-#            resources = api_client.get_resources(restApiId=api_id)
-#            for r in resources["items"]:
-#                if r["path"] == "/":
-#                    parent_id = r["id"]
-#
-#        # create resource
-#        # TODO: check if resource exists
-#        resource_id = None
-#        resp = api_client.get_resources(restApiId=api_id)["items"]
-#        for v in resp:
-#            if "pathPart" in v:
-#                path = v["pathPart"]
-#                if path == func_name:
-#                    resource_id = v["id"]
-#                    break
-#        if not resource_id:
-#            self.logging.info(func_name)
-#            self.logging.info(cast(str, parent_id))
-#            resource = api_client.create_resource(
-#                restApiId=api_id, parentId=cast(str, parent_id), pathPart=func_name
-#            )
-#            self.logging.info(str(resource))
-#            resource_id = resource["id"]
-#        self.logging.info(
-#            "AWS: using REST API {api_id} with parent ID {parent_id}"
-#            "using resource ID {resource_id}".format(
-#                api_id=api_id, parent_id=parent_id, resource_id=resource_id
-#            )
-#        )
-#
-#        # create POST method
-#        api_client.put_method(
-#            restApiId=api_id,
-#            resourceId=resource_id,
-#            httpMethod="POST",
-#            authorizationType="NONE",
-#            apiKeyRequired=False,
-#        )
-#
-#        lambda_version = self.client.meta.service_model.api_version
-#        # get account information
-#        sts_client = boto3.client(
-#            service_name="sts",
-#            aws_access_key_id=self.config.credentials.access_key,
-#            aws_secret_access_key=self.config.credentials.secret_key,
-#            region_name=self.config.region,
-#        )
-#        account_id = sts_client.get_caller_identity()["Account"]
-#
-#        uri_data = {
-#            "aws-region": self.config.resources.lambda_role,
-#            "api-version": lambda_version,
-#            "aws-acct-id": account_id,
-#            "lambda-function-name": func_name,
-#        }
-#
-#        uri = (
-#            "arn:aws:apigateway:{aws-region}:lambda:path/{api-version}/"
-#            "functions/arn:aws:lambda:{aws-region}:{aws-acct-id}:function"
-#            ":{lambda-function-name}/invocations"
-#        ).format(**uri_data)
-#
-#        # create integration
-#        api_client.put_integration(
-#            restApiId=api_id,
-#            resourceId=resource_id,
-#            httpMethod="POST",
-#            type="AWS",
-#            integrationHttpMethod="POST",
-#            uri=uri,
-#        )
-#
-#        api_client.put_integration_response(
-#            restApiId=api_id,
-#            resourceId=resource_id,
-#            httpMethod="POST",
-#            statusCode="200",
-#            selectionPattern=".*",
-#        )
-#
-#        # create POST method response
-#        api_client.put_method_response(
-#            restApiId=api_id,
-#            resourceId=resource_id,
-#            httpMethod="POST",
-#            statusCode="200",
-#        )
-#
-#        uri_data["aws-api-id"] = api_id
-#        source_arn = (
-#            "arn:aws:execute-api:{aws-region}:{aws-acct-id}:{aws-api-id}/*/"
-#            "POST/{lambda-function-name}"
-#        ).format(**uri_data)
-#
-#        self.client.add_permission(
-#            FunctionName=func_name,
-#            StatementId=uuid.uuid4().hex,
-#            Action="lambda:InvokeFunction",
-#            Principal="apigateway.amazonaws.com",
-#            SourceArn=source_arn,
-#        )
-#
-#        # state 'your stage name' was already created via API Gateway GUI
-#        stage_name = "name"
-#        api_client.create_deployment(restApiId=api_id, stageName=stage_name)
-#        uri_data["api_id"] = api_id
-#        uri_data["stage_name"] = stage_name
-#        url = (
-#            "https://{api_id}.execute-api.{aws-region}.amazonaws.com/"
-#            "{stage_name}/{lambda-function-name}"
-#        )
-#        return url.format(**uri_data)
-
-#    def create_lambda_function(
-#        self,
-#        benchmark: Benchmark,
-#        function_name: str,
-#        api_id: str,
-#        parent_id: str,
-#        package: str,
-#        code_size: int,
-#        memory: int,
-#        timeout: int,
-#        experiment_config: dict,
-#    ):
-#        language = benchmark.language_name
-#        language_runtime = benchmark.language_version
-#
-#        # TODO: create Lambda role
-#        # AWS Lambda limit on zip deployment size
-#        # Limit to 50 MB
-#        # mypy doesn't recognize correctly the case when the same
-#        # variable has different types across the path
-#        code_config: Dict[str, Union[str, bytes]]
-#        if code_size < 50 * 1024 * 1024:
-#            package_body = open(package, "rb").read()
-#            code_config = {"ZipFile": package_body}
-#        # Upload code package to S3, then use it
-#        else:
-#            code_package_name = cast(str, os.path.basename(package))
-#            bucket, idx = self.storage.add_input_bucket(function_name)
-#            self.storage.upload(bucket, package, code_package_name)
-#            self.logging.info(
-#                "Uploading function {} code to {}".format(function_name, bucket)
-#            )
-#            code_config = {"S3Bucket": bucket, "S3Key": code_package_name}
-#        self.client.create_function(
-#            FunctionName=function_name,
-#            Runtime="{}{}".format(language, language_runtime),
-#            Handler="handler.handler",
-#            Role=self.config.resources.lambda_role(self.session),
-#            MemorySize=memory,
-#            Timeout=timeout,
-#            Code=code_config,
-#        )
-#        while True:
-#            try:
-#                self.logging.info(
-#                    "Creating HTTP Trigger for function {} from {}".format(
-#                        function_name, package
-#                    )
-#                )
-#                url = self.create_http_trigger(function_name, api_id, parent_id)
-#                self.logging.info(url)
-#            except Exception as e:
-#                self.logging.info("Exception")
-#                self.logging.info(str(e))
-#                import traceback
-#
-#                traceback.print_exc()
-#                api_client = boto3.client(
-#                    service_name="apigateway",
-#                    aws_access_key_id=self.config.credentials.access_key,
-#                    aws_secret_access_key=self.config.credentials.secret_key,
-#                    region_name=self.config.region,
-#                )
-#                resp = api_client.get_resources(restApiId=api_id)["items"]
-#                for v in resp:
-#                    if "pathPart" in v:
-#                        path = v["pathPart"]
-#                        if path == function_name:
-#                            resource_id = v["id"]
-#                            self.logging.info(
-#                                "Remove resource with path {} from {}".format(
-#                                    function_name, api_id
-#                                )
-#                            )
-#                            api_client.delete_resource(
-#                                restApiId=api_id, resourceId=resource_id
-#                            )
-#                            break
-#                # throttling on AWS
-#                continue
-#            self.logging.info("Done")
-#            break
-#        self.logging.info(
-#            "Created HTTP Trigger for function {} from {}".format(
-#                function_name, package
-#            )
-#        )
-#        return url

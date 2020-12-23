@@ -20,7 +20,7 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     end = datetime.datetime.now()
 
     log_data = {
-        'result': ret['result']
+        'output': ret['result']
     }
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
@@ -67,7 +67,7 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
             'is_cold': is_cold,
             'is_cold_worker': is_cold_worker,
             'container_id': container_id,
-            'environ': list(os.environ.items()),
+            'environ_container_id': os.environ['CONTAINER_NAME'],
             'request_id': context.invocation_id
         }),
         mimetype="application/json"

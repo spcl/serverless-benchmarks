@@ -14,14 +14,22 @@ class Result:
         self,
         experiment_config: ExperimentConfig,
         deployment_config: DeploymentConfig,
-        invocations: Dict[str, Dict[str, ExecutionResult]] = {},
+        invocations: Optional[Dict[str, Dict[str, ExecutionResult]]] = None,
+        metrics: Optional[Dict[str, dict]] = None,
         result_bucket: Optional[str] = None,
     ):
         self.config = {
             "experiments": experiment_config,
             "deployment": deployment_config,
         }
-        self._invocations = invocations
+        if not invocations:
+            self._invocations = {}
+        else:
+            self._invocations = invocations
+        if not metrics:
+            self._metrics = {}
+        else:
+            self._metrics = metrics
         self.result_bucket = result_bucket
 
     def begin(self):
@@ -50,6 +58,12 @@ class Result:
     def invocations(self, func: str) -> Dict[str, ExecutionResult]:
         return self._invocations[func]
 
+    def metrics(self, func: str) -> dict:
+        if func not in self._metrics:
+            self._metrics[func] = {}
+        return self._metrics[func]
+
+
     @staticmethod
     def deserialize(
         cached_config: dict, cache: Cache, handlers: LoggingHandlers
@@ -65,6 +79,8 @@ class Result:
                 cached_config["config"]["deployment"], cache, handlers
             ),
             invocations,
+            # FIXME: compatibility with old results
+            cached_config["metrics"] if "metrics" in cached_config else {},
             cached_config["result_bucket"],
         )
         ret.begin_time = cached_config["begin_time"]
