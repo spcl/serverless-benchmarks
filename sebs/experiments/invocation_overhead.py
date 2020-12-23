@@ -3,11 +3,15 @@ import os
 import random
 import time
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
+
+if TYPE_CHECKING:
+    from sebs import SeBS
 
 
 class CodePackageSize:
@@ -35,9 +39,6 @@ class CodePackageSize:
 
     def before_sample(self, size: int, input_benchmark: dict):
         arr = bytearray((random.getrandbits(8) for i in range(size)))
-        # with open(os.path.join(self._benchmark_path, "python", "file.py"), "wb") as f:
-        #    f.write(arr)
-        # self._benchmark.query_cache()
         self._benchmark.code_package_modify("randomdata.bin", arr)
         function = self._deployment_client.get_function(self._benchmark)
         self._deployment_client.update_function(function, self._benchmark)
@@ -69,7 +70,7 @@ class InvocationOverhead(Experiment):
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
 
         # deploy network test function
-        from sebs import SeBS
+        from sebs import SeBS  # noqa
         from sebs.faas.function import Trigger
 
         self._benchmark = sebs_client.get_benchmark(
@@ -142,9 +143,7 @@ class InvocationOverhead(Experiment):
                         while not succesful:
                             self.logging.info(f"Starting with {size} bytes, repetition {i}")
                             if result_type == "cold":
-                                self._deployment_client.enforce_cold_start(
-                                    [self._function,]
-                                )
+                                self._deployment_client.enforce_cold_start([self._function])
                                 time.sleep(1)
                             row = self.receive_datagrams(input_benchmark, N, 12000, ip)
                             if result_type == "cold":
@@ -164,9 +163,9 @@ class InvocationOverhead(Experiment):
     def process(
         self, sebs_client: "SeBS", deployment_client, directory: str, logging_filename: str,
     ):
-
         import pandas as pd
         import glob
+        from sebs import SeBS  # noqa
 
         full_data = {}
         for f in glob.glob(
@@ -187,7 +186,6 @@ class InvocationOverhead(Experiment):
         df["clock_drift"] = (
             (df["client_send"] - df["server_rcv"]) + (df["client_rcv"] - df["server_send"])
         ) / 2
-        print(df)
 
         with open(
             os.path.join(directory, "invocation-overhead", self.settings["type"], "result.csv")
@@ -215,31 +213,12 @@ class InvocationOverhead(Experiment):
                     ]
                 )
                 iter2 = iter(reader)
-                next(iter2)
                 for row in iter2:
-                    # print(row)
                     request_id = row[-1]
-                    # print(request_id)
-                    # clock_drift = df[df['id'] == request_id]
                     clock_drift = df[df["id"] == request_id]["clock_drift"].mean()
                     clock_drift_std = df[df["id"] == request_id]["clock_drift"].std()
                     invocation_time = float(row[5]) - float(row[4]) - float(row[3]) + clock_drift
                     writer.writerow(row + [clock_drift, clock_drift_std, invocation_time])
-
-        # df['rtt'] = (df['server_rcv'] - df['client_send']) + (df['client_rcv'] - df['server_send'])
-        # print('Rows: ', df.shape[0])
-        # print('Mean: ', df['rtt'].mean())
-        # print('STD: ', df['rtt'].std())
-        # print('CV: ', df['rtt'].std() / df['rtt'].mean())
-        # print('P50: ', df['rtt'].quantile(0.5))
-        # print('P75: ', df['rtt'].quantile(0.75))
-        # print('P95: ', df['rtt'].quantile(0.95))
-        # print('P99: ', df['rtt'].quantile(0.99))
-        # print('P99,9: ', df['rtt'].quantile(0.999))
-        # ax = df['rtt'].hist(bins=2000)
-        ##ax.set_xlim([0.01, 0.04])
-        # fig = ax.get_figure()
-        # fig.savefig(os.path.join(directory, 'histogram.png'))
 
     def receive_datagrams(self, input_benchmark: dict, repetitions: int, port: int, ip: str):
 
@@ -257,7 +236,6 @@ class InvocationOverhead(Experiment):
         times = []
         i = 0
         j = 0
-        update_counter = int(repetitions / 10)
         while True:
             try:
                 message, address = server_socket.recvfrom(1024)
@@ -267,7 +245,7 @@ class InvocationOverhead(Experiment):
                 timestamp_send = datetime.now().timestamp()
                 server_socket.sendto(message, address)
                 j = 0
-            except socket.timeout as e:
+            except socket.timeout:
                 j += 1
                 self.logging.warning("Packet loss!")
                 # stop after 5 attempts
@@ -300,9 +278,6 @@ class InvocationOverhead(Experiment):
                 writer.writerow(row)
 
         self.logging.info(f"Finished {request_id} in {end - begin} [s]")
-        self.logging.info(
-            f"is_cold? {is_cold} Time w/o clock drift {server_timestamp - res.times.client_begin.timestamp()} [s]"
-        )
 
         return [
             is_cold,
