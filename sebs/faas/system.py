@@ -1,6 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Dict, Optional, Tuple, Type
+from typing import Dict, List, Optional, Tuple, Type
 
 import docker
 
@@ -194,7 +194,7 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def enforce_cold_start(self, function: Function):
+    def enforce_cold_start(self, functions: List[Function]):
         pass
 
     @abstractmethod
@@ -204,6 +204,7 @@ class System(ABC, LoggingBase):
         start_time: int,
         end_time: int,
         requests: Dict[str, ExecutionResult],
+        metrics: dict,
     ):
         pass
 

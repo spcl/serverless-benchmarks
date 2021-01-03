@@ -16,9 +16,9 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
-from ..faas.function import Function, ExecutionResult, Trigger
-from ..faas.storage import PersistentStorage
-from ..faas.system import System
+from sebs.faas.function import Function, ExecutionResult, Trigger
+from sebs.faas.storage import PersistentStorage
+from sebs.faas.system import System
 
 
 class AWS(System):
@@ -243,11 +243,11 @@ class AWS(System):
 
     def cached_function(self, function: Function):
 
-        from sebs.faas.function import Trigger
+        from sebs.aws.triggers import LibraryTrigger
 
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             trigger.logging_handlers = self.logging_handlers
-            trigger.deployment_client = self
+            cast(LibraryTrigger, trigger).deployment_client = self
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
 
@@ -459,10 +459,10 @@ class AWS(System):
             f"out of {results_count} invocations"
         )
 
-    def create_trigger(
-        self, function: LambdaFunction, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.aws.triggers import HTTPTrigger
+
+        function = cast(LambdaFunction, func)
 
         if trigger_type == Trigger.TriggerType.HTTP:
 
