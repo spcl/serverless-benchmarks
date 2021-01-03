@@ -346,7 +346,7 @@ class Benchmark(LoggingBase):
 
             # Create set of mounted volumes unless Docker volumes are disabled
             if not self._experiment_config.check_flag("docker_copy_build_files"):
-                volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw",}}
+                volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
                 package_script = os.path.abspath(
                     os.path.join(self._benchmark_path, self.language_name, "package.sh")
                 )

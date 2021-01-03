@@ -415,7 +415,7 @@ class AWS(System):
         start_time: int,
         end_time: int,
         requests: Dict[str, ExecutionResult],
-        metrics: dict
+        metrics: dict,
     ):
 
         if not self.logs_client:
@@ -431,7 +431,7 @@ class AWS(System):
             queryString="filter @message like /REPORT/",
             startTime=math.floor(start_time),
             endTime=math.ceil(end_time + 1),
-            limit=10000
+            limit=10000,
         )
         query_id = query["queryId"]
         response = None
@@ -454,7 +454,10 @@ class AWS(System):
                     if request_id in requests:
                         results_processed += 1
                         requests_ids.remove(request_id)
-        self.logging.info(f"Received {len(results)} entries, found results for {results_processed} out of {results_count} invocations")
+        self.logging.info(
+            f"Received {len(results)} entries, found results for {results_processed} "
+            f"out of {results_count} invocations"
+        )
 
     def create_trigger(
         self, function: LambdaFunction, trigger_type: Trigger.TriggerType
@@ -496,5 +499,5 @@ class AWS(System):
         for func in functions:
             self._enforce_cold_start(func)
         import time
-        time.sleep(5)
 
+        time.sleep(5)

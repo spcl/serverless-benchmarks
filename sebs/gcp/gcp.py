@@ -418,12 +418,12 @@ class GCP(System):
                 f'timestamp >= "{timestamps[0]}" '
                 f'timestamp <= "{timestamps[1]}"'
             ),
-            page_size = 1000
+            page_size=1000,
         )
         invocations_processed = 0
         pages = list(wrapper(invocations.pages))
         entries = 0
-        for page in pages:#invocations.pages:
+        for page in pages:  # invocations.pages:
             for invoc in page:
                 entries += 1
                 if "execution took" in invoc.payload:
@@ -462,7 +462,6 @@ class GCP(System):
                 "start_time": {"seconds": int(start_time_seconds)},
             }
         )
-
 
         for metric in available_metrics:
 

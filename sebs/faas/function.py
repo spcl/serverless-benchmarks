@@ -44,7 +44,7 @@ class ProviderTimes:
         self.initialization = 0
 
     @staticmethod
-    def deserialize(cached_obj: dict) -> "ExecutionStats":
+    def deserialize(cached_obj: dict) -> "ProviderTimes":
         ret = ProviderTimes()
         ret.__dict__.update(cached_obj)
         return ret

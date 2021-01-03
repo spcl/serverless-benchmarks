@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple  # noqa
 
@@ -62,7 +61,6 @@ class Result:
         if func not in self._metrics:
             self._metrics[func] = {}
         return self._metrics[func]
-
 
     @staticmethod
     def deserialize(cached_config: dict, cache: Cache, handlers: LoggingHandlers) -> "Result":

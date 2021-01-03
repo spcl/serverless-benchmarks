@@ -17,7 +17,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers, execute
-from ..faas.function import Function, ExecutionResult, Trigger
+from ..faas.function import Function, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
@@ -334,7 +334,7 @@ class Azure(System):
         start_time: int,
         end_time: int,
         requests: Dict[str, ExecutionResult],
-        metrics: Dict[str, dict]
+        metrics: Dict[str, dict],
     ):
 
         resource_group = self.config.resources.resource_group(self.cli_instance)
@@ -369,19 +369,14 @@ class Azure(System):
         )
         invocations_processed: Set[str] = set()
         invocations_to_process = set(requests.keys())
-        #while len(invocations_processed) < len(requests.keys()):
+        # while len(invocations_processed) < len(requests.keys()):
         self.logging.info("Azure: Running App Insights query.")
         ret = self.cli_instance.execute(
             (
                 'az monitor app-insights query --app {} --analytics-query "{}" '
                 "--start-time {} {} --end-time {} {}"
             ).format(
-                application_id,
-                query,
-                start_time_str,
-                timezone_str,
-                end_time_str,
-                timezone_str,
+                application_id, query, start_time_str, timezone_str, end_time_str, timezone_str,
             )
         ).decode("utf-8")
         ret = json.loads(ret)
@@ -395,9 +390,7 @@ class Azure(System):
             # duration = request[4]
             func_exec_time = request[-1]
             invocations_processed.add(invocation_id)
-            requests[invocation_id].provider_times.execution = int(
-                float(func_exec_time) * 1000
-            )
+            requests[invocation_id].provider_times.execution = int(float(func_exec_time) * 1000)
         self.logging.info(
             f"Azure: Found time metrics for {len(invocations_processed)} "
             f"out of {len(requests.keys())} invocations."
@@ -426,15 +419,15 @@ class Azure(System):
         for func in functions:
             self._enforce_cold_start(func, code_package)
         import time
+
         time.sleep(20)
 
     """
         The only implemented trigger at the moment is HTTPTrigger.
         It is automatically created for each function.
     """
-    def create_trigger(
-        self, function: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         raise NotImplementedError()
 
 

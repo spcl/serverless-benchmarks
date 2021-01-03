@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from datetime import datetime
-from typing import List
+from typing import List, TYPE_CHECKING
 import multiprocessing
 from multiprocessing.pool import ThreadPool
 
@@ -11,6 +11,9 @@ from sebs.faas.function import Function, Trigger
 from sebs.experiments import Experiment, ExperimentResult
 from sebs.experiments.config import Config as ExperimentConfig
 from sebs.utils import serialize
+
+if TYPE_CHECKING:
+    from sebs import SeBS
 
 
 class EvictionModel(Experiment):
@@ -94,14 +97,10 @@ class EvictionModel(Experiment):
             s.close()
 
     @staticmethod
-    def execute_instance(
-        sleep_time: int, pid: int, tid: int, func: Function, payload: dict
-    ):
+    def execute_instance(sleep_time: int, pid: int, tid: int, func: Function, payload: dict):
 
         try:
-            print(
-                f"Process {pid} Thread {tid} Invoke function {func.name} with {payload} now!"
-            )
+            print(f"Process {pid} Thread {tid} Invoke function {func.name} with {payload} now!")
             begin = datetime.now()
             res = func.triggers(Trigger.TriggerType.HTTP)[0].sync_invoke(payload)
             end = datetime.now()

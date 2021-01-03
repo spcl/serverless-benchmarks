@@ -7,11 +7,10 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.faas.function import Function, Trigger
+from sebs.faas.function import Function, Trigger, ExecutionResult
+from sebs.faas.storage import PersistentStorage
 from sebs.utils import LoggingBase
 from .config import Config
-from .function import Function, ExecutionResult
-from .storage import PersistentStorage
 
 """
     This class provides basic abstractions for the FaaS system.
