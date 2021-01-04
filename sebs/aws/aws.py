@@ -478,6 +478,9 @@ class AWS(System):
                 SourceArn=f"{http_api.arn}/*/*",
             )
             trigger = HTTPTrigger(http_api.endpoint, api_name)
+        elif trigger_type == Trigger.TriggerType.LIBRARY:
+            # should already exist
+            return func.triggers(Trigger.TriggerType.LIBRARY)[0]
         else:
             raise RuntimeError("Not supported!")
 
