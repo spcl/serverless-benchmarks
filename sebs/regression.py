@@ -35,7 +35,8 @@ class TestSequenceMeta(type):
             def test(self):
                 deployment_client = self.client.get_deployment(
                     self.config,
-                    f"regression_test_{deployment_name}_{benchmark_name}.log"
+                    verbose=False,
+                    logging_filename=f"regression_test_{deployment_name}_{benchmark_name}.log"
                 )
                 logging.info(
                     f"Begin regression test of {benchmark_name} on "
@@ -64,9 +65,9 @@ class TestSequenceMeta(type):
                     ret = trigger.sync_invoke(input_config)
                     if ret.stats.failure:
                         failure = True
-                        deployment_client.logging.error(f"{benchmark_name} fail on trigger: {trigger_type}")
+                        print(f"{benchmark_name} fail on trigger: {trigger_type}")
                     else:
-                        deployment_client.logging.info(f"{benchmark_name} success on trigger: {trigger_type}")
+                        print(f"{benchmark_name} success on trigger: {trigger_type}")
                     
                 if failure:
                     raise RuntimeError(f"Test of {benchmark_name} failed!")
@@ -87,15 +88,6 @@ class AWSTestSequence(unittest.TestCase,
                 "region": "us-east-1"
             }
         },
-        #experiment_config = {
-        #    "update_code": False,
-        #    "update_storage": False,
-        #    "download_results": False,
-        #    "runtime": {
-        #      "language": "python",
-        #      "version": "3.6"
-        #    }
-        #},
         triggers = [Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP]
     ):
     pass
@@ -109,15 +101,6 @@ class AzureTestSequence(unittest.TestCase,
                 "region": "westeurope"
             }
         },
-        #experiment_config = {
-        #    "update_code": False,
-        #    "update_storage": False,
-        #    "download_results": False,
-        #    "runtime": {
-        #      "language": "python",
-        #      "version": "3.6"
-        #    },
-        #},
         triggers = [Trigger.TriggerType.HTTP]
     ):
     pass

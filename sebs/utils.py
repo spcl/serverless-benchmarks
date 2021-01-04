@@ -144,10 +144,11 @@ class LoggingHandlers:
         self.handlers = []
 
         # Add stdout output
-        stdout = logging.StreamHandler(sys.stdout)
-        stdout.setFormatter(formatter)
-        stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
-        self.handlers.append(stdout)
+        if verbose:
+            stdout = logging.StreamHandler(sys.stdout)
+            stdout.setFormatter(formatter)
+            stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
+            self.handlers.append(stdout)
 
         # Add file output if needed
         if filename:

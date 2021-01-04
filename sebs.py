@@ -55,7 +55,7 @@ def common_params(func):
         default=os.path.join(os.path.curdir, "cache"),
         help="Location of experiments cache.",
     )
-    @click.option("--verbose", default=False, help="Verbose output.")
+    @click.option("--verbose/--no-verbose", default=False, help="Verbose output.")
     @click.option(
         "--preserve-out/--no-preserve-out",
         default=True,
@@ -88,8 +88,6 @@ def common_params(func):
     )
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        print(args)
-        print(kwargs)
         return func(*args, **kwargs)
 
     return wrapper

@@ -29,11 +29,11 @@ class SeBS:
     def output_dir(self) -> str:
         return self._output_dir
 
-    def logging_handlers(self, logging_filename: Optional[str] = None) -> LoggingHandlers:
+    def logging_handlers(self, verbose: bool = False, logging_filename: Optional[str] = None) -> LoggingHandlers:
         if logging_filename in self._logging_handlers:
             return self._logging_handlers[logging_filename]
         else:
-            handlers = LoggingHandlers(filename=logging_filename)
+            handlers = LoggingHandlers(verbose=verbose, filename=logging_filename)
             self._logging_handlers[logging_filename] = handlers
             return handlers
 
@@ -44,7 +44,7 @@ class SeBS:
         self._output_dir = output_dir
         self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
-    def get_deployment(self, config: dict, logging_filename: Optional[str] = None) -> FaaSSystem:
+    def get_deployment(self, config: dict, verbose: bool = False, logging_filename: Optional[str] = None) -> FaaSSystem:
 
         name = config["name"]
         implementations = {"aws": AWS, "azure": Azure, "gcp": GCP}
@@ -52,7 +52,7 @@ class SeBS:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
         # FIXME: future annotations, requires Python 3.7+
-        handlers = self.logging_handlers(logging_filename)
+        handlers = self.logging_handlers(verbose, logging_filename)
         deployment_config = Config.deserialize(config, self.cache_client, handlers)
         deployment_client = implementations[name](
             self._config,
