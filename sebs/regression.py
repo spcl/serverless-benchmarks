@@ -2,9 +2,11 @@
 import logging
 import unittest
 import testtools
-from typing import Set
+from typing import Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
+if TYPE_CHECKING:
+    from sebs import SeBS
 
 benchmarks = [
     "110.dynamic-html",
@@ -21,14 +23,13 @@ benchmarks = [
 
 class TestSequenceMeta(type):
 
-    def __init__(cls, name, bases, attrs, deployment_name, config, experiment_config, triggers):
+    def __init__(cls, name, bases, attrs, deployment_name, config, triggers):
         type.__init__(cls, name, bases, attrs)
         cls.deployment_name = deployment_name
         cls.config = config
-        cls.experiment_config = experiment_config
         cls.triggers = triggers
 
-    def __new__(mcs, name, bases, dict, deployment_name, config, experiment_config, triggers):
+    def __new__(mcs, name, bases, dict, deployment_name, config, triggers):
 
         def gen_test(benchmark_name):
             def test(self):
@@ -86,15 +87,15 @@ class AWSTestSequence(unittest.TestCase,
                 "region": "us-east-1"
             }
         },
-        experiment_config = {
-            "update_code": False,
-            "update_storage": False,
-            "download_results": False,
-            "runtime": {
-              "language": "python",
-              "version": "3.6"
-            }
-        },
+        #experiment_config = {
+        #    "update_code": False,
+        #    "update_storage": False,
+        #    "download_results": False,
+        #    "runtime": {
+        #      "language": "python",
+        #      "version": "3.6"
+        #    }
+        #},
         triggers = [Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP]
     ):
     pass
@@ -108,15 +109,15 @@ class AzureTestSequence(unittest.TestCase,
                 "region": "westeurope"
             }
         },
-        experiment_config = {
-            "update_code": False,
-            "update_storage": False,
-            "download_results": False,
-            "runtime": {
-              "language": "python",
-              "version": "3.6"
-            },
-        },
+        #experiment_config = {
+        #    "update_code": False,
+        #    "update_storage": False,
+        #    "download_results": False,
+        #    "runtime": {
+        #      "language": "python",
+        #      "version": "3.6"
+        #    },
+        #},
         triggers = [Trigger.TriggerType.HTTP]
     ):
     pass
@@ -147,7 +148,7 @@ class TracingStreamResult(testtools.StreamResult):
         elif kwargs["test_status"] == "success":
             self.success.add(test_name)
 
-def regression_suite(sebs_client, providers: Set[str]):
+def regression_suite(sebs_client: "SeBS", experiment_config: dict, providers: Set[str]):
     suite = unittest.TestSuite()
     if "aws" in providers:
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequence))
@@ -157,6 +158,7 @@ def regression_suite(sebs_client, providers: Set[str]):
     for case in suite:
         for test in case:
             test.client = sebs_client
+            test.experiment_config = experiment_config
             tests.append(test)
     concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
     result = TracingStreamResult()
@@ -171,3 +173,4 @@ def regression_suite(sebs_client, providers: Set[str]):
         for failure in result.failures:
             print(f"- {failure}")
     return not result.all_correct
+
