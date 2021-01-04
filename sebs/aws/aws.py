@@ -478,6 +478,7 @@ class AWS(System):
                 SourceArn=f"{http_api.arn}/*/*",
             )
             trigger = HTTPTrigger(http_api.endpoint, api_name)
+            trigger.logging_handlers = self.logging_handlers
         elif trigger_type == Trigger.TriggerType.LIBRARY:
             # should already exist
             return func.triggers(Trigger.TriggerType.LIBRARY)[0]

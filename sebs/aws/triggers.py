@@ -48,17 +48,11 @@ class LibraryTrigger(Trigger):
         if ret["StatusCode"] != 200:
             self.logging.error("Invocation of {} failed!".format(self.name))
             self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
-            self.deployment_client.get_invocation_error(
-                function_name=self.name, start_time=start_time, end_time=end_time
-            )
             aws_result.stats.failure = True
             return aws_result
         if "FunctionError" in ret:
             self.logging.error("Invocation of {} failed!".format(self.name))
             self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
-            self.deployment_client.get_invocation_error(
-                function_name=self.name, start_time=start_time, end_time=end_time
-            )
             aws_result.stats.failure = True
             return aws_result
         self.logging.debug(f"Invoke of function {self.name} was successful")
