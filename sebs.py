@@ -5,6 +5,7 @@ import json
 import logging
 import functools
 import os
+import sys
 import traceback
 from typing import Optional
 
@@ -56,17 +57,17 @@ def common_params(func):
     )
     @click.option("--verbose", default=False, help="Verbose output.")
     @click.option(
-        "--preserve-out",
+        "--preserve-out/--no-preserve-out",
         default=True,
         help="Preserve current results in output directory.",
     )
     @click.option(
-        "--update-code",
+        "--update-code/--no-update-code",
         default=False,
         help="Update function code in cache and cloud deployment.",
     )
     @click.option(
-        "--update-storage",
+        "--update-storage/--no-update-storage",
         default=False,
         help="Update benchmark storage files in cloud deployment.",
     )
@@ -265,7 +266,8 @@ def regression(benchmark_input_size, repetitions, **kwargs):
         **kwargs,
         'deployment': None
     })
-    regression_suite(sebs_client, set( (config['deployment']['name'],) ))
+    succ = regression_suite(sebs_client, config["experiments"], set( (config['deployment']['name'],) ))
+    sys.exit(succ)
 
 
 @cli.group()
