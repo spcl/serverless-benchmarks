@@ -12,6 +12,7 @@ import click
 
 import sebs
 from sebs import SeBS
+from sebs.regression import regression_suite
 from sebs.utils import update_nested_dict
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
@@ -86,6 +87,8 @@ def common_params(func):
     )
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        print(args)
+        print(kwargs)
         return func(*args, **kwargs)
 
     return wrapper
@@ -121,10 +124,13 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "benchmark"], benchmark)
 
     logging_filename = os.path.abspath(os.path.join(output_dir, "out.log"))
-    deployment_client = sebs_client.get_deployment(
-        config_obj["deployment"], logging_filename=logging_filename
-    )
-    deployment_client.initialize()
+    if config_obj["deployment"]:
+        deployment_client = sebs_client.get_deployment(
+            config_obj["deployment"], logging_filename=logging_filename
+        )
+        deployment_client.initialize()
+    else:
+        deployment_client = None
 
     return config_obj, output_dir, logging_filename, sebs_client, deployment_client
 
@@ -231,19 +237,35 @@ def process(**kwargs):
 
 
 @benchmark.command()
+@click.argument(
+    "benchmark-input-size", type=click.Choice(["test", "small", "large"])
+)  # help="Input test size")
 @click.option(
     "--repetitions", default=5, type=int, help="Number of experimental repetitions."
 )
 @common_params
-def regression(benchmark, benchmark_input_size, repetitions, function_name, **kwargs):
+@click.option(
+    "--cache",
+    default=os.path.join(os.path.curdir, "regression-cache"),
+    help="Location of experiments cache.",
+)
+@click.option(
+    "--output-dir", default=os.path.join(os.path.curdir, "regression-output"), help="Output directory for results."
+)
+def regression(benchmark_input_size, repetitions, **kwargs):
+    # for regression, deployment client is initialized locally
+    # disable default initialization
     (
         config,
         output_dir,
         logging_filename,
         sebs_client,
-        deployment_client,
-    ) = parse_common_params(**kwargs)
-    raise NotImplementedError()
+        _
+    ) = parse_common_params(**{
+        **kwargs,
+        'deployment': None
+    })
+    regression_suite(sebs_client, set( (config['deployment']['name'],) ))
 
 
 @cli.group()
