@@ -10,11 +10,11 @@ if TYPE_CHECKING:
 
 benchmarks = [
     "110.dynamic-html",
-    "120.uploader",
-    "210.thumbnailer",
+    #"120.uploader",
+    #"210.thumbnailer",
     #"220.video-processing",
     #"311.compression",
-    #"411.image-recognition",
+    "411.image-recognition",
     #"501.graph-pagerank",
     #"502.graph-mst",
     #"503.graph-bfs",
@@ -58,17 +58,23 @@ class TestSequenceMeta(type):
 
                 failure = False
                 for trigger_type in triggers:
-                    trigger = deployment_client.create_trigger(
-                        func, trigger_type
-                    )
+                    if len(func.triggers(trigger_type)) > 0:
+                        trigger = func.triggers(trigger_type)[0]
+                    else:
+                        trigger = deployment_client.create_trigger(
+                            func, trigger_type
+                        )
                     # Synchronous invoke
-                    ret = trigger.sync_invoke(input_config)
-                    if ret.stats.failure:
+                    try:
+                        ret = trigger.sync_invoke(input_config)
+                        if ret.stats.failure:
+                            failure = True
+                            print(f"{benchmark_name} fail on trigger: {trigger_type}")
+                        else:
+                            print(f"{benchmark_name} success on trigger: {trigger_type}")
+                    except RuntimeError as e:
                         failure = True
                         print(f"{benchmark_name} fail on trigger: {trigger_type}")
-                    else:
-                        print(f"{benchmark_name} success on trigger: {trigger_type}")
-                    
                 if failure:
                     raise RuntimeError(f"Test of {benchmark_name} failed!")
             return test
@@ -125,8 +131,8 @@ class TracingStreamResult(testtools.StreamResult):
                 self.output[test_id] = b""
             self.output[test_id] += kwargs["file_bytes"]
         elif kwargs["test_status"] == "fail":
-            print('{0[test_id]}: {0[test_status]}'.format(kwargs))
-            print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
+            #print('{0[test_id]}: {0[test_status]}'.format(kwargs))
+            #print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
             self.failures.add(test_name)
         elif kwargs["test_status"] == "success":
             self.success.add(test_name)
