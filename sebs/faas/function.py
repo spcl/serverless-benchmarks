@@ -172,10 +172,6 @@ class Trigger(ABC, LoggingBase):
         LIBRARY = 1
         STORAGE = 2
 
-    @staticmethod
-    def typename() -> str:
-        return "AWS.LibraryTrigger"
-
     def _http_invoke(self, payload: dict, url: str) -> ExecutionResult:
         import pycurl
         from io import BytesIO
