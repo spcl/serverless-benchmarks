@@ -71,7 +71,7 @@ class Azure(System):
     def shutdown(self):
         if self.cli_instance:
             self.cli_instance.shutdown()
-        self.config.update_cache(self.cache_client)
+        super().shutdown()
 
     """
         Create wrapper object for Azure blob storage.
