@@ -9,12 +9,12 @@ if TYPE_CHECKING:
     from sebs import SeBS
 
 benchmarks = [
-    "110.dynamic-html",
+    #"110.dynamic-html",
     #"120.uploader",
-    #"210.thumbnailer",
-    #"220.video-processing",
+    "210.thumbnailer",
+    "220.video-processing",
     #"311.compression",
-    "411.image-recognition",
+    #"411.image-recognition",
     #"501.graph-pagerank",
     #"502.graph-mst",
     #"503.graph-bfs",
@@ -75,6 +75,7 @@ class TestSequenceMeta(type):
                     except RuntimeError as e:
                         failure = True
                         print(f"{benchmark_name} fail on trigger: {trigger_type}")
+                deployment_client.shutdown()
                 if failure:
                     raise RuntimeError(f"Test of {benchmark_name} failed!")
             return test
@@ -122,6 +123,7 @@ class TracingStreamResult(testtools.StreamResult):
         self.success = set()
         self.failures = set()
 
+    # no way to directly access test instance from here
     def status(self, *args, **kwargs):
         self.all_correct = self.all_correct and (kwargs["test_status"] in ["inprogress", "success"])
         test_name = kwargs["test_id"].split('_')[-1]
@@ -131,8 +133,10 @@ class TracingStreamResult(testtools.StreamResult):
                 self.output[test_id] = b""
             self.output[test_id] += kwargs["file_bytes"]
         elif kwargs["test_status"] == "fail":
-            #print('{0[test_id]}: {0[test_status]}'.format(kwargs))
-            #print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
+            print('\n-------------\n')
+            print('{0[test_id]}: {0[test_status]}'.format(kwargs))
+            print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
+            print('\n-------------\n')
             self.failures.add(test_name)
         elif kwargs["test_status"] == "success":
             self.success.add(test_name)
