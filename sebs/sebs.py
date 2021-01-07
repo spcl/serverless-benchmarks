@@ -29,7 +29,9 @@ class SeBS:
     def output_dir(self) -> str:
         return self._output_dir
 
-    def logging_handlers(self, verbose: bool = False, logging_filename: Optional[str] = None) -> LoggingHandlers:
+    def logging_handlers(
+        self, verbose: bool = False, logging_filename: Optional[str] = None
+    ) -> LoggingHandlers:
         if logging_filename in self._logging_handlers:
             return self._logging_handlers[logging_filename]
         else:
@@ -44,8 +46,9 @@ class SeBS:
         self._output_dir = output_dir
         self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
-    def get_deployment(self, config: dict, verbose: bool = False, logging_filename: Optional[str] = None) -> FaaSSystem:
-
+    def get_deployment(
+        self, config: dict, verbose: bool = False, logging_filename: Optional[str] = None
+    ) -> FaaSSystem:
         name = config["name"]
         implementations = {"aws": AWS, "azure": Azure, "gcp": GCP}
         if name not in implementations:

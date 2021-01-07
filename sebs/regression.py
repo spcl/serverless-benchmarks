@@ -1,28 +1,28 @@
-
 import logging
 import unittest
 import testtools
 from typing import Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
+
 if TYPE_CHECKING:
     from sebs import SeBS
 
 benchmarks = [
-    #"110.dynamic-html",
-    #"120.uploader",
+    # "110.dynamic-html",
+    # "120.uploader",
     "210.thumbnailer",
     "220.video-processing",
-    #"311.compression",
-    #"411.image-recognition",
-    #"501.graph-pagerank",
-    #"502.graph-mst",
-    #"503.graph-bfs",
-    #"504.dna-visualisation"
+    # "311.compression",
+    # "411.image-recognition",
+    # "501.graph-pagerank",
+    # "502.graph-mst",
+    # "503.graph-bfs",
+    # "504.dna-visualisation"
 ]
 
-class TestSequenceMeta(type):
 
+class TestSequenceMeta(type):
     def __init__(cls, name, bases, attrs, deployment_name, config, triggers):
         type.__init__(cls, name, bases, attrs)
         cls.deployment_name = deployment_name
@@ -30,17 +30,15 @@ class TestSequenceMeta(type):
         cls.triggers = triggers
 
     def __new__(mcs, name, bases, dict, deployment_name, config, triggers):
-
         def gen_test(benchmark_name):
             def test(self):
                 deployment_client = self.client.get_deployment(
                     self.config,
                     verbose=False,
-                    logging_filename=f"regression_test_{deployment_name}_{benchmark_name}.log"
+                    logging_filename=f"regression_test_{deployment_name}_{benchmark_name}.log",
                 )
                 logging.info(
-                    f"Begin regression test of {benchmark_name} on "
-                    f"{deployment_client.name()}"
+                    f"Begin regression test of {benchmark_name} on " f"{deployment_client.name()}"
                 )
                 deployment_client.initialize()
                 experiment_config = self.client.get_experiment_config(self.experiment_config)
@@ -51,8 +49,7 @@ class TestSequenceMeta(type):
                     replace_existing=experiment_config.update_storage
                 )
                 func = deployment_client.get_function(
-                    benchmark,
-                    deployment_client.default_function_name(benchmark)
+                    benchmark, deployment_client.default_function_name(benchmark)
                 )
                 input_config = benchmark.prepare_input(storage=storage, size="test")
 
@@ -61,9 +58,7 @@ class TestSequenceMeta(type):
                     if len(func.triggers(trigger_type)) > 0:
                         trigger = func.triggers(trigger_type)[0]
                     else:
-                        trigger = deployment_client.create_trigger(
-                            func, trigger_type
-                        )
+                        trigger = deployment_client.create_trigger(func, trigger_type)
                     # Synchronous invoke
                     try:
                         ret = trigger.sync_invoke(input_config)
@@ -72,12 +67,13 @@ class TestSequenceMeta(type):
                             print(f"{benchmark_name} fail on trigger: {trigger_type}")
                         else:
                             print(f"{benchmark_name} success on trigger: {trigger_type}")
-                    except RuntimeError as e:
+                    except RuntimeError:
                         failure = True
                         print(f"{benchmark_name} fail on trigger: {trigger_type}")
                 deployment_client.shutdown()
                 if failure:
                     raise RuntimeError(f"Test of {benchmark_name} failed!")
+
             return test
 
         for benchmark in benchmarks:
@@ -86,30 +82,24 @@ class TestSequenceMeta(type):
                 dict[test_name] = gen_test(benchmark)
         return type.__new__(mcs, name, bases, dict)
 
-class AWSTestSequence(unittest.TestCase,
-        metaclass=TestSequenceMeta,
-        deployment_name="aws",
-        config = {
-            "name": "aws",
-            "aws": {
-                "region": "us-east-1"
-            }
-        },
-        triggers = [Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP]
-    ):
+
+class AWSTestSequence(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    deployment_name="aws",
+    config={"name": "aws", "aws": {"region": "us-east-1"}},
+    triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
+):
     pass
 
-class AzureTestSequence(unittest.TestCase,
-        metaclass=TestSequenceMeta,
-        deployment_name="azure",
-        config = {
-            "name": "azure",
-            "azure": {
-                "region": "westeurope"
-            }
-        },
-        triggers = [Trigger.TriggerType.HTTP]
-    ):
+
+class AzureTestSequence(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    deployment_name="azure",
+    config={"name": "azure", "azure": {"region": "westeurope"}},
+    triggers=[Trigger.TriggerType.HTTP],
+):
     pass
 
 
@@ -126,20 +116,21 @@ class TracingStreamResult(testtools.StreamResult):
     # no way to directly access test instance from here
     def status(self, *args, **kwargs):
         self.all_correct = self.all_correct and (kwargs["test_status"] in ["inprogress", "success"])
-        test_name = kwargs["test_id"].split('_')[-1]
+        test_name = kwargs["test_id"].split("_")[-1]
         if not kwargs["test_status"]:
             test_id = kwargs["test_id"]
             if test_id not in self.output:
                 self.output[test_id] = b""
             self.output[test_id] += kwargs["file_bytes"]
         elif kwargs["test_status"] == "fail":
-            print('\n-------------\n')
-            print('{0[test_id]}: {0[test_status]}'.format(kwargs))
-            print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
-            print('\n-------------\n')
+            print("\n-------------\n")
+            print("{0[test_id]}: {0[test_status]}".format(kwargs))
+            print("{0[test_id]}: {1}".format(kwargs, self.output[kwargs["test_id"]].decode()))
+            print("\n-------------\n")
             self.failures.add(test_name)
         elif kwargs["test_status"] == "success":
             self.success.add(test_name)
+
 
 def regression_suite(sebs_client: "SeBS", experiment_config: dict, providers: Set[str]):
     suite = unittest.TestSuite()
@@ -166,4 +157,3 @@ def regression_suite(sebs_client: "SeBS", experiment_config: dict, providers: Se
         for failure in result.failures:
             print(f"- {failure}")
     return not result.all_correct
-

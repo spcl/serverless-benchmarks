@@ -229,7 +229,6 @@ class System(ABC, LoggingBase):
         finally:
             self.cache_client.unlock()
 
-
     @staticmethod
     @abstractmethod
     def name() -> str:
