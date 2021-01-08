@@ -165,6 +165,8 @@ class AzureResources(Resources):
 
     """
         Retrieve or create storage account associated with benchmark data.
+        Last argument allows to override the resource - useful when handling
+        a single instance through multiple threads using different clients sharing the same cache.
     """
 
     def data_storage_account(self, cli_instance: AzureCLI) -> "AzureResources.Storage":
