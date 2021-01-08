@@ -1,6 +1,7 @@
 import logging
 import unittest
 import testtools
+import threading
 from typing import Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
@@ -9,16 +10,16 @@ if TYPE_CHECKING:
     from sebs import SeBS
 
 benchmarks = [
-    # "110.dynamic-html",
-    # "120.uploader",
+    "110.dynamic-html",
+    "120.uploader",
     "210.thumbnailer",
     "220.video-processing",
-    # "311.compression",
-    # "411.image-recognition",
-    # "501.graph-pagerank",
-    # "502.graph-mst",
-    # "503.graph-bfs",
-    # "504.dna-visualisation"
+    "311.compression",
+    "411.image-recognition",
+    "501.graph-pagerank",
+    "502.graph-mst",
+    "503.graph-bfs",
+    "504.dna-visualisation"
 ]
 
 
@@ -32,15 +33,10 @@ class TestSequenceMeta(type):
     def __new__(mcs, name, bases, dict, deployment_name, config, triggers):
         def gen_test(benchmark_name):
             def test(self):
-                deployment_client = self.client.get_deployment(
-                    self.config,
-                    verbose=False,
-                    logging_filename=f"regression_test_{deployment_name}_{benchmark_name}.log",
-                )
+                deployment_client = self.get_deployment(benchmark_name)
                 logging.info(
                     f"Begin regression test of {benchmark_name} on " f"{deployment_client.name()}"
                 )
-                deployment_client.initialize()
                 experiment_config = self.client.get_experiment_config(self.experiment_config)
                 benchmark = self.client.get_benchmark(
                     benchmark_name, deployment_client, experiment_config
@@ -80,6 +76,8 @@ class TestSequenceMeta(type):
             for trigger in triggers:
                 test_name = "test_%s" % benchmark
                 dict[test_name] = gen_test(benchmark)
+        dict["lock"] = threading.Lock()
+        dict["cfg"] = None
         return type.__new__(mcs, name, bases, dict)
 
 
@@ -90,7 +88,15 @@ class AWSTestSequence(
     config={"name": "aws", "aws": {"region": "us-east-1"}},
     triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
 ):
-    pass
+    def get_deployment(self, benchmark_name):
+        deployment_name = "aws"
+        deployment_client = self.client.get_deployment(
+            self.config,
+            verbose=False,
+            logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+        )
+        deployment_client.initialize()
+        return deployment_client
 
 
 class AzureTestSequence(
@@ -100,7 +106,24 @@ class AzureTestSequence(
     config={"name": "azure", "azure": {"region": "westeurope"}},
     triggers=[Trigger.TriggerType.HTTP],
 ):
-    pass
+    def get_deployment(self, benchmark_name):
+        deployment_name = "azure"
+        with AzureTestSequence.lock:
+            if not AzureTestSequence.cfg:
+                AzureTestSequence.cfg = self.client.get_deployment_config(
+                    self.config,
+                    verbose=False,
+                    logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+                )
+            deployment_client = self.client.get_deployment(
+                self.config,
+                verbose=False,
+                logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+                deployment_config=AzureTestSequence.cfg
+            )
+            deployment_client.initialize()
+            deployment_client.allocate_shared_resource()
+            return deployment_client
 
 
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
