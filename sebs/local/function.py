@@ -1,13 +1,44 @@
 import docker
 
-from sebs.faas.function import Function
+from sebs.faas.function import ExecutionResult, Function, Trigger
+
+
+class HTTPTrigger(Trigger):
+    def __init__(self, url: str):
+        super().__init__()
+        self.url = url
+
+    @staticmethod
+    def typename() -> str:
+        return "Local.HTTPTrigger"
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        return Trigger.TriggerType.HTTP
+
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+        self.logging.debug(f"Invoke function {self.url}")
+        return self._http_invoke(payload, self.url)
+
+    def async_invoke(self, payload: dict) -> ExecutionResult:
+        import concurrent.futures
+
+        pool = concurrent.futures.ThreadPoolExecutor()
+        fut = pool.submit(self.sync_invoke, payload)
+        return fut
+
+    def serialize(self) -> dict:
+        return {"type": "HTTP", "url": self.url}
+
+    @staticmethod
+    def deserialize(obj: dict) -> Trigger:
+        return HTTPTrigger(obj["url"])
 
 
 class LocalFunction(Function):
-
-
-    def __init__(self, docker_container, port:int, name: str,
-            benchmark: str, code_package_hash: str):
+    def __init__(
+        self, docker_container, port: int, name: str, benchmark: str, code_package_hash: str
+    ):
         super().__init__(benchmark, name, code_package_hash)
         self._instance = docker_container
         self._instance_id = docker_container.id
@@ -15,8 +46,7 @@ class LocalFunction(Function):
         networks = self._instance.attrs["NetworkSettings"]["Networks"]
         self._port = port
         self._url = "{IPAddress}:{Port}".format(
-            IPAddress=networks["bridge"]["IPAddress"],
-            Port=port
+            IPAddress=networks["bridge"]["IPAddress"], Port=port
         )
 
     @staticmethod
@@ -28,7 +58,7 @@ class LocalFunction(Function):
             **super().serialize(),
             "instance_id": self._instance_id,
             "url": self._url,
-            "port": self._port
+            "port": self._port,
         }
 
     @staticmethod
@@ -41,7 +71,7 @@ class LocalFunction(Function):
                 cached_config["port"],
                 cached_config["name"],
                 cached_config["benchmark"],
-                cached_config["hash"]
+                cached_config["hash"],
             )
         except docker.errors.NotFound as e:
-            raise RuntimeError(f"Container {instance_id} not available anymore!")
+            raise RuntimeError(f"Cached container {instance_id} not available anymore!")

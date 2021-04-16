@@ -1,6 +1,6 @@
 import os
 import shutil
-from typing import Dict, List, Type, Tuple  # noqa
+from typing import cast, Dict, List, Type, Tuple  # noqa
 
 import docker
 
@@ -63,9 +63,7 @@ class Local(System):
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         if not self._storage_instance:
             self._storage_instance = Minio(
-                self._docker_client,
-                self._cache_client,
-                replace_existing
+                self._docker_client, self._cache_client, replace_existing
             )
             self._storage_instance.logging_handlers = self.logging_handlers
             self._storage_instance.start()
@@ -124,46 +122,39 @@ class Local(System):
 
         print(self._system_config)
         home_dir = os.path.join(
-            '/home',
-            self._system_config.username(self.name(), code_package.language_name)
+            "/home", self._system_config.username(self.name(), code_package.language_name)
         )
-        container_name = '{}:run.local.{}.{}'.format(
+        container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),
             code_package.language_name,
-            code_package.language_version
+            code_package.language_version,
         )
         container = self._docker_client.containers.run(
             image=container_name,
-            command=f'python3 server.py {self.DEFAULT_PORT}',
-            volumes = {
-                code_package.code_location: {
-                    'bind': os.path.join(home_dir, 'code'),
-                    'mode': 'ro'
-                }
+            command=f"python3 server.py {self.DEFAULT_PORT}",
+            volumes={
+                code_package.code_location: {"bind": os.path.join(home_dir, "code"), "mode": "ro"}
             },
             # FIXME: make CPUs configurable
-            #cpuset_cpus=cpuset,
+            # cpuset_cpus=cpuset,
             # required to access perf counters
             # alternative: use custom seccomp profile
             privileged=True,
-            user='1000:1000',
-            network_mode='bridge',
+            user="1000:1000",
+            network_mode="bridge",
             remove=True,
-            stdout=True, stderr=True,
+            stdout=True,
+            stderr=True,
             detach=True,
-            tty=True
+            tty=True,
         )
         func = LocalFunction(
-                container,
-                self.DEFAULT_PORT,
-                func_name,
-                code_package.benchmark,
-                code_package.hash
+            container, self.DEFAULT_PORT, func_name, code_package.benchmark, code_package.hash
         )
-        self.logging.info(f"Started {func_name} functiona at container {container.id},"
-                            f"running on {func._url}")
+        self.logging.info(
+            f"Started {func_name} functiona at container {container.id}," f"running on {func._url}"
+        )
         return func
-
 
     """
         FIXME: restart Docker?
@@ -178,7 +169,18 @@ class Local(System):
     """
 
     def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
-        pass
+        from sebs.local.function import HTTPTrigger
+
+        function = cast(LocalFunction, func)
+        if trigger_type == Trigger.TriggerType.HTTP:
+            trigger = HTTPTrigger(function._url)
+            trigger.logging_handlers = self.logging_handlers
+        else:
+            raise RuntimeError("Not supported!")
+
+        function.add_trigger(trigger)
+        self.cache_client.update_function(function)
+        return trigger
 
     def cached_function(self, function: Function):
         pass

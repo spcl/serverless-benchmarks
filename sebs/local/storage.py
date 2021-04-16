@@ -33,12 +33,10 @@ class Minio(PersistentStorage):
             self._storage_container = self._docker_client.containers.run(
                 "minio/minio",
                 command="server /data",
-                ports={
-                    str(self._port): self._port
-                },
+                ports={str(self._port): self._port},
                 environment={
                     "MINIO_ACCESS_KEY": self._access_key,
-                    "MINIO_SECRET_KEY": self._secret_key
+                    "MINIO_SECRET_KEY": self._secret_key,
                 },
                 remove=True,
                 stdout=True,
@@ -67,10 +65,7 @@ class Minio(PersistentStorage):
 
     def get_connection(self):
         return minio.Minio(
-            self._url,
-            access_key=self._access_key,
-            secret_key=self._secret_key,
-            secure=False
+            self._url, access_key=self._access_key, secret_key=self._secret_key, secure=False
         )
 
     def config_to_json(self):

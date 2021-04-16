@@ -10,7 +10,7 @@ RUN deps=''\
   # for route and sudo
   && apt-get install -y curl net-tools sudo ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
-  && pip3 install cffi minio
+  && pip3 install cffi minio bottle
 RUN useradd -m ${USER}\
     # Let the user use sudo
     && usermod -aG sudo ${USER}\
