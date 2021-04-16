@@ -5,6 +5,7 @@ import docker
 from sebs.aws import AWS
 from sebs.azure.azure import Azure
 from sebs.gcp import GCP
+from sebs.local import Local
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
@@ -29,7 +30,9 @@ class SeBS:
     def output_dir(self) -> str:
         return self._output_dir
 
-    def logging_handlers(self, verbose: bool = False, logging_filename: Optional[str] = None) -> LoggingHandlers:
+    def logging_handlers(
+        self, verbose: bool = False, logging_filename: Optional[str] = None
+    ) -> LoggingHandlers:
         if logging_filename in self._logging_handlers:
             return self._logging_handlers[logging_filename]
         else:
@@ -44,10 +47,12 @@ class SeBS:
         self._output_dir = output_dir
         self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
-    def get_deployment(self, config: dict, verbose: bool = False, logging_filename: Optional[str] = None) -> FaaSSystem:
+    def get_deployment(
+        self, config: dict, verbose: bool = False, logging_filename: Optional[str] = None
+    ) -> FaaSSystem:
 
         name = config["name"]
-        implementations = {"aws": AWS, "azure": Azure, "gcp": GCP}
+        implementations = {"aws": AWS, "azure": Azure, "gcp": GCP, "local": Local}
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
@@ -84,7 +89,7 @@ class SeBS:
             "eviction-model": EvictionModel,
         }
         experiment = implementations[experiment_type](self.get_experiment_config(config))
-        experiment.logging_handlers = self.logging_handlers(logging_filename)
+        experiment.logging_handlers = self.logging_handlers(logging_filename=logging_filename)
         return experiment
 
     def get_benchmark(
@@ -103,7 +108,7 @@ class SeBS:
             self.cache_client,
             self.docker_client,
         )
-        benchmark.logging_handlers = self.logging_handlers(logging_filename)
+        benchmark.logging_handlers = self.logging_handlers(logging_filename=logging_filename)
         return benchmark
 
     def shutdown(self):

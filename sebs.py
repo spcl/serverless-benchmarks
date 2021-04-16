@@ -74,7 +74,7 @@ def common_params(func):
     @click.option(
         "--deployment",
         default=None,
-        type=click.Choice(["azure", "aws", "gcp"]),
+        type=click.Choice(["azure", "aws", "gcp", "local"]),
         help="Cloud deployment to use.",
     )
     @click.option(
@@ -125,7 +125,7 @@ def parse_common_params(
     logging_filename = os.path.abspath(os.path.join(output_dir, "out.log"))
     if config_obj["deployment"]:
         deployment_client = sebs_client.get_deployment(
-            config_obj["deployment"], logging_filename=logging_filename
+            config_obj["deployment"], logging_filename=logging_filename, verbose=verbose
         )
         deployment_client.initialize()
     else:

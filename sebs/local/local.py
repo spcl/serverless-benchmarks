@@ -1,0 +1,211 @@
+import os
+import shutil
+from typing import Dict, List, Type, Tuple  # noqa
+
+import docker
+
+# from sebs.local.minio import Minio
+from sebs.cache import Cache
+from sebs.config import SeBSConfig
+from sebs.utils import LoggingHandlers
+from sebs.local.config import LocalConfig
+from sebs.local.storage import Minio
+from sebs.local.function import LocalFunction
+from sebs.faas.function import Function, ExecutionResult, Trigger
+from sebs.faas.storage import PersistentStorage
+from sebs.faas.system import System
+from sebs.benchmark import Benchmark
+
+
+class Local(System):
+
+    DEFAULT_PORT = 9000
+
+    @staticmethod
+    def name():
+        return "local"
+
+    @staticmethod
+    def typename():
+        return "Local"
+
+    @staticmethod
+    def function_type() -> "Type[Function]":
+        return LocalFunction
+
+    @property
+    def config(self) -> LocalConfig:
+        return self._config
+
+    def __init__(
+        self,
+        sebs_config: SeBSConfig,
+        config: LocalConfig,
+        cache_client: Cache,
+        docker_client: docker.client,
+        logger_handlers: LoggingHandlers,
+    ):
+        super().__init__(sebs_config, cache_client, docker_client)
+        self.logging_handlers = logger_handlers
+        self._config = config
+        self._storage_instance: Optional[Minio] = None
+
+    """
+        Create wrapper object for minio storage and fill buckets.
+        Starts minio as a Docker instance, using always fresh buckets.
+
+        :param benchmark:
+        :param buckets: number of input and output buckets
+        :param replace_existing: not used.
+        :return: Azure storage instance
+    """
+
+    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
+        if not self._storage_instance:
+            self._storage_instance = Minio(
+                self._docker_client,
+                self._cache_client,
+                replace_existing
+            )
+            self._storage_instance.logging_handlers = self.logging_handlers
+            self._storage_instance.start()
+        else:
+            self._storage_instance.replace_existing = replace_existing
+        return self._storage_instance
+
+    """
+        Shut down minio storage instance.
+    """
+
+    def shutdown(self):
+        if self._storage_instance:
+            self._storage_instance.stop()
+
+    """
+        It would be sufficient to just pack the code and ship it as zip to AWS.
+        However, to have a compatible function implementation across providers,
+        we create a small module.
+        Issue: relative imports in Python when using storage wrapper.
+        Azure expects a relative import inside a module.
+
+        Structure:
+        function
+        - function.py
+        - storage.py
+        - resources
+        handler.py
+
+        dir: directory where code is located
+        benchmark: benchmark name
+    """
+
+    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+
+        CONFIG_FILES = {
+            "python": ["handler.py", "requirements.txt", ".python_packages"],
+            "nodejs": ["handler.js", "package.json", "node_modules"],
+        }
+        package_config = CONFIG_FILES[language_name]
+        function_dir = os.path.join(directory, "function")
+        os.makedirs(function_dir)
+        # move all files to 'function' except handler.py
+        for file in os.listdir(directory):
+            if file not in package_config:
+                file = os.path.join(directory, file)
+                shutil.move(file, function_dir)
+
+        bytes_size = os.path.getsize(directory)
+        mbytes = bytes_size / 1024.0 / 1024.0
+        self.logging.info("Function size {:2f} MB".format(mbytes))
+
+        return directory, bytes_size
+
+    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+
+        print(self._system_config)
+        home_dir = os.path.join(
+            '/home',
+            self._system_config.username(self.name(), code_package.language_name)
+        )
+        container_name = '{}:run.local.{}.{}'.format(
+            self._system_config.docker_repository(),
+            code_package.language_name,
+            code_package.language_version
+        )
+        container = self._docker_client.containers.run(
+            image=container_name,
+            command=f'python3 server.py {self.DEFAULT_PORT}',
+            volumes = {
+                code_package.code_location: {
+                    'bind': os.path.join(home_dir, 'code'),
+                    'mode': 'ro'
+                }
+            },
+            # FIXME: make CPUs configurable
+            #cpuset_cpus=cpuset,
+            # required to access perf counters
+            # alternative: use custom seccomp profile
+            privileged=True,
+            user='1000:1000',
+            network_mode='bridge',
+            remove=True,
+            stdout=True, stderr=True,
+            detach=True,
+            tty=True
+        )
+        func = LocalFunction(
+                container,
+                self.DEFAULT_PORT,
+                func_name,
+                code_package.benchmark,
+                code_package.hash
+        )
+        self.logging.info(f"Started {func_name} functiona at container {container.id},"
+                            f"running on {func._url}")
+        return func
+
+
+    """
+        FIXME: restart Docker?
+    """
+
+    def update_function(self, function: Function, code_package: Benchmark):
+        pass
+
+    """
+        For local functions, we don't need to do anything for a cached function.
+        There's only one trigger - HTTP.
+    """
+
+    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+        pass
+
+    def cached_function(self, function: Function):
+        pass
+
+    def download_metrics(
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict[str, ExecutionResult],
+        metrics: dict,
+    ):
+        pass
+
+    def enforce_cold_start(self, functions: List[Function]):
+        raise NotImplementedError()
+
+    @staticmethod
+    def default_function_name(code_package: Benchmark) -> str:
+        # Create function name
+        func_name = "{}-{}-{}".format(
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.benchmark_config.memory,
+        )
+        return func_name
+
+    @staticmethod
+    def format_function_name(func_name: str) -> str:
+        return func_name

@@ -29,3 +29,6 @@ class SeBSConfig:
         return self._system_config[deployment_name]["languages"][language_name][
             "base_images"
         ].keys()
+
+    def username(self, deployment_name: str, language_name: str) -> str:
+        return self._system_config[deployment_name]["languages"][language_name]["username"]
