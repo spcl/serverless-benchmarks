@@ -200,7 +200,7 @@ def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs
     else:
         trigger = triggers[0]
     ret = trigger.sync_invoke(input_config)
-    if ret.failure:
+    if ret.stats.failure:
         deployment_client.get_invocation_error(
             function_name=self.name, start_time=start_time, end_time=end_time
         )
