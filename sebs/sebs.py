@@ -48,9 +48,12 @@ class SeBS:
         self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
     def get_deployment(
-        self, config: dict, verbose: bool = False, logging_filename: Optional[str] = None
+        self,
+        config: dict,
+        verbose: bool = False,
+        logging_filename: Optional[str] = None,
+        deployment_config: Optional[Config] = None
     ) -> FaaSSystem:
-
         name = config["name"]
         implementations = {"aws": AWS, "azure": Azure, "gcp": GCP, "local": Local}
         if name not in implementations:
@@ -58,7 +61,8 @@ class SeBS:
 
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.logging_handlers(verbose, logging_filename)
-        deployment_config = Config.deserialize(config, self.cache_client, handlers)
+        if not deployment_config:
+            deployment_config = self.get_deployment_config(config, handlers)
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore
@@ -67,6 +71,14 @@ class SeBS:
             handlers,
         )
         return deployment_client
+
+    def get_deployment_config(self,
+        config: dict,
+        verbose: bool = False,
+        logging_filename: Optional[str] = None,
+    ) -> Config:
+        handlers = self.logging_handlers(verbose, logging_filename)
+        return Config.deserialize(config, self.cache_client, handlers)
 
     def get_experiment_config(self, config: dict) -> ExperimentConfig:
         return ExperimentConfig.deserialize(config)

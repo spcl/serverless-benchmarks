@@ -223,7 +223,11 @@ class System(ABC, LoggingBase):
 
     @abstractmethod
     def shutdown(self) -> None:
-        pass
+        try:
+            self.cache_client.lock()
+            self.config.update_cache(self.cache_client)
+        finally:
+            self.cache_client.unlock()
 
     @staticmethod
     @abstractmethod

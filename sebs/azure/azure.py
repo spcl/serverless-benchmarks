@@ -71,7 +71,15 @@ class Azure(System):
     def shutdown(self):
         if self.cli_instance:
             self.cli_instance.shutdown()
-        self.config.update_cache(self.cache_client)
+        super().shutdown()
+
+    """
+        Allow multiple deployment clients share the same settings.
+        Not an ideal situation,
+    """
+
+    def allocate_shared_resource(self):
+        self.config.resources.data_storage_account(self.cli_instance)
 
     """
         Create wrapper object for Azure blob storage.
@@ -280,16 +288,26 @@ class Azure(System):
             function_storage_account = self.config.resources.add_storage_account(self.cli_instance)
             config["storage_account"] = function_storage_account.account_name
             # FIXME: only Linux type is supported
-            # create function app
-            self.cli_instance.execute(
-                (
-                    " az functionapp create --resource-group {resource_group} "
-                    " --os-type Linux --consumption-plan-location {region} "
-                    " --runtime {runtime} --runtime-version {runtime_version} "
-                    " --name {func_name} --storage-account {storage_account}"
-                ).format(**config)
-            )
-            self.logging.info("Azure: Created function app {}".format(func_name))
+            while True:
+                try:
+                    # create function app
+                    self.cli_instance.execute(
+                        (
+                            " az functionapp create --resource-group {resource_group} "
+                            " --os-type Linux --consumption-plan-location {region} "
+                            " --runtime {runtime} --runtime-version {runtime_version} "
+                            " --name {func_name} --storage-account {storage_account}"
+                        ).format(**config)
+                    )
+                    self.logging.info("Azure: Created function app {}".format(func_name))
+                    break
+                except RuntimeError as e:
+                    # Azure does not allow some concurrent operations
+                    if "another operation is in progress" in str(e):
+                        self.logging.info(f"Repeat {func_name} creation, another operation in progress")
+                    # Rethrow -> another error
+                    else:
+                        raise
         function = AzureFunction(
             name=func_name,
             benchmark=code_package.benchmark,

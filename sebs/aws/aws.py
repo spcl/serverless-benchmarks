@@ -367,11 +367,7 @@ class AWS(System):
         return request_id
 
     def shutdown(self) -> None:
-        try:
-            self.cache_client.lock()
-            self.config.update_cache(self.cache_client)
-        finally:
-            self.cache_client.unlock()
+        super().shutdown()
 
     def get_invocation_error(self, function_name: str, start_time: int, end_time: int):
         if not self.logs_client:

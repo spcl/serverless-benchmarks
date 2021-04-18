@@ -365,11 +365,7 @@ class GCP(System):
         return logs_bucket
 
     def shutdown(self) -> None:
-        try:
-            self.cache_client.lock()
-            self.config.update_cache(self.cache_client)
-        finally:
-            self.cache_client.unlock()
+        super().shutdown()
 
     def download_metrics(
         self, function_name: str, start_time: int, end_time: int, requests: dict, metrics: dict

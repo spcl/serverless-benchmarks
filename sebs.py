@@ -104,6 +104,7 @@ def parse_common_params(
     deployment,
     language,
     language_version,
+    initialize_deployment: bool = True
 ):
     global sebs_client, deployment_client
 
@@ -123,7 +124,7 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "benchmark"], benchmark)
 
     logging_filename = os.path.abspath(os.path.join(output_dir, "out.log"))
-    if config_obj["deployment"]:
+    if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
             config_obj["deployment"], logging_filename=logging_filename, verbose=verbose
         )
@@ -199,6 +200,10 @@ def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs
     else:
         trigger = triggers[0]
     ret = trigger.sync_invoke(input_config)
+    if ret.failure:
+        deployment_client.get_invocation_error(
+            function_name=self.name, start_time=start_time, end_time=end_time
+        )
     result.end()
     result.add_invocation(func, ret)
     with open("experiments.json", "w") as out_f:
@@ -239,9 +244,6 @@ def process(**kwargs):
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])
 )  # help="Input test size")
-@click.option(
-    "--repetitions", default=5, type=int, help="Number of experimental repetitions."
-)
 @common_params
 @click.option(
     "--cache",
@@ -251,7 +253,7 @@ def process(**kwargs):
 @click.option(
     "--output-dir", default=os.path.join(os.path.curdir, "regression-output"), help="Output directory for results."
 )
-def regression(benchmark_input_size, repetitions, **kwargs):
+def regression(benchmark_input_size, **kwargs):
     # for regression, deployment client is initialized locally
     # disable default initialization
     (
@@ -260,13 +262,11 @@ def regression(benchmark_input_size, repetitions, **kwargs):
         logging_filename,
         sebs_client,
         _
-    ) = parse_common_params(**{
-        **kwargs,
-        'deployment': None
-    })
+    ) = parse_common_params(
+        initialize_deployment=False,
+        **kwargs
+    )
     succ = regression_suite(sebs_client, config["experiments"], set( (config['deployment']['name'],) ))
-    sys.exit(succ)
-
 
 @cli.group()
 def experiment():
