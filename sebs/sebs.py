@@ -47,12 +47,20 @@ class SeBS:
         self._output_dir = output_dir
         self._logging_handlers: Dict[Optional[str], LoggingHandlers] = {}
 
+    def ignore_cache(self):
+        """
+            The cache will only store code packages,
+            and won't update new functions and storage.
+        """
+        self._cache_client.ignore_storage = True
+        self._cache_client.ignore_functions = True
+
     def get_deployment(
         self,
         config: dict,
         verbose: bool = False,
         logging_filename: Optional[str] = None,
-        deployment_config: Optional[Config] = None
+        deployment_config: Optional[Config] = None,
     ) -> FaaSSystem:
         name = config["name"]
         implementations = {"aws": AWS, "azure": Azure, "gcp": GCP, "local": Local}
@@ -72,10 +80,8 @@ class SeBS:
         )
         return deployment_client
 
-    def get_deployment_config(self,
-        config: dict,
-        verbose: bool = False,
-        logging_filename: Optional[str] = None,
+    def get_deployment_config(
+        self, config: dict, verbose: bool = False, logging_filename: Optional[str] = None,
     ) -> Config:
         handlers = self.logging_handlers(verbose, logging_filename)
         return Config.deserialize(config, self.cache_client, handlers)

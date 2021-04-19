@@ -1,5 +1,7 @@
+import os
 import secrets
-from typing import List
+import uuid
+from typing import List, Optional
 
 import docker
 import minio
@@ -68,20 +70,8 @@ class Minio(PersistentStorage):
             self._url, access_key=self._access_key, secret_key=self._secret_key, secure=False
         )
 
-    def config_to_json(self):
-        if self._storage_container is not None:
-            return {
-                "address": self.url,
-                "secret_key": self._secret_key,
-                "access_key": self._access_key,
-                "input": self.input_buckets,
-                "output": self.output_buckets,
-            }
-        else:
-            return {}
-
     def _create_bucket(self, name: str, buckets: List[str] = []):
-        for bucket_name in self.buckets:
+        for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
                     "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
@@ -90,7 +80,7 @@ class Minio(PersistentStorage):
         # minio has limit of bucket name to 16 characters
         bucket_name = "{}-{}".format(name, str(uuid.uuid4())[0:16])
         try:
-            self.connection.make_bucket(bucket_name, location=self.location)
+            self.connection.make_bucket(bucket_name, location=self._location)
             self.logging.info("Created bucket {}".format(bucket_name))
             return bucket_name
         except (
@@ -114,7 +104,7 @@ class Minio(PersistentStorage):
             objects = self.connection.list_objects_v2(bucket)
             objects = [obj.object_name for obj in objects]
             for err in self.connection.remove_objects(bucket, objects):
-                self.logging.error("Deletion Error: {}".format(del_err))
+                self.logging.error("Deletion Error: {}".format(err))
 
     def download_results(self, result_dir):
         result_dir = os.path.join(result_dir, "storage_output")
@@ -148,3 +138,15 @@ class Minio(PersistentStorage):
 
     def upload(self, bucket_name: str, filepath: str, key: str):
         raise NotImplementedError()
+
+    def serialize(self) -> dict:
+        if self._storage_container is not None:
+            return {
+                "address": self._url,
+                "secret_key": self._secret_key,
+                "access_key": self._access_key,
+                "input": self.input_buckets,
+                "output": self.output_buckets,
+            }
+        else:
+            return {}

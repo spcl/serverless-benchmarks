@@ -1,6 +1,6 @@
 import os
 import shutil
-from typing import cast, Dict, List, Type, Tuple  # noqa
+from typing import cast, Dict, List, Optional, Type, Tuple  # noqa
 
 import docker
 
@@ -37,6 +37,22 @@ class Local(System):
     def config(self) -> LocalConfig:
         return self._config
 
+    @property
+    def remove_containers(self) -> bool:
+        return self._remove_containers
+
+    @remove_containers.setter
+    def remove_containers(self, val: bool):
+        self._remove_containers = val
+
+    @property
+    def shutdown_storage(self) -> bool:
+        return self._shutdown_storage
+
+    @shutdown_storage.setter
+    def shutdown_storage(self, val: bool):
+        self._shutdown_storage = val
+
     def __init__(
         self,
         sebs_config: SeBSConfig,
@@ -49,6 +65,8 @@ class Local(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._storage_instance: Optional[Minio] = None
+        self._remove_containers = True
+        self._shutdown_storage = True
 
     """
         Create wrapper object for minio storage and fill buckets.
@@ -76,7 +94,7 @@ class Local(System):
     """
 
     def shutdown(self):
-        if self._storage_instance:
+        if self._storage_instance and self.shutdown_storage:
             self._storage_instance.stop()
 
     """
@@ -142,7 +160,7 @@ class Local(System):
             privileged=True,
             user="1000:1000",
             network_mode="bridge",
-            remove=True,
+            remove=self.remove_containers,
             stdout=True,
             stderr=True,
             detach=True,

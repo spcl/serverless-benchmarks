@@ -45,6 +45,8 @@ class Cache(LoggingBase):
     def __init__(self, cache_dir: str):
         super().__init__()
         self.cache_dir = os.path.abspath(cache_dir)
+        self.ignore_functions: bool = False
+        self.ignore_storage: bool = False
         self._lock = threading.RLock()
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir, exist_ok=True)
@@ -131,7 +133,7 @@ class Cache(LoggingBase):
         self, deployment: str, benchmark: str, language: str
     ) -> Optional[Dict[str, Any]]:
         cfg = self.get_benchmark_config(deployment, benchmark)
-        if cfg and language in cfg:
+        if cfg and language in cfg and not self.ignore_functions:
             return cfg[language]["functions"]
         else:
             return None
@@ -147,9 +149,11 @@ class Cache(LoggingBase):
 
     def get_storage_config(self, deployment: str, benchmark: str):
         cfg = self.get_benchmark_config(deployment, benchmark)
-        return cfg["storage"] if cfg and "storage" in cfg else None
+        return cfg["storage"] if cfg and "storage" in cfg and not self.ignore_storage else None
 
     def update_storage(self, deployment: str, benchmark: str, config: dict):
+        if self.ignore_storage:
+            return
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
         with self._lock:
             with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
@@ -263,6 +267,8 @@ class Cache(LoggingBase):
         code_package: "Benchmark",
         function: "Function",
     ):
+        if self.ignore_functions:
+            return
         with self._lock:
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             language = code_package.language_name
@@ -288,6 +294,8 @@ class Cache(LoggingBase):
                 )
 
     def update_function(self, function: "Function"):
+        if self.ignore_functions:
+            return
         with self._lock:
             benchmark_dir = os.path.join(self.cache_dir, function.benchmark)
             cache_config = os.path.join(benchmark_dir, "config.json")

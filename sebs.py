@@ -7,7 +7,7 @@ import functools
 import os
 import sys
 import traceback
-from typing import Optional
+from typing import cast, Optional
 
 import click
 
@@ -104,7 +104,8 @@ def parse_common_params(
     deployment,
     language,
     language_version,
-    initialize_deployment: bool = True
+    initialize_deployment: bool = True,
+    ignore_cache: bool = False
 ):
     global sebs_client, deployment_client
 
@@ -132,6 +133,9 @@ def parse_common_params(
     else:
         deployment_client = None
 
+    if ignore_cache:
+        sebs_client.ignore_cache()
+
     return config_obj, output_dir, logging_filename, sebs_client, deployment_client
 
 
@@ -143,7 +147,6 @@ def cli():
 @cli.group()
 def benchmark():
     pass
-
 
 @benchmark.command()
 @click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
@@ -239,7 +242,6 @@ def process(**kwargs):
         out_f.write(sebs.utils.serialize(experiments))
     logging.info("Save results to {}".format(os.path.abspath("results.json")))
 
-
 @benchmark.command()
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])
@@ -267,6 +269,100 @@ def regression(benchmark_input_size, **kwargs):
         **kwargs
     )
     succ = regression_suite(sebs_client, config["experiments"], set( (config['deployment']['name'],) ))
+
+@cli.group()
+def local():
+    pass
+
+@local.command()
+@click.argument("benchmark", type=str)
+@click.argument(
+    "benchmark-input-size", type=click.Choice(["test", "small", "large"])
+)
+@click.argument("output", type=str)
+@click.option(
+    "--deployments", default=1, type=int, help="Number of deployed containers."
+)
+@click.option(
+    "--remove-containers/--no-remove-containers", default=True, help="Remove containers after stopping."
+)
+@click.option(
+    "--config",
+    required=True,
+    type=click.Path(readable=True),
+    help="Location of experiment config.",
+)
+@click.option(
+    "--output-dir", default=os.path.curdir, help="Output directory for results."
+)
+@click.option(
+    "--cache",
+    default=os.path.join(os.path.curdir, "cache"),
+    help="Location of experiments cache.",
+)
+@click.option("--verbose/--no-verbose", default=False, help="Verbose output.")
+@click.option(
+    "--preserve-out/--no-preserve-out",
+    default=True,
+    help="Preserve current results in output directory.",
+)
+@click.option(
+    "--language",
+    default=None,
+    type=click.Choice(["python", "nodejs"]),
+    help="Benchmark language",
+)
+@click.option(
+    "--language-version", default=None, type=str, help="Benchmark language version"
+)
+def start(benchmark, benchmark_input_size, output, deployments, remove_containers, **kwargs):
+    """
+        Start a given number of function instances.
+    """
+
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client
+    ) = parse_common_params(
+        ignore_cache = True,
+        update_code = False,
+        update_storage = False,
+        deployment = "local",
+        **kwargs
+    )
+    deployment_client = cast(sebs.local.Local, deployment_client)
+    deployment_client.remove_containers = remove_containers
+
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+    result = sebs.local.Deployment()
+    for i in range(deployments):
+        func = deployment_client.get_function(
+            benchmark_obj, deployment_client.default_function_name(benchmark_obj)
+        )
+        result.add_function(func)
+    storage = deployment_client.get_storage(
+        replace_existing=experiment_config.update_storage
+    )
+    result.set_storage(storage)
+    input_config = benchmark_obj.prepare_input(
+        storage=storage, size=benchmark_input_size
+    )
+    result.add_input(input_config)
+
+    # Disable shutdown of storage only after we succed
+    # Otherwise we want to clean up as much as possible
+    deployment_client.shutdown_storage = False
+    result.serialize(output)
+    logging.info(f"Save results to {os.path.abspath(output)}")
 
 @cli.group()
 def experiment():

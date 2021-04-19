@@ -73,5 +73,5 @@ class LocalFunction(Function):
                 cached_config["benchmark"],
                 cached_config["hash"],
             )
-        except docker.errors.NotFound as e:
+        except docker.errors.NotFound:
             raise RuntimeError(f"Cached container {instance_id} not available anymore!")
