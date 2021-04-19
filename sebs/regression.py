@@ -19,7 +19,7 @@ benchmarks = [
     "501.graph-pagerank",
     "502.graph-mst",
     "503.graph-bfs",
-    "504.dna-visualisation"
+    "504.dna-visualisation",
 ]
 
 
@@ -119,7 +119,7 @@ class AzureTestSequence(
                 self.config,
                 verbose=False,
                 logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
-                deployment_config=AzureTestSequence.cfg
+                deployment_config=AzureTestSequence.cfg,
             )
             deployment_client.initialize()
             deployment_client.allocate_shared_resource()

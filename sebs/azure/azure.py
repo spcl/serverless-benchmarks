@@ -304,7 +304,9 @@ class Azure(System):
                 except RuntimeError as e:
                     # Azure does not allow some concurrent operations
                     if "another operation is in progress" in str(e):
-                        self.logging.info(f"Repeat {func_name} creation, another operation in progress")
+                        self.logging.info(
+                            f"Repeat {func_name} creation, another operation in progress"
+                        )
                     # Rethrow -> another error
                     else:
                         raise
