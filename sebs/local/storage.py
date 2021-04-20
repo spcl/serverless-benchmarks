@@ -61,6 +61,13 @@ class Minio(PersistentStorage):
         self._url = "{IPAddress}:{Port}".format(
             IPAddress=networks["bridge"]["IPAddress"], Port=self._port
         )
+        if not self._url:
+            self.logging.error(
+                f"Couldn't read the IP address of container from attributes {json.dumps(self._instance.attrs, indent=2)}"
+            )
+            raise RuntimeError(
+                f"Incorrect detection of IP address for container with id {self._instance_id}"
+            )
         self.logging.info("Starting minio instance at {}".format(self._url))
         self.connection = self.get_connection()
 

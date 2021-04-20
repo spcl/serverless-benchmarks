@@ -1,4 +1,5 @@
 import docker
+import json
 
 from sebs.faas.function import ExecutionResult, Function, Trigger
 
@@ -48,6 +49,13 @@ class LocalFunction(Function):
         self._url = "{IPAddress}:{Port}".format(
             IPAddress=networks["bridge"]["IPAddress"], Port=port
         )
+        if not self._url:
+            self.logging.error(
+                f"Couldn't read the IP address of container from attributes {json.dumps(self._instance.attrs, indent=2)}"
+            )
+            raise RuntimeError(
+                f"Incorrect detection of IP address for container with id {self._instance_id}"
+            )
 
     @staticmethod
     def typename() -> str:
