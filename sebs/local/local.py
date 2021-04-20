@@ -152,6 +152,11 @@ class Local(System):
             volumes={
                 code_package.code_location: {"bind": os.path.join(home_dir, "code"), "mode": "ro"}
             },
+            environment={
+                "MINIO_ADDRESS": self._storage_instance._url,
+                "MINIO_ACCESS_KEY": self._storage_instance._access_key,
+                "MINIO_SECRET_KEY": self._storage_instance._secret_key,
+            },
             # FIXME: make CPUs configurable
             # cpuset_cpus=cpuset,
             # required to access perf counters

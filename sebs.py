@@ -316,6 +316,7 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers
+    result = sebs.local.Deployment()
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     benchmark_obj = sebs_client.get_benchmark(
@@ -324,12 +325,6 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
         experiment_config,
         logging_filename=logging_filename,
     )
-    result = sebs.local.Deployment()
-    for i in range(deployments):
-        func = deployment_client.get_function(
-            benchmark_obj, deployment_client.default_function_name(benchmark_obj)
-        )
-        result.add_function(func)
     storage = deployment_client.get_storage(
         replace_existing=experiment_config.update_storage
     )
@@ -338,6 +333,11 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
         storage=storage, size=benchmark_input_size
     )
     result.add_input(input_config)
+    for i in range(deployments):
+        func = deployment_client.get_function(
+            benchmark_obj, deployment_client.default_function_name(benchmark_obj)
+        )
+        result.add_function(func)
 
     # Disable shutdown of storage only after we succed
     # Otherwise we want to clean up as much as possible
