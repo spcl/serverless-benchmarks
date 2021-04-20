@@ -35,7 +35,7 @@ class Minio(PersistentStorage):
             self._storage_container = self._docker_client.containers.run(
                 "minio/minio",
                 command="server /data",
-                #ports={str(self._port): self._port},
+                # ports={str(self._port): self._port},
                 network_mode="bridge",
                 environment={
                     "MINIO_ACCESS_KEY": self._access_key,
@@ -46,14 +46,7 @@ class Minio(PersistentStorage):
                 stderr=True,
                 detach=True,
             )
-            # who knows why? otherwise attributes are not loaded
-            self._storage_container.reload()
-            networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
-            self._url = "{IPAddress}:{Port}".format(
-                IPAddress=networks["bridge"]["IPAddress"], Port=self._port
-            )
-            self.logging.info("Starting minio instance at {}".format(self._url))
-            self.connection = self.get_connection()
+            self.configure_connection()
         except docker.errors.APIError as e:
             self.logging.error("Starting Minio storage failed! Reason: {}".format(e))
             raise RuntimeError(f"Starting Minio storage unsuccesful")
@@ -61,10 +54,21 @@ class Minio(PersistentStorage):
             self.logging.error("Starting Minio storage failed! Unknown error: {}".format(e))
             raise RuntimeError(f"Starting Minio storage unsuccesful")
 
+    def configure_connection(self):
+        # who knows why? otherwise attributes are not loaded
+        self._storage_container.reload()
+        networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
+        self._url = "{IPAddress}:{Port}".format(
+            IPAddress=networks["bridge"]["IPAddress"], Port=self._port
+        )
+        self.logging.info("Starting minio instance at {}".format(self._url))
+        self.connection = self.get_connection()
+
     def stop(self):
         if self._storage_container is not None:
-            self.logging.info("Stopping minio instance at {url}".format(url=self._url))
+            self.logging.info("Stopping minio container at {url}".format(url=self._url))
             self._storage_container.stop()
+            self.logging.info("Stopped minio container at {url}".format(url=self._url))
 
     def get_connection(self):
         return minio.Minio(
@@ -143,6 +147,7 @@ class Minio(PersistentStorage):
     def serialize(self) -> dict:
         if self._storage_container is not None:
             return {
+                "instance_id": self._storage_container.id,
                 "address": self._url,
                 "secret_key": self._secret_key,
                 "access_key": self._access_key,
@@ -151,3 +156,19 @@ class Minio(PersistentStorage):
             }
         else:
             return {}
+
+    @staticmethod
+    def deserialize(cached_config: dict, cache_client: Cache) -> "Minio":
+        try:
+            instance_id = cached_config["instance_id"]
+            docker_client = docker.from_env()
+            obj = Minio(docker_client, cache_client, False)
+            obj._storage_container = docker_client.containers.get(instance_id)
+            obj._url = cached_config["address"]
+            obj._access_key = cached_config["access_key"]
+            obj._secret_key = cached_config["secret_key"]
+            obj._input_buckets = cached_config["input"]
+            obj._output_buckets = cached_config["output"]
+            return obj
+        except docker.errors.NotFound:
+            raise RuntimeError(f"Cached container {instance_id} not available anymore!")

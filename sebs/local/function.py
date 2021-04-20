@@ -75,3 +75,8 @@ class LocalFunction(Function):
             )
         except docker.errors.NotFound:
             raise RuntimeError(f"Cached container {instance_id} not available anymore!")
+
+    def stop(self):
+        self.logging.info(f"Stopping function container {self._instance_id}")
+        self._instance.stop(timeout=0)
+        self.logging.info(f"Function container {self._instance_id} stopped succesfully")

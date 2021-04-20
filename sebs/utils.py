@@ -136,6 +136,12 @@ def find_benchmark(benchmark: str, path: str):
     return benchmark_path
 
 
+def global_logging():
+    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
+    logging_date_format = "%H:%M:%S"
+    logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
+
+
 class LoggingHandlers:
     def __init__(self, verbose: bool = False, filename: Optional[str] = None):
         logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"

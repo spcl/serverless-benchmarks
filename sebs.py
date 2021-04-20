@@ -345,6 +345,21 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
     result.serialize(output)
     sebs_client.logging.info(f"Save results to {os.path.abspath(output)}")
 
+@local.command()
+@click.argument("input-json", type=str)
+#@simplified_common_params
+def stop(input_json, **kwargs):
+    """
+        Stop function and storage containers.
+    """
+
+    sebs.utils.global_logging()
+
+    logging.info(f"Stopping deployment from {os.path.abspath(input_json)}")
+    deployment = sebs.local.Deployment.deserialize(input_json, None)
+    deployment.shutdown()
+    logging.info(f"Stopped deployment from {os.path.abspath(input_json)}")
+
 @cli.group()
 def experiment():
     pass
