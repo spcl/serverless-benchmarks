@@ -142,7 +142,9 @@ class Minio(PersistentStorage):
         raise NotImplementedError()
 
     def list_bucket(self, bucket_name: str):
-        raise NotImplementedError()
+        objects_list = self.connection.list_objects(bucket_name)
+        objects: List[str]
+        return [obj.object_name for obj in objects_list]
 
     def list_buckets(self, bucket_name: str) -> List[str]:
         buckets = self.connection.list_buckets()
