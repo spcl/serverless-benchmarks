@@ -35,7 +35,8 @@ class Minio(PersistentStorage):
             self._storage_container = self._docker_client.containers.run(
                 "minio/minio",
                 command="server /data",
-                ports={str(self._port): self._port},
+                #ports={str(self._port): self._port},
+                network_mode="bridge",
                 environment={
                     "MINIO_ACCESS_KEY": self._access_key,
                     "MINIO_SECRET_KEY": self._secret_key,

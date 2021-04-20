@@ -22,7 +22,6 @@ class Deployment:
 
     def serialize(self, path: str):
         with open(path, "w") as out:
-            print({"functions": self._functions, "storage": self._storage, "inputs": self._inputs})
             out.write(
                 serialize(
                     {"functions": self._functions, "storage": self._storage, "inputs": self._inputs}
