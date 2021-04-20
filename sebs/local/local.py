@@ -146,17 +146,20 @@ class Local(System):
             code_package.language_name,
             code_package.language_version,
         )
+        environment: Dict[str, str] = {}
+        if self._storage_instance:
+            environment = {
+                "MINIO_ADDRESS": self._storage_instance._url,
+                "MINIO_ACCESS_KEY": self._storage_instance._access_key,
+                "MINIO_SECRET_KEY": self._storage_instance._secret_key,
+            }
         container = self._docker_client.containers.run(
             image=container_name,
             command=f"python3 server.py {self.DEFAULT_PORT}",
             volumes={
                 code_package.code_location: {"bind": os.path.join(home_dir, "code"), "mode": "ro"}
             },
-            environment={
-                "MINIO_ADDRESS": self._storage_instance._url,
-                "MINIO_ACCESS_KEY": self._storage_instance._access_key,
-                "MINIO_SECRET_KEY": self._storage_instance._secret_key,
-            },
+            environment=environment,
             # FIXME: make CPUs configurable
             # cpuset_cpus=cpuset,
             # required to access perf counters

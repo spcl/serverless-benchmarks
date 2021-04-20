@@ -447,7 +447,9 @@ class Benchmark(LoggingBase):
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
-            self.logging.info("Using cached benchmark {} at {}".format(self.benchmark, self.code_location))
+            self.logging.info(
+                "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
+            )
             return False, self.code_location
 
         msg = (

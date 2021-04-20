@@ -51,7 +51,8 @@ class LocalFunction(Function):
         )
         if not self._url:
             self.logging.error(
-                f"Couldn't read the IP address of container from attributes {json.dumps(self._instance.attrs, indent=2)}"
+                f"Couldn't read the IP address of container from attributes "
+                f"{json.dumps(self._instance.attrs, indent=2)}"
             )
             raise RuntimeError(
                 f"Incorrect detection of IP address for container with id {self._instance_id}"
