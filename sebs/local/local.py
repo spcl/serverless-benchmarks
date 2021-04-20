@@ -138,7 +138,6 @@ class Local(System):
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
 
-        print(self._system_config)
         home_dir = os.path.join(
             "/home", self._system_config.username(self.name(), code_package.language_name)
         )

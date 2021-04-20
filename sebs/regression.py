@@ -91,9 +91,7 @@ class AWSTestSequence(
     def get_deployment(self, benchmark_name):
         deployment_name = "aws"
         deployment_client = self.client.get_deployment(
-            self.config,
-            verbose=False,
-            logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+            self.config, logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
         deployment_client.initialize()
         return deployment_client
@@ -112,12 +110,10 @@ class AzureTestSequence(
             if not AzureTestSequence.cfg:
                 AzureTestSequence.cfg = self.client.get_deployment_config(
                     self.config,
-                    verbose=False,
                     logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 )
             deployment_client = self.client.get_deployment(
                 self.config,
-                verbose=False,
                 logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 deployment_config=AzureTestSequence.cfg,
             )
