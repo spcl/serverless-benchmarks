@@ -7,7 +7,7 @@ import functools
 import os
 import sys
 import traceback
-from typing import Optional
+from typing import cast, Optional
 
 import click
 
@@ -39,8 +39,7 @@ class ExceptionProcesser(click.Group):
             if sebs_client is not None:
                 sebs_client.shutdown()
 
-
-def common_params(func):
+def simplified_common_params(func):
     @click.option(
         "--config",
         required=True,
@@ -62,6 +61,22 @@ def common_params(func):
         help="Preserve current results in output directory.",
     )
     @click.option(
+        "--language",
+        default=None,
+        type=click.Choice(["python", "nodejs"]),
+        help="Benchmark language",
+    )
+    @click.option(
+        "--language-version", default=None, type=str, help="Benchmark language version"
+    )
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
+
+def common_params(func):
+    @click.option(
         "--update-code/--no-update-code",
         default=False,
         help="Update function code in cache and cloud deployment.",
@@ -74,18 +89,10 @@ def common_params(func):
     @click.option(
         "--deployment",
         default=None,
-        type=click.Choice(["azure", "aws", "gcp"]),
+        type=click.Choice(["azure", "aws", "gcp", "local"]),
         help="Cloud deployment to use.",
     )
-    @click.option(
-        "--language",
-        default=None,
-        type=click.Choice(["python", "nodejs"]),
-        help="Benchmark language",
-    )
-    @click.option(
-        "--language-version", default=None, type=str, help="Benchmark language version"
-    )
+    @simplified_common_params
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -104,14 +111,16 @@ def parse_common_params(
     deployment,
     language,
     language_version,
-    initialize_deployment: bool = True
+    initialize_deployment: bool = True,
+    ignore_cache: bool = False
 ):
     global sebs_client, deployment_client
+    logging_filename = os.path.abspath(os.path.join(output_dir, "out.log"))
 
     config_obj = json.load(open(config, "r"))
-    sebs_client = sebs.SeBS(cache, output_dir)
+    sebs_client = sebs.SeBS(cache, output_dir, verbose, logging_filename)
     output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
-    logging.info("Created experiment output at {}".format(output_dir))
+    sebs_client.logging.info("Created experiment output at {}".format(output_dir))
 
     # CLI overrides JSON options
     update_nested_dict(config_obj, ["experiments", "runtime", "language"], language)
@@ -123,7 +132,6 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
     update_nested_dict(config_obj, ["experiments", "benchmark"], benchmark)
 
-    logging_filename = os.path.abspath(os.path.join(output_dir, "out.log"))
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
             config_obj["deployment"], logging_filename=logging_filename
@@ -131,6 +139,9 @@ def parse_common_params(
         deployment_client.initialize()
     else:
         deployment_client = None
+
+    if ignore_cache:
+        sebs_client.ignore_cache()
 
     return config_obj, output_dir, logging_filename, sebs_client, deployment_client
 
@@ -143,7 +154,6 @@ def cli():
 @cli.group()
 def benchmark():
     pass
-
 
 @benchmark.command()
 @click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
@@ -190,7 +200,6 @@ def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs
         experiment_config, deployment_client.config
     )
     result.begin()
-    # FIXME: repetitions
     # FIXME: trigger type
     triggers = func.triggers(Trigger.TriggerType.HTTP)
     if len(triggers) == 0:
@@ -199,16 +208,19 @@ def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs
         )
     else:
         trigger = triggers[0]
-    ret = trigger.sync_invoke(input_config)
-    if ret.stats.failure:
-        deployment_client.get_invocation_error(
-            function_name=self.name, start_time=start_time, end_time=end_time
-        )
+    for i in range(repetitions):
+        sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
+        ret = trigger.sync_invoke(input_config)
+        if ret.stats.failure:
+            sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
+            deployment_client.get_invocation_error(
+                function_name=self.name, start_time=start_time, end_time=end_time
+            )
+        result.add_invocation(func, ret)
     result.end()
-    result.add_invocation(func, ret)
     with open("experiments.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
-    logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
 
 
 @benchmark.command()
@@ -222,7 +234,7 @@ def process(**kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    logging.info("Load results from {}".format(os.path.abspath("experiments.json")))
+    sebs_client.logging.info("Load results from {}".format(os.path.abspath("experiments.json")))
     with open("experiments.json", "r") as in_f:
         config = json.load(in_f)
         experiments = sebs.experiments.ExperimentResult.deserialize(
@@ -237,8 +249,7 @@ def process(**kwargs):
         )
     with open("results.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(experiments))
-    logging.info("Save results to {}".format(os.path.abspath("results.json")))
-
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath("results.json")))
 
 @benchmark.command()
 @click.argument(
@@ -267,6 +278,87 @@ def regression(benchmark_input_size, **kwargs):
         **kwargs
     )
     succ = regression_suite(sebs_client, config["experiments"], set( (config['deployment']['name'],) ))
+
+@cli.group()
+def local():
+    pass
+
+@local.command()
+@click.argument("benchmark", type=str)
+@click.argument(
+    "benchmark-input-size", type=click.Choice(["test", "small", "large"])
+)
+@click.argument("output", type=str)
+@click.option(
+    "--deployments", default=1, type=int, help="Number of deployed containers."
+)
+@click.option(
+    "--remove-containers/--no-remove-containers", default=True, help="Remove containers after stopping."
+)
+@simplified_common_params
+def start(benchmark, benchmark_input_size, output, deployments, remove_containers, **kwargs):
+    """
+        Start a given number of function instances and a storage instance.
+    """
+
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client
+    ) = parse_common_params(
+        ignore_cache = True,
+        update_code = False,
+        update_storage = False,
+        deployment = "local",
+        **kwargs
+    )
+    deployment_client = cast(sebs.local.Local, deployment_client)
+    deployment_client.remove_containers = remove_containers
+    result = sebs.local.Deployment()
+
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+    storage = deployment_client.get_storage(
+        replace_existing=experiment_config.update_storage
+    )
+    result.set_storage(storage)
+    input_config = benchmark_obj.prepare_input(
+        storage=storage, size=benchmark_input_size
+    )
+    result.add_input(input_config)
+    for i in range(deployments):
+        func = deployment_client.get_function(
+            benchmark_obj, deployment_client.default_function_name(benchmark_obj)
+        )
+        result.add_function(func)
+
+    # Disable shutdown of storage only after we succed
+    # Otherwise we want to clean up as much as possible
+    deployment_client.shutdown_storage = False
+    result.serialize(output)
+    sebs_client.logging.info(f"Save results to {os.path.abspath(output)}")
+
+@local.command()
+@click.argument("input-json", type=str)
+#@simplified_common_params
+def stop(input_json, **kwargs):
+    """
+        Stop function and storage containers.
+    """
+
+    sebs.utils.global_logging()
+
+    logging.info(f"Stopping deployment from {os.path.abspath(input_json)}")
+    deployment = sebs.local.Deployment.deserialize(input_json, None)
+    deployment.shutdown()
+    logging.info(f"Stopped deployment from {os.path.abspath(input_json)}")
 
 @cli.group()
 def experiment():

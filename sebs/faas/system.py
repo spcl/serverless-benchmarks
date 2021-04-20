@@ -144,7 +144,7 @@ class System(ABC, LoggingBase):
             be updated if the local version is different.
         """
         functions = code_package.functions
-        if func_name not in functions:
+        if not functions or func_name not in functions:
             msg = (
                 "function name not provided."
                 if not func_name
