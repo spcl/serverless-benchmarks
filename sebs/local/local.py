@@ -165,19 +165,21 @@ class Local(System):
             # required to access perf counters
             # alternative: use custom seccomp profile
             privileged=True,
-            user="1000:1000",
+            user=os.getuid(),
+            security_opt=["seccomp:unconfined"],
             network_mode="bridge",
+            # somehow removal of containers prevents checkpointing from working?
             remove=self.remove_containers,
             stdout=True,
             stderr=True,
             detach=True,
-            tty=True,
+            # tty=True,
         )
         func = LocalFunction(
             container, self.DEFAULT_PORT, func_name, code_package.benchmark, code_package.hash
         )
         self.logging.info(
-            f"Started {func_name} functiona at container {container.id}," f"running on {func._url}"
+            f"Started {func_name} function at container {container.id} , running on {func._url}"
         )
         return func
 
