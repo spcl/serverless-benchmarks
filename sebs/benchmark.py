@@ -366,6 +366,7 @@ class Benchmark(LoggingBase):
                         "Docker build of benchmark dependencies in container "
                         "of image {repo}:{image}".format(repo=repo_name, image=image_name)
                     )
+                    uid = os.getuid()
                     # Standard, simplest build
                     if not self._experiment_config.check_flag("docker_copy_build_files"):
                         self.logging.info(
@@ -377,7 +378,8 @@ class Benchmark(LoggingBase):
                             "{}:{}".format(repo_name, image_name),
                             volumes=volumes,
                             environment={"APP": self.benchmark},
-                            user="1000:1000",
+                            #user="1000:1000",
+                            user=uid,
                             remove=True,
                             stdout=True,
                             stderr=True,
@@ -388,8 +390,9 @@ class Benchmark(LoggingBase):
                         container = self._docker_client.containers.run(
                             "{}:{}".format(repo_name, image_name),
                             environment={"APP": self.benchmark},
-                            user="1000:1000",
-                            # remove=True,
+                            #user="1000:1000",
+                            user=uid,
+                            #remove=True,
                             detach=True,
                             tty=True,
                             command="/bin/bash",
@@ -435,6 +438,7 @@ class Benchmark(LoggingBase):
                 except docker.errors.ContainerError as e:
                     self.logging.error("Package build failed!")
                     self.logging.error(e)
+                    self.logging.error(f"Docker mount volumes: {volumes}")
                     raise e
 
     def recalculate_code_size(self):
