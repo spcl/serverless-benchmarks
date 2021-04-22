@@ -1,0 +1,4 @@
+grpcio
+google-cloud-storage==1.32.0
+google-api-python-client==1.12.5
+google-cloud-monitoring==2.0.0

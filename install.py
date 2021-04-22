@@ -5,6 +5,9 @@ import os
 import subprocess
 
 parser = argparse.ArgumentParser(description="Install SeBS and dependencies.")
+for deployment in ["aws", "azure", "gcp", "local"]:
+    parser.add_argument(f"--{deployment}", action="store_const", const=True, default=True, dest=deployment)
+    parser.add_argument(f"--no-{deployment}", action="store_const", const=False, dest=deployment)
 parser.add_argument("--with-pypapi", action="store_true")
 args = parser.parse_args()
 
@@ -20,14 +23,35 @@ def execute(cmd):
 
 env_dir="sebs-virtualenv"
 
-print("Creating Python virtualenv at {}".format(env_dir))
-execute("python3 -mvenv {}".format(env_dir))
+if not os.path.exists(env_dir):
+    print("Creating Python virtualenv at {}".format(env_dir))
+    execute("python3 -mvenv {}".format(env_dir))
+    execute(". {}/bin/activate && pip install --upgrade pip")
+else:
+    print("Using existing Python virtualenv at {}".format(env_dir))
 
 print("Install Python dependencies with pip")
 execute(". {}/bin/activate && pip3 install -r requirements.txt".format(env_dir))
 
-print("Configure mypy extensions")
-execute(". {}/bin/activate && mypy_boto3".format(env_dir))
+if args.aws:
+    print("Install Python dependencies for AWS")
+    execute(". {}/bin/activate && pip3 install -r requirements.aws.txt".format(env_dir))
+    print("Configure mypy extensions")
+    execute(". {}/bin/activate && mypy_boto3".format(env_dir))
+
+if args.azure:
+    print("Install Python dependencies for Azure")
+    execute(". {}/bin/activate && pip3 install -r requirements.azure.txt".format(env_dir))
+
+if args.gcp:
+    print("Install Python dependencies for GCP")
+    execute(". {}/bin/activate && pip3 install -r requirements.gcp.txt".format(env_dir))
+
+if args.local:
+    print("Install Python dependencies for local")
+    execute(". {}/bin/activate && pip3 install -r requirements.local.txt".format(env_dir))
+    print("Initialize Docker image for local storage.")
+    execute("docker pull minio/minio:latest")
 
 print("Initialize git submodules")
 execute("git submodule update --init --recursive")
