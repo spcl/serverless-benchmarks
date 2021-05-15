@@ -97,6 +97,10 @@ TODO: moving experiment code from previous scripts.
 
 TODO: moving experiment code from previous scripts.
 
+### Invocation overhead
+
+WiP - branch network-experiment
+
 #### Performance Modeling
 
 WiP
@@ -144,10 +148,8 @@ Pass lambda role in config JSON, see an example in `config/example.json`.
 
 #### Azure
 
-**temporarily disabled**
 
-Azure provides 200 USD for the first month.
-You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
+Azure provides 200 USD for the first month. You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
 enable non-interactive login through CLI. Since this process has [an easy, one-step
 CLI solution](https://docs.microsoft.com/en-us/cli/azure/ad/sp?view=azure-cli-latest#az-ad-sp-create-for-rbac),
 we added a small tool **tools/create_azure_credentials** that uses the interactive web-browser
@@ -178,11 +180,7 @@ with necessaries and information on cloud storage resources. Benchmarks will be 
 after change in source code fails (hopefully). If you see in the logs that a cached
 entry is still used, pass flag `--update` to force rebuild.
 
-#### Cloud
-
-Use `sebs.py` with options `test`, `publish` and `invoke`. Right now
-only a single `test` is supported. Experiments and log querying are coming up now.
-
+Use `sebs.py` with options `test_invoke`, `download_metrics`, `experiment` and `process_experiment`.
 Example (please modify the `config/example.json` for your needs).
 
 ```
@@ -191,23 +189,5 @@ sebs.py --repetitions 1 test_invoke ${benchmark} ${out_dir} ${input_size} config
 
 where `input_size` could be `test`, `small`, `large`. `out_dir` is used to store
 local results. Command line options allow to override config (`--deployment`, `--language`).
-
-#### Local
-
-**Might not work currently**
-
-Use `scripts/run_experiments.py` to execute code locally with thelp of minio,
-object storage service, running in a container. There are four types of experiments
-that can be run: `time`, `memory`, `disk-io` and `papi`. The last one works only
-for Python and memory/disk-io are WiP for NodeJS.
-
-If your benchmark fails for some reason, you should see an error directly. If not,
-inspect files in `${out_dir}/${experiment}/instance_0/logs`. Use `scripts/clean.sh`
-to kill measurement processes if we didn't work.
-
-Containers are usually shutdown after an experiment. The flag `--no-shutdown-containers`
-provides a way to leave them alive and inspect the environment for problems.
-Simply run `./run.sh ${experiment}.json`.
-
 
 
