@@ -36,7 +36,7 @@ execute(". {}/bin/activate && pip3 install -r requirements.txt".format(env_dir))
 if args.aws:
     print("Install Python dependencies for AWS")
     execute(". {}/bin/activate && pip3 install -r requirements.aws.txt".format(env_dir))
-    print("Configure mypy extensions")
+    print("Configure mypy extensions for boto3")
     execute(". {}/bin/activate && mypy_boto3".format(env_dir))
 
 if args.azure:
