@@ -190,20 +190,46 @@ The stopped containers won't be automatically removed unless the option `--remov
 
 ## Benchmark Applications
 
-```markdown
+For details on benchmark selection and their characterization, please refer to [our paper](#paper).
+
 | Type 		   | Benchmark           | Languages          | Description          |
 | :---         | :---:               | :---:              | :---:                |
 | Webapps      | 110.dynamic-html    | Python, Node.js    | Generate dynamic HTML from a template. |
-| Webapps      | 120.uploader.dynamic-html    | Python, Node.js    | Uploader file from provided URL to cloud storage. |
-```
-
-For details on benchmark selection, please refer to [our paper](#paper).
+| Webapps      | 120.uploader    | Python, Node.js    | Uploader file from provided URL to cloud storage. |
+| Multimedia      | 210.thumbnailer    | Python, Node.js    | Generate a thumbnail of an image. |
+| Multimedia      | 220.video-processing    | Python    | Add a watermark and generate gif of a video file. |
+| Utilities      | 311.compression    | Python   | Create a .zip file for a group of files in storage and return to user to download. |
+| Utilities      | 504.dna-visualization    | Python   | Creates a visualization data for DNA sequence. |
+| Inference      | 411.image-recognition    | Python    | Image recognition with ResNet and pytorch. |
+| Scientific      | 501.graph-pagerank    | Python    | PageRank implementation with igraph. |
+| Scientific      | 501.graph-mst    | Python    | Minimum spanning tree (MST)  implementation with igraph. |
+| Scientific      | 501.graph-bfs    | Python    | Breadth-first search (BFS) implementation with igraph. |
 
 ## Experiments
 
-TODO :-(
-
 For details on experiments and methodology, please refer to [our paper](#paper).
+
+#### Performance & cost
+
+Invokes given benchmark a selected number of times, measuring the time and cost of invocations.
+Supports `cold` and `warm` invocations with a selected number of concurrent invocations.
+In addition, to accurately measure the overheads of Azure Function Apps, we offer `burst` and `sequential` invocation type that doesn't distinguish
+between cold and warm startups.
+
+#### Network ping-pong
+
+Measures the distribution of network latency between benchmark driver and function instance.
+
+#### Invocation overhead
+
+The experiment performs the clock drift synchronization protocol to accurately measure the startup time of a function by comparing
+benchmark driver and function timestamps.
+
+#### Eviction model
+
+Executes test functions multiple times, with varying size, memory and runtime configurations, to test for how long function instances stay alive.
+The result helps to estimate the analytical models describing cold startups.
+Currently supported only on AWS.
 
 ### Performance&Cost Variability
 
