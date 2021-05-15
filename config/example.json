@@ -41,6 +41,11 @@
     },
     "azure": {
       "region": "westeurope"
+    },
+    "gcp": {
+      "region": "europe-west1",
+      "project_name": "",
+      "credentials": ""
     }
   }
 }
