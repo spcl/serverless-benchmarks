@@ -1,0 +1,15 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG USER
+ARG VERSION
+ENV HOME=/home/${USER}
+
+RUN useradd --uid 1000 ${USER}
+WORKDIR ${HOME}
+
+RUN install_node --ignore-verification-failure v${VERSION}
+RUN chown -R 1000:1000 /home/${USER}/
+USER ${USER}:${USER}
+
+CMD cd /mnt/function && npm install && rm -rf package-lock.json
+

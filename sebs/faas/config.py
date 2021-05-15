@@ -2,6 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 
 from sebs.cache import Cache
+from sebs.utils import LoggingBase, LoggingHandlers
 
 # FIXME: Replace type hints for static generators after migration to 3.7
 # https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
@@ -18,7 +19,9 @@ from sebs.cache import Cache
 """
 
 
-class Credentials(ABC):
+class Credentials(ABC, LoggingBase):
+    def __init__(self):
+        super().__init__()
 
     """
         Create credentials instance from user config and cached values.
@@ -26,7 +29,7 @@ class Credentials(ABC):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache) -> "Credentials":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Credentials":
         pass
 
     """
@@ -47,7 +50,9 @@ class Credentials(ABC):
 """
 
 
-class Resources(ABC):
+class Resources(ABC, LoggingBase):
+    def __init__(self):
+        super().__init__()
 
     """
         Create credentials instance from user config and cached values.
@@ -55,7 +60,7 @@ class Resources(ABC):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache) -> "Resources":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
         pass
 
     """
@@ -73,9 +78,12 @@ class Resources(ABC):
 """
 
 
-class Config(ABC):
+class Config(ABC, LoggingBase):
 
     _region: str
+
+    def __init__(self):
+        super().__init__()
 
     @property
     def region(self) -> str:
@@ -93,8 +101,21 @@ class Config(ABC):
 
     @staticmethod
     @abstractmethod
-    def initialize(config: dict, cache: Cache) -> "Config":
-        pass
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
+        from sebs.aws.config import AWSConfig
+        from sebs.azure.config import AzureConfig
+        from sebs.gcp.config import GCPConfig
+        from sebs.local.config import LocalConfig
+
+        name = config["name"]
+        func = {
+            "aws": AWSConfig.deserialize,
+            "azure": AzureConfig.deserialize,
+            "gcp": GCPConfig.deserialize,
+            "local": LocalConfig.deserialize,
+        }.get(name)
+        assert func, "Unknown config type!"
+        return func(config[name] if name in config else config, cache, handlers)
 
     @abstractmethod
     def serialize(self) -> dict:

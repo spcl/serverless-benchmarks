@@ -1,15 +1,16 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Dict, Tuple
+from typing import Dict, List, Optional, Tuple, Type
 
 import docker
 
-import sebs.benchmark
+from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.faas.function import Function, Trigger, ExecutionResult
+from sebs.faas.storage import PersistentStorage
+from sebs.utils import LoggingBase
 from .config import Config
-from .function import Function
-from .storage import PersistentStorage
 
 """
     This class provides basic abstractions for the FaaS system.
@@ -20,13 +21,11 @@ from .storage import PersistentStorage
 """
 
 
-class System(ABC):
+class System(ABC, LoggingBase):
     def __init__(
-        self,
-        system_config: SeBSConfig,
-        cache_client: Cache,
-        docker_client: docker.client,
+        self, system_config: SeBSConfig, cache_client: Cache, docker_client: docker.client,
     ):
+        super().__init__()
         self._system_config = system_config
         self._docker_client = docker_client
         self._cache_client = cache_client
@@ -46,6 +45,11 @@ class System(ABC):
     @property
     @abstractmethod
     def config(self) -> Config:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def function_type() -> "Type[Function]":
         pass
 
     """
@@ -86,40 +90,131 @@ class System(ABC):
         :return: path to packaged code and its size
     """
 
-    def package_code(self, benchmark: sebs.benchmark.Benchmark) -> Tuple[str, int]:
+    @abstractmethod
+    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
         pass
-
-    """
-        a)  if a cached function is present and no update flag is passed,
-            then just return function name
-        b)  if a cached function is present and update flag is passed,
-            then upload new code
-        c)  if no cached function is present, then create code package and
-            either create new function on AWS or update an existing one
-
-        :param benchmark:
-        :param config: JSON config for benchmark
-        :param function_name: Override randomly generated function name
-        :return: function name, code size
-    """
 
     @abstractmethod
-    def get_function(self, code_package: sebs.benchmark.Benchmark) -> Function:
+    def create_function(self, code_package: Benchmark, func_name: str) -> Function:
         pass
 
-    # FIXME: trigger allocation API
-    # FIXME: result query API
-    # FIXME: metrics query API
-    # def update_function(self, code_package):
-    #    pass
+    @abstractmethod
+    def cached_function(self, function: Function):
+        pass
+
+    @abstractmethod
+    def update_function(self, function: Function, code_package: Benchmark):
+        pass
+
+    """
+        a)  if a cached function with given name is present and code has not changed,
+            then just return function name
+        b)  if a cached function is present and the cloud code has a different
+            code version, then upload new code
+        c)  if no cached function is present, then create code package and
+            either create new function or update an existing but uncached one
+
+        Benchmark rebuild is requested but will be skipped if source code is
+        not changed and user didn't request update.
+
+    """
+
+    def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
+
+        if code_package.language_version not in self.system_config.supported_language_versions(
+            self.name(), code_package.language_name
+        ):
+            raise Exception(
+                "Unsupported {language} version {version} in {system}!".format(
+                    language=code_package.language_name,
+                    version=code_package.language_version,
+                    system=self.name(),
+                )
+            )
+
+        if not func_name:
+            func_name = self.default_function_name(code_package)
+        rebuilt, _ = code_package.build(self.package_code)
+
+        """
+            There's no function with that name?
+            a) yes -> create new function. Implementation might check if a function
+            with that name already exists in the cloud and update its code.
+            b) no -> retrieve function from the cache. Function code in cloud will
+            be updated if the local version is different.
+        """
+        functions = code_package.functions
+        if not functions or func_name not in functions:
+            msg = (
+                "function name not provided."
+                if not func_name
+                else "function {} not found in cache.".format(func_name)
+            )
+            self.logging.info("Creating new function! Reason: " + msg)
+            function = self.create_function(code_package, func_name)
+            self.cache_client.add_function(
+                deployment_name=self.name(),
+                language_name=code_package.language_name,
+                code_package=code_package,
+                function=function,
+            )
+            code_package.query_cache()
+            return function
+        else:
+            # retrieve function
+            cached_function = functions[func_name]
+            code_location = code_package.code_location
+            function = self.function_type().deserialize(cached_function)
+            self.cached_function(function)
+            self.logging.info(
+                "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
+            )
+            # is the function up-to-date?
+            if function.code_package_hash != code_package.hash or rebuilt:
+                self.logging.info(
+                    f"Cached function {func_name} with hash "
+                    f"{function.code_package_hash} is not up to date with "
+                    f"current build {code_package.hash} in "
+                    f"{code_location}, updating cloud version!"
+                )
+                self.update_function(function, code_package)
+                function.code_package_hash = code_package.hash
+                function.updated_code = True
+                self.cache_client.add_function(
+                    deployment_name=self.name(),
+                    language_name=code_package.language_name,
+                    code_package=code_package,
+                    function=function,
+                )
+                code_package.query_cache()
+            return function
+
+    @abstractmethod
+    def default_function_name(self, code_package: Benchmark) -> str:
+        pass
+
+    @abstractmethod
+    def enforce_cold_start(self, functions: List[Function]):
+        pass
+
+    @abstractmethod
+    def download_metrics(
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict[str, ExecutionResult],
+        metrics: dict,
+    ):
+        pass
+
+    @abstractmethod
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+        pass
 
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,
     #   start_time: int, end_time: int):
-    #    pass
-
-    # @abstractmethod
-    # def download_metrics(self):
     #    pass
 
     """
@@ -128,7 +223,11 @@ class System(ABC):
 
     @abstractmethod
     def shutdown(self) -> None:
-        pass
+        try:
+            self.cache_client.lock()
+            self.config.update_cache(self.cache_client)
+        finally:
+            self.cache_client.unlock()
 
     @staticmethod
     @abstractmethod
