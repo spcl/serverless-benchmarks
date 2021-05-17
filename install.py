@@ -26,7 +26,7 @@ env_dir="sebs-virtualenv"
 if not os.path.exists(env_dir):
     print("Creating Python virtualenv at {}".format(env_dir))
     execute("python3 -mvenv {}".format(env_dir))
-    execute(". {}/bin/activate && pip install --upgrade pip")
+    execute(". {}/bin/activate && pip install --upgrade pip".format(env_dir))
 else:
     print("Using existing Python virtualenv at {}".format(env_dir))
 
@@ -36,8 +36,6 @@ execute(". {}/bin/activate && pip3 install -r requirements.txt".format(env_dir))
 if args.aws:
     print("Install Python dependencies for AWS")
     execute(". {}/bin/activate && pip3 install -r requirements.aws.txt".format(env_dir))
-    print("Configure mypy extensions for boto3")
-    execute(". {}/bin/activate && mypy_boto3".format(env_dir))
 
 if args.azure:
     print("Install Python dependencies for Azure")
