@@ -91,16 +91,17 @@ class OpenWhisk(System):
                 directory: {'bind': '/nodejsAction'}
             }
         else:
-            build_command = 'cd tmp && virtualenv virtualenv && source virtualenv/bin/activate && ' \
+            build_command = 'cd /tmp && virtualenv virtualenv && source virtualenv/bin/activate && ' \
                             'pip install -r requirements.txt'
             volumes = {
                 directory: {'bind': '/tmp'}
             }
 
-        command = 'bash -c "{}"'.format(build_command)
+        command = '-c "{}"'.format(build_command)
 
         self.docker_client.containers.run(
             builder_image,
+            entrypoint="bash",
             command=command,
             volumes=volumes,
             remove=True,

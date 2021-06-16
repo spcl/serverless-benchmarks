@@ -36,6 +36,8 @@ class Minio(PersistentStorage):
             self.storage_container = self.docker_client.containers.get("minio")
             logging.info("Minio container already exists")
             envs = self.storage_container.attrs["Config"]["Env"]
+            if isinstance(envs, (tuple, list)):
+                envs = dict([i.split('=', 1) for i in envs])
             self.access_key = envs['MINIO_ACCESS_KEY']
             self.secret_key = envs['MINIO_SECRET_KEY']
         except docker.errors.NotFound:
