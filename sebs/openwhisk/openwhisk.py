@@ -174,6 +174,7 @@ class OpenWhisk(System):
 
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
+            self.create_function(code_package, func_name, code_location)
             logging.info(
                 "Using cached function {fname} in {loc}".format(
                     fname=func_name, loc=code_location
