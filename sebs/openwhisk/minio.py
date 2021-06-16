@@ -82,6 +82,7 @@ class Minio(PersistentStorage):
         input_index = self.input_index
         bucket_name = "{}-{}-input".format(name, input_index)
         exist = self.connection.bucket_exists(bucket_name)
+        self.input_buckets.append(bucket_name)
         try:
             if cache:
                 self.input_index += 1
@@ -89,12 +90,10 @@ class Minio(PersistentStorage):
                     return (bucket_name, input_index)
                 else:
                     self.connection.make_bucket(bucket_name, location=self.location)
-                    self.input_buckets.append(bucket_name)
                     return (bucket_name, input_index)
             if exist:
                 return (bucket_name, input_index)
             self.connection.make_bucket(bucket_name, location=self.location)
-            self.input_buckets.append(bucket_name)
             return (bucket_name, input_index)
         except (
                 minio.error.BucketAlreadyOwnedByYou,
@@ -110,6 +109,7 @@ class Minio(PersistentStorage):
         output_index = self.output_index
         bucket_name = "{}-{}-{}".format(name, output_index, suffix)
         exist = self.connection.bucket_exists(bucket_name)
+        self.output_buckets.append(bucket_name)
         try:
             if cache:
                 self.output_index += 1
@@ -117,12 +117,10 @@ class Minio(PersistentStorage):
                     return (bucket_name, output_index)
                 else:
                     self.connection.make_bucket(bucket_name, location=self.location)
-                    self.output_buckets.append(bucket_name)
                     return (bucket_name, output_index)
             if exist:
                 return (bucket_name, output_index)
             self.connection.make_bucket(bucket_name, location=self.location)
-            self.output_buckets.append(bucket_name)
             return (bucket_name, output_index)
         except (
                 minio.error.BucketAlreadyOwnedByYou,
@@ -141,8 +139,8 @@ class Minio(PersistentStorage):
         for obj in objects:
             self.connection.fget_object(bucket_name, obj, os.path.join(filepath, obj))
 
-    def upload(self, bucket_name: str, filepath: str, key: str):
-        self.connection.put_object(bucket_name, filepath)
+    def upload(self, bucket_name: str, key: str, filepath: str):
+        self.connection.fput_object(bucket_name, key, filepath)
 
     def list_bucket(self, bucket_name: str) -> List[str]:
         buckets = []
@@ -159,5 +157,6 @@ class Minio(PersistentStorage):
         for i in range(output_number):
             self.add_output_bucket(benchmark)
 
-    def uploader_func(self, bucket_idx: int, file: str, filepath: str) -> None:
-        pass
+    def uploader_func(self, bucket_idx: int, key: str, filepath: str) -> None:
+        bucket_name = self.input_buckets[bucket_idx]
+        self.upload(bucket_name, key, filepath)
