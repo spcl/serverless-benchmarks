@@ -121,7 +121,21 @@ class AzureTestSequence(
             deployment_client.initialize()
             deployment_client.allocate_shared_resource()
             return deployment_client
-
+            
+class GCPTestSequence(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    deployment_name="gcp",
+    config={"name": "gcp", "gcp": {"region": "europe-west1"}},
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    def get_deployment(self, benchmark_name):
+        deployment_name = "gcp"
+        deployment_client = self.client.get_deployment(
+            self.config, logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+        )
+        deployment_client.initialize()
+        return deployment_client
 
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
 class TracingStreamResult(testtools.StreamResult):
@@ -158,6 +172,8 @@ def regression_suite(sebs_client: "SeBS", experiment_config: dict, providers: Se
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequence))
     if "azure" in providers:
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequence))
+    if "gcp" in providers:
+        suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequence))
     tests = []
     # mypy is confused here
     for case in suite:
