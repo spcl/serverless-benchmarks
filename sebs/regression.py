@@ -130,6 +130,9 @@ class GCPTestSequence(
 ):
     def get_deployment(self, benchmark_name):
         deployment_name = "gcp"
+        global gcp_config
+        if gcp_config != None: # if this is no true there will be a error later 
+            self.config["gcp"] = gcp_config
         deployment_client = self.client.get_deployment(
             self.config, logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
@@ -165,13 +168,17 @@ class TracingStreamResult(testtools.StreamResult):
             self.success.add(test_name)
 
 
-def regression_suite(sebs_client: "SeBS", experiment_config: dict, providers: Set[str]):
+def regression_suite(sebs_client: "SeBS", experiment_config: dict, providers: Set[str], deployment_config: dict = None):
     suite = unittest.TestSuite()
     if "aws" in providers:
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequence))
     if "azure" in providers:
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequence))
     if "gcp" in providers:
+        global gcp_config  # hack in order to pass the credidentials to the unitTest as global variable
+        gcp_config = None
+        if deployment_config != None and "gcp" in deployment_config:
+           gcp_config = deployment_config["gcp"]
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequence))
     tests = []
     for case in suite:
