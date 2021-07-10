@@ -153,20 +153,34 @@ class GCP(System):
         requirements.write("google-cloud-storage")
         requirements.close()
 
-        cur_dir = os.getcwd()
-        os.chdir(directory)
+        # rename handler function.py since in gcp it has to be caled main.py
         old_name, new_name = HANDLER[language_name]
-        shutil.move(old_name, new_name)
+        old_path = os.path.join(directory, old_name)
+        new_path = os.path.join(directory, new_name)
+        shutil.move(old_path, new_path)
 
-        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)
+        """
+            zip the whole directroy (the zip-file gets uploaded to gcp later)
+
+            Note that the function GCP.recusive_zip is slower than the use of e.g.
+            `utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)`
+            or `shutil.make_archive(benchmark_archive, direcory, directory)`
+            But both of the two alternatives need a chance of directory 
+            (shutil.make_archive does the directorychange internaly) 
+            which leads to a "race condition" when running several benchmarks
+            in parallel, since a change of the current directory is NOT Thread specfic.
+        """
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+        GCP.recursive_zip(directory, benchmark_archive)
         logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(benchmark_archive)
         mbytes = bytes_size / 1024.0 / 1024.0
         logging.info("Zip archive size {:2f} MB".format(mbytes))
-        shutil.move(new_name, old_name)
-        os.chdir(cur_dir)
+
+        # rename the main.py back to handler.py
+        shutil.move(new_path, old_path)
+
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "GCPFunction":
