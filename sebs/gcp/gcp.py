@@ -5,6 +5,7 @@ import re
 import shutil
 import time
 import math
+import zipfile
 from datetime import datetime, timezone
 from typing import cast, Dict, Optional, Tuple, List, Type
 
@@ -579,3 +580,43 @@ class GCP(System):
     # @abstractmethod
     # def download_metrics(self):
     #    pass
+    
+    """
+       Helper method for recursive_zip
+
+       :param base_directory: path to directory to be zipped
+       :param path: path to file of subdirecotry to be zipped
+       :param archive: ZipFile object
+    """
+    @staticmethod
+    def helper_zip(base_directory : str, path : str, archive : zipfile.ZipFile):
+        paths = os.listdir(path)
+        for p in paths:
+            directory = os.path.join(path, p)
+            if os.path.isdir(directory):
+                GCP.helper_zip(base_directory, directory, archive)
+            else:
+                if(directory != archive.filename): # prevent form including itself
+                    archive.write(directory, os.path.relpath(directory, base_directory))
+
+    """
+       https://gist.github.com/felixSchl/d38b455df8bf83a78d3d
+
+       Zip directory with relative paths given an absolute path
+       If the archive exists only new files are added and updated.
+       If the archive does not exist a new one is created.
+       
+       :param path: absolute path to the direcotry to be zipped
+       :param archname: path to the zip file 
+    """
+    @staticmethod
+    def recursive_zip( directory : str, archname : str):
+        archive = zipfile.ZipFile(archname, "w", zipfile.ZIP_DEFLATED, compresslevel=9)
+        if os.path.isdir(directory):
+            GCP.helper_zip(directory, directory, archive)
+        else:
+            # if the passed direcotry is acually a file we just add the file to the zip archive
+            _, name = os.path.split(directory)
+            archive.write(directory, name)
+        archive.close()
+        return True
