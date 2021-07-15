@@ -1,22 +1,42 @@
-
 # SeBS: Serverless Benchmark Suite
 
-SeBS is a diverse suite of FaaS benchmarks that allows an automatic performance analysis of commercial and open-source serverless platforms. We provide a suite of [benchmark applications](#benchmark-applications) and [experiments](#experiments), and use them to test and evaluate different components of FaaS systems. See the [installation instructions](#installation) to learn how to configure SeBS to use selected cloud services and [usage instructions](#usage) to automatically launch experiments in the cloud!
+**FaaS benchmarking suite for serverless functions with automatic build, deployment, and measurements.**
 
-SeBS provides support for automatic deployment and invocation of benchmarks on  AWS Lambda, Azure Functions, Google Cloud Functions, and a custom, Docker-based local evaluation platform. See the [modularity](#modularity) section to learn how SeBS can be extended with new platforms, benchmarks, and experiments.
+[![CircleCI](https://circleci.com/gh/spcl/serverless-benchmarks.svg?style=shield)](https://circleci.com/gh/spcl/serverless-benchmarks)
+![Release](https://img.shields.io/github/v/release/spcl/perf)
+![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
+![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/spcl/serverless-benchmarks)
 
-## Paper
+SeBS is a diverse suite of FaaS benchmarks that allows an automatic performance analysis of
+commercial and open-source serverless platforms. We provide a suite of
+[benchmark applications](#benchmark-applications) and [experiments](#experiments),
+and use them to test and evaluate different components of FaaS systems.
+See the [installation instructions](#installation) to learn how to configure SeBS to use selected
+cloud services and [usage instructions](#usage) to automatically launch experiments in the cloud!
 
-Our benchmarking paper provides a detailed overview of the benchmark suite, and the experiments we conducted. When using SeBS, please [cite our paper](https://arxiv.org/abs/2012.14132).
+SeBS provides support for automatic deployment and invocation of benchmarks on
+AWS Lambda, Azure Functions, Google Cloud Functions, and a custom, Docker-based local
+evaluation platform. See the [modularity](#modularity) section to learn how SeBS can
+be extended with new platforms, benchmarks, and experiments.
+The documentation describes in detail [the design and implementation of our
+tool](docs/design.md).
+
+SeBS can be used with our Docker image `spcleth/serverless-benchmarks:latest`, or the tool
+can be [installed locally](#installation).
+
+When using SeBS, please cite our Middleware '21 paper (link coming soon!).
+An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.15592), and you can
+find more details about research work [in this paper summary](mcopik.github.io/projects/sebs/).
 
 ```
 @misc{copik2020sebs,	
-      title={SeBS: A Serverless Benchmark Suite for Function-as-a-Service Computing}, 
-      author={Marcin Copik and Grzegorz Kwasniewski and Maciej Besta and Michal Podstawski and Torsten Hoefler},
-      year={2020},
-      eprint={2012.14132},
-      archivePrefix={arXiv},
-      primaryClass={cs.DC}
+  title={SeBS: A Serverless Benchmark Suite for Function-as-a-Service Computing}, 
+  author={Marcin Copik and Grzegorz Kwasniewski and Maciej Besta and Michal Podstawski and Torsten Hoefler},
+  year={2020},
+  eprint={2012.14132},
+  archivePrefix={arXiv},
+  primaryClass={cs.DC}
 }
 ```
 
@@ -289,3 +309,7 @@ Implement the interfaces in `sebs/faas/*.py`, and add the new platform to the CL
 ### How to add a new experiment?
 
 Implement the interface in `sebs/experiment/experiment.py` and new experiment type to the CLI initialization in `sebs.py` and `sebs/sebs.py`.
+
+## Authors
+
+* [Marcin Copik]
