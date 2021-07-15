@@ -5,6 +5,7 @@ import os
 import subprocess
 
 parser = argparse.ArgumentParser(description="Install SeBS and dependencies.")
+parser.add_argument('--venv', metavar='DIR', type=str, default="python-venv", help='destination of local Python virtual environment')
 for deployment in ["aws", "azure", "gcp", "local"]:
     parser.add_argument(f"--{deployment}", action="store_const", const=True, default=True, dest=deployment)
     parser.add_argument(f"--no-{deployment}", action="store_const", const=False, dest=deployment)
@@ -21,7 +22,7 @@ def execute(cmd):
         )
     return ret.stdout.decode("utf-8")
 
-env_dir="sebs-virtualenv"
+env_dir=args.venv
 
 if not os.path.exists(env_dir):
     print("Creating Python virtualenv at {}".format(env_dir))
@@ -63,3 +64,4 @@ if args.with_pypapi:
     execute("python3 setup.py build")
     execute("python3 pypapi/papi_build.py")
     os.chdir(cur_dir)
+
