@@ -26,7 +26,7 @@ def build(image_type, system, username, language=None,version=None, version_name
         msg += ' with version *' + version + '*'
     print(msg)
     dockerfile = os.path.join(PROJECT_DIR, 'docker', 'Dockerfile.{}.{}'.format(image_type, system))
-    target = 'mcopik/serverless-benchmarks:{}.{}'.format(image_type, system)
+    target = f'{config["general"]["docker_repository"]}:{image_type}.{system}'
     if language:
         dockerfile += '.' + language
         target += '.' + language
@@ -66,7 +66,10 @@ def build_language(system, language, language_config):
 def build_systems(system, system_config):
 
     if args.type == 'manage':
-        build(args.type, system, system_config['images']['manage']['username'])
+        if 'images' in system_config:
+            build(args.type, system, system_config['images']['manage']['username'])
+        else:
+            print(f'Skipping manage image for {system}')
     else:
         if args.language:
             build_language(system, args.language, system_config['languages'][args.language])

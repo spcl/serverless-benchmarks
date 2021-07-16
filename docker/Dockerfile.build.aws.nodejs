@@ -3,7 +3,7 @@ FROM ${BASE_IMAGE}
 ARG USER
 ENV HOME=/home/${USER}
 
-RUN useradd --uid 1000 ${USER}
+RUN useradd ${USER}
 WORKDIR ${HOME}
 RUN mkdir -p /mnt/function && chown -R ${USER}:${USER} /mnt/function
 USER ${USER}:${USER}

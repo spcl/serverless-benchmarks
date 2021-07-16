@@ -1,6 +1,6 @@
 {
   "general": {
-    "docker_repository": "mcopik/serverless-benchmarks"
+    "docker_repository": "spcleth/serverless-benchmarks"
   },
   "local" : {
     "experiments": {

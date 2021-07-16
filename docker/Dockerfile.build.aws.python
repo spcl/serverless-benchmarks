@@ -5,7 +5,7 @@ ARG VERSION
 ENV HOME=/home/${USER}
 ENV PYTHON_VERSION=${VERSION}
 
-RUN useradd --uid 1000 ${USER}
+RUN useradd ${USER}
 WORKDIR ${HOME}
 RUN mkdir -p /mnt/function && chown -R ${USER}:${USER} /mnt/function
 USER ${USER}:${USER}
