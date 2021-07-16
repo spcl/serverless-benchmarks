@@ -31,7 +31,13 @@
       "code_begin": 1048576,
       "code_end": 261619712,
       "code_points": 20
-    }
+    },
+    "eviction-model": {
+      "invocations": 1,
+      "function_copy_idx": 0,
+      "repetitions": 5,
+      "sleep": 1
+    },
   },
   "deployment": {
     "name": "aws",
