@@ -1,6 +1,9 @@
 
 ## Modularity
 
+In this document, we explain how to extends SeBS with new benchmarks and experiments,
+and how to support new commercial and open-source FaaS platforms.
+
 ### How to add new benchmarks?
 
 Benchmarks follow the naming structure `x.y.z` where x is benchmark group, y is benchmark
@@ -50,8 +53,15 @@ Configure dependencies in `requirements.txt` and `package.json`. By default, onl
 
 ### How to add a new serverless platform?
 
-Implement the interfaces in `sebs/faas/*.py`, and add the new platform to the CLI initialization in `sebs.py` and `sebs/sebs.py`.
+First, implement the interfaces in `sebs/faas/*.py` - details can be found in the
+[design documentation](design.md).
+Then, add the new platform to the CLI initialization in
+[`sebs.py`](https://github.com/spcl/serverless-benchmarks/blob/master/sebs.py#L89)
+and
+[`sebs/sebs.py`](https://github.com/spcl/serverless-benchmarks/blob/master/sebs/sebs.py#L82).
 
 ### How to add a new experiment?
 
-Implement the interface in `sebs/experiment/experiment.py` and new experiment type to the CLI initialization in `sebs.py` and `sebs/sebs.py`.
+Implement the interface in `sebs/experiment/experiment.py` and
+add the new experiment type to the CLI initialization in
+[`sebs/sebs.py`](https://github.com/spcl/serverless-benchmarks/blob/master/sebs/sebs.py#L108).

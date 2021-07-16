@@ -100,15 +100,18 @@ and `--update-storage`, respectively.
 
 ### Benchmark
 
-This command is used to build, deploy, and execute serverless benchmark in cloud. The example below runs the benchmark `110.dynamic-html` on AWS:
+This command is used to build, deploy, and execute serverless benchmark in cloud.
+The example below invokes the benchmark `110.dynamic-html` on AWS via the standard HTTP trigger.
 
 ```
 ./sebs.py benchmark invoke 110.dynamic-html test --config config/example.json --deployment aws --verbose
 ```
 
-To configure your benchmark, change settings in the config file or use commandline options. The full list is available by running `./sebs.py benchmark invoke --help`.
+To configure your benchmark, change settings in the config file or use command-line options.
+The full list is available by running `./sebs.py benchmark invoke --help`.
 
-Additionally, we provide a regression option to execute all benchmarks on a given platform. The example below demonstrates how to run the regression suite with `test` input size on AWS.
+Additionally, we provide a regression option to execute all benchmarks on a given platform.
+The example below demonstrates how to run the regression suite with `test` input size on AWS.
 
 ```
 ./sebs.py benchmark regression test --config config/example.json --deployment aws
