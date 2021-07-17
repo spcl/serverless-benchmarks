@@ -165,7 +165,10 @@ class Azure(System):
         return directory, code_size
 
     def publish_function(
-        self, function: Function, code_package: Benchmark, repeat_on_failure: bool = False,
+        self,
+        function: Function,
+        code_package: Benchmark,
+        repeat_on_failure: bool = False,
     ) -> str:
         success = False
         url = ""
@@ -238,11 +241,13 @@ class Azure(System):
 
     def default_function_name(self, code_package: Benchmark) -> str:
         """
-            Functionapp names must be globally unique in Azure.
+        Functionapp names must be globally unique in Azure.
         """
         func_name = (
             "{}-{}-{}".format(
-                code_package.benchmark, code_package.language_name, self.config.resources_id,
+                code_package.benchmark,
+                code_package.language_name,
+                self.config.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")
@@ -395,7 +400,12 @@ class Azure(System):
                 'az monitor app-insights query --app {} --analytics-query "{}" '
                 "--start-time {} {} --end-time {} {}"
             ).format(
-                application_id, query, start_time_str, timezone_str, end_time_str, timezone_str,
+                application_id,
+                query,
+                start_time_str,
+                timezone_str,
+                end_time_str,
+                timezone_str,
             )
         ).decode("utf-8")
         ret = json.loads(ret)

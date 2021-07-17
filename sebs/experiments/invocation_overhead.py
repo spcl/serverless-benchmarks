@@ -49,7 +49,9 @@ class PayloadSize:
         from numpy import linspace
 
         points = linspace(
-            settings["payload_begin"], settings["payload_end"], settings["payload_points"],
+            settings["payload_begin"],
+            settings["payload_end"],
+            settings["payload_points"],
         )
         self.pts = [int(pt) for pt in points]
 
@@ -161,7 +163,11 @@ class InvocationOverhead(Experiment):
         self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
 
     def process(
-        self, sebs_client: "SeBS", deployment_client, directory: str, logging_filename: str,
+        self,
+        sebs_client: "SeBS",
+        deployment_client,
+        directory: str,
+        logging_filename: str,
     ):
         import pandas as pd
         import glob
@@ -192,7 +198,10 @@ class InvocationOverhead(Experiment):
         ) as csvfile:
             with open(
                 os.path.join(
-                    directory, "invocation-overhead", self.settings["type"], "result-processed.csv",
+                    directory,
+                    "invocation-overhead",
+                    self.settings["type"],
+                    "result-processed.csv",
                 ),
                 "w",
             ) as csvfile2:

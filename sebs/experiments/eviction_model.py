@@ -242,7 +242,7 @@ class EvictionModel(Experiment):
         with multiprocessing.Pool(processes=(invocations + threads)) as pool:
             for i in range(0, repetitions):
                 """
-                    Attempt to kill all existing containers.
+                Attempt to kill all existing containers.
                 """
                 # for func in functions:
                 #    self._deployment_client.enforce_cold_start(func)

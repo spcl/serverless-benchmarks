@@ -57,7 +57,9 @@ class AzureCLI:
     def login(self, appId: str, tenant: str, password: str):
         self.execute(
             "az login -u {0} --service-principal --tenant {1} -p {2}".format(
-                appId, tenant, password,
+                appId,
+                tenant,
+                password,
             )
         )
         logging.info("Azure login succesful")

@@ -24,7 +24,10 @@ from .config import Config
 
 class System(ABC, LoggingBase):
     def __init__(
-        self, system_config: SeBSConfig, cache_client: Cache, docker_client: docker.client,
+        self,
+        system_config: SeBSConfig,
+        cache_client: Cache,
+        docker_client: docker.client,
     ):
         super().__init__()
         self._system_config = system_config

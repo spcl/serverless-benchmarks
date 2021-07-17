@@ -86,7 +86,10 @@ class GCP(System):
     """
 
     def get_storage(
-        self, replace_existing: bool = False, benchmark=None, buckets=None,
+        self,
+        replace_existing: bool = False,
+        benchmark=None,
+        buckets=None,
     ) -> PersistentStorage:
         if not self.storage:
             self.storage = GCPStorage(self.cache_client, replace_existing)

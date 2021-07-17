@@ -50,10 +50,10 @@ class Minio(PersistentStorage):
             self.configure_connection()
         except docker.errors.APIError as e:
             self.logging.error("Starting Minio storage failed! Reason: {}".format(e))
-            raise RuntimeError(f"Starting Minio storage unsuccesful")
+            raise RuntimeError("Starting Minio storage unsuccesful")
         except Exception as e:
             self.logging.error("Starting Minio storage failed! Unknown error: {}".format(e))
-            raise RuntimeError(f"Starting Minio storage unsuccesful")
+            raise RuntimeError("Starting Minio storage unsuccesful")
 
     def configure_connection(self):
         # who knows why? otherwise attributes are not loaded

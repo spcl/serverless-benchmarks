@@ -207,7 +207,7 @@ class Trigger(ABC, LoggingBase):
                 self.logging.error("Output: {}".format(output))
                 raise RuntimeError(f"Failed invocation of function! Output: {output}")
 
-            self.logging.debug(f"Invoke of function was successful")
+            self.logging.debug("Invoke of function was successful")
             result = ExecutionResult.from_times(begin, end)
             result.times.http_startup = conn_time
             result.times.http_first_byte_return = receive_time

@@ -135,7 +135,7 @@ class Benchmark(LoggingBase):
     @hash.setter  # noqa: A003
     def hash(self, val: str):
         """
-            Used only for testing purposes.
+        Used only for testing purposes.
         """
         self._hash_value = val
 
@@ -517,7 +517,11 @@ class Benchmark(LoggingBase):
         storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = mod.generate_input(
-            benchmark_data_path, size, storage.input, storage.output, storage.uploader_func,
+            benchmark_data_path,
+            size,
+            storage.input,
+            storage.output,
+            storage.uploader_func,
         )
         return input_config
 

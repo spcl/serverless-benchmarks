@@ -73,7 +73,8 @@ class AWS(System):
     def get_lambda_client(self):
         if not hasattr(self, "client"):
             self.client = self.session.client(
-                service_name="lambda", region_name=self.config.region,
+                service_name="lambda",
+                region_name=self.config.region,
             )
         return self.client
 
