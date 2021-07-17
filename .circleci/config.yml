@@ -4,7 +4,7 @@ orbs:
   python: circleci/python@0.2.1
 
 jobs:
-  build:
+  linting:
     executor: python/default
     steps:
       - checkout
@@ -21,7 +21,7 @@ jobs:
           name: Python code lint with flake8
       - run:
           command: |
-            . sebs-virtualenv/bin/activate
+            . python-virtualenv/bin/activate
             mypy sebs
           name: Python static code verification with mypy
       - store_artifacts:
@@ -68,5 +68,5 @@ jobs:
 workflows:
   main:
     jobs:
-      - build
+      - linting
 
