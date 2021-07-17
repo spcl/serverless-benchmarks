@@ -39,21 +39,21 @@ if args.aws:
     execute(". {}/bin/activate && pip3 install -r requirements.aws.txt".format(env_dir))
     if(os.getuid() != 1000):
         print(f"Rebuild Docker images for AWS for current user ID: {os.getuid()}")
-        execute("tools/build_docker_images.py --deployment aws")
+        execute(". {}/bin/activate && tools/build_docker_images.py --deployment aws".format(env_dir))
 
 if args.azure:
     print("Install Python dependencies for Azure")
     execute(". {}/bin/activate && pip3 install -r requirements.azure.txt".format(env_dir))
     if(os.getuid() != 1000):
         print(f"Rebuild Docker images for Azure for current user ID: {os.getuid()}")
-        execute("tools/build_docker_images.py --deployment azure")
+        execute(". {}/bin/activate && tools/build_docker_images.py --deployment azure".format(env_dir))
 
 if args.gcp:
     print("Install Python dependencies for GCP")
     execute(". {}/bin/activate && pip3 install -r requirements.gcp.txt".format(env_dir))
     if(os.getuid() != 1000):
         print(f"Rebuild Docker images for GCP for current user ID: {os.getuid()}")
-        execute("tools/build_docker_images.py --deployment gcp")
+        execute(". {}/bin/activate && tools/build_docker_images.py --deployment gcp".format(env_dir))
 
 if args.local:
     print("Install Python dependencies for local")
