@@ -34,7 +34,7 @@ class Minio(PersistentStorage):
         self.logging.info("Minio storage SECRET_KEY={}".format(self._secret_key))
         try:
             self._storage_container = self._docker_client.containers.run(
-                "minio/minio",
+                "minio/minio:latest",
                 command="server /data",
                 # ports={str(self._port): self._port},
                 network_mode="bridge",

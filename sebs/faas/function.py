@@ -231,7 +231,7 @@ class Trigger(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def async_invoke(self, payload: dict) -> concurrent.futures.Future[ExecutionResult]:
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         pass
 
     @abstractmethod
