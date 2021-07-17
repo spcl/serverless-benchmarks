@@ -168,9 +168,16 @@ class ExecutionResult:
 
 class Trigger(ABC, LoggingBase):
     class TriggerType(Enum):
-        HTTP = 0
-        LIBRARY = 1
-        STORAGE = 2
+        HTTP = "http"
+        LIBRARY = "library"
+        STORAGE = "storage"
+
+        @staticmethod
+        def get(name: str) -> "Trigger.TriggerType":
+            for member in Trigger.TriggerType:
+                if member.value.lower() == name.lower():
+                    return member
+            raise Exception("Unknown trigger type {}".format(member))
 
     def _http_invoke(self, payload: dict, url: str) -> ExecutionResult:
         import pycurl

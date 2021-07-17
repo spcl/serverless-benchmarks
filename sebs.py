@@ -164,13 +164,19 @@ def benchmark():
     "--repetitions", default=5, type=int, help="Number of experimental repetitions."
 )
 @click.option(
+    "--trigger",
+    type=click.Choice(["library", "http"]),
+    default="http",
+    help="Function trigger to be used."
+)
+@click.option(
     "--function-name",
     default=None,
     type=str,
     help="Override function name for random generation.",
 )
 @common_params
-def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs):
+def invoke(benchmark, benchmark_input_size, repetitions, trigger, function_name, **kwargs):
 
     (
         config,
@@ -200,11 +206,12 @@ def invoke(benchmark, benchmark_input_size, repetitions, function_name, **kwargs
         experiment_config, deployment_client.config
     )
     result.begin()
-    # FIXME: trigger type
-    triggers = func.triggers(Trigger.TriggerType.HTTP)
+
+    trigger_type = Trigger.TriggerType.get(trigger)
+    triggers = func.triggers(trigger_type)
     if len(triggers) == 0:
         trigger = deployment_client.create_trigger(
-            func, Trigger.TriggerType.HTTP
+            func, trigger_type
         )
     else:
         trigger = triggers[0]

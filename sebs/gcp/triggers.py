@@ -59,15 +59,15 @@ class LibraryTrigger(Trigger):
         end = datetime.datetime.now()
 
         gcp_result = ExecutionResult.from_times(begin, end)
-        print("RES: ", res)
+        gcp_result.request_id = res["executionId"]
         if "error" in res.keys() and res["error"] != "":
             self.logging.error("Invocation of {} failed!".format(self.name))
             self.logging.error("Input: {}".format(payload))
             gcp_result.stats.failure = True
             return gcp_result
 
-        print("Result", res["result"])
-        gcp_result.parse_benchmark_output(res["result"])
+        output = json.loads(res["result"])
+        gcp_result.parse_benchmark_output(output)
         return gcp_result
 
     def async_invoke(self, payload: dict):
