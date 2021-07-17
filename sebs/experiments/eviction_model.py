@@ -179,9 +179,6 @@ class EvictionModel(Experiment):
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
 
-        from sebs import Benchmark
-        from sebs import SeBS
-
         self._benchmark = sebs_client.get_benchmark(
             "040.server-reply", deployment_client, self.config
         )
@@ -216,11 +213,10 @@ class EvictionModel(Experiment):
 
         ip = get("http://checkip.amazonaws.com/").text.rstrip()
 
-        """
-            
-        """
-        function_names = self.functions_names[invocation_idx :: self.function_copies_per_time]
-        functions = self.functions[invocation_idx :: self.function_copies_per_time]
+        # function_names = self.functions_names[invocation_idx :: self.function_copies_per_time]
+        # flake8 issue
+        # https://github.com/PyCQA/pycodestyle/issues/373
+        functions = self.functions[invocation_idx :: self.function_copies_per_time]  # noqa
         results = {}
 
         # Disable logging - otherwise we have RLock that can't get be pickled
@@ -238,8 +234,8 @@ class EvictionModel(Experiment):
 
         """
             Allocate one process for each invocation => process N invocations in parallel.
-            Each process uses M threads to execute in parallel invocations with a different time sleep
-            between executions.
+            Each process uses M threads to execute in parallel invocations,
+            with a different time sleep between executions.
 
             The result: repeated N invocations for M different imes.
         """

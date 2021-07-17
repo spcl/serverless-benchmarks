@@ -28,6 +28,7 @@ def ci_le_boudec(alpha: float, times: List[float]) -> Tuple[float, float]:
 
     # z(alfa/2)
     z_value = {0.95: 1.96, 0.99: 2.576}.get(alpha)
+    assert z_value
 
     low_pos = math.floor((n - z_value * math.sqrt(n)) / 2)
     high_pos = math.ceil(1 + (n + z_value * math.sqrt(n)) / 2)

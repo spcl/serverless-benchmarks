@@ -42,14 +42,6 @@ class AWS(System):
     def config(self) -> AWSConfig:
         return self._config
 
-    @property
-    def cold_start_counter(self) -> int:
-        return self._cold_start_counter
-
-    @cold_start_counter.setter
-    def cold_start_counter(self, val: int):
-        self._cold_start_counter = val
-
     """
         :param cache_client: Function cache instance
         :param config: Experiments config
@@ -68,7 +60,6 @@ class AWS(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self.storage: Optional[S3] = None
-        self._cold_start_counter = 0
 
     def initialize(self, config: Dict[str, str] = {}):
         # thread-safe

@@ -1,5 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
+from random import randrange
 from typing import Dict, List, Optional, Tuple, Type
 
 import docker
@@ -29,6 +30,7 @@ class System(ABC, LoggingBase):
         self._system_config = system_config
         self._docker_client = docker_client
         self._cache_client = cache_client
+        self._cold_start_counter = randrange(100)
 
     @property
     def system_config(self) -> SeBSConfig:
@@ -41,6 +43,14 @@ class System(ABC, LoggingBase):
     @property
     def cache_client(self) -> Cache:
         return self._cache_client
+
+    @property
+    def cold_start_counter(self) -> int:
+        return self._cold_start_counter
+
+    @cold_start_counter.setter
+    def cold_start_counter(self, val: int):
+        self._cold_start_counter = val
 
     @property
     @abstractmethod

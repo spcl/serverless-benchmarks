@@ -5,6 +5,7 @@ import re
 import shutil
 import time
 import math
+from random import randrange
 from datetime import datetime, timezone
 from typing import cast, Dict, Optional, Tuple, List, Type
 
@@ -45,9 +46,6 @@ class GCP(System):
         self._config = config
         self.storage: Optional[GCPStorage] = None
         self.logging_handlers = logging_handlers
-        from random import randrange
-
-        self.cold_start_counter = randrange(100)
 
     @property
     def config(self) -> GCPConfig:

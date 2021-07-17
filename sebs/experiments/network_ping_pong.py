@@ -1,11 +1,21 @@
+import csv
+import socket
 import os
+import time
+import glob
+import pandas as pd
 from datetime import datetime
 from itertools import repeat
+from typing import TYPE_CHECKING
 from multiprocessing.dummy import Pool as ThreadPool
 
 from sebs.faas.system import System as FaaSSystem
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
+
+# import cycle
+if TYPE_CHECKING:
+    from sebs import SeBS
 
 
 class NetworkPingPong(Experiment):
@@ -37,22 +47,16 @@ class NetworkPingPong(Experiment):
 
         pool = ThreadPool(threads)
         ports = range(12000, 12000 + invocations)
-        ret = pool.starmap(
+        pool.starmap(
             self.receive_datagrams,
             zip(repeat(repetitions, invocations), ports, repeat(ip, invocations)),
         )
-        # requests = []
-        # for val in ret:
-        #    print(val)
-        import time
 
+        # give functions time to finish and upload result
         time.sleep(5)
         self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
 
     def process(self, directory: str):
-
-        import glob
-        import pandas as pd
 
         full_data = {}
         for f in glob.glob(os.path.join(directory, "network-ping-pong", "*.csv")):
@@ -80,8 +84,6 @@ class NetworkPingPong(Experiment):
         fig.savefig(os.path.join(directory, "histogram.png"))
 
     def receive_datagrams(self, repetitions: int, port: int, ip: str):
-
-        import csv, socket
 
         print(f"Starting invocation with {repetitions} repetitions on port {port}")
         socket.setdefaulttimeout(2)

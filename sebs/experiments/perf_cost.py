@@ -51,7 +51,7 @@ class PerfCost(Experiment):
         )
         self._function = deployment_client.get_function(self._benchmark)
         # prepare benchmark input
-        self._storage = deployment_client.get_storage()
+        self._storage = deployment_client.get_storage(replace_existing=settings.update_storage)
         self._benchmark_input = self._benchmark.prepare_input(
             storage=self._storage, size=settings["input-size"]
         )
@@ -156,9 +156,7 @@ class PerfCost(Experiment):
                 while samples_gathered < repetitions:
 
                     if run_type == PerfCost.RunType.COLD or run_type == PerfCost.RunType.BURST:
-                        self._deployment_client.enforce_cold_start(
-                            [self._function], self._benchmark
-                        )
+                        self._deployment_client.enforce_cold_start([self._function])
 
                     time.sleep(5)
 

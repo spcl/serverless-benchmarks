@@ -54,7 +54,6 @@ class Azure(System):
         super().__init__(sebs_config, cache_client, docker_client)
         self.logging_handlers = logger_handlers
         self._config = config
-        self.cold_start_counter = 0
 
     """
         Start the Docker container running Azure CLI tools.

@@ -34,14 +34,20 @@ class LibraryTrigger(Trigger):
 
         self.logging.info(f"Invoke function {self.name}")
 
+        # Verify that the function is deployed
         deployed = False
         while not deployed:
-            status_res = status_req.execute()
-            if self.deployment_client.is_deployed(self.fname):
+            if self.deployment_client.is_deployed(self.name):
                 deployed = True
             else:
                 time.sleep(5)
 
+        # GCP's fixed style for a function name
+        config = self.deployment_client.config
+        full_func_name = (
+            f"projects/{config.project_name}/locations/" f"{config.region}/functions/{self.name}"
+        )
+        function_client = self.deployment_client.get_function_client()
         req = (
             function_client.projects()
             .locations()
@@ -65,9 +71,7 @@ class LibraryTrigger(Trigger):
         return gcp_result
 
     def async_invoke(self, payload: dict):
-
-        # FIXME: send on a seperate thread?
-        return None
+        raise NotImplementedError()
 
     def serialize(self) -> dict:
         return {"type": "Library", "name": self.name}

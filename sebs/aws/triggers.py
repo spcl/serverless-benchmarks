@@ -40,10 +40,6 @@ class LibraryTrigger(Trigger):
         ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
         end = datetime.datetime.now()
 
-        import math
-
-        start_time = math.floor(datetime.datetime.timestamp(begin)) - 1
-        end_time = math.ceil(datetime.datetime.timestamp(end)) + 1
         aws_result = ExecutionResult.from_times(begin, end)
         if ret["StatusCode"] != 200:
             self.logging.error("Invocation of {} failed!".format(self.name))
