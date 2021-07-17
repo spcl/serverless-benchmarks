@@ -38,7 +38,7 @@ class storage:
         self.client.fget_object(bucket, file, filepath)
 
     def download_directory(self, bucket, prefix, path):
-        objects = self.client.list_objects_v2(bucket, prefix, recursive=True)
+        objects = self.client.list_objects(bucket, prefix, recursive=True)
         for obj in objects:
             file_name = obj.object_name
             self.download(bucket, file_name, os.path.join(path, file_name))

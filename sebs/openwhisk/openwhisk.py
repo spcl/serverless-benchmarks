@@ -91,16 +91,17 @@ class OpenWhisk(System):
                 directory: {'bind': '/nodejsAction'}
             }
         else:
-            build_command = 'cd tmp && virtualenv virtualenv && source virtualenv/bin/activate && ' \
+            build_command = 'cd /tmp && virtualenv virtualenv && source virtualenv/bin/activate && ' \
                             'pip install -r requirements.txt'
             volumes = {
                 directory: {'bind': '/tmp'}
             }
 
-        command = 'bash -c "{}"'.format(build_command)
+        command = '-c "{}"'.format(build_command)
 
         self.docker_client.containers.run(
             builder_image,
+            entrypoint="bash",
             command=command,
             volumes=volumes,
             remove=True,
@@ -173,6 +174,7 @@ class OpenWhisk(System):
 
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config["name"]
+            self.create_function(code_package, func_name, code_location)
             logging.info(
                 "Using cached function {fname} in {loc}".format(
                     fname=func_name, loc=code_location
