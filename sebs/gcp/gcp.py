@@ -5,7 +5,6 @@ import re
 import shutil
 import time
 import math
-from random import randrange
 from datetime import datetime, timezone
 from typing import cast, Dict, Optional, Tuple, List, Type
 
@@ -250,7 +249,7 @@ class GCP(System):
                     body={
                         "policy": {
                             "bindings": [
-                                {"role": "roles/cloudfunctions.invoker", "members": "allUsers",}
+                                {"role": "roles/cloudfunctions.invoker", "members": "allUsers"}
                             ]
                         }
                     },
@@ -265,7 +264,7 @@ class GCP(System):
             )
 
         # Add LibraryTrigger to a new function
-        from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger
+        from sebs.gcp.triggers import LibraryTrigger
 
         trigger = LibraryTrigger(func_name, self)
         trigger.logging_handlers = self.logging_handlers
@@ -378,8 +377,8 @@ class GCP(System):
                     yield next(gen)
                 except StopIteration:
                     break
-                except exceptions.ResourceExhausted as e:
-                    print("Exhausted")
+                except exceptions.ResourceExhausted:
+                    print("Google Cloud resources exhausted, sleeping 30s")
                     sleep(30)
 
         """

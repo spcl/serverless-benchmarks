@@ -178,8 +178,8 @@ class Minio(PersistentStorage):
             obj._url = cached_config["address"]
             obj._access_key = cached_config["access_key"]
             obj._secret_key = cached_config["secret_key"]
-            obj._input_buckets = cached_config["input"]
-            obj._output_buckets = cached_config["output"]
+            obj.input_buckets = cached_config["input"]
+            obj.output_buckets = cached_config["output"]
             return obj
         except docker.errors.NotFound:
             raise RuntimeError(f"Cached container {instance_id} not available anymore!")

@@ -160,7 +160,9 @@ class Benchmark(LoggingBase):
         if not self._benchmark_path:
             raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
         with open(os.path.join(self.benchmark_path, "config.json")) as json_file:
-            self._benchmark_config = BenchmarkConfig.deserialize(json.load(json_file))
+            self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
+                json.load(json_file)
+            )
         if self.language not in self.benchmark_config.languages:
             raise RuntimeError(
                 "Benchmark {} not available for language {}".format(self.benchmark, self.language)
@@ -520,6 +522,11 @@ class Benchmark(LoggingBase):
         )
         return input_config
 
+    """
+        This is used in experiments that modify the size of input package.
+        This step allows to modify code package without going through the entire pipeline.
+    """
+
     def code_package_modify(self, filename: str, data: io.BytesIO):
 
         if self.code_package_is_archive():
@@ -569,7 +576,7 @@ class Benchmark(LoggingBase):
 
         # now add filename with its new data
         with zipfile.ZipFile(zipname, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr(filename, data)
+            zf.writestr(filename, data.getvalue())
 
 
 """
