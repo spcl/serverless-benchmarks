@@ -6,10 +6,11 @@ import glob
 import pandas as pd
 from datetime import datetime
 from itertools import repeat
-from typing import TYPE_CHECKING
+from typing import Dict, TYPE_CHECKING
 from multiprocessing.dummy import Pool as ThreadPool
 
 from sebs.faas.system import System as FaaSSystem
+from sebs.faas.function import Trigger
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
 
@@ -35,6 +36,10 @@ class NetworkPingPong(Experiment):
             # shutil.rmtree(self._out_dir)
             os.mkdir(self._out_dir)
 
+        triggers = self._function.triggers(Trigger.TriggerType.HTTP)
+        if len(triggers) == 0:
+            deployment_client.create_trigger(self._function, Trigger.TriggerType.HTTP)
+
     def run(self):
 
         from requests import get
@@ -58,7 +63,7 @@ class NetworkPingPong(Experiment):
 
     def process(self, directory: str):
 
-        full_data = {}
+        full_data: Dict[str, pd.Dataframe] = {}
         for f in glob.glob(os.path.join(directory, "network-ping-pong", "*.csv")):
 
             request_id = os.path.basename(f).split("-", 1)[1].split(".")[0]
@@ -96,7 +101,7 @@ class NetworkPingPong(Experiment):
             "repetitions": repetitions,
             **self.benchmark_input,
         }
-        self._function.triggers[0].async_invoke(input_benchmark)
+        self._function.triggers(Trigger.TriggerType.HTTP)[0].async_invoke(input_benchmark)
 
         begin = datetime.now()
         times = []

@@ -1,6 +1,5 @@
 import glob
 import hashlib
-import io
 import json
 import os
 import shutil
@@ -527,7 +526,7 @@ class Benchmark(LoggingBase):
         This step allows to modify code package without going through the entire pipeline.
     """
 
-    def code_package_modify(self, filename: str, data: io.BytesIO):
+    def code_package_modify(self, filename: str, data: bytes):
 
         if self.code_package_is_archive():
             self._update_zip(self.code_location, filename, data)
@@ -554,7 +553,7 @@ class Benchmark(LoggingBase):
 
     #  https://stackoverflow.com/questions/25738523/how-to-update-one-file-inside-zip-file-using-python
     @staticmethod
-    def _update_zip(zipname: str, filename: str, data: io.BytesIO):
+    def _update_zip(zipname: str, filename: str, data: bytes):
         import zipfile
         import tempfile
 
@@ -576,7 +575,7 @@ class Benchmark(LoggingBase):
 
         # now add filename with its new data
         with zipfile.ZipFile(zipname, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr(filename, data.getvalue())
+            zf.writestr(filename, data)
 
 
 """

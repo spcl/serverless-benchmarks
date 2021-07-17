@@ -1,6 +1,7 @@
 import json
 from abc import ABC
 from abc import abstractmethod
+import concurrent.futures
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional  # noqa
@@ -230,7 +231,7 @@ class Trigger(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def async_invoke(self, payload: dict) -> ExecutionResult:
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future[ExecutionResult]:
         pass
 
     @abstractmethod

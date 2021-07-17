@@ -498,7 +498,7 @@ class GCP(System):
 
         return new_version
 
-    def enforce_cold_start(self, functions: List[Function]):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
 
         new_versions = []
         for func in functions:

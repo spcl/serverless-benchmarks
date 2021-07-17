@@ -2,9 +2,9 @@ import logging
 import os
 import time
 from datetime import datetime
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 import multiprocessing
-from multiprocessing.pool import ThreadPool
+from multiprocessing.pool import AsyncResult, ThreadPool
 
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.function import Function, Trigger
@@ -67,15 +67,14 @@ class EvictionModel(Experiment):
 
             print(f"Listen on {port} and wait for {invocations}", file=f)
             # First repetition
-            connections = []
+            connections: List[Tuple[socket.socket, str]] = []
             # wait for functions to connect
             while len(connections) < invocations:
                 c, addr = s.accept()
                 print(f"Accept connection from {addr}", file=f)
                 connections.append((c, addr))
 
-            for c in connections:
-                connection, addr = c
+            for connection, addr in connections:
                 print(f"Send message to {addr}", file=f)
                 connection.send(b"accepted")
                 connection.close()
@@ -88,8 +87,7 @@ class EvictionModel(Experiment):
                 print(f"Accept connection from {addr}", file=f)
                 connections.append((c, addr))
 
-            for c in connections:
-                connection, addr = c
+            for connection, addr in connections:
                 print(f"Send message to {addr}", file=f)
                 connection.send(b"accepted")
                 connection.close()
@@ -133,6 +131,7 @@ class EvictionModel(Experiment):
             "invocation": pid,
         }
 
+    @staticmethod
     def process_function(
         repetition: int,
         pid: int,
@@ -143,12 +142,11 @@ class EvictionModel(Experiment):
     ):
         b = multiprocessing.Semaphore(invocations)
         print(f"Begin at PID {pid}, repetition {repetition}")
-        results = []
 
         threads = len(functions)
-        final_results = []
+        final_results: List[dict] = []
         with ThreadPool(threads) as pool:
-            results = [None] * threads
+            results: List[Optional[AsyncResult]] = [None] * threads
             """
                 Invoke multiple functions with different sleep times.
                 Start with the largest sleep time to overlap executions; total
@@ -166,6 +164,7 @@ class EvictionModel(Experiment):
             failed = False
             for result in results:
                 try:
+                    assert result
                     res = result.get()
                     res["repetition"] = repetition
                     final_results.append(res)

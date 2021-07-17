@@ -1,3 +1,4 @@
+import concurrent.futures
 import docker
 import json
 
@@ -21,9 +22,7 @@ class HTTPTrigger(Trigger):
         self.logging.debug(f"Invoke function {self.url}")
         return self._http_invoke(payload, self.url)
 
-    def async_invoke(self, payload: dict) -> ExecutionResult:
-        import concurrent.futures
-
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future[ExecutionResult]:
         pool = concurrent.futures.ThreadPoolExecutor()
         fut = pool.submit(self.sync_invoke, payload)
         return fut

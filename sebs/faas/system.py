@@ -204,7 +204,7 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def enforce_cold_start(self, functions: List[Function]):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         pass
 
     @abstractmethod

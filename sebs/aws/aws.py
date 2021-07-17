@@ -485,7 +485,7 @@ class AWS(System):
             Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
 
-    def enforce_cold_start(self, functions: List[Function]):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         self.cold_start_counter += 1
         for func in functions:
             self._enforce_cold_start(func)

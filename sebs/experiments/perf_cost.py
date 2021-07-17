@@ -156,7 +156,9 @@ class PerfCost(Experiment):
                 while samples_gathered < repetitions:
 
                     if run_type == PerfCost.RunType.COLD or run_type == PerfCost.RunType.BURST:
-                        self._deployment_client.enforce_cold_start([self._function])
+                        self._deployment_client.enforce_cold_start(
+                            [self._function], self._benchmark
+                        )
 
                     time.sleep(5)
 
@@ -295,7 +297,7 @@ class PerfCost(Experiment):
                         experiments = ExperimentResult.deserialize(
                             config,
                             sebs_client.cache_client,
-                            sebs_client.logging_handlers(logging_filename),
+                            sebs_client.generate_logging_handlers(logging_filename),
                         )
                     fname = os.path.splitext(os.path.basename(f))[0].split("_")
                     if len(fname) > 2:
@@ -323,14 +325,14 @@ class PerfCost(Experiment):
                         experiments = ExperimentResult.deserialize(
                             config,
                             sebs_client.cache_client,
-                            sebs_client.logging_handlers(logging_filename),
+                            sebs_client.generate_logging_handlers(logging_filename),
                         )
                         for func in experiments.functions():
                             if extend_time_interval > 0:
-                                times = [
+                                times = (
                                     -extend_time_interval * 60 + experiments.times()[0],
                                     extend_time_interval * 60 + experiments.times()[1],
-                                ]
+                                )
                             else:
                                 times = experiments.times()
                             deployment_client.download_metrics(
