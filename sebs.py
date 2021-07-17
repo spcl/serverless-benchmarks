@@ -220,9 +220,9 @@ def invoke(benchmark, benchmark_input_size, repetitions, trigger, function_name,
         ret = trigger.sync_invoke(input_config)
         if ret.stats.failure:
             sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
-            deployment_client.get_invocation_error(
-                function_name=self.name, start_time=start_time, end_time=end_time
-            )
+            #deployment_client.get_invocation_error(
+            #    function_name=func.name, start_time=start_time, end_time=end_time
+            #)
         result.add_invocation(func, ret)
     result.end()
     with open("experiments.json", "w") as out_f:

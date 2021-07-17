@@ -41,6 +41,7 @@ class LibraryTrigger(Trigger):
         end = datetime.datetime.now()
 
         aws_result = ExecutionResult.from_times(begin, end)
+        aws_result.request_id = ret["ResponseMetadata"]["RequestId"]
         if ret["StatusCode"] != 200:
             self.logging.error("Invocation of {} failed!".format(self.name))
             self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
