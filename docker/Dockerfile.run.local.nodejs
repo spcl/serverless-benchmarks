@@ -1,6 +1,7 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG USER
+ARG UID
 ENV HOME=/home/${USER}
 
 WORKDIR ${HOME}
@@ -9,8 +10,7 @@ RUN deps=''\
   && apt-get install -y curl net-tools python3 sudo ${deps}\
   && apt-get purge -y --auto-remove ${deps}
 
-# Reuse Node's user that is already definied with uid 1000
-RUN usermod -aG sudo ${USER}\
+RUN useradd --non-unique -u ${UID} -m ${USER}\
     # Set correct permission on home directory
     && chown -R ${USER}:${USER} ${HOME}\
     # Enable non-password use of sudo

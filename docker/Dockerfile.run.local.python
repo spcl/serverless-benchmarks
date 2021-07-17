@@ -1,6 +1,7 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG USER
+ARG UID
 ENV HOME=/home/${USER}
 
 WORKDIR ${HOME}
@@ -11,7 +12,7 @@ RUN deps=''\
   && apt-get install -y curl net-tools sudo ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
   && pip3 install cffi minio bottle
-RUN useradd -m ${USER}\
+RUN useradd -u ${UID} -m ${USER}\
     # Let the user use sudo
     && usermod -aG sudo ${USER}\
     # Set correct permission on home directory

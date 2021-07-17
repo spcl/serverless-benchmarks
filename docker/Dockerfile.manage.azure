@@ -1,5 +1,6 @@
 FROM python:3.7-slim-stretch
 ARG USER
+ARG UID
 # disable telemetry by default
 ENV FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
 
@@ -20,7 +21,7 @@ RUN apt-get clean && apt-get update\
 # https://github.com/moby/moby/issues/20295
 # https://github.com/moby/moby/issues/20295
 ENV HOME=/home/${USER}
-RUN useradd --uid 1000 -m ${USER}\
+RUN useradd --non-unique --uid ${UID} -m ${USER}\
     && chown ${USER}:${USER} ${HOME}\
     && chown ${USER}:${USER} /mnt
 WORKDIR ${HOME}

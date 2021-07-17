@@ -33,9 +33,11 @@ def build(image_type, system, username, language=None,version=None, version_name
     if version:
         target += '.' + version
 
+    # if we pass an integer, the build will fail with 'connection reset by peer'
     buildargs={
         'USER': username,
-        'VERSION': version
+        'VERSION': version,
+        'UID': str(os.getuid())
     }
     if version:
         buildargs['BASE_IMAGE'] = version_name
@@ -76,6 +78,10 @@ def build_systems(system, system_config):
         else:
             for language, language_dict in system_config['languages'].items():
                 build_language(system, language, language_dict)
+            # Build additional types
+            if 'images' in system_config:
+                for image_type, image_config in system_config['images'].items():
+                    build(image_type, system, image_config['username'])
 
 if args.deployment is None:
     for system, system_dict in config.items():
