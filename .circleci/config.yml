@@ -69,5 +69,4 @@ workflows:
   main:
     jobs:
       - build
-      - test-aws
 
