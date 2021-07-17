@@ -606,6 +606,7 @@ def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
 
     loader = importlib.machinery.SourceFileLoader("input", os.path.join(benchmark_path, "input.py"))
     spec = importlib.util.spec_from_loader(loader.name, loader)
+    assert spec
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
     return mod  # type: ignore
