@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Type
 
 import docker
 
@@ -116,12 +116,14 @@ class SeBS(LoggingBase):
             EvictionModel,
         )
 
-        implementations = {
+        implementations: Dict[str, Type[Experiment]] = {
             "perf-cost": PerfCost,
             "network-ping-pong": NetworkPingPong,
             "invocation-overhead": InvocationOverhead,
             "eviction-model": EvictionModel,
         }
+        if experiment_type not in implementations:
+            raise RuntimeError(f"Experiment {experiment_type} not supported!")
         experiment = implementations[experiment_type](self.get_experiment_config(config))
         experiment.logging_handlers = self.generate_logging_handlers(
             logging_filename=logging_filename
