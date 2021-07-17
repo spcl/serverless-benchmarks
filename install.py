@@ -10,6 +10,8 @@ for deployment in ["aws", "azure", "gcp", "local"]:
     parser.add_argument(f"--{deployment}", action="store_const", const=True, default=True, dest=deployment)
     parser.add_argument(f"--no-{deployment}", action="store_const", const=False, dest=deployment)
 parser.add_argument("--with-pypapi", action="store_true")
+parser.add_argument("--force-rebuild-docker-images", default=False, action="store_true")
+parser.add_argument("--dont-rebuild-docker-images", default=False, action="store_true")
 args = parser.parse_args()
 
 def execute(cmd):
@@ -37,23 +39,32 @@ execute(". {}/bin/activate && pip3 install -r requirements.txt".format(env_dir))
 if args.aws:
     print("Install Python dependencies for AWS")
     execute(". {}/bin/activate && pip3 install -r requirements.aws.txt".format(env_dir))
-    if(os.getuid() != 1000):
-        print(f"Rebuild Docker images for AWS for current user ID: {os.getuid()}")
+    if args.force_rebuild_docker_images or (os.getuid() != 1000 and not args.dont_rebuild_docker_images):
+        print(f"AWS: rebuild Docker images for current user ID: {os.getuid()}")
         execute(". {}/bin/activate && tools/build_docker_images.py --deployment aws".format(env_dir))
+    elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
+        print(f"AWS: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
+                "Skipping rebuild as requested by user, but recommending to rebuild the images")
 
 if args.azure:
     print("Install Python dependencies for Azure")
     execute(". {}/bin/activate && pip3 install -r requirements.azure.txt".format(env_dir))
-    if(os.getuid() != 1000):
-        print(f"Rebuild Docker images for Azure for current user ID: {os.getuid()}")
+    if args.force_rebuild_docker_images or (os.getuid() != 1000 and not args.dont_rebuild_docker_images):
+        print(f"Azure: rebuild Docker images for current user ID: {os.getuid()}")
         execute(". {}/bin/activate && tools/build_docker_images.py --deployment azure".format(env_dir))
+    elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
+        print(f"Azure: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
+                "Skipping rebuild as requested by user, but recommending to rebuild the images")
 
 if args.gcp:
     print("Install Python dependencies for GCP")
     execute(". {}/bin/activate && pip3 install -r requirements.gcp.txt".format(env_dir))
-    if(os.getuid() != 1000):
-        print(f"Rebuild Docker images for GCP for current user ID: {os.getuid()}")
+    if args.force_rebuild_docker_images or (os.getuid() != 1000 and not args.dont_rebuild_docker_images):
+        print(f"GCP: rebuild Docker images for current user ID: {os.getuid()}")
         execute(". {}/bin/activate && tools/build_docker_images.py --deployment gcp".format(env_dir))
+    elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
+        print(f"GCP: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
+                "Skipping rebuild as requested by user, but recommending to rebuild the images")
 
 if args.local:
     print("Install Python dependencies for local")

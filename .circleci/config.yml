@@ -12,7 +12,7 @@ jobs:
           key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
       - run:
           command: |
-            python3 install.py
+            python3 install.py --dont-rebuild-docker-images
           name: Install pip dependencies
       - run:
           command: |
