@@ -16,7 +16,7 @@ jobs:
           name: Install pip dependencies
       - run:
           command: |
-            . sebs-virtualenv/bin/activate
+            . python-virtualenv/bin/activate
             flake8 sebs --config=flake8.cfg --black-config=black.toml --tee --output-file flake-reports
           name: Python code lint with flake8
       - run:
