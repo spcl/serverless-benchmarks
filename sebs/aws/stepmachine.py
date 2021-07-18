@@ -20,7 +20,7 @@ class State(ABC):
 
         :return: dictionary containing aws-relevant json properties.
         """
-        data = {'Type': self._type}
+        data = {"Type": self._type}
         return data
 
 
@@ -49,8 +49,8 @@ class StateMachine:
         """
         data = {}
 
-        data['StartAt'] = self._startAt
-        data['States'] = self.__states_as_map()
+        data["StartAt"] = self._startAt
+        data["States"] = self.__states_as_map()
 
         return data
 
@@ -86,13 +86,13 @@ class ParallelState(State):
 
     def state_as_map(self) -> {}:
         data = super().state_as_map()
-        data['Next'] = self._next
+        data["Next"] = self._next
 
         mapped_branches = []
         for branch in self._branches:
             mapped_branches.append(branch.get_as_map())
 
-        data['Branches'] = mapped_branches
+        data["Branches"] = mapped_branches
 
         return data
 
@@ -117,8 +117,8 @@ class WaitState(State):
 
     def state_as_map(self) -> {}:
         data = super().state_as_map()
-        data['Next'] = self._next
-        data['Seconds'] = self._seconds
+        data["Next"] = self._next
+        data["Seconds"] = self._seconds
         return data
 
 
@@ -147,14 +147,20 @@ class FailState(State):
 
     def state_as_map(self) -> {}:
         data = super().state_as_map()
-        data['Error'] = self._error
-        data['Cause'] = self._cause
+        data["Error"] = self._error
+        data["Cause"] = self._cause
         return data
 
 
 class TaskState(State):
-    def __init__(self, state_name: str, lambda_arn: str, next_step: str = "", timeout: int = 60,
-                 is_end_state: bool = False):
+    def __init__(
+        self,
+        state_name: str,
+        lambda_arn: str,
+        next_step: str = "",
+        timeout: int = 60,
+        is_end_state: bool = False,
+    ):
         """
         Task state class.
 
@@ -175,16 +181,16 @@ class TaskState(State):
     def state_as_map(self) -> {}:
         data = super().state_as_map()
 
-        data['Resource'] = self._resource
+        data["Resource"] = self._resource
 
         if self._next:
-            data['Next'] = self._next
+            data["Next"] = self._next
         elif self._end:
-            data['End'] = self._end
+            data["End"] = self._end
         else:
             raise Exception("No next step has been specified, nor this is a terminal state.")
 
-        data['TimeoutSeconds'] = self._timeout
+        data["TimeoutSeconds"] = self._timeout
 
         return data
 
@@ -208,7 +214,7 @@ class StepMachine(StateMachine):
         data = super().get_as_map()
 
         if self._comment:
-            data['Comment'] = self._comment
+            data["Comment"] = self._comment
 
         return data
 
@@ -234,14 +240,13 @@ class StepMachine(StateMachine):
             self.state_machine_arn = self.__create(client, role_arn)
         try:
             execution_response = client.start_execution(
-                stateMachineArn=self.state_machine_arn,
-                input=json.dumps(state_input)
+                stateMachineArn=self.state_machine_arn, input=json.dumps(state_input)
             )
         except Exception as ex:
-            print('error during execution - ', ex)
-            return ''
+            print("error during execution - ", ex)
+            return ""
 
-        execution_arn = execution_response.get('executionArn')
+        execution_arn = execution_response.get("executionArn")
         return execution_arn
 
     def __create(self, client, role_arn) -> str:
@@ -254,15 +259,13 @@ class StepMachine(StateMachine):
         """
         try:
             response = client.create_state_machine(
-                name=self._name,
-                definition=self.get_as_map(),
-                roleArn=role_arn
+                name=self._name, definition=self.get_as_map(), roleArn=role_arn
             )
-            self.state_machine_arn = response['stateMachineArn']
+            self.state_machine_arn = response["stateMachineArn"]
         except Exception as ex:
-            print('error: state machine not created - ', ex)
-            return ''
-        return response['stateMachineArn']
+            print("error: state machine not created - ", ex)
+            return ""
+        return response["stateMachineArn"]
 
     def delete(self, client, sm_arn: str = None) -> str:
         """
@@ -279,48 +282,48 @@ class StepMachine(StateMachine):
             arn = self.state_machine_arn
 
         try:
-            response = client.delete_state_machine(
-                stateMachineArn=arn
-            )
+            response = client.delete_state_machine(stateMachineArn=arn)
             return response
         except Exception as ex:
-            print('error: state machine was not deleted - ', ex)
+            print("error: state machine was not deleted - ", ex)
 
 
 # Example of state json creation, delete for production
-starting_state: TaskState = TaskState("state_1",
-                                      "arn:aws:lambda:us-east-1:807794332178:function:ex_lmbd",
-                                      "LookupCustomerInfo"
-                                      )
+starting_state: TaskState = TaskState(
+    "state_1", "arn:aws:lambda:us-east-1:807794332178:function:ex_lmbd", "LookupCustomerInfo"
+)
 
-first_branch_state1 = TaskState("LookupAddress",
-                                "arn:aws:lambda:us-east-1:807794332178:function:ex_lmbd",
-                                is_end_state=True
-                                )
+first_branch_state1 = TaskState(
+    "LookupAddress", "arn:aws:lambda:us-east-1:807794332178:function:ex_lmbd", is_end_state=True
+)
 
-second_branch_state1 = TaskState("LookupPhone",
-                                 "arn:aws:lambda:us-east-1:807794332178:function:ex_lmbd",
-                                 next_step="LookupPhone2"
-                                 )
+second_branch_state1 = TaskState(
+    "LookupPhone",
+    "arn:aws:lambda:us-east-1:807794332178:function:ex_lmbd",
+    next_step="LookupPhone2",
+)
 
-second_branch_state2 = TaskState("LookupPhone2",
-                                 "arn:aws:lambda:us-east-1:807794332178:function:ex_lmbd",
-                                 is_end_state=True
-                                 )
+second_branch_state2 = TaskState(
+    "LookupPhone2", "arn:aws:lambda:us-east-1:807794332178:function:ex_lmbd", is_end_state=True
+)
 
 first_branch: StateMachine = StateMachine([first_branch_state1], "LookupAddress")
 second_branch: StateMachine = StateMachine([second_branch_state1], "LookupPhone")
 
-parallel_state: ParallelState = ParallelState("LookupCustomerInfo", [first_branch, second_branch], 'NextState')
+parallel_state: ParallelState = ParallelState(
+    "LookupCustomerInfo", [first_branch, second_branch], "NextState"
+)
 
 wait_state: WaitState = WaitState("NextState", "Last", 5)
 
 fail_finish_state: FailState = FailState("Last", "TestException", "Human-readeable")
 
-sample_machine: StepMachine = StepMachine(name="test", comment="Simple step pipeline for test",
-                                          startAt="state_1",
-                                          states=[starting_state, parallel_state, wait_state,
-                                                  fail_finish_state])
+sample_machine: StepMachine = StepMachine(
+    name="test",
+    comment="Simple step pipeline for test",
+    startAt="state_1",
+    states=[starting_state, parallel_state, wait_state, fail_finish_state],
+)
 
 print(sample_machine.get_as_aws_json())
 
