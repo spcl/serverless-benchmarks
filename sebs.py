@@ -277,7 +277,7 @@ def regression(benchmark_input_size, **kwargs):
         initialize_deployment=False,
         **kwargs
     )
-    succ = regression_suite(sebs_client, config["experiments"], set( (config['deployment']['name'],) ))
+    succ = regression_suite(sebs_client, config["experiments"], set( (config['deployment']['name'],) ), deployment_config=config["deployment"])
 
 @cli.group()
 def local():
