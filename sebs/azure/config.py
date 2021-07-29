@@ -317,8 +317,8 @@ class AzureConfig(Config):
         else:
             config_obj.logging.info("Using user-provided config for Azure")
             AzureConfig.initialize(config_obj, config)
-        resources.set_region(config_obj.region)
 
+        resources.set_region(config_obj.region)
         return config_obj
 
     """

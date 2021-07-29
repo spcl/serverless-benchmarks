@@ -97,6 +97,8 @@ dependencies and information on allocated cloud resources.
 Benchmarks will be rebuilt after a change in source code is detected.
 To enforce redeployment of code and benchmark input please use flags `--update-code`
 and `--update-storage`, respectively.
+**Note:** the cache does not support updating cloud region. If you want to deploy benchmarks
+to a new cloud region, then use a new cache directory.
 
 ### Benchmark
 

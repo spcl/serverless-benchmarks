@@ -188,6 +188,8 @@ class GCPConfig(Config):
             ["region", ["gcp", "region"]],  # type: ignore
             ["project_name", ["gcp", "project_name"]],  # type: ignore
         ]
+        # for each attribute here, check if its version is different than the one provided by
+        # user; if yes, then update the value
         for config_key, keys in updated_keys:
 
             old_value = getattr(config_obj, config_key)
