@@ -117,6 +117,12 @@ The example below demonstrates how to run the regression suite with `test` input
 ./sebs.py benchmark regression test --config config/example.json --deployment aws
 ```
 
+The regression can be executed on a single benchmark as well:
+
+```
+./sebs.py benchmark regression test --config config/example.json --deployment aws --benchmark-name 120.uploader
+```
+
 ### Experiment
 
 This command is used to execute benchmarks described in the paper. The example below runs the experiment **perf-cost**:
@@ -223,6 +229,6 @@ Currently supported only on AWS.
 * [Marcin Copik (ETH Zurich)](https://github.com/mcopik/) - main author.
 * [Michał Podstawski (Future Processing SA)](https://github.com/micpod/) - contributed graph and DNA benchmarks, and worked on Google Cloud support.
 * [Nico Graf (ETH Zurich)](https://github.com/ncograf/) - contributed implementation of regression tests, bugfixes, and helped with testing and documentation.
-* [Kacper Janda](https://github.com/Kacpro), [Mateusz Knapik](https://github.com/maknapik), [JmmCz](https://github.com/JmmCz), AGH University of Science and Technology - contributed together Google Cloud support..
+* [Kacper Janda](https://github.com/Kacpro), [Mateusz Knapik](https://github.com/maknapik), [JmmCz](https://github.com/JmmCz), AGH University of Science and Technology - contributed together Google Cloud support.
 * [Grzegorz Kwaśniewski (ETH Zurich)](https://github.com/gkwasniewski) - worked on the modeling experiments.
 
