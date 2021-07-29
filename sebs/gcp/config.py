@@ -1,5 +1,5 @@
 import os
-from typing import cast
+from typing import cast, List, Tuple
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -177,13 +177,27 @@ class GCPConfig(Config):
         config_obj = GCPConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         if cached_config:
-            config_obj.logging.info("Using cached config for GCP")
+            config_obj.logging.info("Loading cached config for GCP")
             GCPConfig.initialize(config_obj, cached_config)
         else:
             config_obj.logging.info("Using user-provided config for GCP")
             GCPConfig.initialize(config_obj, config)
-            cache.update_config(val=config_obj.region, keys=["gcp", "region"])
-            cache.update_config(val=config_obj.project_name, keys=["gcp", "project_name"])
+
+        # mypy makes a mistake here
+        updated_keys: List[Tuple[str, Tuple[str]]] = [
+            ["region", ["gcp", "region"]],  # type: ignore
+            ["project_name", ["gcp", "project_name"]],  # type: ignore
+        ]
+        for config_key, keys in updated_keys:
+
+            old_value = getattr(config_obj, config_key)
+            if getattr(config_obj, config_key) != config[config_key]:
+                config_obj.logging.info(
+                    f"Updating cached key {config_key} with {old_value} "
+                    f"to user-provided value {config[config_key]}."
+                )
+                setattr(config_obj, f"_{config_key}", config[config_key])
+                cache.update_config(val=getattr(config_obj, config_key), keys=keys)
 
         return config_obj
 
