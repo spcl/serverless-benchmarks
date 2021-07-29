@@ -96,6 +96,7 @@ class Azure(System):
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         if not hasattr(self, "storage"):
             self.storage = BlobStorage(
+                self.config.region,
                 self.cache_client,
                 self.config.resources.data_storage_account(self.cli_instance).connection_string,
                 replace_existing=replace_existing,
