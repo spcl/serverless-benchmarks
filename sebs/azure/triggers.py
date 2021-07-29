@@ -1,3 +1,4 @@
+import concurrent.futures
 from typing import Any, Dict, Optional  # noqa
 
 from sebs.azure.config import AzureResources
@@ -33,9 +34,7 @@ class HTTPTrigger(AzureTrigger):
         payload["connection_string"] = self.data_storage_account.connection_string
         return self._http_invoke(payload, self.url)
 
-    def async_invoke(self, payload: dict) -> ExecutionResult:
-        import concurrent
-
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         pool = concurrent.futures.ThreadPoolExecutor()
         fut = pool.submit(self.sync_invoke, payload)
         return fut

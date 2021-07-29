@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Type
 
 import docker
 
@@ -66,8 +66,8 @@ class SeBS(LoggingBase):
 
     def ignore_cache(self):
         """
-            The cache will only store code packages,
-            and won't update new functions and storage.
+        The cache will only store code packages,
+        and won't update new functions and storage.
         """
         self._cache_client.ignore_storage = True
         self._cache_client.ignore_functions = True
@@ -97,7 +97,9 @@ class SeBS(LoggingBase):
         return deployment_client
 
     def get_deployment_config(
-        self, config: dict, logging_filename: Optional[str] = None,
+        self,
+        config: dict,
+        logging_filename: Optional[str] = None,
     ) -> Config:
         handlers = self.generate_logging_handlers(logging_filename)
         return Config.deserialize(config, self.cache_client, handlers)
@@ -116,12 +118,14 @@ class SeBS(LoggingBase):
             EvictionModel,
         )
 
-        implementations = {
+        implementations: Dict[str, Type[Experiment]] = {
             "perf-cost": PerfCost,
             "network-ping-pong": NetworkPingPong,
             "invocation-overhead": InvocationOverhead,
             "eviction-model": EvictionModel,
         }
+        if experiment_type not in implementations:
+            raise RuntimeError(f"Experiment {experiment_type} not supported!")
         experiment = implementations[experiment_type](self.get_experiment_config(config))
         experiment.logging_handlers = self.generate_logging_handlers(
             logging_filename=logging_filename

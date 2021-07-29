@@ -48,13 +48,19 @@ class AzureCredentials(Credentials):
         ret: AzureCredentials
         # Load cached values
         if cached_config and "credentials" in cached_config:
-            ret = cast(AzureCredentials, AzureCredentials.initialize(cached_config["credentials"]),)
+            ret = cast(
+                AzureCredentials,
+                AzureCredentials.initialize(cached_config["credentials"]),
+            )
             ret.logging_handlers = handlers
             ret.logging.info("Using cached credentials for Azure")
         else:
             # Check for new config
             if "credentials" in config:
-                ret = cast(AzureCredentials, AzureCredentials.initialize(config["credentials"]),)
+                ret = cast(
+                    AzureCredentials,
+                    AzureCredentials.initialize(config["credentials"]),
+                )
             elif "AZURE_SECRET_APPLICATION_ID" in os.environ:
                 ret = AzureCredentials(
                     os.environ["AZURE_SECRET_APPLICATION_ID"],
@@ -200,7 +206,10 @@ class AzureResources(Resources):
                 "az storage account create --name {0} --location {1} "
                 "--resource-group {2} --sku {3}"
             ).format(
-                account_name, self._region, self.resource_group(cli_instance), sku,
+                account_name,
+                self._region,
+                self.resource_group(cli_instance),
+                sku,
             )
         )
         self.logging.info("Storage account {} created.".format(account_name))

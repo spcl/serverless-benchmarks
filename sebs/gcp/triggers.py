@@ -1,3 +1,4 @@
+import concurrent.futures
 import datetime
 import json
 import time
@@ -34,14 +35,20 @@ class LibraryTrigger(Trigger):
 
         self.logging.info(f"Invoke function {self.name}")
 
+        # Verify that the function is deployed
         deployed = False
         while not deployed:
-            status_res = status_req.execute()
-            if self.deployment_client.is_deployed(self.fname):
+            if self.deployment_client.is_deployed(self.name):
                 deployed = True
             else:
                 time.sleep(5)
 
+        # GCP's fixed style for a function name
+        config = self.deployment_client.config
+        full_func_name = (
+            f"projects/{config.project_name}/locations/" f"{config.region}/functions/{self.name}"
+        )
+        function_client = self.deployment_client.get_function_client()
         req = (
             function_client.projects()
             .locations()
@@ -53,21 +60,19 @@ class LibraryTrigger(Trigger):
         end = datetime.datetime.now()
 
         gcp_result = ExecutionResult.from_times(begin, end)
-        print("RES: ", res)
+        gcp_result.request_id = res["executionId"]
         if "error" in res.keys() and res["error"] != "":
             self.logging.error("Invocation of {} failed!".format(self.name))
             self.logging.error("Input: {}".format(payload))
             gcp_result.stats.failure = True
             return gcp_result
 
-        print("Result", res["result"])
-        gcp_result.parse_benchmark_output(res["result"])
+        output = json.loads(res["result"])
+        gcp_result.parse_benchmark_output(output)
         return gcp_result
 
     def async_invoke(self, payload: dict):
-
-        # FIXME: send on a seperate thread?
-        return None
+        raise NotImplementedError()
 
     def serialize(self) -> dict:
         return {"type": "Library", "name": self.name}
@@ -95,9 +100,7 @@ class HTTPTrigger(Trigger):
         self.logging.debug(f"Invoke function {self.url}")
         return self._http_invoke(payload, self.url)
 
-    def async_invoke(self, payload: dict) -> ExecutionResult:
-        import concurrent
-
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         pool = concurrent.futures.ThreadPoolExecutor()
         fut = pool.submit(self.sync_invoke, payload)
         return fut

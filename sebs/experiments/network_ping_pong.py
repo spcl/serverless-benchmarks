@@ -1,11 +1,22 @@
+import csv
+import socket
 import os
+import time
+import glob
+import pandas as pd
 from datetime import datetime
 from itertools import repeat
+from typing import Dict, TYPE_CHECKING
 from multiprocessing.dummy import Pool as ThreadPool
 
 from sebs.faas.system import System as FaaSSystem
+from sebs.faas.function import Trigger
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
+
+# import cycle
+if TYPE_CHECKING:
+    from sebs import SeBS
 
 
 class NetworkPingPong(Experiment):
@@ -25,6 +36,10 @@ class NetworkPingPong(Experiment):
             # shutil.rmtree(self._out_dir)
             os.mkdir(self._out_dir)
 
+        triggers = self._function.triggers(Trigger.TriggerType.HTTP)
+        if len(triggers) == 0:
+            deployment_client.create_trigger(self._function, Trigger.TriggerType.HTTP)
+
     def run(self):
 
         from requests import get
@@ -37,24 +52,18 @@ class NetworkPingPong(Experiment):
 
         pool = ThreadPool(threads)
         ports = range(12000, 12000 + invocations)
-        ret = pool.starmap(
+        pool.starmap(
             self.receive_datagrams,
             zip(repeat(repetitions, invocations), ports, repeat(ip, invocations)),
         )
-        # requests = []
-        # for val in ret:
-        #    print(val)
-        import time
 
+        # give functions time to finish and upload result
         time.sleep(5)
         self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
 
     def process(self, directory: str):
 
-        import glob
-        import pandas as pd
-
-        full_data = {}
+        full_data: Dict[str, pd.Dataframe] = {}
         for f in glob.glob(os.path.join(directory, "network-ping-pong", "*.csv")):
 
             request_id = os.path.basename(f).split("-", 1)[1].split(".")[0]
@@ -81,8 +90,6 @@ class NetworkPingPong(Experiment):
 
     def receive_datagrams(self, repetitions: int, port: int, ip: str):
 
-        import csv, socket
-
         print(f"Starting invocation with {repetitions} repetitions on port {port}")
         socket.setdefaulttimeout(2)
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -94,7 +101,7 @@ class NetworkPingPong(Experiment):
             "repetitions": repetitions,
             **self.benchmark_input,
         }
-        self._function.triggers[0].async_invoke(input_benchmark)
+        self._function.triggers(Trigger.TriggerType.HTTP)[0].async_invoke(input_benchmark)
 
         begin = datetime.now()
         times = []

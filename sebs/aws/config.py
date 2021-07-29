@@ -136,7 +136,8 @@ class AWSResources(Resources):
                 self.logging.info(f"AWS: Selected {self._lambda_role} IAM role")
             except iam_client.exceptions.NoSuchEntityException:
                 out = iam_client.create_role(
-                    RoleName=role_name, AssumeRolePolicyDocument=json.dumps(trust_policy),
+                    RoleName=role_name,
+                    AssumeRolePolicyDocument=json.dumps(trust_policy),
                 )
                 self._lambda_role = out["Role"]["Arn"]
                 self.logging.info(

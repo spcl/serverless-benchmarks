@@ -35,7 +35,7 @@ class Minio(PersistentStorage):
         self.logging.info("Minio storage SECRET_KEY={}".format(self._secret_key))
         try:
             self._storage_container = self._docker_client.containers.run(
-                "minio/minio",
+                "minio/minio:latest",
                 command="server /data",
                 # ports={str(self._port): self._port},
                 network_mode="bridge",
@@ -51,10 +51,10 @@ class Minio(PersistentStorage):
             self.configure_connection()
         except docker.errors.APIError as e:
             self.logging.error("Starting Minio storage failed! Reason: {}".format(e))
-            raise RuntimeError(f"Starting Minio storage unsuccesful")
+            raise RuntimeError("Starting Minio storage unsuccesful")
         except Exception as e:
             self.logging.error("Starting Minio storage failed! Unknown error: {}".format(e))
-            raise RuntimeError(f"Starting Minio storage unsuccesful")
+            raise RuntimeError("Starting Minio storage unsuccesful")
 
     def configure_connection(self):
         # who knows why? otherwise attributes are not loaded
@@ -179,8 +179,8 @@ class Minio(PersistentStorage):
             obj._url = cached_config["address"]
             obj._access_key = cached_config["access_key"]
             obj._secret_key = cached_config["secret_key"]
-            obj._input_buckets = cached_config["input"]
-            obj._output_buckets = cached_config["output"]
+            obj.input_buckets = cached_config["input"]
+            obj.output_buckets = cached_config["output"]
             return obj
         except docker.errors.NotFound:
             raise RuntimeError(f"Cached container {instance_id} not available anymore!")

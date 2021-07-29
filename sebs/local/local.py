@@ -222,7 +222,7 @@ class Local(System):
     ):
         pass
 
-    def enforce_cold_start(self, functions: List[Function]):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         raise NotImplementedError()
 
     @staticmethod

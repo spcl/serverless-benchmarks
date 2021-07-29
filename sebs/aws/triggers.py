@@ -1,4 +1,5 @@
 import base64
+import concurrent.futures
 import datetime
 import json
 from typing import Dict, Optional  # noqa
@@ -40,11 +41,8 @@ class LibraryTrigger(Trigger):
         ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
         end = datetime.datetime.now()
 
-        import math
-
-        start_time = math.floor(datetime.datetime.timestamp(begin)) - 1
-        end_time = math.ceil(datetime.datetime.timestamp(end)) + 1
         aws_result = ExecutionResult.from_times(begin, end)
+        aws_result.request_id = ret["ResponseMetadata"]["RequestId"]
         if ret["StatusCode"] != 200:
             self.logging.error("Invocation of {} failed!".format(self.name))
             self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
@@ -113,8 +111,7 @@ class HTTPTrigger(Trigger):
         self.logging.debug(f"Invoke function {self.url}")
         return self._http_invoke(payload, self.url)
 
-    def async_invoke(self, payload: dict) -> ExecutionResult:
-        import concurrent.futures
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
         pool = concurrent.futures.ThreadPoolExecutor()
         fut = pool.submit(self.sync_invoke, payload)

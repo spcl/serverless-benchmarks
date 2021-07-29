@@ -45,9 +45,6 @@ class GCP(System):
         self._config = config
         self.storage: Optional[GCPStorage] = None
         self.logging_handlers = logging_handlers
-        from random import randrange
-
-        self.cold_start_counter = randrange(100)
 
     @property
     def config(self) -> GCPConfig:
@@ -89,7 +86,10 @@ class GCP(System):
     """
 
     def get_storage(
-        self, replace_existing: bool = False, benchmark=None, buckets=None,
+        self,
+        replace_existing: bool = False,
+        benchmark=None,
+        buckets=None,
     ) -> PersistentStorage:
         if not self.storage:
             self.storage = GCPStorage(self.cache_client, replace_existing)
@@ -219,7 +219,7 @@ class GCP(System):
                 "language runtime: ",
                 code_package.language_name + language_runtime.replace(".", ""),
             )
-            req = (
+            create_req = (
                 self.function_client.projects()
                 .locations()
                 .functions()
@@ -239,11 +239,11 @@ class GCP(System):
                     },
                 )
             )
-            print("request: ", req)
-            res = req.execute()
-            print("response:", res)
+            print("request: ", create_req)
+            create_result = create_req.execute()
+            print("response:", create_result)
             self.logging.info(f"Function {func_name} has been created!")
-            req = (
+            allow_unauthenticated_req = (
                 self.function_client.projects()
                 .locations()
                 .functions()
@@ -252,14 +252,14 @@ class GCP(System):
                     body={
                         "policy": {
                             "bindings": [
-                                {"role": "roles/cloudfunctions.invoker", "members": "allUsers",}
+                                {"role": "roles/cloudfunctions.invoker", "members": ["allUsers"]}
                             ]
                         }
                     },
                 )
             )
-            res = req.execute()
-            print(res)
+            allow_result = allow_unauthenticated_req.execute()
+            print(allow_result)
             self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
@@ -267,7 +267,7 @@ class GCP(System):
             )
 
         # Add LibraryTrigger to a new function
-        from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger
+        from sebs.gcp.triggers import LibraryTrigger
 
         trigger = LibraryTrigger(func_name, self)
         trigger.logging_handlers = self.logging_handlers
@@ -380,8 +380,8 @@ class GCP(System):
                     yield next(gen)
                 except StopIteration:
                     break
-                except exceptions.ResourceExhausted as e:
-                    print("Exhausted")
+                except exceptions.ResourceExhausted:
+                    print("Google Cloud resources exhausted, sleeping 30s")
                     sleep(30)
 
         """
@@ -428,7 +428,9 @@ class GCP(System):
                     if execution_id not in requests:
                         continue
                     # find number of miliseconds
-                    exec_time = re.search(r"\d+ ms", invoc.payload).group().split()[0]
+                    regex_result = re.search(r"\d+ ms", invoc.payload)
+                    assert regex_result
+                    exec_time = regex_result.group().split()[0]
                     # convert into microseconds
                     requests[execution_id].provider_times.execution = int(exec_time) * 1000
                     invocations_processed += 1
@@ -501,7 +503,7 @@ class GCP(System):
 
         return new_version
 
-    def enforce_cold_start(self, functions: List[Function]):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
 
         new_versions = []
         for func in functions:
@@ -566,7 +568,7 @@ class GCP(System):
 
     def deployment_version(self, func: Function) -> int:
         name = GCP.get_full_function_name(self.config.project_name, self.config.region, func.name)
-        function_client = self.deployment_client.get_function_client()
+        function_client = self.get_function_client()
         status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()
         return int(status_res["versionId"])

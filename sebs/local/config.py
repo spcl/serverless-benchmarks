@@ -52,3 +52,6 @@ class LocalConfig(Config):
 
     def serialize(self) -> dict:
         return {}
+
+    def update_cache(self, cache: Cache):
+        pass

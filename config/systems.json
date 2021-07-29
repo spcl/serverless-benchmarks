@@ -24,7 +24,7 @@
           "13.6": "node:13.6-slim"
         },
         "images": ["run", "build"],
-        "username": "node",
+        "username": "docker_user",
         "deployment": {
           "files": ["storage.js"],
           "packages": []

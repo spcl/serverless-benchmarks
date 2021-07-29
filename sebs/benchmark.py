@@ -1,6 +1,5 @@
 import glob
 import hashlib
-import io
 import json
 import os
 import shutil
@@ -136,7 +135,7 @@ class Benchmark(LoggingBase):
     @hash.setter  # noqa: A003
     def hash(self, val: str):
         """
-            Used only for testing purposes.
+        Used only for testing purposes.
         """
         self._hash_value = val
 
@@ -160,7 +159,9 @@ class Benchmark(LoggingBase):
         if not self._benchmark_path:
             raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
         with open(os.path.join(self.benchmark_path, "config.json")) as json_file:
-            self._benchmark_config = BenchmarkConfig.deserialize(json.load(json_file))
+            self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
+                json.load(json_file)
+            )
         if self.language not in self.benchmark_config.languages:
             raise RuntimeError(
                 "Benchmark {} not available for language {}".format(self.benchmark, self.language)
@@ -516,11 +517,20 @@ class Benchmark(LoggingBase):
         storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = mod.generate_input(
-            benchmark_data_path, size, storage.input, storage.output, storage.uploader_func,
+            benchmark_data_path,
+            size,
+            storage.input,
+            storage.output,
+            storage.uploader_func,
         )
         return input_config
 
-    def code_package_modify(self, filename: str, data: io.BytesIO):
+    """
+        This is used in experiments that modify the size of input package.
+        This step allows to modify code package without going through the entire pipeline.
+    """
+
+    def code_package_modify(self, filename: str, data: bytes):
 
         if self.code_package_is_archive():
             self._update_zip(self.code_location, filename, data)
@@ -547,7 +557,7 @@ class Benchmark(LoggingBase):
 
     #  https://stackoverflow.com/questions/25738523/how-to-update-one-file-inside-zip-file-using-python
     @staticmethod
-    def _update_zip(zipname: str, filename: str, data: io.BytesIO):
+    def _update_zip(zipname: str, filename: str, data: bytes):
         import zipfile
         import tempfile
 
@@ -600,6 +610,7 @@ def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
 
     loader = importlib.machinery.SourceFileLoader("input", os.path.join(benchmark_path, "input.py"))
     spec = importlib.util.spec_from_loader(loader.name, loader)
+    assert spec
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
     return mod  # type: ignore

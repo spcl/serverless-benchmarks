@@ -2,7 +2,7 @@ import logging
 import unittest
 import testtools
 import threading
-from typing import Set, TYPE_CHECKING
+from typing import Dict, Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
 
@@ -91,7 +91,8 @@ class AWSTestSequence(
     def get_deployment(self, benchmark_name):
         deployment_name = "aws"
         deployment_client = self.client.get_deployment(
-            self.config, logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+            self.config,
+            logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
         deployment_client.initialize()
         return deployment_client
@@ -125,7 +126,7 @@ class AzureTestSequence(
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
 class TracingStreamResult(testtools.StreamResult):
     all_correct: bool
-    output = {}
+    output: Dict[str, bytes] = {}
 
     def __init__(self):
         self.all_correct = True
@@ -158,10 +159,11 @@ def regression_suite(sebs_client: "SeBS", experiment_config: dict, providers: Se
     if "azure" in providers:
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequence))
     tests = []
+    # mypy is confused here
     for case in suite:
-        for test in case:
-            test.client = sebs_client
-            test.experiment_config = experiment_config
+        for test in case:  # type: ignore
+            test.client = sebs_client  # type: ignore
+            test.experiment_config = experiment_config  # type: ignore
             tests.append(test)
     concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
     result = TracingStreamResult()

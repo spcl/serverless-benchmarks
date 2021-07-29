@@ -4,7 +4,11 @@ from sebs.faas.function import Function
 
 class AzureFunction(Function):
     def __init__(
-        self, name: str, benchmark: str, code_hash: str, function_storage: AzureResources.Storage,
+        self,
+        name: str,
+        benchmark: str,
+        code_hash: str,
+        function_storage: AzureResources.Storage,
     ):
         super().__init__(benchmark, name, code_hash)
         self.function_storage = function_storage

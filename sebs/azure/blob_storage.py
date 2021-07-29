@@ -94,7 +94,10 @@ class BlobStorage(PersistentStorage):
 
     def list_bucket(self, container: str):
         objects = list(
-            map(lambda x: x["name"], self.client.get_container_client(container).list_blobs(),)
+            map(
+                lambda x: x["name"],
+                self.client.get_container_client(container).list_blobs(),
+            )
         )
         return objects
 

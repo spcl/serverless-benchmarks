@@ -120,3 +120,7 @@ class Config(ABC, LoggingBase):
     @abstractmethod
     def serialize(self) -> dict:
         pass
+
+    @abstractmethod
+    def update_cache(self, cache: Cache):
+        pass

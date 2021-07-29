@@ -2,9 +2,9 @@ import logging
 import os
 import time
 from datetime import datetime
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 import multiprocessing
-from multiprocessing.pool import ThreadPool
+from multiprocessing.pool import AsyncResult, ThreadPool
 
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.function import Function, Trigger
@@ -67,15 +67,14 @@ class EvictionModel(Experiment):
 
             print(f"Listen on {port} and wait for {invocations}", file=f)
             # First repetition
-            connections = []
+            connections: List[Tuple[socket.socket, str]] = []
             # wait for functions to connect
             while len(connections) < invocations:
                 c, addr = s.accept()
                 print(f"Accept connection from {addr}", file=f)
                 connections.append((c, addr))
 
-            for c in connections:
-                connection, addr = c
+            for connection, addr in connections:
                 print(f"Send message to {addr}", file=f)
                 connection.send(b"accepted")
                 connection.close()
@@ -88,8 +87,7 @@ class EvictionModel(Experiment):
                 print(f"Accept connection from {addr}", file=f)
                 connections.append((c, addr))
 
-            for c in connections:
-                connection, addr = c
+            for connection, addr in connections:
                 print(f"Send message to {addr}", file=f)
                 connection.send(b"accepted")
                 connection.close()
@@ -133,6 +131,7 @@ class EvictionModel(Experiment):
             "invocation": pid,
         }
 
+    @staticmethod
     def process_function(
         repetition: int,
         pid: int,
@@ -143,12 +142,11 @@ class EvictionModel(Experiment):
     ):
         b = multiprocessing.Semaphore(invocations)
         print(f"Begin at PID {pid}, repetition {repetition}")
-        results = []
 
         threads = len(functions)
-        final_results = []
+        final_results: List[dict] = []
         with ThreadPool(threads) as pool:
-            results = [None] * threads
+            results: List[Optional[AsyncResult]] = [None] * threads
             """
                 Invoke multiple functions with different sleep times.
                 Start with the largest sleep time to overlap executions; total
@@ -166,6 +164,7 @@ class EvictionModel(Experiment):
             failed = False
             for result in results:
                 try:
+                    assert result
                     res = result.get()
                     res["repetition"] = repetition
                     final_results.append(res)
@@ -178,9 +177,6 @@ class EvictionModel(Experiment):
         return final_results
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
-
-        from sebs import Benchmark
-        from sebs import SeBS
 
         self._benchmark = sebs_client.get_benchmark(
             "040.server-reply", deployment_client, self.config
@@ -216,11 +212,10 @@ class EvictionModel(Experiment):
 
         ip = get("http://checkip.amazonaws.com/").text.rstrip()
 
-        """
-            
-        """
-        function_names = self.functions_names[invocation_idx :: self.function_copies_per_time]
-        functions = self.functions[invocation_idx :: self.function_copies_per_time]
+        # function_names = self.functions_names[invocation_idx :: self.function_copies_per_time]
+        # flake8 issue
+        # https://github.com/PyCQA/pycodestyle/issues/373
+        functions = self.functions[invocation_idx :: self.function_copies_per_time]  # noqa
         results = {}
 
         # Disable logging - otherwise we have RLock that can't get be pickled
@@ -238,8 +233,8 @@ class EvictionModel(Experiment):
 
         """
             Allocate one process for each invocation => process N invocations in parallel.
-            Each process uses M threads to execute in parallel invocations with a different time sleep
-            between executions.
+            Each process uses M threads to execute in parallel invocations,
+            with a different time sleep between executions.
 
             The result: repeated N invocations for M different imes.
         """
@@ -247,7 +242,7 @@ class EvictionModel(Experiment):
         with multiprocessing.Pool(processes=(invocations + threads)) as pool:
             for i in range(0, repetitions):
                 """
-                    Attempt to kill all existing containers.
+                Attempt to kill all existing containers.
                 """
                 # for func in functions:
                 #    self._deployment_client.enforce_cold_start(func)

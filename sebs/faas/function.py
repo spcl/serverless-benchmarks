@@ -1,6 +1,7 @@
 import json
 from abc import ABC
 from abc import abstractmethod
+import concurrent.futures
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional  # noqa
@@ -168,9 +169,16 @@ class ExecutionResult:
 
 class Trigger(ABC, LoggingBase):
     class TriggerType(Enum):
-        HTTP = 0
-        LIBRARY = 1
-        STORAGE = 2
+        HTTP = "http"
+        LIBRARY = "library"
+        STORAGE = "storage"
+
+        @staticmethod
+        def get(name: str) -> "Trigger.TriggerType":
+            for member in Trigger.TriggerType:
+                if member.value.lower() == name.lower():
+                    return member
+            raise Exception("Unknown trigger type {}".format(member))
 
     def _http_invoke(self, payload: dict, url: str) -> ExecutionResult:
         import pycurl
@@ -199,7 +207,7 @@ class Trigger(ABC, LoggingBase):
                 self.logging.error("Output: {}".format(output))
                 raise RuntimeError(f"Failed invocation of function! Output: {output}")
 
-            self.logging.debug(f"Invoke of function was successful")
+            self.logging.debug("Invoke of function was successful")
             result = ExecutionResult.from_times(begin, end)
             result.times.http_startup = conn_time
             result.times.http_first_byte_return = receive_time
@@ -223,7 +231,7 @@ class Trigger(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def async_invoke(self, payload: dict) -> ExecutionResult:
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         pass
 
     @abstractmethod

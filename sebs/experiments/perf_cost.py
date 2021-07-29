@@ -51,7 +51,7 @@ class PerfCost(Experiment):
         )
         self._function = deployment_client.get_function(self._benchmark)
         # prepare benchmark input
-        self._storage = deployment_client.get_storage()
+        self._storage = deployment_client.get_storage(replace_existing=settings.update_storage)
         self._benchmark_input = self._benchmark.prepare_input(
             storage=self._storage, size=settings["input-size"]
         )
@@ -297,7 +297,7 @@ class PerfCost(Experiment):
                         experiments = ExperimentResult.deserialize(
                             config,
                             sebs_client.cache_client,
-                            sebs_client.logging_handlers(logging_filename),
+                            sebs_client.generate_logging_handlers(logging_filename),
                         )
                     fname = os.path.splitext(os.path.basename(f))[0].split("_")
                     if len(fname) > 2:
@@ -325,14 +325,14 @@ class PerfCost(Experiment):
                         experiments = ExperimentResult.deserialize(
                             config,
                             sebs_client.cache_client,
-                            sebs_client.logging_handlers(logging_filename),
+                            sebs_client.generate_logging_handlers(logging_filename),
                         )
                         for func in experiments.functions():
                             if extend_time_interval > 0:
-                                times = [
+                                times = (
                                     -extend_time_interval * 60 + experiments.times()[0],
                                     extend_time_interval * 60 + experiments.times()[1],
-                                ]
+                                )
                             else:
                                 times = experiments.times()
                             deployment_client.download_metrics(

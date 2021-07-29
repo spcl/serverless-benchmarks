@@ -3,7 +3,7 @@ import os
 import random
 import time
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import Dict, TYPE_CHECKING
 
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
@@ -39,7 +39,7 @@ class CodePackageSize:
 
     def before_sample(self, size: int, input_benchmark: dict):
         arr = bytearray((random.getrandbits(8) for i in range(size)))
-        self._benchmark.code_package_modify("randomdata.bin", arr)
+        self._benchmark.code_package_modify("randomdata.bin", bytes(arr))
         function = self._deployment_client.get_function(self._benchmark)
         self._deployment_client.update_function(function, self._benchmark)
 
@@ -49,7 +49,9 @@ class PayloadSize:
         from numpy import linspace
 
         points = linspace(
-            settings["payload_begin"], settings["payload_end"], settings["payload_points"],
+            settings["payload_begin"],
+            settings["payload_end"],
+            settings["payload_points"],
         )
         self.pts = [int(pt) for pt in points]
 
@@ -161,13 +163,17 @@ class InvocationOverhead(Experiment):
         self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
 
     def process(
-        self, sebs_client: "SeBS", deployment_client, directory: str, logging_filename: str,
+        self,
+        sebs_client: "SeBS",
+        deployment_client,
+        directory: str,
+        logging_filename: str,
     ):
         import pandas as pd
         import glob
         from sebs import SeBS  # noqa
 
-        full_data = {}
+        full_data: Dict[str, pd.Dataframe] = {}
         for f in glob.glob(
             os.path.join(directory, "invocation-overhead", self.settings["type"], "*.csv")
         ):
@@ -192,7 +198,10 @@ class InvocationOverhead(Experiment):
         ) as csvfile:
             with open(
                 os.path.join(
-                    directory, "invocation-overhead", self.settings["type"], "result-processed.csv",
+                    directory,
+                    "invocation-overhead",
+                    self.settings["type"],
+                    "result-processed.csv",
                 ),
                 "w",
             ) as csvfile2:

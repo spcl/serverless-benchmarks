@@ -1,9 +1,10 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG USER
+ARG UID
 ENV HOME=/home/${USER}
 
-RUN useradd --uid 1000 -m ${USER}
+RUN useradd --non-unique -u $UID ${USER}
 WORKDIR ${HOME}
 USER ${USER}:${USER}
 
