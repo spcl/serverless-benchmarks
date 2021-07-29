@@ -3,7 +3,7 @@
 **FaaS benchmarking suite for serverless functions with automatic build, deployment, and measurements.**
 
 [![CircleCI](https://circleci.com/gh/spcl/serverless-benchmarks.svg?style=shield)](https://circleci.com/gh/spcl/serverless-benchmarks)
-![Release](https://img.shields.io/github/v/release/spcl/perf)
+![Release](https://img.shields.io/github/v/release/spcl/serverless-benchmarks)
 ![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
 ![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/spcl/serverless-benchmarks)
