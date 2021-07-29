@@ -1,10 +1,9 @@
-import logging
 import unittest
 import testtools
 import threading
-from typing import Dict, Set, TYPE_CHECKING
+from time import sleep
+from typing import Dict, Optional, Set, TYPE_CHECKING
 
-from sebs.faas.config import Config
 from sebs.faas.function import Trigger
 
 if TYPE_CHECKING:
@@ -24,7 +23,7 @@ benchmarks = [
 ]
 
 # user-defined config passed during initialization
-cloud_config: dict = None
+cloud_config: Optional[dict] = None
 
 
 class TestSequenceMeta(type):
@@ -59,6 +58,13 @@ class TestSequenceMeta(type):
                         trigger = func.triggers(trigger_type)[0]
                     else:
                         trigger = deployment_client.create_trigger(func, trigger_type)
+                        """
+                            sleep 5 seconds - on some cloud systems the triggers might
+                            not be available immediately.
+                            for example, AWS tends to throw "not exist" on newly created
+                            API gateway
+                        """
+                        sleep(5)
                     # Synchronous invoke
                     try:
                         ret = trigger.sync_invoke(input_config)
@@ -93,7 +99,7 @@ class AWSTestSequence(
 ):
     def get_deployment(self, benchmark_name):
         deployment_name = "aws"
-        print(cloud_config)
+        assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
@@ -110,6 +116,7 @@ class AzureTestSequence(
 ):
     def get_deployment(self, benchmark_name):
         deployment_name = "azure"
+        assert cloud_config
         with AzureTestSequence.lock:
             if not AzureTestSequence.cfg:
                 AzureTestSequence.cfg = self.client.get_deployment_config(
@@ -134,6 +141,7 @@ class GCPTestSequence(
 ):
     def get_deployment(self, benchmark_name):
         deployment_name = "gcp"
+        assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
@@ -172,10 +180,7 @@ class TracingStreamResult(testtools.StreamResult):
 
 
 def regression_suite(
-    sebs_client: "SeBS",
-    experiment_config: dict,
-    providers: Set[str],
-    deployment_config: dict
+    sebs_client: "SeBS", experiment_config: dict, providers: Set[str], deployment_config: dict
 ):
     suite = unittest.TestSuite()
     global cloud_config

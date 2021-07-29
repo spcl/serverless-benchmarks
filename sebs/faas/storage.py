@@ -30,7 +30,11 @@ class PersistentStorage(ABC, LoggingBase):
     def replace_existing(self, val: bool):
         self._replace_existing = val
 
-    def __init__(self, cache_client: Cache, replace_existing: bool):
+    @property
+    def region(self):
+        return self._region
+
+    def __init__(self, region: str, cache_client: Cache, replace_existing: bool):
         super().__init__()
         self._cache_client = cache_client
         self.cached = False
@@ -38,6 +42,7 @@ class PersistentStorage(ABC, LoggingBase):
         self.output_buckets: List[str] = []
         self.input_buckets_files: List[List[str]] = []
         self._replace_existing = replace_existing
+        self._region = region
 
     @property
     def input(self) -> List[str]:  # noqa: A003
@@ -55,9 +60,25 @@ class PersistentStorage(ABC, LoggingBase):
     def _create_bucket(self, name: str, buckets: List[str] = []):
         pass
 
+    """
+        Some cloud systems might require additional suffixes to be
+        added to a bucket name.
+        For example, on AWS all bucket names are globally unique.
+        Thus, we need to add region as a suffix.
+
+        :return: suffix, might be empty
+    """
+
+    def _bucket_name_suffix(self) -> str:
+        return ""
+
     def add_bucket(self, name: str, suffix: str, buckets: List[str]) -> Tuple[str, int]:
 
-        name = self.correct_name(f"{name}-{len(buckets)}-{suffix}")
+        cloud_suffix = self._bucket_name_suffix()
+        if cloud_suffix:
+            name = self.correct_name(f"{name}-{len(buckets)}-{cloud_suffix}-{suffix}")
+        else:
+            name = self.correct_name(f"{name}-{len(buckets)}-{suffix}")
         # there's cached bucket we could use
         for idx, bucket in enumerate(buckets):
             if name in bucket:

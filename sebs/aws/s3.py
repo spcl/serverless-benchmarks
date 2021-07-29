@@ -33,7 +33,7 @@ class S3(PersistentStorage):
         secret_key: str,
         replace_existing: bool,
     ):
-        super().__init__(cache_client, replace_existing)
+        super().__init__(location, cache_client, replace_existing)
         self.client = session.client(
             "s3",
             region_name=location,
@@ -54,8 +54,20 @@ class S3(PersistentStorage):
                 return bucket_name
         random_name = str(uuid.uuid4())[0:16]
         bucket_name = "{}-{}".format(name, random_name)
-        self.client.create_bucket(Bucket=bucket_name)
-        self.logging.info("Created bucket {}".format(bucket_name))
+        try:
+            self.client.create_bucket(
+                Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": self.region}
+            )
+            self.logging.info("Created bucket {}".format(bucket_name))
+        except self.client.exceptions.BucketAlreadyExists:
+            self.logging.error(f"The bucket {bucket_name} exists already in region {self.region}!")
+        except self.client.exceptions.ClientError as e:
+            self.logging.error(
+                f"The bucket {bucket_name} not successful; perhaps it exists already in a region "
+                f" different from {self.region}?"
+            )
+            self.logging.error(e)
+
         return bucket_name
 
     def uploader_func(self, bucket_idx, key, filepath):
