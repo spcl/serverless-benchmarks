@@ -86,7 +86,7 @@ with `source python-virtualenv/bin/activate`. Now you can deploy serverless expe
 
 **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
 
-You can run `tools/build_docker_images.py` to create all Docker images that are needed to build and run benchmarks. Otherwise they'll be pulled from the Docker Hub repository.
+To verify the correctness of installation, you can use [our regression testing](#regression).
 
 ## Usage
 
@@ -109,6 +109,8 @@ The example below invokes the benchmark `110.dynamic-html` on AWS via the standa
 
 To configure your benchmark, change settings in the config file or use command-line options.
 The full list is available by running `./sebs.py benchmark invoke --help`.
+
+### Regression
 
 Additionally, we provide a regression option to execute all benchmarks on a given platform.
 The example below demonstrates how to run the regression suite with `test` input size on AWS.
