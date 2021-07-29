@@ -4,6 +4,7 @@ import testtools
 import threading
 from typing import Dict, Set, TYPE_CHECKING
 
+from sebs.faas.config import Config
 from sebs.faas.function import Trigger
 
 if TYPE_CHECKING:
@@ -22,20 +23,23 @@ benchmarks = [
     "504.dna-visualisation",
 ]
 
+# user-defined config passed during initialization
+cloud_config: dict = None
+
 
 class TestSequenceMeta(type):
-    def __init__(cls, name, bases, attrs, deployment_name, config, triggers):
+    def __init__(cls, name, bases, attrs, deployment_name, triggers):
         type.__init__(cls, name, bases, attrs)
         cls.deployment_name = deployment_name
-        cls.config = config
         cls.triggers = triggers
 
-    def __new__(mcs, name, bases, dict, deployment_name, config, triggers):
+    def __new__(mcs, name, bases, dict, deployment_name, triggers):
         def gen_test(benchmark_name):
             def test(self):
                 deployment_client = self.get_deployment(benchmark_name)
-                logging.info(
-                    f"Begin regression test of {benchmark_name} on " f"{deployment_client.name()}"
+                print(
+                    f"Begin regression test of {benchmark_name} on {deployment_client.name()}, "
+                    f"region: {deployment_client.config.region}."
                 )
                 experiment_config = self.client.get_experiment_config(self.experiment_config)
                 benchmark = self.client.get_benchmark(
@@ -85,13 +89,13 @@ class AWSTestSequence(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
     deployment_name="aws",
-    config={"name": "aws", "aws": {"region": "us-east-1"}},
     triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
 ):
     def get_deployment(self, benchmark_name):
         deployment_name = "aws"
+        print(cloud_config)
         deployment_client = self.client.get_deployment(
-            self.config,
+            cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
         deployment_client.initialize()
@@ -102,7 +106,6 @@ class AzureTestSequence(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
     deployment_name="azure",
-    config={"name": "azure", "azure": {"region": "westeurope"}},
     triggers=[Trigger.TriggerType.HTTP],
 ):
     def get_deployment(self, benchmark_name):
@@ -110,35 +113,34 @@ class AzureTestSequence(
         with AzureTestSequence.lock:
             if not AzureTestSequence.cfg:
                 AzureTestSequence.cfg = self.client.get_deployment_config(
-                    self.config,
+                    cloud_config,
                     logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 )
             deployment_client = self.client.get_deployment(
-                self.config,
+                cloud_config,
                 logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 deployment_config=AzureTestSequence.cfg,
             )
             deployment_client.initialize()
             deployment_client.allocate_shared_resource()
             return deployment_client
-            
+
+
 class GCPTestSequence(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
     deployment_name="gcp",
-    config={"name": "gcp", "gcp": {"region": "europe-west1"}},
     triggers=[Trigger.TriggerType.HTTP],
 ):
     def get_deployment(self, benchmark_name):
         deployment_name = "gcp"
-        global gcp_config
-        if gcp_config != None: # if this is no true there will be a error later 
-            self.config["gcp"] = gcp_config
         deployment_client = self.client.get_deployment(
-            self.config, logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+            cloud_config,
+            logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
         deployment_client.initialize()
         return deployment_client
+
 
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
 class TracingStreamResult(testtools.StreamResult):
@@ -169,17 +171,23 @@ class TracingStreamResult(testtools.StreamResult):
             self.success.add(test_name)
 
 
-def regression_suite(sebs_client: "SeBS", experiment_config: dict, providers: Set[str], deployment_config: dict = None):
+def regression_suite(
+    sebs_client: "SeBS",
+    experiment_config: dict,
+    providers: Set[str],
+    deployment_config: dict
+):
     suite = unittest.TestSuite()
+    global cloud_config
+    cloud_config = deployment_config
     if "aws" in providers:
+        assert "aws" in cloud_config
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequence))
     if "azure" in providers:
+        assert "azure" in cloud_config
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequence))
     if "gcp" in providers:
-        global gcp_config  # hack in order to pass the credidentials to the unitTest as global variable
-        gcp_config = None
-        if deployment_config != None and "gcp" in deployment_config:
-           gcp_config = deployment_config["gcp"]
+        assert "gcp" in cloud_config
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequence))
     tests = []
     # mypy is confused here

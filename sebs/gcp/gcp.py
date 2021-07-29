@@ -15,7 +15,6 @@ from google.cloud import monitoring_v3
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
-from sebs import utils
 from ..faas.function import Function, Trigger
 from .storage import PersistentStorage
 from ..faas.system import System
@@ -165,8 +164,8 @@ class GCP(System):
             Note that the function GCP.recusive_zip is slower than the use of e.g.
             `utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)`
             or `shutil.make_archive(benchmark_archive, direcory, directory)`
-            But both of the two alternatives need a chance of directory 
-            (shutil.make_archive does the directorychange internaly) 
+            But both of the two alternatives need a chance of directory
+            (shutil.make_archive does the directorychange internaly)
             which leads to a "race condition" when running several benchmarks
             in parallel, since a change of the current directory is NOT Thread specfic.
         """
@@ -596,7 +595,7 @@ class GCP(System):
     # @abstractmethod
     # def download_metrics(self):
     #    pass
-    
+
     """
        Helper method for recursive_zip
 
@@ -604,15 +603,16 @@ class GCP(System):
        :param path: path to file of subdirecotry to be zipped
        :param archive: ZipFile object
     """
+
     @staticmethod
-    def helper_zip(base_directory : str, path : str, archive : zipfile.ZipFile):
+    def helper_zip(base_directory: str, path: str, archive: zipfile.ZipFile):
         paths = os.listdir(path)
         for p in paths:
             directory = os.path.join(path, p)
             if os.path.isdir(directory):
                 GCP.helper_zip(base_directory, directory, archive)
             else:
-                if(directory != archive.filename): # prevent form including itself
+                if directory != archive.filename:  # prevent form including itself
                     archive.write(directory, os.path.relpath(directory, base_directory))
 
     """
@@ -621,12 +621,13 @@ class GCP(System):
        Zip directory with relative paths given an absolute path
        If the archive exists only new files are added and updated.
        If the archive does not exist a new one is created.
-       
+
        :param path: absolute path to the direcotry to be zipped
-       :param archname: path to the zip file 
+       :param archname: path to the zip file
     """
+
     @staticmethod
-    def recursive_zip( directory : str, archname : str):
+    def recursive_zip(directory: str, archname: str):
         archive = zipfile.ZipFile(archname, "w", zipfile.ZIP_DEFLATED, compresslevel=9)
         if os.path.isdir(directory):
             GCP.helper_zip(directory, directory, archive)
