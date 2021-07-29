@@ -37,7 +37,7 @@
       "function_copy_idx": 0,
       "repetitions": 5,
       "sleep": 1
-    },
+    }
   },
   "deployment": {
     "name": "aws",
