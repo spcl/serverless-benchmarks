@@ -69,8 +69,9 @@ if args.gcp:
 if args.local:
     print("Install Python dependencies for local")
     execute(". {}/bin/activate && pip3 install -r requirements.local.txt".format(env_dir))
-    print("Initialize Docker image for local storage.")
-    execute("docker pull minio/minio:latest")
+    if not args.dont_rebuild_docker_images:
+        print("Initialize Docker image for local storage.")
+        execute("docker pull minio/minio:latest")
 
 print("Initialize git submodules")
 execute("git submodule update --init --recursive")
