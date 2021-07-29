@@ -2,7 +2,7 @@ import unittest
 import testtools
 import threading
 from time import sleep
-from typing import Dict, Optional, Set, TYPE_CHECKING
+from typing import cast, Dict, Optional, Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
 
@@ -203,13 +203,14 @@ def regression_suite(
     for case in suite:
         for test in case:  # type: ignore
             # skip
-            if not benchmark_name or (benchmark_name and benchmark_name in test._testMethodName):
+            test_name = cast(unittest.TestCase, test)._testMethodName
+            if not benchmark_name or (benchmark_name and benchmark_name in test_name):
                 test.client = sebs_client  # type: ignore
                 test.experiment_config = experiment_config  # type: ignore
                 tests.append(test)
-                print(f"Select test {test._testMethodName}")
+                print(f"Select test {test_name}")
             else:
-                print(f"Skip test {test._testMethodName}")
+                print(f"Skip test {test_name}")
     concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
     result = TracingStreamResult()
     result.startTestRun()
