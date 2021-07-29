@@ -31,6 +31,7 @@ can be [installed locally](#installation).
 When using SeBS, please cite our Middleware '21 paper (link coming soon!).
 An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.15592), and you can
 find more details about research work [in this paper summary](mcopik.github.io/projects/sebs/).
+You can cite our software repository as well, using the citation button on the right.
 
 ```
 @inproceedings{copik2021sebs,
