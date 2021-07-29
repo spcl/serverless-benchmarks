@@ -24,6 +24,7 @@ class Minio(PersistentStorage):
         super().__init__(cache_client, replace_existing)
         self._docker_client = docker_client
         self._port = 9000
+        # the location does not matter
         self._location = "us-east-1"
         self._storage_container: Optional[docker.container] = None
 
