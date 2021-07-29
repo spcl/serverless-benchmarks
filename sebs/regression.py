@@ -180,7 +180,11 @@ class TracingStreamResult(testtools.StreamResult):
 
 
 def regression_suite(
-    sebs_client: "SeBS", experiment_config: dict, providers: Set[str], deployment_config: dict
+    sebs_client: "SeBS",
+    experiment_config: dict,
+    providers: Set[str],
+    deployment_config: dict,
+    benchmark_name: Optional[str] = None,
 ):
     suite = unittest.TestSuite()
     global cloud_config
@@ -198,9 +202,14 @@ def regression_suite(
     # mypy is confused here
     for case in suite:
         for test in case:  # type: ignore
-            test.client = sebs_client  # type: ignore
-            test.experiment_config = experiment_config  # type: ignore
-            tests.append(test)
+            # skip
+            if not benchmark_name or (benchmark_name and benchmark_name in test._testMethodName):
+                test.client = sebs_client  # type: ignore
+                test.experiment_config = experiment_config  # type: ignore
+                tests.append(test)
+                print(f"Select test {test._testMethodName}")
+            else:
+                print(f"Skip test {test._testMethodName}")
     concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
     result = TracingStreamResult()
     result.startTestRun()

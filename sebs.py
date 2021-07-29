@@ -263,6 +263,12 @@ def process(**kwargs):
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])
 )  # help="Input test size")
+@click.option(
+    "--benchmark-name",
+    default=None,
+    type=str,
+    help="Run only the selected benchmark.",
+)
 @common_params
 @click.option(
     "--cache",
@@ -272,7 +278,7 @@ def process(**kwargs):
 @click.option(
     "--output-dir", default=os.path.join(os.path.curdir, "regression-output"), help="Output directory for results."
 )
-def regression(benchmark_input_size, **kwargs):
+def regression(benchmark_input_size, benchmark_name, **kwargs):
     # for regression, deployment client is initialized locally
     # disable default initialization
     (
@@ -289,7 +295,8 @@ def regression(benchmark_input_size, **kwargs):
         sebs_client,
         config["experiments"],
         set( (config['deployment']['name'],) ),
-        config["deployment"]
+        config["deployment"],
+        benchmark_name
     )
 
 @cli.group()
