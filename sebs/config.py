@@ -12,26 +12,20 @@ class SeBSConfig:
     def docker_repository(self) -> str:
         return self._system_config["general"]["docker_repository"]
 
-    def deployment_packages(
-        self, deployment_name: str, language_name: str
-    ) -> Dict[str, str]:
-        return self._system_config[deployment_name]["languages"][language_name][
-            "deployment"
-        ]["packages"]
-
-    def deployment_files(self, deployment_name: str, language_name: str) -> List[str]:
-        return self._system_config[deployment_name]["languages"][language_name][
-            "deployment"
-        ]["files"]
-
-    def docker_image_types(self, deployment_name: str, language_name: str) -> List[str]:
-        return self._system_config[deployment_name]["languages"][language_name][
-            "images"
+    def deployment_packages(self, deployment_name: str, language_name: str) -> Dict[str, str]:
+        return self._system_config[deployment_name]["languages"][language_name]["deployment"][
+            "packages"
         ]
 
-    def supported_language_versions(
-        self, deployment_name: str, language_name: str
-    ) -> List[str]:
+    def deployment_files(self, deployment_name: str, language_name: str) -> List[str]:
+        return self._system_config[deployment_name]["languages"][language_name]["deployment"][
+            "files"
+        ]
+
+    def docker_image_types(self, deployment_name: str, language_name: str) -> List[str]:
+        return self._system_config[deployment_name]["languages"][language_name]["images"]
+
+    def supported_language_versions(self, deployment_name: str, language_name: str) -> List[str]:
         return self._system_config[deployment_name]["languages"][language_name][
             "base_images"
         ].keys()
@@ -42,3 +36,6 @@ class SeBSConfig:
         return self._system_config[deployment_name]["languages"][language_name][
             "base_images"
         ]
+    
+    def username(self, deployment_name: str, language_name: str) -> str:
+        return self._system_config[deployment_name]["languages"][language_name]["username"]

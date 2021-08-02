@@ -1,6 +1,6 @@
 {
   "general": {
-    "docker_repository": "mcopik/serverless-benchmarks"
+    "docker_repository": "spcleth/serverless-benchmarks"
   },
   "local" : {
     "experiments": {
@@ -24,7 +24,7 @@
           "13.6": "node:13.6-slim"
         },
         "images": ["run", "build"],
-        "username": "node",
+        "username": "docker_user",
         "deployment": {
           "files": ["storage.js"],
           "packages": []
@@ -98,6 +98,37 @@
     "images": {
       "manage": {
         "username": "docker_user"
+      }
+    }
+  },
+  "gcp": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.7": "gcr.io/google-appengine/python"
+        },
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "handler.py", "storage.py"],
+          "packages": ["google-cloud-storage"]
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "6" : "gcr.io/google-appengine/nodejs",
+          "8" : "gcr.io/google-appengine/nodejs",
+          "10" : "gcr.io/google-appengine/nodejs"
+        },
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "handler.js", "storage.js"],
+          "packages": {
+            "@google-cloud/storage": "^4.0.0",
+            "uuid": "3.4.0"
+          }
+        }
       }
     }
   },

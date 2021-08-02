@@ -13,7 +13,7 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
         self.client = sebs.SeBS(self.tmp_dir.name)
 
     def invoke_sync(self, func: sebs.aws.LambdaFunction, func_input: dict):
-        ret = func.sync_invoke(func_input)
+        ret = func.triggers[0].sync_invoke(func_input)
         self.assertFalse(ret.stats.failure)
         # check that these values are not empty
         self.assertTrue(ret.request_id)
@@ -22,7 +22,7 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
 
     def test_invoke_sync_python(self):
         config = {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"name": "aws", "aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "python", "version": "3.6"},
                 "update_code": False,
@@ -48,7 +48,7 @@ class AWSInvokeFunctionSDK(unittest.TestCase):
 
     def test_invoke_sync_nodejs(self):
         config = {
-            "deployment": {"name": "aws", "region": "us-east-1"},
+            "deployment": {"name": "aws", "aws": {"region": "us-east-1"}},
             "experiments": {
                 "runtime": {"language": "nodejs", "version": "10.x"},
                 "update_code": False,

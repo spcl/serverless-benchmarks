@@ -1,5 +1,5 @@
 
-import datetime, io, json, os
+import datetime, io, json, os, uuid
 
 import azure.functions as func
 
@@ -7,9 +7,12 @@ import azure.functions as func
 # TODO: usual trigger
 # implement support for blob and others
 def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
+    income_timestamp = datetime.datetime.now().timestamp()
     req_json = req.get_json()
     if 'connection_string' in req_json:
         os.environ['STORAGE_CONNECTION_STRING'] = req_json['connection_string']
+    req_json['request-id'] = context.invocation_id
+    req_json['income-timestamp'] = income_timestamp
     begin = datetime.datetime.now()
     # We are deployed in the same directory
     from . import function
@@ -17,7 +20,7 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     end = datetime.datetime.now()
 
     log_data = {
-        'result': ret['result']
+        'output': ret['result']
     }
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
@@ -40,7 +43,20 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     fname = os.path.join('/tmp','cold_run')
     if not os.path.exists(fname):
         is_cold = True
-        open(fname, 'a').close()
+        container_id = str(uuid.uuid4())[0:8]
+        with open(fname, 'a') as f:
+            f.write(container_id)
+    else:
+        with open(fname, 'r') as f:
+            container_id = f.read()
+
+    is_cold_worker = False
+    global cold_marker
+    try:
+        _ = cold_marker
+    except NameError:
+        cold_marker = True
+        is_cold_worker = True
 
     return func.HttpResponse(
         json.dumps({
@@ -49,7 +65,9 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
             'results_time': results_time,
             'result': log_data,
             'is_cold': is_cold,
-            'environ': list(os.environ.items()),
+            'is_cold_worker': is_cold_worker,
+            'container_id': container_id,
+            'environ_container_id': os.environ['CONTAINER_NAME'],
             'request_id': context.invocation_id
         }),
         mimetype="application/json"
