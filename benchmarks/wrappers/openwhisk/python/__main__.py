@@ -6,6 +6,8 @@ import os
 def main(args):
     logging.getLogger().setLevel(logging.INFO)
     begin = datetime.datetime.now()
+    args['request-id'] = os.getenv('__OW_ACTIVATION_ID')
+    args['income-timestamp'] = begin.timestamp()
 
     from function import function
     ret = function.handler(args)
