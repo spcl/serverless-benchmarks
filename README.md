@@ -41,7 +41,7 @@ You can cite our software repository as well, using the citation button on the r
   publisher = {Association for Computing Machinery},
   url = {https://doi.org/10.1145/3464298.3476133},
   doi = {10.1145/3464298.3476133},
-  booktitle = {Proceedings of the 22nd International Middleware Conference}
+  booktitle = {Proceedings of the 22nd International Middleware Conference},
   series = {Middleware '21}
 }
 ```
