@@ -122,14 +122,9 @@ class GCPResources(Resources):
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for AWS")
         else:
-            if "resources" in config:
-                ret = cast(GCPResources, GCPResources.initialize(config["resources"]))
-                ret.logging_handlers = handlers
-                ret.logging.info("No cached resources for GCP found, using user configuration.")
-            else:
-                ret = GCPResources(project_name="", region="")
-                ret.logging_handlers = handlers
-                ret.logging.info("No resources for GCP found, initialize!")
+            ret = cast(GCPResources, GCPResources.initialize(config))
+            ret.logging_handlers = handlers
+            ret.logging.info("No cached resources for GCP found, using user configuration.")
         return ret
 
     def update_cache(self, cache: Cache):
