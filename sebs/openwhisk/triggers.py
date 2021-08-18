@@ -65,3 +65,41 @@ class LibraryTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return LibraryTrigger(obj["name"])
+
+    @staticmethod
+    def typename() -> str:
+        return "OpenWhisk.LibraryTrigger"
+
+
+class HTTPTrigger(Trigger):
+    def __init__(self, fname: str):
+        super().__init__()
+        self.fname = fname
+        response = subprocess.run(['wsk', '-i', 'action', 'get', fname, '--url'],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True)
+        stdout = response.stdout.decode("utf-8")
+        self.url = stdout.strip().split('\n')[-1] + '.json'
+
+    @staticmethod
+    def typename() -> str:
+        return "OpenWhisk.HTTPTrigger"
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        return Trigger.TriggerType.HTTP
+
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+        self.logging.debug(f"Invoke function {self.url}")
+        return self._http_invoke(payload, self.url, False)
+
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future:
+        pool = concurrent.futures.ThreadPoolExecutor()
+        fut = pool.submit(self.sync_invoke, payload)
+        return fut
+
+    def serialize(self) -> dict:
+        return {"type": "HTTP", "fname": self.fname}
+
+    @staticmethod
+    def deserialize(obj: dict) -> Trigger:
+        return HTTPTrigger(obj["fname"])

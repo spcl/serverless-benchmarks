@@ -29,6 +29,7 @@ def main(args):
     return {
         "begin": begin.strftime("%s.%f"),
         "end": end.strftime("%s.%f"),
+        "request_id": os.getenv('__OW_ACTIVATION_ID'),
         "results_time": results_time,
         "is_cold": is_cold,
         "result": log_data,

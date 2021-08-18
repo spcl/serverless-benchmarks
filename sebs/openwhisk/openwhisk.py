@@ -11,7 +11,7 @@ from sebs.cache import Cache
 from sebs.faas import System, PersistentStorage
 from sebs.faas.function import Function, ExecutionResult, Trigger
 from .minio import Minio
-from sebs.openwhisk.triggers import LibraryTrigger
+from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
 from sebs.utils import PROJECT_DIR, LoggingHandlers
 from .config import OpenWhiskConfig
 from .function import OpenwhiskFunction
@@ -159,6 +159,7 @@ class OpenWhisk(System):
                 docker_image = self.benchmark_base_image(code_package.benchmark, code_package.language_name,
                                                          code_package.language_version)
                 subprocess.run(['wsk', '-i', 'action', 'create', func_name,
+                                '--web', 'true',
                                 '--docker', docker_image,
                                 '--memory', str(code_package.benchmark_config.memory),
                                 code_package.code_location
@@ -210,6 +211,8 @@ class OpenWhisk(System):
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         if trigger_type == Trigger.TriggerType.LIBRARY:
             return function.triggers(Trigger.TriggerType.LIBRARY)[0]
+        elif trigger_type == Trigger.TriggerType.HTTP:
+            return HTTPTrigger(function.name)
         else:
             raise RuntimeError("Not supported!")
 

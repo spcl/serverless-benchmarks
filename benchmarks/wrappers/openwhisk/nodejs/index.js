@@ -21,6 +21,7 @@ async function main(args) {
     compute_time: micro,
     results_time: 0,
     result: ret,
+    request_id: process.env.__OW_ACTIVATION_ID,
     is_cold: is_cold,
   };
 }
