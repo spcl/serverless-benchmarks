@@ -70,7 +70,6 @@ def create_output(directory, preserve_dir, verbose):
         shutil.rmtree(output_dir)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-    os.chdir(output_dir)
     configure_logging()
 
     return output_dir
