@@ -61,6 +61,13 @@ The Google Cloud Free Tier gives free resources. It has two parts:
 - Always Free, which provides limited access to many common Google Cloud resources, free of charge.
 
 You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions.
+You have two options to pass the credentials to SeBS:
 
-**Pass the project name and service account's JSON key path in config JSON, see an example in `config/example.json`**
+- specify the project name nand path to JSON credentials in the config JSON file, see an example in `config/example.json`
+- use environment variables
+
+```
+export GCP_PROJECT_NAME = XXXX
+export GCP_SECRET_APPLICATION_CREDENTIALS = XXXX
+```
 
