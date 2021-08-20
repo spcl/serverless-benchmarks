@@ -238,7 +238,7 @@ class GCP(System):
                     },
                 )
             )
-            create_result = create_req.execute()
+            create_req.execute()
             self.logging.info(f"Function {func_name} has been created!")
             allow_unauthenticated_req = (
                 self.function_client.projects()
@@ -255,7 +255,7 @@ class GCP(System):
                     },
                 )
             )
-            allow_result = allow_unauthenticated_req.execute()
+            allow_unauthenticated_req.execute()
             self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
