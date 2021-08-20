@@ -376,7 +376,7 @@ class GCP(System):
                 except StopIteration:
                     break
                 except exceptions.ResourceExhausted:
-                    print("Google Cloud resources exhausted, sleeping 30s")
+                    self.logging.info("Google Cloud resources exhausted, sleeping 30s")
                     sleep(30)
 
         """
@@ -412,7 +412,10 @@ class GCP(System):
             page_size=1000,
         )
         invocations_processed = 0
-        pages = list(wrapper(invocations.pages))
+        if hasattr(invocations, "pages"):
+            pages = list(wrapper(invocations.pages))
+        else:
+            pages = [list(wrapper(invocations))]
         entries = 0
         for page in pages:  # invocations.pages:
             for invoc in page:
