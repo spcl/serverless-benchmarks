@@ -50,6 +50,9 @@ def simplified_common_params(func):
         "--output-dir", default=os.path.curdir, help="Output directory for results."
     )
     @click.option(
+        "--output-file", default="out.log", help="Output filename for logging."
+    )
+    @click.option(
         "--cache",
         default=os.path.join(os.path.curdir, "cache"),
         help="Location of experiments cache.",
@@ -103,6 +106,7 @@ def common_params(func):
 def parse_common_params(
     config,
     output_dir,
+    output_file,
     cache,
     verbose,
     preserve_out,
@@ -117,7 +121,7 @@ def parse_common_params(
     global sebs_client, deployment_client
     config_obj = json.load(open(config, "r"))
     os.makedirs(output_dir, exist_ok=True)
-    logging_filename = os.path.abspath(os.path.join(output_dir, "out.log"))
+    logging_filename = os.path.abspath(os.path.join(output_dir, output_file))
 
     sebs_client = sebs.SeBS(cache, output_dir, verbose, logging_filename)
     output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
