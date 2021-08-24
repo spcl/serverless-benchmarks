@@ -143,7 +143,7 @@
         "images": [],
         "username": "docker_user",
         "deployment": {
-          "files": [ "__main__.py", "storage.py"],
+          "files": [ "__main__.py", "storage.py", "setup.py"],
           "packages": {
             "minio": "^5.0.10"
           }

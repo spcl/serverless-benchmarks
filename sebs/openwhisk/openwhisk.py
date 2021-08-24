@@ -70,10 +70,13 @@ class OpenWhisk(System):
             os.path.join(PROJECT_DIR, 'docker', f'Dockerfile.run.{self.name()}.{language_name}'),
             os.path.join(build_dir, 'Dockerfile'))
 
-        for fn in ('requirements.txt', 'package.json'):
-            path = os.path.join(directory, fn)
-            if os.path.exists(path):
-                shutil.move(path, build_dir)
+        for fn in os.listdir(directory):
+            if fn not in ('index.js', '__main__.py'):
+                file = os.path.join(directory, fn)
+                shutil.move(file, build_dir)
+
+        with open(os.path.join(build_dir, '.dockerignore'), 'w') as f:
+            f.write('Dockerfile')
 
         builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[language_version]
         tag = self.benchmark_base_image(benchmark, language_name, language_version)
@@ -84,18 +87,16 @@ class OpenWhisk(System):
                 'BASE_IMAGE': builder_image,
             })
 
-        shutil.rmtree(build_dir)
+        # shutil.rmtree(build_dir)
 
     def package_code(self, directory: str, language_name: str, language_version: str, benchmark: str) -> Tuple[str, int]:
         node = 'nodejs'
         node_handler = 'index.js'
         CONFIG_FILES = {
-            'python': ['virtualenv', '__main__.py', 'requirements.txt'],
-            node: [node_handler, 'package.json', 'node_modules']
+            'python': ['__main__.py'],
+            node: [node_handler]
         }
         package_config = CONFIG_FILES[language_name]
-        function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)
 
         with open(os.path.join(directory, 'minioConfig.json'), 'w+') as minio_config:
             storage = self.get_storage()
@@ -106,31 +107,11 @@ class OpenWhisk(System):
             }
             minio_config.write(json.dumps(minio_config_json))
 
-        # openwhisk needs main function to be named in a package.json
-
-        if language_name == node:
-            filename = 'code/package.json'
-            with open(filename, 'r') as f:
-                data = json.load(f)
-                data['main'] = node_handler
-
-            os.remove(filename)
-            with open(filename, 'w') as f:
-                json.dump(data, f, indent=4)
-
-        for file in os.listdir(directory):
-            if file not in package_config:
-                file = os.path.join(directory, file)
-                shutil.move(file, function_dir)
-
         self.build_base_image(directory, language_name, language_version, benchmark)
         os.chdir(directory)
-        subprocess.run(
-            "zip -r {}.zip ./".format(benchmark).split(),
+        benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
+        subprocess.run(['zip', benchmark_archive] + package_config,
             stdout=subprocess.DEVNULL,
-        )
-        benchmark_archive = "{}.zip".format(
-            os.path.join(directory, benchmark)
         )
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)

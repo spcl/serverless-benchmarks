@@ -1,7 +1,7 @@
 const path = require('path'), fs = require('fs');
 
 async function main(args) {
-  var func = require('./function/function');
+  var func = require('/function/function.js');
   var begin = Date.now() / 1000;
   var start = process.hrtime();
   var ret = await func.handler(args);
