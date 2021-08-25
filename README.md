@@ -165,10 +165,10 @@ To download cloud metrics and process the invocations into a .csv file with data
 
 In addition to the cloud deployment, we provide an opportunity to launch benchmarks locally with the help of [minio](https://min.io/) storage.
 
-To launch Docker containers serving a selected benchmark, use the following command:
+To launch Docker containers, use the following command - this example launches benchmark `110.dynamic-html` with size `test`:
 
 ```
-./sebs.py local start 110.dynamic-html {input_size} out.json --config config/example.json --deployments 1
+./sebs.py local start 110.dynamic-html test out.json --config config/example.json --deployments 1
 ```
 
 The output file `out.json` will contain the information on containers deployed and the endpoints that can be used to invoke functions:
