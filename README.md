@@ -82,8 +82,14 @@ To install the benchmarks with a support for all platforms, use:
 ```
 
 It will create a virtual environment in `python-virtualenv`, install necessary Python
-dependecies and third-party dependencies. Then activate the new Python virtual environment, e.g.,
-with `source python-virtualenv/bin/activate`. Now you can deploy serverless experiments :-)
+dependecies and third-party dependencies. To use SeBS, you must first active the new Python
+virtual environment:
+
+```
+. python-virtualenv/bin/activate
+```
+
+Now you can deploy serverless experiments :-)
 
 **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
 
