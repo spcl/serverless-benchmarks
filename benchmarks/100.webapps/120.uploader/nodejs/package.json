@@ -4,8 +4,7 @@
   "description": "",
   "author": "",
   "license": "",
-  "dependencies": {},
-  "devDependencies": {
+  "dependencies": {
     "request": "^2.88.0"
   }
 }
