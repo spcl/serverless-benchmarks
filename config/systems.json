@@ -10,7 +10,8 @@
     "languages": {
       "python": {
         "base_images": {
-          "3.6": "python:3.6-slim"
+          "3.6": "python:3.6-slim",
+          "3.8": "python:3.8-slim"
         },
         "images": ["run", "build"],
         "username": "docker_user",
