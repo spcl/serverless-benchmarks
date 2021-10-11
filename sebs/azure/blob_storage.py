@@ -16,8 +16,8 @@ class BlobStorage(PersistentStorage):
     def deployment_name():
         return "azure"
 
-    def __init__(self, cache_client: Cache, conn_string: str, replace_existing: bool):
-        super().__init__(cache_client, replace_existing)
+    def __init__(self, region: str, cache_client: Cache, conn_string: str, replace_existing: bool):
+        super().__init__(region, cache_client, replace_existing)
         self.client = BlobServiceClient.from_connection_string(conn_string)
 
     """

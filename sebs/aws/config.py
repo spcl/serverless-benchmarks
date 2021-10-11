@@ -180,7 +180,7 @@ class AWSResources(Resources):
             # easier than querying AWS resources to get account id
             account_id = func.arn.split(":")[4]
             # API arn is:
-            arn = f"arn:aws:execute-api:us-east-1:{account_id}:{api_id}"
+            arn = f"arn:aws:execute-api:{self._region}:{account_id}:{api_id}"
             http_api = AWSResources.HTTPApi(arn, endpoint)
             self._http_apis[api_name] = http_api
         else:

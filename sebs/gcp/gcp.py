@@ -5,6 +5,7 @@ import re
 import shutil
 import time
 import math
+import zipfile
 from datetime import datetime, timezone
 from typing import cast, Dict, Optional, Tuple, List, Type
 
@@ -14,7 +15,6 @@ from google.cloud import monitoring_v3
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
-from sebs import utils
 from ..faas.function import Function, Trigger
 from .storage import PersistentStorage
 from ..faas.system import System
@@ -92,7 +92,7 @@ class GCP(System):
         buckets=None,
     ) -> PersistentStorage:
         if not self.storage:
-            self.storage = GCPStorage(self.cache_client, replace_existing)
+            self.storage = GCPStorage(self.config.region, self.cache_client, replace_existing)
             self.storage.logging_handlers = self.logging_handlers
         else:
             self.storage.replace_existing = replace_existing
@@ -130,7 +130,7 @@ class GCP(System):
         :return: path to packaged code and its size
     """
 
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str,  language_version: str, benchmark: str) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],
@@ -152,20 +152,34 @@ class GCP(System):
         requirements.write("google-cloud-storage")
         requirements.close()
 
-        cur_dir = os.getcwd()
-        os.chdir(directory)
+        # rename handler function.py since in gcp it has to be caled main.py
         old_name, new_name = HANDLER[language_name]
-        shutil.move(old_name, new_name)
+        old_path = os.path.join(directory, old_name)
+        new_path = os.path.join(directory, new_name)
+        shutil.move(old_path, new_path)
 
-        utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)
+        """
+            zip the whole directroy (the zip-file gets uploaded to gcp later)
+
+            Note that the function GCP.recusive_zip is slower than the use of e.g.
+            `utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)`
+            or `shutil.make_archive(benchmark_archive, direcory, directory)`
+            But both of the two alternatives need a chance of directory
+            (shutil.make_archive does the directorychange internaly)
+            which leads to a "race condition" when running several benchmarks
+            in parallel, since a change of the current directory is NOT Thread specfic.
+        """
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+        GCP.recursive_zip(directory, benchmark_archive)
         logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(benchmark_archive)
         mbytes = bytes_size / 1024.0 / 1024.0
         logging.info("Zip archive size {:2f} MB".format(mbytes))
-        shutil.move(new_name, old_name)
-        os.chdir(cur_dir)
+
+        # rename the main.py back to handler.py
+        shutil.move(new_path, old_path)
+
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "GCPFunction":
@@ -581,3 +595,45 @@ class GCP(System):
     # @abstractmethod
     # def download_metrics(self):
     #    pass
+
+    """
+       Helper method for recursive_zip
+
+       :param base_directory: path to directory to be zipped
+       :param path: path to file of subdirecotry to be zipped
+       :param archive: ZipFile object
+    """
+
+    @staticmethod
+    def helper_zip(base_directory: str, path: str, archive: zipfile.ZipFile):
+        paths = os.listdir(path)
+        for p in paths:
+            directory = os.path.join(path, p)
+            if os.path.isdir(directory):
+                GCP.helper_zip(base_directory, directory, archive)
+            else:
+                if directory != archive.filename:  # prevent form including itself
+                    archive.write(directory, os.path.relpath(directory, base_directory))
+
+    """
+       https://gist.github.com/felixSchl/d38b455df8bf83a78d3d
+
+       Zip directory with relative paths given an absolute path
+       If the archive exists only new files are added and updated.
+       If the archive does not exist a new one is created.
+
+       :param path: absolute path to the direcotry to be zipped
+       :param archname: path to the zip file
+    """
+
+    @staticmethod
+    def recursive_zip(directory: str, archname: str):
+        archive = zipfile.ZipFile(archname, "w", zipfile.ZIP_DEFLATED, compresslevel=9)
+        if os.path.isdir(directory):
+            GCP.helper_zip(directory, directory, archive)
+        else:
+            # if the passed direcotry is acually a file we just add the file to the zip archive
+            _, name = os.path.split(directory)
+            archive.write(directory, name)
+        archive.close()
+        return True

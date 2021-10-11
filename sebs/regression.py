@@ -1,8 +1,8 @@
-import logging
 import unittest
 import testtools
 import threading
-from typing import Dict, Set, TYPE_CHECKING
+from time import sleep
+from typing import cast, Dict, Optional, Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
 
@@ -22,20 +22,23 @@ benchmarks = [
     "504.dna-visualisation",
 ]
 
+# user-defined config passed during initialization
+cloud_config: Optional[dict] = None
+
 
 class TestSequenceMeta(type):
-    def __init__(cls, name, bases, attrs, deployment_name, config, triggers):
+    def __init__(cls, name, bases, attrs, deployment_name, triggers):
         type.__init__(cls, name, bases, attrs)
         cls.deployment_name = deployment_name
-        cls.config = config
         cls.triggers = triggers
 
-    def __new__(mcs, name, bases, dict, deployment_name, config, triggers):
+    def __new__(mcs, name, bases, dict, deployment_name, triggers):
         def gen_test(benchmark_name):
             def test(self):
                 deployment_client = self.get_deployment(benchmark_name)
-                logging.info(
-                    f"Begin regression test of {benchmark_name} on " f"{deployment_client.name()}"
+                print(
+                    f"Begin regression test of {benchmark_name} on {deployment_client.name()}, "
+                    f"region: {deployment_client.config.region}."
                 )
                 experiment_config = self.client.get_experiment_config(self.experiment_config)
                 benchmark = self.client.get_benchmark(
@@ -55,6 +58,13 @@ class TestSequenceMeta(type):
                         trigger = func.triggers(trigger_type)[0]
                     else:
                         trigger = deployment_client.create_trigger(func, trigger_type)
+                        """
+                            sleep 5 seconds - on some cloud systems the triggers might
+                            not be available immediately.
+                            for example, AWS tends to throw "not exist" on newly created
+                            API gateway
+                        """
+                        sleep(5)
                     # Synchronous invoke
                     try:
                         ret = trigger.sync_invoke(input_config)
@@ -85,13 +95,13 @@ class AWSTestSequence(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
     deployment_name="aws",
-    config={"name": "aws", "aws": {"region": "us-east-1"}},
     triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
 ):
     def get_deployment(self, benchmark_name):
         deployment_name = "aws"
+        assert cloud_config
         deployment_client = self.client.get_deployment(
-            self.config,
+            cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
         deployment_client.initialize()
@@ -102,25 +112,42 @@ class AzureTestSequence(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
     deployment_name="azure",
-    config={"name": "azure", "azure": {"region": "westeurope"}},
     triggers=[Trigger.TriggerType.HTTP],
 ):
     def get_deployment(self, benchmark_name):
         deployment_name = "azure"
+        assert cloud_config
         with AzureTestSequence.lock:
             if not AzureTestSequence.cfg:
                 AzureTestSequence.cfg = self.client.get_deployment_config(
-                    self.config,
+                    cloud_config,
                     logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 )
             deployment_client = self.client.get_deployment(
-                self.config,
+                cloud_config,
                 logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 deployment_config=AzureTestSequence.cfg,
             )
             deployment_client.initialize()
             deployment_client.allocate_shared_resource()
             return deployment_client
+
+
+class GCPTestSequence(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    deployment_name="gcp",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    def get_deployment(self, benchmark_name):
+        deployment_name = "gcp"
+        assert cloud_config
+        deployment_client = self.client.get_deployment(
+            cloud_config,
+            logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+        )
+        deployment_client.initialize()
+        return deployment_client
 
 
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
@@ -152,19 +179,38 @@ class TracingStreamResult(testtools.StreamResult):
             self.success.add(test_name)
 
 
-def regression_suite(sebs_client: "SeBS", experiment_config: dict, providers: Set[str]):
+def regression_suite(
+    sebs_client: "SeBS",
+    experiment_config: dict,
+    providers: Set[str],
+    deployment_config: dict,
+    benchmark_name: Optional[str] = None,
+):
     suite = unittest.TestSuite()
+    global cloud_config
+    cloud_config = deployment_config
     if "aws" in providers:
+        assert "aws" in cloud_config
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequence))
     if "azure" in providers:
+        assert "azure" in cloud_config
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequence))
+    if "gcp" in providers:
+        assert "gcp" in cloud_config
+        suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequence))
     tests = []
     # mypy is confused here
     for case in suite:
         for test in case:  # type: ignore
-            test.client = sebs_client  # type: ignore
-            test.experiment_config = experiment_config  # type: ignore
-            tests.append(test)
+            # skip
+            test_name = cast(unittest.TestCase, test)._testMethodName
+            if not benchmark_name or (benchmark_name and benchmark_name in test_name):
+                test.client = sebs_client  # type: ignore
+                test.experiment_config = experiment_config  # type: ignore
+                tests.append(test)
+                print(f"Select test {test_name}")
+            else:
+                print(f"Skip test {test_name}")
     concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
     result = TracingStreamResult()
     result.startTestRun()

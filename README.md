@@ -3,7 +3,7 @@
 **FaaS benchmarking suite for serverless functions with automatic build, deployment, and measurements.**
 
 [![CircleCI](https://circleci.com/gh/spcl/serverless-benchmarks.svg?style=shield)](https://circleci.com/gh/spcl/serverless-benchmarks)
-![Release](https://img.shields.io/github/v/release/spcl/perf)
+![Release](https://img.shields.io/github/v/release/spcl/serverless-benchmarks)
 ![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
 ![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/spcl/serverless-benchmarks)
@@ -31,6 +31,7 @@ can be [installed locally](#installation).
 When using SeBS, please cite our Middleware '21 paper (link coming soon!).
 An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.15592), and you can
 find more details about research work [in this paper summary](mcopik.github.io/projects/sebs/).
+You can cite our software repository as well, using the citation button on the right.
 
 ```
 @inproceedings{copik2021sebs,
@@ -86,7 +87,7 @@ with `source python-virtualenv/bin/activate`. Now you can deploy serverless expe
 
 **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
 
-You can run `tools/build_docker_images.py` to create all Docker images that are needed to build and run benchmarks. Otherwise they'll be pulled from the Docker Hub repository.
+To verify the correctness of installation, you can use [our regression testing](#regression).
 
 ## Usage
 
@@ -97,6 +98,8 @@ dependencies and information on allocated cloud resources.
 Benchmarks will be rebuilt after a change in source code is detected.
 To enforce redeployment of code and benchmark input please use flags `--update-code`
 and `--update-storage`, respectively.
+**Note:** the cache does not support updating cloud region. If you want to deploy benchmarks
+to a new cloud region, then use a new cache directory.
 
 ### Benchmark
 
@@ -110,11 +113,19 @@ The example below invokes the benchmark `110.dynamic-html` on AWS via the standa
 To configure your benchmark, change settings in the config file or use command-line options.
 The full list is available by running `./sebs.py benchmark invoke --help`.
 
+### Regression
+
 Additionally, we provide a regression option to execute all benchmarks on a given platform.
 The example below demonstrates how to run the regression suite with `test` input size on AWS.
 
 ```
 ./sebs.py benchmark regression test --config config/example.json --deployment aws
+```
+
+The regression can be executed on a single benchmark as well:
+
+```
+./sebs.py benchmark regression test --config config/example.json --deployment aws --benchmark-name 120.uploader
 ```
 
 ### Experiment
@@ -223,6 +234,6 @@ Currently supported only on AWS.
 * [Marcin Copik (ETH Zurich)](https://github.com/mcopik/) - main author.
 * [Michał Podstawski (Future Processing SA)](https://github.com/micpod/) - contributed graph and DNA benchmarks, and worked on Google Cloud support.
 * [Nico Graf (ETH Zurich)](https://github.com/ncograf/) - contributed implementation of regression tests, bugfixes, and helped with testing and documentation.
-* [Kacper Janda](https://github.com/Kacpro), [Mateusz Knapik](https://github.com/maknapik), [JmmCz](https://github.com/JmmCz), AGH University of Science and Technology - contributed together Google Cloud support..
+* [Kacper Janda](https://github.com/Kacpro), [Mateusz Knapik](https://github.com/maknapik), [JmmCz](https://github.com/JmmCz), AGH University of Science and Technology - contributed together Google Cloud support.
 * [Grzegorz Kwaśniewski (ETH Zurich)](https://github.com/gkwasniewski) - worked on the modeling experiments.
 

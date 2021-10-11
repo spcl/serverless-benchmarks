@@ -20,11 +20,13 @@ class Minio(PersistentStorage):
     def deployment_name():
         return "local"
 
+    # the location does not matter
+    MINIO_REGION = "us-east-1"
+
     def __init__(self, docker_client: docker.client, cache_client: Cache, replace_existing: bool):
-        super().__init__(cache_client, replace_existing)
+        super().__init__(self.MINIO_REGION, cache_client, replace_existing)
         self._docker_client = docker_client
         self._port = 9000
-        self._location = "us-east-1"
         self._storage_container: Optional[docker.container] = None
 
     def start(self):
@@ -94,7 +96,7 @@ class Minio(PersistentStorage):
         # minio has limit of bucket name to 16 characters
         bucket_name = "{}-{}".format(name, str(uuid.uuid4())[0:16])
         try:
-            self.connection.make_bucket(bucket_name, location=self._location)
+            self.connection.make_bucket(bucket_name, location=self.MINIO_REGION)
             self.logging.info("Created bucket {}".format(bucket_name))
             return bucket_name
         except (
