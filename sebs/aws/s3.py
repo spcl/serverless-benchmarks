@@ -55,18 +55,26 @@ class S3(PersistentStorage):
         random_name = str(uuid.uuid4())[0:16]
         bucket_name = "{}-{}".format(name, random_name)
         try:
-            self.client.create_bucket(
-                Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": self.region}
-            )
+            # this is incredible
+            # https://github.com/boto/boto3/issues/125
+            if self.region != "us-east-1":
+                self.client.create_bucket(
+                    Bucket=bucket_name,
+                    CreateBucketConfiguration={"LocationConstraint": self.region},
+                )
+            else:
+                self.client.create_bucket(Bucket=bucket_name)
             self.logging.info("Created bucket {}".format(bucket_name))
-        except self.client.exceptions.BucketAlreadyExists:
+        except self.client.exceptions.BucketAlreadyExists as e:
             self.logging.error(f"The bucket {bucket_name} exists already in region {self.region}!")
+            raise e
         except self.client.exceptions.ClientError as e:
             self.logging.error(
                 f"The bucket {bucket_name} not successful; perhaps it exists already in a region "
                 f" different from {self.region}?"
             )
             self.logging.error(e)
+            raise e
 
         return bucket_name
 

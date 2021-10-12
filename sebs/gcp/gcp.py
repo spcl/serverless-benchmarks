@@ -201,40 +201,25 @@ class GCP(System):
         storage_client.upload(code_bucket, package, code_package_name)
         self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
 
-        req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .list(
-                parent="projects/{project_name}/locations/{location}".format(
-                    project_name=project_name, location=location
-                )
-            )
-        )
-        res = req.execute()
-
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
-        if (
-            False
-            and "functions" in res.keys()
-            and full_func_name in [f["name"] for f in res["functions"]]
-        ):
-            # FIXME: retrieve existing configuration, update code and return object
-            raise NotImplementedError()
-            # self.update_function(
-            #    benchmark,
-            #    full_func_name,
-            #    code_package_name,
-            #    code_package,
-            #    timeout,
-            #    memory,
-            # )
-        else:
-            language_runtime = code_package.language_version
-            print(
-                "language runtime: ",
-                code_package.language_name + language_runtime.replace(".", ""),
+        get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
+        get_result = get_req.execute()
+
+        language_runtime = (code_package.language_name + language_runtime.replace(".", ""),)
+
+        # if result is not empty, then function does exists
+        if get_result:
+            self.logging.info("Function {} exists on GCP, update the instance.".format(func_name))
+            function = GCPFunction(
+                name=func_name,
+                benchmark=benchmark,
+                code_package_hash=code_package.hash,
+                timeout=timeout,
+                memory=memory,
+                bucket=code_bucket,
             )
+            self.update_function(function, code_package)
+        else:
             create_req = (
                 self.function_client.projects()
                 .locations()
@@ -255,9 +240,7 @@ class GCP(System):
                     },
                 )
             )
-            print("request: ", create_req)
-            create_result = create_req.execute()
-            print("response:", create_result)
+            create_req.execute()
             self.logging.info(f"Function {func_name} has been created!")
             allow_unauthenticated_req = (
                 self.function_client.projects()
@@ -274,8 +257,7 @@ class GCP(System):
                     },
                 )
             )
-            allow_result = allow_unauthenticated_req.execute()
-            print(allow_result)
+            allow_unauthenticated_req.execute()
             self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
@@ -369,8 +351,7 @@ class GCP(System):
                 time.sleep(5)
             else:
                 break
-        print("response:", res)
-        self.logging.info("Published new function code")
+        self.logging.info("Published new function code and configuration.")
 
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str):
@@ -397,7 +378,7 @@ class GCP(System):
                 except StopIteration:
                     break
                 except exceptions.ResourceExhausted:
-                    print("Google Cloud resources exhausted, sleeping 30s")
+                    self.logging.info("Google Cloud resources exhausted, sleeping 30s")
                     sleep(30)
 
         """
@@ -433,7 +414,10 @@ class GCP(System):
             page_size=1000,
         )
         invocations_processed = 0
-        pages = list(wrapper(invocations.pages))
+        if hasattr(invocations, "pages"):
+            pages = list(wrapper(invocations.pages))
+        else:
+            pages = [list(wrapper(invocations))]
         entries = 0
         for page in pages:  # invocations.pages:
             for invoc in page:

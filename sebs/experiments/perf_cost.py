@@ -1,6 +1,3 @@
-# forward references
-from __future__ import annotations
-
 import json
 import os
 import time
@@ -42,7 +39,7 @@ class PerfCost(Experiment):
         def str(self) -> str:
             return self.name.lower()
 
-    def prepare(self, sebs_client: SeBS, deployment_client: FaaSSystem):
+    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
 
         # create benchmark instance
         settings = self.config.experiment_settings(self.name())
@@ -51,7 +48,7 @@ class PerfCost(Experiment):
         )
         self._function = deployment_client.get_function(self._benchmark)
         # prepare benchmark input
-        self._storage = deployment_client.get_storage(replace_existing=settings.update_storage)
+        self._storage = deployment_client.get_storage(replace_existing=self.config.update_storage)
         self._benchmark_input = self._benchmark.prepare_input(
             storage=self._storage, size=settings["input-size"]
         )
@@ -265,7 +262,7 @@ class PerfCost(Experiment):
 
     def process(
         self,
-        sebs_client: SeBS,
+        sebs_client: "SeBS",
         deployment_client: FaaSSystem,
         directory: str,
         logging_filename: str,

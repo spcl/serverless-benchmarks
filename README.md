@@ -41,7 +41,7 @@ You can cite our software repository as well, using the citation button on the r
   publisher = {Association for Computing Machinery},
   url = {https://doi.org/10.1145/3464298.3476133},
   doi = {10.1145/3464298.3476133},
-  booktitle = {Proceedings of the 22nd International Middleware Conference}
+  booktitle = {Proceedings of the 22nd International Middleware Conference},
   series = {Middleware '21}
 }
 ```
@@ -82,8 +82,14 @@ To install the benchmarks with a support for all platforms, use:
 ```
 
 It will create a virtual environment in `python-virtualenv`, install necessary Python
-dependecies and third-party dependencies. Then activate the new Python virtual environment, e.g.,
-with `source python-virtualenv/bin/activate`. Now you can deploy serverless experiments :-)
+dependecies and third-party dependencies. To use SeBS, you must first active the new Python
+virtual environment:
+
+```
+. python-virtualenv/bin/activate
+```
+
+Now you can deploy serverless experiments :-)
 
 **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
 
@@ -158,11 +164,12 @@ To download cloud metrics and process the invocations into a .csv file with data
 ### Local
 
 In addition to the cloud deployment, we provide an opportunity to launch benchmarks locally with the help of [minio](https://min.io/) storage.
+This allows us to conduct debugging and a local characterization of the benchmarks.
 
-To launch Docker containers serving a selected benchmark, use the following command:
+To launch Docker containers, use the following command - this example launches benchmark `110.dynamic-html` with size `test`:
 
 ```
-./sebs.py local start 110.dynamic-html {input_size} out.json --config config/example.json --deployments 1
+./sebs.py local start 110.dynamic-html test out.json --config config/example.json --deployments 1
 ```
 
 The output file `out.json` will contain the information on containers deployed and the endpoints that can be used to invoke functions:
