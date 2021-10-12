@@ -22,26 +22,35 @@ to learn how to provide SeBS with cloud credentials.
 The documentation describes in detail [the design and implementation of our
 tool](docs/design.md), and see the [modularity](docs/modularity.md)
 section to learn how SeBS can be extended with new platforms, benchmarks, and experiments.
+Find out more about our project in [a paper summary](mcopik.github.io/projects/sebs/).
 
-SeBS can be used with our Docker image `spcleth/serverless-benchmarks:latest`, or the tool
-can be [installed locally](#installation).
+Do you have further questions not answered by our documentation?
+Did you encounter troubles with installing and using SeBS?
+Or do you want to use SeBS in your work and you need new features?
+Feel free to reach us through GitHub issues or by writing to <marcin.copik@inf.ethz.ch>.
 
 ### Paper
 
-When using SeBS, please cite our Middleware '21 paper (link coming soon!).
+When using SeBS, please cite our [Middleware '21 paper](https://dl.acm.org/doi/10.1145/3464298.3476133).
 An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.15592), and you can
 find more details about research work [in this paper summary](mcopik.github.io/projects/sebs/).
 You can cite our software repository as well, using the citation button on the right.
 
 ```
 @inproceedings{copik2021sebs,
-  author={Marcin Copik and Grzegorz Kwasniewski and Maciej Besta and Michal Podstawski and Torsten Hoefler},
-  title={SeBS: A Serverless Benchmark Suite for Function-as-a-Service Computing}, 
+  author = {Copik, Marcin and Kwasniewski, Grzegorz and Besta, Maciej and Podstawski, Michal and Hoefler, Torsten},
+  title = {SeBS: A Serverless Benchmark Suite for Function-as-a-Service Computing},
   year = {2021},
+  isbn = {9781450385343},
   publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
   url = {https://doi.org/10.1145/3464298.3476133},
   doi = {10.1145/3464298.3476133},
   booktitle = {Proceedings of the 22nd International Middleware Conference},
+  pages = {64–78},
+  numpages = {15},
+  keywords = {benchmark, serverless, FaaS, function-as-a-service},
+  location = {Qu\'{e}bec city, Canada},
   series = {Middleware '21}
 }
 ```
