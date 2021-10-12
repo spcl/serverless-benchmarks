@@ -1,12 +1,11 @@
 import sebs.local.storage
-from typing import List, Tuple, Any
+from typing import List, Any
 import secrets
-import docker.errors
+import docker
 from sebs.cache import Cache
 
 
 class Minio(sebs.local.storage.Minio):
-
     @staticmethod
     def deployment_name() -> str:
         return "openwhisk"
@@ -21,7 +20,7 @@ class Minio(sebs.local.storage.Minio):
     location = "openwhiskBenchmark"
     connection: Any
 
-    def __init__(self,docker_client: docker.client, cache_client: Cache, replace_existing: bool):
+    def __init__(self, docker_client: docker.client, cache_client: Cache, replace_existing: bool):
         super(Minio, self).__init__(docker_client, cache_client, replace_existing)
         self.start()
         self.connection = self.get_connection()
@@ -36,9 +35,9 @@ class Minio(sebs.local.storage.Minio):
             self.logging.info("Minio container already exists")
             envs = self._storage_container.attrs["Config"]["Env"]
             if isinstance(envs, (tuple, list)):
-                envs = dict([i.split('=', 1) for i in envs])
-            self._access_key = envs['MINIO_ACCESS_KEY']
-            self._secret_key = envs['MINIO_SECRET_KEY']
+                envs = dict([i.split("=", 1) for i in envs])
+            self._access_key = envs["MINIO_ACCESS_KEY"]
+            self._secret_key = envs["MINIO_SECRET_KEY"]
         except docker.errors.NotFound:
             self.logging.info("Minio container does not exists, starting")
             self._access_key = secrets.token_urlsafe(32)
@@ -54,7 +53,7 @@ class Minio(sebs.local.storage.Minio):
                 stdout=True,
                 stderr=True,
                 detach=True,
-                name="minio"
+                name="minio",
             )
 
         self.logging.info("ACCESS_KEY={}".format(self._access_key))

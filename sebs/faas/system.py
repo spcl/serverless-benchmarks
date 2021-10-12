@@ -104,7 +104,9 @@ class System(ABC, LoggingBase):
     """
 
     @abstractmethod
-    def package_code(self, directory: str, language_name: str,  language_version: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(
+        self, directory: str, language_name: str, language_version: str, benchmark: str
+    ) -> Tuple[str, int]:
         pass
 
     @abstractmethod

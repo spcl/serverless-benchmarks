@@ -477,7 +477,10 @@ class Benchmark(LoggingBase):
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         self._code_location, self._code_size = deployment_build_step(
-            os.path.abspath(self._output_dir), self.language_name, self.language_version, self.benchmark
+            os.path.abspath(self._output_dir),
+            self.language_name,
+            self.language_version,
+            self.benchmark,
         )
         self.logging.info(
             (

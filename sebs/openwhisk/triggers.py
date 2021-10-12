@@ -25,7 +25,9 @@ class LibraryTrigger(Trigger):
         return command
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
-        command = self.__add_params__(['wsk', '-i', 'action', 'invoke', '--result', self.fname], payload)
+        command = self.__add_params__(
+            ["wsk", "-i", "action", "invoke", "--result", self.fname], payload
+        )
         error = None
         try:
             self.logging.info(f"Executing {command}")
@@ -37,7 +39,7 @@ class LibraryTrigger(Trigger):
                 check=True,
             )
             end = datetime.datetime.now()
-            response = response.stdout.decode("utf-8")
+            parsed_response = response.stdout.decode("utf-8")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             end = datetime.datetime.now()
             error = e
@@ -48,7 +50,7 @@ class LibraryTrigger(Trigger):
             openwhisk_result.stats.failure = True
             return openwhisk_result
 
-        return_content = json.loads(response)
+        return_content = json.loads(parsed_response)
         self.logging.info(f"{return_content}")
 
         openwhisk_result.parse_benchmark_output(return_content)
@@ -75,10 +77,14 @@ class HTTPTrigger(Trigger):
     def __init__(self, fname: str):
         super().__init__()
         self.fname = fname
-        response = subprocess.run(['wsk', '-i', 'action', 'get', fname, '--url'],
-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True)
+        response = subprocess.run(
+            ["wsk", "-i", "action", "get", fname, "--url"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
         stdout = response.stdout.decode("utf-8")
-        self.url = stdout.strip().split('\n')[-1] + '.json'
+        self.url = stdout.strip().split("\n")[-1] + ".json"
 
     @staticmethod
     def typename() -> str:

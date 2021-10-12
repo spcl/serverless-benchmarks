@@ -4,7 +4,6 @@ from sebs.utils import LoggingHandlers
 
 
 class OpenWhiskCredentials(Credentials):
-
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
         return OpenWhiskCredentials()
@@ -14,7 +13,6 @@ class OpenWhiskCredentials(Credentials):
 
 
 class OpenWhiskResources(Resources):
-
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
         return OpenWhiskResources()
@@ -32,9 +30,9 @@ class OpenWhiskConfig(Config):
         super().__init__()
         self._credentials = OpenWhiskCredentials()
         self._resources = OpenWhiskResources()
-        self.name = config['name']
-        self.shutdownStorage = config['shutdownStorage']
-        self.removeCluster = config['removeCluster']
+        self.name = config["name"]
+        self.shutdownStorage = config["shutdownStorage"]
+        self.removeCluster = config["removeCluster"]
         self.cache = cache
 
     @property
