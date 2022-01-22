@@ -30,9 +30,10 @@ class OpenWhiskConfig(Config):
         super().__init__()
         self._credentials = OpenWhiskCredentials()
         self._resources = OpenWhiskResources()
-        self.name = config["name"]
         self.shutdownStorage = config["shutdownStorage"]
         self.removeCluster = config["removeCluster"]
+        self.wsk_exec = config["wskExec"]
+        self.wsk_bypass_security = config["wskBypassSecurity"]
         self.cache = cache
 
     @property
@@ -52,13 +53,16 @@ class OpenWhiskConfig(Config):
             "name": "openwhisk",
             "shutdownStorage": self.shutdownStorage,
             "removeCluster": self.removeCluster,
+            "wskExec": self.wsk_exec,
+            "wskBypassSecurity": self.wsk_bypass_security,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
-        res = OpenWhiskConfig(config, cache)
+        cached_config = cache.get_config("openwhisk")
+        res = OpenWhiskConfig(config, cached_config)
         res.logging_handlers = handlers
         return res
 

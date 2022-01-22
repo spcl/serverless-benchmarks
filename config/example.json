@@ -1,5 +1,6 @@
 {
   "experiments": {
+    "deployment": "openwhisk",
     "update_code": false,
     "update_storage": false,
     "download_results": false,
@@ -52,6 +53,12 @@
       "region": "europe-west1",
       "project_name": "",
       "credentials": ""
+    },
+    "openwhisk": {
+      "shutdownStorage": false,
+      "removeCluster": false,
+      "wskBypassSecurity": "true",
+      "wskExec": "wsk"
     }
   }
 }

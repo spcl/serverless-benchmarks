@@ -12,6 +12,8 @@
   "deployment": {
     "name": "openwhisk",
     "shutdownStorage": false,
-    "removeCluster": false
+    "removeCluster": false,
+    "wskBypassSecurity": "true",
+    "wskExec": "wsk"
   }
 }
