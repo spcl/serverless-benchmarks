@@ -73,12 +73,6 @@ class OpenWhisk(System):
             cmd.append("-i")
         return cmd
 
-    def benchmark_base_image(self, benchmark: str, language_name: str, language_version: str):
-        return (
-            f"spcleth/serverless-benchmarks:{self.name()}-{benchmark}-"
-            f"{language_name}-{language_version}"
-        )
-
     def build_base_image(
         self, directory: str, language_name: str, language_version: str, benchmark: str
     ):
@@ -100,7 +94,9 @@ class OpenWhisk(System):
         builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
             language_version
         ]
-        tag = self.benchmark_base_image(benchmark, language_name, language_version)
+        tag = self.system_config.benchmark_image_name(
+            self.name(), benchmark, language_name, language_version
+        )
         self.logging.info(f"Build the benchmark base image {tag}.")
         image, _ = self.docker_client.images.build(
             tag=tag,
@@ -158,10 +154,11 @@ class OpenWhisk(System):
             )
             self.logging.info(f"Function {func_name} already exist")
 
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            self.logging.error(f"ERROR: {e}")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # grep will return error when there are no entries
             try:
-                docker_image = self.benchmark_base_image(
+                docker_image = self.system_config.benchmark_image_name(
+                    self.name(),
                     code_package.benchmark,
                     code_package.language_name,
                     code_package.language_version,
@@ -198,7 +195,8 @@ class OpenWhisk(System):
         return res
 
     def update_function(self, function: Function, code_package: Benchmark):
-        docker_image = self.benchmark_base_image(
+        docker_image = self.system_config.benchmark_image_name(
+            self.name(),
             code_package.benchmark,
             code_package.language_name,
             code_package.language_version,
@@ -223,7 +221,7 @@ class OpenWhisk(System):
     def default_function_name(self, code_package: Benchmark) -> str:
         return (
             f"{code_package.benchmark}-{code_package.language_name}-"
-            f"{code_package.benchmark_config.memory}"
+            f"{code_package.language_version}"
         )
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):

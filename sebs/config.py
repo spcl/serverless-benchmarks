@@ -33,5 +33,13 @@ class SeBSConfig:
     def benchmark_base_images(self, deployment_name: str, language_name: str) -> Dict[str, str]:
         return self._system_config[deployment_name]["languages"][language_name]["base_images"]
 
+    def benchmark_image_name(
+        self, system: str, benchmark: str, language_name: str, language_version: str
+    ):
+        return (
+            f"{self.docker_repository()}:run.{system}.{benchmark}."
+            f"{language_name}-{language_version}"
+        )
+
     def username(self, deployment_name: str, language_name: str) -> str:
         return self._system_config[deployment_name]["languages"][language_name]["username"]
