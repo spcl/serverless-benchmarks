@@ -48,7 +48,7 @@ class OpenWhisk(System):
         return self.storage
 
     def shutdown(self) -> None:
-        if self.storage and self.config.shutdownStorage:
+        if hasattr(self, "storage") and self.config.shutdownStorage:
             self.storage.stop()
         if self.config.removeCluster:
             from tools.openwhisk_preparation import delete_cluster  # type: ignore
@@ -66,6 +66,12 @@ class OpenWhisk(System):
     @staticmethod
     def function_type() -> "Type[Function]":
         return OpenwhiskFunction
+
+    def get_wsk_cmd(self) -> List[str]:
+        cmd = [self.config.wsk_exec]
+        if self.config.wsk_bypass_security:
+            cmd.append("-i")
+        return cmd
 
     def benchmark_base_image(self, benchmark: str, language_name: str, language_version: str):
         return (
@@ -95,6 +101,7 @@ class OpenWhisk(System):
             language_version
         ]
         tag = self.benchmark_base_image(benchmark, language_name, language_version)
+        self.logging.info(f"Build the benchmark base image {tag}.")
         image, _ = self.docker_client.images.build(
             tag=tag,
             path=build_dir,
@@ -131,13 +138,14 @@ class OpenWhisk(System):
         )
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
+        self.logging.info("Zip archive size {:2f} MB".format(bytes_size/ 1024.0 / 1024.0))
         return benchmark_archive, bytes_size
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "OpenwhiskFunction":
         self.logging.info("Creating action on openwhisk")
         try:
             actions = subprocess.run(
-                "wsk -i action list".split(),
+                [*self.get_wsk_cmd(), "action", "list"],
                 stderr=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
             )
@@ -160,8 +168,7 @@ class OpenWhisk(System):
                 )
                 subprocess.run(
                     [
-                        "wsk",
-                        "-i",
+                        *self.get_wsk_cmd(),
                         "action",
                         "create",
                         func_name,
@@ -195,8 +202,7 @@ class OpenWhisk(System):
             image_tag = f.read()
         subprocess.run(
             [
-                "wsk",
-                "-i",
+                *self.get_wsk_cmd(),
                 "action",
                 "update",
                 function.name,
