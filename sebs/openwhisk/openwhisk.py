@@ -191,7 +191,7 @@ class OpenWhisk(System):
         res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash)
 
         # Add LibraryTrigger to a new function
-        trigger = LibraryTrigger(func_name)
+        trigger = LibraryTrigger(func_name, self.get_wsk_cmd())
         trigger.logging_handlers = self.logging_handlers
         res.add_trigger(trigger)
 
@@ -243,9 +243,21 @@ class OpenWhisk(System):
         if trigger_type == Trigger.TriggerType.LIBRARY:
             return function.triggers(Trigger.TriggerType.LIBRARY)[0]
         elif trigger_type == Trigger.TriggerType.HTTP:
-            return HTTPTrigger(function.name)
+            response = subprocess.run(
+                [*self.get_wsk_cmd(), "action", "get", function.name, "--url"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
+            stdout = response.stdout.decode("utf-8")
+            url = stdout.strip().split("\n")[-1] + ".json"
+            return HTTPTrigger(function.name, url)
         else:
             raise RuntimeError("Not supported!")
 
     def cached_function(self, function: Function):
-        pass
+        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
+            trigger.logging_handlers = self.logging_handlers
+            cast(LibraryTrigger, trigger).wsk_cmd = self.get_wsk_cmd()
+        for trigger in function.triggers(Trigger.TriggerType.HTTP):
+            trigger.logging_handlers = self.logging_handlers
