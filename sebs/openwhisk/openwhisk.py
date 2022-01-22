@@ -138,7 +138,7 @@ class OpenWhisk(System):
         )
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
-        self.logging.info("Zip archive size {:2f} MB".format(bytes_size/ 1024.0 / 1024.0))
+        self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
         return benchmark_archive, bytes_size
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "OpenwhiskFunction":
@@ -198,8 +198,11 @@ class OpenWhisk(System):
         return res
 
     def update_function(self, function: Function, code_package: Benchmark):
-        with open(code_package.code_location) as f:
-            image_tag = f.read()
+        docker_image = self.benchmark_base_image(
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.language_version,
+        )
         subprocess.run(
             [
                 *self.get_wsk_cmd(),
@@ -207,9 +210,10 @@ class OpenWhisk(System):
                 "update",
                 function.name,
                 "--docker",
-                image_tag,
+                docker_image,
                 "--memory",
                 str(code_package.benchmark_config.memory),
+                code_package.code_location,
             ],
             stderr=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
