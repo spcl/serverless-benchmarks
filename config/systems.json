@@ -137,10 +137,11 @@
     "languages": {
       "python": {
         "base_images": {
-          "3.6": "openwhisk/actionloop-python-v3.6-ai",
-          "2.7": "openwhisk/python2action"
+          "3.6": "openwhisk/python3action",
+          "3.7": "openwhisk/action-python-v3.7",
+          "3.9": "openwhisk/action-python-v3.9"
         },
-        "versions": ["3.6", "2.7"],
+        "versions": ["3.6", "3.7", "3.9"],
         "images": [],
         "username": "docker_user",
         "deployment": {
