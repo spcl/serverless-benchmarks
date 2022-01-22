@@ -186,12 +186,18 @@ class System(ABC, LoggingBase):
             )
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash or rebuilt:
-                self.logging.info(
-                    f"Cached function {func_name} with hash "
-                    f"{function.code_package_hash} is not up to date with "
-                    f"current build {code_package.hash} in "
-                    f"{code_location}, updating cloud version!"
-                )
+                if function.code_package_hash != code_package.hash:
+                    self.logging.info(
+                        f"Cached function {func_name} with hash "
+                        f"{function.code_package_hash} is not up to date with "
+                        f"current build {code_package.hash} in "
+                        f"{code_location}, updating cloud version!"
+                    )
+                if rebuilt:
+                    self.logging.info(
+                        f"Enforcing rebuild and update of of cached function "
+                        f"{func_name} with hash {function.code_package_hash}."
+                    )
                 self.update_function(function, code_package)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
