@@ -138,7 +138,7 @@ class OpenWhisk(System):
         return benchmark_archive, bytes_size
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "OpenwhiskFunction":
-        self.logging.info("Creating action on openwhisk")
+        self.logging.info("Creating function as an action in OpenWhisk")
         try:
             actions = subprocess.run(
                 [*self.get_wsk_cmd(), "action", "list"],
@@ -153,6 +153,11 @@ class OpenWhisk(System):
                 check=True,
             )
             self.logging.info(f"Function {func_name} already exist")
+
+            res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash)
+            # Update function - we don't know what version is stored
+            self.update_function(res, code_package)
+            self.logging.info(f"Retrieved OpenWhisk action {func_name}")
 
         except (subprocess.CalledProcessError, FileNotFoundError):
             # grep will return error when there are no entries
@@ -181,11 +186,11 @@ class OpenWhisk(System):
                     stdout=subprocess.DEVNULL,
                     check=True,
                 )
+                self.logging.info(f"Created new OpenWhisk action {func_name}")
+                res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash)
             except (subprocess.CalledProcessError, FileNotFoundError) as e:
                 self.logging.error(f"Cannot create action {func_name}, reason: {e}")
                 exit(1)
-
-        res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash)
 
         # Add LibraryTrigger to a new function
         trigger = LibraryTrigger(func_name, self.get_wsk_cmd())
