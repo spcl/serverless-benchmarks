@@ -254,7 +254,11 @@ class OpenWhisk(System):
             )
             stdout = response.stdout.decode("utf-8")
             url = stdout.strip().split("\n")[-1] + ".json"
-            return HTTPTrigger(function.name, url)
+            trigger = HTTPTrigger(function.name, url)
+            trigger.logging_handlers = self.logging_handlers
+            function.add_trigger(trigger)
+            self.cache_client.update_function(function)
+            return trigger
         else:
             raise RuntimeError("Not supported!")
 
