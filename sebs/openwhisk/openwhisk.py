@@ -12,7 +12,7 @@ from sebs.faas import System, PersistentStorage
 from sebs.faas.function import Function, ExecutionResult, Trigger
 from .minio import Minio
 from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
-from sebs.utils import PROJECT_DIR, LoggingHandlers
+from sebs.utils import PROJECT_DIR, LoggingHandlers, execute
 from .config import OpenWhiskConfig
 from .function import OpenwhiskFunction
 from ..config import SeBSConfig
@@ -74,6 +74,24 @@ class OpenWhisk(System):
             cmd.append("-i")
         return cmd
 
+    def find_image(self, repository_name, image_tag) -> bool:
+
+        if self.config.experimentalManifest:
+            try:
+                # This requires enabling experimental Docker features
+                # Furthermore, it's not yet supported in the Python library
+                execute(f"docker manifest inspect {repository_name}:{image_tag}")
+                return True
+            except RuntimeError:
+                return False
+        else:
+            try:
+                # default version requires pulling for an image
+                self.docker_client.images.pull(repository=repository_name, tag=image_tag)
+                return True
+            except docker.errors.NotFound:
+                return False
+
     def build_base_image(
         self,
         directory: str,
@@ -107,17 +125,14 @@ class OpenWhisk(System):
 
         # Check if we the image is already in the registry.
         if not is_cached:
-            try:
-                # check for image existence
-                # default version requires pulling for an image
-                self.docker_client.images.pull(repository=repository_name, tag=image_tag)
+            if self.find_image(repository_name, image_tag):
                 self.logging.info(
                     f"Skipping building OpenWhisk package for {benchmark}, using "
                     f"Docker image {repository_name}:{image_tag} from registry: "
                     f"{registry_name}."
                 )
                 return False
-            except docker.errors.NotFound:
+            else:
                 # image doesn't exist, let's continue
                 self.logging.info(
                     f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
