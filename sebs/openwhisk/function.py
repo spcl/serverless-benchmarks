@@ -20,7 +20,7 @@ class OpenwhiskFunction(Function):
     @staticmethod
     def deserialize(cached_config: dict) -> "OpenwhiskFunction":
         from sebs.faas.function import Trigger
-        from sebs.openwhisk.triggers import LibraryTrigger
+        from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
 
         ret = OpenwhiskFunction(
             cached_config["name"],
@@ -31,7 +31,7 @@ class OpenwhiskFunction(Function):
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
                 Trigger,
-                {"Library": LibraryTrigger}.get(trigger["type"]),
+                {"Library": LibraryTrigger, "HTTP": HTTPTrigger}.get(trigger["type"]),
             )
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
