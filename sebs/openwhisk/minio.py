@@ -30,6 +30,8 @@ class Minio(sebs.local.storage.Minio):
 
     def startMinio(self):
         minioVersion = "minio/minio:latest"
+        # FIXME: merge it with local/minio?
+        # FIXME: check if the container is still runing
         try:
             self._storage_container = self._docker_client.containers.get("minio")
             self.logging.info("Minio container already exists")
