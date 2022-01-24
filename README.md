@@ -16,9 +16,14 @@ See the [installation instructions](#installation) to learn how to configure SeB
 cloud services and [usage instructions](#usage) to automatically launch experiments in the cloud!
 
 SeBS provides support for automatic deployment and invocation of benchmarks on
-AWS Lambda, Azure Functions, Google Cloud Functions, and a custom, Docker-based local
-evaluation platform. See the [documentation on cloud providers](docs/platforms.md)
-to learn how to provide SeBS with cloud credentials.
+commercial and black-box platforms
+[AWS Lambda](https://aws.amazon.com/lambda/),
+[Azure Functions](https://azure.microsoft.com/en-us/services/functions/),
+and [Google Cloud Functions](https://cloud.google.com/functions).
+Furthermore, we support the open-source platform [OpenWhisk](https://openwhisk.apache.org/),
+and offer a custom, Docker-based local evaluation platform.
+See the [documentation on cloud providers](docs/platforms.md)
+for details on how to configure each platform in SeBS.
 The documentation describes in detail [the design and implementation of our
 tool](docs/design.md), and see the [modularity](docs/modularity.md)
 section to learn how SeBS can be extended with new platforms, benchmarks, and experiments.
