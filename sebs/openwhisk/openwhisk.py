@@ -54,6 +54,7 @@ class OpenWhisk(System):
             from tools.openwhisk_preparation import delete_cluster  # type: ignore
 
             delete_cluster()
+        super().shutdown()
 
     @staticmethod
     def name() -> str:
