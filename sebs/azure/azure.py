@@ -115,7 +115,12 @@ class Azure(System):
     # host.json
     # requirements.txt/package.json
     def package_code(
-        self, directory: str, language_name: str, language_version: str, benchmark: str
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
     ) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages

@@ -131,7 +131,12 @@ class GCP(System):
     """
 
     def package_code(
-        self, directory: str, language_name: str, language_version: str, benchmark: str
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
     ) -> Tuple[str, int]:
 
         CONFIG_FILES = {

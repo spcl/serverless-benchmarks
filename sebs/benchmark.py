@@ -322,7 +322,7 @@ class Benchmark(LoggingBase):
             self.logging.info(
                 (
                     "Docker build image for {deployment} run in {language} "
-                    "is not available, skipping"
+                    "is not available, skipping."
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
@@ -447,7 +447,7 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str, str], Tuple[str, int]]
+        self, deployment_build_step: Callable[[str, str, str, str, bool], Tuple[str, int]]
     ) -> Tuple[bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
@@ -481,6 +481,7 @@ class Benchmark(LoggingBase):
             self.language_name,
             self.language_version,
             self.benchmark,
+            self.is_cached,
         )
         self.logging.info(
             (
