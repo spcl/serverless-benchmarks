@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from sebs.utils import project_absolute_path
 
@@ -34,12 +34,25 @@ class SeBSConfig:
         return self._system_config[deployment_name]["languages"][language_name]["base_images"]
 
     def benchmark_image_name(
+        self,
+        system: str,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        registry: Optional[str] = None,
+    ) -> str:
+
+        tag = self.benchmark_image_tag(system, benchmark, language_name, language_version)
+        repo_name = self.docker_repository()
+        if registry is not None:
+            return f"{registry}/{repo_name}:{tag}"
+        else:
+            return f"{repo_name}:{tag}"
+
+    def benchmark_image_tag(
         self, system: str, benchmark: str, language_name: str, language_version: str
-    ):
-        return (
-            f"{self.docker_repository()}:run.{system}.{benchmark}."
-            f"{language_name}-{language_version}"
-        )
+    ) -> str:
+        return f"function.{system}.{benchmark}.{language_name}-{language_version}"
 
     def username(self, deployment_name: str, language_name: str) -> str:
         return self._system_config[deployment_name]["languages"][language_name]["username"]
