@@ -34,6 +34,19 @@ class OpenWhisk(System):
         self._config = config
         self.logging_handlers = logger_handlers
 
+        if self.config.resources.docker_username:
+            if self.config.resources.docker_registry:
+                docker_client.login(
+                    login=self.config.resources.docker_username,
+                    password=self.config.resources.docker_password,
+                    registry=self.config.resources.docker_registry,
+                )
+            else:
+                docker_client.login(
+                    login=self.config.resources.docker_username,
+                    password=self.config.resources.docker_password,
+                )
+
     @property
     def config(self) -> OpenWhiskConfig:
         return self._config
