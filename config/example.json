@@ -58,7 +58,13 @@
       "shutdownStorage": false,
       "removeCluster": false,
       "wskBypassSecurity": "true",
-      "wskExec": "wsk"
+      "wskExec": "wsk",
+      "experimentalManifest": false,
+      "docker_registry": {
+        "registry": "",
+        "username": "",
+        "password": ""
+      }
     }
   }
 }

@@ -74,8 +74,55 @@ class OpenWhisk(System):
         return cmd
 
     def build_base_image(
-        self, directory: str, language_name: str, language_version: str, benchmark: str
-    ):
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> bool:
+        """
+        When building function for the first time (according to SeBS cache),
+        check if Docker image is available in the registry.
+        If yes, then skip building.
+        If no, then continue building.
+
+        For every subsequent build, we rebuild image and push it to the
+        registry. These are triggered by users modifying code and enforcing
+        a build.
+        """
+
+        # We need to retag created images when pushing to registry other
+        # than default
+        registry_name = self.config.resources.docker_registry
+        repository_name = self.system_config.docker_repository()
+        image_tag = self.system_config.benchmark_image_tag(
+            self.name(), benchmark, language_name, language_version
+        )
+        if registry_name is not None:
+            repository_name = f"{registry_name}/{repository_name}"
+        else:
+            registry_name = "Docker Hub"
+
+        # Check if we the image is already in the registry.
+        if not is_cached:
+            try:
+                # check for image existence
+                # default version requires pulling for an image
+                self.docker_client.images.pull(repository=repository_name, tag=image_tag)
+                self.logging.info(
+                    f"Skipping building OpenWhisk package for {benchmark}, using "
+                    f"Docker image {repository_name}:{image_tag} from registry: "
+                    f"{registry_name}."
+                )
+                return False
+            except docker.errors.NotFound:
+                # image doesn't exist, let's continue
+                self.logging.info(
+                    f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
+                    f"building OpenWhisk package for {benchmark}."
+                )
+
         build_dir = os.path.join(directory, "docker")
         os.makedirs(build_dir)
         shutil.copy(
@@ -94,29 +141,47 @@ class OpenWhisk(System):
         builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
             language_version
         ]
-        tag = self.system_config.benchmark_image_name(
-            self.name(), benchmark, language_name, language_version
-        )
-        self.logging.info(f"Build the benchmark base image {tag}.")
+        self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
         image, _ = self.docker_client.images.build(
-            tag=tag,
+            tag=f"{repository_name}:{image_tag}",
             path=build_dir,
             buildargs={
                 "BASE_IMAGE": builder_image,
             },
         )
 
-        # shutil.rmtree(build_dir)
+        # Now push the image to the registry
+        # image will be located in a private repository
+        self.logging.info(
+            f"Push the benchmark base image {repository_name}:{image_tag} "
+            f"to registry: {registry_name}."
+        )
+        self.docker_client.images.push(repository=repository_name, tag=image_tag)
+        return True
 
     def package_code(
-        self, directory: str, language_name: str, language_version: str, benchmark: str
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
     ) -> Tuple[str, int]:
-        node = "nodejs"
-        node_handler = "index.js"
-        CONFIG_FILES = {"python": ["__main__.py"], node: [node_handler]}
+
+        # Regardless of Docker image status, we need to create .zip file
+        # to allow registration of function with OpenWhisk
+        self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
+
+        # We deploy Minio config in code package since this depends on local
+        # deployment - it cannnot be a part of Docker image
+        minio_config_path = "minioConfig.json"
+        CONFIG_FILES = {
+            "python": ["__main__.py", minio_config_path],
+            "nodejs": ["index.js", minio_config_path],
+        }
         package_config = CONFIG_FILES[language_name]
 
-        with open(os.path.join(directory, "minioConfig.json"), "w+") as minio_config:
+        with open(os.path.join(directory, minio_config_path), "w+") as minio_config:
             storage = cast(Minio, self.get_storage())
             minio_config_json = {
                 "access_key": storage._access_key,
@@ -125,7 +190,6 @@ class OpenWhisk(System):
             }
             minio_config.write(json.dumps(minio_config_json))
 
-        self.build_base_image(directory, language_name, language_version, benchmark)
         os.chdir(directory)
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(
@@ -152,14 +216,17 @@ class OpenWhisk(System):
                 input=actions.stdout,
                 check=True,
             )
-            self.logging.info(f"Function {func_name} already exist")
 
             res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash)
             # Update function - we don't know what version is stored
             self.update_function(res, code_package)
             self.logging.info(f"Retrieved OpenWhisk action {func_name}")
 
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except FileNotFoundError as e:
+            self.logging.error("Could not retrieve OpenWhisk functions - is path to wsk correct?")
+            raise RuntimeError(e)
+
+        except subprocess.CalledProcessError:
             # grep will return error when there are no entries
             try:
                 docker_image = self.system_config.benchmark_image_name(
@@ -188,9 +255,9 @@ class OpenWhisk(System):
                 )
                 self.logging.info(f"Created new OpenWhisk action {func_name}")
                 res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash)
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                self.logging.error(f"Cannot create action {func_name}, reason: {e}")
-                exit(1)
+            except subprocess.CalledProcessError as e:
+                self.logging.error(f"Cannot create action {func_name}.")
+                raise RuntimeError(e)
 
         # Add LibraryTrigger to a new function
         trigger = LibraryTrigger(func_name, self.get_wsk_cmd())
@@ -206,22 +273,26 @@ class OpenWhisk(System):
             code_package.language_name,
             code_package.language_version,
         )
-        subprocess.run(
-            [
-                *self.get_wsk_cmd(),
-                "action",
-                "update",
-                function.name,
-                "--docker",
-                docker_image,
-                "--memory",
-                str(code_package.benchmark_config.memory),
-                code_package.code_location,
-            ],
-            stderr=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            check=True,
-        )
+        try:
+            subprocess.run(
+                [
+                    *self.get_wsk_cmd(),
+                    "action",
+                    "update",
+                    function.name,
+                    "--docker",
+                    docker_image,
+                    "--memory",
+                    str(code_package.benchmark_config.memory),
+                    code_package.code_location,
+                ],
+                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                check=True,
+            )
+        except FileNotFoundError as e:
+            self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
+            raise RuntimeError(e)
 
     def default_function_name(self, code_package: Benchmark) -> str:
         return (
@@ -246,12 +317,18 @@ class OpenWhisk(System):
         if trigger_type == Trigger.TriggerType.LIBRARY:
             return function.triggers(Trigger.TriggerType.LIBRARY)[0]
         elif trigger_type == Trigger.TriggerType.HTTP:
-            response = subprocess.run(
-                [*self.get_wsk_cmd(), "action", "get", function.name, "--url"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                check=True,
-            )
+            try:
+                response = subprocess.run(
+                    [*self.get_wsk_cmd(), "action", "get", function.name, "--url"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    check=True,
+                )
+            except FileNotFoundError as e:
+                self.logging.error(
+                    "Could not retrieve OpenWhisk configuration - is path to wsk correct?"
+                )
+                raise RuntimeError(e)
             stdout = response.stdout.decode("utf-8")
             url = stdout.strip().split("\n")[-1] + ".json"
             trigger = HTTPTrigger(function.name, url)
