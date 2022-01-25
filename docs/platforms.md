@@ -74,22 +74,21 @@ export GCP_SECRET_APPLICATION_CREDENTIALS = XXXX
 
 ## OpenWhisk
 
-SeBS expects users have to deploy and configure OpenWhisk instance.
-In `tools/openwhisk_preparation.py`, we include scripts that help to install
+SeBS expects users to deploy and configure an OpenWhisk instance.
+In `tools/openwhisk_preparation.py`, we include scripts that help install
 [kind (Kubernetes in Docker)](https://kind.sigs.k8s.io/) and deploy
 OpenWhisk on a `kind` cluster.
-An example of SeBS configuration for using OpenWhisk can be found in `config/example.json`
-under the key `['deployment']['openwhisk']`.
-In subsections below, we discuss the meaning and use of each parameter.
-To correctly deploy SeBS functions to OpenWhisk, it is important to follow the
-subsections on *Toolchain* and *Docker* configuration.
+The configuration parameters of OpenWhisk for SeBS can be found
+in `config/example.json` under the key `['deployment']['openwhisk']`.
+In the subsections below, we discuss the meaning and use of each parameter.
+To correctly deploy SeBS functions to OpenWhisk, following the
+subsections on *Toolchain* and *Docker* configuration is particularly important.
 
 ### Toolchain
 
 We use OpenWhisk's CLI tool [wsk](https://github.com/apache/openwhisk-cli)
 to manage the deployment of functions to OpenWhisk.
-To deploy serverless functions, please install `wsk` and
-configure it to point to your OpenWhisk installation.
+Please install `wsk`and configure it to point to your OpenWhisk installation.
 By default, SeBS assumes that `wsk` is available in the `PATH`.
 To override this, set the configuration option `wskExec` to the location
 of your `wsk` executable.
@@ -97,68 +96,74 @@ If you are using a local deployment of OpenWhisk with a self-signed
 certificate, you can skip certificate validation with the `wsk` flag `--insecure`.
 To enable this option, set `wskBypassSecurity` to `true`.
 At the moment, all functions are deployed as [*web actions*](https://github.com/apache/openwhisk/blob/master/docs/webactions.md)
-that do not require using credentails to invoke functions.
+that do not require credentials to invoke functions.
 
-Furthermore, SeBS can be configured to automatically remove the `kind`
-cluster after finishing experiments. This helps to automate the experiments
+Furthermore, SeBS can be configured to remove the `kind`
+cluster after finishing experiments automatically.
+The boolean option `removeCluster` helps to automate the experiments
 that should be conducted on fresh instances of the system.
-To enable this option, set `removeCluster` to `true`.
 
 ### Docker
 
-In FaaS platforms, function's code can be usually deployed as a code package
-or as a Docker image with all dependencies preinstalled.
-However, OpenWhisk as a very low limit on the code package size of only 48
-megabytes.
-To circumvent this limit, we deploy functions using pre-built Docker images.
+In FaaS platforms, the function's code can usually be deployed as a code package
+or a Docker image with all dependencies preinstalled.
+However, OpenWhisk has a very low code package size limit of only 48 megabytes.
+So, to circumvent this limit, we deploy functions using pre-built Docker images.
 
 **Important**: OpenWhisk requires that all Docker images are available
 in the registry, even if they have been cached on a system serving OpenWhisk
 functions.
-When the image is not available, function invocations will fail after a timeout
-with an error message that does not indicate directly image availability issues.
-All SeBS benchmark functions are available on the Docker Hub.
+Function invocations will fail when the image is not available after a
+timeout with an error message that does not directly indicate image availability issues.
+Therefore, all SeBS benchmark functions are available on the Docker Hub.
 
 When adding new functions and extending existing functions with new languages
 and new language versions, Docker images must be placed in the registry.
-However, pushin the image to `spcleth/serverless-benchmarks` repository on Docker
-Hub requires permissions.
-Instead, OpenWhisk users can configure the FaaS platform to use a custom and
+However, pushing the image to the default `spcleth/serverless-benchmarks`
+repository on Docker Hub requires permissions.
+To use a different Docker Hub repository, change the key
+`['general']['docker_repository']` in `config/systems.json`.
+
+
+Alternatively, OpenWhisk users can configure the FaaS platform to use a custom and
 private Docker registry and push new images there.
 Furthermore, a local Docker registry can speed up development when debugging
 a new function.
-See the documentation on
+SeBS can use alternative Docker registry - see `dockerRegistry` settings
+in the example to configure registry endpoint and credentials.
+When the `registry` URL is not provided, SeBS will use Docker Hub.
+When `username` and `password` are provided, SeBS will log in to the repository
+and push new images before invoking functions.
+See the documentation on the
 [Docker registry](https://github.com/apache/openwhisk-deploy-kube/blob/master/docs/private-docker-registry.md)
 and [OpenWhisk configuration](https://github.com/apache/openwhisk-deploy-kube/blob/master/docs/private-docker-registry.md)
 for details.
-SeBS can use alternative Docker registry - see `dockerRegistry` settings
-in the example to configure registry endpoint and credentials.
-When `registry` URL is not provided, SeBS will use Docker Hub.
-When `username` and `password` are provided, `SeBS` will use them to login
-to the repository.
+
+**Warning**: this feature is experimental and has not been tested extensively.
+At the moment, it cannot be used on a `kind` cluster due to issues with
+Docker authorization on invoker nodes.
 
 ### Code Deployment
 
 SeBS builds and deploys a new code package when constructing the local cache,
-when function's content have change, and when user reuqests a forced rebuild.
-In OpenWhisk, this set up is changed - SeBS will first attempt to verify 
-if the image exists already in the registry and skip building Docker
+when the function's contents have changed, and when the user requests a forced rebuild.
+In OpenWhisk, this setup is changed - SeBS will first attempt to verify 
+if the image exists already in the registry and skip building the Docker
 image when possible.
-This allows SeBS to deploy seamlessly to OpenWhisk using default images
+Then, SeBS tcan deploy seamlessly to OpenWhisk using default images
 available on Docker Hub.
 Furthermore, checking for image existence in the registry helps
-to avoid failing invocations in OpenWhisk.
-For performance reasons, this check is performed only once, when constructing
-the local cache.
+avoid failing invocations in OpenWhisk.
+For performance reasons, this check is performed only once when 
+initializing the local cache for the first time.
 
-When the function code must be updated,
-SeBS will build the image and attempt to push it to the registry.
-At the moment, the only available option of checking image existence in
+When the function code is updated,
+SeBS will build the image and push it to the registry.
+Currently, the only available option of checking image existence in
 the registry is pulling the image.
-However, there is [an experimental `manifest` feature of Docker](https://docs.docker.com/engine/reference/commandline/manifest/)
-that allow to check image status without downloading its contents,
-saving bandwidth and time.
-To use that feature in SeBS, set `experimentalManifest` flag to true.
+However, Docker's [experimental `manifest` feature](https://docs.docker.com/engine/reference/commandline/manifest/)
+allows checking image status without downloading its contents, saving bandwidth and time.
+To use that feature in SeBS, set the `experimentalManifest` flag to true.
 
 ### Storage 
 
@@ -166,11 +171,11 @@ To provide persistent object storage in OpenWhisk, we deploy an instance
 of [`Minio`](https://github.com/minio/minio) storage.
 The storage instance is deployed as a Docker container, and it can be retained
 across many experiments.
-The behavior of SeBS is controlled by the `shutdownStorage` switch.
-When set to true, SeBS will remove Minio instance after finishing all 
+The `shutdownStorage` switch controls the behavior of SeBS.
+When set to true, SeBS will remove the Minio instance after finishing all 
 work.
-Otherwise, the container will be retained and future experiments with SeBS
+Otherwise, the container will be retained, and future experiments with SeBS
 will automatically detect an existing Minio instance.
-Reusing Minio instance helps to run experiments faster and smoothly since
-SeBS does not have to reupload function's inputs on each experiment.
+Reusing the Minio instance helps run experiments faster and smoothly since
+SeBS does not have to re-upload function's data on each experiment.
 
