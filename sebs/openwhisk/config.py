@@ -51,8 +51,13 @@ class OpenWhiskResources(Resources):
 
         cached_config = cache.get_config("openwhisk")
         ret: OpenWhiskResources
+        # Check for new config
+        if "docker_registry" in config:
+            ret = cast(OpenWhiskResources, OpenWhiskResources.initialize(config["docker_registry"]))
+            ret.logging.info("Using user-provided Docker registry for OpenWhisk.")
+            ret.logging_handlers = handlers
         # Load cached values
-        if (
+        elif (
             cached_config
             and "resources" in cached_config
             and "docker" in cached_config["resources"]
@@ -63,11 +68,6 @@ class OpenWhiskResources(Resources):
             )
             ret.logging_handlers = handlers
             ret.logging.info("Using cached Docker registry for OpenWhisk")
-        # Check for new config
-        elif "docker_registry" in config:
-            ret = cast(OpenWhiskResources, OpenWhiskResources.initialize(config["docker_registry"]))
-            ret.logging.info("Using user-provided Docker registry for OpenWhisk.")
-            ret.logging_handlers = handlers
         else:
             ret.logging.info("Using default Docker registry for OpenWhisk.")
             ret = OpenWhiskResources()
