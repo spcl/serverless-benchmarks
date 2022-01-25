@@ -185,7 +185,14 @@ class OpenWhisk(System):
             f"Push the benchmark base image {repository_name}:{image_tag} "
             f"to registry: {registry_name}."
         )
-        self.docker_client.images.push(repository=repository_name, tag=image_tag)
+        ret = self.docker_client.images.push(
+            repository=repository_name, tag=image_tag, stream=True, decode=True
+        )
+        # doesn't raise an exception for some reason
+        for val in ret:
+            if "error" in val:
+                self.logging.error(f"Failed to push the image to registry {registry_name}")
+                raise RuntimeError(val)
         return True
 
     def package_code(
