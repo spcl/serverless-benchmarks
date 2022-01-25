@@ -257,4 +257,5 @@ Currently supported only on AWS.
 * [Nico Graf (ETH Zurich)](https://github.com/ncograf/) - contributed implementation of regression tests, bugfixes, and helped with testing and documentation.
 * [Kacper Janda](https://github.com/Kacpro), [Mateusz Knapik](https://github.com/maknapik), [JmmCz](https://github.com/JmmCz), AGH University of Science and Technology - contributed together Google Cloud support.
 * [Grzegorz Kwaśniewski (ETH Zurich)](https://github.com/gkwasniewski) - worked on the modeling experiments.
+* [Paweł Żuk (University of Warsaw)](https://github.com/pmzuk) - contributed OpenWhisk support.
 
