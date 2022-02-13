@@ -4,4 +4,4 @@
 #torch==1.0.1.post2+cpu
 Pillow==6.1
 torchvision==0.2.1
-numpy==1.16
+numpy==1.21.0
