@@ -403,7 +403,7 @@ class GCP(System):
             )
         else:
             # if result is not empty, then function does exists
-            self.logging.info("Function {} exists on GCP, update the instance.".format(func_name))
+            self.logging.info("Workflow {} exists on GCP, update the instance.".format(workflow_name))
             
             workflow = GCPWorkflow(
                 name=workflow_name,
@@ -436,6 +436,34 @@ class GCP(System):
         workflow.add_trigger(trigger)
         # self.cache_client.update_workflow(workflow)
         return trigger
+        
+    def update_workflow(self, workflow: Workflow, code_package: Benchmark):
+
+        workflow = cast(GCPWorkflow, workflow)
+        language_runtime = code_package.language_version
+        code_package_name = os.path.basename(code_package.code_location)
+        storage = cast(GCPStorage, self.get_storage())
+        
+        with open('cache/test.yml') as f:
+            code = f.read()
+
+        full_workflow_name = GCP.get_full_workflow_name(
+            self.config.project_name, self.config.region, workflow.name
+        )
+        req = (
+            self.workflow_client.projects()
+            .locations()
+            .workflows()
+            .patch(
+                name=full_workflow_name,
+                body={
+                    "name": full_workflow_name,
+                    "sourceContents": code
+                },
+            )
+        )
+        res = req.execute()
+        self.logging.info("Published new workflow code and configuration.")
         
     @staticmethod
     def get_full_workflow_name(project_name: str, location: str, workflow_name: str):
