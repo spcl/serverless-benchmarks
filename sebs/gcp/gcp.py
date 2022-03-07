@@ -202,7 +202,7 @@ class GCP(System):
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
         get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
-        
+
         try:
             get_req.execute()
         except HttpError:
