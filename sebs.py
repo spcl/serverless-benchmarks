@@ -181,7 +181,7 @@ def benchmark():
     help="Override function name for random generation.",
 )
 @common_params
-def invoke(benchmark, benchmark_input_size, repetitions, trigger, function_name, **kwargs):
+def function(benchmark, benchmark_input_size, repetitions, trigger, function_name, **kwargs):
 
     (
         config,
@@ -229,6 +229,81 @@ def invoke(benchmark, benchmark_input_size, repetitions, trigger, function_name,
             #    function_name=func.name, start_time=start_time, end_time=end_time
             #)
         result.add_invocation(func, ret)
+    result.end()
+    with open("experiments.json", "w") as out_f:
+        out_f.write(sebs.utils.serialize(result))
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+    
+@benchmark.command()
+@click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
+@click.argument(
+    "benchmark-input-size", type=click.Choice(["test", "small", "large"])
+)  # help="Input test size")
+@click.option(
+    "--repetitions", default=5, type=int, help="Number of experimental repetitions."
+)
+@click.option(
+    "--trigger",
+    type=click.Choice(["library", "http"]),
+    default="library",
+    help="Workflow trigger to be used."
+)
+@click.option(
+    "--function-name",
+    default=None,
+    type=str,
+    help="Override function name for random generation.",
+)  
+@common_params
+def workflow(benchmark, benchmark_input_size, repetitions, trigger, function_name, **kwargs):
+    
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+    workflow = deployment_client.get_workflow(
+        benchmark_obj, 'test' #function_name if function_name else deployment_client.default_function_name(benchmark_obj)
+    )
+    storage = deployment_client.get_storage(
+        replace_existing=experiment_config.update_storage
+    )
+    input_config = benchmark_obj.prepare_input(
+        storage=storage, size=benchmark_input_size
+    )
+
+    result = sebs.experiments.ExperimentResult(
+        experiment_config, deployment_client.config
+    )
+    result.begin()
+
+    trigger_type = Trigger.TriggerType.get(trigger)
+    triggers = workflow.triggers(trigger_type)
+    if len(triggers) == 0:
+        trigger = deployment_client.create_trigger(
+            workflow, trigger_type
+        )
+    else:
+        trigger = triggers[0]
+    for i in range(repetitions):
+        sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
+        ret = trigger.sync_invoke(input_config)
+        if ret.stats.failure:
+            sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
+            #deployment_client.get_invocation_error(
+            #    function_name=func.name, start_time=start_time, end_time=end_time
+            #)
+        result.add_invocation(workflow, ret)
     result.end()
     with open("experiments.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(result))

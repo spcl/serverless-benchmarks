@@ -17,11 +17,13 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from ..faas.function import Function, Trigger
+from ..faas.workflow import Workflow
 from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
+from sebs.gcp.workflow import GCPWorkflow
 from sebs.utils import LoggingHandlers
 
 """
@@ -73,10 +75,14 @@ class GCP(System):
 
     def initialize(self, config: Dict[str, str] = {}):
         self.function_client = build("cloudfunctions", "v1", cache_discovery=False)
+        self.workflow_client = build("workflows", "v1", cache_discovery=False)
         self.get_storage()
 
     def get_function_client(self):
         return self.function_client
+        
+    def get_workflow_client(self):
+        return self.workflow_client
 
     """
         Access persistent storage instance.
@@ -211,9 +217,7 @@ class GCP(System):
                 .locations()
                 .functions()
                 .create(
-                    location="projects/{project_name}/locations/{location}".format(
-                        project_name=project_name, location=location
-                    ),
+                    location=GCP.get_location(project_name, location),
                     body={
                         "name": full_func_name,
                         "entryPoint": "handler",
@@ -263,16 +267,16 @@ class GCP(System):
             )
             self.update_function(function, code_package)
 
-        # Add LibraryTrigger to a new function
-        from sebs.gcp.triggers import LibraryTrigger
+        # Add LibraryFunctionTrigger to a new function
+        from sebs.gcp.triggers import FunctionLibraryTrigger
 
-        trigger = LibraryTrigger(func_name, self)
+        trigger = FunctionLibraryTrigger(func_name, self)
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
 
         return function
 
-    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_function_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.gcp.triggers import HTTPTrigger
 
         if trigger_type == Trigger.TriggerType.HTTP:
@@ -301,6 +305,19 @@ class GCP(System):
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
         self.cache_client.update_function(function)
+        return trigger
+        
+    def create_workflow_trigger(self, workflow: Workflow, trigger_type: Trigger.TriggerType) -> Trigger:
+        from sebs.gcp.triggers import WorkflowLibraryTrigger
+
+        if trigger_type == Trigger.TriggerType.HTTP:
+            raise NotImplementedError('Cannot create http triggers for workflows.')
+        else:
+            trigger = WorkflowLibraryTrigger(workflow.name, self)
+
+        trigger.logging_handlers = self.logging_handlers
+        workflow.add_trigger(trigger)
+        # self.cache_client.update_workflow(workflow)
         return trigger
 
     def cached_function(self, function: Function):
@@ -355,6 +372,10 @@ class GCP(System):
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str):
         return f"projects/{project_name}/locations/{location}/functions/{func_name}"
+        
+    @staticmethod
+    def get_full_workflow_name(project_name: str, location: str, workflow_name: str):
+        return f"projects/{project_name}/locations/{location}/workflows/{workflow_name}"
 
     def prepare_experiment(self, benchmark):
         logs_bucket = self.storage.add_output_bucket(benchmark, suffix="logs")
@@ -571,6 +592,74 @@ class GCP(System):
         status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()
         return int(status_res["versionId"])
+        
+    @staticmethod
+    def get_location(project_name: str, location: str) -> str:
+        return f"projects/{project_name}/locations/{location}"
+        
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "GCPWorkflow":
+
+        package = code_package.code_location
+        benchmark = code_package.benchmark
+        language_runtime = code_package.language_version
+        timeout = code_package.benchmark_config.timeout
+        memory = code_package.benchmark_config.memory
+        code_bucket: Optional[str] = None
+        storage_client = self.get_storage()
+        location = self.config.region
+        project_name = self.config.project_name
+
+        full_workflow_name = GCP.get_full_workflow_name(project_name, location, workflow_name)
+        get_req = self.workflow_client.projects().locations().workflows().get(name=full_workflow_name)
+        
+        with open('cache/test.yml') as f:
+            code = f.read()
+        
+        try:
+            get_result = get_req.execute()
+        except HttpError: 
+            parent = GCP.get_location(project_name, location)           
+            create_req = (
+                self.workflow_client.projects()
+                .locations()
+                .workflows()
+                .create(
+                    parent=parent,
+                    workflowId=workflow_name,
+                    body={
+                        "name": full_workflow_name,
+                        "sourceContents": code,
+                    },
+                )
+            )
+            create_req.execute()
+            self.logging.info(f"Workflow {workflow_name} has been created!")
+
+            workflow = GCPWorkflow(
+                workflow_name, benchmark, code_package.hash, timeout, memory, code_bucket
+            )
+        else:
+            # if result is not empty, then function does exists
+            self.logging.info("Function {} exists on GCP, update the instance.".format(func_name))
+            
+            workflow = GCPWorkflow(
+                name=workflow_name,
+                benchmark=benchmark,
+                code_package_hash=code_package.hash,
+                timeout=timeout,
+                memory=memory,
+                bucket=code_bucket,
+            )
+            self.update_workflow(workflow, code_package)
+
+        # Add LibraryTrigger to a new function
+        from sebs.gcp.triggers import WorkflowLibraryTrigger
+
+        trigger = WorkflowLibraryTrigger(workflow_name, self)
+        trigger.logging_handlers = self.logging_handlers
+        workflow.add_trigger(trigger)
+
+        return workflow
 
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,
