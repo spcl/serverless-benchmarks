@@ -5,8 +5,8 @@ import time
 import os
 from typing import Dict, Optional  # noqa
 
-from google.cloud.workflows import executions_v1beta as workflow_executions
-from google.cloud.workflows.executions_v1beta.types import executions as workflow_exec_types
+from google.cloud.workflows.executions_v1beta import ExecutionsClient
+from google.cloud.workflows.executions_v1beta.types import Execution
 
 from sebs.gcp.gcp import GCP
 from sebs.faas.function import ExecutionResult, Trigger
@@ -105,10 +105,11 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         config = self.deployment_client.config
         full_workflow_name = GCP.get_full_workflow_name(config.project_name, config.region, self.name)
         
-        execution_client = workflow_executions.ExecutionsClient()
+        execution_client = ExecutionsClient()
+        execution = Execution(argument=json.dumps(payload))
         
         begin = datetime.datetime.now()
-        res = execution_client.create_execution(request={"parent": full_workflow_name})
+        res = execution_client.create_execution(parent=full_workflow_name, execution=execution)
         end = datetime.datetime.now()
         
         gcp_result = ExecutionResult.from_times(begin, end)
@@ -118,20 +119,19 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         backoff_delay = 1  # Start wait with delay of 1 second
         while (not execution_finished):
             execution = execution_client.get_execution(request={"name": res.name})
-            execution_finished = execution.state != workflow_exec_types.Execution.State.ACTIVE
+            execution_finished = execution.state != Execution.State.ACTIVE
         
             # If we haven't seen the result yet, wait a second.
             if not execution_finished:
                 time.sleep(backoff_delay)
                 backoff_delay *= 2  # Double the delay to provide exponential backoff.
-            else:
+            elif execution.state == Execution.State.FAILED:
                 self.logging.error(f"Invocation of {self.name} failed")
                 self.logging.error(f"Input: {payload}")
                 gcp_result.stats.failure = True
                 return gcp_result
 
-        output = json.loads(execution.result)
-        gcp_result.parse_benchmark_output(output)
+        gcp_result.parse_benchmark_execution(execution)
         return gcp_result
 
 

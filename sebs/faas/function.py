@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional  # noqa
 
+from google.cloud.workflows.executions_v1beta.types import Execution
+
 from sebs.utils import LoggingBase
 
 """
@@ -144,6 +146,13 @@ class ExecutionResult:
                 datetime.fromtimestamp(float(self.output["end"]))
                 - datetime.fromtimestamp(float(self.output["begin"]))
             )
+            / timedelta(microseconds=1)
+        )
+        
+    def parse_benchmark_execution(self, execution: Execution):
+        self.output = json.loads(execution.result)
+        self.times.benchmark = int(
+            (execution.start_time - execution.end_time)
             / timedelta(microseconds=1)
         )
 
