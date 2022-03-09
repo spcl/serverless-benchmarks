@@ -247,9 +247,9 @@ class Trigger(ABC, LoggingBase):
     def serialize(self) -> dict:
         pass
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    def deserialize(cached_config: dict) -> "Trigger":
+    def deserialize(cls, cached_config: dict) -> "Trigger":
         pass
 
 

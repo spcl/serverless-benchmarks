@@ -42,6 +42,6 @@ class HTTPTrigger(AzureTrigger):
     def serialize(self) -> dict:
         return {"type": "HTTP", "url": self.url}
 
-    @staticmethod
-    def deserialize(obj: dict) -> Trigger:
+    @classmethod
+    def deserialize(cls, obj: dict) -> Trigger:
         return HTTPTrigger(obj["url"])
