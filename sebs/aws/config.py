@@ -119,8 +119,14 @@ class AWSResources(Resources):
                 "Version": "2012-10-17",
                 "Statement": [
                     {
+                        "Sid": "",
                         "Effect": "Allow",
-                        "Principal": {"Service": "lambda.amazonaws.com"},
+                        "Principal": {
+                            "Service": [
+                                "lambda.amazonaws.com", 
+                                "states.amazonaws.com"
+                            ]
+                        },
                         "Action": "sts:AssumeRole",
                     }
                 ],
@@ -129,6 +135,7 @@ class AWSResources(Resources):
             attached_policies = [
                 "arn:aws:iam::aws:policy/AmazonS3FullAccess",
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaRole"
             ]
             try:
                 out = iam_client.get_role(RoleName=role_name)
