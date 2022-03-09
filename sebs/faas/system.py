@@ -113,7 +113,7 @@ class System(ABC, LoggingBase):
         pass
         
     @abstractmethod
-    def create_workflow(self, code_package: Benchmark, workflow_name: str):
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> Workflow:
         pass
 
     @abstractmethod

@@ -76,5 +76,5 @@ class Workflow(LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(cached_config: dict) -> "Function":
+    def deserialize(cached_config: dict) -> "Workflow":
         pass

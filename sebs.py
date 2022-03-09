@@ -220,6 +220,7 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
         )
     else:
         trigger = triggers[0]
+        
     for i in range(repetitions):
         sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
         ret = trigger.sync_invoke(input_config)

@@ -2,6 +2,7 @@ import base64
 import concurrent.futures
 import datetime
 import json
+import time
 from typing import Dict, Optional  # noqa
 
 from sebs.aws.aws import AWS
@@ -31,12 +32,21 @@ class LibraryTrigger(Trigger):
     def trigger_type() -> Trigger.TriggerType:
         return Trigger.TriggerType.LIBRARY
 
+    def serialize(self) -> dict:
+        return {"type": "Library", "name": self.name}
+
+    @staticmethod
+    def deserialize(obj: dict) -> Trigger:
+        return LibraryTrigger(obj["name"])
+
+
+class FunctionLibraryTrigger(LibraryTrigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-        self.logging.debug(f"Invoke function {self.name}")
+        self.logging.debug(f"Invoke workflow {self.name}")
 
         serialized_payload = json.dumps(payload).encode("utf-8")
-        client = self.deployment_client.get_lambda_client()
+        client = self.deployment_client.get_sfn_client()
         begin = datetime.datetime.now()
         ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
         end = datetime.datetime.now()
@@ -84,14 +94,46 @@ class LibraryTrigger(Trigger):
             raise RuntimeError()
         return ret
 
-    def serialize(self) -> dict:
-        return {"type": "Library", "name": self.name}
 
-    @staticmethod
-    def deserialize(obj: dict) -> Trigger:
-        return LibraryTrigger(obj["name"])
+class WorkflowLibraryTrigger(LibraryTrigger):
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
 
+        self.logging.debug(f"Invoke workflow {self.name}")
 
+        client = self.deployment_client.get_sfn_client()
+        begin = datetime.datetime.now()
+        ret = client.start_execution(stateMachineArn=self.name, input=json.dumps(payload))
+        end = datetime.datetime.now()
+        
+        aws_result = ExecutionResult.from_times(begin, end)
+        aws_result.request_id = ret["ResponseMetadata"]["RequestId"]
+        execution_arn = ret["executionArn"]
+        
+        # Wait for execution to finish, then print results.
+        execution_finished = False
+        backoff_delay = 1  # Start wait with delay of 1 second
+        while (not execution_finished):
+            execution = client.describe_execution(executionArn=execution_arn)
+            status = execution["status"]        
+            execution_finished = status != "RUNNING"
+        
+            # If we haven't seen the result yet, wait a second.
+            if not execution_finished:
+                time.sleep(backoff_delay)
+                backoff_delay *= 2  # Double the delay to provide exponential backoff.
+            elif status == "FAILED":
+                self.logging.error(f"Invocation of {self.name} failed")
+                self.logging.error(f"Input: {payload}")
+                aws_result.stats.failure = True
+                return aws_result
+
+        return aws_result
+
+    def async_invoke(self, payload: dict):
+
+        raise NotImplementedError('Async invocation is not implemented')
+        
+        
 class HTTPTrigger(Trigger):
     def __init__(self, url: str, api_id: str):
         super().__init__()

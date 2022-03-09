@@ -162,6 +162,13 @@ class Benchmark(LoggingBase):
             self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
                 json.load(json_file)
             )
+        definition_path = os.path.join(self._benchmark_path, "definition.json")
+        if os.path.exists(definition_path):
+            with open(definition_path) as json_file:
+                self.workflow_definition = json.load(json_file)
+        else:
+            self.workflow_definition = None
+        
         if self.language not in self.benchmark_config.languages:
             raise RuntimeError(
                 "Benchmark {} not available for language {}".format(self.benchmark, self.language)
@@ -233,15 +240,29 @@ class Benchmark(LoggingBase):
             self._is_cached = False
             self._is_cached_valid = False
 
-    def copy_code(self, output_dir):
+    def get_code_files(self, include_config=True):
         FILES = {
-            "python": ["*.py", "requirements.txt*"],
-            "nodejs": ["*.js", "package.json"],
+            "python": ["*.py"],
+            "nodejs": ["*.js"],
         }
+        if include_config:
+            FILES["python"].append("requirements.txt*")
+            FILES["nodejs"].append("package.json")
+        
         path = os.path.join(self.benchmark_path, self.language_name)
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
-                shutil.copy2(os.path.join(path, f), output_dir)
+                yield os.path.join(path, f)
+
+    def copy_code(self, output_dir):
+        for path in self.get_code_files():
+            shutil.copy2(path, output_dir)
+            
+        # For python, add an __init__ file
+        if self.language_name == "python":
+            path = os.path.join(output_dir, "__init__.py")
+            with open(path, 'a'):
+                os.utime(path, None)
 
     def add_benchmark_data(self, output_dir):
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"
