@@ -41,9 +41,9 @@ class LibraryTrigger(Trigger):
     def serialize(self) -> dict:
         return {"type": "Library", "name": self.name}
 
-    @staticmethod
-    def deserialize(obj: dict) -> Trigger:
-        return LibraryTrigger(obj["name"])
+    @classmethod
+    def deserialize(cls, obj: dict) -> Trigger:
+        return cls(obj["name"])
         
         
 class FunctionLibraryTrigger(LibraryTrigger):
