@@ -40,14 +40,14 @@ container = docker_client.containers.run(
 )
 print('Please provide the intended principal name')
 principal_name = input()
-_, out = container.exec_run("az login", stream=True)
+_, out = container.exec_run("az login", user="docker_user", stream=True)
 print('Please follow the login instructions to generate credentials...')
 print(next(out).decode())
 # wait for login finish
 ret = next(out)
 ret_json = json.loads(ret.decode())
 print('Loggin succesfull with user {}'.format(ret_json[0]['user']))
-status, out = container.exec_run("az ad sp create-for-rbac --name {} --only-show-errors".format(principal_name))
+status, out = container.exec_run("az ad sp create-for-rbac --name {} --only-show-errors".format(principal_name), user="docker_user")
 if status:
     print('Unsuccesfull principal creation!')
     print(out.decode())
