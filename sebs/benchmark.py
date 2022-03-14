@@ -257,12 +257,6 @@ class Benchmark(LoggingBase):
     def copy_code(self, output_dir):
         for path in self.get_code_files():
             shutil.copy2(path, output_dir)
-            
-        # For python, add an __init__ file
-        if self.language_name == "python":
-            path = os.path.join(output_dir, "__init__.py")
-            with open(path, 'a'):
-                os.utime(path, None)
 
     def add_benchmark_data(self, output_dir):
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"

@@ -149,6 +149,12 @@ class AWS(System):
             if file not in package_config:
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
+                
+        # For python, add an __init__ file
+        if language_name == "python":
+            path = os.path.join(function_dir, "__init__.py")
+            with open(path, "a"):
+                os.utime(path, None)
 
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
