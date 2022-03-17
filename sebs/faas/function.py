@@ -210,9 +210,9 @@ class Trigger(ABC, LoggingBase):
 
         try:
             output = json.loads(data.getvalue())
-
+            
             if status_code != 200:
-                self.logging.error("Invocation on URL {} failed!".format(url))
+                self.logging.error("Invocation on URL {} failed with status code {}!".format(url, status_code))
                 self.logging.error("Output: {}".format(output))
                 raise RuntimeError(f"Failed invocation of function! Output: {output}")
 
@@ -225,7 +225,7 @@ class Trigger(ABC, LoggingBase):
             result.parse_benchmark_output(output)
             return result
         except json.decoder.JSONDecodeError:
-            self.logging.error("Invocation on URL {} failed!".format(url))
+            self.logging.error("Invocation on URL {} failed with status code {}!".format(url, status_code))
             self.logging.error("Output: {}".format(data.getvalue().decode()))
             raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
 

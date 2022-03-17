@@ -246,17 +246,17 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
 @click.option(
     "--trigger",
     type=click.Choice(["library", "http"]),
-    default="library",
+    default="http",
     help="Workflow trigger to be used."
 )
 @click.option(
-    "--function-name",
+    "--workflow-name",
     default=None,
     type=str,
-    help="Override function name for random generation.",
+    help="Override workflow name for random generation.",
 )  
 @common_params
-def workflow(benchmark, benchmark_input_size, repetitions, trigger, function_name, **kwargs):
+def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_name, **kwargs):
     
     (
         config,
@@ -274,7 +274,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, function_nam
         logging_filename=logging_filename,
     )
     workflow = deployment_client.get_workflow(
-        benchmark_obj, 'test' #function_name if function_name else deployment_client.default_function_name(benchmark_obj)
+        benchmark_obj, workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj)
     )
     storage = deployment_client.get_storage(
         replace_existing=experiment_config.update_storage

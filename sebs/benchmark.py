@@ -294,6 +294,8 @@ class Benchmark(LoggingBase):
         )
         if len(packages):
             with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
+                # make sure to start with a newline
+                out.write("\n")
                 for package in packages:
                     out.write(package)
 

@@ -341,7 +341,6 @@ class AWS(System):
         # First we create a lambda function for each code file
         code_files = list(code_package.get_code_files(include_config=False))
         func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
-        # func_names = [fn for fn in func_names if '__init__' != fn]
         funcs = [self.create_function(code_package, workflow_name+"-"+fn, handler="function."+fn+".handler") for fn in func_names]
         
         # Set the ARN to the corresponding states in the workflow definition
