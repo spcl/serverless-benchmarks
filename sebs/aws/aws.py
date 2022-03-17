@@ -329,13 +329,16 @@ class AWS(System):
         self.cache_client.update_function(function)
         return trigger
         
-    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "LambdaWorkflow":
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "SFNWorkflow":
         
         workflow_name = AWS.format_resource_name(workflow_name)
         
         # Make sure we have a valid workflow benchmark
-        definition = code_package.workflow_definition
-        if not code_package.workflow_definition:
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
+        if os.path.exists(definition_path):
+            with open(definition_path) as json_file:
+                definition = json.load(json_file)
+        else:
             raise ValueError(f"No workflow definition found for {workflow_name}")
         
         # First we create a lambda function for each code file
@@ -416,7 +419,7 @@ class AWS(System):
     def create_workflow_trigger(self, workflow: Workflow, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.aws.triggers import HTTPTrigger
 
-        workflow = cast(LambdaWorkflow, workflow)
+        workflow = cast(SFNWorkflow, workflow)
 
         if trigger_type == Trigger.TriggerType.HTTP:
             raise RuntimeError("Not supported!")

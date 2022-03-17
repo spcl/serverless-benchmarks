@@ -162,12 +162,6 @@ class Benchmark(LoggingBase):
             self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
                 json.load(json_file)
             )
-        definition_path = os.path.join(self._benchmark_path, "definition.json")
-        if os.path.exists(definition_path):
-            with open(definition_path) as json_file:
-                self.workflow_definition = json.load(json_file)
-        else:
-            self.workflow_definition = None
         
         if self.language not in self.benchmark_config.languages:
             raise RuntimeError(
