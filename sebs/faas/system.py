@@ -301,9 +301,9 @@ class System(ABC, LoggingBase):
         
     def create_trigger(self, obj, trigger_type: Trigger.TriggerType) -> Trigger:
         if isinstance(obj, Function):
-            self.create_function_trigger(obj, trigger_type)
+            return self.create_function_trigger(obj, trigger_type)
         elif isinstance(obj, Workflow):
-            self.create_workflow_trigger(obj, trigger_type)
+            return self.create_workflow_trigger(obj, trigger_type)
         else:
             raise TypeError("Cannot create trigger for {obj}")
 

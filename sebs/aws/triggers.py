@@ -43,10 +43,12 @@ class LibraryTrigger(Trigger):
 class FunctionLibraryTrigger(LibraryTrigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-        self.logging.debug(f"Invoke workflow {self.name}")
+        self.logging.debug(f"Invoke function {self.name}")
+        
+        self.deployment_client.wait_for_function(self.name)
 
         serialized_payload = json.dumps(payload).encode("utf-8")
-        client = self.deployment_client.get_sfn_client()
+        client = self.deployment_client.get_lambda_client()
         begin = datetime.datetime.now()
         ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
         end = datetime.datetime.now()

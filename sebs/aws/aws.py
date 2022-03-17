@@ -168,6 +168,26 @@ class AWS(System):
 
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
+    def wait_for_function(self, func_name: str):
+        active = False
+        backoff_delay = 1  # Start wait with delay of 1 second
+        while (not active):
+            ret = self.lambda_client.get_function(FunctionName=func_name)
+            status = ret["Configuration"]["State"]        
+            active = status == "Active"
+        
+            # If we haven't seen the result yet, wait a second.
+            if not active:
+                time.sleep(backoff_delay)
+                backoff_delay *= 2  # Double the delay to provide exponential backoff.
+            elif status == "Failed":
+                self.logging.error(f"Cannot wait for failed {func_name}")
+                break
+                
+            if backoff_delay > 60:
+                self.logging.error(f"Function {func_name} stuck in state {status} after 60s")
+                break
+
     def create_function(self, code_package: Benchmark, func_name: str, handler: str=None) -> "LambdaFunction":
 
         package = code_package.code_location
@@ -305,7 +325,6 @@ class AWS(System):
         function = cast(LambdaFunction, func)
 
         if trigger_type == Trigger.TriggerType.HTTP:
-
             api_name = "{}-http-api".format(function.name)
             http_api = self.config.resources.http_api(api_name, function, self.session)
             # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
