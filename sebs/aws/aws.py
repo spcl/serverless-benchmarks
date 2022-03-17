@@ -199,7 +199,7 @@ class AWS(System):
                 language_runtime,
                 self.config.resources.lambda_role(self.session),
             )
-            # self.update_function(lambda_function, code_package)
+            self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
         except self.lambda_client.exceptions.ResourceNotFoundException:
