@@ -246,8 +246,8 @@ class Benchmark(LoggingBase):
             "nodejs": ["*.js"],
         }
         if include_config:
-            FILES["python"].append("requirements.txt*")
-            FILES["nodejs"].append("package.json")
+            FILES["python"] += ["requirements.txt*", "*.json"]
+            FILES["nodejs"] += ["package.json", "*.json"]
         
         path = os.path.join(self.benchmark_path, self.language_name)
         for file_type in FILES[self.language_name]:

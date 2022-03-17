@@ -1,5 +1,6 @@
 import datetime
 import json
+import glob
 import os
 import shutil
 import time
@@ -10,6 +11,7 @@ import docker
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
 from sebs.azure.function import AzureFunction
+from sebs.azure.workflow import AzureWorkflow
 from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.faas.function import Trigger
@@ -18,6 +20,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers, execute
 from ..faas.function import Function, ExecutionResult
+from ..faas.workflow import Workflow
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
@@ -106,15 +109,7 @@ class Azure(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
-    # Directory structure
-    # handler
-    # - source files
-    # - Azure wrappers - handler, storage
-    # - additional resources
-    # - function.json
-    # host.json
-    # requirements.txt/package.json
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code2(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
@@ -157,6 +152,90 @@ class Azure(System):
             "extensionBundle": {
                 "id": "Microsoft.Azure.Functions.ExtensionBundle",
                 "version": "[1.*, 2.0.0)",
+            },
+        }
+        json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
+
+        code_size = Benchmark.directory_size(directory)
+        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+        return directory, code_size
+    
+    # Directory structure
+    # handler
+    # - source files
+    # - Azure wrappers - handler, storage
+    # - additional resources
+    # - function.json
+    # host.json
+    # requirements.txt/package.json
+    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+
+        # In previous step we ran a Docker container which installed packages
+        # Python packages are in .python_packages because this is expected by Azure
+        FILES = {"python": "*.py", "nodejs": "*.js"}
+        CONFIG_FILES = {
+            "python": ["requirements.txt", ".python_packages"],
+            "nodejs": ["package.json", "node_modules"],
+        }
+        SUPPORTING_FILES = ["function", "storage"]
+        WRAPPER_FILES = ["handler"] + SUPPORTING_FILES
+        file_type = FILES[language_name]
+        package_config = CONFIG_FILES[language_name]
+        
+        # TODO: extension to other triggers than HTTP
+        default_function_json = {
+            "bindings": [
+                {
+                    "authLevel": "function",
+                    "type": "httpTrigger",
+                    "direction": "in",
+                    "name": "req",
+                    "methods": ["get", "post"],
+                },
+                {"name": "starter", "type": "durableClient", "direction": "in"},
+                {"name": "$return", "type": "http", "direction": "out"},
+            ],
+        }
+
+        for file_path in glob.glob(os.path.join(directory, file_type)):    
+            file = os.path.basename(file_path)
+            
+            if file in package_config:
+                continue
+                
+            # move file directory/f.py to directory/f/f.py
+            name, ext = os.path.splitext(file)
+            if name in WRAPPER_FILES:
+                func_dir = os.path.join(directory, "handler")    
+            else:
+                func_dir = os.path.join(directory, name)
+                
+            dst_file = os.path.join(func_dir, file)
+            src_file = os.path.join(directory, file)
+            if not os.path.exists(func_dir):
+                os.makedirs(func_dir)
+            shutil.move(src_file, dst_file)
+                        
+            # generate function.json if none provided
+            # we don't do this for supporting files
+            if name in SUPPORTING_FILES:
+                continue
+            
+            src_json = os.path.join(directory, name+".json")
+            dst_json = os.path.join(os.path.dirname(dst_file), "function.json")
+            
+            if os.path.exists(src_json):
+                shutil.move(src_json, dst_json)
+            else:
+                default_function_json["scriptFile"] = file
+                json.dump(default_function_json, open(dst_json, "w"), indent=2)
+
+        # generate host.json
+        default_host_json = {
+            "version": "2.0",
+            "extensionBundle": {
+                "id": "Microsoft.Azure.Functions.ExtensionBundle",
+                "version": "[2.*, 3.0.0)"
             },
         }
         json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
@@ -340,6 +419,85 @@ class Azure(System):
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
+            
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> AzureFunction:
+
+        language = code_package.language_name
+        language_runtime = code_package.language_version
+        resource_group = self.config.resources.resource_group(self.cli_instance)
+        region = self.config.region
+
+        config = {
+            "resource_group": resource_group,
+            "workflow_name": workflow_name,
+            "region": region,
+            "runtime": self.AZURE_RUNTIMES[language],
+            "runtime_version": language_runtime,
+        }
+
+        # check if function does not exist
+        # no API to verify existence
+        try:
+            ret = self.cli_instance.execute(
+                (
+                    " az functionapp config appsettings list "
+                    " --resource-group {resource_group} "
+                    " --name {workflow_name} "
+                ).format(**config)
+            )
+            for setting in json.loads(ret.decode()):
+                if setting["name"] == "AzureWebJobsStorage":
+                    connection_string = setting["value"]
+                    elems = [z for y in connection_string.split(";") for z in y.split("=")]
+                    account_name = elems[elems.index("AccountName") + 1]
+                    function_storage_account = AzureResources.Storage.from_cache(
+                        account_name, connection_string
+                    )
+            self.logging.info("Azure: Selected {} function app".format(workflow_name))
+        except RuntimeError:
+            function_storage_account = self.config.resources.add_storage_account(self.cli_instance)
+            config["storage_account"] = function_storage_account.account_name
+            
+            # FIXME: only Linux type is supported
+            while True:
+                try:
+                    # create function app
+                    self.cli_instance.execute(
+                        (
+                            " az functionapp create --resource-group {resource_group} "
+                            " --os-type Linux --consumption-plan-location {region} "
+                            " --runtime {runtime} --runtime-version {runtime_version} "
+                            " --name {workflow_name} --storage-account {storage_account}"
+                        ).format(**config)
+                    )
+                    self.logging.info("Azure: Created workflow app {}".format(workflow_name))
+                    break
+                except RuntimeError as e:
+                    # Azure does not allow some concurrent operations
+                    if "another operation is in progress" in str(e):
+                        self.logging.info(
+                            f"Repeat {workflow_name} creation, another operation in progress"
+                        )
+                    # Rethrow -> another error
+                    else:
+                        raise
+        workflow = AzureWorkflow(
+            name=workflow_name,
+            benchmark=code_package.benchmark,
+            code_hash=code_package.hash,
+            function_storage=function_storage_account,
+        )
+
+        # update existing function app
+        self.update_function(workflow, code_package)
+
+        # self.cache_client.add_function(
+        #     deployment_name=self.name(),
+        #     language_name=language,
+        #     code_package=code_package,
+        #     function=function,
+        # )
+        return workflow
 
     """
         Prepare Azure resources to store experiment results.
@@ -456,10 +614,12 @@ class Azure(System):
         The only implemented trigger at the moment is HTTPTrigger.
         It is automatically created for each function.
     """
-
-    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+        
+    def create_function_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         raise NotImplementedError()
-
+        
+    def create_workflow_trigger(self, workflow: Workflow, trigger_type: Trigger.TriggerType) -> Trigger:
+        raise NotImplementedError()
 
 #
 #    def create_azure_function(self, fname, config):
