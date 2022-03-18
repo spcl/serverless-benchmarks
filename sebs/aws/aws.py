@@ -169,18 +169,19 @@ class AWS(System):
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
     def wait_for_function(self, func_name: str):
-        active = False
+        ready = False
         backoff_delay = 1  # Start wait with delay of 1 second
-        while (not active):
+        while (not ready):
             ret = self.lambda_client.get_function(FunctionName=func_name)
-            status = ret["Configuration"]["State"]        
-            active = status == "Active"
+            state = ret["Configuration"]["State"]  
+            update_status = ret["Configuration"]["LastUpdateStatus"]
+            ready = (state == "Active") and (update_status == "Successful")
         
             # If we haven't seen the result yet, wait a second.
-            if not active:
+            if not ready:
                 time.sleep(backoff_delay)
                 backoff_delay *= 2  # Double the delay to provide exponential backoff.
-            elif status == "Failed":
+            elif "Failed" in (state, update_status):
                 self.logging.error(f"Cannot wait for failed {func_name}")
                 break
                 
@@ -299,6 +300,7 @@ class AWS(System):
         name = function.name
         code_size = code_package.code_size
         package = code_package.code_location
+        
         # Run AWS update
         # AWS Lambda limit on zip deployment
         if code_size < 50 * 1024 * 1024:
@@ -313,6 +315,10 @@ class AWS(System):
             self.lambda_client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
             )
+            
+        # Wait for code update to finish before updating config
+        self.wait_for_function(name)
+            
         # and update config
         self.lambda_client.update_function_configuration(
             FunctionName=name, Timeout=function.timeout, MemorySize=function.memory
