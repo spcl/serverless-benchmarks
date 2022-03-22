@@ -131,11 +131,13 @@ class AWSResources(Resources):
                     }
                 ],
             }
-            role_name = "sebs-lambda-role"
+            role_name = "sebs-role"
             attached_policies = [
                 "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+                "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
-                "arn:aws:iam::aws:policy/service-role/AWSLambdaRole"
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaRole",
+                "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
             ]
             try:
                 out = iam_client.get_role(RoleName=role_name)
