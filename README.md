@@ -91,6 +91,10 @@ virtual environment:
 
 Now you can deploy serverless experiments :-)
 
+The installation of additional platforms is controlled with the `--platform` and `--no-platform`
+switches. Currently, the default behavior for `install.py` is to install only the local
+environment.
+
 **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
 
 To verify the correctness of installation, you can use [our regression testing](#regression).
