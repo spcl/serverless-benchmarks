@@ -46,6 +46,9 @@ if args.aws:
     elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
         print(f"AWS: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
                 "Skipping rebuild as requested by user, but recommending to rebuild the images")
+flag = "TRUE" if args.aws else "FALSE"
+execute(f'echo "export SEBS_WITH_AWS={flag}" >> {env_dir}/bin/activate')
+execute(f'echo "unset SEBS_WITH_AWS" >> {env_dir}/bin/deactivate')
 
 if args.azure:
     print("Install Python dependencies for Azure")
@@ -56,6 +59,9 @@ if args.azure:
     elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
         print(f"Azure: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
                 "Skipping rebuild as requested by user, but recommending to rebuild the images")
+flag = "TRUE" if args.azure else "FALSE"
+execute(f'echo "export SEBS_WITH_AZURE={flag}" >> {env_dir}/bin/activate')
+execute(f'echo "unset SEBS_WITH_AZURE" >> {env_dir}/bin/deactivate')
 
 if args.gcp:
     print("Install Python dependencies for GCP")
@@ -66,6 +72,9 @@ if args.gcp:
     elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
         print(f"GCP: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
                 "Skipping rebuild as requested by user, but recommending to rebuild the images")
+flag = "TRUE" if args.gcp else "FALSE"
+execute(f'echo "export SEBS_WITH_GCP={flag}" >> {env_dir}/bin/activate')
+execute(f'echo "unset SEBS_WITH_GCP" >> {env_dir}/bin/deactivate')
 
 if args.local:
     print("Install Python dependencies for local")
