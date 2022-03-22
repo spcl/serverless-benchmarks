@@ -185,4 +185,4 @@ class LoggingBase:
 
 
 def has_platform(name: str) -> bool:
-    return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "True"
+    return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "true"
