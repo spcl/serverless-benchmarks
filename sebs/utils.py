@@ -182,3 +182,7 @@ class LoggingBase:
         self.logging.propagate = False
         for handler in handlers.handlers:
             self.logging.addHandler(handler)
+
+
+def has_platform(name: str) -> bool:
+    return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "True"

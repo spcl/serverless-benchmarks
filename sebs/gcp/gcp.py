@@ -208,9 +208,8 @@ class GCP(System):
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
         get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
-        
         try:
-            get_result = get_req.execute()
+            get_req.execute()
         except HttpError:
             create_req = (
                 self.function_client.projects()
@@ -256,7 +255,7 @@ class GCP(System):
         else:
             # if result is not empty, then function does exists
             self.logging.info("Function {} exists on GCP, update the instance.".format(func_name))
-            
+
             function = GCPFunction(
                 name=func_name,
                 benchmark=benchmark,
