@@ -2,7 +2,6 @@ import concurrent.futures
 import datetime
 import json
 import time
-import os
 from typing import Dict, Optional  # noqa
 
 from google.cloud.workflows.executions_v1beta import ExecutionsClient
@@ -44,8 +43,8 @@ class LibraryTrigger(Trigger):
     @classmethod
     def deserialize(cls, obj: dict) -> Trigger:
         return cls(obj["name"])
-        
-        
+
+
 class FunctionLibraryTrigger(LibraryTrigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
@@ -86,8 +85,8 @@ class FunctionLibraryTrigger(LibraryTrigger):
         output = json.loads(res["result"])
         gcp_result.parse_benchmark_output(output)
         return gcp_result
-        
-        
+
+
 class WorkflowLibraryTrigger(LibraryTrigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
@@ -103,28 +102,32 @@ class WorkflowLibraryTrigger(LibraryTrigger):
 
         # GCP's fixed style for a function name
         config = self.deployment_client.config
-        full_workflow_name = GCP.get_full_workflow_name(config.project_name, config.region, self.name)
-        
+        full_workflow_name = GCP.get_full_workflow_name(
+            config.project_name, config.region, self.name)
+
         execution_client = ExecutionsClient()
         execution = Execution(argument=json.dumps(payload))
-        
+
         begin = datetime.datetime.now()
-        res = execution_client.create_execution(parent=full_workflow_name, execution=execution)
+        res = execution_client.create_execution(
+            parent=full_workflow_name, execution=execution)
         end = datetime.datetime.now()
-        
+
         gcp_result = ExecutionResult.from_times(begin, end)
-        
+
         # Wait for execution to finish, then print results.
         execution_finished = False
         backoff_delay = 1  # Start wait with delay of 1 second
         while (not execution_finished):
-            execution = execution_client.get_execution(request={"name": res.name})
+            execution = execution_client.get_execution(
+                request={"name": res.name})
             execution_finished = execution.state != Execution.State.ACTIVE
-        
+
             # If we haven't seen the result yet, wait a second.
             if not execution_finished:
                 time.sleep(backoff_delay)
-                backoff_delay *= 2  # Double the delay to provide exponential backoff.
+                # Double the delay to provide exponential backoff.
+                backoff_delay *= 2
             elif execution.state == Execution.State.FAILED:
                 self.logging.error(f"Invocation of {self.name} failed")
                 self.logging.error(f"Input: {payload}")

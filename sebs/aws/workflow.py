@@ -1,4 +1,4 @@
-from typing import cast, Optional, List
+from typing import cast, List
 
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
@@ -37,7 +37,7 @@ class SFNWorkflow(Workflow):
         from sebs.faas.function import Trigger
         from sebs.aws.triggers import WorkflowLibraryTrigger, HTTPTrigger
 
-        ret = LambdaWorkflow(
+        ret = SFNWorkflow(
             cached_config["name"],
             cached_config["functions"],
             cached_config["hash"],

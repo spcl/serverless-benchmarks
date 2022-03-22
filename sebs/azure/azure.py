@@ -101,7 +101,8 @@ class Azure(System):
             self.storage = BlobStorage(
                 self.config.region,
                 self.cache_client,
-                self.config.resources.data_storage_account(self.cli_instance).connection_string,
+                self.config.resources.data_storage_account(
+                    self.cli_instance).connection_string,
                 replace_existing=replace_existing,
             )
             self.storage.logging_handlers = self.logging_handlers
@@ -154,12 +155,14 @@ class Azure(System):
                 "version": "[1.*, 2.0.0)",
             },
         }
-        json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
+        json.dump(default_host_json, open(
+            os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
-        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+        execute("zip -qu -r9 {}.zip * .".format(benchmark),
+                shell=True, cwd=directory)
         return directory, code_size
-    
+
     # Directory structure
     # handler
     # - source files
@@ -181,7 +184,7 @@ class Azure(System):
         WRAPPER_FILES = ["handler"] + SUPPORTING_FILES
         file_type = FILES[language_name]
         package_config = CONFIG_FILES[language_name]
-        
+
         # TODO: extension to other triggers than HTTP
         default_function_json = {
             "bindings": [
@@ -197,33 +200,33 @@ class Azure(System):
             ],
         }
 
-        for file_path in glob.glob(os.path.join(directory, file_type)):    
+        for file_path in glob.glob(os.path.join(directory, file_type)):
             file = os.path.basename(file_path)
-            
+
             if file in package_config:
                 continue
-                
+
             # move file directory/f.py to directory/f/f.py
             name, ext = os.path.splitext(file)
             if name in WRAPPER_FILES:
-                func_dir = os.path.join(directory, "handler")    
+                func_dir = os.path.join(directory, "handler")
             else:
                 func_dir = os.path.join(directory, name)
-                
+
             dst_file = os.path.join(func_dir, file)
             src_file = os.path.join(directory, file)
             if not os.path.exists(func_dir):
                 os.makedirs(func_dir)
             shutil.move(src_file, dst_file)
-                        
+
             # generate function.json if none provided
             # we don't do this for supporting files
             if name in SUPPORTING_FILES:
                 continue
-            
+
             src_json = os.path.join(directory, name+".json")
             dst_json = os.path.join(os.path.dirname(dst_file), "function.json")
-            
+
             if os.path.exists(src_json):
                 shutil.move(src_json, dst_json)
             else:
@@ -238,10 +241,12 @@ class Azure(System):
                 "version": "[2.*, 3.0.0)"
             },
         }
-        json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
+        json.dump(default_host_json, open(
+            os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
-        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+        execute("zip -qu -r9 {}.zip * .".format(benchmark),
+                shell=True, cwd=directory)
         return directory, code_size
 
     def publish_function(
@@ -252,7 +257,8 @@ class Azure(System):
     ) -> str:
         success = False
         url = ""
-        self.logging.info("Attempting publish of function {}".format(function.name))
+        self.logging.info(
+            "Attempting publish of function {}".format(function.name))
         while not success:
             try:
                 ret = self.cli_instance.execute(
@@ -276,7 +282,8 @@ class Azure(System):
                         url = line.split("Invoke url:")[1].strip()
                         break
                 if url == "":
-                    raise RuntimeError("Couldnt find URL in {}".format(ret.decode("utf-8")))
+                    raise RuntimeError(
+                        "Couldnt find URL in {}".format(ret.decode("utf-8")))
                 success = True
             except RuntimeError as e:
                 error = str(e)
@@ -312,12 +319,14 @@ class Azure(System):
         self._mount_function_code(code_package)
         url = self.publish_function(function, code_package, True)
 
-        trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
+        trigger = HTTPTrigger(
+            url, self.config.resources.data_storage_account(self.cli_instance))
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
 
     def _mount_function_code(self, code_package: Benchmark):
-        self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
+        self.cli_instance.upload_package(
+            code_package.code_location, "/mnt/function/")
 
     def default_function_name(self, code_package: Benchmark) -> str:
         """
@@ -338,7 +347,8 @@ class Azure(System):
 
         language = code_package.language_name
         language_runtime = code_package.language_version
-        resource_group = self.config.resources.resource_group(self.cli_instance)
+        resource_group = self.config.resources.resource_group(
+            self.cli_instance)
         region = self.config.region
 
         config = {
@@ -362,14 +372,17 @@ class Azure(System):
             for setting in json.loads(ret.decode()):
                 if setting["name"] == "AzureWebJobsStorage":
                     connection_string = setting["value"]
-                    elems = [z for y in connection_string.split(";") for z in y.split("=")]
+                    elems = [z for y in connection_string.split(
+                        ";") for z in y.split("=")]
                     account_name = elems[elems.index("AccountName") + 1]
                     function_storage_account = AzureResources.Storage.from_cache(
                         account_name, connection_string
                     )
-            self.logging.info("Azure: Selected {} function app".format(func_name))
+            self.logging.info(
+                "Azure: Selected {} function app".format(func_name))
         except RuntimeError:
-            function_storage_account = self.config.resources.add_storage_account(self.cli_instance)
+            function_storage_account = self.config.resources.add_storage_account(
+                self.cli_instance)
             config["storage_account"] = function_storage_account.account_name
             # FIXME: only Linux type is supported
             while True:
@@ -383,7 +396,8 @@ class Azure(System):
                             " --name {func_name} --storage-account {storage_account}"
                         ).format(**config)
                     )
-                    self.logging.info("Azure: Created function app {}".format(func_name))
+                    self.logging.info(
+                        "Azure: Created function app {}".format(func_name))
                     break
                 except RuntimeError as e:
                     # Azure does not allow some concurrent operations
@@ -414,17 +428,19 @@ class Azure(System):
 
     def cached_function(self, function: Function):
 
-        data_storage_account = self.config.resources.data_storage_account(self.cli_instance)
+        data_storage_account = self.config.resources.data_storage_account(
+            self.cli_instance)
         for trigger in function.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
-            
+
     def create_workflow(self, code_package: Benchmark, workflow_name: str) -> AzureFunction:
 
         language = code_package.language_name
         language_runtime = code_package.language_version
-        resource_group = self.config.resources.resource_group(self.cli_instance)
+        resource_group = self.config.resources.resource_group(
+            self.cli_instance)
         region = self.config.region
 
         config = {
@@ -448,16 +464,19 @@ class Azure(System):
             for setting in json.loads(ret.decode()):
                 if setting["name"] == "AzureWebJobsStorage":
                     connection_string = setting["value"]
-                    elems = [z for y in connection_string.split(";") for z in y.split("=")]
+                    elems = [z for y in connection_string.split(
+                        ";") for z in y.split("=")]
                     account_name = elems[elems.index("AccountName") + 1]
                     function_storage_account = AzureResources.Storage.from_cache(
                         account_name, connection_string
                     )
-            self.logging.info("Azure: Selected {} function app".format(workflow_name))
+            self.logging.info(
+                "Azure: Selected {} function app".format(workflow_name))
         except RuntimeError:
-            function_storage_account = self.config.resources.add_storage_account(self.cli_instance)
+            function_storage_account = self.config.resources.add_storage_account(
+                self.cli_instance)
             config["storage_account"] = function_storage_account.account_name
-            
+
             # FIXME: only Linux type is supported
             while True:
                 try:
@@ -470,7 +489,8 @@ class Azure(System):
                             " --name {workflow_name} --storage-account {storage_account}"
                         ).format(**config)
                     )
-                    self.logging.info("Azure: Created workflow app {}".format(workflow_name))
+                    self.logging.info(
+                        "Azure: Created workflow app {}".format(workflow_name))
                     break
                 except RuntimeError as e:
                     # Azure does not allow some concurrent operations
@@ -508,7 +528,8 @@ class Azure(System):
     """
 
     def prepare_experiment(self, benchmark: str):
-        logs_container = self.storage.add_output_bucket(benchmark, suffix="logs")
+        logs_container = self.storage.add_output_bucket(
+            benchmark, suffix="logs")
         return logs_container
 
     def download_metrics(
@@ -520,7 +541,8 @@ class Azure(System):
         metrics: Dict[str, dict],
     ):
 
-        resource_group = self.config.resources.resource_group(self.cli_instance)
+        resource_group = self.config.resources.resource_group(
+            self.cli_instance)
         # Avoid warnings in the next step
         ret = self.cli_instance.execute(
             "az feature register --name AIWorkspacePreview " "--namespace microsoft.insights"
@@ -539,7 +561,8 @@ class Azure(System):
         start_time_str = datetime.datetime.fromtimestamp(start_time).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         )
-        end_time_str = datetime.datetime.fromtimestamp(end_time + 1).strftime("%Y-%m-%d %H:%M:%S")
+        end_time_str = datetime.datetime.fromtimestamp(
+            end_time + 1).strftime("%Y-%m-%d %H:%M:%S")
         from tzlocal import get_localzone
 
         timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
@@ -578,21 +601,24 @@ class Azure(System):
             # duration = request[4]
             func_exec_time = request[-1]
             invocations_processed.add(invocation_id)
-            requests[invocation_id].provider_times.execution = int(float(func_exec_time) * 1000)
+            requests[invocation_id].provider_times.execution = int(
+                float(func_exec_time) * 1000)
         self.logging.info(
             f"Azure: Found time metrics for {len(invocations_processed)} "
             f"out of {len(requests.keys())} invocations."
         )
         if len(invocations_processed) < len(requests.keys()):
             time.sleep(5)
-        self.logging.info(f"Missing the requests: {invocations_to_process - invocations_processed}")
+        self.logging.info(
+            f"Missing the requests: {invocations_to_process - invocations_processed}")
 
         # TODO: query performance counters for mem
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark):
 
         fname = function.name
-        resource_group = self.config.resources.resource_group(self.cli_instance)
+        resource_group = self.config.resources.resource_group(
+            self.cli_instance)
 
         self.cli_instance.execute(
             f"az functionapp config appsettings set --name {fname} "
@@ -614,11 +640,13 @@ class Azure(System):
         The only implemented trigger at the moment is HTTPTrigger.
         It is automatically created for each function.
     """
-        
-    def create_function_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+
+    def create_function_trigger(self, function: Function,
+        trigger_type: Trigger.TriggerType) -> Trigger:
         raise NotImplementedError()
-        
-    def create_workflow_trigger(self, workflow: Workflow, trigger_type: Trigger.TriggerType) -> Trigger:
+
+    def create_workflow_trigger(self, workflow: Workflow,
+        trigger_type: Trigger.TriggerType) -> Trigger:
         raise NotImplementedError()
 
 #

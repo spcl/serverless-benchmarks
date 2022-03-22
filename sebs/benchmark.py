@@ -162,7 +162,7 @@ class Benchmark(LoggingBase):
             self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
                 json.load(json_file)
             )
-        
+
         if self.language not in self.benchmark_config.languages:
             raise RuntimeError(
                 "Benchmark {} not available for language {}".format(self.benchmark, self.language)
@@ -242,7 +242,7 @@ class Benchmark(LoggingBase):
         if include_config:
             FILES["python"] += ["requirements.txt*", "*.json"]
             FILES["nodejs"] += ["package.json", "*.json"]
-        
+
         path = os.path.join(self.benchmark_path, self.language_name)
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
