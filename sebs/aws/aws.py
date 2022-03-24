@@ -176,7 +176,7 @@ class AWS(System):
         while (not ready):
             ret = self.lambda_client.get_function(FunctionName=func_name)
             state = ret["Configuration"]["State"]
-            update_status = ret["Configuration"]["LastUpdateStatus"]
+            update_status = ret["Configuration"].get("LastUpdateStatus", "Successful")
             ready = (state == "Active") and (update_status == "Successful")
 
             # If we haven't seen the result yet, wait a second.
