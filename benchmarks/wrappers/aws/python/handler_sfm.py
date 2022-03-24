@@ -25,7 +25,7 @@ def probe_cold_start():
         with open(fname, "r") as f:
             container_id = f.read()
 
-    return is_cold
+    return is_cold, container_id
 
 
 def handler(event, context):
@@ -37,10 +37,12 @@ def handler(event, context):
 
     end = datetime.datetime.now().timestamp()
 
+    is_cold, container_id = probe_cold_start()
     payload = {
         "start": start,
         "end": end,
-        "is_cold": probe_cold_start()
+        "is_cold": is_cold,
+        "container_id": container_id
     }
 
     data = io.BytesIO(json.dumps(payload).encode("utf-8"))
