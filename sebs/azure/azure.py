@@ -110,59 +110,6 @@ class Azure(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
-    def package_code2(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
-
-        # In previous step we ran a Docker container which installed packages
-        # Python packages are in .python_packages because this is expected by Azure
-        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js"}
-        CONFIG_FILES = {
-            "python": ["requirements.txt", ".python_packages"],
-            "nodejs": ["package.json", "node_modules"],
-        }
-        package_config = CONFIG_FILES[language_name]
-
-        handler_dir = os.path.join(directory, "handler")
-        os.makedirs(handler_dir)
-        # move all files to 'handler' except package config
-        for f in os.listdir(directory):
-            if f not in package_config:
-                source_file = os.path.join(directory, f)
-                shutil.move(source_file, handler_dir)
-
-        # generate function.json
-        # TODO: extension to other triggers than HTTP
-        default_function_json = {
-            "scriptFile": EXEC_FILES[language_name],
-            "bindings": [
-                {
-                    "authLevel": "function",
-                    "type": "httpTrigger",
-                    "direction": "in",
-                    "name": "req",
-                    "methods": ["get", "post"],
-                },
-                {"type": "http", "direction": "out", "name": "$return"},
-            ],
-        }
-        json_out = os.path.join(directory, "handler", "function.json")
-        json.dump(default_function_json, open(json_out, "w"), indent=2)
-
-        # generate host.json
-        default_host_json = {
-            "version": "2.0",
-            "extensionBundle": {
-                "id": "Microsoft.Azure.Functions.ExtensionBundle",
-                "version": "[1.*, 2.0.0)",
-            },
-        }
-        json.dump(default_host_json, open(
-            os.path.join(directory, "host.json"), "w"), indent=2)
-
-        code_size = Benchmark.directory_size(directory)
-        execute("zip -qu -r9 {}.zip * .".format(benchmark),
-                shell=True, cwd=directory)
-        return directory, code_size
-
     # Directory structure
     # handler
     # - source files
@@ -171,7 +118,7 @@ class Azure(System):
     # - function.json
     # host.json
     # requirements.txt/package.json
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str, benchmark: str, is_workflow: bool) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
@@ -648,64 +595,3 @@ class Azure(System):
     def create_workflow_trigger(self, workflow: Workflow,
         trigger_type: Trigger.TriggerType) -> Trigger:
         raise NotImplementedError()
-
-#
-#    def create_azure_function(self, fname, config):
-#
-#        # create function name
-#        region = self.config["config"]["region"]
-#        # only hyphens are allowed
-#        # and name needs to be globally unique
-#        func_name = fname.replace(".", "-").replace("_", "-")
-#
-#        # create function app
-#        self.cli_instance.execute(
-#            (
-#                "az functionapp create --resource-group {} "
-#                "--os-type Linux --consumption-plan-location {} "
-#                "--runtime {} --runtime-version {} --name {} "
-#                "--storage-account {}"
-#            ).format(
-#                self.resource_group_name,
-#                region,
-#                self.AZURE_RUNTIMES[self.language],
-#                self.config["config"]["runtime"][self.language],
-#                func_name,
-#                self.storage_account_name,
-#            )
-#        )
-#        logging.info("Created function app {}".format(func_name))
-#        return func_name
-#
-#    init = False
-#
-#    def create_function_copies(
-#        self,
-#        function_names: List[str],
-#        code_package: Benchmark,
-#        experiment_config: dict,
-#    ):
-#
-#        if not self.init:
-#            code_location = code_package.code_location
-#            # package = self.package_code(code_location, code_package.benchmark)
-#            # code_size = code_package.code_size
-#            # Restart Docker instance to make sure code package is mounted
-#            self.start(code_location, restart=True)
-#            self.storage_account()
-#            self.resource_group()
-#            self.init = True
-#
-#        # names = []
-#        # for fname in function_names:
-#        #    names.append(self.create_azure_function(fname, experiment_config))
-#        names = function_names
-#
-#        # time.sleep(30)
-#        urls = []
-#        for fname in function_names:
-#            url = self.publish_function(fname, repeat_on_failure=True)
-#            urls.append(url)
-#            logging.info("Published function app {} with URL {}".format(fname, url))
-#
-#        return names, urls

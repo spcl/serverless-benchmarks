@@ -135,12 +135,22 @@ class AWS(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str, benchmark: str, is_workflow: bool) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
+
+        # Todo: sfm support for nodejs
+        # rename handler_sfm.py to handler.py if necessary
+        handler_path = os.path.join(directory, "handler.py")
+        handler_sfm_path = os.path.join(directory, "handler_sfm.py")
+        if is_workflow:
+            os.rename(handler_sfm_path, handler_path)
+        else:
+            os.remove(handler_sfm_path)
+
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
@@ -173,7 +183,7 @@ class AWS(System):
     def wait_for_function(self, func_name: str):
         ready = False
         backoff_delay = 1  # Start wait with delay of 1 second
-        while (not ready):
+        while not ready:
             ret = self.lambda_client.get_function(FunctionName=func_name)
             state = ret["Configuration"]["State"]
             update_status = ret["Configuration"].get("LastUpdateStatus", "Successful")
@@ -193,8 +203,7 @@ class AWS(System):
                     f"Function {func_name} stuck in state {state} after 60s")
                 break
 
-    def create_function(self, code_package: Benchmark, func_name: str, handler: str = None) -> "LambdaFunction":
-
+    def create_function(self, code_package: Benchmark, func_name: str) -> "LambdaFunction":
         package = code_package.code_location
         benchmark = code_package.benchmark
         language = code_package.language_name
@@ -252,7 +261,7 @@ class AWS(System):
             ret = self.lambda_client.create_function(
                 FunctionName=func_name,
                 Runtime="{}{}".format(language, language_runtime),
-                Handler=handler if handler else "handler.handler",
+                Handler="handler.handler",
                 Role=self.config.resources.lambda_role(self.session),
                 MemorySize=memory,
                 Timeout=timeout,
@@ -380,10 +389,8 @@ class AWS(System):
 
         # First we create a lambda function for each code file
         code_files = list(code_package.get_code_files(include_config=False))
-        func_names = [os.path.splitext(os.path.basename(p))[
-            0] for p in code_files]
-        funcs = [self.create_function(
-            code_package, workflow_name+"-"+fn, handler="function."+fn+".handler") for fn in func_names]
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [self.create_function(code_package, workflow_name+"___"+fn) for fn in func_names]
 
         # Set the ARN to the corresponding states in the workflow definition
         for name, func in zip(func_names, funcs):

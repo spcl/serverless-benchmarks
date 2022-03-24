@@ -105,7 +105,7 @@ class System(ABC, LoggingBase):
     """
 
     @abstractmethod
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str, benchmark: str, is_workflow: bool) -> Tuple[str, int]:
         pass
 
     @abstractmethod
@@ -151,7 +151,7 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
-        rebuilt, _ = code_package.build(self.package_code)
+        rebuilt, _ = code_package.build(self.package_code, False)
 
         """
             There's no function with that name?
@@ -221,7 +221,7 @@ class System(ABC, LoggingBase):
 
         # if not workflow_name:
         #     workflow_name = self.default_function_name(code_package)
-        rebuilt, _ = code_package.build(self.package_code)
+        rebuilt, _ = code_package.build(self.package_code, True)
 
         # FIXME: cache workflows
         return self.create_workflow(code_package, workflow_name)

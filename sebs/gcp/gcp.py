@@ -139,7 +139,7 @@ class GCP(System):
         :return: path to packaged code and its size
     """
 
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str, benchmark: str, is_workflow: bool) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],

@@ -32,7 +32,7 @@
       }
     }
   },
-  "aws": { 
+  "aws": {
     "languages": {
       "python": {
         "base_images": {
@@ -44,14 +44,14 @@
         "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.py", "storage.py"],
+          "files": ["handler.py", "handler_sfm.py", "storage.py"],
           "packages": []
         }
       },
       "nodejs": {
         "base_images": {
           "12.x" : "lambci/lambda:build-nodejs12.x",
-          "10.x" : "lambci/lambda:build-nodejs10.x" 
+          "10.x" : "lambci/lambda:build-nodejs10.x"
         },
         "versions": ["10.x", "12.x"],
         "images": ["build"],
@@ -82,7 +82,7 @@
       "nodejs": {
         "base_images": {
           "10" : "mcr.microsoft.com/azure-functions/node:2.0-node10",
-          "8" : "mcr.microsoft.com/azure-functions/node:2.0-node8" 
+          "8" : "mcr.microsoft.com/azure-functions/node:2.0-node8"
         },
         "images": ["build"],
         "username": "docker_user",
