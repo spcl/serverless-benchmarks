@@ -15,7 +15,7 @@ from sebs.azure.workflow import AzureWorkflow
 from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.faas.function import Trigger
-from sebs.benchmark import Benchmark
+from sebs.code_package import CodePackage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers, execute
@@ -191,7 +191,7 @@ class Azure(System):
         json.dump(default_host_json, open(
             os.path.join(directory, "host.json"), "w"), indent=2)
 
-        code_size = Benchmark.directory_size(directory)
+        code_size = CodePackage.directory_size(directory)
         execute("zip -qu -r9 {}.zip * .".format(benchmark),
                 shell=True, cwd=directory)
         return directory, code_size
@@ -199,7 +199,7 @@ class Azure(System):
     def publish_function(
         self,
         function: Function,
-        code_package: Benchmark,
+        code_package: CodePackage,
         repeat_on_failure: bool = False,
     ) -> str:
         success = False
@@ -218,7 +218,7 @@ class Azure(System):
                 #    "bash -c 'cd /mnt/function "
                 #    "&& az functionapp deployment source config-zip "
                 #    "--src {}.zip -g {} -n {} --build-remote false '".format(
-                #        code_package.benchmark, resource_group, function.name
+                #        code_package.name, resource_group, function.name
                 #    )
                 # )
                 # print(ret)
@@ -260,7 +260,7 @@ class Azure(System):
         :return: URL to reach HTTP-triggered function
     """
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(self, function: Function, code_package: CodePackage):
 
         # Mount code package in Docker instance
         self._mount_function_code(code_package)
@@ -271,17 +271,17 @@ class Azure(System):
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
 
-    def _mount_function_code(self, code_package: Benchmark):
+    def _mount_function_code(self, code_package: CodePackage):
         self.cli_instance.upload_package(
             code_package.code_location, "/mnt/function/")
 
-    def default_function_name(self, code_package: Benchmark) -> str:
+    def default_function_name(self, code_package: CodePackage) -> str:
         """
         Functionapp names must be globally unique in Azure.
         """
         func_name = (
             "{}-{}-{}".format(
-                code_package.benchmark,
+                code_package.name,
                 code_package.language_name,
                 self.config.resources_id,
             )
@@ -290,7 +290,7 @@ class Azure(System):
         )
         return func_name
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> AzureFunction:
+    def create_function(self, code_package: CodePackage, func_name: str) -> AzureFunction:
 
         language = code_package.language_name
         language_runtime = code_package.language_version
@@ -357,7 +357,7 @@ class Azure(System):
                         raise
         function = AzureFunction(
             name=func_name,
-            benchmark=code_package.benchmark,
+            benchmark=code_package.name,
             code_hash=code_package.hash,
             function_storage=function_storage_account,
         )
@@ -382,7 +382,7 @@ class Azure(System):
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
 
-    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> AzureFunction:
+    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> AzureFunction:
 
         language = code_package.language_name
         language_runtime = code_package.language_version
@@ -450,7 +450,7 @@ class Azure(System):
                         raise
         workflow = AzureWorkflow(
             name=workflow_name,
-            benchmark=code_package.benchmark,
+            benchmark=code_package.name,
             code_hash=code_package.hash,
             function_storage=function_storage_account,
         )
@@ -561,7 +561,7 @@ class Azure(System):
 
         # TODO: query performance counters for mem
 
-    def _enforce_cold_start(self, function: Function, code_package: Benchmark):
+    def _enforce_cold_start(self, function: Function, code_package: CodePackage):
 
         fname = function.name
         resource_group = self.config.resources.resource_group(
@@ -575,7 +575,7 @@ class Azure(System):
 
         self.update_function(function, code_package)
 
-    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
+    def enforce_cold_start(self, functions: List[Function], code_package: CodePackage):
         self.cold_start_counter += 1
         for func in functions:
             self._enforce_cold_start(func, code_package)

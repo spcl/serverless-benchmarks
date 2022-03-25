@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING  # noqa
 from sebs.utils import LoggingBase
 
 if TYPE_CHECKING:
-    from sebs.benchmark import Benchmark
+    from sebs.code_package import CodePackage
     from sebs.faas.function import Function
 
 
@@ -55,7 +55,7 @@ class Cache(LoggingBase):
 
     @staticmethod
     def typename() -> str:
-        return "Benchmark"
+        return "CodePackage"
 
     def load_config(self):
         with self._lock:
@@ -162,10 +162,10 @@ class Cache(LoggingBase):
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
-    def add_code_package(self, deployment_name: str, language_name: str, code_package: "Benchmark"):
+    def add_code_package(self, deployment_name: str, language_name: str, code_package: "CodePackage"):
         with self._lock:
             language = code_package.language_name
-            benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
+            benchmark_dir = os.path.join(self.cache_dir, code_package.name)
             os.makedirs(benchmark_dir, exist_ok=True)
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(benchmark_dir, deployment_name, language)
@@ -211,16 +211,16 @@ class Cache(LoggingBase):
                 # TODO: update
                 raise RuntimeError(
                     "Cached application {} for {} already exists!".format(
-                        code_package.benchmark, deployment_name
+                        code_package.name, deployment_name
                     )
                 )
 
     def update_code_package(
-        self, deployment_name: str, language_name: str, code_package: "Benchmark"
+        self, deployment_name: str, language_name: str, code_package: "CodePackage"
     ):
         with self._lock:
             language = code_package.language_name
-            benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
+            benchmark_dir = os.path.join(self.cache_dir, code_package.name)
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(benchmark_dir, deployment_name, language)
             if os.path.exists(cached_dir):
@@ -264,13 +264,13 @@ class Cache(LoggingBase):
         self,
         deployment_name: str,
         language_name: str,
-        code_package: "Benchmark",
+        code_package: "CodePackage",
         function: "Function",
     ):
         if self.ignore_functions:
             return
         with self._lock:
-            benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
+            benchmark_dir = os.path.join(self.cache_dir, code_package.name)
             language = code_package.language_name
             cache_config = os.path.join(benchmark_dir, "config.json")
 

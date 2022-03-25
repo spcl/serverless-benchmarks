@@ -15,7 +15,7 @@ from sebs.aws.function import LambdaFunction
 from sebs.aws.workflow import SFNWorkflow
 from sebs.aws.config import AWSConfig
 from sebs.utils import execute
-from sebs.benchmark import Benchmark
+from sebs.code_package import CodePackage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
@@ -203,13 +203,13 @@ class AWS(System):
                     f"Function {func_name} stuck in state {state} after 60s")
                 break
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LambdaFunction":
+    def create_function(self, code_package: CodePackage, func_name: str) -> "LambdaFunction":
         package = code_package.code_location
-        benchmark = code_package.benchmark
+        benchmark = code_package.name
         language = code_package.language_name
         language_runtime = code_package.language_version
-        timeout = code_package.benchmark_config.timeout
-        memory = code_package.benchmark_config.memory
+        timeout = code_package.config.timeout
+        memory = code_package.config.memory
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
         func_name = AWS.format_resource_name(func_name)
@@ -226,7 +226,7 @@ class AWS(System):
             # Here we assume a single Lambda role
             lambda_function = LambdaFunction(
                 func_name,
-                code_package.benchmark,
+                code_package.name,
                 ret["Configuration"]["FunctionArn"],
                 code_package.hash,
                 timeout,
@@ -271,7 +271,7 @@ class AWS(System):
             # print(url)
             lambda_function = LambdaFunction(
                 func_name,
-                code_package.benchmark,
+                code_package.name,
                 ret["FunctionArn"],
                 code_package.hash,
                 timeout,
@@ -311,7 +311,7 @@ class AWS(System):
         :param memory: memory limit for function
     """
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(self, function: Function, code_package: CodePackage):
 
         function = cast(LambdaFunction, function)
         name = function.name
@@ -328,7 +328,7 @@ class AWS(System):
         else:
             code_package_name = os.path.basename(package)
             storage = cast(S3, self.get_storage())
-            bucket = function.code_bucket(code_package.benchmark, storage)
+            bucket = function.code_bucket(code_package.name, storage)
             storage.upload(bucket, package, code_package_name)
             self.lambda_client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
@@ -373,13 +373,13 @@ class AWS(System):
         self.cache_client.update_function(function)
         return trigger
 
-    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "SFNWorkflow":
+    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> "SFNWorkflow":
 
         workflow_name = AWS.format_resource_name(workflow_name)
 
         # Make sure we have a valid workflow benchmark
         definition_path = os.path.join(
-            code_package.benchmark_path, "definition.json")
+            code_package.path, "definition.json")
         if os.path.exists(definition_path):
             with open(definition_path) as json_file:
                 definition = json.load(json_file)
@@ -417,7 +417,7 @@ class AWS(System):
             workflow = SFNWorkflow(
                 workflow_name,
                 funcs,
-                code_package.benchmark,
+                code_package.name,
                 ret["stateMachineArn"],
                 code_package.hash,
                 self.config.resources.lambda_role(self.session),
@@ -434,7 +434,7 @@ class AWS(System):
             workflow = SFNWorkflow(
                 workflow_name,
                 funcs,
-                code_package.benchmark,
+                code_package.name,
                 arn,
                 code_package.hash,
                 self.config.resources.lambda_role(self.session),
@@ -452,7 +452,7 @@ class AWS(System):
 
         return workflow
 
-    def update_workflow(self, workflow: Workflow, definition: str, code_package: Benchmark):
+    def update_workflow(self, workflow: Workflow, definition: str, code_package: CodePackage):
 
         workflow = cast(SFNWorkflow, workflow)
 
@@ -476,12 +476,12 @@ class AWS(System):
             raise RuntimeError("Not supported!")
 
     @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(code_package: CodePackage) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
-            code_package.benchmark,
+            code_package.name,
             code_package.language_name,
-            code_package.benchmark_config.memory,
+            code_package.config.memory,
         )
         return AWS.format_resource_name(func_name)
 
@@ -657,7 +657,7 @@ class AWS(System):
                 "ForceColdStart": str(self.cold_start_counter)}},
         )
 
-    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
+    def enforce_cold_start(self, functions: List[Function], code_package: CodePackage):
         self.cold_start_counter += 1
         for func in functions:
             self._enforce_cold_start(func)

@@ -14,7 +14,7 @@ from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
-from sebs.benchmark import Benchmark
+from sebs.code_package import CodePackage
 
 
 class Local(System):
@@ -136,7 +136,7 @@ class Local(System):
 
         return directory, bytes_size
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+    def create_function(self, code_package: CodePackage, func_name: str) -> "LocalFunction":
 
         home_dir = os.path.join(
             "/home", self._system_config.username(self.name(), code_package.language_name)
@@ -176,7 +176,7 @@ class Local(System):
             # tty=True,
         )
         func = LocalFunction(
-            container, self.DEFAULT_PORT, func_name, code_package.benchmark, code_package.hash
+            container, self.DEFAULT_PORT, func_name, code_package.name, code_package.hash
         )
         self.logging.info(
             f"Started {func_name} function at container {container.id} , running on {func._url}"
@@ -187,7 +187,7 @@ class Local(System):
         FIXME: restart Docker?
     """
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(self, function: Function, code_package: CodePackage):
         pass
 
     """
@@ -222,16 +222,16 @@ class Local(System):
     ):
         pass
 
-    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
+    def enforce_cold_start(self, functions: List[Function], code_package: CodePackage):
         raise NotImplementedError()
 
     @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(code_package: CodePackage) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
-            code_package.benchmark,
+            code_package.name,
             code_package.language_name,
-            code_package.benchmark_config.memory,
+            code_package.config.memory,
         )
         return func_name
 

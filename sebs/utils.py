@@ -129,7 +129,7 @@ def configure_logging():
 """
 
 
-def find_benchmark(benchmark: str, path: str):
+def find_package_code(benchmark: str, path: str):
     benchmarks_dir = os.path.join(PROJECT_DIR, path)
     benchmark_path = find(benchmark, benchmarks_dir)
     return benchmark_path

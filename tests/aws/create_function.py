@@ -39,7 +39,7 @@ class AWSCreateFunction(unittest.TestCase):
         "nodejs": ["handler.js", "function/storage.js", "package.json", "node_modules/"]
     }
     benchmark = "110.dynamic-html"
-    function_name_suffixes = [] 
+    function_name_suffixes = []
 
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
@@ -96,7 +96,7 @@ class AWSCreateFunction(unittest.TestCase):
                 deployment_client.delete_function(func_name + suffix)
 
     def check_function(
-        self, language: str, package: sebs.benchmark.Benchmark, files: List[str]
+        self, language: str, package: sebs.code_package.CodePackage, files: List[str]
     ):
         filename, file_extension = os.path.splitext(package.code_location)
         self.assertEqual(file_extension, ".zip")

@@ -15,7 +15,7 @@ from google.cloud import monitoring_v3
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.benchmark import Benchmark
+from sebs.code_package import CodePackage
 from ..faas.function import Function, Trigger
 from ..faas.workflow import Workflow
 from .storage import PersistentStorage
@@ -108,12 +108,12 @@ class GCP(System):
         return self.storage
 
     @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(code_package: CodePackage) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
-            code_package.benchmark,
+            code_package.name,
             code_package.language_name,
-            code_package.benchmark_config.memory,
+            code_package.config.memory,
         )
         return GCP.format_function_name(func_name)
 
@@ -191,13 +191,13 @@ class GCP(System):
 
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "GCPFunction":
+    def create_function(self, code_package: CodePackage, func_name: str) -> "GCPFunction":
 
         package = code_package.code_location
-        benchmark = code_package.benchmark
+        benchmark = code_package.name
         language_runtime = code_package.language_version
-        timeout = code_package.benchmark_config.timeout
-        memory = code_package.benchmark_config.memory
+        timeout = code_package.config.timeout
+        memory = code_package.config.memory
         code_bucket: Optional[str] = None
         storage_client = self.get_storage()
         location = self.config.region
@@ -327,14 +327,14 @@ class GCP(System):
             gcp_trigger.logging_handlers = self.logging_handlers
             gcp_trigger.deployment_client = self
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(self, function: Function, code_package: CodePackage):
 
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version
         code_package_name = os.path.basename(code_package.code_location)
         storage = cast(GCPStorage, self.get_storage())
 
-        bucket = function.code_bucket(code_package.benchmark, storage)
+        bucket = function.code_bucket(code_package.name, storage)
         storage.upload(bucket, code_package.code_location, code_package_name)
         self.logging.info(
             f"Uploaded new code package to {bucket}/{code_package_name}")
@@ -371,10 +371,10 @@ class GCP(System):
     def get_full_function_name(project_name: str, location: str, func_name: str):
         return f"projects/{project_name}/locations/{location}/functions/{func_name}"
 
-    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "GCPWorkflow":
-        benchmark = code_package.benchmark
-        timeout = code_package.benchmark_config.timeout
-        memory = code_package.benchmark_config.memory
+    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> "GCPWorkflow":
+        benchmark = code_package.name
+        timeout = code_package.config.timeout
+        memory = code_package.config.memory
         code_bucket: Optional[str] = None
         location = self.config.region
         project_name = self.config.project_name
@@ -449,7 +449,7 @@ class GCP(System):
         # self.cache_client.update_workflow(workflow)
         return trigger
 
-    def update_workflow(self, workflow: Workflow, code_package: Benchmark):
+    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
         with open('cache/test.yml') as f:
             code = f.read()
 
@@ -628,7 +628,7 @@ class GCP(System):
 
         return new_version
 
-    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
+    def enforce_cold_start(self, functions: List[Function], code_package: CodePackage):
 
         new_versions = []
         for func in functions:
@@ -654,7 +654,7 @@ class GCP(System):
 
         self.cold_start_counter += 1
 
-    def get_functions(self, code_package: Benchmark, function_names: List[str]) -> List["Function"]:
+    def get_functions(self, code_package: CodePackage, function_names: List[str]) -> List["Function"]:
 
         functions: List["Function"] = []
         undeployed_functions_before = []
