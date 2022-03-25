@@ -217,7 +217,7 @@ class CodePackage(LoggingBase):
             benchmark=self._name,
             language=self.language_name,
         )
-        self._benchmarks = self._cache_client.get_functions(
+        self._benchmarks = self._cache_client.get_benchmarks(
             deployment=self._deployment_name,
             benchmark=self._name,
             language=self.language_name,

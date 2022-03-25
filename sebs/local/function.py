@@ -2,7 +2,7 @@ import concurrent.futures
 import docker
 import json
 
-from sebs.faas.function import ExecutionResult, Function, Trigger
+from sebs.faas.benchmark import ExecutionResult, Function, Trigger
 
 
 class HTTPTrigger(Trigger):

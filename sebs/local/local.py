@@ -11,7 +11,7 @@ from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
 from sebs.local.storage import Minio
 from sebs.local.function import LocalFunction
-from sebs.faas.function import Function, ExecutionResult, Trigger
+from sebs.faas.benchmark import Function, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 from sebs.code_package import CodePackage
@@ -226,7 +226,7 @@ class Local(System):
         raise NotImplementedError()
 
     @staticmethod
-    def default_function_name(code_package: CodePackage) -> str:
+    def default_benchmark_name(code_package: CodePackage) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
             code_package.name,

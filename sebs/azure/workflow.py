@@ -1,5 +1,5 @@
 from sebs.azure.config import AzureResources
-from sebs.faas.workflow import Workflow
+from sebs.faas.benchmark import Workflow
 
 
 class AzureWorkflow(Workflow):
@@ -23,7 +23,7 @@ class AzureWorkflow(Workflow):
     def deserialize(cached_config: dict) -> Workflow:
         ret = AzureWorkflow(
             cached_config["name"],
-            cached_config["benchmark"],
+            cached_config["code_package"],
             cached_config["hash"],
             AzureResources.Storage.deserialize(cached_config["function_storage"]),
         )

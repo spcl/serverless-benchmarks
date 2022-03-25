@@ -8,8 +8,7 @@ import docker
 from sebs.code_package import CodePackage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.faas.function import Function, Trigger, ExecutionResult
-from sebs.faas.workflow import Workflow
+from sebs.faas.benchmark import Function, Trigger, ExecutionResult, Workflow
 from sebs.faas.storage import PersistentStorage
 from sebs.utils import LoggingBase
 from .config import Config
@@ -150,7 +149,7 @@ class System(ABC, LoggingBase):
             )
 
         if not func_name:
-            func_name = self.default_function_name(code_package)
+            func_name = self.default_benchmark_name(code_package)
         rebuilt, _ = code_package.build(self.package_code, False)
 
         """
@@ -169,11 +168,11 @@ class System(ABC, LoggingBase):
             )
             self.logging.info("Creating new function! Reason: " + msg)
             function = self.create_function(code_package, func_name)
-            self.cache_client.add_function(
+            self.cache_client.add_benchmark(
                 deployment_name=self.name(),
                 language_name=code_package.language_name,
                 code_package=code_package,
-                function=function,
+                benchmark=function,
             )
             code_package.query_cache()
             return function
@@ -198,11 +197,11 @@ class System(ABC, LoggingBase):
                 self.update_function(function, code_package)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
-                self.cache_client.add_function(
+                self.cache_client.add_benchmark(
                     deployment_name=self.name(),
                     language_name=code_package.language_name,
                     code_package=code_package,
-                    function=function,
+                    benchmark=function,
                 )
                 code_package.query_cache()
             return function
@@ -220,7 +219,7 @@ class System(ABC, LoggingBase):
             )
 
         # if not workflow_name:
-        #     workflow_name = self.default_function_name(code_package)
+        #     workflow_name = self.default_benchmark_name(code_package)
         rebuilt, _ = code_package.build(self.package_code, True)
 
         # FIXME: cache workflows
@@ -242,11 +241,11 @@ class System(ABC, LoggingBase):
             )
             self.logging.info("Creating new function! Reason: " + msg)
             function = self.create_function(code_package, func_name)
-            self.cache_client.add_function(
+            self.cache_client.add_benchmark(
                 deployment_name=self.name(),
                 language_name=code_package.language_name,
                 code_package=code_package,
-                function=function,
+                benchmark=function,
             )
             code_package.query_cache()
             return function
@@ -271,17 +270,17 @@ class System(ABC, LoggingBase):
                 self.update_function(function, code_package)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
-                self.cache_client.add_function(
+                self.cache_client.add_benchmark(
                     deployment_name=self.name(),
                     language_name=code_package.language_name,
                     code_package=code_package,
-                    function=function,
+                    benchmark=function,
                 )
                 code_package.query_cache()
             return function
 
     @abstractmethod
-    def default_function_name(self, code_package: CodePackage) -> str:
+    def default_benchmark_name(self, code_package: CodePackage) -> str:
         pass
 
     @abstractmethod

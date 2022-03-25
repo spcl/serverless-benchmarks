@@ -1,10 +1,10 @@
 from typing import cast, Optional
 
 from sebs.aws.s3 import S3
-from sebs.faas.function import Function
+from sebs.faas.benchmark import Benchmark
 
 
-class LambdaFunction(Function):
+class LambdaFunction(Benchmark):
     def __init__(
         self,
         name: str,
@@ -42,12 +42,12 @@ class LambdaFunction(Function):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "LambdaFunction":
-        from sebs.faas.function import Trigger
+        from sebs.faas.benchmark import Trigger
         from sebs.aws.triggers import FunctionLibraryTrigger, HTTPTrigger
 
         ret = LambdaFunction(
             cached_config["name"],
-            cached_config["benchmark"],
+            cached_config["code_package"],
             cached_config["arn"],
             cached_config["hash"],
             cached_config["timeout"],

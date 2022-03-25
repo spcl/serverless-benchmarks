@@ -1,6 +1,6 @@
 from typing import cast, Optional
 
-from sebs.faas.workflow import Workflow
+from sebs.faas.benchmark import Workflow
 from sebs.gcp.storage import GCPStorage
 
 
@@ -33,12 +33,12 @@ class GCPWorkflow(Workflow):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "GCPWorkflow":
-        from sebs.faas.function import Trigger
+        from sebs.faas.benchmark import Trigger
         from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger
 
         ret = GCPWorkflow(
             cached_config["name"],
-            cached_config["benchmark"],
+            cached_config["code_package"],
             cached_config["hash"],
             cached_config["timeout"],
             cached_config["memory"],

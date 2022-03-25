@@ -6,7 +6,7 @@ import time
 from typing import Dict, Optional  # noqa
 
 from sebs.aws.aws import AWS
-from sebs.faas.function import ExecutionResult, Trigger
+from sebs.faas.benchmark import ExecutionResult, Trigger
 
 
 class LibraryTrigger(Trigger):

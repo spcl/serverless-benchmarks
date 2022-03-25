@@ -14,13 +14,11 @@ from sebs.azure.function import AzureFunction
 from sebs.azure.workflow import AzureWorkflow
 from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
-from sebs.faas.function import Trigger
 from sebs.code_package import CodePackage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers, execute
-from ..faas.function import Function, ExecutionResult
-from ..faas.workflow import Workflow
+from ..faas.benchmark import Function, ExecutionResult, Workflow, Trigger
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
@@ -275,7 +273,7 @@ class Azure(System):
         self.cli_instance.upload_package(
             code_package.code_location, "/mnt/function/")
 
-    def default_function_name(self, code_package: CodePackage) -> str:
+    def default_benchmark_name(self, code_package: CodePackage) -> str:
         """
         Functionapp names must be globally unique in Azure.
         """
@@ -365,11 +363,11 @@ class Azure(System):
         # update existing function app
         self.update_function(function, code_package)
 
-        self.cache_client.add_function(
+        self.cache_client.add_benchmark(
             deployment_name=self.name(),
             language_name=language,
             code_package=code_package,
-            function=function,
+            benchmark=function,
         )
         return function
 
@@ -458,12 +456,12 @@ class Azure(System):
         # update existing function app
         self.update_function(workflow, code_package)
 
-        # self.cache_client.add_function(
-        #     deployment_name=self.name(),
-        #     language_name=language,
-        #     code_package=code_package,
-        #     function=function,
-        # )
+        self.cache_client.add_benchmark(
+            deployment_name=self.name(),
+            language_name=language,
+            code_package=code_package,
+            benchmark=workflow,
+        )
         return workflow
 
     """

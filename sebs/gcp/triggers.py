@@ -8,7 +8,7 @@ from google.cloud.workflows.executions_v1beta import ExecutionsClient
 from google.cloud.workflows.executions_v1beta.types import Execution
 
 from sebs.gcp.gcp import GCP
-from sebs.faas.function import ExecutionResult, Trigger
+from sebs.faas.benchmark import ExecutionResult, Trigger
 
 
 class LibraryTrigger(Trigger):

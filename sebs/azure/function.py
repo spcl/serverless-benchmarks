@@ -1,5 +1,5 @@
 from sebs.azure.config import AzureResources
-from sebs.faas.function import Function
+from sebs.faas.benchmark import Function
 
 
 class AzureFunction(Function):
@@ -23,7 +23,7 @@ class AzureFunction(Function):
     def deserialize(cached_config: dict) -> Function:
         ret = AzureFunction(
             cached_config["name"],
-            cached_config["benchmark"],
+            cached_config["code_package"],
             cached_config["hash"],
             AzureResources.Storage.deserialize(cached_config["function_storage"]),
         )

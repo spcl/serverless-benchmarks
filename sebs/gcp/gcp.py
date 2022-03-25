@@ -16,8 +16,7 @@ from google.cloud import monitoring_v3
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.code_package import CodePackage
-from ..faas.function import Function, Trigger
-from ..faas.workflow import Workflow
+from ..faas.benchmark import Function, Trigger, Workflow
 from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
@@ -108,7 +107,7 @@ class GCP(System):
         return self.storage
 
     @staticmethod
-    def default_function_name(code_package: CodePackage) -> str:
+    def default_benchmark_name(code_package: CodePackage) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
             code_package.name,
@@ -314,12 +313,12 @@ class GCP(System):
 
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
-        self.cache_client.update_function(function)
+        self.cache_client.update_benchmark(function)
         return trigger
 
     def cached_function(self, function: Function):
 
-        from sebs.faas.function import Trigger
+        from sebs.faas.benchmark import Trigger
         from sebs.gcp.triggers import LibraryTrigger
 
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
@@ -446,7 +445,7 @@ class GCP(System):
 
         trigger.logging_handlers = self.logging_handlers
         workflow.add_trigger(trigger)
-        # self.cache_client.update_workflow(workflow)
+        self.cache_client.update_benchmark(workflow)
         return trigger
 
     def update_workflow(self, workflow: Workflow, code_package: CodePackage):

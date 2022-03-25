@@ -73,7 +73,7 @@ class InvocationOverhead(Experiment):
 
         # deploy network test function
         from sebs import SeBS  # noqa
-        from sebs.faas.function import Trigger
+        from sebs.faas.benchmark import Trigger
 
         self._benchmark = sebs_client.get_benchmark(
             "030.clock-synchronization", deployment_client, self.config

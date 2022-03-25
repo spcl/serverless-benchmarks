@@ -2,7 +2,7 @@ from typing import cast, List
 
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
-from sebs.faas.workflow import Workflow
+from sebs.faas.benchmark import Workflow
 
 
 class SFNWorkflow(Workflow):
@@ -34,7 +34,7 @@ class SFNWorkflow(Workflow):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "SFNWorkflow":
-        from sebs.faas.function import Trigger
+        from sebs.faas.benchmark import Trigger
         from sebs.aws.triggers import WorkflowLibraryTrigger, HTTPTrigger
 
         ret = SFNWorkflow(

@@ -1,6 +1,6 @@
 from typing import cast, Optional
 
-from sebs.faas.function import Function
+from sebs.faas.benchmark import Function
 from sebs.gcp.storage import GCPStorage
 
 
@@ -33,12 +33,12 @@ class GCPFunction(Function):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "GCPFunction":
-        from sebs.faas.function import Trigger
+        from sebs.faas.benchmark import Trigger
         from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger
 
         ret = GCPFunction(
             cached_config["name"],
-            cached_config["benchmark"],
+            cached_config["code_package"],
             cached_config["hash"],
             cached_config["timeout"],
             cached_config["memory"],

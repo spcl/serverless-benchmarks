@@ -16,7 +16,7 @@ from sebs import SeBS
 from sebs.regression import regression_suite
 from sebs.utils import update_nested_dict
 from sebs.faas import System as FaaSSystem
-from sebs.faas.function import Trigger
+from sebs.faas.benchmark import Trigger
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -198,7 +198,7 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
         logging_filename=logging_filename,
     )
     func = deployment_client.get_function(
-        benchmark_obj, function_name if function_name else deployment_client.default_function_name(benchmark_obj)
+        benchmark_obj, function_name if function_name else deployment_client.default_benchmark_name(benchmark_obj)
     )
     storage = deployment_client.get_storage(
         replace_existing=experiment_config.update_storage
@@ -274,7 +274,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         logging_filename=logging_filename,
     )
     workflow = deployment_client.get_workflow(
-        benchmark_obj, workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj)
+        benchmark_obj, workflow_name if workflow_name else deployment_client.default_benchmark_name(benchmark_obj)
     )
     storage = deployment_client.get_storage(
         replace_existing=experiment_config.update_storage
@@ -435,7 +435,7 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
     result.add_input(input_config)
     for i in range(deployments):
         func = deployment_client.get_function(
-            benchmark_obj, deployment_client.default_function_name(benchmark_obj)
+            benchmark_obj, deployment_client.default_benchmark_name(benchmark_obj)
         )
         result.add_function(func)
 

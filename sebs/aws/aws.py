@@ -19,8 +19,7 @@ from sebs.code_package import CodePackage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
-from sebs.faas.function import Function, ExecutionResult, Trigger
-from sebs.faas.workflow import Workflow
+from sebs.faas.benchmark import Function, ExecutionResult, Trigger, Workflow
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 
@@ -370,7 +369,7 @@ class AWS(System):
             raise RuntimeError("Not supported!")
 
         function.add_trigger(trigger)
-        self.cache_client.update_function(function)
+        self.cache_client.update_benchmark(function)
         return trigger
 
     def create_workflow(self, code_package: CodePackage, workflow_name: str) -> "SFNWorkflow":
@@ -476,7 +475,7 @@ class AWS(System):
             raise RuntimeError("Not supported!")
 
     @staticmethod
-    def default_function_name(code_package: CodePackage) -> str:
+    def default_benchmark_name(code_package: CodePackage) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
             code_package.name,

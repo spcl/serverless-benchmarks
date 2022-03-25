@@ -552,7 +552,7 @@ class local:
                 fname=func_name,
                 loc=code_location
             ))
-            self.cache_client.add_function(
+            self.cache_client.add_benchmark(
                 deployment='local',
                 benchmark=benchmark,
                 language=self.language,
