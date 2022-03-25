@@ -27,7 +27,7 @@ class SFNWorkflow(Workflow):
     def serialize(self) -> dict:
         return {
             **super().serialize(),
-            "functions": self.functions,
+            "functions": [f.serialize() for f in self.functions],
             "arn": self.arn,
             "role": self.role
         }
@@ -37,11 +37,13 @@ class SFNWorkflow(Workflow):
         from sebs.faas.benchmark import Trigger
         from sebs.aws.triggers import WorkflowLibraryTrigger, HTTPTrigger
 
+        funcs = [LambdaFunction.deserialize(f) for f in cached_config["functions"]]
         ret = SFNWorkflow(
             cached_config["name"],
-            cached_config["functions"],
-            cached_config["hash"],
+            funcs,
+            cached_config["code_package"],
             cached_config["arn"],
+            cached_config["hash"],
             cached_config["role"]
         )
         for trigger in cached_config["triggers"]:

@@ -11,7 +11,7 @@ from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
 from sebs.local.storage import Minio
 from sebs.local.function import LocalFunction
-from sebs.faas.benchmark import Function, ExecutionResult, Trigger
+from sebs.faas.benchmark import Benchmark, Function, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 from sebs.code_package import CodePackage
@@ -32,6 +32,10 @@ class Local(System):
     @staticmethod
     def function_type() -> "Type[Function]":
         return LocalFunction
+
+    @staticmethod
+    def workflow_type() -> "Type[Workflow]":
+        raise NotImplementedError()
 
     @property
     def config(self) -> LocalConfig:
@@ -209,7 +213,7 @@ class Local(System):
         self.cache_client.update_function(function)
         return trigger
 
-    def cached_function(self, function: Function):
+    def cached_benchmark(self, benchmark: Benchmark):
         pass
 
     def download_metrics(

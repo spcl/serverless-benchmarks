@@ -18,7 +18,7 @@ from sebs.code_package import CodePackage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers, execute
-from ..faas.benchmark import Function, ExecutionResult, Workflow, Trigger
+from ..faas.benchmark import Benchmark, Function, ExecutionResult, Workflow, Trigger
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
@@ -43,6 +43,10 @@ class Azure(System):
     @staticmethod
     def function_type() -> Type[Function]:
         return AzureFunction
+
+    @staticmethod
+    def workflow_type() -> Type[Workflow]:
+        return AzureWorkflow
 
     def __init__(
         self,
@@ -363,19 +367,13 @@ class Azure(System):
         # update existing function app
         self.update_function(function, code_package)
 
-        self.cache_client.add_benchmark(
-            deployment_name=self.name(),
-            language_name=language,
-            code_package=code_package,
-            benchmark=function,
-        )
         return function
 
-    def cached_function(self, function: Function):
+    def cached_benchmark(self, benchmark: Benchmark):
 
         data_storage_account = self.config.resources.data_storage_account(
             self.cli_instance)
-        for trigger in function.triggers_all():
+        for trigger in benchmark.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
@@ -456,12 +454,6 @@ class Azure(System):
         # update existing function app
         self.update_function(workflow, code_package)
 
-        self.cache_client.add_benchmark(
-            deployment_name=self.name(),
-            language_name=language,
-            code_package=code_package,
-            benchmark=workflow,
-        )
         return workflow
 
     """

@@ -19,7 +19,7 @@ from sebs.code_package import CodePackage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
-from sebs.faas.benchmark import Function, ExecutionResult, Trigger, Workflow
+from sebs.faas.benchmark import Benchmark, Function, ExecutionResult, Trigger, Workflow
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 
@@ -40,6 +40,10 @@ class AWS(System):
     @staticmethod
     def function_type() -> "Type[Function]":
         return LambdaFunction
+
+    @staticmethod
+    def workflow_type() -> "Type[Workflow]":
+        return SFNWorkflow
 
     @property
     def config(self) -> AWSConfig:
@@ -289,14 +293,14 @@ class AWS(System):
 
         return lambda_function
 
-    def cached_function(self, function: Function):
+    def cached_benchmark(self, benchmark: Benchmark):
 
         from sebs.aws.triggers import LibraryTrigger
 
-        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
+        for trigger in benchmark.triggers(Trigger.TriggerType.LIBRARY):
             trigger.logging_handlers = self.logging_handlers
             cast(LibraryTrigger, trigger).deployment_client = self
-        for trigger in function.triggers(Trigger.TriggerType.HTTP):
+        for trigger in benchmark.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
 
     """
@@ -451,16 +455,21 @@ class AWS(System):
 
         return workflow
 
-    def update_workflow(self, workflow: Workflow, definition: str, code_package: CodePackage):
+    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
 
         workflow = cast(SFNWorkflow, workflow)
 
+        for func in workflow.functions:
+            print(func)
+            self.update_function(func, code_package)
+
+        # Todo: update workflow definition
         # and update config
-        self.sfn_client.update_state_machine(
-            stateMachineArn=workflow.arn,
-            definition=json.dumps(definition),
-            roleArn=self.config.resources.lambda_role(self.session),
-        )
+        # self.sfn_client.update_state_machine(
+        #     stateMachineArn=workflow.arn,
+        #     definition=json.dumps(definition),
+        #     roleArn=self.config.resources.lambda_role(self.session),
+        # )
         self.logging.info("Published new workflow code")
 
     def create_workflow_trigger(self, workflow: Workflow, trigger_type: Trigger.TriggerType) -> Trigger:

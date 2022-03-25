@@ -16,7 +16,7 @@ from google.cloud import monitoring_v3
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.code_package import CodePackage
-from ..faas.benchmark import Function, Trigger, Workflow
+from ..faas.benchmark import Benchmark, Function, Trigger, Workflow
 from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
@@ -63,6 +63,10 @@ class GCP(System):
     @staticmethod
     def function_type() -> "Type[Function]":
         return GCPFunction
+
+    @staticmethod
+    def workflow_type() -> "Type[Workflow]":
+        return GCPWorkflow
 
     """
         Initialize the system. After the call the local or remote
@@ -316,12 +320,12 @@ class GCP(System):
         self.cache_client.update_benchmark(function)
         return trigger
 
-    def cached_function(self, function: Function):
+    def cached_benchmark(self, benchmark: Benchmark):
 
         from sebs.faas.benchmark import Trigger
         from sebs.gcp.triggers import LibraryTrigger
 
-        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
+        for trigger in benchmark.triggers(Trigger.TriggerType.LIBRARY):
             gcp_trigger = cast(LibraryTrigger, trigger)
             gcp_trigger.logging_handlers = self.logging_handlers
             gcp_trigger.deployment_client = self
