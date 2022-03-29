@@ -12,13 +12,11 @@ class SFNWorkflow(Workflow):
         functions: List[LambdaFunction],
         benchmark: str,
         arn: str,
-        code_package_hash: str,
-        role: str
+        code_package_hash: str
     ):
         super().__init__(benchmark, name, code_package_hash)
         self.functions = functions
         self.arn = arn
-        self.role = role
 
     @staticmethod
     def typename() -> str:
@@ -28,8 +26,7 @@ class SFNWorkflow(Workflow):
         return {
             **super().serialize(),
             "functions": [f.serialize() for f in self.functions],
-            "arn": self.arn,
-            "role": self.role
+            "arn": self.arn
         }
 
     @staticmethod
@@ -43,8 +40,7 @@ class SFNWorkflow(Workflow):
             funcs,
             cached_config["code_package"],
             cached_config["arn"],
-            cached_config["hash"],
-            cached_config["role"]
+            cached_config["hash"]
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(

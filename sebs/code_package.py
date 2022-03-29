@@ -248,7 +248,7 @@ class CodePackage(LoggingBase):
             for f in glob.glob(os.path.join(path, file_type)):
                 yield os.path.join(path, f)
 
-    def copy_code(self, output_dir):
+    def copy_code(self, output_dir: str):
         for path in self.get_code_files():
             shutil.copy2(path, output_dir)
 

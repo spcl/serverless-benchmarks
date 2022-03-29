@@ -7,7 +7,7 @@ import sys
 import uuid
 import importlib
 
-import boto3
+from google.cloud import storage
 
 # Add current directory to allow location of packages
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
@@ -28,12 +28,13 @@ def probe_cold_start():
     return is_cold, container_id
 
 
-def handler(event, context):
+def handler(req):
     start = datetime.datetime.now().timestamp()
 
-    workflow_name, func_name = context.function_name.split("___")
+    full_function_name = os.getenv("FUNCTION_NAME")
+    workflow_name, func_name = full_function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
-    res = function.handler(event)
+    res = function.handler(req)
 
     end = datetime.datetime.now().timestamp()
 
@@ -48,7 +49,9 @@ def handler(event, context):
     data = io.BytesIO(json.dumps(payload).encode("utf-8"))
     path = os.path.join(workflow_name, func_name+".json")
 
-    s3 = boto3.client("s3")
-    s3.upload_fileobj(data, "sebs-experiments", path)
+    client = storage.Client()
+    bucket = client.bucket("sebs-experiments")
+    blob = bucket.blob(path)
+    blob.upload_from_file(data)
 
     return res

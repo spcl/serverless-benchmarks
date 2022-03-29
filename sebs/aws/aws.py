@@ -13,6 +13,7 @@ import docker
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
 from sebs.aws.workflow import SFNWorkflow
+from sebs.aws.generator import SFNGenerator
 from sebs.aws.config import AWSConfig
 from sebs.utils import execute
 from sebs.code_package import CodePackage
@@ -139,22 +140,24 @@ class AWS(System):
     """
 
     def package_code(self, directory: str, language_name: str, benchmark: str, is_workflow: bool) -> Tuple[str, int]:
-
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
+        package_config = CONFIG_FILES[language_name]
 
         # Todo: sfm support for nodejs
-        # rename handler_sfm.py to handler.py if necessary
+        # rename handler_workflow.py to handler.py if necessary
         handler_path = os.path.join(directory, "handler.py")
-        handler_sfm_path = os.path.join(directory, "handler_sfm.py")
+        handler_function_path = os.path.join(directory, "handler_function.py")
+        handler_workflow_path = os.path.join(directory, "handler_workflow.py")
         if is_workflow:
-            os.rename(handler_sfm_path, handler_path)
+            os.rename(handler_workflow_path, handler_path)
+            os.remove(handler_function_path)
         else:
-            os.remove(handler_sfm_path)
+            os.rename(handler_function_path, handler_path)
+            os.remove(handler_workflow_path)
 
-        package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         # move all files to 'function' except handler.py
@@ -383,10 +386,7 @@ class AWS(System):
         # Make sure we have a valid workflow benchmark
         definition_path = os.path.join(
             code_package.path, "definition.json")
-        if os.path.exists(definition_path):
-            with open(definition_path) as json_file:
-                definition = json.load(json_file)
-        else:
+        if not os.path.exists(definition_path):
             raise ValueError(
                 f"No workflow definition found for {workflow_name}")
 
@@ -395,13 +395,10 @@ class AWS(System):
         func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
         funcs = [self.create_function(code_package, workflow_name+"___"+fn) for fn in func_names]
 
-        # Set the ARN to the corresponding states in the workflow definition
-        for name, func in zip(func_names, funcs):
-            try:
-                definition["States"][name]["Resource"] = func.arn
-            except KeyError:
-                raise ValueError(
-                    f"Workflow definition for {workflow_name} missing state {func.name}")
+        # Generate workflow definition.json
+        gen = SFNGenerator({n: f.arn for (n, f) in zip(func_names, funcs)})
+        gen.parse(definition_path)
+        definition = gen.generate()
 
         package = code_package.code_location
 
@@ -410,7 +407,7 @@ class AWS(System):
         try:
             ret = self.sfn_client.create_state_machine(
                 name=workflow_name,
-                definition=json.dumps(definition),
+                definition=definition,
                 roleArn=self.config.resources.lambda_role(self.session),
             )
 
@@ -422,8 +419,7 @@ class AWS(System):
                 funcs,
                 code_package.name,
                 ret["stateMachineArn"],
-                code_package.hash,
-                self.config.resources.lambda_role(self.session),
+                code_package.hash
             )
         except self.sfn_client.exceptions.StateMachineAlreadyExists as e:
             arn = re.search("'([^']*)'", str(e)).group()[1:-1]
@@ -439,11 +435,10 @@ class AWS(System):
                 funcs,
                 code_package.name,
                 arn,
-                code_package.hash,
-                self.config.resources.lambda_role(self.session),
+                code_package.hash
             )
 
-            self.update_workflow(workflow, definition, code_package)
+            self.update_workflow(workflow, definition, code_package, False)
             workflow.updated_code = True
 
         # Add LibraryTrigger to a new function
@@ -455,21 +450,35 @@ class AWS(System):
 
         return workflow
 
-    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
-
+    def update_workflow(self, workflow: Workflow, code_package: CodePackage, update_functions: bool):
         workflow = cast(SFNWorkflow, workflow)
 
-        for func in workflow.functions:
-            print(func)
-            self.update_function(func, code_package)
+        # Make sure we have a valid workflow benchmark
+        definition_path = os.path.join(
+            code_package.path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(
+                f"No workflow definition found for {workflow.name}")
 
-        # Todo: update workflow definition
-        # and update config
-        # self.sfn_client.update_state_machine(
-        #     stateMachineArn=workflow.arn,
-        #     definition=json.dumps(definition),
-        #     roleArn=self.config.resources.lambda_role(self.session),
-        # )
+        # Create or update lambda function for each code file
+        if update_functions:
+            code_files = list(code_package.get_code_files(include_config=False))
+            func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+            funcs = [self.create_function(code_package, workflow.name+"___"+fn) for fn in func_names]
+        else:
+            funcs = workflow.functions
+
+        # Generate workflow definition.json
+        gen = SFNGenerator({n: f.arn for (n, f) in zip(func_names, funcs)})
+        gen.parse(definition_path)
+        definition = gen.generate()
+
+        self.sfn_client.update_state_machine(
+            stateMachineArn=workflow.arn,
+            definition=definition,
+            roleArn=self.config.resources.lambda_role(self.session),
+        )
+        workflow.functions = funcs
         self.logging.info("Published new workflow code")
 
     def create_workflow_trigger(self, workflow: Workflow, trigger_type: Trigger.TriggerType) -> Trigger:

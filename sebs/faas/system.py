@@ -211,6 +211,10 @@ class System(ABC, LoggingBase):
                 code_package.query_cache()
             return function
 
+    @abstractmethod
+    def update_workflow(self, workflow: Workflow, code_package: CodePackage, update_functions: bool):
+        pass
+
     def get_workflow(self, code_package: CodePackage, workflow_name: Optional[str] = None):
         if code_package.language_version not in self.system_config.supported_language_versions(
             self.name(), code_package.language_name
@@ -269,7 +273,7 @@ class System(ABC, LoggingBase):
                     f"current build {code_package.hash} in "
                     f"{code_location}, updating cloud version!"
                 )
-                self.update_workflow(workflow, code_package)
+                self.update_workflow(workflow, code_package, True)
                 workflow.code_package_hash = code_package.hash
                 workflow.updated_code = True
                 self.cache_client.add_benchmark(

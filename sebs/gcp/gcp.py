@@ -16,13 +16,14 @@ from google.cloud import monitoring_v3
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.code_package import CodePackage
-from ..faas.benchmark import Benchmark, Function, Trigger, Workflow
+from sebs.faas.benchmark import Benchmark, Function, Trigger, Workflow
 from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
 from sebs.gcp.workflow import GCPWorkflow
+from sebs.gcp.generator import GCPGenerator
 from sebs.utils import LoggingHandlers
 
 """
@@ -153,6 +154,19 @@ class GCP(System):
             "nodejs": ("handler.js", "index.js"),
         }
         package_config = CONFIG_FILES[language_name]
+
+        # Todo: sfm support for nodejs
+        # rename handler_workflow.py to handler.py if necessary
+        handler_path = os.path.join(directory, "handler.py")
+        handler_function_path = os.path.join(directory, "handler_function.py")
+        handler_workflow_path = os.path.join(directory, "handler_workflow.py")
+        if is_workflow:
+            os.rename(handler_workflow_path, handler_path)
+            os.remove(handler_function_path)
+        else:
+            os.rename(handler_function_path, handler_path)
+            os.remove(handler_workflow_path)
+
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         for file in os.listdir(directory):
@@ -301,6 +315,7 @@ class GCP(System):
             our_function_req = (
                 self.function_client.projects().locations().functions().get(name=full_func_name)
             )
+
             deployed = False
             while not deployed:
                 status_res = our_function_req.execute()
@@ -382,13 +397,30 @@ class GCP(System):
         location = self.config.region
         project_name = self.config.project_name
 
+        # Make sure we have a valid workflow benchmark
+        definition_path = os.path.join(
+            code_package.path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(
+                f"No workflow definition found for {workflow_name}")
+
+        # First we create a function for each code file
+        prefix = workflow_name+"___"
+        code_files = list(code_package.get_code_files(include_config=False))
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [self.create_function(code_package, prefix+fn) for fn in func_names]
+
+        # generate workflow definition.json
+        urls = [self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs]
+        func_triggers = {n: u for (n, u) in zip(func_names, urls)}
+        gen = GCPGenerator(func_triggers)
+        gen.parse(definition_path)
+        definition = gen.generate()
+
         full_workflow_name = GCP.get_full_workflow_name(
             project_name, location, workflow_name)
         get_req = self.workflow_client.projects().locations(
         ).workflows().get(name=full_workflow_name)
-
-        with open('cache/test.yml') as f:
-            code = f.read()
 
         try:
             get_req.execute()
@@ -403,15 +435,15 @@ class GCP(System):
                     workflowId=workflow_name,
                     body={
                         "name": full_workflow_name,
-                        "sourceContents": code,
+                        "sourceContents": definition,
                     },
                 )
             )
-            create_req.execute()
+            ret = create_req.execute()
             self.logging.info(f"Workflow {workflow_name} has been created!")
 
             workflow = GCPWorkflow(
-                workflow_name, benchmark, code_package.hash, timeout, memory, code_bucket
+                workflow_name, funcs, benchmark, code_package.hash, timeout, memory, code_bucket
             )
         else:
             # if result is not empty, then function does exists
@@ -420,13 +452,14 @@ class GCP(System):
 
             workflow = GCPWorkflow(
                 name=workflow_name,
+                functions=funcs,
                 benchmark=benchmark,
                 code_package_hash=code_package.hash,
                 timeout=timeout,
                 memory=memory,
                 bucket=code_bucket,
             )
-            self.update_workflow(workflow, code_package)
+            self.update_workflow(workflow, code_package, False)
 
         # Add LibraryTrigger to a new function
         from sebs.gcp.triggers import WorkflowLibraryTrigger
@@ -452,11 +485,32 @@ class GCP(System):
         self.cache_client.update_benchmark(workflow)
         return trigger
 
-    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
-        with open('cache/test.yml') as f:
-            code = f.read()
-
+    def update_workflow(self, workflow: Workflow, code_package: CodePackage, update_functions: bool):
         workflow = cast(GCPWorkflow, workflow)
+
+        # Make sure we have a valid workflow benchmark
+        definition_path = os.path.join(
+            code_package.path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(
+                f"No workflow definition found for {workflow.name}")
+
+        # First we create a function for each code file
+        if update_functions:
+            prefix = workflow.name+"___"
+            code_files = list(code_package.get_code_files(include_config=False))
+            func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+            funcs = [self.create_function(code_package, prefix+fn) for fn in func_names]
+        else:
+            funcs = workflow.functions
+
+        # Generate workflow definition.json
+        urls = [self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs]
+        func_triggers = {n: u for (n, u) in zip(func_names, urls)}
+        gen = GCPGenerator(func_triggers)
+        gen.parse(definition_path)
+        definition = gen.generate()
+
         full_workflow_name = GCP.get_full_workflow_name(
             self.config.project_name, self.config.region, workflow.name
         )
@@ -468,11 +522,12 @@ class GCP(System):
                 name=full_workflow_name,
                 body={
                     "name": full_workflow_name,
-                    "sourceContents": code
+                    "sourceContents": definition
                 },
             )
         )
         req.execute()
+        workflow.functions = funcs
         self.logging.info("Published new workflow code and configuration.")
 
     @staticmethod

@@ -220,7 +220,7 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
         )
     else:
         trigger = triggers[0]
-        
+
     for i in range(repetitions):
         sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
         ret = trigger.sync_invoke(input_config)
@@ -234,7 +234,7 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
     with open("experiments.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
     sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
-    
+
 @benchmark.command()
 @click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
 @click.argument(
@@ -254,10 +254,10 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
     default=None,
     type=str,
     help="Override workflow name for random generation.",
-)  
+)
 @common_params
 def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_name, **kwargs):
-    
+
     (
         config,
         output_dir,
@@ -265,7 +265,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    
+
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     benchmark_obj = sebs_client.get_benchmark(
         benchmark,

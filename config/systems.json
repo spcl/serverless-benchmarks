@@ -44,7 +44,7 @@
         "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": ["handler.py", "handler_sfm.py", "storage.py"],
+          "files": ["handler_function.py", "handler_workflow.py", "storage.py"],
           "packages": []
         }
       },
@@ -110,7 +110,7 @@
         "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.py", "storage.py"],
+          "files": ["handler_function.py", "handler_workflow.py", "storage.py"],
           "packages": ["google-cloud-storage"]
         }
       },
