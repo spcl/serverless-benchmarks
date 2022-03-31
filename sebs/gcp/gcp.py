@@ -143,8 +143,7 @@ class GCP(System):
         :return: path to packaged code and its size
     """
 
-    def package_code(self, directory: str, language_name: str, benchmark: str, is_workflow: bool) -> Tuple[str, int]:
-
+    def package_code(self, code_package: CodePackage, directory: str, is_workflow: bool) -> Tuple[str, int]:
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],
             "nodejs": ["handler.js", "node_modules"],
@@ -153,19 +152,7 @@ class GCP(System):
             "python": ("handler.py", "main.py"),
             "nodejs": ("handler.js", "index.js"),
         }
-        package_config = CONFIG_FILES[language_name]
-
-        # Todo: sfm support for nodejs
-        # rename handler_workflow.py to handler.py if necessary
-        handler_path = os.path.join(directory, "handler.py")
-        handler_function_path = os.path.join(directory, "handler_function.py")
-        handler_workflow_path = os.path.join(directory, "handler_workflow.py")
-        if is_workflow:
-            os.rename(handler_workflow_path, handler_path)
-            os.remove(handler_function_path)
-        else:
-            os.rename(handler_function_path, handler_path)
-            os.remove(handler_workflow_path)
+        package_config = CONFIG_FILES[code_package.language_name]
 
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
@@ -179,7 +166,7 @@ class GCP(System):
         requirements.close()
 
         # rename handler function.py since in gcp it has to be caled main.py
-        old_name, new_name = HANDLER[language_name]
+        old_name, new_name = HANDLER[code_package.language_name]
         old_path = os.path.join(directory, old_name)
         new_path = os.path.join(directory, new_name)
         shutil.move(old_path, new_path)
@@ -195,7 +182,7 @@ class GCP(System):
             which leads to a "race condition" when running several benchmarks
             in parallel, since a change of the current directory is NOT Thread specfic.
         """
-        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+        benchmark_archive = "{}.zip".format(os.path.join(directory, code_package.name))
         GCP.recursive_zip(directory, benchmark_archive)
         logging.info("Created {} archive".format(benchmark_archive))
 
@@ -206,7 +193,7 @@ class GCP(System):
         # rename the main.py back to handler.py
         shutil.move(new_path, old_path)
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(code_package.name)), bytes_size
 
     def create_function(self, code_package: CodePackage, func_name: str) -> "GCPFunction":
 
@@ -459,7 +446,7 @@ class GCP(System):
                 memory=memory,
                 bucket=code_bucket,
             )
-            self.update_workflow(workflow, code_package, False)
+            self.update_workflow(workflow, code_package)
 
         # Add LibraryTrigger to a new function
         from sebs.gcp.triggers import WorkflowLibraryTrigger
@@ -485,7 +472,7 @@ class GCP(System):
         self.cache_client.update_benchmark(workflow)
         return trigger
 
-    def update_workflow(self, workflow: Workflow, code_package: CodePackage, update_functions: bool):
+    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
         workflow = cast(GCPWorkflow, workflow)
 
         # Make sure we have a valid workflow benchmark
@@ -496,13 +483,10 @@ class GCP(System):
                 f"No workflow definition found for {workflow.name}")
 
         # First we create a function for each code file
-        if update_functions:
-            prefix = workflow.name+"___"
-            code_files = list(code_package.get_code_files(include_config=False))
-            func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
-            funcs = [self.create_function(code_package, prefix+fn) for fn in func_names]
-        else:
-            funcs = workflow.functions
+        prefix = workflow.name+"___"
+        code_files = list(code_package.get_code_files(include_config=False))
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [self.create_function(code_package, prefix+fn) for fn in func_names]
 
         # Generate workflow definition.json
         urls = [self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs]

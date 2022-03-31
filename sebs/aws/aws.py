@@ -139,25 +139,12 @@ class AWS(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, directory: str, language_name: str, benchmark: str, is_workflow: bool) -> Tuple[str, int]:
+    def package_code(self, code_package: CodePackage, directory: str, is_workflow: bool) -> Tuple[str, int]:
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[language_name]
-
-        # Todo: sfm support for nodejs
-        # rename handler_workflow.py to handler.py if necessary
-        handler_path = os.path.join(directory, "handler.py")
-        handler_function_path = os.path.join(directory, "handler_function.py")
-        handler_workflow_path = os.path.join(directory, "handler_workflow.py")
-        if is_workflow:
-            os.rename(handler_workflow_path, handler_path)
-            os.remove(handler_function_path)
-        else:
-            os.rename(handler_function_path, handler_path)
-            os.remove(handler_workflow_path)
-
+        package_config = CONFIG_FILES[code_package.language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         # move all files to 'function' except handler.py
@@ -167,16 +154,16 @@ class AWS(System):
                 shutil.move(file, function_dir)
 
         # For python, add an __init__ file
-        if language_name == "python":
+        if code_package.language_name == "python":
             path = os.path.join(function_dir, "__init__.py")
             with open(path, "a"):
                 os.utime(path, None)
 
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
-        execute("zip -qu -r9 {}.zip * .".format(benchmark),
+        execute("zip -qu -r9 {}.zip * .".format(code_package.name),
                 shell=True, cwd=directory)
-        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+        benchmark_archive = "{}.zip".format(os.path.join(directory, code_package.name))
         self.logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(
@@ -184,7 +171,7 @@ class AWS(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(code_package.name)), bytes_size
 
     def wait_for_function(self, func_name: str):
         ready = False
@@ -438,7 +425,7 @@ class AWS(System):
                 code_package.hash
             )
 
-            self.update_workflow(workflow, definition, code_package, False)
+            self.update_workflow(workflow, definition, code_package)
             workflow.updated_code = True
 
         # Add LibraryTrigger to a new function
@@ -450,7 +437,7 @@ class AWS(System):
 
         return workflow
 
-    def update_workflow(self, workflow: Workflow, code_package: CodePackage, update_functions: bool):
+    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
         workflow = cast(SFNWorkflow, workflow)
 
         # Make sure we have a valid workflow benchmark
@@ -461,12 +448,9 @@ class AWS(System):
                 f"No workflow definition found for {workflow.name}")
 
         # Create or update lambda function for each code file
-        if update_functions:
-            code_files = list(code_package.get_code_files(include_config=False))
-            func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
-            funcs = [self.create_function(code_package, workflow.name+"___"+fn) for fn in func_names]
-        else:
-            funcs = workflow.functions
+        code_files = list(code_package.get_code_files(include_config=False))
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [self.create_function(code_package, workflow.name+"___"+fn) for fn in func_names]
 
         # Generate workflow definition.json
         gen = SFNGenerator({n: f.arn for (n, f) in zip(func_names, funcs)})

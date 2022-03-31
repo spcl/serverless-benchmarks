@@ -119,13 +119,13 @@ class Local(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, directory: str, language_name: str, benchmark: str, is_workflow: bool) -> Tuple[str, int]:
+    def package_code(self, code_package: CodePackage, directory: str, is_workflow: bool) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[code_package.language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         # move all files to 'function' except handler.py

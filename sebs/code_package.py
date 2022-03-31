@@ -268,7 +268,7 @@ class CodePackage(LoggingBase):
                 )
                 self.logging.debug(out.stdout.decode("utf-8"))
 
-    def add_deployment_files(self, output_dir):
+    def add_deployment_files(self, output_dir: str, is_workflow: bool):
         handlers_dir = project_absolute_path(
             "benchmarks", "wrappers", self._deployment_name, self.language_name
         )
@@ -281,6 +281,17 @@ class CodePackage(LoggingBase):
         for file in handlers:
             shutil.copy2(file, os.path.join(output_dir))
 
+        if self.language_name == "python":
+            handler_path = os.path.join(output_dir, "handler.py")
+            handler_function_path = os.path.join(output_dir, "handler_function.py")
+            handler_workflow_path = os.path.join(output_dir, "handler_workflow.py")
+            if is_workflow:
+                os.rename(handler_workflow_path, handler_path)
+                os.remove(handler_function_path)
+            else:
+                os.rename(handler_function_path, handler_path)
+                os.remove(handler_workflow_path)
+
     def add_deployment_package_python(self, output_dir):
         # append to the end of requirements file
         packages = self._system_config.deployment_packages(
@@ -288,10 +299,8 @@ class CodePackage(LoggingBase):
         )
         if len(packages):
             with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
-                # make sure to start with a newline
-                out.write("\n")
                 for package in packages:
-                    out.write(package)
+                    out.write(package+"\n")
 
     def add_deployment_package_nodejs(self, output_dir):
         # modify package.json
@@ -458,7 +467,7 @@ class CodePackage(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str, bool], Tuple[str, int]],
+        self, deployment_build_step: Callable[["CodePackage", str, bool], Tuple[str, int]],
         is_workflow: bool
     ) -> Tuple[bool, str]:
 
@@ -485,11 +494,11 @@ class CodePackage(LoggingBase):
 
         self.copy_code(self._output_dir)
         self.add_benchmark_data(self._output_dir)
-        self.add_deployment_files(self._output_dir)
+        self.add_deployment_files(self._output_dir, is_workflow)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         self._code_location, self._code_size = deployment_build_step(
-            os.path.abspath(self._output_dir), self.language_name, self.name, is_workflow
+            self, os.path.abspath(self._output_dir), is_workflow
         )
         self.logging.info(
             (

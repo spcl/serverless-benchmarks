@@ -71,8 +71,9 @@ _STATE_TYPES = {
 
 class Generator(ABC):
 
-    def __init__(self):
+    def __init__(self, export_func: Callable[[dict], str] = json.dumps):
         self._states: List[State] = []
+        self._export_func = export_func
 
     def parse(self, path: str):
         with open(path) as f:
@@ -87,7 +88,7 @@ class Generator(ABC):
         payloads = [self.encode_state(s) for s in self._states]
         definition = self.postprocess(self._states, payloads)
 
-        return json.dumps(definition)
+        return self._export_func(definition)
 
     def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
         return {s.name: p for (s, p) in zip(states, payloads)}

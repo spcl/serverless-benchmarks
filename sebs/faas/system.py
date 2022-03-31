@@ -109,7 +109,7 @@ class System(ABC, LoggingBase):
     """
 
     @abstractmethod
-    def package_code(self, directory: str, language_name: str, benchmark: str, is_workflow: bool) -> Tuple[str, int]:
+    def package_code(self, code_package: CodePackage, directory: str, is_workflow: bool) -> Tuple[str, int]:
         pass
 
     @abstractmethod
@@ -212,7 +212,7 @@ class System(ABC, LoggingBase):
             return function
 
     @abstractmethod
-    def update_workflow(self, workflow: Workflow, code_package: CodePackage, update_functions: bool):
+    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
         pass
 
     def get_workflow(self, code_package: CodePackage, workflow_name: Optional[str] = None):
@@ -273,7 +273,7 @@ class System(ABC, LoggingBase):
                     f"current build {code_package.hash} in "
                     f"{code_location}, updating cloud version!"
                 )
-                self.update_workflow(workflow, code_package, True)
+                self.update_workflow(workflow, code_package)
                 workflow.code_package_hash = code_package.hash
                 workflow.updated_code = True
                 self.cache_client.add_benchmark(
