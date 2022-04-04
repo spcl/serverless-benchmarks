@@ -15,7 +15,9 @@ class AzureGenerator(Generator):
                 "\tres = context.get_input()")
 
         for payload in payloads:
-            code += "\n\t" + payload["src"]
+            src = payload["src"].splitlines()
+            src = "\n\t".join(src)
+            code += "\n\t" + src
 
         code += ("\n\treturn res"
                  "\n\nmain = df.Orchestrator.create(run_workflow)")
@@ -25,7 +27,7 @@ class AzureGenerator(Generator):
         }
 
     def encode_task(self, state: Task) -> dict:
-        code = f"res = yield context.call_activity(\"{state.func_name}\", res)"
+        code = (f"res = yield context.call_activity(\"{state.func_name}\", res)\n")
 
         return {
             "src": code

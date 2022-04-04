@@ -2,11 +2,14 @@ import datetime
 import json
 import glob
 import os
+import io
 import shutil
 import time
 from typing import cast, Dict, List, Optional, Set, Tuple, Type  # noqa
 
 import docker
+import pandas as pd
+from azure.storage.blob import BlobServiceClient
 
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
@@ -167,11 +170,13 @@ class Azure(System):
             {"name": "starter", "type": "durableClient", "direction": "in"},
             {"name": "$return", "type": "http", "direction": "out"}
         ]
-
         activity_bindings = [
             {"name": "event", "type": "activityTrigger", "direction": "in"},
-            {"name": "$return", "type": "blob", "direction": "out"},
+            # {"name": "$return", "type": "http", "direction": "out"},
         ]
+        blob_binding = {"name": "measurements", "type": "blob",
+                        "dataType": "binary", "direction": "out",
+                        "connection": "AzureWebJobsStorage"}
         orchestrator_bindings = [
             {"name": "context", "type": "orchestrationTrigger", "direction": "in"}
         ]
@@ -203,8 +208,15 @@ class Azure(System):
 
             # generate function.json
             script_file = file if (name in bindings and is_workflow) else "handler.py"
+            func_blob_binding = {
+                "path": f"sebs-experiments/{name}",
+                **blob_binding
+            }
+            # default_bindings = activity_bindings + [func_blob_binding]
+            default_bindings = activity_bindings
+
             payload = {
-                "bindings": bindings.get(name, activity_bindings),
+                "bindings": bindings.get(name, default_bindings),
                 "scriptFile": script_file,
                 "disabled": False
             }
@@ -500,7 +512,7 @@ class Azure(System):
         trigger = HTTPTrigger(
             url, self.config.resources.data_storage_account(self.cli_instance))
         trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(trigger)
+        workflow.add_trigger(trigger)
 
 
     """
