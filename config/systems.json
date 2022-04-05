@@ -75,7 +75,7 @@
         "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": ["handler_function.py", "main_workflow.py", "handler_workflow.py", "storage.py"],
+          "files": ["handler_function.py", "main_workflow.py", "handler_workflow.py", "storage.py", "fsm.py", "run_workflow.py"],
           "packages": ["azure-storage-blob", "azure-functions", "azure-functions-durable"]
         }
       },

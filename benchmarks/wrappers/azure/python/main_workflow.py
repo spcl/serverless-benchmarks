@@ -6,6 +6,7 @@ import uuid
 import azure.functions as func
 import azure.durable_functions as df
 
+
 def probe_cold_start():
     is_cold = False
     fname = os.path.join("/tmp", "cold_run")
