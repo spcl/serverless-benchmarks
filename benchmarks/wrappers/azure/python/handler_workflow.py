@@ -22,8 +22,7 @@ def probe_cold_start():
     return is_cold, container_id
 
 
-# def main(event, measurements: func.Out[bytes]):
-def main(event):
+def main(event, measurements: func.Out[bytes]):
     start = datetime.datetime.now().timestamp()
 
     workflow_name = os.getenv("APPSETTING_WEBSITE_SITE_NAME")
@@ -47,7 +46,7 @@ def main(event):
         "container_id": container_id
     }
 
-    # data = json.dumps(payload).encode("utf-8")
-    # measurements.set(data)
+    data = json.dumps(payload).encode("utf-8")
+    measurements.set(data)
 
     return res
