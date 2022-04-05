@@ -15,7 +15,7 @@ class SFNGenerator(Generator):
         payloads = super().postprocess(states, payloads)
         definition = {
             "Comment": "SeBS auto-generated benchmark",
-            "StartAt": states[0].name,
+            "StartAt": self.root.name,
             "States": payloads
         }
 

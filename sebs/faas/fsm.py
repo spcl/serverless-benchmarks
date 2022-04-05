@@ -89,15 +89,13 @@ class Generator(ABC):
             definition = json.load(f)
 
         self.states = {n: State.deserialize(n, s)
-                        for n, s in definition["states"].items()}
+                       for n, s in definition["states"].items()}
         self.root = self.states[definition["root"]]
 
-    def iterate_states() -> Iterator[State]:
-        return iter(self._states.values())
-
     def generate(self) -> str:
-        payloads = [self.encode_state(s) for s in self._states]
-        definition = self.postprocess(self._states, payloads)
+        states = self.states.values()
+        payloads = [self.encode_state(s) for s in states]
+        definition = self.postprocess(states, payloads)
 
         return self._export_func(definition)
 
