@@ -41,7 +41,7 @@ class AzureCLI:
     """
 
     def execute(self, cmd: str):
-        exit_code, out = self.docker_instance.exec_run(cmd)
+        exit_code, out = self.docker_instance.exec_run(cmd, user="docker_user")
         if exit_code != 0:
             raise RuntimeError(
                 "Command {} failed at Azure CLI docker!\n Output {}".format(

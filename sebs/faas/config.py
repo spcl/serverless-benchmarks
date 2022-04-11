@@ -2,7 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 
 from sebs.cache import Cache
-from sebs.utils import LoggingBase, LoggingHandlers
+from sebs.utils import has_platform, LoggingBase, LoggingHandlers
 
 # FIXME: Replace type hints for static generators after migration to 3.7
 # https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
@@ -102,20 +102,27 @@ class Config(ABC, LoggingBase):
     @staticmethod
     @abstractmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
-        from sebs.aws.config import AWSConfig
-        from sebs.azure.config import AzureConfig
-        from sebs.gcp.config import GCPConfig
         from sebs.local.config import LocalConfig
-        from sebs.openwhisk.config import OpenWhiskConfig
 
         name = config["name"]
-        func = {
-            "aws": AWSConfig.deserialize,
-            "azure": AzureConfig.deserialize,
-            "gcp": GCPConfig.deserialize,
-            "local": LocalConfig.deserialize,
-            "openwhisk": OpenWhiskConfig.deserialize,
-        }.get(name)
+        implementations = {"local": LocalConfig.deserialize}
+        if has_platform("aws"):
+            from sebs.aws.config import AWSConfig
+
+            implementations["aws"] = AWSConfig.deserialize
+        if has_platform("azure"):
+            from sebs.azure.config import AzureConfig
+
+            implementations["azure"] = AzureConfig.deserialize
+        if has_platform("gcp"):
+            from sebs.gcp.config import GCPConfig
+
+            implementations["gcp"] = GCPConfig.deserialize
+        if has_platform("openwhisk"):
+            from sebs.openwhisk.config import OpenWhiskConfig
+
+            implementations["openwhisk"] = OpenWhiskConfig.deserialize
+        func = implementations.get(name)
         assert func, "Unknown config type!"
         return func(config[name] if name in config else config, cache, handlers)
 

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import cast, Dict, Optional, Tuple, List, Type
 
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from google.cloud import monitoring_v3
 
 from sebs.cache import Cache
@@ -208,23 +209,10 @@ class GCP(System):
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
         get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
-        get_result = get_req.execute()
 
-        language_runtime = (code_package.language_name + language_runtime.replace(".", ""),)
-
-        # if result is not empty, then function does exists
-        if get_result:
-            self.logging.info("Function {} exists on GCP, update the instance.".format(func_name))
-            function = GCPFunction(
-                name=func_name,
-                benchmark=benchmark,
-                code_package_hash=code_package.hash,
-                timeout=timeout,
-                memory=memory,
-                bucket=code_bucket,
-            )
-            self.update_function(function, code_package)
-        else:
+        try:
+            get_req.execute()
+        except HttpError:
             create_req = (
                 self.function_client.projects()
                 .locations()
@@ -268,6 +256,19 @@ class GCP(System):
             function = GCPFunction(
                 func_name, benchmark, code_package.hash, timeout, memory, code_bucket
             )
+        else:
+            # if result is not empty, then function does exists
+            self.logging.info("Function {} exists on GCP, update the instance.".format(func_name))
+
+            function = GCPFunction(
+                name=func_name,
+                benchmark=benchmark,
+                code_package_hash=code_package.hash,
+                timeout=timeout,
+                memory=memory,
+                bucket=code_bucket,
+            )
+            self.update_function(function, code_package)
 
         # Add LibraryTrigger to a new function
         from sebs.gcp.triggers import LibraryTrigger

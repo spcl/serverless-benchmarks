@@ -2,19 +2,15 @@ from typing import Optional, Dict, Type
 
 import docker
 
-from sebs.aws import AWS
-from sebs.azure.azure import Azure
-from sebs.gcp import GCP
 from sebs.local import Local
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.config import Config
-from sebs.utils import LoggingHandlers, LoggingBase
+from sebs.utils import has_platform, LoggingHandlers, LoggingBase
 
 from sebs.experiments.config import Config as ExperimentConfig
-from sebs.openwhisk import OpenWhisk
 from sebs.experiments import Experiment
 
 
@@ -80,13 +76,25 @@ class SeBS(LoggingBase):
         deployment_config: Optional[Config] = None,
     ) -> FaaSSystem:
         name = config["name"]
-        implementations = {
-            "aws": AWS,
-            "azure": Azure,
-            "gcp": GCP,
-            "local": Local,
-            "openwhisk": OpenWhisk,
-        }
+        implementations: Dict[str, Type[FaaSSystem]] = {"local": Local}
+
+        if has_platform("aws"):
+            from sebs.aws import AWS
+
+            implementations["aws"] = AWS
+        if has_platform("azure"):
+            from sebs.azure.azure import Azure
+
+            implementations["azure"] = Azure
+        if has_platform("gcp"):
+            from sebs.gcp import GCP
+
+            implementations["gcp"] = GCP
+        if has_platform("openwhisk"):
+            from sebs.openwhisk import OpenWhisk
+
+            implementations["openwhisk"] = OpenWhisk
+
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 

@@ -16,7 +16,7 @@ jobs:
           name: Install curl-config from Ubuntu APT
       - run:
           command: |
-            python3 install.py --dont-rebuild-docker-images --no-local
+            python3 install.py --aws --azure --gcp --dont-rebuild-docker-images --no-local
           name: Install pip dependencies
       - run:
           command: |
@@ -50,7 +50,7 @@ jobs:
           name: Load Docker images
       - run:
           command: |
-            python3 install.py
+            python3 install.py --aws
           name: Install pip dependencies
       - run:
           command: |

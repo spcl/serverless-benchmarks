@@ -281,6 +281,11 @@ class AWS(System):
             self.client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
             )
+        self.logging.info(
+            f"Updated code of {name} function. "
+            "Sleep 5 seconds before updating configuration to avoid cloud errors."
+        )
+        time.sleep(5)
         # and update config
         self.client.update_function_configuration(
             FunctionName=name, Timeout=function.timeout, MemorySize=function.memory

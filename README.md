@@ -36,9 +36,9 @@ Feel free to reach us through GitHub issues or by writing to <marcin.copik@inf.e
 
 ### Paper
 
-When using SeBS, please cite our [Middleware '21 paper](https://dl.acm.org/doi/10.1145/3464298.3476133).
-An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.15592), and you can
-find more details about research work [in this paper summary](mcopik.github.io/projects/sebs/).
+When using SeBS, please cite our [Middleware '21 paper](https://dl.acm.org/doi/abs/10.1145/3464298.3476133).
+An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.14132), and you can
+find more details about research work [in this paper summary](https://mcopik.github.io/projects/sebs/).
 You can cite our software repository as well, using the citation button on the right.
 
 ```
@@ -104,6 +104,10 @@ virtual environment:
 ```
 
 Now you can deploy serverless experiments :-)
+
+The installation of additional platforms is controlled with the `--platform` and `--no-platform`
+switches. Currently, the default behavior for `install.py` is to install only the local
+environment.
 
 **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
 
