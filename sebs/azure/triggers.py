@@ -30,7 +30,6 @@ class HTTPTrigger(AzureTrigger):
         return Trigger.TriggerType.HTTP
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
-
         payload["connection_string"] = self.data_storage_account.connection_string
         return self._http_invoke(payload, self.url)
 

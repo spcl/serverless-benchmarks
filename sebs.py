@@ -14,7 +14,7 @@ import click
 import sebs
 from sebs import SeBS
 from sebs.regression import regression_suite
-from sebs.utils import update_nested_dict
+from sebs.utils import update_nested_dict, download_metrics
 from sebs.faas import System as FaaSSystem
 from sebs.faas.benchmark import Trigger
 
@@ -301,9 +301,9 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         ret = trigger.sync_invoke(input_config)
         if ret.stats.failure:
             sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
-            #deployment_client.get_invocation_error(
-            #    function_name=func.name, start_time=start_time, end_time=end_time
-            #)
+
+        results_dir = "cache/results"
+        download_metrics(deployment_client.config.redis_host, workflow.name, results_dir, rep=i)
         result.add_invocation(workflow, ret)
     result.end()
     with open("experiments.json", "w") as out_f:

@@ -15,7 +15,7 @@ from sebs.aws.function import LambdaFunction
 from sebs.aws.workflow import SFNWorkflow
 from sebs.aws.generator import SFNGenerator
 from sebs.aws.config import AWSConfig
-from sebs.utils import execute
+from sebs.utils import execute, replace_string_in_file
 from sebs.code_package import CodePackage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -152,6 +152,9 @@ class AWS(System):
             if file not in package_config:
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
+
+        handler_path = os.path.join(directory, CONFIG_FILES[code_package.language_name][0])
+        replace_string_in_file(handler_path, "{{REDIS_HOST}}", f"\"{self.config.redis_host}\"")
 
         # For python, add an __init__ file
         if code_package.language_name == "python":

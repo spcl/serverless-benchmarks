@@ -1,10 +1,10 @@
 from typing import cast, Optional
 
 from sebs.aws.s3 import S3
-from sebs.faas.benchmark import Benchmark
+from sebs.faas.benchmark import Function
 
 
-class LambdaFunction(Benchmark):
+class LambdaFunction(Function):
     def __init__(
         self,
         name: str,

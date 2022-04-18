@@ -7,6 +7,9 @@ import sys
 import uuid
 from typing import List, Optional, TextIO, Union
 
+from redis import Redis
+import pandas as pd
+
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
 
@@ -84,6 +87,41 @@ def configure_logging():
             if name.startswith(logger):
                 logging.getLogger(name).setLevel(logging.ERROR)
 
+
+def replace_string_in_file(path: str, from_str: str, to_str: str):
+    with open(path, "rt") as f:
+        data = f.read()
+
+    data = data.replace(from_str, to_str)
+
+    with open(path, "wt") as f:
+        f.write(data)
+
+
+def download_metrics(host: str, workflow_name: str, dst_dir: str, **static_args):
+    redis = Redis(host=host,
+                  port=6379,
+                  decode_responses=True,
+                  socket_connect_timeout=10)
+    redis.ping()
+
+    df = pd.DataFrame(columns=["func", "rep", "start", "end"])
+    for func_name in redis.scan_iter(pattern=f"{workflow_name}/*"):
+        payload = redis.get(func_name)
+        payload = json.loads(payload)
+        payload = {**payload, **static_args}
+
+        payload["func"] = func_name
+        payload = pd.DataFrame([payload])
+
+        df = pd.concat([df, payload])
+        redis.delete(func_name)
+
+    if df.shape[0] == 0:
+        raise RuntimeError(f"Did not find any measurements for {workflow_name}")
+
+    path = os.path.join(dst_dir, workflow_name+".csv")
+    df.to_csv(path, index=False)
 
 # def configure_logging(verbose: bool = False, output_dir: Optional[str] = None):
 #    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"

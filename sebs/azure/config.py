@@ -287,11 +287,16 @@ class AzureConfig(Config):
     def resources_id(self) -> str:
         return self._resources_id
 
+    @property
+    def redis_host(self) -> str:
+        return self._redis_host
+
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(AzureConfig, cfg)
         config._region = dct["region"]
+        config._redis_host = dct["redis_host"]
         if "resources_id" in dct:
             config._resources_id = dct["resources_id"]
         else:
@@ -341,5 +346,6 @@ class AzureConfig(Config):
             "resources_id": self.resources_id,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
+            "redis_host": self._redis_host
         }
         return out

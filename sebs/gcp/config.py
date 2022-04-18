@@ -165,6 +165,10 @@ class GCPConfig(Config):
     def resources(self) -> GCPResources:
         return self._resources
 
+    @property
+    def redis_host(self) -> str:
+        return self._redis_host
+
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         cached_config = cache.get_config("gcp")
@@ -219,6 +223,7 @@ class GCPConfig(Config):
         config = cast(GCPConfig, cfg)
         config._project_name = dct["project_name"]
         config._region = dct["region"]
+        config._redis_host = dct["redis_host"]
 
     def serialize(self) -> dict:
         out = {
@@ -227,6 +232,7 @@ class GCPConfig(Config):
             "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
+            "redis_host": self._redis_host
         }
         return out
 

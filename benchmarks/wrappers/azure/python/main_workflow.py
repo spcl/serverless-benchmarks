@@ -33,8 +33,7 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
     end = datetime.datetime.now()
 
     is_cold, container_id = probe_cold_start()
-    res = client.create_check_status_response(req, instance_id)
-    status_body = json.loads(res.get_body())
+    client.wait_for_completion_or_create_check_status_response(req, instance_id, 1000000)
     body = {
         'begin': begin.strftime('%s.%f'),
         'end': end.strftime('%s.%f'),
@@ -42,7 +41,6 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
         'request_id': context.invocation_id,
         "is_cold": is_cold,
         "container_id": container_id,
-        **status_body
     }
     return func.HttpResponse(
         json.dumps(body),

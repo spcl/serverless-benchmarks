@@ -20,7 +20,7 @@ from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.code_package import CodePackage
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingHandlers, execute
+from sebs.utils import LoggingHandlers, execute, replace_string_in_file
 from sebs.faas.benchmark import Benchmark, Function, ExecutionResult, Workflow, Trigger
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
@@ -166,9 +166,6 @@ class Azure(System):
         activity_bindings = [
             {"name": "event", "type": "activityTrigger", "direction": "in"},
         ]
-        blob_binding = {"name": "measurements", "type": "blob",
-                        "dataType": "binary", "direction": "out",
-                        "connection": "AzureWebJobsStorage"}
         orchestrator_bindings = [
             {"name": "context", "type": "orchestrationTrigger", "direction": "in"}
         ]
@@ -200,19 +197,16 @@ class Azure(System):
 
             # generate function.json
             script_file = file if (name in bindings and is_workflow) else "handler.py"
-            func_blob_binding = {
-                "path": f"sebs-experiments/{name}",
-                **blob_binding
-            }
-            default_bindings = activity_bindings + [func_blob_binding]
-
             payload = {
-                "bindings": bindings.get(name, default_bindings),
+                "bindings": bindings.get(name, activity_bindings),
                 "scriptFile": script_file,
                 "disabled": False
             }
             dst_json = os.path.join(os.path.dirname(dst_file), "function.json")
             json.dump(payload, open(dst_json, "w"), indent=2)
+
+        handler_path = os.path.join(directory, WRAPPER_FILES[code_package.language_name][0])
+        replace_string_in_file(handler_path, "{{REDIS_HOST}}", f"\"{self.config.redis_host}\"")
 
         # copy every wrapper file to respective function dirs
         for wrapper_file in wrapper_files:
@@ -443,8 +437,6 @@ class Azure(System):
                     " --name {workflow_name} "
                 ).format(**config)
             )
-            print(json.loads(ret.decode()))
-            exit()
             for setting in json.loads(ret.decode()):
                 if setting["name"] == "AzureWebJobsStorage":
                     connection_string = setting["value"]

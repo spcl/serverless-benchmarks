@@ -45,7 +45,7 @@
         "username": "docker_user",
         "deployment": {
           "files": ["handler_function.py", "handler_workflow.py", "storage.py"],
-          "packages": []
+          "packages": ["redis"]
         }
       },
       "nodejs": {
@@ -76,7 +76,7 @@
         "username": "docker_user",
         "deployment": {
           "files": ["handler_function.py", "main_workflow.py", "handler_workflow.py", "storage.py", "fsm.py", "run_workflow.py"],
-          "packages": ["azure-storage-blob", "azure-functions", "azure-functions-durable"]
+          "packages": ["azure-storage-blob", "azure-functions", "azure-functions-durable", "redis"]
         }
       },
       "nodejs": {
@@ -111,7 +111,7 @@
         "username": "docker_user",
         "deployment": {
           "files": ["handler_function.py", "handler_workflow.py", "storage.py"],
-          "packages": ["google-cloud-storage"]
+          "packages": ["google-cloud-storage", "redis"]
         }
       },
       "nodejs": {

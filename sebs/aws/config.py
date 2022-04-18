@@ -271,11 +271,16 @@ class AWSConfig(Config):
     def resources(self) -> AWSResources:
         return self._resources
 
+    @property
+    def redis_host(self) -> str:
+        return self._redis_host
+
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(AWSConfig, cfg)
         config._region = dct["region"]
+        config._redis_host = dct["redis_host"]
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -317,5 +322,6 @@ class AWSConfig(Config):
             "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
+            "redis_host": self._redis_host
         }
         return out

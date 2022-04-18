@@ -33,12 +33,14 @@ class GCPGenerator(Generator):
 
     def encode_switch(self, state: Switch) -> dict:
         return {
-            "switch": [self._encode_case(c) for c in state.cases],
-            "next": state.default
+            state.name: {
+                "switch": [self._encode_case(c) for c in state.cases],
+                "next": state.default
+            }
         }
 
     def _encode_case(self, case: Switch.Case) -> dict:
-        cond = "res." + case.var + " " + case.op + " " + str(case.val)
+        cond = "res.body." + case.var + " " + case.op + " " + str(case.val)
         return {
             "condition": "${"+cond+"}",
             "next": case.next

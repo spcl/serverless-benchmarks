@@ -6,6 +6,7 @@ import importlib
 
 from azure.storage.blob import BlobServiceClient
 import azure.functions as func
+from redis import Redis
 
 def probe_cold_start():
     is_cold = False
@@ -22,7 +23,7 @@ def probe_cold_start():
     return is_cold, container_id
 
 
-def main(event, measurements: func.Out[bytes]):
+def main(event):
     start = datetime.datetime.now().timestamp()
 
     workflow_name = os.getenv("APPSETTING_WEBSITE_SITE_NAME")
@@ -39,14 +40,19 @@ def main(event, measurements: func.Out[bytes]):
     end = datetime.datetime.now().timestamp()
 
     is_cold, container_id = probe_cold_start()
-    payload = {
+    payload = json.dumps({
         "start": start,
         "end": end,
         "is_cold": is_cold,
         "container_id": container_id
-    }
+    })
 
-    data = json.dumps(payload).encode("utf-8")
-    measurements.set(data)
+    redis = Redis(host={{REDIS_HOST}},
+          port=6379,
+          decode_responses=True,
+          socket_connect_timeout=10)
+
+    key = os.path.join(workflow_name, func_name)
+    redis.set(key, payload)
 
     return res

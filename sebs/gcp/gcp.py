@@ -24,7 +24,7 @@ from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
 from sebs.gcp.workflow import GCPWorkflow
 from sebs.gcp.generator import GCPGenerator
-from sebs.utils import LoggingHandlers
+from sebs.utils import LoggingHandlers, replace_string_in_file
 
 """
     This class provides basic abstractions for the FaaS system.
@@ -161,15 +161,13 @@ class GCP(System):
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
 
-        requirements = open(os.path.join(directory, "requirements.txt"), "w")
-        requirements.write("google-cloud-storage")
-        requirements.close()
-
         # rename handler function.py since in gcp it has to be caled main.py
         old_name, new_name = HANDLER[code_package.language_name]
         old_path = os.path.join(directory, old_name)
         new_path = os.path.join(directory, new_name)
         shutil.move(old_path, new_path)
+
+        replace_string_in_file(new_path, "{{REDIS_HOST}}", f"\"{self.config.redis_host}\"")
 
         """
             zip the whole directroy (the zip-file gets uploaded to gcp later)
@@ -423,7 +421,7 @@ class GCP(System):
                     body={
                         "name": full_workflow_name,
                         "sourceContents": definition,
-                    },
+                    }
                 )
             )
             ret = create_req.execute()
