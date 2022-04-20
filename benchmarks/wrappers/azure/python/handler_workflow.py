@@ -53,7 +53,7 @@ def main(event):
           decode_responses=True,
           socket_connect_timeout=10)
 
-    key = os.path.join(workflow_name, func_name)
+    key = os.path.join(workflow_name, func_name, str(uuid.uuid4())[0:8])
     redis.set(key, payload)
 
     return res
