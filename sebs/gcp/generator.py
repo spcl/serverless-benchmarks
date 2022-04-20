@@ -12,6 +12,9 @@ class GCPGenerator(Generator):
     def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
         definition = {
             "main" : {
+                "params": [
+                    "res"
+                ],
                 "steps": payloads
             }
         }
@@ -23,9 +26,10 @@ class GCPGenerator(Generator):
 
         return {
             state.name: {
-                "call": "http.get",
+                "call": "http.post",
                 "args": {
-                    "url": url
+                    "url": url,
+                    "body": "${res}"
                 },
                 "result": "res"
             }

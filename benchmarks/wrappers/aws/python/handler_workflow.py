@@ -38,6 +38,7 @@ def handler(event, context):
 
     is_cold, container_id = probe_cold_start()
     payload = json.dumps({
+        "func": func_name,
         "start": start,
         "end": end,
         "is_cold": is_cold,

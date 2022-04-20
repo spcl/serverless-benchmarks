@@ -7,14 +7,16 @@ import functools
 import os
 import sys
 import traceback
+from time import sleep
 from typing import cast, Optional
 
 import click
+import pandas as pd
 
 import sebs
 from sebs import SeBS
 from sebs.regression import regression_suite
-from sebs.utils import update_nested_dict, download_metrics
+from sebs.utils import update_nested_dict, download_measurements, connect_to_redis_cache
 from sebs.faas import System as FaaSSystem
 from sebs.faas.benchmark import Trigger
 
@@ -265,6 +267,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
+    redis = connect_to_redis_cache(deployment_client.config.redis_host)
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     benchmark_obj = sebs_client.get_benchmark(
@@ -283,6 +286,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         storage=storage, size=benchmark_input_size
     )
 
+    df = pd.DataFrame(columns=["func", "rep", "start", "end"])
     result = sebs.experiments.ExperimentResult(
         experiment_config, deployment_client.config
     )
@@ -302,10 +306,16 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         if ret.stats.failure:
             sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
 
-        results_dir = "cache/results"
-        download_metrics(deployment_client.config.redis_host, workflow.name, results_dir, rep=i)
+        df_i = download_measurements(redis, workflow.name, rep=i)
+        df = pd.concat([df, df_i])
+
         result.add_invocation(workflow, ret)
     result.end()
+
+    path = os.path.join(output_dir, "results", workflow.name, deployment_client.name()+".csv")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    df.to_csv(path, index=False)
+
     with open("experiments.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
     sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))

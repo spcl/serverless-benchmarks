@@ -98,30 +98,32 @@ def replace_string_in_file(path: str, from_str: str, to_str: str):
         f.write(data)
 
 
-def download_metrics(host: str, workflow_name: str, dst_dir: str, **static_args):
+def connect_to_redis_cache(host: str):
     redis = Redis(host=host,
-                  port=6379,
-                  decode_responses=True,
-                  socket_connect_timeout=10)
+          port=6379,
+          decode_responses=True,
+          socket_connect_timeout=10)
     redis.ping()
 
-    df = pd.DataFrame(columns=["func", "rep", "start", "end"])
-    for func_name in redis.scan_iter(pattern=f"{workflow_name}/*"):
-        payload = redis.get(func_name)
-        payload = json.loads(payload)
-        payload = {**payload, **static_args}
+    return redis
 
-        payload["func"] = func_name
-        payload = pd.DataFrame([payload])
 
-        df = pd.concat([df, payload])
-        redis.delete(func_name)
+def download_measurements(redis: Redis, workflow_name: str, **static_args):
+    for key in redis.scan_iter(pattern=f"{workflow_name}/*"):
+        payload = redis.get(key)
 
-    if df.shape[0] == 0:
-        raise RuntimeError(f"Did not find any measurements for {workflow_name}")
+        try:
+            payload = json.loads(payload)
+            payload = {**payload, **static_args}
 
-    path = os.path.join(dst_dir, workflow_name+".csv")
-    df.to_csv(path, index=False)
+            df = pd.DataFrame([payload])
+        except json.decoder.JSONDecodeError:
+            print(f"Failed to decode payload: {payload}")
+        finally:
+            redis.delete(key)
+
+    return df
+
 
 # def configure_logging(verbose: bool = False, output_dir: Optional[str] = None):
 #    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"

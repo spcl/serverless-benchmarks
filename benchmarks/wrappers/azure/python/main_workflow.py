@@ -29,19 +29,21 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
 
     client = df.DurableOrchestrationClient(starter)
     instance_id = await client.start_new("run_workflow", None, event)
+    res = await client.wait_for_completion_or_create_check_status_response(req, instance_id, 1000000)
 
     end = datetime.datetime.now()
 
     is_cold, container_id = probe_cold_start()
-    client.wait_for_completion_or_create_check_status_response(req, instance_id, 1000000)
+    status_body = json.loads(res.get_body())
     body = {
-        'begin': begin.strftime('%s.%f'),
-        'end': end.strftime('%s.%f'),
-        'environ_container_id': os.environ['CONTAINER_NAME'],
-        'request_id': context.invocation_id,
+        "begin": begin.strftime("%s.%f"),
+        "end": end.strftime("%s.%f"),
         "is_cold": is_cold,
         "container_id": container_id,
+        "request_id": context.invocation_id,
+        **status_body
     }
+
     return func.HttpResponse(
         json.dumps(body),
         mimetype="application/json"

@@ -30,16 +30,18 @@ def probe_cold_start():
 
 def handler(req):
     start = datetime.datetime.now().timestamp()
+    event = req.get_json()
 
     full_function_name = os.getenv("FUNCTION_NAME")
     workflow_name, func_name = full_function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
-    res = function.handler(req)
+    res = function.handler(event)
 
     end = datetime.datetime.now().timestamp()
 
     is_cold, container_id = probe_cold_start()
     payload = json.dumps({
+        "func": func_name,
         "start": start,
         "end": end,
         "is_cold": is_cold,

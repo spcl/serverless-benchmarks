@@ -20,19 +20,18 @@ def resolve_var(obj, vars: str):
 
 
 def run_workflow(context: df.DurableOrchestrationContext):
-    input = context.get_input()
-
     with open("definition.json") as f:
         definition = json.load(f)
 
     states = {n: State.deserialize(n, s)
                    for n, s in definition["states"].items()}
     current = states[definition["root"]]
-    res = None
+    res = context.get_input()
 
     while current:
         if isinstance(current, Task):
-            res = yield context.call_activity(current.func_name, res)
+            payload = yield context.call_activity(current.func_name, res)
+            res = {**res, **payload}
             current = states.get(current.next, None)
         elif isinstance(current, Switch):
             ops = {
