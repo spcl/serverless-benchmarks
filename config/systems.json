@@ -131,5 +131,38 @@
         }
       }
     }
+  },  
+  "openwhisk": { 
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.8": "lambci/lambda:build-python3.8",
+          "3.7": "lambci/lambda:build-python3.7",
+          "3.6": "lambci/lambda:build-python3.6"
+        },
+        "versions": ["3.6", "3.7", "3.8"],
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "handler.py", "storage.py"],
+          "packages": []
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "12.x" : "lambci/lambda:build-nodejs12.x",
+          "10.x" : "lambci/lambda:build-nodejs10.x" 
+        },
+        "versions": ["10.x", "12.x"],
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "handler.js", "storage.js"],
+          "packages": {
+            "uuid": "3.4.0"
+          }
+        }
+      }
+    }
   }
 }

@@ -7,7 +7,7 @@ import subprocess
 parser = argparse.ArgumentParser(description="Install SeBS and dependencies.")
 parser.add_argument('--venv', metavar='DIR', type=str, default="python-venv", help='destination of local Python virtual environment')
 parser.add_argument('--python-path', metavar='DIR', type=str, default="python3", help='Path to local Python installation.')
-for deployment in ["aws", "azure", "gcp","funcx"]:
+for deployment in ["aws", "azure", "gcp","openwhisk"]:
     parser.add_argument(f"--{deployment}", action="store_const", const=True, dest=deployment)
     parser.add_argument(f"--no-{deployment}", action="store_const", const=False, default=True, dest=deployment)
 for deployment in ["local"]:
@@ -53,18 +53,18 @@ flag = "TRUE" if args.aws else "FALSE"
 execute(f'echo "export SEBS_WITH_AWS={flag}" >> {env_dir}/bin/activate')
 execute(f'echo "unset SEBS_WITH_AWS" >> {env_dir}/bin/deactivate')
 
-if args.funcx:
-    print("Install dependencies for funcx")
-    execute(". {}/bin/activate && pip3 install -r requirements.funcx.txt".format(env_dir))
+if args.openwhisk:
+    print("Install dependencies for openwhisk")
+    execute(". {}/bin/activate && pip3 install -r requirements.openwhisk.txt".format(env_dir))
     if args.force_rebuild_docker_images or (os.getuid() != 1000 and not args.dont_rebuild_docker_images):
-        print(f"funcx: rebuild Docker images for current user ID: {os.getuid()}")
-        execute(". {}/bin/activate && tools/build_docker_images.py --deployment funcx".format(env_dir))
+        print(f"openwhisk: rebuild Docker images for current user ID: {os.getuid()}")
+        execute(". {}/bin/activate && tools/build_docker_images.py --deployment openwhisk".format(env_dir))
     elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
-        print(f"funcx: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
+        print(f"openwhisk: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
                 "Skipping rebuild as requested by user, but recommending to rebuild the images")
-flag = "TRUE" if args.funcx else "FALSE"
-execute(f'echo "export SEBS_WITH_FUNCX={flag}" >> {env_dir}/bin/activate')
-execute(f'echo "unset SEBS_WITH_FUNCX" >> {env_dir}/bin/deactivate')
+flag = "TRUE" if args.openwhisk else "FALSE"
+execute(f'echo "export SEBS_WITH_openwhisk={flag}" >> {env_dir}/bin/activate')
+execute(f'echo "unset SEBS_WITH_openwhisk" >> {env_dir}/bin/deactivate')
 
 if args.azure:
     print("Install Python dependencies for Azure")
