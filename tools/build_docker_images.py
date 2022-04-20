@@ -10,7 +10,7 @@ PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.
 DOCKER_DIR = os.path.join(PROJECT_DIR, 'docker')
 
 parser = argparse.ArgumentParser(description='Run local app experiments.')
-parser.add_argument('--deployment', default=None, choices=['local', 'aws', 'azure', 'gcp'], action='store')
+parser.add_argument('--deployment', default=None, choices=['local', 'aws', 'azure', 'gcp','funcx'], action='store')
 parser.add_argument('--type', default=None, choices=['build', 'run', 'manage'], action='store')
 parser.add_argument('--language', default=None, choices=['python', 'nodejs'], action='store')
 args = parser.parse_args()
