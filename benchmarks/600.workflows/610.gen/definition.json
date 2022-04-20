@@ -1,0 +1,37 @@
+{
+    "root": "process_zero",
+    "states": {
+        "process_zero": {
+            "type": "task",
+            "func_name": "process_zero",
+            "next": "select_astros_number"
+        },
+        "select_astros_number": {
+            "type": "switch",
+            "cases": [
+                {
+                    "var": "astros.number",
+                    "op": "<",
+                    "val": 10,
+                    "next": "process_one"
+                },
+                {
+                    "var": "astros.number",
+                    "op": ">=",
+                    "val": 10,
+                    "next": "process_two"
+                }
+            ],
+            "default": "process_one"
+        },
+        "process_one": {
+            "type": "task",
+            "func_name": "process_one",
+            "next": "process_two"
+        },
+        "process_two": {
+            "type": "task",
+            "func_name": "process_two"
+        }
+    }
+}
