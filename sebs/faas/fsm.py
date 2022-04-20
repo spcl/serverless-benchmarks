@@ -50,12 +50,7 @@ class Switch(State):
 
         @staticmethod
         def deserialize(payload: dict) -> "Case":
-            return Switch.Case(
-                var=payload["var"],
-                op=payload["op"],
-                val=payload.get("val"),
-                next=payload.get("next")
-            )
+            return Switch.Case(**payload)
 
     def __init__(self, name: str, cases: List[Case], default: Optional[str]):
         self.name = name
@@ -73,9 +68,35 @@ class Switch(State):
         )
 
 
+class Map(State):
+
+    def __init__(self,
+         name: str,
+         func_name: str,
+         array: str,
+         max_concurrency: Optional[int],
+         next: Optional[str]):
+        self.name = name
+        self.func_name = func_name
+        self.array = array
+        self.max_concurrency = max_concurrency
+        self.next = next
+
+    @classmethod
+    def deserialize(cls, name: str, payload: dict) -> "Map":
+        return cls(
+            name=name,
+            func_name=payload["func_name"],
+            array=payload["array"],
+            max_concurrency=payload.get("max_concurrency"),
+            next=payload.get("next")
+        )
+
+
 _STATE_TYPES = {
     "task": Task,
-    "switch": Switch
+    "switch": Switch,
+    "map": Map
 }
 
 
@@ -107,6 +128,10 @@ class Generator(ABC):
             return self.encode_task(state)
         elif isinstance(state, Switch):
             return self.encode_switch(state)
+        elif isinstance(state, Map):
+            return self.encode_map(state)
+        else:
+            raise ValueError(f"Unknown state of type {type(state)}.")
 
     @abstractmethod
     def encode_task(self, state: Task) -> dict:
@@ -114,4 +139,8 @@ class Generator(ABC):
 
     @abstractmethod
     def encode_switch(self, state: Switch) -> dict:
+        pass
+
+    @abstractmethod
+    def encode_map(self, state: Map) -> dict:
         pass

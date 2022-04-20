@@ -24,7 +24,7 @@ class SFNGenerator(Generator):
     def encode_task(self, state: Task) -> dict:
         payload = {
             "Type": "Task",
-            "Resource": self._func_arns[state.name]
+            "Resource": self._func_arns[state.func_name]
         }
 
         if state.next:
@@ -58,3 +58,30 @@ class SFNGenerator(Generator):
             cond: case.val,
             "Next": case.next
         }
+
+    def encode_map(self, state: Map) -> dict:
+        payload = {
+            "Type": "Map",
+            "ItemsPath": "$."+state.array,
+            "Iterator": {
+                "StartAt": "func",
+                "States": {
+                    "func": {
+                        "Type": "Task",
+                        "Resource": self._func_arns[state.func_name],
+                        "End": True
+                    }
+                }
+            },
+            "ResultPath": "$."+state.array
+        }
+
+        if state.next:
+            payload["Next"] = state.next
+        else:
+            payload["End"] = True
+
+        if state.max_concurrency:
+            payload["MaxConcurrency"] = state.max_concurrency
+
+        return payload
