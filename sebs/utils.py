@@ -8,7 +8,6 @@ import uuid
 from typing import List, Optional, TextIO, Union
 
 from redis import Redis
-import pandas as pd
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
@@ -109,20 +108,21 @@ def connect_to_redis_cache(host: str):
 
 
 def download_measurements(redis: Redis, workflow_name: str, **static_args):
+    payloads = []
+
     for key in redis.scan_iter(pattern=f"{workflow_name}/*"):
         payload = redis.get(key)
 
         try:
             payload = json.loads(payload)
             payload = {**payload, **static_args}
-
-            df = pd.DataFrame([payload])
+            payloads.append(payload)
         except json.decoder.JSONDecodeError:
             print(f"Failed to decode payload: {payload}")
         finally:
             redis.delete(key)
 
-    return df
+    return payloads
 
 
 # def configure_logging(verbose: bool = False, output_dir: Optional[str] = None):

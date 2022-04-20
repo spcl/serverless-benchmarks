@@ -52,7 +52,10 @@ class Switch(State):
         def deserialize(payload: dict) -> "Case":
             return Switch.Case(**payload)
 
-    def __init__(self, name: str, cases: List[Case], default: Optional[str]):
+    def __init__(self,
+                 name: str,
+                 cases: List[Case],
+                 default: Optional[str]):
         self.name = name
         self.cases = cases
         self.default = default
@@ -71,11 +74,11 @@ class Switch(State):
 class Map(State):
 
     def __init__(self,
-         name: str,
-         func_name: str,
-         array: str,
-         max_concurrency: Optional[int],
-         next: Optional[str]):
+                 name: str,
+                 func_name: str,
+                 array: str,
+                 max_concurrency: Optional[int],
+                 next: Optional[str]):
         self.name = name
         self.func_name = func_name
         self.array = array

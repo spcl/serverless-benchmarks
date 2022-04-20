@@ -11,12 +11,29 @@ sys.path.append(os.path.join(dir_path, os.path.pardir))
 from .fsm import *
 
 
-def resolve_var(obj, vars: str):
-    vars = vars.split(".")
-    for var in vars:
-        obj = obj[var]
+def get_var(obj, path: str):
+    names = path.split(".")
+    assert(len(names) > 0)
+
+    for n in names:
+        obj = obj[n]
 
     return obj
+
+
+def set_var(obj, var, path: str):
+    names = path.split(".")
+    assert(len(names) > 0)
+
+    for n in names[:-1]:
+        obj = obj[n]
+
+    obj[names[-1]] = var
+
+
+def chunks(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
 
 
 def run_workflow(context: df.DurableOrchestrationContext):
@@ -44,7 +61,7 @@ def run_workflow(context: df.DurableOrchestrationContext):
 
             next = None
             for case in current.cases:
-                var = resolve_var(res, case.var)
+                var = get_var(res, case.var)
                 op = ops[case.op]
                 if op(var, case.val):
                     next = states[case.next]
@@ -53,6 +70,20 @@ def run_workflow(context: df.DurableOrchestrationContext):
             if not next and current.default:
                 next = states[current.default]
             current = next
+        elif isinstance(current, Map):
+            array = get_var(res, current.array)
+            array_res = []
+
+            if current.max_concurrency:
+                for c in chunks(array, current.max_concurrency):
+                    tasks = [context.call_activity(current.func_name, e) for e in c]
+                    array_res += yield context.task_all(tasks)
+            else:
+                tasks = [context.call_activity(current.func_name, e) for e in array]
+                array_res = yield context.task_all(tasks)
+
+            set_var(res, array_res, current.array)
+            current = states.get(current.next, None)
         else:
             raise ValueError(f"Undefined state: {current}")
 

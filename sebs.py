@@ -286,7 +286,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         storage=storage, size=benchmark_input_size
     )
 
-    df = pd.DataFrame(columns=["func", "rep", "start", "end"])
+    measurements = []
     result = sebs.experiments.ExperimentResult(
         experiment_config, deployment_client.config
     )
@@ -306,14 +306,14 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         if ret.stats.failure:
             sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
 
-        df_i = download_measurements(redis, workflow.name, rep=i)
-        df = pd.concat([df, df_i])
-
+        measurements += download_measurements(redis, workflow.name, rep=i)
         result.add_invocation(workflow, ret)
     result.end()
 
     path = os.path.join(output_dir, "results", workflow.name, deployment_client.name()+".csv")
     os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    df = pd.DataFrame(measurements)
     df.to_csv(path, index=False)
 
     with open("experiments.json", "w") as out_f:

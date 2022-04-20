@@ -35,6 +35,7 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
 
     is_cold, container_id = probe_cold_start()
     status_body = json.loads(res.get_body())
+    code = 500 if status_body.get("runtimeStatus") == "Failed" else 200
     body = {
         "begin": begin.strftime("%s.%f"),
         "end": end.strftime("%s.%f"),
@@ -45,6 +46,7 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
     }
 
     return func.HttpResponse(
-        json.dumps(body),
+        status_code=code,
+        body=json.dumps(body),
         mimetype="application/json"
     )
