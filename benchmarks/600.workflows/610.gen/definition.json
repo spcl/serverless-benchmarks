@@ -10,7 +10,6 @@
             "type": "map",
             "func_name": "process_astros",
             "array": "astros.people",
-            "max_concurrency": 5,
             "next": "select_astros_number"
         },
         "select_astros_number": {

@@ -81,7 +81,4 @@ class SFNGenerator(Generator):
         else:
             payload["End"] = True
 
-        if state.max_concurrency:
-            payload["MaxConcurrency"] = state.max_concurrency
-
         return payload

@@ -77,12 +77,10 @@ class Map(State):
                  name: str,
                  func_name: str,
                  array: str,
-                 max_concurrency: Optional[int],
                  next: Optional[str]):
         self.name = name
         self.func_name = func_name
         self.array = array
-        self.max_concurrency = max_concurrency
         self.next = next
 
     @classmethod
@@ -91,7 +89,6 @@ class Map(State):
             name=name,
             func_name=payload["func_name"],
             array=payload["array"],
-            max_concurrency=payload.get("max_concurrency"),
             next=payload.get("next")
         )
 

@@ -72,15 +72,8 @@ def run_workflow(context: df.DurableOrchestrationContext):
             current = next
         elif isinstance(current, Map):
             array = get_var(res, current.array)
-            array_res = []
-
-            if current.max_concurrency:
-                for c in chunks(array, current.max_concurrency):
-                    tasks = [context.call_activity(current.func_name, e) for e in c]
-                    array_res += yield context.task_all(tasks)
-            else:
-                tasks = [context.call_activity(current.func_name, e) for e in array]
-                array_res = yield context.task_all(tasks)
+            tasks = [context.call_activity(current.func_name, e) for e in array]
+            array_res = yield context.task_all(tasks)
 
             set_var(res, array_res, current.array)
             current = states.get(current.next, None)
