@@ -1,15 +1,9 @@
 {
-    "root": "process_zero",
+    "root": "get_astros",
     "states": {
-        "process_zero": {
+        "get_astros": {
             "type": "task",
-            "func_name": "process_zero",
-            "next": "process_astros"
-        },
-        "process_astros": {
-            "type": "map",
-            "func_name": "process_astros",
-            "array": "astros.people",
+            "func_name": "get_astros",
             "next": "select_astros_number"
         },
         "select_astros_number": {
@@ -19,25 +13,36 @@
                     "var": "astros.number",
                     "op": "<",
                     "val": 10,
-                    "next": "process_one"
+                    "next": "few_people"
                 },
                 {
                     "var": "astros.number",
                     "op": ">=",
                     "val": 10,
-                    "next": "process_two"
+                    "next": "many_people"
                 }
             ],
-            "default": "process_one"
+            "default": "few_people"
         },
-        "process_one": {
+        "few_people": {
             "type": "task",
-            "func_name": "process_one",
-            "next": "process_two"
+            "func_name": "few_people",
+            "next": "map_astros"
         },
-        "process_two": {
+        "many_people": {
             "type": "task",
-            "func_name": "process_two"
+            "func_name": "many_people",
+            "next": "map_astros"
+        },
+        "map_astros": {
+            "type": "map",
+            "array": "astros.people",
+            "func_name": "map_astros",
+            "next": "process_astros"
+        },
+        "process_astros": {
+            "type": "task",
+            "func_name": "process_astros"
         }
     }
 }

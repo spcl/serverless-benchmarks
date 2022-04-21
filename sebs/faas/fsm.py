@@ -1,6 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Iterator, Optional, List, Callable
+from typing import Iterator, Optional, List, Callable, Union
 from enum import Enum
 import json
 
@@ -115,7 +115,16 @@ class Generator(ABC):
 
     def generate(self) -> str:
         states = self.states.values()
-        payloads = [self.encode_state(s) for s in states]
+        payloads = []
+        for s in states:
+            obj = self.encode_state(s)
+            if isinstance(obj, dict):
+                payloads.append(obj)
+            elif isinstance(obj, list):
+                payloads += obj
+            else:
+                raise ValueError("Unknown encoded state returned.")
+
         definition = self.postprocess(states, payloads)
 
         return self._export_func(definition)
@@ -123,7 +132,7 @@ class Generator(ABC):
     def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
         return {s.name: p for (s, p) in zip(states, payloads)}
 
-    def encode_state(self, state: State) -> dict:
+    def encode_state(self, state: State) -> Union[dict, List[dict]]:
         if isinstance(state, Task):
             return self.encode_task(state)
         elif isinstance(state, Switch):
@@ -134,13 +143,13 @@ class Generator(ABC):
             raise ValueError(f"Unknown state of type {type(state)}.")
 
     @abstractmethod
-    def encode_task(self, state: Task) -> dict:
+    def encode_task(self, state: Task) -> Union[dict, List[dict]]:
         pass
 
     @abstractmethod
-    def encode_switch(self, state: Switch) -> dict:
+    def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
         pass
 
     @abstractmethod
-    def encode_map(self, state: Map) -> dict:
+    def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         pass

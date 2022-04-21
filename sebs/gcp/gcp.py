@@ -398,9 +398,31 @@ class GCP(System):
         # generate workflow definition.json
         urls = [self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs]
         func_triggers = {n: u for (n, u) in zip(func_names, urls)}
-        gen = GCPGenerator(func_triggers)
+
+        gen = GCPGenerator(workflow_name, func_triggers)
         gen.parse(definition_path)
         definition = gen.generate()
+
+        # map functions require their own workflows
+        parent = GCP.get_location(project_name, location)
+        for map_id, map_def in gen.generate_maps():
+            full_workflow_name = GCP.get_full_workflow_name(
+                project_name, location, map_id)
+            create_req = (
+                self.workflow_client.projects()
+                .locations()
+                .workflows()
+                .create(
+                    parent=parent,
+                    workflowId=map_id,
+                    body={
+                        "name": full_workflow_name,
+                        "sourceContents": map_def,
+                    }
+                )
+            )
+            ret = create_req.execute()
+            self.logging.info(f"Map workflow {map_id} has been created!")
 
         full_workflow_name = GCP.get_full_workflow_name(
             project_name, location, workflow_name)
@@ -410,7 +432,6 @@ class GCP(System):
         try:
             get_req.execute()
         except HttpError:
-            parent = GCP.get_location(project_name, location)
             create_req = (
                 self.workflow_client.projects()
                 .locations()
@@ -489,9 +510,28 @@ class GCP(System):
         # Generate workflow definition.json
         urls = [self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs]
         func_triggers = {n: u for (n, u) in zip(func_names, urls)}
-        gen = GCPGenerator(func_triggers)
+        gen = GCPGenerator(workflow.name, func_triggers)
         gen.parse(definition_path)
         definition = gen.generate()
+
+        for map_id, map_def in gen.generate_maps():
+            full_workflow_name = GCP.get_full_workflow_name(
+                self.config.project_name, self.config.region, map_id
+            )
+            patch_req = (
+                self.workflow_client.projects()
+                .locations()
+                .workflows()
+                .patch(
+                    name=full_workflow_name,
+                    body={
+                        "name": full_workflow_name,
+                        "sourceContents": map_def,
+                    }
+                )
+            )
+            ret = patch_req.execute()
+            self.logging.info("Published new map workflow code.")
 
         full_workflow_name = GCP.get_full_workflow_name(
             self.config.project_name, self.config.region, workflow.name

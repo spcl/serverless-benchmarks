@@ -1,5 +1,5 @@
 import json
-from typing import Dict
+from typing import Dict, List, Union
 import numbers
 
 from sebs.faas.fsm import *
@@ -21,7 +21,7 @@ class SFNGenerator(Generator):
 
         return definition
 
-    def encode_task(self, state: Task) -> dict:
+    def encode_task(self, state: Task) -> Union[dict, List[dict]]:
         payload = {
             "Type": "Task",
             "Resource": self._func_arns[state.func_name]
@@ -34,7 +34,7 @@ class SFNGenerator(Generator):
 
         return payload
 
-    def encode_switch(self, state: Switch) -> dict:
+    def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
         choises = [self._encode_case(c) for c in state.cases]
         return {
             "Type": "Choice",
@@ -59,7 +59,7 @@ class SFNGenerator(Generator):
             "Next": case.next
         }
 
-    def encode_map(self, state: Map) -> dict:
+    def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         payload = {
             "Type": "Map",
             "ItemsPath": "$."+state.array,
@@ -72,8 +72,7 @@ class SFNGenerator(Generator):
                         "End": True
                     }
                 }
-            },
-            "ResultPath": "$."+state.array
+            }
         }
 
         if state.next:
