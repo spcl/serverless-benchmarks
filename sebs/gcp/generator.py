@@ -13,6 +13,14 @@ class GCPGenerator(Generator):
         self._map_funcs = dict()
 
     def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
+        payloads.append({
+            "final": {
+                "return": [
+                    "${res}"
+                ]
+            }
+        })
+
         definition = {
             "main" : {
                 "params": [
