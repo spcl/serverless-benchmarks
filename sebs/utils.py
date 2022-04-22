@@ -107,20 +107,25 @@ def connect_to_redis_cache(host: str):
     return redis
 
 
-def download_measurements(redis: Redis, workflow_name: str, **static_args):
+def download_measurements(redis: Redis, workflow_name: str, after: float, **static_args):
     payloads = []
 
-    for key in redis.scan_iter(pattern=f"{workflow_name}/*"):
-        payload = redis.get(key)
+    for key in redis.scan_iter(match=f"{workflow_name}/*"):
+        assert key[:len(workflow_name)] == workflow_name
 
-        try:
-            payload = json.loads(payload)
-            payload = {**payload, **static_args}
-            payloads.append(payload)
-        except json.decoder.JSONDecodeError:
-            print(f"Failed to decode payload: {payload}")
-        finally:
-            redis.delete(key)
+        payload = redis.get(key)
+        redis.delete(key)
+
+        if payload:
+            try:
+                payload = json.loads(payload)
+
+                # make sure only measurements from our benchmark are saved
+                if payload["start"] > after:
+                    payload = {**payload, **static_args}
+                    payloads.append(payload)
+            except json.decoder.JSONDecodeError:
+                print(f"Failed to decode payload: {payload}")
 
     return payloads
 

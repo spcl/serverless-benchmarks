@@ -428,7 +428,7 @@ class AWS(System):
                 code_package.hash
             )
 
-            self.update_workflow(workflow, definition, code_package)
+            self.update_workflow(workflow, code_package)
             workflow.updated_code = True
 
         # Add LibraryTrigger to a new function
