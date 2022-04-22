@@ -9,7 +9,7 @@
         "process": {
             "type": "map",
             "func_name": "process",
-            "array": "buffer",
+            "array": "buffer"
         }
     }
 }
