@@ -1,8 +1,8 @@
 from sebs.azure.config import AzureResources
-from sebs.faas.benchmark import Workflow
+from sebs.faas.benchmark import Function
 
 
-class AzureWorkflow(Workflow):
+class FunctionApp(Function):
     def __init__(
         self,
         name: str,
@@ -20,8 +20,8 @@ class AzureWorkflow(Workflow):
         }
 
     @staticmethod
-    def deserialize(cached_config: dict) -> Workflow:
-        ret = AzureWorkflow(
+    def deserialize(cached_config: dict) -> Function:
+        ret = AzureFunction(
             cached_config["name"],
             cached_config["code_package"],
             cached_config["hash"],
@@ -34,3 +34,9 @@ class AzureWorkflow(Workflow):
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret
+
+class AzureFunction(FunctionApp):
+    pass
+
+class AzureWorkflow(FunctionApp):
+    pass
