@@ -40,9 +40,7 @@ class TestSequenceMeta(type):
                     f"Begin regression test of {benchmark_name} on {deployment_client.name()}, "
                     f"region: {deployment_client.config.region}."
                 )
-                experiment_config = self.client.get_experiment_config(
-                    self.experiment_config
-                )
+                experiment_config = self.client.get_experiment_config(self.experiment_config)
                 benchmark = self.client.get_benchmark(
                     benchmark_name, deployment_client, experiment_config
                 )
@@ -74,9 +72,7 @@ class TestSequenceMeta(type):
                             failure = True
                             print(f"{benchmark_name} fail on trigger: {trigger_type}")
                         else:
-                            print(
-                                f"{benchmark_name} success on trigger: {trigger_type}"
-                            )
+                            print(f"{benchmark_name} success on trigger: {trigger_type}")
                     except RuntimeError:
                         failure = True
                         print(f"{benchmark_name} fail on trigger: {trigger_type}")
@@ -166,9 +162,7 @@ class TracingStreamResult(testtools.StreamResult):
 
     # no way to directly access test instance from here
     def status(self, *args, **kwargs):
-        self.all_correct = self.all_correct and (
-            kwargs["test_status"] in ["inprogress", "success"]
-        )
+        self.all_correct = self.all_correct and (kwargs["test_status"] in ["inprogress", "success"])
         test_name = kwargs["test_id"].split("_")[-1]
         if not kwargs["test_status"]:
             test_id = kwargs["test_id"]
@@ -178,11 +172,7 @@ class TracingStreamResult(testtools.StreamResult):
         elif kwargs["test_status"] == "fail":
             print("\n-------------\n")
             print("{0[test_id]}: {0[test_status]}".format(kwargs))
-            print(
-                "{0[test_id]}: {1}".format(
-                    kwargs, self.output[kwargs["test_id"]].decode()
-                )
-            )
+            print("{0[test_id]}: {1}".format(kwargs, self.output[kwargs["test_id"]].decode()))
             print("\n-------------\n")
             self.failures.add(test_name)
         elif kwargs["test_status"] == "success":
@@ -204,9 +194,7 @@ def regression_suite(
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequence))
     if "azure" in providers:
         assert "azure" in cloud_config
-        suite.addTest(
-            unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequence)
-        )
+        suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequence))
     if "gcp" in providers:
         assert "gcp" in cloud_config
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequence))
@@ -223,9 +211,7 @@ def regression_suite(
                 print(f"Select test {test_name}")
             else:
                 print(f"Skip test {test_name}")
-    concurrent_suite = testtools.ConcurrentStreamTestSuite(
-        lambda: ((test, None) for test in tests)
-    )
+    concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
     result = TracingStreamResult()
     result.startTestRun()
     concurrent_suite.run(result)
@@ -234,9 +220,7 @@ def regression_suite(
     for suc in result.success:
         print(f"- {suc}")
     if len(result.failures):
-        print(
-            f"Failures when executing {len(result.failures)} out of {len(tests)} functions"
-        )
+        print(f"Failures when executing {len(result.failures)} out of {len(tests)} functions")
         for failure in result.failures:
             print(f"- {failure}")
     return not result.all_correct

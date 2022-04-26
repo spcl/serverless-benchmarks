@@ -119,9 +119,7 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def create_workflow(
-        self, code_package: CodePackage, workflow_name: str
-    ) -> Workflow:
+    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> Workflow:
         pass
 
     @abstractmethod
@@ -145,14 +143,9 @@ class System(ABC, LoggingBase):
 
     """
 
-    def get_function(
-        self, code_package: CodePackage, func_name: Optional[str] = None
-    ) -> Function:
-        if (
-            code_package.language_version
-            not in self.system_config.supported_language_versions(
-                self.name(), code_package.language_name
-            )
+    def get_function(self, code_package: CodePackage, func_name: Optional[str] = None) -> Function:
+        if code_package.language_version not in self.system_config.supported_language_versions(
+            self.name(), code_package.language_name
         ):
             raise Exception(
                 "Unsupported {language} version {version} in {system}!".format(
@@ -197,9 +190,7 @@ class System(ABC, LoggingBase):
             function = self.function_type().deserialize(cached_function)
             self.cached_benchmark(function)
             self.logging.info(
-                "Using cached function {fname} in {loc}".format(
-                    fname=func_name, loc=code_location
-                )
+                "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
             )
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash or rebuilt:
@@ -225,14 +216,9 @@ class System(ABC, LoggingBase):
     def update_workflow(self, workflow: Workflow, code_package: CodePackage):
         pass
 
-    def get_workflow(
-        self, code_package: CodePackage, workflow_name: Optional[str] = None
-    ):
-        if (
-            code_package.language_version
-            not in self.system_config.supported_language_versions(
-                self.name(), code_package.language_name
-            )
+    def get_workflow(self, code_package: CodePackage, workflow_name: Optional[str] = None):
+        if code_package.language_version not in self.system_config.supported_language_versions(
+            self.name(), code_package.language_name
         ):
             raise Exception(
                 "Unsupported {language} version {version} in {system}!".format(

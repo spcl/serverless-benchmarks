@@ -154,12 +154,8 @@ class AWS(System):
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
 
-        handler_path = os.path.join(
-            directory, CONFIG_FILES[code_package.language_name][0]
-        )
-        replace_string_in_file(
-            handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"'
-        )
+        handler_path = os.path.join(directory, CONFIG_FILES[code_package.language_name][0])
+        replace_string_in_file(handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
 
         # For python, add an __init__ file
         if code_package.language_name == "python":
@@ -202,14 +198,10 @@ class AWS(System):
                 break
 
             if backoff_delay > 60:
-                self.logging.error(
-                    f"Function {func_name} stuck in state {state} after 60s"
-                )
+                self.logging.error(f"Function {func_name} stuck in state {state} after 60s")
                 break
 
-    def create_function(
-        self, code_package: CodePackage, func_name: str
-    ) -> "LambdaFunction":
+    def create_function(self, code_package: CodePackage, func_name: str) -> "LambdaFunction":
         package = code_package.code_location
         benchmark = code_package.name
         language = code_package.language_name
@@ -258,9 +250,7 @@ class AWS(System):
                 code_package_name = cast(str, os.path.basename(package))
                 code_bucket, idx = storage_client.add_input_bucket(benchmark)
                 storage_client.upload(code_bucket, package, code_package_name)
-                self.logging.info(
-                    "Uploading function {} code to {}".format(func_name, code_bucket)
-                )
+                self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_package_name}
             ret = self.lambda_client.create_function(
                 FunctionName=func_name,
@@ -326,9 +316,7 @@ class AWS(System):
         # AWS Lambda limit on zip deployment
         if code_size < 50 * 1024 * 1024:
             with open(package, "rb") as code_body:
-                self.lambda_client.update_function_code(
-                    FunctionName=name, ZipFile=code_body.read()
-                )
+                self.lambda_client.update_function_code(FunctionName=name, ZipFile=code_body.read())
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(package)
@@ -348,9 +336,7 @@ class AWS(System):
         )
         self.logging.info("Published new function code")
 
-    def create_function_trigger(
-        self, func: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_function_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.aws.triggers import HTTPTrigger
 
         function = cast(LambdaFunction, func)
@@ -379,9 +365,7 @@ class AWS(System):
         self.cache_client.update_benchmark(function)
         return trigger
 
-    def create_workflow(
-        self, code_package: CodePackage, workflow_name: str
-    ) -> "SFNWorkflow":
+    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> "SFNWorkflow":
 
         workflow_name = AWS.format_resource_name(workflow_name)
 
@@ -394,8 +378,7 @@ class AWS(System):
         code_files = list(code_package.get_code_files(include_config=False))
         func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
         funcs = [
-            self.create_function(code_package, workflow_name + "___" + fn)
-            for fn in func_names
+            self.create_function(code_package, workflow_name + "___" + fn) for fn in func_names
         ]
 
         # Generate workflow definition.json
@@ -414,9 +397,7 @@ class AWS(System):
                 roleArn=self.config.resources.lambda_role(self.session),
             )
 
-            self.logging.info(
-                "Creating workflow {} from {}".format(workflow_name, package)
-            )
+            self.logging.info("Creating workflow {} from {}".format(workflow_name, package))
 
             workflow = SFNWorkflow(
                 workflow_name,
@@ -429,15 +410,11 @@ class AWS(System):
             arn = re.search("'([^']*)'", str(e)).group()[1:-1]
 
             self.logging.info(
-                "Workflow {} exists on AWS, retrieve configuration.".format(
-                    workflow_name
-                )
+                "Workflow {} exists on AWS, retrieve configuration.".format(workflow_name)
             )
 
             # Here we assume a single Lambda role
-            workflow = SFNWorkflow(
-                workflow_name, funcs, code_package.name, arn, code_package.hash
-            )
+            workflow = SFNWorkflow(workflow_name, funcs, code_package.name, arn, code_package.hash)
 
             self.update_workflow(workflow, code_package)
             workflow.updated_code = True
@@ -463,8 +440,7 @@ class AWS(System):
         code_files = list(code_package.get_code_files(include_config=False))
         func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
         funcs = [
-            self.create_function(code_package, workflow.name + "___" + fn)
-            for fn in func_names
+            self.create_function(code_package, workflow.name + "___" + fn) for fn in func_names
         ]
 
         # Generate workflow definition.json
@@ -565,9 +541,7 @@ class AWS(System):
         output.provider_times.execution = int(float(aws_vals["Duration"]) * 1000)
         output.stats.memory_used = float(aws_vals["Max Memory Used"])
         if "Init Duration" in aws_vals:
-            output.provider_times.initialization = int(
-                float(aws_vals["Init Duration"]) * 1000
-            )
+            output.provider_times.initialization = int(float(aws_vals["Init Duration"]) * 1000)
         output.billing.billed_time = int(aws_vals["Billed Duration"])
         output.billing.memory = int(aws_vals["Memory Size"])
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory

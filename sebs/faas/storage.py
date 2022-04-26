@@ -168,9 +168,7 @@ class PersistentStorage(ABC, LoggingBase):
     def allocate_buckets(self, benchmark: str, requested_buckets: Tuple[int, int]):
 
         # Load cached information
-        cached_buckets = self.cache_client.get_storage_config(
-            self.deployment_name(), benchmark
-        )
+        cached_buckets = self.cache_client.get_storage_config(self.deployment_name(), benchmark)
         if cached_buckets:
             self.input_buckets = cached_buckets["buckets"]["input"]
             for bucket in self.input_buckets:
@@ -179,27 +177,19 @@ class PersistentStorage(ABC, LoggingBase):
             # for bucket in self.output_buckets:
             #    self.clean_bucket(bucket)
             self.cached = True
-            self.logging.info(
-                "Using cached storage input buckets {}".format(self.input_buckets)
-            )
-            self.logging.info(
-                "Using cached storage output buckets {}".format(self.output_buckets)
-            )
+            self.logging.info("Using cached storage input buckets {}".format(self.input_buckets))
+            self.logging.info("Using cached storage output buckets {}".format(self.output_buckets))
             return
 
         buckets = self.list_buckets(self.correct_name(benchmark))
         for i in range(0, requested_buckets[0]):
             self.input_buckets.append(
-                self._create_bucket(
-                    self.correct_name("{}-{}-input".format(benchmark, i)), buckets
-                )
+                self._create_bucket(self.correct_name("{}-{}-input".format(benchmark, i)), buckets)
             )
             self.input_buckets_files.append(self.list_bucket(self.input_buckets[-1]))
         for i in range(0, requested_buckets[1]):
             self.output_buckets.append(
-                self._create_bucket(
-                    self.correct_name("{}-{}-output".format(benchmark, i)), buckets
-                )
+                self._create_bucket(self.correct_name("{}-{}-output".format(benchmark, i)), buckets)
             )
         self.save_storage(benchmark)
 

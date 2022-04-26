@@ -60,9 +60,7 @@ class Cache(LoggingBase):
     def load_config(self):
         with self._lock:
             for cloud in ["azure", "aws", "gcp"]:
-                cloud_config_file = os.path.join(
-                    self.cache_dir, "{}.json".format(cloud)
-                )
+                cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
                 if os.path.exists(cloud_config_file):
                     self.cached_config[cloud] = json.load(open(cloud_config_file, "r"))
 
@@ -90,12 +88,8 @@ class Cache(LoggingBase):
         if self.config_updated:
             for cloud in ["azure", "aws", "gcp"]:
                 if cloud in self.cached_config:
-                    cloud_config_file = os.path.join(
-                        self.cache_dir, "{}.json".format(cloud)
-                    )
-                    self.logging.info(
-                        "Update cached config {}".format(cloud_config_file)
-                    )
+                    cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
+                    self.logging.info("Update cached config {}".format(cloud_config_file))
                     with open(cloud_config_file, "w") as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 
@@ -155,11 +149,7 @@ class Cache(LoggingBase):
 
     def get_storage_config(self, deployment: str, benchmark: str):
         cfg = self.get_benchmark_config(deployment, benchmark)
-        return (
-            cfg["storage"]
-            if cfg and "storage" in cfg and not self.ignore_storage
-            else None
-        )
+        return cfg["storage"] if cfg and "storage" in cfg and not self.ignore_storage else None
 
     def update_storage(self, deployment: str, benchmark: str, config: dict):
         if self.ignore_storage:
@@ -254,12 +244,8 @@ class Cache(LoggingBase):
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                     config = json.load(fp)
                     date = str(datetime.datetime.now())
-                    config[deployment_name][language]["code_package"]["date"][
-                        "modified"
-                    ] = date
-                    config[deployment_name][language]["code_package"][
-                        "hash"
-                    ] = code_package.hash
+                    config[deployment_name][language]["code_package"]["date"]["modified"] = date
+                    config[deployment_name][language]["code_package"]["hash"] = code_package.hash
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
             else:
@@ -291,16 +277,12 @@ class Cache(LoggingBase):
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
-                benchmarks_config: Dict[str, Any] = {
-                    benchmark.name: {**benchmark.serialize()}
-                }
+                benchmarks_config: Dict[str, Any] = {benchmark.name: {**benchmark.serialize()}}
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
                     if "benchmarks" not in cached_config[deployment_name][language]:
-                        cached_config[deployment_name][language][
-                            "benchmarks"
-                        ] = benchmarks_config
+                        cached_config[deployment_name][language]["benchmarks"] = benchmarks_config
                     else:
                         cached_config[deployment_name][language]["benchmarks"].update(
                             benchmarks_config

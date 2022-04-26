@@ -131,15 +131,11 @@ class ExecutionResult:
         self.billing = ExecutionBilling()
 
     @staticmethod
-    def from_times(
-        client_time_begin: datetime, client_time_end: datetime
-    ) -> "ExecutionResult":
+    def from_times(client_time_begin: datetime, client_time_end: datetime) -> "ExecutionResult":
         ret = ExecutionResult()
         ret.times.client_begin = client_time_begin
         ret.times.client_end = client_time_end
-        ret.times.client = int(
-            (client_time_end - client_time_begin) / timedelta(microseconds=1)
-        )
+        ret.times.client = int((client_time_end - client_time_begin) / timedelta(microseconds=1))
         return ret
 
     def parse_benchmark_output(self, output: dict):
@@ -216,9 +212,7 @@ class Trigger(ABC, LoggingBase):
 
             if status_code != 200:
                 self.logging.error(
-                    "Invocation on URL {} failed with status code {}!".format(
-                        url, status_code
-                    )
+                    "Invocation on URL {} failed with status code {}!".format(url, status_code)
                 )
                 self.logging.error("Output: {}".format(output))
                 raise RuntimeError(f"Failed invocation of function! Output: {output}")
@@ -233,14 +227,10 @@ class Trigger(ABC, LoggingBase):
             return result
         except json.decoder.JSONDecodeError:
             self.logging.error(
-                "Invocation on URL {} failed with status code {}!".format(
-                    url, status_code
-                )
+                "Invocation on URL {} failed with status code {}!".format(url, status_code)
             )
             self.logging.error("Output: {}".format(data.getvalue().decode()))
-            raise RuntimeError(
-                f"Failed invocation of function! Output: {data.getvalue().decode()}"
-            )
+            raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
 
     # FIXME: 3.7+, future annotations
     @staticmethod
@@ -307,11 +297,7 @@ class Benchmark(LoggingBase):
         self._updated_code = val
 
     def triggers_all(self) -> List[Trigger]:
-        return [
-            trig
-            for trigger_type, triggers in self._triggers.items()
-            for trig in triggers
-        ]
+        return [trig for trigger_type, triggers in self._triggers.items() for trig in triggers]
 
     def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
         try:
@@ -331,9 +317,7 @@ class Benchmark(LoggingBase):
             "hash": self._code_package_hash,
             "code_package": self._code_package,
             "triggers": [
-                obj.serialize()
-                for t_type, triggers in self._triggers.items()
-                for obj in triggers
+                obj.serialize() for t_type, triggers in self._triggers.items() for obj in triggers
             ],
         }
 

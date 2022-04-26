@@ -103,9 +103,7 @@ class GCP(System):
         buckets=None,
     ) -> PersistentStorage:
         if not self.storage:
-            self.storage = GCPStorage(
-                self.config.region, self.cache_client, replace_existing
-            )
+            self.storage = GCPStorage(self.config.region, self.cache_client, replace_existing)
             self.storage.logging_handlers = self.logging_handlers
         else:
             self.storage.replace_existing = replace_existing
@@ -169,9 +167,7 @@ class GCP(System):
         new_path = os.path.join(directory, new_name)
         shutil.move(old_path, new_path)
 
-        replace_string_in_file(
-            new_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"'
-        )
+        replace_string_in_file(new_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
 
         """
             zip the whole directroy (the zip-file gets uploaded to gcp later)
@@ -197,9 +193,7 @@ class GCP(System):
 
         return os.path.join(directory, "{}.zip".format(code_package.name)), bytes_size
 
-    def create_function(
-        self, code_package: CodePackage, func_name: str
-    ) -> "GCPFunction":
+    def create_function(self, code_package: CodePackage, func_name: str) -> "GCPFunction":
 
         package = code_package.code_location
         benchmark = code_package.name
@@ -214,17 +208,10 @@ class GCP(System):
         code_package_name = cast(str, os.path.basename(package))
         code_bucket, idx = storage_client.add_input_bucket(benchmark)
         storage_client.upload(code_bucket, package, code_package_name)
-        self.logging.info(
-            "Uploading function {} code to {}".format(func_name, code_bucket)
-        )
+        self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
-        get_req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .get(name=full_func_name)
-        )
+        get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
         try:
             get_req.execute()
         except HttpError:
@@ -237,16 +224,12 @@ class GCP(System):
                     body={
                         "name": full_func_name,
                         "entryPoint": "handler",
-                        "runtime": code_package.language_name
-                        + language_runtime.replace(".", ""),
+                        "runtime": code_package.language_name + language_runtime.replace(".", ""),
                         "availableMemoryMb": memory,
                         "timeout": str(timeout) + "s",
                         "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
-                        "sourceArchiveUrl": "gs://"
-                        + code_bucket
-                        + "/"
-                        + code_package_name,
+                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_package_name,
                     },
                 )
             )
@@ -271,18 +254,14 @@ class GCP(System):
                 )
             )
             allow_unauthenticated_req.execute()
-            self.logging.info(
-                f"Function {func_name} accepts now unauthenticated invocations!"
-            )
+            self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
                 func_name, benchmark, code_package.hash, timeout, memory, code_bucket
             )
         else:
             # if result is not empty, then function does exists
-            self.logging.info(
-                "Function {} exists on GCP, update the instance.".format(func_name)
-            )
+            self.logging.info("Function {} exists on GCP, update the instance.".format(func_name))
 
             function = GCPFunction(
                 name=func_name,
@@ -312,15 +291,10 @@ class GCP(System):
 
             location = self.config.region
             project_name = self.config.project_name
-            full_func_name = GCP.get_full_function_name(
-                project_name, location, function.name
-            )
+            full_func_name = GCP.get_full_function_name(project_name, location, function.name)
             self.logging.info(f"Function {function.name} - waiting for deployment...")
             our_function_req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .get(name=full_func_name)
+                self.function_client.projects().locations().functions().get(name=full_func_name)
             )
 
             deployed = False
@@ -374,8 +348,7 @@ class GCP(System):
                 body={
                     "name": full_func_name,
                     "entryPoint": "handler",
-                    "runtime": code_package.language_name
-                    + language_runtime.replace(".", ""),
+                    "runtime": code_package.language_name + language_runtime.replace(".", ""),
                     "availableMemoryMb": function.memory,
                     "timeout": str(function.timeout) + "s",
                     "httpsTrigger": {},
@@ -396,9 +369,7 @@ class GCP(System):
     def get_full_function_name(project_name: str, location: str, func_name: str):
         return f"projects/{project_name}/locations/{location}/functions/{func_name}"
 
-    def create_workflow(
-        self, code_package: CodePackage, workflow_name: str
-    ) -> "GCPWorkflow":
+    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> "GCPWorkflow":
         benchmark = code_package.name
         timeout = code_package.config.timeout
         memory = code_package.config.memory
@@ -418,9 +389,7 @@ class GCP(System):
         funcs = [self.create_function(code_package, prefix + fn) for fn in func_names]
 
         # generate workflow definition.json
-        urls = [
-            self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs
-        ]
+        urls = [self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs]
         func_triggers = {n: u for (n, u) in zip(func_names, urls)}
 
         gen = GCPGenerator(workflow_name, func_triggers)
@@ -430,9 +399,7 @@ class GCP(System):
         # map functions require their own workflows
         parent = GCP.get_location(project_name, location)
         for map_id, map_def in gen.generate_maps():
-            full_workflow_name = GCP.get_full_workflow_name(
-                project_name, location, map_id
-            )
+            full_workflow_name = GCP.get_full_workflow_name(project_name, location, map_id)
             create_req = (
                 self.workflow_client.projects()
                 .locations()
@@ -449,14 +416,9 @@ class GCP(System):
             create_req.execute()
             self.logging.info(f"Map workflow {map_id} has been created!")
 
-        full_workflow_name = GCP.get_full_workflow_name(
-            project_name, location, workflow_name
-        )
+        full_workflow_name = GCP.get_full_workflow_name(project_name, location, workflow_name)
         get_req = (
-            self.workflow_client.projects()
-            .locations()
-            .workflows()
-            .get(name=full_workflow_name)
+            self.workflow_client.projects().locations().workflows().get(name=full_workflow_name)
         )
 
         try:
@@ -543,9 +505,7 @@ class GCP(System):
         funcs = [self.create_function(code_package, prefix + fn) for fn in func_names]
 
         # Generate workflow definition.json
-        urls = [
-            self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs
-        ]
+        urls = [self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs]
         func_triggers = {n: u for (n, u) in zip(func_names, urls)}
         gen = GCPGenerator(workflow.name, func_triggers)
         gen.parse(definition_path)
@@ -628,9 +588,7 @@ class GCP(System):
         from google.cloud import logging as gcp_logging
 
         logging_client = gcp_logging.Client()
-        logger = logging_client.logger(
-            "cloudfunctions.googleapis.com%2Fcloud-functions"
-        )
+        logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")
 
         """
             GCP accepts only single date format: 'YYYY-MM-DDTHH:MM:SSZ'.
@@ -672,9 +630,7 @@ class GCP(System):
                     assert regex_result
                     exec_time = regex_result.group().split()[0]
                     # convert into microseconds
-                    requests[execution_id].provider_times.execution = (
-                        int(exec_time) * 1000
-                    )
+                    requests[execution_id].provider_times.execution = int(exec_time) * 1000
                     invocations_processed += 1
         self.logging.info(
             f"GCP: Received {entries} entries, found time metrics for {invocations_processed} "
@@ -709,9 +665,7 @@ class GCP(System):
 
             list_request = monitoring_v3.ListTimeSeriesRequest(
                 name=project_name,
-                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(
-                    metric
-                ),
+                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric),
                 interval=interval,
             )
 
@@ -739,9 +693,7 @@ class GCP(System):
             .patch(
                 name=name,
                 updateMask="environmentVariables",
-                body={
-                    "environmentVariables": {"cold_start": str(self.cold_start_counter)}
-                },
+                body={"environmentVariables": {"cold_start": str(self.cold_start_counter)}},
             )
         )
         res = req.execute()
@@ -793,9 +745,7 @@ class GCP(System):
                 if not self.is_deployed(func.name):
                     undeployed_functions.append(func)
             deployed = len(undeployed_functions_before) - len(undeployed_functions)
-            self.logging.info(
-                f"Deployed {deployed} out of {len(undeployed_functions_before)}"
-            )
+            self.logging.info(f"Deployed {deployed} out of {len(undeployed_functions_before)}")
             if deployed == len(undeployed_functions_before):
                 deployment_done = True
                 break
@@ -807,9 +757,7 @@ class GCP(System):
         return functions
 
     def is_deployed(self, func_name: str, versionId: int = -1) -> bool:
-        name = GCP.get_full_function_name(
-            self.config.project_name, self.config.region, func_name
-        )
+        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
         function_client = self.get_function_client()
         status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()
@@ -819,9 +767,7 @@ class GCP(System):
             return status_res["versionId"] == versionId
 
     def deployment_version(self, func: Function) -> int:
-        name = GCP.get_full_function_name(
-            self.config.project_name, self.config.region, func.name
-        )
+        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func.name)
         function_client = self.get_function_client()
         status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()

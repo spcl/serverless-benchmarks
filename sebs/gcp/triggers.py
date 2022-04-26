@@ -61,8 +61,7 @@ class FunctionLibraryTrigger(LibraryTrigger):
         # GCP's fixed style for a function name
         config = self.deployment_client.config
         full_func_name = (
-            f"projects/{config.project_name}/locations/"
-            f"{config.region}/functions/{self.name}"
+            f"projects/{config.project_name}/locations/" f"{config.region}/functions/{self.name}"
         )
         function_client = self.deployment_client.get_function_client()
         req = (
@@ -111,9 +110,7 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         execution = Execution(argument=json.dumps(payload))
 
         begin = datetime.datetime.now()
-        res = execution_client.create_execution(
-            parent=full_workflow_name, execution=execution
-        )
+        res = execution_client.create_execution(parent=full_workflow_name, execution=execution)
         end = datetime.datetime.now()
 
         gcp_result = ExecutionResult.from_times(begin, end)

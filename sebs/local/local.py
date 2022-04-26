@@ -142,9 +142,7 @@ class Local(System):
 
         return directory, bytes_size
 
-    def create_function(
-        self, code_package: CodePackage, func_name: str
-    ) -> "LocalFunction":
+    def create_function(self, code_package: CodePackage, func_name: str) -> "LocalFunction":
 
         home_dir = os.path.join(
             "/home",
@@ -211,9 +209,7 @@ class Local(System):
         There's only one trigger - HTTP.
     """
 
-    def create_trigger(
-        self, func: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.local.function import HTTPTrigger
 
         function = cast(LocalFunction, func)

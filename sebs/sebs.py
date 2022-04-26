@@ -35,9 +35,7 @@ class SeBS(LoggingBase):
     def logging_filename(self) -> Optional[str]:
         return self._logging_filename
 
-    def generate_logging_handlers(
-        self, logging_filename: Optional[str] = None
-    ) -> LoggingHandlers:
+    def generate_logging_handlers(self, logging_filename: Optional[str] = None) -> LoggingHandlers:
         filename = logging_filename if logging_filename else self.logging_filename
         if filename in self._handlers:
             return self._handlers[filename]
@@ -139,9 +137,7 @@ class SeBS(LoggingBase):
         }
         if experiment_type not in implementations:
             raise RuntimeError(f"Experiment {experiment_type} not supported!")
-        experiment = implementations[experiment_type](
-            self.get_experiment_config(config)
-        )
+        experiment = implementations[experiment_type](self.get_experiment_config(config))
         experiment.logging_handlers = self.generate_logging_handlers(
             logging_filename=logging_filename
         )

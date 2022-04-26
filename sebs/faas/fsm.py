@@ -77,9 +77,7 @@ class Generator(ABC):
         with open(path) as f:
             definition = json.load(f)
 
-        self.states = {
-            n: State.deserialize(n, s) for n, s in definition["states"].items()
-        }
+        self.states = {n: State.deserialize(n, s) for n, s in definition["states"].items()}
         self.root = self.states[definition["root"]]
 
     def generate(self) -> str:

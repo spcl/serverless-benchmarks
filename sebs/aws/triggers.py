@@ -50,9 +50,7 @@ class FunctionLibraryTrigger(LibraryTrigger):
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
         begin = datetime.datetime.now()
-        ret = client.invoke(
-            FunctionName=self.name, Payload=serialized_payload, LogType="Tail"
-        )
+        ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
         end = datetime.datetime.now()
 
         aws_result = ExecutionResult.from_times(begin, end)
@@ -106,9 +104,7 @@ class WorkflowLibraryTrigger(LibraryTrigger):
 
         client = self.deployment_client.get_sfn_client()
         begin = datetime.datetime.now()
-        ret = client.start_execution(
-            stateMachineArn=self.name, input=json.dumps(payload)
-        )
+        ret = client.start_execution(stateMachineArn=self.name, input=json.dumps(payload))
         end = datetime.datetime.now()
 
         aws_result = ExecutionResult.from_times(begin, end)

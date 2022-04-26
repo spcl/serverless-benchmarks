@@ -8,9 +8,7 @@ class LocalCredentials(Credentials):
         return {}
 
     @staticmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> Credentials:
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
         return LocalCredentials()
 
 

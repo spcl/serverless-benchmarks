@@ -16,9 +16,7 @@ class BlobStorage(PersistentStorage):
     def deployment_name():
         return "azure"
 
-    def __init__(
-        self, region: str, cache_client: Cache, conn_string: str, replace_existing: bool
-    ):
+    def __init__(self, region: str, cache_client: Cache, conn_string: str, replace_existing: bool):
         super().__init__(region, cache_client, replace_existing)
         self.client = BlobServiceClient.from_connection_string(conn_string)
 
@@ -29,9 +27,7 @@ class BlobStorage(PersistentStorage):
     def _create_bucket(self, name: str, containers: List[str] = []) -> str:
         for c in containers:
             if name in c:
-                self.logging.info(
-                    "Container {} for {} already exists, skipping.".format(c, name)
-                )
+                self.logging.info("Container {} for {} already exists, skipping.".format(c, name))
                 return c
         random_name = str(uuid.uuid4())[0:16]
         name = "{}-{}".format(name, random_name)
