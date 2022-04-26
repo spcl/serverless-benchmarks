@@ -290,7 +290,7 @@ class Cache(LoggingBase):
                     json.dump(config, fp, indent=2)
             else:
                 raise RuntimeError(
-                    "Can't cache benchmark {} for a non-existing code package!".format(function.name)
+                    "Can't cache benchmark {} for a non-existing code package!".format(benchmark.name)
                 )
 
     def update_benchmark(self, benchmark: "Benchmark"):

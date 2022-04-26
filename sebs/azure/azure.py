@@ -145,7 +145,7 @@ class Azure(System):
                 code_package.path, "definition.json")
             if not os.path.exists(src_path):
                 raise ValueError(
-                    f"No workflow definition found for {workflow_name}")
+                    f"No workflow definition found in {directory}")
 
             dst_path = os.path.join(directory, "definition.json")
             shutil.copy2(src_path, dst_path)
@@ -294,7 +294,7 @@ class Azure(System):
         trigger = HTTPTrigger(
             url, self.config.resources.data_storage_account(self.cli_instance))
         trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(trigger)
+        benchmark.add_trigger(trigger)
 
     def _mount_function_code(self, code_package: CodePackage):
         self.cli_instance.upload_package(

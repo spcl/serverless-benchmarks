@@ -1,10 +1,10 @@
 from typing import Dict, List, Union
 import numbers
 
-from sebs.faas.fsm import State, Task, Switch, Map
+from sebs.faas.fsm import Generator, State, Task, Switch, Map
+
 
 class SFNGenerator(Generator):
-
 
     def __init__(self, func_arns: Dict[str, str]):
         super().__init__()
