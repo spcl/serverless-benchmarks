@@ -48,7 +48,9 @@ class GCPStorage(PersistentStorage):
             logging.info("Created bucket {}".format(bucket_name))
             return bucket_name
         else:
-            logging.info("Bucket {} for {} already exists, skipping.".format(bucket_name, name))
+            logging.info(
+                "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
+            )
             return bucket_name
 
     def download(self, bucket_name: str, key: str, filepath: str) -> None:
@@ -61,7 +63,9 @@ class GCPStorage(PersistentStorage):
         logging.info("Upload {} to {}".format(filepath, bucket_name))
         bucket_instance = self.client.bucket(bucket_name)
         blob = bucket_instance.blob(key, chunk_size=4 * 1024 * 1024)
-        gcp_storage.blob._MAX_MULTIPART_SIZE = 5 * 1024 * 1024  # workaround for connection timeout
+        gcp_storage.blob._MAX_MULTIPART_SIZE = (
+            5 * 1024 * 1024
+        )  # workaround for connection timeout
         blob.upload_from_filename(filepath)
 
     def list_bucket(self, bucket_name: str) -> List[str]:
@@ -96,7 +100,9 @@ class GCPStorage(PersistentStorage):
         if not self.replace_existing:
             for blob in self.input_buckets_files[bucket_idx]:
                 if key == blob:
-                    logging.info("Skipping upload of {} to {}".format(filepath, bucket_name))
+                    logging.info(
+                        "Skipping upload of {} to {}".format(filepath, bucket_name)
+                    )
                     return
         bucket_name = self.input_buckets[bucket_idx]
         self.upload(bucket_name, filepath, key)

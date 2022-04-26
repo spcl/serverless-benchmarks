@@ -35,8 +35,10 @@ class FunctionApp(Function):
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret
 
+
 class AzureFunction(FunctionApp):
     pass
+
 
 class AzureWorkflow(FunctionApp):
     pass

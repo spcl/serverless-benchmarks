@@ -50,22 +50,21 @@ class FunctionLibraryTrigger(LibraryTrigger):
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
         begin = datetime.datetime.now()
-        ret = client.invoke(FunctionName=self.name,
-                            Payload=serialized_payload, LogType="Tail")
+        ret = client.invoke(
+            FunctionName=self.name, Payload=serialized_payload, LogType="Tail"
+        )
         end = datetime.datetime.now()
 
         aws_result = ExecutionResult.from_times(begin, end)
         aws_result.request_id = ret["ResponseMetadata"]["RequestId"]
         if ret["StatusCode"] != 200:
             self.logging.error("Invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(
-                serialized_payload.decode("utf-8")))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             aws_result.stats.failure = True
             return aws_result
         if "FunctionError" in ret:
             self.logging.error("Invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(
-                serialized_payload.decode("utf-8")))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             aws_result.stats.failure = True
             return aws_result
         self.logging.debug(f"Invoke of function {self.name} was successful")
@@ -79,8 +78,7 @@ class FunctionLibraryTrigger(LibraryTrigger):
         if isinstance(function_output["body"], dict):
             aws_result.parse_benchmark_output(function_output["body"])
         else:
-            aws_result.parse_benchmark_output(
-                json.loads(function_output["body"]))
+            aws_result.parse_benchmark_output(json.loads(function_output["body"]))
         return aws_result
 
     def async_invoke(self, payload: dict):
@@ -95,10 +93,8 @@ class FunctionLibraryTrigger(LibraryTrigger):
             LogType="Tail",
         )
         if ret["StatusCode"] != 202:
-            self.logging.error(
-                "Async invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(
-                serialized_payload.decode("utf-8")))
+            self.logging.error("Async invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             raise RuntimeError()
         return ret
 
@@ -111,7 +107,8 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         client = self.deployment_client.get_sfn_client()
         begin = datetime.datetime.now()
         ret = client.start_execution(
-            stateMachineArn=self.name, input=json.dumps(payload))
+            stateMachineArn=self.name, input=json.dumps(payload)
+        )
         end = datetime.datetime.now()
 
         aws_result = ExecutionResult.from_times(begin, end)
@@ -121,7 +118,7 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         # Wait for execution to finish, then print results.
         execution_finished = False
         backoff_delay = 1  # Start wait with delay of 1 second
-        while (not execution_finished):
+        while not execution_finished:
             execution = client.describe_execution(executionArn=execution_arn)
             status = execution["status"]
             execution_finished = status != "RUNNING"
@@ -141,7 +138,7 @@ class WorkflowLibraryTrigger(LibraryTrigger):
 
     def async_invoke(self, payload: dict):
 
-        raise NotImplementedError('Async invocation is not implemented')
+        raise NotImplementedError("Async invocation is not implemented")
 
 
 class HTTPTrigger(Trigger):

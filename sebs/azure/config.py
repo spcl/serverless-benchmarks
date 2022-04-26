@@ -40,7 +40,9 @@ class AzureCredentials(Credentials):
         return AzureCredentials(dct["appId"], dct["tenant"], dct["password"])
 
     @staticmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
+    def deserialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> Credentials:
 
         # FIXME: update return types of both functions to avoid cast
         # needs 3.7+  to support annotations
@@ -94,12 +96,18 @@ class AzureResources(Resources):
 
         # FIXME: 3.7+ migration with future annotations
         @staticmethod
-        def from_cache(account_name: str, connection_string: str) -> "AzureResources.Storage":
-            assert connection_string, "Empty connection string for account {}".format(account_name)
+        def from_cache(
+            account_name: str, connection_string: str
+        ) -> "AzureResources.Storage":
+            assert connection_string, "Empty connection string for account {}".format(
+                account_name
+            )
             return AzureResources.Storage(account_name, connection_string)
 
         @staticmethod
-        def from_allocation(account_name: str, cli_instance: AzureCLI) -> "AzureResources.Storage":
+        def from_allocation(
+            account_name: str, cli_instance: AzureCLI
+        ) -> "AzureResources.Storage":
             connection_string = AzureResources.Storage.query_connection_string(
                 account_name, cli_instance
             )
@@ -113,7 +121,9 @@ class AzureResources(Resources):
         @staticmethod
         def query_connection_string(account_name: str, cli_instance: AzureCLI) -> str:
             ret = cli_instance.execute(
-                "az storage account show-connection-string --name {}".format(account_name)
+                "az storage account show-connection-string --name {}".format(
+                    account_name
+                )
             )
             ret = json.loads(ret.decode("utf-8"))
             connection_string = ret["connectionString"]
@@ -124,7 +134,9 @@ class AzureResources(Resources):
 
         @staticmethod
         def deserialize(obj: dict) -> "AzureResources.Storage":
-            return AzureResources.Storage.from_cache(obj["account_name"], obj["connection_string"])
+            return AzureResources.Storage.from_cache(
+                obj["account_name"], obj["connection_string"]
+            )
 
     # FIXME: 3.7 Python, future annotations
     def __init__(
@@ -195,12 +207,16 @@ class AzureResources(Resources):
         does NOT add the account to any resource collection.
     """
 
-    def _create_storage_account(self, cli_instance: AzureCLI) -> "AzureResources.Storage":
+    def _create_storage_account(
+        self, cli_instance: AzureCLI
+    ) -> "AzureResources.Storage":
         sku = "Standard_LRS"
         # Create account. Only alphanumeric characters are allowed
         uuid_name = str(uuid.uuid1())[0:8]
         account_name = "sebsstorage{}".format(uuid_name)
-        self.logging.info("Starting allocation of storage account {}.".format(account_name))
+        self.logging.info(
+            "Starting allocation of storage account {}.".format(account_name)
+        )
         cli_instance.execute(
             (
                 "az storage account create --name {0} --location {1} "
@@ -233,7 +249,9 @@ class AzureResources(Resources):
             storage_accounts=[
                 AzureResources.Storage.deserialize(x) for x in dct["storage_accounts"]
             ],
-            data_storage_account=AzureResources.Storage.deserialize(dct["data_storage_account"]),
+            data_storage_account=AzureResources.Storage.deserialize(
+                dct["data_storage_account"]
+            ),
         )
 
     def serialize(self) -> dict:
@@ -252,15 +270,25 @@ class AzureResources(Resources):
         cached_config = cache.get_config("azure")
         ret: AzureResources
         # Load cached values
-        if cached_config and "resources" in cached_config and len(cached_config["resources"]) > 0:
+        if (
+            cached_config
+            and "resources" in cached_config
+            and len(cached_config["resources"]) > 0
+        ):
             logging.info("Using cached resources for Azure")
-            ret = cast(AzureResources, AzureResources.initialize(cached_config["resources"]))
+            ret = cast(
+                AzureResources, AzureResources.initialize(cached_config["resources"])
+            )
         else:
             # Check for new config
             if "resources" in config:
-                ret = cast(AzureResources, AzureResources.initialize(config["resources"]))
+                ret = cast(
+                    AzureResources, AzureResources.initialize(config["resources"])
+                )
                 ret.logging_handlers = handlers
-                ret.logging.info("No cached resources for Azure found, using user configuration.")
+                ret.logging.info(
+                    "No cached resources for Azure found, using user configuration."
+                )
             else:
                 ret = AzureResources()
                 ret.logging_handlers = handlers
@@ -311,8 +339,12 @@ class AzureConfig(Config):
 
         cached_config = cache.get_config("azure")
         # FIXME: use future annotations (see sebs/faas/system)
-        credentials = cast(AzureCredentials, AzureCredentials.deserialize(config, cache, handlers))
-        resources = cast(AzureResources, AzureResources.deserialize(config, cache, handlers))
+        credentials = cast(
+            AzureCredentials, AzureCredentials.deserialize(config, cache, handlers)
+        )
+        resources = cast(
+            AzureResources, AzureResources.deserialize(config, cache, handlers)
+        )
         config_obj = AzureConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         # Load cached values
@@ -346,6 +378,6 @@ class AzureConfig(Config):
             "resources_id": self.resources_id,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
-            "redis_host": self._redis_host
+            "redis_host": self._redis_host,
         }
         return out

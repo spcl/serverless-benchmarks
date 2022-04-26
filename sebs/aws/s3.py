@@ -49,7 +49,9 @@ class S3(PersistentStorage):
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
-                    "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
+                    "Bucket {} for {} already exists, skipping.".format(
+                        bucket_name, name
+                    )
                 )
                 return bucket_name
         random_name = str(uuid.uuid4())[0:16]
@@ -66,7 +68,9 @@ class S3(PersistentStorage):
                 self.client.create_bucket(Bucket=bucket_name)
             self.logging.info("Created bucket {}".format(bucket_name))
         except self.client.exceptions.BucketAlreadyExists as e:
-            self.logging.error(f"The bucket {bucket_name} exists already in region {self.region}!")
+            self.logging.error(
+                f"The bucket {bucket_name} exists already in region {self.region}!"
+            )
             raise e
         except self.client.exceptions.ClientError as e:
             self.logging.error(
@@ -114,7 +118,9 @@ class S3(PersistentStorage):
 
     def list_buckets(self, bucket_name: str) -> List[str]:
         s3_buckets = self.client.list_buckets()["Buckets"]
-        return [bucket["Name"] for bucket in s3_buckets if bucket_name in bucket["Name"]]
+        return [
+            bucket["Name"] for bucket in s3_buckets if bucket_name in bucket["Name"]
+        ]
 
     def clean_bucket(self, bucket: str):
         objects = self.client.list_objects_v2(Bucket=bucket)

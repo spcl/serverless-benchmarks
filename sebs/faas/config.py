@@ -29,7 +29,9 @@ class Credentials(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Credentials":
+    def deserialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> "Credentials":
         pass
 
     """
@@ -60,7 +62,9 @@ class Resources(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
+    def deserialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> "Resources":
         pass
 
     """

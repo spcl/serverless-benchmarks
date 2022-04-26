@@ -119,7 +119,9 @@ class Local(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, code_package: CodePackage, directory: str, is_workflow: bool) -> Tuple[str, int]:
+    def package_code(
+        self, code_package: CodePackage, directory: str, is_workflow: bool
+    ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -140,10 +142,13 @@ class Local(System):
 
         return directory, bytes_size
 
-    def create_function(self, code_package: CodePackage, func_name: str) -> "LocalFunction":
+    def create_function(
+        self, code_package: CodePackage, func_name: str
+    ) -> "LocalFunction":
 
         home_dir = os.path.join(
-            "/home", self._system_config.username(self.name(), code_package.language_name)
+            "/home",
+            self._system_config.username(self.name(), code_package.language_name),
         )
         container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),
@@ -161,7 +166,10 @@ class Local(System):
             image=container_name,
             command=f"python3 server.py {self.DEFAULT_PORT}",
             volumes={
-                code_package.code_location: {"bind": os.path.join(home_dir, "code"), "mode": "ro"}
+                code_package.code_location: {
+                    "bind": os.path.join(home_dir, "code"),
+                    "mode": "ro",
+                }
             },
             environment=environment,
             # FIXME: make CPUs configurable
@@ -180,7 +188,11 @@ class Local(System):
             # tty=True,
         )
         func = LocalFunction(
-            container, self.DEFAULT_PORT, func_name, code_package.name, code_package.hash
+            container,
+            self.DEFAULT_PORT,
+            func_name,
+            code_package.name,
+            code_package.hash,
         )
         self.logging.info(
             f"Started {func_name} function at container {container.id} , running on {func._url}"
@@ -199,7 +211,9 @@ class Local(System):
         There's only one trigger - HTTP.
     """
 
-    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(
+        self, func: Function, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
         from sebs.local.function import HTTPTrigger
 
         function = cast(LocalFunction, func)

@@ -131,12 +131,15 @@ class ExecutionResult:
         self.billing = ExecutionBilling()
 
     @staticmethod
-    def from_times(client_time_begin: datetime, client_time_end: datetime) -> "ExecutionResult":
+    def from_times(
+        client_time_begin: datetime, client_time_end: datetime
+    ) -> "ExecutionResult":
         ret = ExecutionResult()
         ret.times.client_begin = client_time_begin
         ret.times.client_end = client_time_end
         ret.times.client = int(
-            (client_time_end - client_time_begin) / timedelta(microseconds=1))
+            (client_time_end - client_time_begin) / timedelta(microseconds=1)
+        )
         return ret
 
     def parse_benchmark_output(self, output: dict):
@@ -153,8 +156,7 @@ class ExecutionResult:
     def parse_benchmark_execution(self, execution: Execution):
         self.output = json.loads(execution.result)
         self.times.benchmark = int(
-            (execution.start_time - execution.end_time)
-            / timedelta(microseconds=1)
+            (execution.start_time - execution.end_time) / timedelta(microseconds=1)
         )
 
     @staticmethod
@@ -162,8 +164,7 @@ class ExecutionResult:
         ret = ExecutionResult()
         ret.times = ExecutionTimes.deserialize(cached_config["times"])
         ret.billing = ExecutionBilling.deserialize(cached_config["billing"])
-        ret.provider_times = ProviderTimes.deserialize(
-            cached_config["provider_times"])
+        ret.provider_times = ProviderTimes.deserialize(cached_config["provider_times"])
         ret.stats = ExecutionStats.deserialize(cached_config["stats"])
         ret.request_id = cached_config["request_id"]
         ret.output = cached_config["output"]
@@ -215,10 +216,12 @@ class Trigger(ABC, LoggingBase):
 
             if status_code != 200:
                 self.logging.error(
-                    "Invocation on URL {} failed with status code {}!".format(url, status_code))
+                    "Invocation on URL {} failed with status code {}!".format(
+                        url, status_code
+                    )
+                )
                 self.logging.error("Output: {}".format(output))
-                raise RuntimeError(
-                    f"Failed invocation of function! Output: {output}")
+                raise RuntimeError(f"Failed invocation of function! Output: {output}")
 
             self.logging.debug("Invoke of function was successful")
             result = ExecutionResult.from_times(begin, end)
@@ -230,10 +233,14 @@ class Trigger(ABC, LoggingBase):
             return result
         except json.decoder.JSONDecodeError:
             self.logging.error(
-                "Invocation on URL {} failed with status code {}!".format(url, status_code))
+                "Invocation on URL {} failed with status code {}!".format(
+                    url, status_code
+                )
+            )
             self.logging.error("Output: {}".format(data.getvalue().decode()))
             raise RuntimeError(
-                f"Failed invocation of function! Output: {data.getvalue().decode()}")
+                f"Failed invocation of function! Output: {data.getvalue().decode()}"
+            )
 
     # FIXME: 3.7+, future annotations
     @staticmethod
@@ -300,7 +307,11 @@ class Benchmark(LoggingBase):
         self._updated_code = val
 
     def triggers_all(self) -> List[Trigger]:
-        return [trig for trigger_type, triggers in self._triggers.items() for trig in triggers]
+        return [
+            trig
+            for trigger_type, triggers in self._triggers.items()
+            for trig in triggers
+        ]
 
     def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
         try:
@@ -320,7 +331,9 @@ class Benchmark(LoggingBase):
             "hash": self._code_package_hash,
             "code_package": self._code_package,
             "triggers": [
-                obj.serialize() for t_type, triggers in self._triggers.items() for obj in triggers
+                obj.serialize()
+                for t_type, triggers in self._triggers.items()
+                for obj in triggers
             ],
         }
 
@@ -332,6 +345,7 @@ class Benchmark(LoggingBase):
 
 class Function(Benchmark):
     pass
+
 
 class Workflow(Benchmark):
     pass

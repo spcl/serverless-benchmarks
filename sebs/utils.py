@@ -98,20 +98,21 @@ def replace_string_in_file(path: str, from_str: str, to_str: str):
 
 
 def connect_to_redis_cache(host: str):
-    redis = Redis(host=host,
-                  port=6379,
-                  decode_responses=True,
-                  socket_connect_timeout=10)
+    redis = Redis(
+        host=host, port=6379, decode_responses=True, socket_connect_timeout=10
+    )
     redis.ping()
 
     return redis
 
 
-def download_measurements(redis: Redis, workflow_name: str, after: float, **static_args):
+def download_measurements(
+    redis: Redis, workflow_name: str, after: float, **static_args
+):
     payloads = []
 
     for key in redis.scan_iter(match=f"{workflow_name}/*"):
-        assert key[:len(workflow_name)] == workflow_name
+        assert key[: len(workflow_name)] == workflow_name
 
         payload = redis.get(key)
         redis.delete(key)
@@ -183,7 +184,9 @@ def find_package_code(benchmark: str, path: str):
 def global_logging():
     logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
     logging_date_format = "%H:%M:%S"
-    logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
+    logging.basicConfig(
+        format=logging_format, datefmt=logging_date_format, level=logging.INFO
+    )
 
 
 class LoggingHandlers:
@@ -191,7 +194,9 @@ class LoggingHandlers:
         logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
         logging_date_format = "%H:%M:%S"
         formatter = logging.Formatter(logging_format, logging_date_format)
-        self.handlers: List[Union[logging.FileHandler, logging.StreamHandler[TextIO]]] = []
+        self.handlers: List[
+            Union[logging.FileHandler, logging.StreamHandler[TextIO]]
+        ] = []
 
         # Add stdout output
         if verbose:

@@ -23,7 +23,9 @@ class Minio(PersistentStorage):
     # the location does not matter
     MINIO_REGION = "us-east-1"
 
-    def __init__(self, docker_client: docker.client, cache_client: Cache, replace_existing: bool):
+    def __init__(
+        self, docker_client: docker.client, cache_client: Cache, replace_existing: bool
+    ):
         super().__init__(self.MINIO_REGION, cache_client, replace_existing)
         self._docker_client = docker_client
         self._port = 9000
@@ -54,7 +56,9 @@ class Minio(PersistentStorage):
             self.logging.error("Starting Minio storage failed! Reason: {}".format(e))
             raise RuntimeError("Starting Minio storage unsuccesful")
         except Exception as e:
-            self.logging.error("Starting Minio storage failed! Unknown error: {}".format(e))
+            self.logging.error(
+                "Starting Minio storage failed! Unknown error: {}".format(e)
+            )
             raise RuntimeError("Starting Minio storage unsuccesful")
 
     def configure_connection(self):
@@ -83,14 +87,19 @@ class Minio(PersistentStorage):
 
     def get_connection(self):
         return minio.Minio(
-            self._url, access_key=self._access_key, secret_key=self._secret_key, secure=False
+            self._url,
+            access_key=self._access_key,
+            secret_key=self._secret_key,
+            secure=False,
         )
 
     def _create_bucket(self, name: str, buckets: List[str] = []):
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
-                    "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
+                    "Bucket {} for {} already exists, skipping.".format(
+                        bucket_name, name
+                    )
                 )
                 return bucket_name
         # minio has limit of bucket name to 16 characters
@@ -137,7 +146,9 @@ class Minio(PersistentStorage):
         )
         errors = self.connection.remove_objects(bucket, delete_object_list)
         for error in errors:
-            self.logging.error("Error when deleting object from bucket {}: {}!", bucket, error)
+            self.logging.error(
+                "Error when deleting object from bucket {}: {}!", bucket, error
+            )
 
     def correct_name(self, name: str) -> str:
         return name

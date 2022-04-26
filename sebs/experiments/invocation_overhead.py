@@ -15,7 +15,9 @@ if TYPE_CHECKING:
 
 
 class CodePackageSize:
-    def __init__(self, deployment_client: FaaSSystem, benchmark: CodePackage, settings: dict):
+    def __init__(
+        self, deployment_client: FaaSSystem, benchmark: CodePackage, settings: dict
+    ):
         import math
         from numpy import linspace
 
@@ -26,7 +28,9 @@ class CodePackageSize:
         )
         from sebs.utils import find_package_code
 
-        self._benchmark_path = find_package_code("030.clock-synchronization", "benchmarks")
+        self._benchmark_path = find_package_code(
+            "030.clock-synchronization", "benchmarks"
+        )
         self._benchmark = benchmark
         random.seed(1410)
 
@@ -89,7 +93,9 @@ class InvocationOverhead(Experiment):
             self._trigger = triggers[0]
 
         self._storage = deployment_client.get_storage(replace_existing=True)
-        self.benchmark_input = self._benchmark.prepare_input(storage=self._storage, size="test")
+        self.benchmark_input = self._benchmark.prepare_input(
+            storage=self._storage, size="test"
+        )
         self._out_dir = os.path.join(
             sebs_client.output_dir, "invocation-overhead", self.settings["type"]
         )
@@ -107,7 +113,9 @@ class InvocationOverhead(Experiment):
         N = self.settings["N"]
 
         if self.settings["type"] == "code":
-            experiment = CodePackageSize(self._deployment_client, self._benchmark, self.settings)
+            experiment = CodePackageSize(
+                self._deployment_client, self._benchmark, self.settings
+            )
         else:
             experiment = PayloadSize(self.settings)
 
@@ -143,9 +151,13 @@ class InvocationOverhead(Experiment):
                     for i in range(repetitions):
                         succesful = False
                         while not succesful:
-                            self.logging.info(f"Starting with {size} bytes, repetition {i}")
+                            self.logging.info(
+                                f"Starting with {size} bytes, repetition {i}"
+                            )
                             if result_type == "cold":
-                                self._deployment_client.enforce_cold_start([self._function])
+                                self._deployment_client.enforce_cold_start(
+                                    [self._function]
+                                )
                                 time.sleep(1)
                             row = self.receive_datagrams(input_benchmark, N, 12000, ip)
                             if result_type == "cold":
@@ -160,7 +172,9 @@ class InvocationOverhead(Experiment):
                             succesful = True
 
         time.sleep(5)
-        self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
+        self._storage.download_bucket(
+            self.benchmark_input["output-bucket"], self._out_dir
+        )
 
     def process(
         self,
@@ -175,7 +189,9 @@ class InvocationOverhead(Experiment):
 
         full_data: Dict[str, pd.Dataframe] = {}
         for f in glob.glob(
-            os.path.join(directory, "invocation-overhead", self.settings["type"], "*.csv")
+            os.path.join(
+                directory, "invocation-overhead", self.settings["type"], "*.csv"
+            )
         ):
 
             if "result.csv" in f or "result-processed.csv" in f:
@@ -188,13 +204,18 @@ class InvocationOverhead(Experiment):
             else:
                 full_data[request_id] = data
         df = pd.concat(full_data.values()).reset_index(drop=True)
-        df["rtt"] = (df["server_rcv"] - df["client_send"]) + (df["client_rcv"] - df["server_send"])
+        df["rtt"] = (df["server_rcv"] - df["client_send"]) + (
+            df["client_rcv"] - df["server_send"]
+        )
         df["clock_drift"] = (
-            (df["client_send"] - df["server_rcv"]) + (df["client_rcv"] - df["server_send"])
+            (df["client_send"] - df["server_rcv"])
+            + (df["client_rcv"] - df["server_send"])
         ) / 2
 
         with open(
-            os.path.join(directory, "invocation-overhead", self.settings["type"], "result.csv")
+            os.path.join(
+                directory, "invocation-overhead", self.settings["type"], "result.csv"
+            )
         ) as csvfile:
             with open(
                 os.path.join(
@@ -226,15 +247,23 @@ class InvocationOverhead(Experiment):
                     request_id = row[-1]
                     clock_drift = df[df["id"] == request_id]["clock_drift"].mean()
                     clock_drift_std = df[df["id"] == request_id]["clock_drift"].std()
-                    invocation_time = float(row[5]) - float(row[4]) - float(row[3]) + clock_drift
-                    writer.writerow(row + [clock_drift, clock_drift_std, invocation_time])
+                    invocation_time = (
+                        float(row[5]) - float(row[4]) - float(row[3]) + clock_drift
+                    )
+                    writer.writerow(
+                        row + [clock_drift, clock_drift_std, invocation_time]
+                    )
 
-    def receive_datagrams(self, input_benchmark: dict, repetitions: int, port: int, ip: str):
+    def receive_datagrams(
+        self, input_benchmark: dict, repetitions: int, port: int, ip: str
+    ):
 
         import socket
 
         input_benchmark["server-port"] = port
-        self.logging.info(f"Starting invocation with {repetitions} repetitions on port {port}")
+        self.logging.info(
+            f"Starting invocation with {repetitions} repetitions on port {port}"
+        )
         socket.setdefaulttimeout(4)
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind(("", port))
@@ -260,7 +289,8 @@ class InvocationOverhead(Experiment):
                 # stop after 5 attempts
                 if j == 5:
                     self.logging.error(
-                        "Failing after 5 unsuccesfull attempts to " "communicate with the function!"
+                        "Failing after 5 unsuccesfull attempts to "
+                        "communicate with the function!"
                     )
                     break
                 # check if function invocation failed, and if yes: raise the exception

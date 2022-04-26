@@ -103,7 +103,8 @@ class Azure(System):
                 self.config.region,
                 self.cache_client,
                 self.config.resources.data_storage_account(
-                    self.cli_instance).connection_string,
+                    self.cli_instance
+                ).connection_string,
                 replace_existing=replace_existing,
             )
             self.storage.logging_handlers = self.logging_handlers
@@ -119,7 +120,9 @@ class Azure(System):
     # - function.json
     # host.json
     # requirements.txt/package.json
-    def package_code(self, code_package: CodePackage, directory: str, is_workflow: bool) -> Tuple[str, int]:
+    def package_code(
+        self, code_package: CodePackage, directory: str, is_workflow: bool
+    ) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
@@ -130,7 +133,7 @@ class Azure(System):
         }
         WRAPPER_FILES = {
             "python": ["handler.py", "storage.py", "fsm.py"],
-            "nodejs": ["handler.js", "storage.js"]
+            "nodejs": ["handler.js", "storage.js"],
         }
         file_type = FILES[code_package.language_name]
         package_config = CONFIG_FILES[code_package.language_name]
@@ -141,11 +144,9 @@ class Azure(System):
             os.rename(main_path, os.path.join(directory, "main.py"))
 
             # Make sure we have a valid workflow benchmark
-            src_path = os.path.join(
-                code_package.path, "definition.json")
+            src_path = os.path.join(code_package.path, "definition.json")
             if not os.path.exists(src_path):
-                raise ValueError(
-                    f"No workflow definition found in {directory}")
+                raise ValueError(f"No workflow definition found in {directory}")
 
             dst_path = os.path.join(directory, "definition.json")
             shutil.copy2(src_path, dst_path)
@@ -154,10 +155,15 @@ class Azure(System):
 
         # TODO: extension to other triggers than HTTP
         main_bindings = [
-            {"name": "req", "type": "httpTrigger", "direction": "in",
-             "authLevel": "function", "methods": ["post"]},
+            {
+                "name": "req",
+                "type": "httpTrigger",
+                "direction": "in",
+                "authLevel": "function",
+                "methods": ["post"],
+            },
             {"name": "starter", "type": "durableClient", "direction": "in"},
-            {"name": "$return", "type": "http", "direction": "out"}
+            {"name": "$return", "type": "http", "direction": "out"},
         ]
         activity_bindings = [
             {"name": "event", "type": "activityTrigger", "direction": "in"},
@@ -167,10 +173,7 @@ class Azure(System):
         ]
 
         if is_workflow:
-            bindings = {
-                "main": main_bindings,
-                "run_workflow": orchestrator_bindings
-            }
+            bindings = {"main": main_bindings, "run_workflow": orchestrator_bindings}
         else:
             bindings = {"function": main_bindings}
 
@@ -196,13 +199,17 @@ class Azure(System):
             payload = {
                 "bindings": bindings.get(name, activity_bindings),
                 "scriptFile": script_file,
-                "disabled": False
+                "disabled": False,
             }
             dst_json = os.path.join(os.path.dirname(dst_file), "function.json")
             json.dump(payload, open(dst_json, "w"), indent=2)
 
-        handler_path = os.path.join(directory, WRAPPER_FILES[code_package.language_name][0])
-        replace_string_in_file(handler_path, "{{REDIS_HOST}}", f"\"{self.config.redis_host}\"")
+        handler_path = os.path.join(
+            directory, WRAPPER_FILES[code_package.language_name][0]
+        )
+        replace_string_in_file(
+            handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"'
+        )
 
         # copy every wrapper file to respective function dirs
         for wrapper_file in wrapper_files:
@@ -217,15 +224,17 @@ class Azure(System):
             "version": "2.0",
             "extensionBundle": {
                 "id": "Microsoft.Azure.Functions.ExtensionBundle",
-                "version": "[2.*, 3.0.0)"
+                "version": "[2.*, 3.0.0)",
             },
         }
-        json.dump(host_json, open(
-            os.path.join(directory, "host.json"), "w"), indent=2)
+        json.dump(host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = CodePackage.directory_size(directory)
-        execute("zip -qu -r9 {}.zip * .".format(code_package.name),
-                shell=True, cwd=directory)
+        execute(
+            "zip -qu -r9 {}.zip * .".format(code_package.name),
+            shell=True,
+            cwd=directory,
+        )
         return directory, code_size
 
     def publish_benchmark(
@@ -236,8 +245,7 @@ class Azure(System):
     ) -> str:
         success = False
         url = ""
-        self.logging.info(
-            "Attempting publish of {}".format(benchmark.name))
+        self.logging.info("Attempting publish of {}".format(benchmark.name))
         while not success:
             try:
                 ret = self.cli_instance.execute(
@@ -255,7 +263,8 @@ class Azure(System):
                         break
                 if url == "":
                     raise RuntimeError(
-                        "Couldnt find URL in {}".format(ret.decode("utf-8")))
+                        "Couldnt find URL in {}".format(ret.decode("utf-8"))
+                    )
                 success = True
             except RuntimeError as e:
                 error = str(e)
@@ -292,13 +301,13 @@ class Azure(System):
         url = self.publish_benchmark(benchmark, code_package, True)
 
         trigger = HTTPTrigger(
-            url, self.config.resources.data_storage_account(self.cli_instance))
+            url, self.config.resources.data_storage_account(self.cli_instance)
+        )
         trigger.logging_handlers = self.logging_handlers
         benchmark.add_trigger(trigger)
 
     def _mount_function_code(self, code_package: CodePackage):
-        self.cli_instance.upload_package(
-            code_package.code_location, "/mnt/function/")
+        self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
 
     def default_benchmark_name(self, code_package: CodePackage) -> str:
         """
@@ -316,11 +325,13 @@ class Azure(System):
         return func_name
 
     B = TypeVar("B", bound=FunctionApp)
-    def create_benchmark(self, code_package: CodePackage, name: str, benchmark_cls: B) -> B:
+
+    def create_benchmark(
+        self, code_package: CodePackage, name: str, benchmark_cls: B
+    ) -> B:
         language = code_package.language_name
         language_runtime = code_package.language_version
-        resource_group = self.config.resources.resource_group(
-            self.cli_instance)
+        resource_group = self.config.resources.resource_group(self.cli_instance)
         region = self.config.region
 
         config = {
@@ -344,17 +355,18 @@ class Azure(System):
             for setting in json.loads(ret.decode()):
                 if setting["name"] == "AzureWebJobsStorage":
                     connection_string = setting["value"]
-                    elems = [z for y in connection_string.split(
-                        ";") for z in y.split("=")]
+                    elems = [
+                        z for y in connection_string.split(";") for z in y.split("=")
+                    ]
                     account_name = elems[elems.index("AccountName") + 1]
                     function_storage_account = AzureResources.Storage.from_cache(
                         account_name, connection_string
                     )
-            self.logging.info(
-                "Azure: Selected {} function app".format(name))
+            self.logging.info("Azure: Selected {} function app".format(name))
         except RuntimeError:
             function_storage_account = self.config.resources.add_storage_account(
-                self.cli_instance)
+                self.cli_instance
+            )
             config["storage_account"] = function_storage_account.account_name
             # FIXME: only Linux type is supported
             while True:
@@ -369,8 +381,7 @@ class Azure(System):
                             " --name {name} --storage-account {storage_account}"
                         ).format(**config)
                     )
-                    self.logging.info(
-                        "Azure: Created function app {}".format(name))
+                    self.logging.info("Azure: Created function app {}".format(name))
                     break
                 except RuntimeError as e:
                     # Azure does not allow some concurrent operations
@@ -396,24 +407,28 @@ class Azure(System):
     def cached_benchmark(self, benchmark: Benchmark):
 
         data_storage_account = self.config.resources.data_storage_account(
-            self.cli_instance)
+            self.cli_instance
+        )
         for trigger in benchmark.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
 
-    def create_function(self, code_package: CodePackage, func_name: str) -> AzureFunction:
+    def create_function(
+        self, code_package: CodePackage, func_name: str
+    ) -> AzureFunction:
         return self.create_benchmark(code_package, func_name, AzureFunction)
 
     def update_function(self, function: Function, code_package: CodePackage):
         self.update_benchmark(function, code_package)
 
-    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> AzureWorkflow:
+    def create_workflow(
+        self, code_package: CodePackage, workflow_name: str
+    ) -> AzureWorkflow:
         return self.create_benchmark(code_package, workflow_name, AzureWorkflow)
 
     def update_workflow(self, workflow: Workflow, code_package: CodePackage):
         self.update_benchmark(workflow, code_package)
-
 
     """
         Prepare Azure resources to store experiment results.
@@ -424,8 +439,7 @@ class Azure(System):
     """
 
     def prepare_experiment(self, benchmark: str):
-        logs_container = self.storage.add_output_bucket(
-            benchmark, suffix="logs")
+        logs_container = self.storage.add_output_bucket(benchmark, suffix="logs")
         return logs_container
 
     def download_metrics(
@@ -437,16 +451,16 @@ class Azure(System):
         metrics: Dict[str, dict],
     ):
 
-        resource_group = self.config.resources.resource_group(
-            self.cli_instance)
+        resource_group = self.config.resources.resource_group(self.cli_instance)
         # Avoid warnings in the next step
         ret = self.cli_instance.execute(
-            "az feature register --name AIWorkspacePreview " "--namespace microsoft.insights"
+            "az feature register --name AIWorkspacePreview "
+            "--namespace microsoft.insights"
         )
         app_id_query = self.cli_instance.execute(
-            ("az monitor app-insights component show " "--app {} --resource-group {}").format(
-                function_name, resource_group
-            )
+            (
+                "az monitor app-insights component show " "--app {} --resource-group {}"
+            ).format(function_name, resource_group)
         ).decode("utf-8")
         application_id = json.loads(app_id_query)["appId"]
 
@@ -457,8 +471,9 @@ class Azure(System):
         start_time_str = datetime.datetime.fromtimestamp(start_time).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         )
-        end_time_str = datetime.datetime.fromtimestamp(
-            end_time + 1).strftime("%Y-%m-%d %H:%M:%S")
+        end_time_str = datetime.datetime.fromtimestamp(end_time + 1).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         from tzlocal import get_localzone
 
         timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
@@ -498,7 +513,8 @@ class Azure(System):
             func_exec_time = request[-1]
             invocations_processed.add(invocation_id)
             requests[invocation_id].provider_times.execution = int(
-                float(func_exec_time) * 1000)
+                float(func_exec_time) * 1000
+            )
         self.logging.info(
             f"Azure: Found time metrics for {len(invocations_processed)} "
             f"out of {len(requests.keys())} invocations."
@@ -506,15 +522,15 @@ class Azure(System):
         if len(invocations_processed) < len(requests.keys()):
             time.sleep(5)
         self.logging.info(
-            f"Missing the requests: {invocations_to_process - invocations_processed}")
+            f"Missing the requests: {invocations_to_process - invocations_processed}"
+        )
 
         # TODO: query performance counters for mem
 
     def _enforce_cold_start(self, function: Function, code_package: CodePackage):
 
         fname = function.name
-        resource_group = self.config.resources.resource_group(
-            self.cli_instance)
+        resource_group = self.config.resources.resource_group(self.cli_instance)
 
         self.cli_instance.execute(
             f"az functionapp config appsettings set --name {fname} "
@@ -537,10 +553,12 @@ class Azure(System):
         It is automatically created for each function.
     """
 
-    def create_function_trigger(self, function: Function,
-        trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_function_trigger(
+        self, function: Function, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
         raise NotImplementedError()
 
-    def create_workflow_trigger(self, workflow: Workflow,
-        trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_workflow_trigger(
+        self, workflow: Workflow, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
         raise NotImplementedError()

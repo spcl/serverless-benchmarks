@@ -129,7 +129,9 @@ class CodePackage(LoggingBase):
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.path, self.language_name)
-        self._hash_value = CodePackage.hash_directory(path, self._deployment_name, self.language_name)
+        self._hash_value = CodePackage.hash_directory(
+            path, self._deployment_name, self.language_name
+        )
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -165,7 +167,9 @@ class CodePackage(LoggingBase):
 
         if self.language not in self.config.languages:
             raise RuntimeError(
-                "Benchmark {} not available for language {}".format(self.name, self.language)
+                "Benchmark {} not available for language {}".format(
+                    self.name, self.language
+                )
             )
         self._cache_client = cache_client
         self._docker_client = docker_client
@@ -300,7 +304,7 @@ class CodePackage(LoggingBase):
         if len(packages):
             with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
                 for package in packages:
-                    out.write(package+"\n")
+                    out.write(package + "\n")
 
     def add_deployment_package_nodejs(self, output_dir):
         # modify package.json
@@ -363,11 +367,15 @@ class CodePackage(LoggingBase):
                     )
                     self._docker_client.images.pull(repo_name, image_name)
                 except docker.errors.APIError:
-                    raise RuntimeError("Docker pull of image {} failed!".format(image_name))
+                    raise RuntimeError(
+                        "Docker pull of image {} failed!".format(image_name)
+                    )
 
             # Create set of mounted volumes unless Docker volumes are disabled
             if not self._experiment_config.check_flag("docker_copy_build_files"):
-                volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
+                volumes = {
+                    os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}
+                }
                 package_script = os.path.abspath(
                     os.path.join(self._path, self.language_name, "package.sh")
                 )
@@ -385,11 +393,15 @@ class CodePackage(LoggingBase):
                 try:
                     self.logging.info(
                         "Docker build of benchmark dependencies in container "
-                        "of image {repo}:{image}".format(repo=repo_name, image=image_name)
+                        "of image {repo}:{image}".format(
+                            repo=repo_name, image=image_name
+                        )
                     )
                     uid = os.getuid()
                     # Standard, simplest build
-                    if not self._experiment_config.check_flag("docker_copy_build_files"):
+                    if not self._experiment_config.check_flag(
+                        "docker_copy_build_files"
+                    ):
                         self.logging.info(
                             "Docker mount of benchmark code from path {path}".format(
                                 path=os.path.abspath(output_dir)
@@ -425,7 +437,9 @@ class CodePackage(LoggingBase):
                             "Send benchmark code from path {path} to "
                             "Docker instance".format(path=os.path.abspath(output_dir))
                         )
-                        tar_archive = os.path.join(output_dir, os.path.pardir, "function.tar")
+                        tar_archive = os.path.join(
+                            output_dir, os.path.pardir, "function.tar"
+                        )
                         with tarfile.open(tar_archive, "w") as tar:
                             for f in os.listdir(output_dir):
                                 tar.add(os.path.join(output_dir, f), arcname=f)
@@ -467,8 +481,9 @@ class CodePackage(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[["CodePackage", str, bool], Tuple[str, int]],
-        is_workflow: bool
+        self,
+        deployment_build_step: Callable[["CodePackage", str, bool], Tuple[str, int]],
+        is_workflow: bool,
     ) -> Tuple[bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
@@ -514,9 +529,13 @@ class CodePackage(LoggingBase):
 
         # package already exists
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.update_code_package(
+                self._deployment_name, self.language_name, self
+            )
         else:
-            self._cache_client.add_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.add_code_package(
+                self._deployment_name, self.language_name, self
+            )
         self.query_cache()
 
         return True, self._code_location
@@ -556,7 +575,9 @@ class CodePackage(LoggingBase):
         if self.is_archive():
             self._update_zip(self.code_location, filename, data)
             new_size = self.recompute_size() / 1024.0 / 1024.0
-            self.logging.info(f"Modified zip package {self.code_location}, new size {new_size} MB")
+            self.logging.info(
+                f"Modified zip package {self.code_location}, new size {new_size} MB"
+            )
         else:
             raise NotImplementedError()
 
@@ -629,7 +650,9 @@ def load_benchmark_input(path: str) -> CodePackageModuleInterface:
     # Look for input generator file in the directory containing benchmark
     import importlib.machinery
 
-    loader = importlib.machinery.SourceFileLoader("input", os.path.join(path, "input.py"))
+    loader = importlib.machinery.SourceFileLoader(
+        "input", os.path.join(path, "input.py")
+    )
     spec = importlib.util.spec_from_loader(loader.name, loader)
     assert spec
     mod = importlib.util.module_from_spec(spec)

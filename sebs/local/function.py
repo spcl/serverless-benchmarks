@@ -37,7 +37,12 @@ class HTTPTrigger(Trigger):
 
 class LocalFunction(Function):
     def __init__(
-        self, docker_container, port: int, name: str, benchmark: str, code_package_hash: str
+        self,
+        docker_container,
+        port: int,
+        name: str,
+        benchmark: str,
+        code_package_hash: str,
     ):
         super().__init__(benchmark, name, code_package_hash)
         self._instance = docker_container

@@ -61,7 +61,8 @@ class FunctionLibraryTrigger(LibraryTrigger):
         # GCP's fixed style for a function name
         config = self.deployment_client.config
         full_func_name = (
-            f"projects/{config.project_name}/locations/" f"{config.region}/functions/{self.name}"
+            f"projects/{config.project_name}/locations/"
+            f"{config.region}/functions/{self.name}"
         )
         function_client = self.deployment_client.get_function_client()
         req = (
@@ -103,14 +104,16 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         # GCP's fixed style for a function name
         config = self.deployment_client.config
         full_workflow_name = GCP.get_full_workflow_name(
-            config.project_name, config.region, self.name)
+            config.project_name, config.region, self.name
+        )
 
         execution_client = ExecutionsClient()
         execution = Execution(argument=json.dumps(payload))
 
         begin = datetime.datetime.now()
         res = execution_client.create_execution(
-            parent=full_workflow_name, execution=execution)
+            parent=full_workflow_name, execution=execution
+        )
         end = datetime.datetime.now()
 
         gcp_result = ExecutionResult.from_times(begin, end)
@@ -118,9 +121,8 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         # Wait for execution to finish, then print results.
         execution_finished = False
         backoff_delay = 1  # Start wait with delay of 1 second
-        while (not execution_finished):
-            execution = execution_client.get_execution(
-                request={"name": res.name})
+        while not execution_finished:
+            execution = execution_client.get_execution(request={"name": res.name})
             execution_finished = execution.state != Execution.State.ACTIVE
 
             # If we haven't seen the result yet, wait a second.
