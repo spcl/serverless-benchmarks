@@ -255,12 +255,13 @@ class Trigger(ABC, LoggingBase):
 
 
 class Function(LoggingBase):
-    def __init__(self, benchmark: str, name: str, code_hash: str):
+    def __init__(self, benchmark: str, name: str, code_hash: str, docker_image: str = ""):
         super().__init__()
         self._benchmark = benchmark
         self._name = name
         self._code_package_hash = code_hash
         self._updated_code = False
+        self._docker_image = docker_image
         self._triggers: Dict[Trigger.TriggerType, List[Trigger]] = {}
 
     @property
@@ -278,6 +279,14 @@ class Function(LoggingBase):
     @code_package_hash.setter
     def code_package_hash(self, new_hash: str):
         self._code_package_hash = new_hash
+
+    @property
+    def docker_image(self) -> str:
+        return self._docker_image
+
+    @docker_image.setter
+    def docker_image(self, docker_image: str):
+        self._docker_image = docker_image
 
     @property
     def updated_code(self) -> bool:

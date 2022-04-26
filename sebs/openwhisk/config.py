@@ -69,8 +69,8 @@ class OpenWhiskResources(Resources):
             ret.logging_handlers = handlers
             ret.logging.info("Using cached Docker registry for OpenWhisk")
         else:
-            ret.logging.info("Using default Docker registry for OpenWhisk.")
             ret = OpenWhiskResources()
+            ret.logging.info("Using default Docker registry for OpenWhisk.")
             ret.logging_handlers = handlers
 
         return ret

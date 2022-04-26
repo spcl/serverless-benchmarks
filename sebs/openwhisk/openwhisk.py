@@ -151,6 +151,8 @@ class OpenWhisk(System):
                     f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
                     f"building OpenWhisk package for {benchmark}."
                 )
+        else:
+            self.logigng.info(f"Using cached image {image_tag}.")
 
         build_dir = os.path.join(directory, "docker")
         os.makedirs(build_dir)
@@ -171,6 +173,7 @@ class OpenWhisk(System):
             language_version
         ]
         self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
+
         image, _ = self.docker_client.images.build(
             tag=f"{repository_name}:{image_tag}",
             path=build_dir,
@@ -238,62 +241,64 @@ class OpenWhisk(System):
         return benchmark_archive, bytes_size
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "OpenwhiskFunction":
-        self.logging.info("Creating function as an action in OpenWhisk")
+        self.logging.info("Creating function as an action in OpenWhisk.")
         try:
             actions = subprocess.run(
                 [*self.get_wsk_cmd(), "action", "list"],
                 stderr=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
             )
-            subprocess.run(
-                f"grep {func_name}".split(),
-                stderr=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                input=actions.stdout,
-                check=True,
-            )
 
-            res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash)
-            # Update function - we don't know what version is stored
-            self.update_function(res, code_package)
-            self.logging.info(f"Retrieved OpenWhisk action {func_name}")
+            function_found = False
+            docker_image = ""
+            for line in actions.stdout.decode().split("\n"):
+                if line and func_name in line.split()[0]:
+                    function_found = True
+                    break
 
-        except FileNotFoundError as e:
+            if function_found:
+                # docker image is overwritten by the update
+                res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash, "")
+                # Update function - we don't know what version is stored
+                self.logging.info(f"Retrieved existing OpenWhisk action {func_name}.")
+                self.update_function(res, code_package)
+            else:
+                try:
+                    self.logging.info(f"Creating new OpenWhisk action {func_name}")
+                    docker_image = self.system_config.benchmark_image_name(
+                        self.name(),
+                        code_package.benchmark,
+                        code_package.language_name,
+                        code_package.language_version,
+                    )
+                    subprocess.run(
+                        [
+                            *self.get_wsk_cmd(),
+                            "action",
+                            "create",
+                            func_name,
+                            "--web",
+                            "true",
+                            "--docker",
+                            docker_image,
+                            "--memory",
+                            str(code_package.benchmark_config.memory),
+                            code_package.code_location,
+                        ],
+                        stderr=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        check=True,
+                    )
+                    res = OpenwhiskFunction(
+                        func_name, code_package.benchmark, code_package.hash, docker_image
+                    )
+                except subprocess.CalledProcessError as e:
+                    self.logging.error(f"Cannot create action {func_name}.")
+                    raise RuntimeError(e)
+
+        except FileNotFoundError:
             self.logging.error("Could not retrieve OpenWhisk functions - is path to wsk correct?")
-            raise RuntimeError(e)
-
-        except subprocess.CalledProcessError:
-            # grep will return error when there are no entries
-            try:
-                docker_image = self.system_config.benchmark_image_name(
-                    self.name(),
-                    code_package.benchmark,
-                    code_package.language_name,
-                    code_package.language_version,
-                )
-                subprocess.run(
-                    [
-                        *self.get_wsk_cmd(),
-                        "action",
-                        "create",
-                        func_name,
-                        "--web",
-                        "true",
-                        "--docker",
-                        docker_image,
-                        "--memory",
-                        str(code_package.benchmark_config.memory),
-                        code_package.code_location,
-                    ],
-                    stderr=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    check=True,
-                )
-                self.logging.info(f"Created new OpenWhisk action {func_name}")
-                res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash)
-            except subprocess.CalledProcessError as e:
-                self.logging.error(f"Cannot create action {func_name}.")
-                raise RuntimeError(e)
+            raise RuntimeError("Failed to access wsk binary")
 
         # Add LibraryTrigger to a new function
         trigger = LibraryTrigger(func_name, self.get_wsk_cmd())
@@ -303,6 +308,7 @@ class OpenWhisk(System):
         return res
 
     def update_function(self, function: Function, code_package: Benchmark):
+        self.logging.info(f"Update an existing OpenWhisk action {function.name}.")
         docker_image = self.system_config.benchmark_image_name(
             self.name(),
             code_package.benchmark,
@@ -326,6 +332,8 @@ class OpenWhisk(System):
                 stdout=subprocess.DEVNULL,
                 check=True,
             )
+            function.docker_image = docker_image
+
         except FileNotFoundError as e:
             self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
             raise RuntimeError(e)

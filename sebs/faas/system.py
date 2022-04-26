@@ -213,6 +213,8 @@ class System(ABC, LoggingBase):
                     function=function,
                 )
                 code_package.query_cache()
+            else:
+                self.logging.info(f"Cached function {func_name} is up to date.")
             return function
 
     @abstractmethod
