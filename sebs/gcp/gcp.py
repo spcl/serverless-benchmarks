@@ -446,7 +446,7 @@ class GCP(System):
                     },
                 )
             )
-            ret = create_req.execute()
+            create_req.execute()
             self.logging.info(f"Map workflow {map_id} has been created!")
 
         full_workflow_name = GCP.get_full_workflow_name(
@@ -475,7 +475,7 @@ class GCP(System):
                     },
                 )
             )
-            ret = create_req.execute()
+            create_req.execute()
             self.logging.info(f"Workflow {workflow_name} has been created!")
 
             workflow = GCPWorkflow(
@@ -567,7 +567,7 @@ class GCP(System):
                     },
                 )
             )
-            ret = patch_req.execute()
+            patch_req.execute()
             self.logging.info("Published new map workflow code.")
 
         full_workflow_name = GCP.get_full_workflow_name(

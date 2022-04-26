@@ -11,7 +11,7 @@ from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
 from sebs.local.storage import Minio
 from sebs.local.function import LocalFunction
-from sebs.faas.benchmark import Benchmark, Function, ExecutionResult, Trigger
+from sebs.faas.benchmark import Benchmark, Function, Workflow, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 from sebs.code_package import CodePackage
