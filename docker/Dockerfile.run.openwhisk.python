@@ -1,5 +1,8 @@
 ARG BASE_IMAGE
 FROM $BASE_IMAGE
+ENV PYTHON_VERSION=${VERSION}
 COPY . function/
+
 RUN touch function/__init__.py \
-    && pip install --no-cache-dir function/
+    && if test -f "requirements.txt.${PYTHON_VERSION}"; then pip install --no-cache-dir -r function/requirements.txt -r function/requirements.txt.${PYTHON_VERSION} function/ ; else pip install --no-cache-dir -r function/requirements.txt function/ ; fi
+

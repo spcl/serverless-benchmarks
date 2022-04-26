@@ -140,7 +140,7 @@ class OpenWhisk(System):
         if not is_cached:
             if self.find_image(repository_name, image_tag):
                 self.logging.info(
-                    f"Skipping building OpenWhisk package for {benchmark}, using "
+                    f"Skipping building OpenWhisk Docker package for {benchmark}, using "
                     f"Docker image {repository_name}:{image_tag} from registry: "
                     f"{registry_name}."
                 )
@@ -151,8 +151,6 @@ class OpenWhisk(System):
                     f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
                     f"building OpenWhisk package for {benchmark}."
                 )
-        else:
-            self.logigng.info(f"Using cached image {image_tag}.")
 
         build_dir = os.path.join(directory, "docker")
         os.makedirs(build_dir)
@@ -174,12 +172,9 @@ class OpenWhisk(System):
         ]
         self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
 
+        buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
         image, _ = self.docker_client.images.build(
-            tag=f"{repository_name}:{image_tag}",
-            path=build_dir,
-            buildargs={
-                "BASE_IMAGE": builder_image,
-            },
+            tag=f"{repository_name}:{image_tag}", path=build_dir, buildargs=buildargs
         )
 
         # Now push the image to the registry

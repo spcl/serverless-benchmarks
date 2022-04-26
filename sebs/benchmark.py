@@ -321,8 +321,8 @@ class Benchmark(LoggingBase):
         ):
             self.logging.info(
                 (
-                    "Docker build image for {deployment} run in {language} "
-                    "is not available, skipping."
+                    "There is no Docker build image for {deployment} run in {language}, "
+                    "thus skipping the Docker-based installation of dependencies."
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
