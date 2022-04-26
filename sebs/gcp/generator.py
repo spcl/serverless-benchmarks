@@ -1,10 +1,10 @@
-import json
 import uuid
 from typing import Dict, Union, List
 
-from sebs.faas.fsm import *
+from sebs.faas.fsm import State, Task, Switch, Map
 
 class GCPGenerator(Generator):
+
 
     def __init__(self, workflow_name: str, func_triggers: Dict[str, str]):
         super().__init__()

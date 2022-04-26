@@ -1,7 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Iterator, Optional, List, Callable, Union
-from enum import Enum
+from typing import Optional, List, Callable, Union
 import json
 
 
@@ -49,7 +48,7 @@ class Switch(State):
             self.next = next
 
         @staticmethod
-        def deserialize(payload: dict) -> "Case":
+        def deserialize(payload: dict) -> "Switch.Case":
             return Switch.Case(**payload)
 
     def __init__(self,
