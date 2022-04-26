@@ -34,21 +34,22 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
     end = datetime.datetime.now()
 
     is_cold, container_id = probe_cold_start()
-    status_body = json.loads(res.get_body())
-    failed = status_body.get("runtimeStatus") == "Failed"
-    code = 500 if failed else 200
+    status = await client.get_status(instance_id)
+    code = 500 if status.runtime_status == "Failed" else 200
+
+    try:
+        result = json.loads(res.get_body())
+    except json.decoder.JSONDecodeError:
+        result = res.get_body().decode()
+
     body = {
         "begin": begin.strftime("%s.%f"),
         "end": end.strftime("%s.%f"),
         "is_cold": is_cold,
         "container_id": container_id,
         "request_id": context.invocation_id,
+        "result": result
     }
-
-    if failed:
-        body = {**body, **status_body}
-    else:
-        body["res"] = status_body
 
     return func.HttpResponse(
         status_code=code,
