@@ -19,6 +19,7 @@ from sebs.regression import regression_suite
 from sebs.utils import update_nested_dict, download_measurements, connect_to_redis_cache
 from sebs.faas import System as FaaSSystem
 from sebs.faas.benchmark import Trigger
+from sebs.local import Local
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -267,6 +268,9 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
+    if isinstance(deployment_client, Local):
+        raise NotImplementedError("Local workflow deployment is currently not supported.")
+
     redis = connect_to_redis_cache(deployment_client.config.redis_host)
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])

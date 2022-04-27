@@ -21,7 +21,6 @@ from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.storage import GCPStorage
-from sebs.gcp.triggers import HTTPTrigger
 from sebs.gcp.function import GCPFunction
 from sebs.gcp.workflow import GCPWorkflow
 from sebs.gcp.generator import GCPGenerator
@@ -287,6 +286,7 @@ class GCP(System):
         self, function: Function, trigger_type: Trigger.TriggerType
     ) -> Trigger:
         if trigger_type == Trigger.TriggerType.HTTP:
+            from sebs.gcp.triggers import HTTPTrigger
 
             location = self.config.region
             project_name = self.config.project_name
@@ -369,6 +369,8 @@ class GCP(System):
         return f"projects/{project_name}/locations/{location}/functions/{func_name}"
 
     def create_workflow(self, code_package: CodePackage, workflow_name: str) -> "GCPWorkflow":
+        from sebs.gcp.triggers import HTTPTrigger
+
         benchmark = code_package.name
         timeout = code_package.config.timeout
         memory = code_package.config.memory
@@ -494,6 +496,8 @@ class GCP(System):
         return trigger
 
     def update_workflow(self, workflow: Workflow, code_package: CodePackage):
+        from sebs.gcp.triggers import HTTPTrigger
+
         workflow = cast(GCPWorkflow, workflow)
 
         # Make sure we have a valid workflow benchmark

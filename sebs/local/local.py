@@ -209,7 +209,7 @@ class Local(System):
         There's only one trigger - HTTP.
     """
 
-    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_function_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.local.function import HTTPTrigger
 
         function = cast(LocalFunction, func)
@@ -252,3 +252,14 @@ class Local(System):
     @staticmethod
     def format_function_name(func_name: str) -> str:
         return func_name
+
+    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> Workflow:
+        raise NotImplementedError()
+
+    def create_workflow_trigger(
+        self, workflow: Workflow, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
+        raise NotImplementedError()
+
+    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
+        raise NotImplementedError()
