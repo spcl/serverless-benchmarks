@@ -418,7 +418,10 @@ class GCP(System):
 
         full_workflow_name = GCP.get_full_workflow_name(project_name, location, workflow_name)
         get_req = (
-            self.workflow_client.projects().locations().workflows().get(name=full_workflow_name)  # type: ignore
+            self.workflow_client.projects()  # type: ignore
+            .locations()
+            .workflows()
+            .get(name=full_workflow_name)
         )
 
         try:
