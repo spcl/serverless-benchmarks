@@ -144,10 +144,11 @@ class GCPConfig(Config):
 
     _project_name: str
 
-    def __init__(self, credentials: GCPCredentials, resources: GCPResources):
+    def __init__(self, credentials: GCPCredentials, resources: GCPResources, redis_host: str):
         super().__init__()
         self._credentials = credentials
         self._resources = resources
+        self._redis_host = redis_host
 
     @property
     def region(self) -> str:
@@ -174,7 +175,7 @@ class GCPConfig(Config):
         cached_config = cache.get_config("gcp")
         credentials = cast(GCPCredentials, GCPCredentials.deserialize(config, cache, handlers))
         resources = cast(GCPResources, GCPResources.deserialize(config, cache, handlers))
-        config_obj = GCPConfig(credentials, resources)
+        config_obj = GCPConfig(credentials, resources, cached_config["redis_host"])
         config_obj.logging_handlers = handlers
         if cached_config:
             config_obj.logging.info("Loading cached config for GCP")

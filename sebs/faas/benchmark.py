@@ -323,13 +323,19 @@ class Benchmark(LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(cached_config: dict) -> "Function":
+    def deserialize(cached_config: dict) -> "Benchmark":
         pass
 
 
 class Function(Benchmark):
-    pass
+    @staticmethod
+    @abstractmethod
+    def deserialize(cached_config: dict) -> "Function":
+        pass
 
 
 class Workflow(Benchmark):
-    pass
+    @staticmethod
+    @abstractmethod
+    def deserialize(cached_config: dict) -> "Workflow":
+        pass

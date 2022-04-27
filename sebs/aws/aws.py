@@ -407,8 +407,11 @@ class AWS(System):
                 code_package.hash,
             )
         except self.sfn_client.exceptions.StateMachineAlreadyExists as e:
-            arn = re.search("'([^']*)'", str(e)).group()[1:-1]
+            match = re.search("'([^']*)'", str(e))
+            if not match:
+                raise
 
+            arn = match.group()[1:-1]
             self.logging.info(
                 "Workflow {} exists on AWS, retrieve configuration.".format(workflow_name)
             )

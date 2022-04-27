@@ -237,10 +237,11 @@ class AWSResources(Resources):
 
 
 class AWSConfig(Config):
-    def __init__(self, credentials: AWSCredentials, resources: AWSResources):
+    def __init__(self, credentials: AWSCredentials, resources: AWSResources, redis_host: str):
         super().__init__()
         self._credentials = credentials
         self._resources = resources
+        self._redis_host = redis_host
 
     @staticmethod
     def typename() -> str:
@@ -272,7 +273,7 @@ class AWSConfig(Config):
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(AWSCredentials, AWSCredentials.deserialize(config, cache, handlers))
         resources = cast(AWSResources, AWSResources.deserialize(config, cache, handlers))
-        config_obj = AWSConfig(credentials, resources)
+        config_obj = AWSConfig(credentials, resources, cached_config["redis_host"])
         config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:

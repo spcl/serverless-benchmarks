@@ -9,7 +9,7 @@ class GCPGenerator(Generator):
         super().__init__()
         self._workflow_name = workflow_name
         self._func_triggers = func_triggers
-        self._map_funcs = dict()
+        self._map_funcs: Dict[str, str] = dict()
 
     def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
         payloads.append({"final": {"return": ["${res}"]}})

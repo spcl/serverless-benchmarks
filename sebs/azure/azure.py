@@ -316,7 +316,7 @@ class Azure(System):
 
     B = TypeVar("B", bound=FunctionApp)
 
-    def create_benchmark(self, code_package: CodePackage, name: str, benchmark_cls: B) -> B:
+    def create_benchmark(self, code_package: CodePackage, name: str, benchmark_cls: Type[B]) -> B:
         language = code_package.language_name
         language_runtime = code_package.language_version
         resource_group = self.config.resources.resource_group(self.cli_instance)

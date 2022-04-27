@@ -1,8 +1,10 @@
 from sebs.azure.config import AzureResources
-from sebs.faas.benchmark import Function
+from sebs.faas.benchmark import Benchmark, Function, Workflow
+
+from typing import cast
 
 
-class FunctionApp(Function):
+class FunctionApp(Benchmark):
     def __init__(
         self,
         name: str,
@@ -20,8 +22,8 @@ class FunctionApp(Function):
         }
 
     @staticmethod
-    def deserialize(cached_config: dict) -> Function:
-        ret = AzureFunction(
+    def deserialize(cached_config: dict) -> FunctionApp:
+        ret = FunctionApp(
             cached_config["name"],
             cached_config["code_package"],
             cached_config["hash"],
@@ -36,9 +38,13 @@ class FunctionApp(Function):
         return ret
 
 
-class AzureFunction(FunctionApp):
-    pass
+class AzureFunction(Function, FunctionApp):
+    @staticmethod
+    def deserialize(cached_config: dict) -> AzureFunction:
+        return cast(AzureFunction, FunctionApp.deserialize(cached_config))
 
 
-class AzureWorkflow(FunctionApp):
-    pass
+class AzureWorkflow(Workflow, FunctionApp):
+    @staticmethod
+    def deserialize(cached_config: dict) -> AzureWorkflow:
+        return cast(AzureWorkflow, FunctionApp.deserialize(cached_config))

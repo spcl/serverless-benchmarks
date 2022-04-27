@@ -1,4 +1,4 @@
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 import numbers
 
 from sebs.faas.fsm import Generator, State, Task, Switch, Map
@@ -10,17 +10,17 @@ class SFNGenerator(Generator):
         self._func_arns = func_arns
 
     def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
-        payloads = super().postprocess(states, payloads)
+        state_payloads = super().postprocess(states, payloads)
         definition = {
             "Comment": "SeBS auto-generated benchmark",
             "StartAt": self.root.name,
-            "States": payloads,
+            "States": state_payloads,
         }
 
         return definition
 
     def encode_task(self, state: Task) -> Union[dict, List[dict]]:
-        payload = {"Type": "Task", "Resource": self._func_arns[state.func_name]}
+        payload: Dict[str, Any] = {"Type": "Task", "Resource": self._func_arns[state.func_name]}
 
         if state.next:
             payload["Next"] = state.next
@@ -47,7 +47,7 @@ class SFNGenerator(Generator):
         return {"Variable": "$." + case.var, cond: case.val, "Next": case.next}
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
-        payload = {
+        payload: Dict[str, Any] = {
             "Type": "Map",
             "ItemsPath": "$." + state.array,
             "Iterator": {

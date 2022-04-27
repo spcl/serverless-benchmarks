@@ -220,7 +220,7 @@ class Local(System):
             raise RuntimeError("Not supported!")
 
         function.add_trigger(trigger)
-        self.cache_client.update_function(function)
+        self.cache_client.update_benchmark(function)
         return trigger
 
     def cached_benchmark(self, benchmark: Benchmark):

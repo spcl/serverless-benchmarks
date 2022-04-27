@@ -11,7 +11,7 @@ from typing import cast, Dict, Optional, Tuple, List, Type
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google.cloud import monitoring_v3
+from google.cloud import monitoring_v3  # type: ignore
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -21,6 +21,7 @@ from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.storage import GCPStorage
+from sebs.gcp.triggers import HTTPTrigger
 from sebs.gcp.function import GCPFunction
 from sebs.gcp.workflow import GCPWorkflow
 from sebs.gcp.generator import GCPGenerator
@@ -285,8 +286,6 @@ class GCP(System):
     def create_function_trigger(
         self, function: Function, trigger_type: Trigger.TriggerType
     ) -> Trigger:
-        from sebs.gcp.triggers import HTTPTrigger
-
         if trigger_type == Trigger.TriggerType.HTTP:
 
             location = self.config.region
@@ -389,7 +388,8 @@ class GCP(System):
         funcs = [self.create_function(code_package, prefix + fn) for fn in func_names]
 
         # generate workflow definition.json
-        urls = [self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs]
+        triggers = [self.create_function_trigger(f, Trigger.TriggerType.HTTP) for f in funcs]
+        urls = [cast(HTTPTrigger, t).url for t in triggers]
         func_triggers = {n: u for (n, u) in zip(func_names, urls)}
 
         gen = GCPGenerator(workflow_name, func_triggers)
@@ -401,7 +401,7 @@ class GCP(System):
         for map_id, map_def in gen.generate_maps():
             full_workflow_name = GCP.get_full_workflow_name(project_name, location, map_id)
             create_req = (
-                self.workflow_client.projects()
+                self.workflow_client.projects()  # type: ignore
                 .locations()
                 .workflows()
                 .create(
@@ -418,14 +418,14 @@ class GCP(System):
 
         full_workflow_name = GCP.get_full_workflow_name(project_name, location, workflow_name)
         get_req = (
-            self.workflow_client.projects().locations().workflows().get(name=full_workflow_name)
+            self.workflow_client.projects().locations().workflows().get(name=full_workflow_name)  # type: ignore
         )
 
         try:
             get_req.execute()
         except HttpError:
             create_req = (
-                self.workflow_client.projects()
+                self.workflow_client.projects()  # type: ignore
                 .locations()
                 .workflows()
                 .create(
@@ -505,7 +505,8 @@ class GCP(System):
         funcs = [self.create_function(code_package, prefix + fn) for fn in func_names]
 
         # Generate workflow definition.json
-        urls = [self.create_function_trigger(f, Trigger.TriggerType.HTTP).url for f in funcs]
+        triggers = [self.create_function_trigger(f, Trigger.TriggerType.HTTP) for f in funcs]
+        urls = [cast(HTTPTrigger, t).url for t in triggers]
         func_triggers = {n: u for (n, u) in zip(func_names, urls)}
         gen = GCPGenerator(workflow.name, func_triggers)
         gen.parse(definition_path)
@@ -516,7 +517,7 @@ class GCP(System):
                 self.config.project_name, self.config.region, map_id
             )
             patch_req = (
-                self.workflow_client.projects()
+                self.workflow_client.projects()  # type: ignore
                 .locations()
                 .workflows()
                 .patch(
@@ -534,7 +535,7 @@ class GCP(System):
             self.config.project_name, self.config.region, workflow.name
         )
         req = (
-            self.workflow_client.projects()
+            self.workflow_client.projects()  # type: ignore
             .locations()
             .workflows()
             .patch(
@@ -585,7 +586,8 @@ class GCP(System):
             There shouldn't be problem of waiting for complete results,
             since logs appear very quickly here.
         """
-        from google.cloud import logging as gcp_logging
+
+        from google.cloud import logging as gcp_logging  # type: ignore
 
         logging_client = gcp_logging.Client()
         logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")

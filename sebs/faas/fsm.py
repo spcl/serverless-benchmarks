@@ -1,6 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Optional, List, Callable, Union
+from typing import Optional, List, Callable, Union, Dict, Type
 import json
 
 
@@ -66,7 +66,7 @@ class Map(State):
         )
 
 
-_STATE_TYPES = {"task": Task, "switch": Switch, "map": Map}
+_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map}
 
 
 class Generator(ABC):
@@ -81,7 +81,7 @@ class Generator(ABC):
         self.root = self.states[definition["root"]]
 
     def generate(self) -> str:
-        states = self.states.values()
+        states = list(self.states.values())
         payloads = []
         for s in states:
             obj = self.encode_state(s)
