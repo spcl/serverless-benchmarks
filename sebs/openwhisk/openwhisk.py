@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 import subprocess
@@ -225,12 +224,18 @@ class OpenWhisk(System):
         self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
         return benchmark_archive, bytes_size
 
-    def storage_arguments(self) -> dict:
+    def storage_arguments(self) -> List[str]:
         storage = cast(Minio, self.get_storage())
         return [
-            "-p", "MINIO_STORAGE_SECRET_KEY", storage._access_key,
-            "-p", "MINIO_STORAGE_ACCESS_KEY", storage._secret_key,
-            "-p", "MINIO_STORAGE_CONNECTION_URL", storage._url,
+            "-p",
+            "MINIO_STORAGE_SECRET_KEY",
+            storage._access_key,
+            "-p",
+            "MINIO_STORAGE_ACCESS_KEY",
+            storage._secret_key,
+            "-p",
+            "MINIO_STORAGE_CONNECTION_URL",
+            storage._url,
         ]
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "OpenwhiskFunction":
