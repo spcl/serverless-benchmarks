@@ -299,6 +299,7 @@ class CodePackage(LoggingBase):
         )
         if len(packages):
             with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
+                out.write("\n")
                 for package in packages:
                     out.write(package + "\n")
 
