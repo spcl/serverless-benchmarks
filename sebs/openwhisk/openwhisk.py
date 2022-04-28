@@ -213,11 +213,11 @@ class OpenWhisk(System):
         }
         package_config = CONFIG_FILES[language_name]
 
-        os.chdir(directory)
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(
             ["zip", benchmark_archive] + package_config,
             stdout=subprocess.DEVNULL,
+            cwd=directory
         )
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
