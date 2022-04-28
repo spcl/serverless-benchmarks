@@ -2,11 +2,14 @@ from typing import Optional, Dict, Type
 
 import docker
 
+import sebs.storage
+from sebs import types
 from sebs.local import Local
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
+from sebs.faas.storage import PersistentStorage
 from sebs.faas.config import Config
 from sebs.utils import has_platform, LoggingHandlers, LoggingBase
 
@@ -167,6 +170,13 @@ class SeBS(LoggingBase):
             logging_filename=logging_filename
         )
         return benchmark
+
+    @staticmethod
+    def get_storage_implementation(storage_type: types.Storage) -> Type[PersistentStorage]:
+        _storage_implementations = {types.Storage.MINIO: sebs.storage.minio.Minio}
+        impl = _storage_implementations.get(storage_type)
+        assert impl
+        return impl
 
     def shutdown(self):
         self.cache_client.shutdown()
