@@ -208,21 +208,11 @@ class OpenWhisk(System):
 
         # We deploy Minio config in code package since this depends on local
         # deployment - it cannnot be a part of Docker image
-        minio_config_path = "minioConfig.json"
         CONFIG_FILES = {
-            "python": ["__main__.py", minio_config_path],
-            "nodejs": ["index.js", minio_config_path],
+            "python": ["__main__.py"],
+            "nodejs": ["index.js"],
         }
         package_config = CONFIG_FILES[language_name]
-
-        with open(os.path.join(directory, minio_config_path), "w+") as minio_config:
-            storage = cast(Minio, self.get_storage())
-            minio_config_json = {
-                "access_key": storage._access_key,
-                "secret_key": storage._secret_key,
-                "url": storage._url,
-            }
-            minio_config.write(json.dumps(minio_config_json))
 
         os.chdir(directory)
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
@@ -234,6 +224,14 @@ class OpenWhisk(System):
         bytes_size = os.path.getsize(benchmark_archive)
         self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
         return benchmark_archive, bytes_size
+
+    def storage_arguments(self) -> dict:
+        storage = cast(Minio, self.get_storage())
+        return [
+            "-p", "MINIO_STORAGE_SECRET_KEY", storage._access_key,
+            "-p", "MINIO_STORAGE_ACCESS_KEY", storage._secret_key,
+            "-p", "MINIO_STORAGE_CONNECTION_URL", storage._url,
+        ]
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "OpenwhiskFunction":
         self.logging.info("Creating function as an action in OpenWhisk.")
@@ -280,6 +278,7 @@ class OpenWhisk(System):
                             str(code_package.benchmark_config.memory),
                             "--timeout",
                             str(code_package.benchmark_config.timeout * 1000),
+                            *self.storage_arguments(),
                             code_package.code_location,
                         ],
                         stderr=subprocess.DEVNULL,
@@ -319,12 +318,15 @@ class OpenWhisk(System):
                     "action",
                     "update",
                     function.name,
+                    "--web",
+                    "true",
                     "--docker",
                     docker_image,
                     "--memory",
                     str(code_package.benchmark_config.memory),
                     "--timeout",
                     str(code_package.benchmark_config.timeout * 1000),
+                    *self.storage_arguments(),
                     code_package.code_location,
                 ],
                 stderr=subprocess.DEVNULL,

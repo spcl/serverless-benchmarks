@@ -9,6 +9,10 @@ def main(args):
     args['request-id'] = os.getenv('__OW_ACTIVATION_ID')
     args['income-timestamp'] = begin.timestamp()
 
+    for arg in ["MINIO_STORAGE_CONNECTION_URL", "MINIO_STORAGE_ACCESS_KEY", "MINIO_STORAGE_SECRET_KEY"]:
+        os.environ[arg] = args[arg]
+        del args[arg]
+
     from function import function
     ret = function.handler(args)
 

@@ -10,17 +10,16 @@ class storage:
     client = None
 
     def __init__(self):
-        file = open(os.path.join(os.path.dirname(__file__), "minioConfig.json"), "r")
-        minioConfig = json.load(file)
         try:
             self.client = minio.Minio(
-                minioConfig["url"],
-                access_key=minioConfig["access_key"],
-                secret_key=minioConfig["secret_key"],
+                os.getenv("MINIO_STORAGE_CONNECTION_URL"),
+                access_key=os.getenv("MINIO_STORAGE_ACCESS_KEY"),
+                secret_key=os.getenv("MINIO_STORAGE_SECRET_KEY"),
                 secure=False,
             )
         except Exception as e:
             logging.info(e)
+            raise e
 
     @staticmethod
     def unique_name(name):
