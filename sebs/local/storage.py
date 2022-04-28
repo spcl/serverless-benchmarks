@@ -145,10 +145,16 @@ class Minio(PersistentStorage):
     def download(self, bucket_name: str, key: str, filepath: str):
         raise NotImplementedError()
 
-    def list_bucket(self, bucket_name: str):
-        objects_list = self.connection.list_objects(bucket_name)
-        objects: List[str]
-        return [obj.object_name for obj in objects_list]
+    def exists_bucket(self, bucket_name: str) -> bool:
+        return self.connection.bucket_exists(bucket_name)
+
+    def list_bucket(self, bucket_name: str) -> List[str]:
+        try:
+            objects_list = self.connection.list_objects(bucket_name)
+            objects: List[str]
+            return [obj.object_name for obj in objects_list]
+        except minio.error.NoSuchBucket:
+            raise RuntimeError(f"Attempting to access a non-existing bucket {bucket_name}!")
 
     def list_buckets(self, bucket_name: str) -> List[str]:
         buckets = self.connection.list_buckets()

@@ -153,6 +153,10 @@ class PersistentStorage(ABC, LoggingBase):
         pass
 
     @abstractmethod
+    def exists_bucket(self, bucket_name: str) -> bool:
+        pass
+
+    @abstractmethod
     def clean_bucket(self, bucket_name: str):
         pass
 
@@ -170,16 +174,33 @@ class PersistentStorage(ABC, LoggingBase):
         # Load cached information
         cached_buckets = self.cache_client.get_storage_config(self.deployment_name(), benchmark)
         if cached_buckets:
-            self.input_buckets = cached_buckets["buckets"]["input"]
-            for bucket in self.input_buckets:
-                self.input_buckets_files.append(self.list_bucket(bucket))
-            self.output_buckets = cached_buckets["buckets"]["output"]
-            # for bucket in self.output_buckets:
-            #    self.clean_bucket(bucket)
-            self.cached = True
-            self.logging.info("Using cached storage input buckets {}".format(self.input_buckets))
-            self.logging.info("Using cached storage output buckets {}".format(self.output_buckets))
-            return
+            cache_valid = True
+            for bucket in [
+                *cached_buckets["buckets"]["input"],
+                *cached_buckets["buckets"]["output"],
+            ]:
+                if not self.exists_bucket(bucket):
+                    cache_valid = False
+                    self.logging.info(f"Cached storage buckets {bucket} does not exist.")
+                    break
+
+            if cache_valid:
+                self.input_buckets = cached_buckets["buckets"]["input"]
+                for bucket in self.input_buckets:
+                    self.input_buckets_files.append(self.list_bucket(bucket))
+                self.output_buckets = cached_buckets["buckets"]["output"]
+                # for bucket in self.output_buckets:
+                #    self.clean_bucket(bucket)
+                self.cached = True
+                self.logging.info(
+                    "Using cached storage input buckets {}".format(self.input_buckets)
+                )
+                self.logging.info(
+                    "Using cached storage output buckets {}".format(self.output_buckets)
+                )
+                return
+            else:
+                self.logging.info("Cached storage buckets are no longer valid, creating new ones.")
 
         buckets = self.list_buckets(self.correct_name(benchmark))
         for i in range(0, requested_buckets[0]):

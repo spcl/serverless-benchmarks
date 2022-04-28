@@ -3,6 +3,7 @@ import uuid
 from typing import List
 
 from google.cloud import storage as gcp_storage
+from google.api_core import exceptions
 
 from sebs.cache import Cache
 from ..faas.storage import PersistentStorage
@@ -64,6 +65,13 @@ class GCPStorage(PersistentStorage):
         gcp_storage.blob._MAX_MULTIPART_SIZE = 5 * 1024 * 1024  # workaround for connection timeout
         blob.upload_from_filename(filepath)
 
+    def exists_bucket(self, bucket_name: str) -> bool:
+        try:
+            return self.client.bucket(bucket_name).exists()
+        # 403 returned when the bucket exists but is owned by another user
+        except exceptions.Forbidden:
+            return False
+
     def list_bucket(self, bucket_name: str) -> List[str]:
         bucket_instance = self.client.get_bucket(bucket_name)
         all_blobs = list(self.client.list_blobs(bucket_instance))
@@ -77,16 +85,6 @@ class GCPStorage(PersistentStorage):
 
     def clean_bucket(self, bucket: str):
         raise NotImplementedError()
-
-    """
-        :param bucket_name:
-        :return: list of files in a given bucket
-    """
-
-    # def list_bucket(self, bucket_name: str) -> List[str]:
-    #    name = "{}-{}".format(bucket_name, suffix)
-    #    bucket_name = self.create_bucket(name)
-    #    return bucket_name
 
     def uploader_func(self, bucket_idx: int, key: str, filepath: str) -> None:
         if self.cached and not self.replace_existing:
