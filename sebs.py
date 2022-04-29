@@ -324,8 +324,9 @@ def storage_stop(input_json):
     with open(input_json, "r") as f:
         cfg = json.load(f)
         storage_type = cfg["type"]
+        storage_cfg = sebs.SeBS.get_storage_config_implementation(storage_type).deserialize(cfg)
         logging.info(f"Stopping storage deployment of {storage_type}.")
-        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(cfg, None)
+        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(storage_cfg, None)
         storage.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 

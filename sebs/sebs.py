@@ -178,6 +178,13 @@ class SeBS(LoggingBase):
         assert impl
         return impl
 
+    @staticmethod
+    def get_storage_config_implementation(storage_type: types.Storage):
+        _storage_implementations = {types.Storage.MINIO: sebs.storage.config.MinioConfig}
+        impl = _storage_implementations.get(storage_type)
+        assert impl
+        return impl
+
     def shutdown(self):
         self.cache_client.shutdown()
 

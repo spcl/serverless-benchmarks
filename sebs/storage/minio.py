@@ -108,7 +108,7 @@ class Minio(PersistentStorage):
         if self._storage_container is not None:
             self.logging.info(f"Stopping minio container at {self._cfg.address}.")
             self._storage_container.stop()
-            self.logging.info("Stopped minio container at {self._cfg.address}.")
+            self.logging.info(f"Stopped minio container at {self._cfg.address}.")
         else:
             self.logging.error("Stopping minio was not succesful, storage container not known!")
 
@@ -220,3 +220,7 @@ class Minio(PersistentStorage):
         obj.output_buckets = cached_config.output_buckets
         obj.configure_connection()
         return obj
+
+    @staticmethod
+    def deserialize(cached_config: MinioConfig, cache_client: Cache) -> "Minio":
+        return Minio._deserialize(cached_config, cache_client, Minio)
