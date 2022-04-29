@@ -14,7 +14,7 @@ import sebs
 from sebs import SeBS
 from sebs.types import Storage as StorageTypes
 from sebs.regression import regression_suite
-from sebs.utils import update_nested_dict
+from sebs.utils import update_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
 
@@ -114,6 +114,7 @@ def parse_common_params(
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
 ):
+
     global sebs_client, deployment_client
     config_obj = json.load(open(config, "r"))
     os.makedirs(output_dir, exist_ok=True)
@@ -140,6 +141,8 @@ def parse_common_params(
 
     if ignore_cache:
         sebs_client.ignore_cache()
+
+    catch_interrupt()
 
     return config_obj, output_dir, logging_filename, sebs_client, deployment_client
 
