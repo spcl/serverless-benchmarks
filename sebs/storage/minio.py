@@ -2,7 +2,7 @@ import json
 import os
 import secrets
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Type, TypeVar
 
 import docker
 import minio
@@ -10,6 +10,7 @@ import minio
 from sebs.cache import Cache
 from sebs.types import Storage as StorageTypes
 from sebs.faas.storage import PersistentStorage
+from sebs.storage.config import MinioConfig
 
 
 class Minio(PersistentStorage):
@@ -28,39 +29,48 @@ class Minio(PersistentStorage):
         super().__init__(self.MINIO_REGION, cache_client, replace_existing)
         self._docker_client = docker_client
         self._storage_container: Optional[docker.container] = None
+        self._cfg = MinioConfig()
+
+    @property
+    def config(self) -> MinioConfig:
+        return self._cfg
 
     @staticmethod
     def _define_http_client():
         """
-            Minio does not allow another way of configuring timeout for connection.
-            The rest of configuration is copied from source code of Minio.
+        Minio does not allow another way of configuring timeout for connection.
+        The rest of configuration is copied from source code of Minio.
         """
         import urllib3
         from datetime import timedelta
+
         timeout = timedelta(seconds=1).seconds
 
         return urllib3.PoolManager(
             timeout=urllib3.util.Timeout(connect=timeout, read=timeout),
             maxsize=10,
-            retries=urllib3.Retry(total=5,backoff_factor=0.2,status_forcelist=[500, 502, 503, 504])
+            retries=urllib3.Retry(
+                total=5, backoff_factor=0.2, status_forcelist=[500, 502, 503, 504]
+            ),
         )
 
     def start(self, port: int = 9000):
-        self._port = port
-        self._access_key = secrets.token_urlsafe(32)
-        self._secret_key = secrets.token_hex(32)
-        self._url = ""
-        self.logging.info("Minio storage ACCESS_KEY={}".format(self._access_key))
-        self.logging.info("Minio storage SECRET_KEY={}".format(self._secret_key))
+
+        self._cfg.port = port
+        self._cfg.access_key = secrets.token_urlsafe(32)
+        self._cfg.secret_key = secrets.token_hex(32)
+        self._cfg.address = ""
+        self.logging.info("Minio storage ACCESS_KEY={}".format(self._cfg.access_key))
+        self.logging.info("Minio storage SECRET_KEY={}".format(self._cfg.secret_key))
         try:
             self._storage_container = self._docker_client.containers.run(
                 "minio/minio:latest",
                 command="server /data",
                 network_mode="bridge",
-                ports={"9000": str(self._port)},
+                ports={"9000": str(self._cfg.port)},
                 environment={
-                    "MINIO_ACCESS_KEY": self._access_key,
-                    "MINIO_SECRET_KEY": self._secret_key,
+                    "MINIO_ACCESS_KEY": self._cfg.access_key,
+                    "MINIO_SECRET_KEY": self._cfg.secret_key,
                 },
                 remove=True,
                 stdout=True,
@@ -77,13 +87,13 @@ class Minio(PersistentStorage):
 
     def configure_connection(self):
         # who knows why? otherwise attributes are not loaded
-        if self._url == "":
+        if self._cfg.address == "":
             self._storage_container.reload()
             networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
-            self._url = "{IPAddress}:{Port}".format(
-                IPAddress=networks["bridge"]["IPAddress"], Port=self._port
+            self._cfg.address = "{IPAddress}:{Port}".format(
+                IPAddress=networks["bridge"]["IPAddress"], Port=self._cfg.port
             )
-            if not self._url:
+            if not self._cfg.address:
                 self.logging.error(
                     f"Couldn't read the IP address of container from attributes "
                     f"{json.dumps(self._instance.attrs, indent=2)}"
@@ -91,24 +101,24 @@ class Minio(PersistentStorage):
                 raise RuntimeError(
                     f"Incorrect detection of IP address for container with id {self._instance_id}"
                 )
-            self.logging.info("Starting minio instance at {}".format(self._url))
+            self.logging.info("Starting minio instance at {}".format(self._cfg.address))
         self.connection = self.get_connection()
 
     def stop(self):
         if self._storage_container is not None:
-            self.logging.info("Stopping minio container at {url}".format(url=self._url))
+            self.logging.info(f"Stopping minio container at {self._cfg.address}.")
             self._storage_container.stop()
-            self.logging.info("Stopped minio container at {url}".format(url=self._url))
+            self.logging.info("Stopped minio container at {self._cfg.address}.")
         else:
             self.logging.error("Stopping minio was not succesful, storage container not known!")
 
     def get_connection(self):
         return minio.Minio(
-            self._url,
-            access_key=self._access_key,
-            secret_key=self._secret_key,
+            self._cfg.address,
+            access_key=self._cfg.access_key,
+            secret_key=self._cfg.secret_key,
             secure=False,
-            http_client=Minio._define_http_client()
+            http_client=Minio._define_http_client(),
         )
 
     def _create_bucket(self, name: str, buckets: List[str] = []):
@@ -189,37 +199,24 @@ class Minio(PersistentStorage):
         raise NotImplementedError()
 
     def serialize(self) -> dict:
-        if self._storage_container is not None:
-            return {
-                "instance_id": self._storage_container.id,
-                "address": self._url,
-                "port": self._port,
-                "secret_key": self._secret_key,
-                "access_key": self._access_key,
-                "input": self.input_buckets,
-                "output": self.output_buckets,
-                "type": StorageTypes.MINIO,
-            }
-        else:
-            return {}
+        return {
+            **self._cfg.serialize(),
+            "type": StorageTypes.MINIO,
+        }
+
+    T = TypeVar("T", bound="Minio")
 
     @staticmethod
-    def deserialize(cached_config: dict, cache_client: Cache) -> "Minio":
-        try:
-            docker_client = docker.from_env()
-            obj = Minio(docker_client, cache_client, False)
-            if "instance_id" in cached_config:
-                instance_id = cached_config["instance_id"]
-                obj._storage_container = docker_client.containers.get(instance_id)
-            else:
-                obj._storage_container = None
-            obj._url = cached_config["address"]
-            obj._port = cached_config["port"]
-            obj._access_key = cached_config["access_key"]
-            obj._secret_key = cached_config["secret_key"]
-            obj.input_buckets = cached_config["input"]
-            obj.output_buckets = cached_config["output"]
-            obj.configure_connection()
-            return obj
-        except docker.errors.NotFound:
-            raise RuntimeError(f"Cached container {instance_id} not available anymore!")
+    def _deserialize(cached_config: MinioConfig, cache_client: Cache, obj_type: Type[T]) -> T:
+        docker_client = docker.from_env()
+        obj = obj_type(docker_client, cache_client, False)
+        obj._cfg = cached_config
+        if cached_config.instance_id:
+            instance_id = cached_config.instance_id
+            obj._storage_container = docker_client.containers.get(instance_id)
+        else:
+            obj._storage_container = None
+        obj.input_buckets = cached_config.input_buckets
+        obj.output_buckets = cached_config.output_buckets
+        obj.configure_connection()
+        return obj

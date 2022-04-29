@@ -9,7 +9,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.faas import System, PersistentStorage
 from sebs.faas.function import Function, ExecutionResult, Trigger
-from .minio import Minio
+from sebs.openwhisk.storage import Minio
 from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
 from sebs.utils import PROJECT_DIR, LoggingHandlers, execute
 from .config import OpenWhiskConfig
@@ -19,7 +19,6 @@ from ..config import SeBSConfig
 
 class OpenWhisk(System):
     _config: OpenWhiskConfig
-    storage: Minio
 
     def __init__(
         self,
@@ -52,9 +51,15 @@ class OpenWhisk(System):
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         if not hasattr(self, "storage"):
-            self.storage = Minio(self.docker_client, self.cache_client, replace_existing)
+
+            if not self.config.resources.storage_config:
+                raise RuntimeError(
+                    "OpenWhisk is missing the configuration of pre-allocated storage!"
+                )
+            self.storage = Minio.deserialize(
+                self.config.resources.storage_config, self.cache_client
+            )
             self.storage.logging_handlers = self.logging_handlers
-            self.storage.start()
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
@@ -215,9 +220,7 @@ class OpenWhisk(System):
 
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(
-            ["zip", benchmark_archive] + package_config,
-            stdout=subprocess.DEVNULL,
-            cwd=directory
+            ["zip", benchmark_archive] + package_config, stdout=subprocess.DEVNULL, cwd=directory
         )
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
@@ -229,13 +232,13 @@ class OpenWhisk(System):
         return [
             "-p",
             "MINIO_STORAGE_SECRET_KEY",
-            storage._access_key,
+            storage.config.secret_key,
             "-p",
             "MINIO_STORAGE_ACCESS_KEY",
-            storage._secret_key,
+            storage.config.access_key,
             "-p",
             "MINIO_STORAGE_CONNECTION_URL",
-            storage._url,
+            storage.config.address,
         ]
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "OpenwhiskFunction":

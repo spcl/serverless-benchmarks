@@ -1,6 +1,7 @@
 from sebs.cache import Cache
 from sebs.faas.config import Credentials, Resources, Config
 from sebs.utils import LoggingHandlers
+from sebs.storage.config import MinioConfig
 
 from typing import cast, Optional
 
@@ -20,15 +21,19 @@ class OpenWhiskResources(Resources):
         registry: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
+        registry_updated: bool = False,
     ):
         super().__init__()
         self._docker_registry = registry if registry != "" else None
         self._docker_username = username if username != "" else None
         self._docker_password = password if password != "" else None
+        self._registry_updated = registry_updated
+        self._storage: Optional[MinioConfig] = None
+        self._storage_updated = False
 
     @staticmethod
     def typename() -> str:
-        return "OpenWhisk.Credentials"
+        return "OpenWhisk.Resources"
 
     @property
     def docker_registry(self) -> Optional[str]:
@@ -42,6 +47,18 @@ class OpenWhiskResources(Resources):
     def docker_password(self) -> Optional[str]:
         return self._docker_password
 
+    @property
+    def storage_config(self) -> Optional[MinioConfig]:
+        return self._storage
+
+    @property
+    def storage_updated(self) -> bool:
+        return self._storage_updated
+
+    @property
+    def registry_updated(self) -> bool:
+        return self._registry_updated
+
     @staticmethod
     def initialize(dct: dict) -> Resources:
         return OpenWhiskResources(dct["registry"], dct["username"], dct["password"])
@@ -51,11 +68,21 @@ class OpenWhiskResources(Resources):
 
         cached_config = cache.get_config("openwhisk")
         ret: OpenWhiskResources
-        # Check for new config
+        # Check for new config - overrides but check if it's different
         if "docker_registry" in config:
             ret = cast(OpenWhiskResources, OpenWhiskResources.initialize(config["docker_registry"]))
             ret.logging.info("Using user-provided Docker registry for OpenWhisk.")
             ret.logging_handlers = handlers
+
+            # check if there has been an update
+            if not (
+                cached_config
+                and "resources" in cached_config
+                and "docker" in cached_config["resources"]
+                and cached_config["resources"]["docker"] == config["docker_registry"]
+            ):
+                ret._registry_updated = True
+
         # Load cached values
         elif (
             cached_config
@@ -72,6 +99,37 @@ class OpenWhiskResources(Resources):
             ret = OpenWhiskResources()
             ret.logging.info("Using default Docker registry for OpenWhisk.")
             ret.logging_handlers = handlers
+            ret._registry_updated = True
+
+        # Check for new config
+        if "storage" in config:
+            ret._storage = MinioConfig.deserialize(config["storage"])
+            ret.logging.info("Using user-provided configuration of storage for OpenWhisk.")
+
+            # check if there has been an update
+            if not (
+                cached_config
+                and "resources" in cached_config
+                and "storage" in cached_config["resources"]
+                and cached_config["resources"]["storage"] == config["storage"]
+            ):
+                print(cached_config["resources"]["storage"])
+                print(config["storage"])
+                ret.logging.info(
+                    "User-provided configuration is different from cached storage, "
+                    "we will update existing OpenWhisk actions."
+                )
+                print(ret._storage)
+                ret._storage_updated = True
+
+        # Load cached values
+        elif (
+            cached_config
+            and "resources" in cached_config
+            and "storage" in cached_config["resources"]
+        ):
+            ret._storage = MinioConfig.deserialize(cached_config["resources"]["storage"])
+            ret.logging.info("Using cached configuration of storage for OpenWhisk.")
 
         return ret
 
@@ -85,13 +143,17 @@ class OpenWhiskResources(Resources):
         cache.update_config(
             val=self.docker_password, keys=["openwhisk", "resources", "docker", "password"]
         )
+        if self._storage:
+            self._storage.update_cache(["openwhisk", "resources", "storage"], cache)
 
     def serialize(self) -> dict:
-        out = {
+        out: dict = {
             "docker_registry": self.docker_registry,
             "docker_username": self.docker_username,
             "docker_password": self.docker_password,
         }
+        if self._storage:
+            out = {**out, "storage": self._storage.serialize()}
         return out
 
 
