@@ -19,7 +19,7 @@ class Minio(PersistentStorage):
 
     @staticmethod
     def deployment_name() -> str:
-        return "Storage"
+        return "minio"
 
     # the location does not matter
     MINIO_REGION = "us-east-1"
@@ -30,21 +30,26 @@ class Minio(PersistentStorage):
         self._storage_container: Optional[docker.container] = None
 
     @staticmethod
-    def from_config(
-        config: dict, docker_client: docker.client, cache_client: Cache, replace_existing: bool
-    ):
+    def _define_http_client():
+        """
+            Minio does not allow another way of configuring timeout for connection.
+            The rest of configuration is copied from source code of Minio.
+        """
+        import urllib3
+        from datetime import timedelta
+        timeout = timedelta(seconds=1).seconds
 
-        instance = Minio(docker_client, cache_client, replace_existing)
-        instance._port = config["port"]
-        instance._access_key = config["access-key"]
-        instance._secret_key = config["secret-key"]
-        instance._url = config["url"]
-        return instance
+        return urllib3.PoolManager(
+            timeout=urllib3.util.Timeout(connect=timeout, read=timeout),
+            maxsize=10,
+            retries=urllib3.Retry(total=5,backoff_factor=0.2,status_forcelist=[500, 502, 503, 504])
+        )
 
     def start(self, port: int = 9000):
         self._port = port
         self._access_key = secrets.token_urlsafe(32)
         self._secret_key = secrets.token_hex(32)
+        self._url = ""
         self.logging.info("Minio storage ACCESS_KEY={}".format(self._access_key))
         self.logging.info("Minio storage SECRET_KEY={}".format(self._secret_key))
         try:
@@ -72,20 +77,21 @@ class Minio(PersistentStorage):
 
     def configure_connection(self):
         # who knows why? otherwise attributes are not loaded
-        self._storage_container.reload()
-        networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
-        self._url = "{IPAddress}:{Port}".format(
-            IPAddress=networks["bridge"]["IPAddress"], Port=self._port
-        )
-        if not self._url:
-            self.logging.error(
-                f"Couldn't read the IP address of container from attributes "
-                f"{json.dumps(self._instance.attrs, indent=2)}"
+        if self._url == "":
+            self._storage_container.reload()
+            networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
+            self._url = "{IPAddress}:{Port}".format(
+                IPAddress=networks["bridge"]["IPAddress"], Port=self._port
             )
-            raise RuntimeError(
-                f"Incorrect detection of IP address for container with id {self._instance_id}"
-            )
-        self.logging.info("Starting minio instance at {}".format(self._url))
+            if not self._url:
+                self.logging.error(
+                    f"Couldn't read the IP address of container from attributes "
+                    f"{json.dumps(self._instance.attrs, indent=2)}"
+                )
+                raise RuntimeError(
+                    f"Incorrect detection of IP address for container with id {self._instance_id}"
+                )
+            self.logging.info("Starting minio instance at {}".format(self._url))
         self.connection = self.get_connection()
 
     def stop(self):
@@ -98,7 +104,11 @@ class Minio(PersistentStorage):
 
     def get_connection(self):
         return minio.Minio(
-            self._url, access_key=self._access_key, secret_key=self._secret_key, secure=False
+            self._url,
+            access_key=self._access_key,
+            secret_key=self._secret_key,
+            secure=False,
+            http_client=Minio._define_http_client()
         )
 
     def _create_bucket(self, name: str, buckets: List[str] = []):
@@ -209,6 +219,7 @@ class Minio(PersistentStorage):
             obj._secret_key = cached_config["secret_key"]
             obj.input_buckets = cached_config["input"]
             obj.output_buckets = cached_config["output"]
+            obj.configure_connection()
             return obj
         except docker.errors.NotFound:
             raise RuntimeError(f"Cached container {instance_id} not available anymore!")
