@@ -77,6 +77,7 @@ class Minio(PersistentStorage):
                 stderr=True,
                 detach=True,
             )
+            self._cfg.instance_id = self._storage_container.id
             self.configure_connection()
         except docker.errors.APIError as e:
             self.logging.error("Starting Minio storage failed! Reason: {}".format(e))
