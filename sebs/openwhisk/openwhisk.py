@@ -347,6 +347,32 @@ class OpenWhisk(System):
             self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
             raise RuntimeError(e)
 
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+        self.logging.info(f"Update configuration of an existing OpenWhisk action {function.name}.")
+        try:
+            subprocess.run(
+                [
+                    *self.get_wsk_cmd(),
+                    "action",
+                    "update",
+                    function.name,
+                    "--memory",
+                    str(code_package.benchmark_config.memory),
+                    "--timeout",
+                    str(code_package.benchmark_config.timeout * 1000),
+                    *self.storage_arguments()
+                ],
+                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                check=True,
+            )
+        except FileNotFoundError as e:
+            self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
+            raise RuntimeError(e)
+
+    def update_function_configuration_enforced(self) -> bool:
+        return self._config.resources.storage_updated
+
     def default_function_name(self, code_package: Benchmark) -> str:
         return (
             f"{code_package.benchmark}-{code_package.language_name}-"

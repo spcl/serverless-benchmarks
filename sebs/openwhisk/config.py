@@ -113,13 +113,10 @@ class OpenWhiskResources(Resources):
                 and "storage" in cached_config["resources"]
                 and cached_config["resources"]["storage"] == config["storage"]
             ):
-                print(cached_config["resources"]["storage"])
-                print(config["storage"])
                 ret.logging.info(
                     "User-provided configuration is different from cached storage, "
                     "we will update existing OpenWhisk actions."
                 )
-                print(ret._storage)
                 ret._storage_updated = True
 
         # Load cached values

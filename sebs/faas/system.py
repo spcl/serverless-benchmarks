@@ -213,6 +213,11 @@ class System(ABC, LoggingBase):
                     function=function,
                 )
                 code_package.query_cache()
+            # code up to date, but configuration needs to be updated
+            # FIXME: detect change in function config
+            elif self.update_function_configuration_enforced():
+                self.update_function_configuration(function, code_package)
+                code_package.query_cache()
             else:
                 self.logging.info(f"Cached function {func_name} is up to date.")
             return function
