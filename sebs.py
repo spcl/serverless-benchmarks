@@ -175,8 +175,14 @@ def benchmark():
     type=str,
     help="Override function name for random generation.",
 )
+@click.option(
+    "--image-tag-prefix",
+    default=None,
+    type=str,
+    help="Attach prefix to generated Docker image tag.",
+)
 @common_params
-def invoke(benchmark, benchmark_input_size, repetitions, trigger, function_name, **kwargs):
+def invoke(benchmark, benchmark_input_size, repetitions, trigger, function_name, image_tag_prefix, **kwargs):
 
     (
         config,
@@ -185,6 +191,9 @@ def invoke(benchmark, benchmark_input_size, repetitions, trigger, function_name,
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
+    if image_tag_prefix is not None:
+        sebs_client.config.image_tag_prefix = image_tag_prefix
+
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     update_nested_dict(config, ["experiments", "benchmark"], benchmark)
     benchmark_obj = sebs_client.get_benchmark(

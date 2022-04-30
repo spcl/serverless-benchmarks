@@ -38,6 +38,10 @@ class SeBS(LoggingBase):
     def logging_filename(self) -> Optional[str]:
         return self._logging_filename
 
+    @property
+    def config(self) -> SeBSConfig:
+        return self._config
+
     def generate_logging_handlers(self, logging_filename: Optional[str] = None) -> LoggingHandlers:
         filename = logging_filename if logging_filename else self.logging_filename
         if filename in self._handlers:
