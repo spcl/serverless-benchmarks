@@ -56,7 +56,7 @@ class Minio(PersistentStorage):
 
     def start(self, port: int = 9000):
 
-        self._cfg.port = port
+        self._cfg.mapped_port = port
         self._cfg.access_key = secrets.token_urlsafe(32)
         self._cfg.secret_key = secrets.token_hex(32)
         self._cfg.address = ""
@@ -67,7 +67,7 @@ class Minio(PersistentStorage):
                 "minio/minio:latest",
                 command="server /data",
                 network_mode="bridge",
-                ports={"9000": str(self._cfg.port)},
+                ports={"9000": str(self._cfg.mapped_port)},
                 environment={
                     "MINIO_ACCESS_KEY": self._cfg.access_key,
                     "MINIO_SECRET_KEY": self._cfg.secret_key,

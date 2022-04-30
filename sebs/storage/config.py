@@ -8,7 +8,7 @@ from sebs.cache import Cache
 @dataclass
 class MinioConfig:
     address: str = ""
-    port: int = -1
+    mapped_port: int = -1
     access_key: str = ""
     secret_key: str = ""
     instance_id: str = ""
