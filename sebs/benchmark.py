@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sebs.experiments.config import Config as ExperimentConfig
-    from sebs.experiments.config import Language
+    from sebs.faas.function import Language
 
 
 class BenchmarkConfig:
@@ -40,7 +40,7 @@ class BenchmarkConfig:
     # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
-        from sebs.experiments.config import Language
+        from sebs.faas.function import Language
 
         return BenchmarkConfig(
             json_object["timeout"],
@@ -297,7 +297,7 @@ class Benchmark(LoggingBase):
                 json.dump(package_json, package_file, indent=2)
 
     def add_deployment_package(self, output_dir):
-        from sebs.experiments.config import Language
+        from sebs.faas.function import Language
 
         if self.language == Language.PYTHON:
             self.add_deployment_package_python(output_dir)

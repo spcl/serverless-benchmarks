@@ -13,7 +13,7 @@ from sebs.openwhisk.storage import Minio
 from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
 from sebs.utils import PROJECT_DIR, LoggingHandlers, execute
 from .config import OpenWhiskConfig
-from .function import OpenwhiskFunction
+from .function import OpenWhiskFunction, OpenWhiskFunctionConfig
 from ..config import SeBSConfig
 
 
@@ -83,7 +83,7 @@ class OpenWhisk(System):
 
     @staticmethod
     def function_type() -> "Type[Function]":
-        return OpenwhiskFunction
+        return OpenWhiskFunction
 
     def get_wsk_cmd(self) -> List[str]:
         cmd = [self.config.wsk_exec]
@@ -241,7 +241,7 @@ class OpenWhisk(System):
             storage.config.address,
         ]
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "OpenwhiskFunction":
+    def create_function(self, code_package: Benchmark, func_name: str) -> "OpenWhiskFunction":
         self.logging.info("Creating function as an action in OpenWhisk.")
         try:
             actions = subprocess.run(
@@ -257,9 +257,13 @@ class OpenWhisk(System):
                     function_found = True
                     break
 
+            function_cfg = OpenWhiskFunctionConfig.from_benchmark(code_package)
+            function_cfg.storage = self.get_storage().config
             if function_found:
                 # docker image is overwritten by the update
-                res = OpenwhiskFunction(func_name, code_package.benchmark, code_package.hash, "")
+                res = OpenWhiskFunction(
+                    func_name, code_package.benchmark, code_package.hash, function_cfg
+                )
                 # Update function - we don't know what version is stored
                 self.logging.info(f"Retrieved existing OpenWhisk action {func_name}.")
                 self.update_function(res, code_package)
@@ -293,8 +297,9 @@ class OpenWhisk(System):
                         stdout=subprocess.DEVNULL,
                         check=True,
                     )
-                    res = OpenwhiskFunction(
-                        func_name, code_package.benchmark, code_package.hash, docker_image
+                    function_cfg.docker_image = docker_image
+                    res = OpenWhiskFunction(
+                        func_name, code_package.benchmark, code_package.hash, function_cfg
                     )
                 except subprocess.CalledProcessError as e:
                     self.logging.error(f"Cannot create action {func_name}.")
@@ -341,7 +346,7 @@ class OpenWhisk(System):
                 stdout=subprocess.DEVNULL,
                 check=True,
             )
-            function.docker_image = docker_image
+            function.config.docker_image = docker_image
 
         except FileNotFoundError as e:
             self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
@@ -360,7 +365,7 @@ class OpenWhisk(System):
                     str(code_package.benchmark_config.memory),
                     "--timeout",
                     str(code_package.benchmark_config.timeout * 1000),
-                    *self.storage_arguments()
+                    *self.storage_arguments(),
                 ],
                 stderr=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,

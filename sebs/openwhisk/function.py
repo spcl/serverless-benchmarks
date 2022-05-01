@@ -1,38 +1,65 @@
-from sebs.faas.function import Function
-from typing import cast
+from __future__ import annotations
+
+from typing import cast, Optional
+from dataclasses import dataclass
+
+from sebs.benchmark import Benchmark
+from sebs.faas.function import Function, FunctionConfig, Runtime
+from sebs.storage.config import MinioConfig
 
 
-class OpenwhiskFunction(Function):
+@dataclass
+class OpenWhiskFunctionConfig(FunctionConfig):
+
+    # FIXME: merge with higher level abstraction for images
+    docker_image: str = ""
+    namespace: str = "_"
+    storage: Optional[MinioConfig] = None
+
+    @staticmethod
+    def deserialize(data: dict) -> OpenWhiskFunctionConfig:
+        keys = list(OpenWhiskFunctionConfig.__dataclass_fields__.keys())
+        data = {k: v for k, v in data.items() if k in keys}
+        data["runtime"] = Runtime.deserialize(data["runtime"])
+        print(data)
+        return OpenWhiskFunctionConfig(**data)
+
+    def serialize(self) -> dict:
+        return self.__dict__
+
+    @staticmethod
+    def from_benchmark(benchmark: Benchmark) -> OpenWhiskFunctionConfig:
+        return super(OpenWhiskFunctionConfig, OpenWhiskFunctionConfig)._from_benchmark(
+            benchmark, OpenWhiskFunctionConfig
+        )
+
+
+class OpenWhiskFunction(Function):
     def __init__(
-        self,
-        name: str,
-        benchmark: str,
-        code_package_hash: str,
-        docker_image: str,
-        namespace: str = "_",
+        self, name: str, benchmark: str, code_package_hash: str, cfg: OpenWhiskFunctionConfig
     ):
         super().__init__(benchmark, name, code_package_hash)
-        self.namespace = namespace
-        self.docker_image = docker_image
+        self._cfg = cfg
+
+    @property
+    def config(self) -> FunctionConfig:
+        return self._cfg
 
     @staticmethod
     def typename() -> str:
         return "OpenWhisk.Function"
 
     def serialize(self) -> dict:
-        return {**super().serialize(), "namespace": self.namespace, "image": self.docker_image}
+        return {**super().serialize(), "config": self._cfg.serialize()}
 
     @staticmethod
-    def deserialize(cached_config: dict) -> "OpenwhiskFunction":
+    def deserialize(cached_config: dict) -> OpenWhiskFunction:
         from sebs.faas.function import Trigger
         from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
 
-        ret = OpenwhiskFunction(
-            cached_config["name"],
-            cached_config["benchmark"],
-            cached_config["hash"],
-            cached_config["image"],
-            cached_config["namespace"],
+        cfg = OpenWhiskFunctionConfig.deserialize(cached_config["config"])
+        ret = OpenWhiskFunction(
+            cached_config["name"], cached_config["benchmark"], cached_config["hash"], cfg
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(

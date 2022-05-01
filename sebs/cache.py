@@ -7,7 +7,7 @@ import shutil
 import threading
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING  # noqa
 
-from sebs.utils import LoggingBase
+from sebs.utils import LoggingBase, serialize
 
 if TYPE_CHECKING:
     from sebs.benchmark import Benchmark
@@ -287,7 +287,8 @@ class Cache(LoggingBase):
                         )
                     config = cached_config
                 with open(cache_config, "w") as fp:
-                    json.dump(config, fp, indent=2)
+                    fp.write(serialize(config))
+                    # json.dump(config, fp, indent=2)
             else:
                 raise RuntimeError(
                     "Can't cache function {} for a non-existing code package!".format(function.name)

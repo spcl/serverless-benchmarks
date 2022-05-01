@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import json
+import concurrent.futures
 from abc import ABC
 from abc import abstractmethod
-import concurrent.futures
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, Dict, List, Optional  # noqa
+from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 
+from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 
 """
@@ -245,6 +249,85 @@ class Trigger(ABC, LoggingBase):
     @abstractmethod
     def deserialize(cached_config: dict) -> "Trigger":
         pass
+
+
+class Language(Enum):
+    PYTHON = "python"
+    NODEJS = "nodejs"
+
+    # FIXME: 3.7+ python with future annotations
+    @staticmethod
+    def deserialize(val: str) -> Language:
+        for member in Language:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown language type {member}")
+
+
+class Architecture(Enum):
+    X86 = "x86"
+    ARM = "arm"
+
+    def serialize(self) -> str:
+        return self.value
+
+    @staticmethod
+    def deserialize(val: str) -> Architecture:
+        for member in Architecture:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown architecture type {member}")
+
+
+@dataclass
+class Runtime:
+
+    language: Language
+    version: str
+
+    def serialize(self) -> dict:
+        return {"language": self.language.value, "version": self.version}
+
+    @staticmethod
+    def deserialize(config: dict) -> Runtime:
+        languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS}
+        return Runtime(language=languages[config["language"]], version=config["version"])
+
+
+T = TypeVar("T", bound="FunctionConfig")
+
+
+@dataclass
+class FunctionConfig:
+    timeout: int
+    memory: int
+    runtime: Runtime
+    architecture: Architecture = Architecture.X86
+
+    @staticmethod
+    def _from_benchmark(benchmark: Benchmark, obj_type: Type[T]) -> T:
+        runtime = Runtime(language=benchmark.language, version=benchmark.language_version)
+        cfg = obj_type(
+            timeout=benchmark.benchmark_config.timeout,
+            memory=benchmark.benchmark_config.memory,
+            runtime=runtime,
+        )
+        # FIXME: configure architecture
+        return cfg
+
+    @staticmethod
+    def from_benchmark(benchmark: Benchmark) -> FunctionConfig:
+        return FunctionConfig._from_benchmark(benchmark, FunctionConfig)
+
+    @staticmethod
+    def deserialize(data: dict) -> FunctionConfig:
+        keys = list(FunctionConfig.__dataclass_fields__.keys())
+        data = {k: v for k, v in data.items() if k in keys}
+        data["runtime"] = Runtime.deserialize(data["runtime"])
+        return FunctionConfig(**data)
+
+    def serialize(self) -> dict:
+        return self.__dict__
 
 
 """

@@ -215,12 +215,46 @@ class System(ABC, LoggingBase):
                 code_package.query_cache()
             # code up to date, but configuration needs to be updated
             # FIXME: detect change in function config
-            elif self.update_function_configuration_enforced():
+            elif self.is_configuration_changed(function, code_package):
                 self.update_function_configuration(function, code_package)
                 code_package.query_cache()
             else:
                 self.logging.info(f"Cached function {func_name} is up to date.")
             return function
+
+    # FIXME: abstract method
+    def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
+        pass
+
+    """
+        This function checks for common function parameters to verify if their value is
+        still up to date.
+    """
+
+    def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
+
+        changed = False
+        for attr in ["timeout", "memory"]:
+            new_val = getattr(benchmark.benchmark_config, attr)
+            old_val = getattr(cached_function.config, attr)
+            if new_val != old_val:
+                self.logging.info(
+                    f"Updating function configuration due to changed attribute {attr}: "
+                    f"cached function has value {old_val} whereas {new_val} has been requested."
+                )
+                changed = True
+
+        for lang_attr in [["language"] * 2, ["language_version", "version"]]:
+            new_val = getattr(benchmark, lang_attr[0])
+            old_val = getattr(cached_function.config.runtime, lang_attr[1])
+            if new_val != old_val:
+                self.logging.info(
+                    f"Updating function configuration due to changed runtime attribute {attr}: "
+                    f"cached function has value {old_val} whereas {new_val} has been requested."
+                )
+                changed = True
+
+        return changed
 
     @abstractmethod
     def default_function_name(self, code_package: Benchmark) -> str:
