@@ -90,7 +90,6 @@ class GCPStorage(PersistentStorage):
         if self.cached and not self.replace_existing:
             return
         bucket_name = self.input_buckets[bucket_idx]
-        print(self.input_buckets_files[bucket_idx])
         if not self.replace_existing:
             for blob in self.input_buckets_files[bucket_idx]:
                 if key == blob:
