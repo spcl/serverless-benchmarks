@@ -11,11 +11,28 @@ class storage:
 
     def __init__(self):
         try:
+            """
+            Minio does not allow another way of configuring timeout for connection.
+            The rest of configuration is copied from source code of Minio.
+            """
+            import urllib3
+            from datetime import timedelta
+
+            timeout = timedelta(seconds=1).seconds
+
+            mgr = urllib3.PoolManager(
+                timeout=urllib3.util.Timeout(connect=timeout, read=timeout),
+                maxsize=10,
+                retries=urllib3.Retry(
+                    total=5, backoff_factor=0.2, status_forcelist=[500, 502, 503, 504]
+                )
+            )
             self.client = minio.Minio(
                 os.getenv("MINIO_STORAGE_CONNECTION_URL"),
                 access_key=os.getenv("MINIO_STORAGE_ACCESS_KEY"),
                 secret_key=os.getenv("MINIO_STORAGE_SECRET_KEY"),
                 secure=False,
+                http_client=mgr
             )
         except Exception as e:
             logging.info(e)
