@@ -182,7 +182,9 @@ def benchmark():
     help="Attach prefix to generated Docker image tag.",
 )
 @common_params
-def invoke(benchmark, benchmark_input_size, repetitions, trigger, function_name, image_tag_prefix, **kwargs):
+def invoke(
+    benchmark, benchmark_input_size, repetitions, trigger, function_name, image_tag_prefix, **kwargs
+):
 
     (
         config,
