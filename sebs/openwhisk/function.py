@@ -38,12 +38,11 @@ class OpenWhiskFunction(Function):
     def __init__(
         self, name: str, benchmark: str, code_package_hash: str, cfg: OpenWhiskFunctionConfig
     ):
-        super().__init__(benchmark, name, code_package_hash)
-        self._cfg = cfg
+        super().__init__(benchmark, name, code_package_hash, cfg)
 
     @property
     def config(self) -> OpenWhiskFunctionConfig:
-        return self._cfg
+        return cast(OpenWhiskFunctionConfig, self._cfg)
 
     @staticmethod
     def typename() -> str:

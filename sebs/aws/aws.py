@@ -16,7 +16,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
-from sebs.faas.function import Function, ExecutionResult, Trigger
+from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 
@@ -168,6 +168,7 @@ class AWS(System):
         code_bucket: Optional[str] = None
         func_name = AWS.format_function_name(func_name)
         storage_client = self.get_storage()
+        function_cfg = FunctionConfig.from_benchmark(code_package)
 
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -182,10 +183,9 @@ class AWS(System):
                 code_package.benchmark,
                 ret["Configuration"]["FunctionArn"],
                 code_package.hash,
-                timeout,
-                memory,
                 language_runtime,
                 self.config.resources.lambda_role(self.session),
+                function_cfg,
             )
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
@@ -224,10 +224,9 @@ class AWS(System):
                 code_package.benchmark,
                 ret["FunctionArn"],
                 code_package.hash,
-                timeout,
-                memory,
                 language_runtime,
                 self.config.resources.lambda_role(self.session),
+                function_cfg,
                 code_bucket,
             )
 
@@ -288,17 +287,23 @@ class AWS(System):
         time.sleep(5)
         # and update config
         self.client.update_function_configuration(
-            FunctionName=name, Timeout=function.timeout, MemorySize=function.memory
+            FunctionName=name, Timeout=function.config.timeout, MemorySize=function.config.memory
         )
         self.logging.info("Published new function code")
+
+    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+        function = cast(LambdaFunction, function)
+        self.client.update_function_configuration(
+            FunctionName=function.name,
+            Timeout=function.config.timeout,
+            MemorySize=function.config.memory,
+        )
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
-            code_package.benchmark,
-            code_package.language_name,
-            code_package.benchmark_config.memory,
+            code_package.benchmark, code_package.language_name, code_package.language_version
         )
         return AWS.format_function_name(func_name)
 
@@ -493,8 +498,8 @@ class AWS(System):
         func = cast(LambdaFunction, function)
         self.get_lambda_client().update_function_configuration(
             FunctionName=func.name,
-            Timeout=func.timeout,
-            MemorySize=func.memory,
+            Timeout=func.config.timeout,
+            MemorySize=func.config.memory,
             Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
 

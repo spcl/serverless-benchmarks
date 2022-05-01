@@ -223,7 +223,7 @@ class System(ABC, LoggingBase):
                 self.logging.info(f"Cached function {func_name} is up to date.")
             return function
 
-    # FIXME: abstract method
+    @abstractmethod
     def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
         pass
 
@@ -250,6 +250,8 @@ class System(ABC, LoggingBase):
             new_val = getattr(benchmark, lang_attr[0])
             old_val = getattr(cached_function.config.runtime, lang_attr[1])
             if new_val != old_val:
+                # FIXME: should this even happen? we should never pick the function with
+                # different runtime - that should be encoded in the name
                 self.logging.info(
                     f"Updating function configuration due to changed runtime attribute {attr}: "
                     f"cached function has value {old_val} whereas {new_val} has been requested."
