@@ -170,6 +170,18 @@ def benchmark():
     help="Function trigger to be used.",
 )
 @click.option(
+    "--memory",
+    default=None,
+    type=int,
+    help="Override default memory settings for the benchmark function.",
+)
+@click.option(
+    "--timeout",
+    default=None,
+    type=int,
+    help="Override default timeout settings for the benchmark function.",
+)
+@click.option(
     "--function-name",
     default=None,
     type=str,
@@ -183,7 +195,15 @@ def benchmark():
 )
 @common_params
 def invoke(
-    benchmark, benchmark_input_size, repetitions, trigger, function_name, image_tag_prefix, **kwargs
+    benchmark,
+    benchmark_input_size,
+    repetitions,
+    trigger,
+    memory,
+    timeout,
+    function_name,
+    image_tag_prefix,
+    **kwargs,
 ):
 
     (
@@ -204,6 +224,11 @@ def invoke(
         experiment_config,
         logging_filename=logging_filename,
     )
+    if memory is not None:
+        benchmark_obj.benchmark_config.memory = memory
+    if timeout is not None:
+        benchmark_obj.benchmark_config.timeout = timeout
+
     func = deployment_client.get_function(
         benchmark_obj,
         function_name if function_name else deployment_client.default_function_name(benchmark_obj),

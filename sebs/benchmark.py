@@ -29,9 +29,17 @@ class BenchmarkConfig:
     def timeout(self) -> int:
         return self._timeout
 
+    @timeout.setter
+    def timeout(self, val: int):
+        self._timeout = val
+
     @property
     def memory(self) -> int:
         return self._memory
+
+    @memory.setter
+    def memory(self, val: int):
+        self._memory = val
 
     @property
     def languages(self) -> List["Language"]:
