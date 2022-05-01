@@ -288,7 +288,6 @@ class Cache(LoggingBase):
                     config = cached_config
                 with open(cache_config, "w") as fp:
                     fp.write(serialize(config))
-                    # json.dump(config, fp, indent=2)
             else:
                 raise RuntimeError(
                     "Can't cache function {} for a non-existing code package!".format(function.name)
@@ -315,7 +314,7 @@ class Cache(LoggingBase):
                                         name
                                     ] = function.serialize()
                 with open(cache_config, "w") as fp:
-                    json.dump(cached_config, fp, indent=2)
+                    fp.write(serialize(cached_config))
             else:
                 raise RuntimeError(
                     "Can't cache function {} for a non-existing code package!".format(function.name)

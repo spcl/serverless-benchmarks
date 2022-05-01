@@ -217,6 +217,7 @@ class System(ABC, LoggingBase):
             # FIXME: detect change in function config
             elif self.is_configuration_changed(function, code_package):
                 self.update_function_configuration(function, code_package)
+                self.cache_client.update_function(function)
                 code_package.query_cache()
             else:
                 self.logging.info(f"Cached function {func_name} is up to date.")
@@ -243,6 +244,7 @@ class System(ABC, LoggingBase):
                     f"cached function has value {old_val} whereas {new_val} has been requested."
                 )
                 changed = True
+                setattr(cached_function.config, attr, new_val)
 
         for lang_attr in [["language"] * 2, ["language_version", "version"]]:
             new_val = getattr(benchmark, lang_attr[0])
@@ -253,6 +255,7 @@ class System(ABC, LoggingBase):
                     f"cached function has value {old_val} whereas {new_val} has been requested."
                 )
                 changed = True
+                setattr(cached_function.config.runtime, lang_attr[1], new_val)
 
         return changed
 

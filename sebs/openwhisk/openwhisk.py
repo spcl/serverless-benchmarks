@@ -375,9 +375,6 @@ class OpenWhisk(System):
             self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
             raise RuntimeError(e)
 
-    def update_function_configuration_enforced(self) -> bool:
-        return self._config.resources.storage_updated
-
     def default_function_name(self, code_package: Benchmark) -> str:
         return (
             f"{code_package.benchmark}-{code_package.language_name}-"
