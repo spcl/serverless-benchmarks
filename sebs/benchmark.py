@@ -178,7 +178,7 @@ class Benchmark(LoggingBase):
         self._docker_client = docker_client
         self._system_config = system_config
         self._hash_value = None
-        self._output_dir = os.path.join(output_dir, f"{benchmark}_code")
+        self._output_dir = os.path.join(output_dir, f"{benchmark}_code", self._language.value, self._language_version)
 
         # verify existence of function in cache
         self.query_cache()
