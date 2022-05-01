@@ -258,7 +258,7 @@ class OpenWhisk(System):
                     break
 
             function_cfg = OpenWhiskFunctionConfig.from_benchmark(code_package)
-            function_cfg.storage = self.get_storage().config
+            function_cfg.storage = cast(Minio, self.get_storage()).config
             if function_found:
                 # docker image is overwritten by the update
                 res = OpenWhiskFunction(
@@ -318,6 +318,7 @@ class OpenWhisk(System):
 
     def update_function(self, function: Function, code_package: Benchmark):
         self.logging.info(f"Update an existing OpenWhisk action {function.name}.")
+        function = cast(OpenWhiskFunction, function)
         docker_image = self.system_config.benchmark_image_name(
             self.name(),
             code_package.benchmark,
@@ -374,6 +375,21 @@ class OpenWhisk(System):
         except FileNotFoundError as e:
             self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
             raise RuntimeError(e)
+
+    def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
+        changed = super().is_configuration_changed(cached_function, benchmark)
+
+        storage = cast(Minio, self.get_storage())
+        function = cast(OpenWhiskFunction, cached_function)
+        # check if now we're using a new storage
+        if function.config.storage != storage.config:
+            self.logging.info(
+                "Updating function configuration due to changed storage configuration."
+            )
+            changed = True
+            function.config.storage = storage.config
+
+        return changed
 
     def default_function_name(self, code_package: Benchmark) -> str:
         return (

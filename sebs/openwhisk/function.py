@@ -21,7 +21,7 @@ class OpenWhiskFunctionConfig(FunctionConfig):
         keys = list(OpenWhiskFunctionConfig.__dataclass_fields__.keys())
         data = {k: v for k, v in data.items() if k in keys}
         data["runtime"] = Runtime.deserialize(data["runtime"])
-        print(data)
+        data["storage"] = MinioConfig.deserialize(data["storage"])
         return OpenWhiskFunctionConfig(**data)
 
     def serialize(self) -> dict:
@@ -42,7 +42,7 @@ class OpenWhiskFunction(Function):
         self._cfg = cfg
 
     @property
-    def config(self) -> FunctionConfig:
+    def config(self) -> OpenWhiskFunctionConfig:
         return self._cfg
 
     @staticmethod
