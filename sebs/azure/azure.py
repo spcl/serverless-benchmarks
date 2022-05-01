@@ -17,7 +17,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers, execute
-from ..faas.function import Function, ExecutionResult
+from ..faas.function import Function, FunctionConfig, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
 
@@ -244,6 +244,10 @@ class Azure(System):
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
 
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+        # FIXME: this does nothing currently - we don't specify timeout
+        self.logging.warn("Updating function's memory and timeout configuration is not supported.")
+
     def _mount_function_code(self, code_package: Benchmark):
         self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
 
@@ -252,9 +256,10 @@ class Azure(System):
         Functionapp names must be globally unique in Azure.
         """
         func_name = (
-            "{}-{}-{}".format(
+            "{}-{}-{}-{}".format(
                 code_package.benchmark,
                 code_package.language_name,
+                code_package.language_version,
                 self.config.resources_id,
             )
             .replace(".", "-")
@@ -268,6 +273,7 @@ class Azure(System):
         language_runtime = code_package.language_version
         resource_group = self.config.resources.resource_group(self.cli_instance)
         region = self.config.region
+        function_cfg = FunctionConfig.from_benchmark(code_package)
 
         config = {
             "resource_group": resource_group,
@@ -327,6 +333,7 @@ class Azure(System):
             benchmark=code_package.benchmark,
             code_hash=code_package.hash,
             function_storage=function_storage_account,
+            cfg=function_cfg,
         )
 
         # update existing function app
