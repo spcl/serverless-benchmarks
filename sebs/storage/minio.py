@@ -92,7 +92,7 @@ class Minio(PersistentStorage):
             self._storage_container.reload()
             networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
             self._cfg.address = "{IPAddress}:{Port}".format(
-                IPAddress=networks["bridge"]["IPAddress"], Port=self._cfg.port
+                IPAddress=networks["bridge"]["IPAddress"], Port=9000
             )
             if not self._cfg.address:
                 self.logging.error(
