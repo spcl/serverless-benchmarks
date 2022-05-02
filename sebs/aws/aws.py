@@ -483,6 +483,11 @@ class AWS(System):
                 SourceArn=f"{http_api.arn}/*/*",
             )
             trigger = HTTPTrigger(http_api.endpoint, api_name)
+            self.logging.info(
+                f"Created HTTP trigger for {func.name} function. "
+                "Sleep 5 seconds to avoid cloud errors."
+            )
+            time.sleep(5)
             trigger.logging_handlers = self.logging_handlers
         elif trigger_type == Trigger.TriggerType.LIBRARY:
             # should already exist
