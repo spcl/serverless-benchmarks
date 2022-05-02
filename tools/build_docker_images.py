@@ -17,7 +17,7 @@ args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, 'config', 'systems.json'), 'r'))
 client = docker.from_env()
 
-def build(image_type, system, username, language=None,version=None, version_name=None):
+def build(image_type, system, language=None,version=None, version_name=None):
 
     msg = 'Build *{}* Dockerfile for *{}* system'.format(image_type, system)
     if language:
@@ -35,9 +35,7 @@ def build(image_type, system, username, language=None,version=None, version_name
 
     # if we pass an integer, the build will fail with 'connection reset by peer'
     buildargs={
-        'USER': username,
         'VERSION': version,
-        'UID': str(os.getuid())
     }
     if version:
         buildargs['BASE_IMAGE'] = version_name
@@ -50,7 +48,6 @@ def build(image_type, system, username, language=None,version=None, version_name
     )
 
 def build_language(system, language, language_config):
-    username = language_config['username']
     configs = []
     if 'base_images' in language_config:
         for version, base_image in language_config['base_images'].items():
@@ -61,15 +58,15 @@ def build_language(system, language, language_config):
     for image in configs:
         if args.type is None:
             for image_type in language_config['images']:
-                build(image_type, system, username, language, *image)
+                build(image_type, system, language, *image)
         else:
-            build(args.type, system, username, language, *image)
+            build(args.type, system, language, *image)
 
 def build_systems(system, system_config):
 
     if args.type == 'manage':
         if 'images' in system_config:
-            build(args.type, system, system_config['images']['manage']['username'])
+            build(args.type, system)
         else:
             print(f'Skipping manage image for {system}')
     else:
@@ -81,7 +78,7 @@ def build_systems(system, system_config):
             # Build additional types
             if 'images' in system_config:
                 for image_type, image_config in system_config['images'].items():
-                    build(image_type, system, image_config['username'])
+                    build(image_type, system)
 
 if args.deployment is None:
     for system, system_dict in config.items():
