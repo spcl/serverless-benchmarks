@@ -68,8 +68,9 @@
     "languages": {
       "python": {
         "base_images": {
-          "3.7": "mcr.microsoft.com/azure-functions/python:2.0-python3.7",
-          "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8"
+          "3.7": "mcr.microsoft.com/azure-functions/python:3.0-python3.7",
+          "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8",
+          "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9"
         },
         "images": ["build"],
         "username": "docker_user",
@@ -80,8 +81,8 @@
       },
       "nodejs": {
         "base_images": {
-          "10" : "mcr.microsoft.com/azure-functions/node:2.0-node10",
-          "8" : "mcr.microsoft.com/azure-functions/node:2.0-node8" 
+          "14" : "mcr.microsoft.com/azure-functions/node:3.0-node14",
+          "12" : "mcr.microsoft.com/azure-functions/node:3.0-node12"
         },
         "images": ["build"],
         "username": "docker_user",
