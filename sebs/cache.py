@@ -121,11 +121,11 @@ class Cache(LoggingBase):
     """
 
     def get_code_package(
-        self, deployment: str, benchmark: str, language: str
+        self, deployment: str, benchmark: str, language: str, language_version: str
     ) -> Optional[Dict[str, Any]]:
         cfg = self.get_benchmark_config(deployment, benchmark)
-        if cfg and language in cfg:
-            return cfg[language]["code_package"]
+        if cfg and language in cfg and language_version in cfg[language]["code_package"]:
+            return cfg[language]["code_package"][language_version]
         else:
             return None
 
@@ -165,10 +165,11 @@ class Cache(LoggingBase):
     def add_code_package(self, deployment_name: str, language_name: str, code_package: "Benchmark"):
         with self._lock:
             language = code_package.language_name
+            language_version = code_package.language_version
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
             # Check if cache directory for this deployment exist
-            cached_dir = os.path.join(benchmark_dir, deployment_name, language)
+            cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
             if not os.path.exists(cached_dir):
                 os.makedirs(cached_dir, exist_ok=True)
 
@@ -181,29 +182,43 @@ class Cache(LoggingBase):
                     package_name = os.path.basename(code_package.code_location)
                     cached_location = os.path.join(cached_dir, package_name)
                     shutil.copy2(code_package.code_location, cached_dir)
-                language_config: Dict[str, Any] = {
-                    "code_package": code_package.serialize(),
-                    "functions": {},
-                }
+                language_config = code_package.serialize()
                 # don't store absolute path to avoid problems with moving cache dir
                 relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
-                language_config["code_package"]["location"] = relative_cached_loc
+                language_config["location"] = relative_cached_loc
                 date = str(datetime.datetime.now())
-                language_config["code_package"]["date"] = {
+                language_config["date"] = {
                     "created": date,
                     "modified": date,
                 }
-                config = {deployment_name: {language: language_config}}
+                # config = {deployment_name: {language: language_config}}
+                config = {
+                    deployment_name: {
+                        language: {
+                            "code_package": {language_version: language_config},
+                            "functions": {},
+                        }
+                    }
+                }
+
                 # make sure to not replace other entries
                 if os.path.exists(os.path.join(benchmark_dir, "config.json")):
                     with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                         cached_config = json.load(fp)
                         if deployment_name in cached_config:
-                            cached_config[deployment_name][language] = language_config
+                            # language known, platform known, extend dictionary
+                            if language in cached_config[deployment_name]:
+                                cached_config[deployment_name][language]["code_package"][
+                                    language_version
+                                ] = language_config
+                            # language unknown, platform known - add new dictionary
+                            else:
+                                cached_config[deployment_name][language] = config[deployment_name][
+                                    language
+                                ]
                         else:
-                            cached_config[deployment_name] = {
-                                language: language_config,
-                            }
+                            # language unknown, platform unknown - add new dictionary
+                            cached_config[deployment_name] = config[deployment_name]
                         config = cached_config
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
@@ -220,9 +235,10 @@ class Cache(LoggingBase):
     ):
         with self._lock:
             language = code_package.language_name
+            language_version = code_package.language_version
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             # Check if cache directory for this deployment exist
-            cached_dir = os.path.join(benchmark_dir, deployment_name, language)
+            cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
             if os.path.exists(cached_dir):
 
                 # copy code
@@ -242,8 +258,12 @@ class Cache(LoggingBase):
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                     config = json.load(fp)
                     date = str(datetime.datetime.now())
-                    config[deployment_name][language]["code_package"]["date"]["modified"] = date
-                    config[deployment_name][language]["code_package"]["hash"] = code_package.hash
+                    config[deployment_name][language]["code_package"][language_version]["date"][
+                        "modified"
+                    ] = date
+                    config[deployment_name][language]["code_package"][language_version][
+                        "hash"
+                    ] = code_package.hash
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
             else:
