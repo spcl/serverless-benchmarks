@@ -277,12 +277,12 @@ def process(**kwargs):
         experiments = sebs.experiments.ExperimentResult.deserialize(
             config,
             sebs_client.cache_client,
-            sebs_client.logging_handlers(logging_filename),
+            sebs_client.generate_logging_handlers(logging_filename),
         )
 
     for func in experiments.functions():
         deployment_client.download_metrics(
-            func, *experiments.times(), experiments.invocations(func)
+            func, *experiments.times(), experiments.invocations(func), experiments.metrics(func)
         )
     with open("results.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(experiments))
