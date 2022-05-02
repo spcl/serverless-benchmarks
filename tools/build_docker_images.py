@@ -28,7 +28,6 @@ def build(image_type, system, language=None,version=None, version_name=None):
     dockerfile = os.path.join(PROJECT_DIR, 'docker', system, language, f'Dockerfile.{image_type}')
     target = f'{config["general"]["docker_repository"]}:{image_type}.{system}'
     if language:
-        dockerfile += '.' + language
         target += '.' + language
     if version:
         target += '.' + version
