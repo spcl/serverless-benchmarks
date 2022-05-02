@@ -225,6 +225,7 @@ class Benchmark(LoggingBase):
             deployment=self._deployment_name,
             benchmark=self._benchmark,
             language=self.language_name,
+            language_version=self.language_version,
         )
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
@@ -388,9 +389,12 @@ class Benchmark(LoggingBase):
                         stdout = self._docker_client.containers.run(
                             "{}:{}".format(repo_name, image_name),
                             volumes=volumes,
-                            environment={"APP": self.benchmark},
-                            # user="1000:1000",
-                            user=uid,
+                            environment={
+                                "CONTAINER_UID": str(os.getuid()),
+                                "CONTAINER_GID": str(os.getgid()),
+                                "CONTAINER_USER": "docker_user",
+                                "APP": self.benchmark,
+                            },
                             remove=True,
                             stdout=True,
                             stderr=True,
@@ -423,7 +427,10 @@ class Benchmark(LoggingBase):
                             container.put_archive("/mnt/function", data.read())
                         # do the build step
                         exit_code, stdout = container.exec_run(
-                            cmd="/bin/bash installer.sh", stdout=True, stderr=True
+                            cmd="/bin/bash /sebs/installer.sh",
+                            user="docker_user",
+                            stdout=True,
+                            stderr=True,
                         )
                         # copy updated code with package
                         data, stat = container.get_archive("/mnt/function")

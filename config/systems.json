@@ -37,13 +37,12 @@
     "languages": {
       "python": {
         "base_images": {
-          "3.8": "lambci/lambda:build-python3.8",
-          "3.7": "lambci/lambda:build-python3.7",
-          "3.6": "lambci/lambda:build-python3.6"
+          "3.9": "amazon/aws-lambda-python:3.9",
+          "3.8": "amazon/aws-lambda-python:3.8",
+          "3.7": "amazon/aws-lambda-python:3.7"
         },
-        "versions": ["3.6", "3.7", "3.8"],
+        "versions": ["3.7", "3.8", "3.9"],
         "images": ["build"],
-        "username": "docker_user",
         "deployment": {
           "files": [ "handler.py", "storage.py"],
           "packages": []
@@ -51,12 +50,11 @@
       },
       "nodejs": {
         "base_images": {
-          "12.x" : "lambci/lambda:build-nodejs12.x",
-          "10.x" : "lambci/lambda:build-nodejs10.x" 
+          "14.x" : "amazon/aws-lambda-nodejs:14",
+          "12.x" : "amazon/aws-lambda-nodejs:12"
         },
-        "versions": ["10.x", "12.x"],
+        "versions": ["12.x", "14.x"],
         "images": ["build"],
-        "username": "docker_user",
         "deployment": {
           "files": [ "handler.js", "storage.js"],
           "packages": {
@@ -71,7 +69,7 @@
       "python": {
         "base_images": {
           "3.7": "mcr.microsoft.com/azure-functions/python:2.0-python3.7",
-          "3.6": "mcr.microsoft.com/azure-functions/python:2.0-python3.6"
+          "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8"
         },
         "images": ["build"],
         "username": "docker_user",
