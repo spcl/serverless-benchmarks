@@ -376,6 +376,8 @@ class Azure(System):
         metrics: Dict[str, dict],
     ):
 
+        self.cli_instance.install_insights()
+
         resource_group = self.config.resources.resource_group(self.cli_instance)
         # Avoid warnings in the next step
         ret = self.cli_instance.execute(
