@@ -159,7 +159,7 @@ class OpenWhisk(System):
         build_dir = os.path.join(directory, "docker")
         os.makedirs(build_dir)
         shutil.copy(
-            os.path.join(PROJECT_DIR, "docker", f"Dockerfile.run.{self.name()}.{language_name}"),
+            os.path.join(PROJECT_DIR, "docker", self.name(), language_name, "Dockerfile.function"),
             os.path.join(build_dir, "Dockerfile"),
         )
 
