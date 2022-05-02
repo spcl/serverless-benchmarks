@@ -14,8 +14,6 @@ for deployment in ["local"]:
     parser.add_argument(f"--{deployment}", action="store_const", default=True, const=True, dest=deployment)
     parser.add_argument(f"--no-{deployment}", action="store_const", const=False, dest=deployment)
 parser.add_argument("--with-pypapi", action="store_true")
-parser.add_argument("--force-rebuild-docker-images", default=False, action="store_true")
-parser.add_argument("--dont-rebuild-docker-images", default=False, action="store_true")
 args = parser.parse_args()
 
 def execute(cmd):
@@ -43,12 +41,6 @@ execute(". {}/bin/activate && pip3 install -r requirements.txt --upgrade".format
 if args.aws:
     print("Install Python dependencies for AWS")
     execute(". {}/bin/activate && pip3 install -r requirements.aws.txt".format(env_dir))
-    if args.force_rebuild_docker_images or (os.getuid() != 1000 and not args.dont_rebuild_docker_images):
-        print(f"AWS: rebuild Docker images for current user ID: {os.getuid()}")
-        execute(". {}/bin/activate && tools/build_docker_images.py --deployment aws".format(env_dir))
-    elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
-        print(f"AWS: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
-                "Skipping rebuild as requested by user, but recommending to rebuild the images")
 flag = "TRUE" if args.aws else "FALSE"
 execute(f'echo "export SEBS_WITH_AWS={flag}" >> {env_dir}/bin/activate')
 execute(f'echo "unset SEBS_WITH_AWS" >> {env_dir}/bin/deactivate')
@@ -56,12 +48,6 @@ execute(f'echo "unset SEBS_WITH_AWS" >> {env_dir}/bin/deactivate')
 if args.azure:
     print("Install Python dependencies for Azure")
     execute(". {}/bin/activate && pip3 install -r requirements.azure.txt".format(env_dir))
-    if args.force_rebuild_docker_images or (os.getuid() != 1000 and not args.dont_rebuild_docker_images):
-        print(f"Azure: rebuild Docker images for current user ID: {os.getuid()}")
-        execute(". {}/bin/activate && tools/build_docker_images.py --deployment azure".format(env_dir))
-    elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
-        print(f"Azure: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
-                "Skipping rebuild as requested by user, but recommending to rebuild the images")
 flag = "TRUE" if args.azure else "FALSE"
 execute(f'echo "export SEBS_WITH_AZURE={flag}" >> {env_dir}/bin/activate')
 execute(f'echo "unset SEBS_WITH_AZURE" >> {env_dir}/bin/deactivate')
@@ -69,12 +55,6 @@ execute(f'echo "unset SEBS_WITH_AZURE" >> {env_dir}/bin/deactivate')
 if args.gcp:
     print("Install Python dependencies for GCP")
     execute(". {}/bin/activate && pip3 install -r requirements.gcp.txt".format(env_dir))
-    if args.force_rebuild_docker_images or (os.getuid() != 1000 and not args.dont_rebuild_docker_images):
-        print(f"GCP: rebuild Docker images for current user ID: {os.getuid()}")
-        execute(". {}/bin/activate && tools/build_docker_images.py --deployment gcp".format(env_dir))
-    elif os.getuid() != 1000 and args.dont_rebuild_docker_images:
-        print(f"GCP: Docker images are built for user with UID 1000, current UID: {os.getuid()}."
-                "Skipping rebuild as requested by user, but recommending to rebuild the images")
 flag = "TRUE" if args.gcp else "FALSE"
 execute(f'echo "export SEBS_WITH_GCP={flag}" >> {env_dir}/bin/activate')
 execute(f'echo "unset SEBS_WITH_GCP" >> {env_dir}/bin/deactivate')

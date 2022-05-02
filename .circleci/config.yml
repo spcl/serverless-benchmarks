@@ -16,7 +16,7 @@ jobs:
           name: Install curl-config from Ubuntu APT
       - run:
           command: |
-            python3 install.py --aws --azure --gcp --dont-rebuild-docker-images --no-local
+            python3 install.py --aws --azure --gcp --no-local
           name: Install pip dependencies
       - run:
           command: |
@@ -44,8 +44,8 @@ jobs:
             then
               ls $HOME/docker/*.tar.gz | xargs -I {file} sh -c "zcat {file} | docker load";
             else
-              docker pull mcopik/serverless-benchmarks:build.aws.python.3.6
-              docker pull mcopik/serverless-benchmarks:build.aws.nodejs.10.x
+              docker pull mcopik/serverless-benchmarks:build.aws.python.3.7
+              docker pull mcopik/serverless-benchmarks:build.aws.nodejs.12.x
             fi
           name: Load Docker images
       - run:
