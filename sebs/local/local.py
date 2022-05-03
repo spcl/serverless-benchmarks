@@ -150,14 +150,14 @@ class Local(System):
                 "MINIO_SECRET_KEY": self.config.resources.storage_config.secret_key,
                 "CONTAINER_UID": str(os.getuid()),
                 "CONTAINER_GID": str(os.getgid()),
-                "CONTAINER_USER": self._system_config.username(self.name(), code_package.language_name)
+                "CONTAINER_USER": self._system_config.username(
+                    self.name(), code_package.language_name
+                ),
             }
         container = self._docker_client.containers.run(
             image=container_name,
-            command=f"python3 /sebs/server.py {self.DEFAULT_PORT}",
-            volumes={
-                code_package.code_location: {"bind": "/function", "mode": "ro"}
-            },
+            command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
+            volumes={code_package.code_location: {"bind": "/function", "mode": "ro"}},
             environment=environment,
             # FIXME: make CPUs configurable
             # FIXME: configure memory

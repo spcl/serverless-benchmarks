@@ -12,12 +12,13 @@ RUN mkdir -p /sebs
 COPY docker/local/run.sh /sebs/
 COPY docker/local/*.py /sebs/
 COPY docker/local/python/*.py /sebs/
+COPY docker/local/python/run_server.sh /sebs/
 COPY docker/local/python/timeit.sh /sebs/
 COPY docker/local/python/runners.json /sebs/
 ADD third-party/pypapi/pypapi /sebs/pypapi
 ENV PYTHONPATH=/sebs/.python_packages/lib/site-packages:$PYTHONPATH
 
-COPY docker/local/python/entrypoint.sh /sebs/entrypoint.sh
+COPY docker/local/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/entrypoint.sh
 RUN chmod +x /sebs/run.sh
 
