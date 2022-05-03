@@ -139,7 +139,6 @@
           "3.7": "openwhisk/action-python-v3.7",
           "3.9": "openwhisk/action-python-v3.9"
         },
-        "versions": ["3.7", "3.9"],
         "images": ["function"],
         "username": "docker_user",
         "deployment": {
@@ -151,11 +150,9 @@
       },
       "nodejs": {
         "base_images": {
-          "8" : "openwhisk/action-nodejs-v8",
           "10" : "openwhisk/action-nodejs-v10",
           "12" : "openwhisk/action-nodejs-v12"
         },
-        "versions": [ "8", "10", "12"],
         "images": ["function"],
         "username": "docker_user",
         "deployment": {
