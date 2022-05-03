@@ -15,16 +15,9 @@ parser.add_argument(
     choices=["local", "aws", "azure", "gcp"],
     action="store",
 )
-parser.add_argument(
-    "--type",
-    default=None,
-    choices=["build", "dependencies", "run", "manage"],
-    action="store",
-)
+parser.add_argument("--type", default=None, choices=["build", "dependencies", "run", "manage"], action="store")
 parser.add_argument("--type-tag", default=None, type=str, action="store")
-parser.add_argument(
-    "--language", default=None, choices=["python", "nodejs", "cpp"], action="store"
-)
+parser.add_argument("--language", default=None, choices=["python", "nodejs", "cpp"], action="store")
 parser.add_argument("--language-version", default=None, type=str, action="store")
 parser.add_argument("--parallel", default=1, type=int, action="store")
 args = parser.parse_args()
@@ -55,7 +48,14 @@ def build(image_type, system, language=None, version=None, version_name=None):
     target += "-" + sebs_version
 
     # if we pass an integer, the build will fail with 'connection reset by peer'
+<<<<<<< HEAD
     buildargs = {"VERSION": version, "WORKERS": str(args.parallel)}
+=======
+    buildargs = {
+        "VERSION": version,
+        'WORKERS': str(args.parallel)
+    }
+>>>>>>> a9f3c27 ([aws][system] Add C++ dependencies images)
     if version:
         buildargs["BASE_IMAGE"] = version_name
     print(
@@ -74,7 +74,6 @@ def build(image_type, system, language=None, version=None, version_name=None):
         for line in exc.build_log:
             if "stream" in line:
                 print(line["stream"].strip())
-
 
 def build_language(system, language, language_config):
     configs = []
@@ -106,6 +105,7 @@ def build_systems(system, system_config):
         if args.language:
             if "dependencies" in system_config["languages"][args.language]:
                 language_config = system_config["languages"][args.language]
+<<<<<<< HEAD
                 # for all dependencies
                 if args.type_tag:
                     # for all image versions
@@ -134,6 +134,20 @@ def build_systems(system, system_config):
                             )
         else:
             raise RuntimeError("Language must be specified for dependencies")
+=======
+                # for all dependencies 
+                if args.type_tag:
+                    # for all image versions
+                    for version, base_image in language_config["base_images"].items():
+                        build(f"{args.type}.{args.type_tag}", system, args.language, version, base_image)
+                else:
+                    for dep in system_config["languages"][args.language]["dependencies"]:
+                        # for all image versions
+                        for version, base_image in language_config["base_images"].items():
+                            build(f"{args.type}.{dep}", system, args.language, version, base_image)
+        else:
+            raise RuntimeError('Language must be specified for dependencies')
+>>>>>>> a9f3c27 ([aws][system] Add C++ dependencies images)
     else:
         if args.language:
             build_language(
