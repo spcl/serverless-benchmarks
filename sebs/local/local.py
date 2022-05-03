@@ -137,9 +137,6 @@ class Local(System):
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
 
-        home_dir = os.path.join(
-            "/home", self._system_config.username(self.name(), code_package.language_name)
-        )
         container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),
             code_package.language_name,
@@ -151,12 +148,15 @@ class Local(System):
                 "MINIO_ADDRESS": self.config.resources.storage_config.address,
                 "MINIO_ACCESS_KEY": self.config.resources.storage_config.access_key,
                 "MINIO_SECRET_KEY": self.config.resources.storage_config.secret_key,
+                "CONTAINER_UID": str(os.getuid()),
+                "CONTAINER_GID": str(os.getgid()),
+                "CONTAINER_USER": self._system_config.username(self.name(), code_package.language_name)
             }
         container = self._docker_client.containers.run(
             image=container_name,
-            command=f"python3 server.py {self.DEFAULT_PORT}",
+            command=f"python3 /sebs/server.py {self.DEFAULT_PORT}",
             volumes={
-                code_package.code_location: {"bind": os.path.join(home_dir, "code"), "mode": "ro"}
+                code_package.code_location: {"bind": "/function", "mode": "ro"}
             },
             environment=environment,
             # FIXME: make CPUs configurable
@@ -166,7 +166,6 @@ class Local(System):
             # required to access perf counters
             # alternative: use custom seccomp profile
             privileged=True,
-            user=os.getuid(),
             security_opt=["seccomp:unconfined"],
             network_mode="bridge",
             # somehow removal of containers prevents checkpointing from working?

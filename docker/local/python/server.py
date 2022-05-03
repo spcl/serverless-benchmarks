@@ -6,7 +6,7 @@ import uuid
 import bottle
 from bottle import route, run, template, request
 
-CODE_LOCATION='code'
+CODE_LOCATION='/function'
 
 @route('/', method='POST')
 def flush_log():
