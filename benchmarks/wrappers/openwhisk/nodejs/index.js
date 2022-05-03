@@ -1,6 +1,13 @@
 const path = require('path'), fs = require('fs');
 
 async function main(args) {
+
+  var minio_args = ["MINIO_STORAGE_CONNECTION_URL", "MINIO_STORAGE_ACCESS_KEY", "MINIO_STORAGE_SECRET_KEY"];
+  minio_args.forEach(function(arg){
+      process.env[arg] = args[arg];
+      delete args[arg];
+  });
+
   var func = require('/function/function.js');
   var begin = Date.now() / 1000;
   var start = process.hrtime();

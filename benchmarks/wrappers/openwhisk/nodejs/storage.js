@@ -8,10 +8,9 @@ const minio = require('minio'),
 class minio_storage {
 
   constructor() {
-    let minioConfig = JSON.parse(fs.readFileSync('/function/minioConfig.json'));
-    let address = minioConfig["url"];
-    let access_key = minioConfig["access_key"];
-    let secret_key = minioConfig["secret_key"];
+    let address = process.env.MINIO_STORAGE_CONNECTION_URL;
+    let access_key = process.env.MINIO_STORAGE_ACCESS_KEY;
+    let secret_key = process.env.MINIO_STORAGE_SECRET_KEY;
 
     this.client = new minio.Client(
       {
