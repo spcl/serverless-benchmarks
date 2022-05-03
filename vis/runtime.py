@@ -11,9 +11,6 @@ if __name__ == "__main__":
     platforms = ["aws", "azure", "gcp"]
     name = sys.argv[-1] if len(sys.argv) > 1 else "parallel"
 
-    funcs = ["gen_buffer_one", "gen_buffer_two", "gen_buffer_three", "gen_buffer_four", "gen_buffer_five"]
-    invos = list(zip(funcs, funcs[1:]))
-
     fig, ax = plt.subplots()
 
     for platform in platforms:
@@ -23,24 +20,24 @@ if __name__ == "__main__":
 
         df = pd.read_csv(path)
 
-        ys = []
-        for a, b in invos:
-            end = df.loc[(df["func"] == a)]["end"].to_numpy()
-            start = df.loc[(df["func"] == b)]["start"].to_numpy()
-            ys.append(start-end)
+        generate = df.loc[(df["func"] == "generate")].set_index("rep")
+        process = df.loc[(df["func"] == "process")].groupby("rep")
+        d_total = process["end"].max() - generate["start"]
 
-        ys = np.asarray(ys)
-        ys = np.mean(ys, axis=0)
+        ys = np.asarray(d_total)
         xs = np.arange(ys.shape[0])
 
         line = ax.plot(xs, ys)[0]
         line.set_label(platform)
 
-    ax.set_title("function invocation")
+        ys = ys[np.where(~np.isnan(ys))]
+        print(platform, "std:", np.std(ys))
+
+    ax.set_title("runtime")
     ax.set_xlabel("repetition")
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     ax.set_xticks(np.arange(0, len(xs)+1, 5))
-    ax.set_ylabel("latency [s]")
+    ax.set_ylabel("duration [s]")
     fig.legend()
 
     plt.show()
