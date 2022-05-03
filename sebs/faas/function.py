@@ -218,6 +218,9 @@ class Trigger(ABC, LoggingBase):
             result = ExecutionResult.from_times(begin, end)
             result.times.http_startup = conn_time
             result.times.http_first_byte_return = receive_time
+            # OpenWhisk will not return id on a failure
+            if "request_id" not in output:
+                raise RuntimeError(f"Cannot process allocation with output: {output}")
             result.request_id = output["request_id"]
             # General benchmark output parsing
             result.parse_benchmark_output(output)
