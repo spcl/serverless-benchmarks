@@ -4,6 +4,7 @@
 import json
 import logging
 import functools
+from datetime import datetime
 import os
 import sys
 import traceback
@@ -291,10 +292,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
     )
 
     measurements = []
-    result = sebs.experiments.ExperimentResult(
-        experiment_config, deployment_client.config
-    )
-    result.begin()
+    begin_time = datetime.now().timestamp()
 
     trigger_type = Trigger.TriggerType.get(trigger)
     triggers = workflow.triggers(trigger_type)
@@ -304,25 +302,36 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         )
     else:
         trigger = triggers[0]
-    for i in range(repetitions):
+
+    i = 0
+    retries = 0
+    while i < repetitions:
         sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
-        ret = trigger.sync_invoke(input_config)
-        if ret.stats.failure:
-            sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
 
-        measurements += download_measurements(redis, workflow.name, result.begin_time, rep=i)
-        result.add_invocation(workflow, ret)
-    result.end()
+        try:
+            ret = trigger.sync_invoke(input_config)
+            if ret.stats.failure:
+                raise RuntimeError("Exception during workflow execution.")
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            sebs_client.logging.error(e)
 
-    path = os.path.join(output_dir, "results", workflow.name, deployment_client.name()+".csv")
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+            retries += 1
+            if retries >= 5:
+                raise
+        else:
+            i += 1
+            measurements += download_measurements(redis, workflow.name, begin_time, rep=i)
 
-    df = pd.DataFrame(measurements)
-    df.to_csv(path, index=False)
+    if len(measurements) > 0:
+        path = os.path.join(output_dir, "results", workflow.name, deployment_client.name()+".csv")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    with open("experiments.json", "w") as out_f:
-        out_f.write(sebs.utils.serialize(result))
-    sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+        df = pd.DataFrame(measurements)
+        df.to_csv(path, index=False)
+
+        sebs_client.logging.info("Save results to", path)
 
 
 @benchmark.command()
