@@ -6,7 +6,7 @@
     "download_results": false,
     "runtime": {
       "language": "python",
-      "version": "3.6"
+      "version": "3.7"
     },
     "type": "invocation-overhead",
     "perf-cost": {
@@ -54,6 +54,18 @@
       "project_name": "",
       "credentials": ""
     },
+    "local": {
+      "storage": {
+        "address": "",
+        "mapped_port": -1,
+        "access_key": "",
+        "secret_key": "",
+        "instance_id": "",
+        "input_buckets": [],
+        "output_buckets": [],
+        "type": "minio"
+      }
+    },
     "openwhisk": {
       "shutdownStorage": false,
       "removeCluster": false,
@@ -64,6 +76,16 @@
         "registry": "",
         "username": "",
         "password": ""
+      },
+      "storage": {
+        "address": "",
+        "mapped_port": -1,
+        "access_key": "",
+        "secret_key": "",
+        "instance_id": "",
+        "input_buckets": [],
+        "output_buckets": [],
+        "type": "minio"
       }
     }
   }
