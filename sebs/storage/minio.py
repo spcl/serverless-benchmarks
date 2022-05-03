@@ -214,7 +214,10 @@ class Minio(PersistentStorage):
         obj._cfg = cached_config
         if cached_config.instance_id:
             instance_id = cached_config.instance_id
-            obj._storage_container = docker_client.containers.get(instance_id)
+            try:
+                obj._storage_container = docker_client.containers.get(instance_id)
+            except docker.errors.NotFound:
+                raise RuntimeError(f"Storage container {instance_id} does not exist!")
         else:
             obj._storage_container = None
         obj.input_buckets = cached_config.input_buckets
