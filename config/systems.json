@@ -121,6 +121,16 @@
             "uuid": "3.4.0"
           }
         }
+      },
+      "cpp": {
+        "base_images": {
+          "all": "amazon/aws-lambda-provided:al2.2022.04.27.09"
+        },
+        "dependencies": [
+            "sdk", "boost", "hiredis"
+        ],
+        "versions": ["all"],
+        "images": ["build"]
       }
     },
     "architecture": ["x64", "arm64"],
