@@ -75,7 +75,12 @@ class Loop(State):
 
     @classmethod
     def deserialize(cls, name: str, payload: dict) -> "Task":
-        return cls(name=name, func_name=payload["func_name"], count=payload["count"], next=payload.get("next"))
+        return cls(
+            name=name,
+            func_name=payload["func_name"],
+            count=payload["count"],
+            next=payload.get("next"),
+        )
 
 
 _STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map, "loop": Loop}
@@ -109,7 +114,7 @@ class Generator(ABC):
         return self._export_func(definition)
 
     def postprocess(self, payloads: List[dict]) -> dict:
-        pass
+        return payloads
 
     def encode_state(self, state: State) -> Union[dict, List[dict]]:
         if isinstance(state, Task):
@@ -139,8 +144,10 @@ class Generator(ABC):
         tasks = []
         for i in range(state.count):
             name = state.name if i == 0 else f"{state.name}_{i}"
-            next = state.next if i == state.count-1 else f"{state.name}_{i+1}"
+            next = state.next if i == state.count - 1 else f"{state.name}_{i+1}"
             task = Task(name, state.func_name, next)
-            tasks.append(self.encode_task(task))
+
+            res = self.encode_task(task)
+            tasks += res if isinstance(res, list) else [res]
 
         return tasks

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 import shutil
 import subprocess
 import sys
@@ -105,6 +106,7 @@ def connect_to_redis_cache(host: str):
 
 
 def download_measurements(redis: Redis, workflow_name: str, after: float, **static_args):
+    time.sleep(1)
     payloads = []
 
     for key in redis.scan_iter(match=f"{workflow_name}/*"):

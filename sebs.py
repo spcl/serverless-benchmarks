@@ -259,9 +259,14 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
     type=str,
     help="Override workflow name for random generation.",
 )
+@click.option(
+    "--df-name",
+    default=None,
+    type=str,
+    help="Override dataframe name.",
+)
 @common_params
-def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_name, **kwargs):
-
+def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_name, df_name, **kwargs):
     (
         config,
         output_dir,
@@ -292,8 +297,6 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
     )
 
     measurements = []
-    begin_time = datetime.now().timestamp()
-
     trigger_type = Trigger.TriggerType.get(trigger)
     triggers = workflow.triggers(trigger_type)
     if len(triggers) == 0:
@@ -303,10 +306,15 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
     else:
         trigger = triggers[0]
 
+    # reset redis cache from previous experiments
+    download_measurements(redis, workflow.name, datetime.now().timestamp())
+
     i = 0
     retries = 0
+    num_payloads = -1
     while i < repetitions:
         sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
+        time = datetime.now().timestamp()
 
         try:
             ret = trigger.sync_invoke(input_config)
@@ -321,11 +329,24 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
             if retries >= 5:
                 raise
         else:
+            payloads = download_measurements(redis, workflow.name, time, rep=i)
+            if num_payloads == -1 and len(payloads) > 0:
+                num_payloads = len(payloads)
+                sebs_client.logging.warning(f"Will be expecting {num_payloads} measurements/repetition.")
+            elif num_payloads != len(payloads):
+                sebs_client.logging.warning(f"Invalid number of measurments. Expected {num_payloads} payloads but downloaded {len(payloads)}. Retry.")
+
+                sleep(3)
+                download_measurements(redis, workflow.name, time)
+
+                continue
+
+            measurements += payloads
             i += 1
-            measurements += download_measurements(redis, workflow.name, begin_time, rep=i)
 
     if len(measurements) > 0:
-        path = os.path.join(output_dir, "results", workflow.name, deployment_client.name()+".csv")
+        name = df_name if df_name else workflow.name
+        path = os.path.join(output_dir, "results", name, deployment_client.name()+".csv")
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
         df = pd.DataFrame(measurements)

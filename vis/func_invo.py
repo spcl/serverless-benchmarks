@@ -9,10 +9,8 @@ import matplotlib.ticker as ticker
 
 if __name__ == "__main__":
     platforms = ["aws", "azure", "gcp"]
-    name = sys.argv[-1] if len(sys.argv) > 1 else "parallel"
-
-    funcs = ["gen_buffer_one", "gen_buffer_two", "gen_buffer_three", "gen_buffer_four", "gen_buffer_five"]
-    invos = list(zip(funcs, funcs[1:]))
+    name = sys.argv[-1] if len(sys.argv) > 1 else "func_invo"
+    func = "process"
 
     fig, ax = plt.subplots()
 
@@ -22,15 +20,22 @@ if __name__ == "__main__":
             continue
 
         df = pd.read_csv(path)
+        reps = df["rep"].max()
 
         ys = []
-        for a, b in invos:
-            end = df.loc[(df["func"] == a)]["end"].to_numpy()
-            start = df.loc[(df["func"] == b)]["start"].to_numpy()
-            ys.append(start-end)
+        for i in range(1, reps+1):
+            start = df.loc[((df["func"] == func) & (df["rep"] == i))].sort_values(["start"])["start"].to_numpy()
+            end = df.loc[((df["func"] == func) & (df["rep"] == i))].sort_values(["end"])["end"].to_numpy()
+
+            # sanity checks to verify no functions are overlapping
+            assert(np.all(start[:-1] < start[1:]))
+            assert(np.all(end[:-1] < end[1:]))
+            assert(np.all(end[:-1] < start[1:]))
+
+            ys.append(start[1:] - end[:-1])
 
         ys = np.asarray(ys)
-        ys = np.mean(ys, axis=0)
+        ys = np.mean(ys, axis=1)
         xs = np.arange(ys.shape[0])
 
         line = ax.plot(xs, ys)[0]

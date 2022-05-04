@@ -27,7 +27,7 @@ class SFNGenerator(Generator):
         payload: Dict[str, Any] = {
             "Name": state.name,
             "Type": "Task",
-            "Resource": self._func_arns[state.func_name]
+            "Resource": self._func_arns[state.func_name],
         }
 
         if state.next:
@@ -39,12 +39,7 @@ class SFNGenerator(Generator):
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
         choises = [self._encode_case(c) for c in state.cases]
-        return {
-            "Name": state.name,
-            "Type": "Choice",
-            "Choices": choises,
-            "Default": state.default
-        }
+        return {"Name": state.name, "Type": "Choice", "Choices": choises, "Default": state.default}
 
     def _encode_case(self, case: Switch.Case) -> dict:
         type = "Numeric" if isinstance(case.val, numbers.Number) else "String"
