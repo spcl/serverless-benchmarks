@@ -1,7 +1,7 @@
 import uuid
 from typing import Dict, Union, List
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map
+from sebs.faas.fsm import Generator, State, Task, Switch, Map, Loop
 
 
 class GCPGenerator(Generator):
@@ -11,7 +11,7 @@ class GCPGenerator(Generator):
         self._func_triggers = func_triggers
         self._map_funcs: Dict[str, str] = dict()
 
-    def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
+    def postprocess(self, payloads: List[dict]) -> dict:
         payloads.append({"final": {"return": ["${res}"]}})
 
         definition = {"main": {"params": ["res"], "steps": payloads}}

@@ -331,7 +331,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         df = pd.DataFrame(measurements)
         df.to_csv(path, index=False)
 
-        sebs_client.logging.info("Save results to", path)
+        sebs_client.logging.info(f"Save results to {path}")
 
 
 @benchmark.command()

@@ -1,7 +1,7 @@
 size_generators = {
     'test' : 10,
     'small' : 2**10,
-    'large': 2**20
+    'large': 2**15
 }
 
 def buckets_count():
