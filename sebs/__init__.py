@@ -1,9 +1,8 @@
-
 """
     SeBS
 """
 
-from .version import __version__
+from .version import __version__  # noqa
 from .sebs import SeBS  # noqa
 
 from .cache import Cache  # noqa
