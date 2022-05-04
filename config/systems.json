@@ -22,7 +22,8 @@
       },
       "nodejs": {
         "base_images": {
-          "13.6": "node:13.6-slim"
+          "12": "node:12-slim",
+          "14": "node:14-slim"
         },
         "images": ["run", "build"],
         "username": "docker_user",
