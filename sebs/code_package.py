@@ -198,6 +198,13 @@ class CodePackage(LoggingBase):
                 path = os.path.join(directory, f)
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
+
+        # workflow definition
+        definition_path = os.path.join(directory, os.path.pardir, "definition.json")
+        if os.path.exists(definition_path):
+            with open(definition_path, "rb") as opened_file:
+                hash_sum.update(opened_file.read())
+
         # wrappers
         wrappers = project_absolute_path(
             "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
