@@ -326,7 +326,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
             sebs_client.logging.error(e)
 
             retries += 1
-            if retries >= 5:
+            if retries >= 3:
                 raise
         else:
             payloads = download_measurements(redis, workflow.name, time, rep=i)
@@ -343,6 +343,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
 
             measurements += payloads
             i += 1
+            retries = 0
 
     if len(measurements) > 0:
         name = df_name if df_name else workflow.name
