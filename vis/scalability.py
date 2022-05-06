@@ -31,6 +31,7 @@ if __name__ == "__main__":
     ax.set_title("scalability")
     ax.set_xlabel("repetition")
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     ax.set_xticks(np.arange(0, len(xs)+1, 5))
     ax.set_ylabel("#threads")
     fig.legend()
