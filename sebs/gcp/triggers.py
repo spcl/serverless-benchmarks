@@ -117,16 +117,13 @@ class WorkflowLibraryTrigger(LibraryTrigger):
 
         # Wait for execution to finish, then print results.
         execution_finished = False
-        backoff_delay = 1  # Start wait with delay of 1 second
         while not execution_finished:
             execution = execution_client.get_execution(request={"name": res.name})
             execution_finished = execution.state != Execution.State.ACTIVE
 
             # If we haven't seen the result yet, wait a second.
             if not execution_finished:
-                time.sleep(backoff_delay)
-                # Double the delay to provide exponential backoff.
-                backoff_delay *= 2
+                time.sleep(10)
             elif execution.state == Execution.State.FAILED:
                 self.logging.error(f"Invocation of {self.name} failed")
                 self.logging.error(f"Input: {payload}")
