@@ -181,7 +181,7 @@ class AWS(System):
 
     def wait_for_function(self, func_name: str):
         ready = False
-        backoff_delay = 1  # Start wait with delay of 1 second
+        count = 0
         while not ready:
             ret = self.lambda_client.get_function(FunctionName=func_name)
             state = ret["Configuration"]["State"]
@@ -190,14 +190,13 @@ class AWS(System):
 
             # If we haven't seen the result yet, wait a second.
             if not ready:
-                time.sleep(backoff_delay)
-                # Double the delay to provide exponential backoff.
-                backoff_delay *= 2
+                count += 1
+                time.sleep(10)
             elif "Failed" in (state, update_status):
                 self.logging.error(f"Cannot wait for failed {func_name}")
                 break
 
-            if backoff_delay > 60:
+            if count > 6:
                 self.logging.error(f"Function {func_name} stuck in state {state} after 60s")
                 break
 
