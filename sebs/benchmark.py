@@ -335,7 +335,7 @@ class Benchmark(LoggingBase):
         target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
         target_link_libraries(${PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
 
-        find_package(AWSSDK COMPONENTS s3)
+        find_package(AWSSDK COMPONENTS s3 core)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${AWSSDK_LINK_LIBRARIES})
 
         # this line creates a target that packages your binary and zips it up
