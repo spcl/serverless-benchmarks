@@ -139,12 +139,12 @@ def build_systems(system, system_config):
                 if args.type_tag:
                     # for all image versions
                     for version, base_image in language_config["base_images"].items():
-                        build(f"{args.type}.{args.type_tag}", system, args.language, version, base_image)
+                        build(f"{args.type}-{args.type_tag}", system, args.language, version, base_image)
                 else:
                     for dep in system_config["languages"][args.language]["dependencies"]:
                         # for all image versions
                         for version, base_image in language_config["base_images"].items():
-                            build(f"{args.type}.{dep}", system, args.language, version, base_image)
+                            build(f"{args.type}-{dep}", system, args.language, version, base_image)
         else:
             raise RuntimeError('Language must be specified for dependencies')
 >>>>>>> a9f3c27 ([aws][system] Add C++ dependencies images)
