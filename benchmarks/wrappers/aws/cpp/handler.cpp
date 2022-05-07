@@ -3,8 +3,13 @@
 #include <aws/lambda-runtime/runtime.h>
 #include <aws/s3/S3Client.h>
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
+
 #include "utils.hpp"
 
+// Global variables that are retained across function invocations
 bool cold_execution = true;
 std::string container_id = "";
 std::string cold_start_var = "";
@@ -47,8 +52,7 @@ int main()
   const char * cold_var = std::getenv("cold_start");
   if(cold_var)
     cold_start_var = cold_var;
-  // FIXME: uuid - Boost
-  container_id = "random";
+  container_id = boost::uuids::to_string(boost::uuids::random_generator()());
 
   aws::lambda_runtime::run_handler(handler);
 
