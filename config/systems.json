@@ -130,7 +130,10 @@
             "runtime", "sdk", "boost", "hiredis"
         ],
         "versions": ["all"],
-        "images": ["build"]
+        "images": ["build"],
+        "deployment": {
+          "files": [ "handler.cpp", "storage.cpp", "storage.hpp", "utils.cpp", "utils.hpp"]
+        }
       }
     },
     "architecture": ["x64", "arm64"],
