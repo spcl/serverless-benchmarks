@@ -14,12 +14,23 @@ bool cold_execution = true;
 std::string container_id = "";
 std::string cold_start_var = "";
 
-Aws::Utils::Json::JsonValue function(aws::lambda_runtime::invocation_request const &req);
+Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView req);
 
 aws::lambda_runtime::invocation_response handler(aws::lambda_runtime::invocation_request const &req)
 {
+  Aws::Utils::Json::JsonValue json(req.payload);
+  Aws::Utils::Json::JsonView json_view = json.View();
+  // HTTP trigger with API Gateaway sends payload as a serialized JSON
+  // stored under key 'body' in the main JSON
+  // The SDK trigger converts everything for us
+  if(json_view.ValueExists("body")){
+    Aws::Utils::Json::JsonValue parsed_body{json_view.GetString("body")};
+    json = std::move(parsed_body);
+    json_view = json.View();
+  }
+
   const auto begin = std::chrono::system_clock::now();
-  auto ret = function(req);
+  auto ret = function(json.View());
   const auto end = std::chrono::system_clock::now();
 
   Aws::Utils::Json::JsonValue body;
