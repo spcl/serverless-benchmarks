@@ -53,7 +53,8 @@ def build(image_type, system, language=None, version=None, version_name=None):
 =======
     buildargs = {
         "VERSION": version,
-        'WORKERS': str(args.parallel)
+        'WORKERS': str(args.parallel),
+        'BASE_REPOSITORY': config["general"]["docker_repository"]
     }
 >>>>>>> a9f3c27 ([aws][system] Add C++ dependencies images)
     if version:
