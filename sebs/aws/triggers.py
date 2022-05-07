@@ -61,7 +61,6 @@ class LibraryTrigger(Trigger):
         AWS.parse_aws_report(log.decode("utf-8"), aws_result)
         # General benchmark output parsing
         # For some reason, the body is dict for NodeJS but a serialized JSON for Python
-        print(function_output)
         if isinstance(function_output["body"], dict):
             aws_result.parse_benchmark_output(function_output["body"])
         else:
