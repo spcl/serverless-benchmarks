@@ -1,3 +1,4 @@
+from __future__ import annotations
 from enum import Enum
 
 
@@ -21,8 +22,36 @@ class Storage(str, Enum):
     MINIO = "minio"
 
 
+class Language(str, Enum):
+    PYTHON = "python"
+    NODEJS = "nodejs"
+    CPP = "cpp"
+
+    @staticmethod
+    def deserialize(val: str) -> Language:
+        for member in Language:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown language type {member}")
+
+
 class NoSQLStorage(str, Enum):
     AWS_DYNAMODB = "aws-dynamodb"
     AZURE_COSMOSDB = "azure-cosmosdb"
     GCP_DATASTORE = "google-cloud-datastore"
     SCYLLADB = "scylladb"
+
+
+class Architecture(str, Enum):
+    X86 = "x64"
+    ARM = "arm64"
+
+    def serialize(self) -> str:
+        return self.value
+
+    @staticmethod
+    def deserialize(val: str) -> Architecture:
+        for member in Architecture:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown architecture type {member}")

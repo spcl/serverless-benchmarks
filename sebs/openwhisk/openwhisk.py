@@ -18,6 +18,7 @@ from sebs.faas.config import Resources
 from .config import OpenWhiskConfig
 from .function import OpenWhiskFunction, OpenWhiskFunctionConfig
 from ..config import SeBSConfig
+from sebs.types import Language
 
 
 class OpenWhisk(System):
@@ -96,7 +97,7 @@ class OpenWhisk(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
@@ -107,16 +108,16 @@ class OpenWhisk(System):
         # Regardless of Docker image status, we need to create .zip file
         # to allow registration of function with OpenWhisk
         _, image_uri = self.container_client.build_base_image(
-            directory, language_name, language_version, architecture, benchmark, is_cached
+            directory, language.value, language_version, architecture, benchmark, is_cached
         )
 
         # We deploy Minio config in code package since this depends on local
         # deployment - it cannnot be a part of Docker image
         CONFIG_FILES = {
-            "python": ["__main__.py"],
-            "nodejs": ["index.js"],
+            Language.PYTHON: ["__main__.py"],
+            Language.NODEJS: ["index.js"],
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[language]
 
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(
