@@ -42,7 +42,8 @@ def build(image_type, system, language=None, version=None, version_name=None):
     # if we pass an integer, the build will fail with 'connection reset by peer'
     buildargs = {
         "VERSION": version,
-        'WORKERS': str(args.parallel)
+        'WORKERS': str(args.parallel),
+        'BASE_REPOSITORY': config["general"]["docker_repository"]
     }
     if version:
         buildargs["BASE_IMAGE"] = version_name
