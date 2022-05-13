@@ -61,7 +61,6 @@ def handler(event):
             "frames_bucket": frames_bucket,
             "frames": fs,
             "model_bucket": event["model_bucket"],
-            "model_labels": event["model_labels"],
             "model_config": event["model_config"],
             "model_weights": event["model_weights"]
         } for fs in frames]
