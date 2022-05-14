@@ -38,6 +38,15 @@
       "function_copy_idx": 0,
       "repetitions": 5,
       "sleep": 1
+    },
+    "communication-p2p": {
+      "type": "storage",
+      "size": 1,
+      "invocations": {
+        "warmup": 5,
+        "invocations_per_round": [10],
+        "total": 10
+      }
     }
   },
   "deployment": {
