@@ -26,8 +26,7 @@ Storage Storage::get_client()
 }
 
 uint64_t Storage::download_file(Aws::String const &bucket, Aws::String const &key,
-                        int &required_retries,
-                        bool report_dl_time)
+                        int &required_retries, bool with_backoff)
 {
     
 
@@ -36,7 +35,6 @@ uint64_t Storage::download_file(Aws::String const &bucket, Aws::String const &ke
     auto bef = timeSinceEpochMillisec();
 
     int retries = 0;
-    //const int MAX_RETRIES = 500;
     const int MAX_RETRIES = 1500;
     while (retries < MAX_RETRIES) {
         auto outcome = this->_client.GetObject(request);
@@ -49,18 +47,16 @@ uint64_t Storage::download_file(Aws::String const &bucket, Aws::String const &ke
             std::string first(" ");
             ss.get(&first[0], 1);
             required_retries = retries;
-            if (report_dl_time) {
-                return finishedTime - bef;
-            } else {
-                return finishedTime;
-            }
+            return finishedTime - bef;
         } else {
             retries += 1;
-            //int sleep_time = retries;
-            //if (retries > 100) {
-            //    sleep_time = retries * 2;
-            //}
-            //std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time));
+            if(with_backoff) {
+              int sleep_time = retries;
+              if (retries > 100) {
+                  sleep_time = retries * 2;
+              }
+              std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time));
+            }
         }
     }
     return 0;

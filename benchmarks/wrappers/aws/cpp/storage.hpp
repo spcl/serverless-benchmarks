@@ -18,7 +18,7 @@ public:
   uint64_t download_file(Aws::String const &bucket,
                           Aws::String const &key,
                           int &required_retries,
-                          bool report_dl_time);
+                          bool with_backoff = false);
 
   uint64_t upload_random_file(Aws::String const &bucket,
                           Aws::String const &key,

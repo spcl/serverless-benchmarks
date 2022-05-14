@@ -1,4 +1,6 @@
 
+#include <tuple>
+
 #include <aws/core/Aws.h>
 #include <aws/lambda-runtime/runtime.h>
 #include <aws/s3/S3Client.h>
@@ -14,7 +16,7 @@ bool cold_execution = true;
 std::string container_id = "";
 std::string cold_start_var = "";
 
-Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView req);
+std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView req);
 
 aws::lambda_runtime::invocation_response handler(aws::lambda_runtime::invocation_request const &req)
 {
@@ -30,7 +32,7 @@ aws::lambda_runtime::invocation_response handler(aws::lambda_runtime::invocation
   }
 
   const auto begin = std::chrono::system_clock::now();
-  auto ret = function(json.View());
+  auto [ret, exit_code] = function(json.View());
   const auto end = std::chrono::system_clock::now();
 
   Aws::Utils::Json::JsonValue body;
@@ -49,10 +51,15 @@ aws::lambda_runtime::invocation_response handler(aws::lambda_runtime::invocation
   body.WithBool("is_cold", cold_execution);
   body.WithString("container_id", container_id);
   body.WithString("cold_start_var", cold_start_var);
+  body.WithInteger("exit_code", exit_code);
 
   Aws::Utils::Json::JsonValue final_result;
   final_result.WithObject("body", body);
-  return aws::lambda_runtime::invocation_response::success(final_result.View().WriteReadable(), "application/json");
+
+  if(!exit_code)
+    return aws::lambda_runtime::invocation_response::success(final_result.View().WriteReadable(), "application/json");
+  else
+    return aws::lambda_runtime::invocation_response::failure(final_result.View().WriteReadable(), "FailedInvocation");
 }
 
 int main()

@@ -5,18 +5,17 @@
 
 #include <thread>
 #include <iostream>
+#include <tuple>
 
-Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView json)
+std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView json)
 {
   int sleep = json.GetInteger("sleep");
 
   std::chrono::seconds timespan(sleep);
   std::this_thread::sleep_for(timespan);
 
-  //std::string res_json = "{ \"result\": " + std::to_string(sleep) + "}";
-  //return aws::lambda_runtime::invocation_response::success(res_json, "application/json");
   Aws::Utils::Json::JsonValue val;
   val.WithObject("result", std::to_string(sleep));
-  return val;
+  return std::make_tuple(val, 0);
 }
 
