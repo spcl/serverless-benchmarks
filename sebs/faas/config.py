@@ -1,6 +1,10 @@
 from abc import ABC
 from abc import abstractmethod
 
+from enum import Enum
+from typing import Dict, Optional
+import uuid
+
 from sebs.cache import Cache
 from sebs.utils import has_platform, LoggingBase, LoggingHandlers
 
@@ -51,8 +55,62 @@ class Credentials(ABC, LoggingBase):
 
 
 class Resources(ABC, LoggingBase):
-    def __init__(self):
+    class StorageBucketType(str, Enum):
+        DEPLOYMENT = "deployment"
+        BENCHMARKS = "benchmarks"
+        EXPERIMENTS = "experiments"
+
+        @staticmethod
+        def deserialize(val: str) -> Resources.StorageBucketType:
+            for member in Resources.StorageBucketType:
+                if member.value == val:
+                    return member
+            raise Exception(f"Unknown storage bucket type type {val}")
+
+    def __init__(self, name: str):
         super().__init__()
+        self._name = name
+        self._buckets: Dict[Resources.StorageBucketType, str] = {}
+        self._resources_id = ""
+
+    @property
+    def resources_id(self) -> str:
+        return self._resources_id
+
+    @resources_id.setter
+    def resources_id(self, resources_id: str):
+        self._resources_id = resources_id
+
+    @property
+    def region(self) -> str:
+        return self._region
+
+    @region.setter
+    def region(self, region: str):
+        self._region = region
+
+    def get_storage_bucket(self, bucket_type: Resources.StorageBucketType) -> Optional[str]:
+        return self._buckets.get(bucket_type)
+
+    def get_storage_bucket_name(self, bucket_type: Resources.StorageBucketType) -> str:
+        return f"sebs-{bucket_type.value}-{self._resources_id}"
+
+    def set_storage_bucket(self, bucket_type: Resources.StorageBucketType, bucket_name: str):
+        self._buckets[bucket_type] = bucket_name
+
+    @staticmethod
+    @abstractmethod
+    def initialize(res: Resources, dct: dict):
+        if "resources_id" in dct:
+            res._resources_id = dct["resources_id"]
+        else:
+            res._resources_id = str(uuid.uuid1())[0:8]
+            res.logging.info(
+                f"Generating unique resource name for " f"the experiments: {res._resources_id}"
+            )
+        if "storage_buckets" in dct:
+            for key, value in dct["storage_buckets"].items():
+                res._buckets[Resources.StorageBucketType.deserialize(key)] = value
 
     """
         Create credentials instance from user config and cached values.
@@ -69,7 +127,17 @@ class Resources(ABC, LoggingBase):
 
     @abstractmethod
     def serialize(self) -> dict:
-        pass
+        out = {"resources_id": self.resources_id}
+        for key, value in self._buckets.items():
+            out[key.value] = value
+        return out
+
+    def update_cache(self, cache: Cache):
+        cache.update_config(val=self.resources_id, keys=[self._name, "resources", "resources_id"])
+        for key, value in self._buckets.items():
+            cache.update_config(
+                val=value, keys=[self._name, "resources", "storage_buckets", key.value]
+            )
 
 
 """
@@ -82,8 +150,10 @@ class Config(ABC, LoggingBase):
 
     _region: str
 
-    def __init__(self):
+    def __init__(self, name: str):
         super().__init__()
+        self._region = ""
+        self._name = name
 
     @property
     def region(self) -> str:
@@ -101,7 +171,12 @@ class Config(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
+    def initialize(cfg: Config, dct: dict):
+        cfg._region = dct["region"]
+
+    @staticmethod
+    @abstractmethod
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
         from sebs.local.config import LocalConfig
 
         name = config["name"]
@@ -128,8 +203,8 @@ class Config(ABC, LoggingBase):
 
     @abstractmethod
     def serialize(self) -> dict:
-        pass
+        return {"name": self._name, "region": self._region}
 
     @abstractmethod
     def update_cache(self, cache: Cache):
-        pass
+        cache.update_config(val=self.region, keys=[self._name, "region"])

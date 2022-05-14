@@ -9,6 +9,7 @@ import minio
 
 from sebs.cache import Cache
 from sebs.types import Storage as StorageTypes
+from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
 
@@ -25,8 +26,14 @@ class Minio(PersistentStorage):
     # the location does not matter
     MINIO_REGION = "us-east-1"
 
-    def __init__(self, docker_client: docker.client, cache_client: Cache, replace_existing: bool):
-        super().__init__(self.MINIO_REGION, cache_client, replace_existing)
+    def __init__(
+        self,
+        docker_client: docker.client,
+        cache_client: Cache,
+        resources: Resources,
+        replace_existing: bool,
+    ):
+        super().__init__(self.MINIO_REGION, cache_client, resources, replace_existing)
         self._docker_client = docker_client
         self._storage_container: Optional[docker.container] = None
         self._cfg = MinioConfig()
@@ -129,7 +136,7 @@ class Minio(PersistentStorage):
             http_client=Minio._define_http_client(),
         )
 
-    def _create_bucket(self, name: str, buckets: List[str] = []):
+    def _create_bucket(self, name: str, buckets: List[str] = [], randomize_name: bool = False):
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
@@ -137,7 +144,10 @@ class Minio(PersistentStorage):
                 )
                 return bucket_name
         # minio has limit of bucket name to 16 characters
-        bucket_name = "{}-{}".format(name, str(uuid.uuid4())[0:16])
+        if randomize_name:
+            bucket_name = "{}-{}".format(name, str(uuid.uuid4())[0:16])
+        else:
+            bucket_name = name
         try:
             self.connection.make_bucket(bucket_name, location=self.MINIO_REGION)
             self.logging.info("Created bucket {}".format(bucket_name))
@@ -215,9 +225,11 @@ class Minio(PersistentStorage):
     T = TypeVar("T", bound="Minio")
 
     @staticmethod
-    def _deserialize(cached_config: MinioConfig, cache_client: Cache, obj_type: Type[T]) -> T:
+    def _deserialize(
+        cached_config: MinioConfig, cache_client: Cache, res: Resources, obj_type: Type[T]
+    ) -> T:
         docker_client = docker.from_env()
-        obj = obj_type(docker_client, cache_client, False)
+        obj = obj_type(docker_client, cache_client, res, False)
         obj._cfg = cached_config
         if cached_config.instance_id:
             instance_id = cached_config.instance_id
@@ -233,5 +245,5 @@ class Minio(PersistentStorage):
         return obj
 
     @staticmethod
-    def deserialize(cached_config: MinioConfig, cache_client: Cache) -> "Minio":
-        return Minio._deserialize(cached_config, cache_client, Minio)
+    def deserialize(cached_config: MinioConfig, cache_client: Cache, res: Resources) -> "Minio":
+        return Minio._deserialize(cached_config, cache_client, res, Minio)

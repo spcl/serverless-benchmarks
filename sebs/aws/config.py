@@ -114,18 +114,15 @@ class AWSResources(Resources):
             out = {"arn": self.arn, "endpoint": self.endpoint}
             return out
 
-    def __init__(self, lambda_role: str):
-        super().__init__()
-        self._lambda_role = lambda_role
+    def __init__(self):
+        super().__init__(name="aws")
+        self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
         self._region: Optional[str] = None
 
     @staticmethod
     def typename() -> str:
         return "AWS.Resources"
-
-    def set_region(self, region: str):
-        self._region = region
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         if not self._lambda_role:
@@ -202,23 +199,28 @@ class AWSResources(Resources):
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
 
-    # FIXME: python3.7+ future annotatons
     @staticmethod
-    def initialize(dct: dict) -> Resources:
-        ret = AWSResources(dct["lambda-role"] if "lambda-role" in dct else "")
+    def initialize(res: Resources, dct: dict):
+
+        ret = cast(AWSResources, res)
+        super(AWSResources, AWSResources).initialize(ret, dct)
+        ret._lambda_role = dct["lambda-role"] if "lambda-role" in dct else ""
         if "http-apis" in dct:
             for key, value in dct["http-apis"].items():
                 ret._http_apis[key] = AWSResources.HTTPApi.deserialize(value)
+
         return ret
 
     def serialize(self) -> dict:
         out = {
+            **super().serialize(),
             "lambda-role": self._lambda_role,
             "http-apis": {key: value.serialize() for (key, value) in self._http_apis.items()},
         }
         return out
 
     def update_cache(self, cache: Cache):
+        super().update_cache(cache)
         cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
         for name, api in self._http_apis.items():
             cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
@@ -226,21 +228,20 @@ class AWSResources(Resources):
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
 
+        ret = AWSResources()
         cached_config = cache.get_config("aws")
-        ret: AWSResources
         # Load cached values
         if cached_config and "resources" in cached_config:
-            ret = cast(AWSResources, AWSResources.initialize(cached_config["resources"]))
+            AWSResources.initialize(ret, cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for AWS")
         else:
             # Check for new config
             if "resources" in config:
-                ret = cast(AWSResources, AWSResources.initialize(config["resources"]))
+                AWSResources.initialize(ret, config["resources"])
                 ret.logging_handlers = handlers
                 ret.logging.info("No cached resources for AWS found, using user configuration.")
             else:
-                ret = AWSResources(lambda_role="")
                 ret.logging_handlers = handlers
                 ret.logging.info("No resources for AWS found, initialize!")
 
@@ -288,7 +289,7 @@ class AWSConfig(Config):
             config_obj.logging.info("Using user-provided config for AWS")
             AWSConfig.initialize(config_obj, config)
 
-        resources.set_region(config_obj.region)
+        resources.region = config_obj.region
         return config_obj
 
     """
