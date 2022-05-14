@@ -25,6 +25,14 @@ Storage Storage::get_client()
   return Storage(std::move(client));
 }
 
+std::string Storage::key_join(std::initializer_list<std::string> paths)
+{
+  std::string path = *paths.begin();
+  for (auto iter = paths.begin() + 1, end = paths.end(); iter != end; ++iter)
+    path.append("/").append(*iter);
+  return path;
+}
+
 uint64_t Storage::download_file(Aws::String const &bucket, Aws::String const &key,
                         int &required_retries, bool with_backoff)
 {
@@ -63,7 +71,7 @@ uint64_t Storage::download_file(Aws::String const &bucket, Aws::String const &ke
 
 }
 
-uint64_t Storage::upload_random_file(Aws::String const &bucket,
+uint64_t Storage::upload_file(Aws::String const &bucket,
                         Aws::String const &key,
                         int size, char* pBuf)
 {
