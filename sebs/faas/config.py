@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 from abc import ABC
 from abc import abstractmethod
 
+import uuid
+
 from sebs.cache import Cache
 from sebs.utils import has_platform, LoggingBase, LoggingHandlers
-
-# FIXME: Replace type hints for static generators after migration to 3.7
-# https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
 
 """
     Credentials for FaaS system used to authorize operations on functions
@@ -29,7 +30,7 @@ class Credentials(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Credentials":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
         pass
 
     """
@@ -60,7 +61,7 @@ class Resources(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
         pass
 
     """
@@ -79,11 +80,11 @@ class Resources(ABC, LoggingBase):
 
 
 class Config(ABC, LoggingBase):
-
-    _region: str
-
-    def __init__(self):
+    def __init__(self, name: str):
         super().__init__()
+        self._resources_id = ""
+        self._region = ""
+        self._name = name
 
     @property
     def region(self) -> str:
@@ -99,9 +100,25 @@ class Config(ABC, LoggingBase):
     def resources(self) -> Resources:
         pass
 
+    @property
+    def resources_id(self) -> str:
+        return self._resources_id
+
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
+    def initialize(cfg: Config, dct: dict):
+        cfg._region = dct["region"]
+        if "resources_id" in dct:
+            cfg._resources_id = dct["resources_id"]
+        else:
+            cfg._resources_id = str(uuid.uuid1())[0:8]
+            cfg.logging.info(
+                f"Generating unique resource name for " f"the experiments: {cfg._resources_id}"
+            )
+
+    @staticmethod
+    @abstractmethod
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
         from sebs.local.config import LocalConfig
 
         name = config["name"]
@@ -126,10 +143,10 @@ class Config(ABC, LoggingBase):
         assert func, "Unknown config type!"
         return func(config[name] if name in config else config, cache, handlers)
 
-    @abstractmethod
     def serialize(self) -> dict:
-        pass
+        return {"name": self._name, "region": self._region, "resources_id": self.resources_id}
 
     @abstractmethod
     def update_cache(self, cache: Cache):
-        pass
+        cache.update_config(val=self.region, keys=[self._name, "region"])
+        cache.update_config(val=self.resources_id, keys=[self._name, "resources_id"])

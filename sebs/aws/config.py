@@ -234,7 +234,7 @@ class AWSResources(Resources):
 
 class AWSConfig(Config):
     def __init__(self, credentials: AWSCredentials, resources: AWSResources):
-        super().__init__()
+        super().__init__(name="aws")
         self._credentials = credentials
         self._resources = resources
 
@@ -250,11 +250,9 @@ class AWSConfig(Config):
     def resources(self) -> AWSResources:
         return self._resources
 
-    # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
-        config = cast(AWSConfig, cfg)
-        config._region = dct["region"]
+        super(AWSConfig, AWSConfig).initialize(cfg, dct)
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -284,14 +282,13 @@ class AWSConfig(Config):
     """
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.region, keys=["aws", "region"])
+        super().update_cache(cache)
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
 
     def serialize(self) -> dict:
         out = {
-            "name": "aws",
-            "region": self._region,
+            **super().serialize(),
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }

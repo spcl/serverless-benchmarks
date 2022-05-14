@@ -270,8 +270,7 @@ class AzureResources(Resources):
 
 class AzureConfig(Config):
     def __init__(self, credentials: AzureCredentials, resources: AzureResources):
-        super().__init__()
-        self._resources_id = ""
+        super().__init__(name="azure")
         self._credentials = credentials
         self._resources = resources
 
@@ -283,23 +282,9 @@ class AzureConfig(Config):
     def resources(self) -> AzureResources:
         return self._resources
 
-    @property
-    def resources_id(self) -> str:
-        return self._resources_id
-
-    # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
-        config = cast(AzureConfig, cfg)
-        config._region = dct["region"]
-        if "resources_id" in dct:
-            config._resources_id = dct["resources_id"]
-        else:
-            config._resources_id = str(uuid.uuid1())[0:8]
-            config.logging.info(
-                f"Azure: generating unique resource name for "
-                f"the experiments: {config._resources_id}"
-            )
+        super(AzureConfig, AzureConfig).initialize(cfg, dct)
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -329,16 +314,13 @@ class AzureConfig(Config):
     """
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.region, keys=["azure", "region"])
-        cache.update_config(val=self.resources_id, keys=["azure", "resources_id"])
+        super().update_cache(cache)
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
 
     def serialize(self) -> dict:
         out = {
-            "name": "azure",
-            "region": self._region,
-            "resources_id": self.resources_id,
+            **super().serialize(),
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }

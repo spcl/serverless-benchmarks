@@ -160,7 +160,7 @@ class OpenWhiskConfig(Config):
     cache: Cache
 
     def __init__(self, config: dict, cache: Cache):
-        super().__init__()
+        super().__init__(name="openwhisk")
         self._credentials = OpenWhiskCredentials()
         self._resources = OpenWhiskResources()
         self.shutdownStorage = config["shutdownStorage"]
@@ -184,7 +184,7 @@ class OpenWhiskConfig(Config):
 
     def serialize(self) -> dict:
         return {
-            "name": "openwhisk",
+            **super().serialize(),
             "shutdownStorage": self.shutdownStorage,
             "removeCluster": self.removeCluster,
             "wskExec": self.wsk_exec,
@@ -207,6 +207,7 @@ class OpenWhiskConfig(Config):
         return res
 
     def update_cache(self, cache: Cache):
+        super().update_cache(cache)
         cache.update_config(val=self.shutdownStorage, keys=["openwhisk", "shutdownStorage"])
         cache.update_config(val=self.removeCluster, keys=["openwhisk", "removeCluster"])
         cache.update_config(val=self.wsk_exec, keys=["openwhisk", "wskExec"])

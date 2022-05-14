@@ -2,7 +2,7 @@ import os
 
 from abc import ABC
 from abc import abstractmethod
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from sebs.cache import Cache
 from sebs.utils import LoggingBase
@@ -43,6 +43,7 @@ class PersistentStorage(ABC, LoggingBase):
         self.input_buckets_files: List[List[str]] = []
         self._replace_existing = replace_existing
         self._region = region
+        self._experiments_bucket: Optional[str] = None
 
     @property
     def input(self) -> List[str]:  # noqa: A003
@@ -214,6 +215,13 @@ class PersistentStorage(ABC, LoggingBase):
             )
         self.save_storage(benchmark)
 
+    def experiments_bucket(self) -> str:
+
+        if not self._experiments_bucket:
+            pass
+
+        return self._experiments_bucket
+
     """
         Implements a handy routine for uploading input data by benchmarks.
         It should skip uploading existing files unless storage client has been
@@ -232,7 +240,14 @@ class PersistentStorage(ABC, LoggingBase):
         Save benchmark input/output buckets to cache.
     """
 
-    def save_storage(self, benchmark: str):
+    def save_storage(self, benchmark: Optional[str]):
+
+        if benchmark is not None:
+            self.cache_client.update_storage(
+                self.deployment_name(),
+                benchmark,
+                {"buckets": {"input": self.input, "output": self.output}},
+            )
         self.cache_client.update_storage(
             self.deployment_name(),
             benchmark,
