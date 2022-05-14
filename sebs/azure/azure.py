@@ -99,6 +99,7 @@ class Azure(System):
             self.storage = BlobStorage(
                 self.config.region,
                 self.cache_client,
+                self.config.resources,
                 self.config.resources.data_storage_account(self.cli_instance).connection_string,
                 replace_existing=replace_existing,
             )
@@ -261,7 +262,7 @@ class Azure(System):
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
-                self.config.resources_id,
+                self.config.resources.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")

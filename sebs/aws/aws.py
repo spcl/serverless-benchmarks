@@ -95,6 +95,7 @@ class AWS(System):
             self.storage = S3(
                 self.session,
                 self.cache_client,
+                self.config.resources,
                 self.config.region,
                 access_key=self.config.credentials.access_key,
                 secret_key=self.config.credentials.secret_key,

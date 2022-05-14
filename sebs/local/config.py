@@ -23,7 +23,7 @@ class LocalCredentials(Credentials):
 
 class LocalResources(Resources):
     def __init__(self, storage_cfg: Optional[MinioConfig] = None):
-        super().__init__()
+        super().__init__(name="local")
         self._storage = storage_cfg
 
     @property
@@ -32,6 +32,10 @@ class LocalResources(Resources):
 
     def serialize(self) -> dict:
         return {}
+
+    @staticmethod
+    def initialize(res: Resources, cfg: dict):
+        pass
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:

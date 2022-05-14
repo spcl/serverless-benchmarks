@@ -2,8 +2,9 @@ import os
 
 from abc import ABC
 from abc import abstractmethod
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
+from sebs.faas.config import Resources
 from sebs.cache import Cache
 from sebs.utils import LoggingBase
 
@@ -34,7 +35,9 @@ class PersistentStorage(ABC, LoggingBase):
     def region(self):
         return self._region
 
-    def __init__(self, region: str, cache_client: Cache, replace_existing: bool):
+    def __init__(
+        self, region: str, cache_client: Cache, resources: Resources, replace_existing: bool
+    ):
         super().__init__()
         self._cache_client = cache_client
         self.cached = False
@@ -43,7 +46,7 @@ class PersistentStorage(ABC, LoggingBase):
         self.input_buckets_files: List[List[str]] = []
         self._replace_existing = replace_existing
         self._region = region
-        self._experiments_bucket: Optional[str] = None
+        self._cloud_resources = resources
 
     @property
     def input(self) -> List[str]:  # noqa: A003
@@ -58,7 +61,7 @@ class PersistentStorage(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def _create_bucket(self, name: str, buckets: List[str] = []):
+    def _create_bucket(self, name: str, buckets: List[str] = [], randomize_name: bool = False):
         pass
 
     """
@@ -217,10 +220,18 @@ class PersistentStorage(ABC, LoggingBase):
 
     def experiments_bucket(self) -> str:
 
-        if not self._experiments_bucket:
-            pass
+        bucket_type = Resources.StorageBucketType.EXPERIMENTS
+        bucket = self._cloud_resources.get_storage_bucket(bucket_type)
+        if bucket is None:
+            self.logging.info("Initialize a new bucket for experiments results")
+            # FIXME: detect existing vucket
+            bucket = self._create_bucket(
+                self.correct_name(self._cloud_resources.get_storage_bucket_name(bucket_type)),
+                randomize_name=False,
+            )
+            self._cloud_resources.set_storage_bucket(bucket_type, bucket)
 
-        return self._experiments_bucket
+        return bucket
 
     """
         Implements a handy routine for uploading input data by benchmarks.
@@ -240,14 +251,8 @@ class PersistentStorage(ABC, LoggingBase):
         Save benchmark input/output buckets to cache.
     """
 
-    def save_storage(self, benchmark: Optional[str]):
+    def save_storage(self, benchmark: str):
 
-        if benchmark is not None:
-            self.cache_client.update_storage(
-                self.deployment_name(),
-                benchmark,
-                {"buckets": {"input": self.input, "output": self.output}},
-            )
         self.cache_client.update_storage(
             self.deployment_name(),
             benchmark,

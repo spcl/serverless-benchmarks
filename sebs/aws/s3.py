@@ -4,6 +4,7 @@ from typing import List
 import boto3
 
 from sebs.cache import Cache
+from sebs.faas.config import Resources
 from ..faas.storage import PersistentStorage
 
 
@@ -28,12 +29,13 @@ class S3(PersistentStorage):
         self,
         session: boto3.session.Session,
         cache_client: Cache,
+        resources: Resources,
         location: str,
         access_key: str,
         secret_key: str,
         replace_existing: bool,
     ):
-        super().__init__(location, cache_client, replace_existing)
+        super().__init__(location, cache_client, resources, replace_existing)
         self.client = session.client(
             "s3",
             region_name=location,
@@ -45,15 +47,20 @@ class S3(PersistentStorage):
     def correct_name(self, name: str) -> str:
         return name
 
-    def _create_bucket(self, name: str, buckets: List[str] = []):
+    def _create_bucket(self, name: str, buckets: List[str] = [], randomize_name: bool = False):
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
                     "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
                 )
                 return bucket_name
-        random_name = str(uuid.uuid4())[0:16]
-        bucket_name = "{}-{}".format(name, random_name)
+
+        if randomize_name:
+            random_name = str(uuid.uuid4())[0:16]
+            bucket_name = "{}-{}".format(name, random_name)
+        else:
+            bucket_name = name
+
         try:
             # this is incredible
             # https://github.com/boto/boto3/issues/125
