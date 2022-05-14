@@ -27,7 +27,7 @@ class Language(str, Enum):
         for member in Language:
             if member.value == val:
                 return member
-        raise Exception(f"Unknown language type {member}")
+        raise Exception(f"Unknown language type {val}")
 
 
 class Architecture(str, Enum):
@@ -42,4 +42,4 @@ class Architecture(str, Enum):
         for member in Architecture:
             if member.value == val:
                 return member
-        raise Exception(f"Unknown architecture type {member}")
+        raise Exception(f"Unknown architecture type {val}")
