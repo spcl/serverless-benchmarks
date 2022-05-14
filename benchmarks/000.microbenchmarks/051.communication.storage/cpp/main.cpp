@@ -28,9 +28,10 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
   auto file_size = json.GetInteger("size");
   auto invoc = json.GetObject("invocations");
   int reps = invoc.GetInteger("invocations");
-  int offset = invoc.GetInteger("offset");
+  int iteration = invoc.GetInteger("iteration");
   int warmup_reps = invoc.GetInteger("warmup");
   bool with_backoff = invoc.GetBool("with_backoff");
+  int offset = (warmup_reps + reps) * iteration;
   std::cout << "Invoked handler for role " << role << " with file size " << file_size << std::endl;
 
   char* pBuf = new char[file_size];
@@ -90,9 +91,9 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
     char* data2 = new char[retries_times_str.length()];
     strcpy(data2, retries_times_str.c_str());
 
-    std::string new_key = client.key_join({results_key, "producer_times_" + std::to_string(reps) + "_" + std::to_string(offset)});
+    std::string new_key = client.key_join({results_key, "producer_times_" + std::to_string(iteration) + ".bin"});
     client.upload_file(bucket, new_key, times_str.length(), data);
-    new_key = client.key_join({results_key, "producer_retries_" + std::to_string(reps) + "_" + std::to_string(offset)});
+    new_key = client.key_join({results_key, "producer_retries_" + std::to_string(iteration) + ".bin"});
     client.upload_file(bucket, new_key, retries_times_str.length(), data2);
 
     delete[] data;
@@ -133,7 +134,7 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
     auto retries_times_str = ss2.str();
     char* data = new char[retries_times_str.length()];
     strcpy(data, retries_times_str.c_str());
-    std::string new_key = client.key_join({results_key, "consumer_retries_" + std::to_string(reps) + "_" + std::to_string(offset)});
+    std::string new_key = client.key_join({results_key, "consumer_retries_" + std::to_string(iteration) + ".bin"});
     client.upload_file(bucket, new_key, retries_times_str.length(), data);
     delete[] data;
   }

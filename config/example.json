@@ -44,7 +44,7 @@
       "size": 1,
       "invocations": {
         "warmup": 5,
-        "invocations_per_round": [10],
+        "invocations_per_round": [5,10],
         "total": 10
       }
     }

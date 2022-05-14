@@ -39,20 +39,24 @@ class CommunicationP2P(Experiment):
             os.makedirs(self._out_dir)
 
         self._experiment_bucket = self._storage.experiments_bucket()
-        self._experiment_id = f"run-{str(uuid.uuid4())[0:8]}"
 
         self._deployment_client = deployment_client
 
     def run(self):
 
-        bucket_key = os.path.join(self.name(), self._experiment_id)
-
         for invocations in self.settings["invocations"]["invocations_per_round"]:
 
+            type_name = self.settings["type"]
+            deployment_name = self._deployment_client.name()
+            experiment_id = f"{deployment_name}-{type_name}-{str(uuid.uuid4())[0:8]}"
+            bucket_key = os.path.join(self.name(), experiment_id)
             result = ExperimentResult(self.config, self._deployment_client.config)
             result.begin()
 
-            self.logging.info(f"Begin experiment with {invocations} invocations per function call")
+            self.logging.info(
+                f"Begin experiment {experiment_id}, with {invocations} invocations per "
+                f"function call"
+            )
 
             input_config = {
                 "bucket": self._experiment_bucket,
@@ -66,6 +70,7 @@ class CommunicationP2P(Experiment):
             }
             total_iters = self.settings["invocations"]["total"]
             invocations_processed = 0
+            iteration = 0
 
             pool = concurrent.futures.ThreadPoolExecutor()
 
@@ -74,7 +79,7 @@ class CommunicationP2P(Experiment):
                 self.logging.info(f"Invoking {invocations} repetitions")
 
                 current_input = input_config
-                current_input["invocations"]["offset"] = invocations_processed
+                current_input["invocations"]["iteration"] = iteration
 
                 # FIXME: propert implementation in language triggers
                 fut = pool.submit(self._trigger.sync_invoke, {**current_input, "role": "producer"})
@@ -83,16 +88,18 @@ class CommunicationP2P(Experiment):
                 result.add_invocation(self._function, fut.result())
 
                 invocations_processed += invocations
+                iteration += 1
 
                 self.logging.info(f"Finished {invocations_processed}/{total_iters}")
 
             result.end()
 
             results_config = {
-                "type": "storage",
+                "type": type_name,
+                "deployment": deployment_name,
                 "benchmark_input": input_config,
                 "bucket": self._experiment_bucket,
-                "experiment_id": self._experiment_id,
+                "experiment_id": experiment_id,
             }
 
             file_name = f"invocations_{invocations}_results.json"
