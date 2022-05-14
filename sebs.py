@@ -460,7 +460,7 @@ def experiment_invoke(experiment, **kwargs):
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
 @click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
 @common_params
-def experment_process(experiment, extend_time_interval, **kwargs):
+def experiment_process(experiment, extend_time_interval, **kwargs):
     (
         config,
         output_dir,
