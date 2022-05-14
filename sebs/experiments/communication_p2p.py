@@ -1,7 +1,11 @@
 import concurrent
+import json
+import glob
 import os
 import uuid
 from typing import TYPE_CHECKING
+
+import csv
 
 from sebs.faas.system import System as FaaSSystem
 from sebs.experiments.experiment import Experiment
@@ -34,7 +38,7 @@ class CommunicationP2P(Experiment):
         self._trigger = triggers[0]
 
         self._storage = deployment_client.get_storage(replace_existing=True)
-        self._out_dir = os.path.join(sebs_client.output_dir, "communication-p2p", experiment_type)
+        self._out_dir = os.path.join(sebs_client.output_dir, self.name(), experiment_type)
         if not os.path.exists(self._out_dir):
             os.makedirs(self._out_dir)
 
@@ -97,9 +101,10 @@ class CommunicationP2P(Experiment):
             results_config = {
                 "type": type_name,
                 "deployment": deployment_name,
-                "benchmark_input": input_config,
+                "benchmark": input_config,
                 "bucket": self._experiment_bucket,
                 "experiment_id": experiment_id,
+                "samples": total_iters,
             }
 
             file_name = f"invocations_{invocations}_results.json"
@@ -112,8 +117,88 @@ class CommunicationP2P(Experiment):
         deployment_client,
         directory: str,
         logging_filename: str,
+        extend_time_interval: int = -1,
     ):
-        pass
+        storage = deployment_client.get_storage(replace_existing=True)
+
+        with open(os.path.join(directory, self.name(), "result.csv"), "w") as csvfile:
+
+            writer = csv.writer(csvfile, delimiter=",")
+            writer.writerow(
+                [
+                    "channel",
+                    "size",
+                    "invocations-lambda",
+                    "value_type",
+                    "value",
+                ]
+            )
+
+            for experiment_type in ["storage"]:
+
+                out_dir = os.path.join(directory, self.name(), experiment_type)
+                for f in glob.glob(os.path.join(out_dir, "*.json")):
+
+                    experiment_data = {}
+                    with open(f) as fd:
+                        experiment_data = json.load(fd)
+
+                    invocations = experiment_data["results"]["benchmark"]["invocations"][
+                        "invocations"
+                    ]
+                    iterations = experiment_data["results"]["benchmark"]["invocations"]["iteration"]
+                    bucket_name = experiment_data["results"]["bucket"]
+                    bucket_key = experiment_data["results"]["benchmark"]["key"]
+                    size = experiment_data["results"]["benchmark"]["size"]
+
+                    results_dir = os.path.join(out_dir, f"results_{invocations}")
+                    os.makedirs(results_dir, exist_ok=True)
+
+                    for i in range(iterations + 1):
+
+                        for filename in [
+                            "consumer_retries_{}.txt",
+                            "producer_times_{}.txt",
+                            "producer_retries_{}.txt",
+                        ]:
+
+                            bucket_path = "/".join((bucket_key, "results", filename.format(i)))
+                            storage.download(
+                                bucket_name,
+                                bucket_path,
+                                os.path.join(results_dir, filename.format(i)),
+                            )
+
+                    self.logging.info(
+                        f"Downloaded results from storage for {invocations} invocations run."
+                    )
+
+                    # Process the downloaded data
+                    for i in range(iterations + 1):
+
+                        for filename in [
+                            "consumer_retries_{}.txt",
+                            "producer_times_{}.txt",
+                            "producer_retries_{}.txt",
+                        ]:
+                            path = os.path.join(results_dir, filename.format(i))
+
+                            data = open(path, "r").read().split()
+                            int_data = [int(x) for x in data]
+                            for val in int_data[1:]:
+                                writer.writerow(
+                                    [
+                                        experiment_type,
+                                        size,
+                                        invocations,
+                                        filename.split("_{}")[0],
+                                        val,
+                                    ]
+                                )
+
+                    self.logging.info(
+                        f"Processed results from storage for {invocations} invocations run."
+                    )
 
     @staticmethod
     def name() -> str:

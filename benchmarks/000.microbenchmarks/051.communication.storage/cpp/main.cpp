@@ -91,9 +91,9 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
     char* data2 = new char[retries_times_str.length()];
     strcpy(data2, retries_times_str.c_str());
 
-    std::string new_key = client.key_join({results_key, "producer_times_" + std::to_string(iteration) + ".bin"});
+    std::string new_key = client.key_join({results_key, "producer_times_" + std::to_string(iteration) + ".txt"});
     client.upload_file(bucket, new_key, times_str.length(), data);
-    new_key = client.key_join({results_key, "producer_retries_" + std::to_string(iteration) + ".bin"});
+    new_key = client.key_join({results_key, "producer_retries_" + std::to_string(iteration) + ".txt"});
     client.upload_file(bucket, new_key, retries_times_str.length(), data2);
 
     delete[] data;
@@ -134,7 +134,7 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
     auto retries_times_str = ss2.str();
     char* data = new char[retries_times_str.length()];
     strcpy(data, retries_times_str.c_str());
-    std::string new_key = client.key_join({results_key, "consumer_retries_" + std::to_string(iteration) + ".bin"});
+    std::string new_key = client.key_join({results_key, "consumer_retries_" + std::to_string(iteration) + ".txt"});
     client.upload_file(bucket, new_key, retries_times_str.length(), data);
     delete[] data;
   }
