@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import concurrent
 import json
 import glob
 import os
 import uuid
+from enum import Enum
 from typing import TYPE_CHECKING
 
+import boto3
 import csv
 
 from sebs.faas.system import System as FaaSSystem
@@ -18,9 +22,24 @@ if TYPE_CHECKING:
 
 
 class CommunicationP2P(Experiment):
+    class Type(str, Enum):
+        STORAGE = ("storage",)
+        KEY_VALUE = "key-value"
+
+        @staticmethod
+        def deserialize(val: str) -> CommunicationP2P.Type:
+            for member in CommunicationP2P.Type:
+                if member.value == val:
+                    return member
+            raise Exception(f"Unknown experiment type {val}")
+
     def __init__(self, config: ExperimentConfig):
         super().__init__(config)
         self.settings = self.config.experiment_settings(self.name())
+        self.benchmarks = {
+            CommunicationP2P.Type.STORAGE: "051.communication.storage",
+            CommunicationP2P.Type.KEY_VALUE: "052.communication.key-value",
+        }
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
 
@@ -28,10 +47,10 @@ class CommunicationP2P(Experiment):
         from sebs import SeBS  # noqa
         from sebs.faas.function import Trigger
 
-        experiment_type = self.settings["type"]
-        self._benchmark = sebs_client.get_benchmark(
-            f"051.communication.{experiment_type}", deployment_client, self.config
-        )
+        experiment_type = CommunicationP2P.Type.deserialize(self.settings["type"])
+        benchmark_name = self.benchmarks.get(experiment_type)
+        assert benchmark_name is not None
+        self._benchmark = sebs_client.get_benchmark(benchmark_name, deployment_client, self.config)
         self._function = deployment_client.get_function(self._benchmark)
 
         triggers = self._function.triggers(Trigger.TriggerType.LIBRARY)
@@ -43,8 +62,32 @@ class CommunicationP2P(Experiment):
             os.makedirs(self._out_dir)
 
         self._experiment_bucket = self._storage.experiments_bucket()
-
         self._deployment_client = deployment_client
+
+        # fixme: make it generic
+        if experiment_type == CommunicationP2P.Type.KEY_VALUE:
+
+            key_value_client = boto3.client(
+                "dynamodb", region_name=self._deployment_client.config.region
+            )
+            # same as experiment bucket
+            self._table_name = self._experiment_bucket
+
+            try:
+                self.logging.info(f"Creating DynamoDB table {self._table_name}.")
+                key_value_client.create_table(
+                    AttributeDefinitions=[{"AttributeName": "key", "AttributeType": "S"}],
+                    TableName=self._table_name,
+                    KeySchema=[{"AttributeName": "key", "KeyType": "HASH"}],
+                    BillingMode="PAY_PER_REQUEST",
+                )
+                self.logging.info(f"Waiting for DynamoDB table {self._table_name}.")
+                waiter = key_value_client.get_waiter("table_exists")
+                waiter.wait(TableName=self._table_name)
+                self.logging.info(f"DynamoDB table {self._table_name} has been created.")
+            except key_value_client.exceptions.ResourceInUseException:
+                # it's ok that the table already exists
+                pass
 
     def run(self):
 
@@ -150,6 +193,20 @@ class CommunicationP2P(Experiment):
     ):
         storage = deployment_client.get_storage(replace_existing=True)
 
+        files_to_read = [
+            "consumer_retries_{}_{}.txt",
+            "producer_times_{}_{}.txt",
+            "producer_retries_{}_{}.txt",
+        ]
+        additional_files = {
+            CommunicationP2P.Type.KEY_VALUE: [
+                "producer_write_units_{}_{}.txt",
+                "producer_read_units_{}_{}.txt",
+                "consumer_write_units_{}_{}.txt",
+                "consumer_read_units_{}_{}.txt",
+            ]
+        }
+
         with open(os.path.join(directory, self.name(), "result.csv"), "w") as csvfile:
 
             writer = csv.writer(csvfile, delimiter=",")
@@ -163,7 +220,7 @@ class CommunicationP2P(Experiment):
                 ]
             )
 
-            for experiment_type in ["storage"]:
+            for experiment_type in [CommunicationP2P.Type.STORAGE, CommunicationP2P.Type.KEY_VALUE]:
 
                 out_dir = os.path.join(directory, self.name(), experiment_type)
                 for f in glob.glob(os.path.join(out_dir, "*.json")):
@@ -188,9 +245,8 @@ class CommunicationP2P(Experiment):
                         for i in range(iterations + 1):
 
                             for filename in [
-                                "consumer_retries_{}_{}.txt",
-                                "producer_times_{}_{}.txt",
-                                "producer_retries_{}_{}.txt",
+                                *files_to_read,
+                                *additional_files.get(experiment_type, []),
                             ]:
 
                                 bucket_path = "/".join(
@@ -211,15 +267,15 @@ class CommunicationP2P(Experiment):
                         for i in range(iterations + 1):
 
                             for filename in [
-                                "consumer_retries_{}_{}.txt",
-                                "producer_times_{}_{}.txt",
-                                "producer_retries_{}_{}.txt",
+                                *files_to_read,
+                                *additional_files.get(experiment_type, []),
                             ]:
+
                                 path = os.path.join(results_dir, filename.format(size, i))
 
                                 data = open(path, "r").read().split()
-                                int_data = [int(x) for x in data]
-                                for val in int_data[1:]:
+                                double_data = [float(x) for x in data]
+                                for val in double_data[1:]:
                                     writer.writerow(
                                         [
                                             experiment_type,
