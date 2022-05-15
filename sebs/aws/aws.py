@@ -6,6 +6,7 @@ import uuid
 from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
+import botocore
 import docker
 
 from sebs.aws.s3 import S3
@@ -73,9 +74,12 @@ class AWS(System):
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
+            # allow for long invocations
+            config = botocore.config.Config(
+                read_timeout=900, connect_timeout=900, retries={"max_attempts": 0}
+            )
             self.client = self.session.client(
-                service_name="lambda",
-                region_name=self.config.region,
+                service_name="lambda", region_name=self.config.region, config=config
             )
         return self.client
 

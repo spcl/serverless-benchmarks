@@ -4,6 +4,8 @@ import datetime
 import json
 from typing import Dict, Optional  # noqa
 
+from botocore.exceptions import ReadTimeoutError
+
 from sebs.aws.aws import AWS
 from sebs.faas.function import ExecutionResult, Trigger
 
@@ -37,9 +39,18 @@ class LibraryTrigger(Trigger):
 
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
-        begin = datetime.datetime.now()
-        ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
-        end = datetime.datetime.now()
+
+        try:
+            begin = datetime.datetime.now()
+            ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
+            end = datetime.datetime.now()
+        except ReadTimeoutError:
+            end = datetime.datetime.now()
+            self.logging.error("Invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            aws_result = ExecutionResult.from_times(begin, end)
+            aws_result.stats.failure = True
+            return aws_result
 
         aws_result = ExecutionResult.from_times(begin, end)
         aws_result.request_id = ret["ResponseMetadata"]["RequestId"]

@@ -79,6 +79,8 @@ class CommunicationP2P(Experiment):
                 invocations_processed = 0
                 iteration = 0
                 offset = 0
+                errors = 0
+                max_retries = 3
 
                 pool = concurrent.futures.ThreadPoolExecutor()
 
@@ -103,7 +105,15 @@ class CommunicationP2P(Experiment):
                         self.logging.info("One of invocations failed, repeating!")
                         # update offset to NOT reuse messages
                         offset += self.settings["invocations"]["warmup"] + invocations
+                        errors += 1
+
+                        if errors >= max_retries:
+                            self.logging.error("More than three failed invocations, giving up!")
+                            raise RuntimeError()
+
                         continue
+                    else:
+                        errors += 1
 
                     result.add_invocation(self._function, consumer)
                     result.add_invocation(self._function, fut.result())
