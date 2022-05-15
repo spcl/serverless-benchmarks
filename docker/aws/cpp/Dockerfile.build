@@ -3,6 +3,7 @@ ARG BASE_REPOSITORY
 ARG BASE_IMAGE
 FROM ${BASE_REPOSITORY}:dependencies-sdk.aws.cpp.all as sdk
 FROM ${BASE_REPOSITORY}:dependencies-boost.aws.cpp.all as boost
+FROM ${BASE_REPOSITORY}:dependencies-hiredis.aws.cpp.all as hiredis
 FROM ${BASE_REPOSITORY}:dependencies-runtime.aws.cpp.all as runtime
 
 FROM ${BASE_IMAGE} as builder
@@ -22,6 +23,7 @@ RUN chmod +x /sebs/installer.sh
 COPY --from=sdk /opt /opt
 COPY --from=boost /opt /opt
 COPY --from=runtime /opt /opt
+COPY --from=hiredis /opt /opt
 
 # useradd and groupmod is installed in /usr/sbin which is not in PATH
 ENV PATH=/usr/sbin:$PATH
