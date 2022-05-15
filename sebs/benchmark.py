@@ -411,13 +411,14 @@ class Benchmark(LoggingBase):
 
         # FIXME: Configure CMakeLists.txt dependencies
         # FIXME: Configure for AWS - this should be generic
+        # FIXME: optional hiredis
         cmake_script = """
         cmake_minimum_required(VERSION 3.9)
         set(CMAKE_CXX_STANDARD 11)
         project(benchmark LANGUAGES CXX)
         add_executable(
             ${PROJECT_NAME} "handler.cpp" "key-value.cpp"
-            "storage.cpp" "utils.cpp" "main.cpp"
+            "storage.cpp" "redis.cpp" "utils.cpp" "main.cpp"
         )
         target_include_directories(${PROJECT_NAME} PRIVATE ".")
 
@@ -433,6 +434,13 @@ class Benchmark(LoggingBase):
 
         find_package(AWSSDK COMPONENTS s3 dynamodb core)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${AWSSDK_LINK_LIBRARIES})
+
+        find_package(PkgConfig REQUIRED)
+        set(ENV{PKG_CONFIG_PATH} "/opt/lib/pkgconfig")
+        pkg_check_modules(HIREDIS REQUIRED IMPORTED_TARGET hiredis)
+
+        target_include_directories(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
+        target_link_libraries(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
 
         # this line creates a target that packages your binary and zips it up
         aws_lambda_package_target(${PROJECT_NAME})
