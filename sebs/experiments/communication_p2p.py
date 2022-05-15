@@ -110,7 +110,7 @@ class CommunicationP2P(Experiment):
                 errors = 0
                 max_retries = 3
 
-                pool = concurrent.futures.ThreadPoolExecutor()
+                pool = concurrent.futures.ThreadPoolExecutor(2)
 
                 while invocations_processed < total_iters:
 
@@ -144,7 +144,7 @@ class CommunicationP2P(Experiment):
                         errors += 1
 
                     result.add_invocation(self._function, consumer)
-                    result.add_invocation(self._function, fut.result())
+                    result.add_invocation(self._function, producer)
 
                     invocations_processed += invocations
                     iteration += 1
