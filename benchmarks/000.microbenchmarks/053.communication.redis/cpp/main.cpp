@@ -91,6 +91,7 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
 
       if(ret == 0) {
         std::cerr << "Failed download " << i << '\n';
+        channel_client.delete_file(new_key);
         break;
       }
 
@@ -115,6 +116,7 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
 
       if(ret == 0) {
         std::cerr << "Failed download " << i << '\n';
+        channel_client.delete_file(new_key);
         break;
       }
 
@@ -153,9 +155,6 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
 
       channel_client.upload_file(new_key_response, size, pBuf);
 
-      channel_client.delete_file(new_key);
-      channel_client.delete_file(new_key_response);
-
     } 
 
     for(int i = warmup_reps; i < reps + warmup_reps; ++i) {
@@ -172,9 +171,6 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
 
       retries_times.push_back(retries);
       channel_client.upload_file(new_key_response, size, pBuf);
-
-      channel_client.delete_file(new_key);
-      channel_client.delete_file(new_key_response);
 
     } 
 
