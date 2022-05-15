@@ -25,17 +25,18 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
   auto bucket = json.GetString("bucket");
   auto key = json.GetString("key");
   auto role = json.GetString("role"); // producer or consumer
-  auto file_size = json.GetInteger("size");
+  auto size = json.GetInteger("size");
   auto invoc = json.GetObject("invocations");
   int reps = invoc.GetInteger("invocations");
   int iteration = invoc.GetInteger("iteration");
   int warmup_reps = invoc.GetInteger("warmup");
   bool with_backoff = invoc.GetBool("with_backoff");
-  int offset = (warmup_reps + reps) * iteration;
-  std::cout << "Invoked handler for role " << role << " with file size " << file_size << std::endl;
+  int offset = invoc.GetInteger("offset");
+  std::cout << "Invoked handler for role " << role << " with file size " << size
+    << " and " << reps << " messages per lambda " << std::endl;
 
-  char* pBuf = new char[file_size];
-  memset(pBuf, 'A', sizeof(char)*file_size);
+  char* pBuf = new char[size];
+  memset(pBuf, 'A', sizeof(char)*size);
 
   std::string data_key = client.key_join({key, "messages"});
   std::string results_key = client.key_join({key, "results"});
@@ -47,9 +48,10 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
 
     for(int i = 0; i < warmup_reps; ++i) {
 
-      std::string new_key = client.key_join({data_key, std::to_string(i + offset)});
-      std::string new_key_response = client.key_join({data_key, std::to_string(i + offset) + "_response"});
-      client.upload_file(bucket, new_key, file_size, pBuf);
+      std::string prefix = std::to_string(size) + "_" + std::to_string(i + offset);
+      std::string new_key = client.key_join({data_key, prefix});
+      std::string new_key_response = client.key_join({data_key, prefix + "_response"});
+      client.upload_file(bucket, new_key, size, pBuf);
       int ret = client.download_file(bucket, new_key_response, retries, with_backoff);
       if(ret == 0) {
         std::cerr << "Failed download " << i << '\n';
@@ -59,10 +61,11 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
 
     for(int i = warmup_reps; i < reps + warmup_reps; ++i) {
 
-      std::string new_key = client.key_join({data_key, std::to_string(i + offset)});
-      std::string new_key_response = client.key_join({data_key, std::to_string(i + offset) + "_response"});
+      std::string prefix = std::to_string(size) + "_" + std::to_string(i + offset);
+      std::string new_key = client.key_join({data_key, prefix});
+      std::string new_key_response = client.key_join({data_key, prefix + "_response"});
       auto beg = timeSinceEpochMillisec();
-      client.upload_file(bucket, new_key, file_size, pBuf);
+      client.upload_file(bucket, new_key, size, pBuf);
       int ret = client.download_file(bucket, new_key_response, retries, with_backoff);
       auto end = timeSinceEpochMillisec();
       times.push_back(end - beg);
@@ -84,16 +87,16 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
       ss2 << retries_times[i] << '\n';
 
     auto times_str = ss.str();
-    char* data = new char[times_str.length()];
+    char* data = new char[times_str.length() + 1];
     strcpy(data, times_str.c_str());
 
     auto retries_times_str = ss2.str();
-    char* data2 = new char[retries_times_str.length()];
+    char* data2 = new char[retries_times_str.length() + 1];
     strcpy(data2, retries_times_str.c_str());
 
-    std::string new_key = client.key_join({results_key, "producer_times_" + std::to_string(iteration) + ".txt"});
+    std::string new_key = client.key_join({results_key, "producer_times_" + std::to_string(size) + "_" + std::to_string(iteration) + ".txt"});
     client.upload_file(bucket, new_key, times_str.length(), data);
-    new_key = client.key_join({results_key, "producer_retries_" + std::to_string(iteration) + ".txt"});
+    new_key = client.key_join({results_key, "producer_retries_" + std::to_string(size) + "_" + std::to_string(iteration) + ".txt"});
     client.upload_file(bucket, new_key, retries_times_str.length(), data2);
 
     delete[] data;
@@ -103,10 +106,11 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     for(int i = 0; i < warmup_reps; ++i) {
 
-      std::string new_key = client.key_join({data_key, std::to_string(i + offset)});
-      std::string new_key_response = client.key_join({data_key, std::to_string(i + offset) + "_response"});
+      std::string prefix = std::to_string(size) + "_" + std::to_string(i + offset);
+      std::string new_key = client.key_join({data_key, prefix});
+      std::string new_key_response = client.key_join({data_key, prefix + "_response"});
       int ret = client.download_file(bucket, new_key, retries, with_backoff);
-      client.upload_file(bucket, new_key_response, file_size, pBuf);
+      client.upload_file(bucket, new_key_response, size, pBuf);
       if(ret == 0) {
         std::cerr << "Failed download " << i << '\n';
         break;
@@ -115,10 +119,11 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
 
     for(int i = warmup_reps; i < reps + warmup_reps; ++i) {
 
-      std::string new_key = client.key_join({data_key, std::to_string(i + offset)});
-      std::string new_key_response = client.key_join({data_key, std::to_string(i + offset) + "_response"});
+      std::string prefix = std::to_string(size) + "_" + std::to_string(i + offset);
+      std::string new_key = client.key_join({data_key, prefix});
+      std::string new_key_response = client.key_join({data_key, prefix + "_response"});
       int ret = client.download_file(bucket, new_key, retries, with_backoff);
-      client.upload_file(bucket, new_key_response, file_size, pBuf);
+      client.upload_file(bucket, new_key_response, size, pBuf);
       retries_times.push_back(retries);
       if(ret == 0) {
         std::cerr << "Failed download " << i << '\n';
@@ -132,9 +137,9 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
     for(int i = 0; i < retries_times.size(); ++i)
       ss2 << retries_times[i] << '\n';
     auto retries_times_str = ss2.str();
-    char* data = new char[retries_times_str.length()];
+    char* data = new char[retries_times_str.length() + 1];
     strcpy(data, retries_times_str.c_str());
-    std::string new_key = client.key_join({results_key, "consumer_retries_" + std::to_string(iteration) + ".txt"});
+    std::string new_key = client.key_join({results_key, "consumer_retries_" + std::to_string(size) + "_" + std::to_string(iteration) + ".txt"});
     client.upload_file(bucket, new_key, retries_times_str.length(), data);
     delete[] data;
   }
@@ -142,7 +147,7 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
   delete[] pBuf;
 
   Aws::Utils::Json::JsonValue val;
-  val.WithObject("result", std::to_string(file_size));
+  val.WithObject("result", std::to_string(size));
   return std::make_tuple(val, 0);
 }
 

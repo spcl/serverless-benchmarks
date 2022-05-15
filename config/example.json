@@ -41,11 +41,11 @@
     },
     "communication-p2p": {
       "type": "storage",
-      "size": 1,
+      "sizes": [1, 512, 1024, 16384, 131072, 1048576],
       "invocations": {
         "warmup": 5,
-        "invocations_per_round": [5, 10],
-        "total": 10
+        "invocations_per_round": [10, 50, 100, 200, 500],
+        "total": 1000
       }
     }
   },

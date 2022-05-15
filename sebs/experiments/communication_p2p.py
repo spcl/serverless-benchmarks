@@ -57,44 +57,62 @@ class CommunicationP2P(Experiment):
             result = ExperimentResult(self.config, self._deployment_client.config)
             result.begin()
 
-            self.logging.info(
-                f"Begin experiment {experiment_id}, with {invocations} invocations per "
-                f"function call"
-            )
-
             input_config = {
                 "bucket": self._experiment_bucket,
                 "key": bucket_key,
-                "size": self.settings["size"],
                 "invocations": {
                     "warmup": self.settings["invocations"]["warmup"],
                     "invocations": invocations,
                     "with_backoff": False,
                 },
             }
-            total_iters = self.settings["invocations"]["total"]
-            invocations_processed = 0
-            iteration = 0
 
-            pool = concurrent.futures.ThreadPoolExecutor()
+            for size in self.settings["sizes"]:
 
-            while invocations_processed < total_iters:
+                self.logging.info(
+                    f"Begin experiment {experiment_id}, with {size} size, with {invocations} "
+                    f" invocations per function call."
+                )
 
-                self.logging.info(f"Invoking {invocations} repetitions")
+                input_config["size"] = size
+                total_iters = self.settings["invocations"]["total"]
+                invocations_processed = 0
+                iteration = 0
+                offset = 0
 
-                current_input = input_config
-                current_input["invocations"]["iteration"] = iteration
+                pool = concurrent.futures.ThreadPoolExecutor()
 
-                # FIXME: propert implementation in language triggers
-                fut = pool.submit(self._trigger.sync_invoke, {**current_input, "role": "producer"})
-                consumer = self._trigger.sync_invoke({**current_input, "role": "consumer"})
-                result.add_invocation(self._function, consumer)
-                result.add_invocation(self._function, fut.result())
+                while invocations_processed < total_iters:
 
-                invocations_processed += invocations
-                iteration += 1
+                    self.logging.info(
+                        f"Invoking {invocations} repetitions, message offset {offset}."
+                    )
 
-                self.logging.info(f"Finished {invocations_processed}/{total_iters}")
+                    current_input = input_config
+                    current_input["invocations"]["iteration"] = iteration
+                    current_input["invocations"]["offset"] = offset
+
+                    # FIXME: propert implementation in language triggers
+                    fut = pool.submit(
+                        self._trigger.sync_invoke, {**current_input, "role": "producer"}
+                    )
+                    consumer = self._trigger.sync_invoke({**current_input, "role": "consumer"})
+                    producer = fut.result()
+
+                    if consumer.stats.failure or producer.stats.failure:
+                        self.logging.info("One of invocations failed, repeating!")
+                        # update offset to NOT reuse messages
+                        offset += self.settings["invocations"]["warmup"] + invocations
+                        continue
+
+                    result.add_invocation(self._function, consumer)
+                    result.add_invocation(self._function, fut.result())
+
+                    invocations_processed += invocations
+                    iteration += 1
+                    offset += self.settings["invocations"]["warmup"] + invocations
+
+                    self.logging.info(f"Finished {invocations_processed}/{total_iters}")
 
             result.end()
 
@@ -105,6 +123,7 @@ class CommunicationP2P(Experiment):
                 "bucket": self._experiment_bucket,
                 "experiment_id": experiment_id,
                 "samples": total_iters,
+                "sizes": self.settings["sizes"],
             }
 
             file_name = f"invocations_{invocations}_results.json"
@@ -149,56 +168,62 @@ class CommunicationP2P(Experiment):
                     iterations = experiment_data["results"]["benchmark"]["invocations"]["iteration"]
                     bucket_name = experiment_data["results"]["bucket"]
                     bucket_key = experiment_data["results"]["benchmark"]["key"]
-                    size = experiment_data["results"]["benchmark"]["size"]
+                    sizes = experiment_data["results"]["sizes"]
 
                     results_dir = os.path.join(out_dir, f"results_{invocations}")
                     os.makedirs(results_dir, exist_ok=True)
 
-                    for i in range(iterations + 1):
+                    for size in sizes:
 
-                        for filename in [
-                            "consumer_retries_{}.txt",
-                            "producer_times_{}.txt",
-                            "producer_retries_{}.txt",
-                        ]:
+                        for i in range(iterations + 1):
 
-                            bucket_path = "/".join((bucket_key, "results", filename.format(i)))
-                            storage.download(
-                                bucket_name,
-                                bucket_path,
-                                os.path.join(results_dir, filename.format(i)),
-                            )
+                            for filename in [
+                                "consumer_retries_{}_{}.txt",
+                                "producer_times_{}_{}.txt",
+                                "producer_retries_{}_{}.txt",
+                            ]:
 
-                    self.logging.info(
-                        f"Downloaded results from storage for {invocations} invocations run."
-                    )
-
-                    # Process the downloaded data
-                    for i in range(iterations + 1):
-
-                        for filename in [
-                            "consumer_retries_{}.txt",
-                            "producer_times_{}.txt",
-                            "producer_retries_{}.txt",
-                        ]:
-                            path = os.path.join(results_dir, filename.format(i))
-
-                            data = open(path, "r").read().split()
-                            int_data = [int(x) for x in data]
-                            for val in int_data[1:]:
-                                writer.writerow(
-                                    [
-                                        experiment_type,
-                                        size,
-                                        invocations,
-                                        filename.split("_{}")[0],
-                                        val,
-                                    ]
+                                bucket_path = "/".join(
+                                    (bucket_key, "results", filename.format(size, i))
+                                )
+                                storage.download(
+                                    bucket_name,
+                                    bucket_path,
+                                    os.path.join(results_dir, filename.format(size, i)),
                                 )
 
-                    self.logging.info(
-                        f"Processed results from storage for {invocations} invocations run."
-                    )
+                        self.logging.info(
+                            f"Downloaded results from storage for {size} size, "
+                            f"{invocations} invocations run."
+                        )
+
+                        # Process the downloaded data
+                        for i in range(iterations + 1):
+
+                            for filename in [
+                                "consumer_retries_{}_{}.txt",
+                                "producer_times_{}_{}.txt",
+                                "producer_retries_{}_{}.txt",
+                            ]:
+                                path = os.path.join(results_dir, filename.format(size, i))
+
+                                data = open(path, "r").read().split()
+                                int_data = [int(x) for x in data]
+                                for val in int_data[1:]:
+                                    writer.writerow(
+                                        [
+                                            experiment_type,
+                                            size,
+                                            invocations,
+                                            filename.split("_{}")[0],
+                                            val,
+                                        ]
+                                    )
+
+                        self.logging.info(
+                            f"Processed results from storage for {size} size, "
+                            f"{invocations} invocations run."
+                        )
 
     @staticmethod
     def name() -> str:
