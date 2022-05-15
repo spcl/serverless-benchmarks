@@ -68,7 +68,7 @@
           "all": "amazon/aws-lambda-provided:al2.2022.04.27.09"
         },
         "dependencies": [
-            "runtime", "sdk", "boost", "hiredis"
+            "runtime", "sdk", "boost", "hiredis", "tcpunch"
         ],
         "versions": ["all"],
         "images": ["build"],

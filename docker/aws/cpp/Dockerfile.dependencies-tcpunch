@@ -1,0 +1,14 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} as builder
+ARG WORKERS
+ENV WORKERS=${WORKERS}
+
+
+RUN yum install -y cmake3 curl libcurl libcurl-devel git gcc gcc-c++ make tar gzip which python-devel
+RUN   git clone https://github.com/spcl/tcpunch.git && cd tcpunch \
+      && cmake3 -DCMAKE_INSTALL_PREFIX=/opt -DCMAKE_BUILD_TYPE=Release -S client -B build \
+      && cmake3 --build build --target install
+
+FROM ${BASE_IMAGE}
+
+COPY --from=builder /opt /opt
