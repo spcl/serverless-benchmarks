@@ -220,7 +220,7 @@ class PersistentStorage(ABC, LoggingBase):
 
     def experiments_bucket(self) -> str:
 
-        bucket_type = Resources.StorageBucketType.EXPERIMENTS
+        bucket_type = Resources.StorageType.EXPERIMENTS
         bucket = self._cloud_resources.get_storage_bucket(bucket_type)
         if bucket is None:
             self.logging.info("Initialize a new bucket for experiments results")

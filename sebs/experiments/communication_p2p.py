@@ -8,9 +8,9 @@ import uuid
 from enum import Enum
 from typing import TYPE_CHECKING
 
-import boto3
 import csv
 
+from sebs.faas.config import Resources
 from sebs.faas.system import System as FaaSSystem
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
@@ -64,30 +64,12 @@ class CommunicationP2P(Experiment):
         self._experiment_bucket = self._storage.experiments_bucket()
         self._deployment_client = deployment_client
 
-        # fixme: make it generic
         if experiment_type == CommunicationP2P.Type.KEY_VALUE:
 
-            key_value_client = boto3.client(
-                "dynamodb", region_name=self._deployment_client.config.region
+            self._table_name = deployment_client.config.resources.get_key_value_table(
+                Resources.StorageType.EXPERIMENTS
             )
-            # same as experiment bucket
-            self._table_name = self._experiment_bucket
-
-            try:
-                self.logging.info(f"Creating DynamoDB table {self._table_name}.")
-                key_value_client.create_table(
-                    AttributeDefinitions=[{"AttributeName": "key", "AttributeType": "S"}],
-                    TableName=self._table_name,
-                    KeySchema=[{"AttributeName": "key", "KeyType": "HASH"}],
-                    BillingMode="PAY_PER_REQUEST",
-                )
-                self.logging.info(f"Waiting for DynamoDB table {self._table_name}.")
-                waiter = key_value_client.get_waiter("table_exists")
-                waiter.wait(TableName=self._table_name)
-                self.logging.info(f"DynamoDB table {self._table_name} has been created.")
-            except key_value_client.exceptions.ResourceInUseException:
-                # it's ok that the table already exists
-                pass
+            self.logging.info(f"Using key-value storage with table {self._table_name}")
 
     def run(self):
 

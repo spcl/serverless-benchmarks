@@ -104,6 +104,7 @@ class AWSResources(Resources):
         self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
         self._region: Optional[str] = None
+        self._dynamodb_client = None
 
     @staticmethod
     def typename() -> str:
@@ -235,6 +236,26 @@ class AWSResources(Resources):
                 ret.logging.info("No resources for AWS found, initialize!")
 
         return ret
+
+    def _create_key_value_table(self, name: str):
+
+        if self._dynamodb_client is None:
+            self._dynamodb_client = boto3.client("dynamodb", region_name=self.region)
+
+        try:
+            self._dynamodb_client.create_table(
+                AttributeDefinitions=[{"AttributeName": "key", "AttributeType": "S"}],
+                TableName=name,
+                KeySchema=[{"AttributeName": "key", "KeyType": "HASH"}],
+                BillingMode="PAY_PER_REQUEST",
+            )
+            self.logging.info(f"Waiting to create DynamoDB table {name}.")
+            waiter = self._dynamodb_client.get_waiter("table_exists")
+            waiter.wait(TableName=name)
+            self.logging.info(f"DynamoDB table {name} has been created.")
+        except self._dynamodb_client.exceptions.ResourceInUseException:
+            # it's ok that the table already exists
+            self.logging.info(f"Using existing DynamoDB table {name}.")
 
 
 class AWSConfig(Config):

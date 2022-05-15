@@ -53,14 +53,14 @@ class Credentials(ABC, LoggingBase):
 
 
 class Resources(ABC, LoggingBase):
-    class StorageBucketType(str, Enum):
+    class StorageType(str, Enum):
         DEPLOYMENT = "deployment"
         BENCHMARKS = "benchmarks"
         EXPERIMENTS = "experiments"
 
         @staticmethod
-        def deserialize(val: str) -> Resources.StorageBucketType:
-            for member in Resources.StorageBucketType:
+        def deserialize(val: str) -> Resources.StorageType:
+            for member in Resources.StorageType:
                 if member.value == val:
                     return member
             raise Exception(f"Unknown storage bucket type type {val}")
@@ -68,7 +68,8 @@ class Resources(ABC, LoggingBase):
     def __init__(self, name: str):
         super().__init__()
         self._name = name
-        self._buckets: Dict[Resources.StorageBucketType, str] = {}
+        self._buckets: Dict[Resources.StorageType, str] = {}
+        self._tables: Dict[Resources.StorageType, str] = {}
         self._resources_id = ""
 
     @property
@@ -87,14 +88,35 @@ class Resources(ABC, LoggingBase):
     def region(self, region: str):
         self._region = region
 
-    def get_storage_bucket(self, bucket_type: Resources.StorageBucketType) -> Optional[str]:
+    def get_storage_bucket(self, bucket_type: Resources.StorageType) -> Optional[str]:
         return self._buckets.get(bucket_type)
 
-    def get_storage_bucket_name(self, bucket_type: Resources.StorageBucketType) -> str:
+    def get_storage_bucket_name(self, bucket_type: Resources.StorageType) -> str:
         return f"sebs-{bucket_type.value}-{self._resources_id}"
 
-    def set_storage_bucket(self, bucket_type: Resources.StorageBucketType, bucket_name: str):
+    def set_storage_bucket(self, bucket_type: Resources.StorageType, bucket_name: str):
         self._buckets[bucket_type] = bucket_name
+
+    def _create_key_value_table(self, name: str):
+        raise NotImplementedError()
+
+    def get_key_value_table(self, table_type: Resources.StorageType) -> str:
+
+        table = self._tables.get(table_type)
+
+        if table is None:
+
+            table = self.get_key_value_table_name(table_type)
+            self._create_key_value_table(table)
+            self.set_key_value_table(table_type, table)
+
+        return table
+
+    def get_key_value_table_name(self, table_type: Resources.StorageType) -> str:
+        return f"sebs-{table_type.value}-{self._resources_id}"
+
+    def set_key_value_table(self, table_type: Resources.StorageType, table_name: str):
+        self._tables[table_type] = table_name
 
     @staticmethod
     @abstractmethod
@@ -108,7 +130,10 @@ class Resources(ABC, LoggingBase):
             )
         if "storage_buckets" in dct:
             for key, value in dct["storage_buckets"].items():
-                res._buckets[Resources.StorageBucketType.deserialize(key)] = value
+                res._buckets[Resources.StorageType.deserialize(key)] = value
+        if "key-value-tables" in dct:
+            for key, value in dct["key-value-tables"].items():
+                res._tables[Resources.StorageType.deserialize(key)] = value
 
     """
         Create credentials instance from user config and cached values.
@@ -135,6 +160,10 @@ class Resources(ABC, LoggingBase):
         for key, value in self._buckets.items():
             cache.update_config(
                 val=value, keys=[self._name, "resources", "storage_buckets", key.value]
+            )
+        for key, value in self._tables.items():
+            cache.update_config(
+                val=value, keys=[self._name, "resources", "key-value-tables", key.value]
             )
 
 
