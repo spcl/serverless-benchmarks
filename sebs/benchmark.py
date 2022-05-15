@@ -326,7 +326,7 @@ class Benchmark(LoggingBase):
         project(benchmark LANGUAGES CXX)
         add_executable(
             ${PROJECT_NAME} "handler.cpp" "key-value.cpp"
-            "storage.cpp" "redis.cpp" "utils.cpp" "main.cpp"
+            "storage.cpp" "redis.cpp" "tcp.cpp" "utils.cpp" "main.cpp"
         )
         target_include_directories(${PROJECT_NAME} PRIVATE ".")
 
@@ -349,6 +349,9 @@ class Benchmark(LoggingBase):
 
         target_include_directories(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
         target_link_libraries(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
+
+        find_package(tcpunch)
+        target_link_libraries(${PROJECT_NAME} PUBLIC tcpunch::tcpunch)
 
         # this line creates a target that packages your binary and zips it up
         aws_lambda_package_target(${PROJECT_NAME})
