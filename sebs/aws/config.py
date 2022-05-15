@@ -128,7 +128,7 @@ class AWSResources(Resources):
             attached_policies = [
                 "arn:aws:iam::aws:policy/AmazonS3FullAccess",
                 "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",
-                "arn:aws:iam::aws:policy/service-rol/AWSLambdaVPCAccessExecutionRole",
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
             ]
             try:
