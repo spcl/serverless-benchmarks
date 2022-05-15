@@ -132,7 +132,7 @@
         "versions": ["all"],
         "images": ["build"],
         "deployment": {
-          "files": [ "handler.cpp", "storage.cpp", "storage.hpp", "utils.cpp", "utils.hpp"]
+          "files": [ "handler.cpp", "key-value.cpp", "key-value.hpp", "storage.cpp", "storage.hpp", "utils.cpp", "utils.hpp"]
         }
       }
     },
