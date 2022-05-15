@@ -25,6 +25,7 @@ class CommunicationP2P(Experiment):
     class Type(str, Enum):
         STORAGE = ("storage",)
         KEY_VALUE = "key-value"
+        REDIS = "redis"
 
         @staticmethod
         def deserialize(val: str) -> CommunicationP2P.Type:
@@ -39,6 +40,7 @@ class CommunicationP2P(Experiment):
         self.benchmarks = {
             CommunicationP2P.Type.STORAGE: "051.communication.storage",
             CommunicationP2P.Type.KEY_VALUE: "052.communication.key-value",
+            CommunicationP2P.Type.REDIS: "053.communication.redis",
         }
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
@@ -91,6 +93,7 @@ class CommunicationP2P(Experiment):
                     "with_backoff": False,
                 },
             }
+            self._additional_settings(type_name, input_config)
 
             for size in self.settings["sizes"]:
 
@@ -272,6 +275,11 @@ class CommunicationP2P(Experiment):
                             f"Processed results from storage for {size} size, "
                             f"{invocations} invocations run."
                         )
+
+    def _additional_settings(self, experiment_type: CommunicationP2P.Type, config: dict):
+
+        if experiment_type == CommunicationP2P.Type.REDIS:
+            config["redis"] = self.settings["redis"]
 
     @staticmethod
     def name() -> str:
