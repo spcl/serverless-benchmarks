@@ -323,7 +323,10 @@ class Benchmark(LoggingBase):
         cmake_minimum_required(VERSION 3.9)
         set(CMAKE_CXX_STANDARD 11)
         project(benchmark LANGUAGES CXX)
-        add_executable(${PROJECT_NAME} "handler.cpp" "key-value.cpp" "storage.cpp" "utils.cpp" "main.cpp")
+        add_executable(
+            ${PROJECT_NAME} "handler.cpp" "key-value.cpp"
+            "storage.cpp" "utils.cpp" "main.cpp"
+        )
         target_include_directories(${PROJECT_NAME} PRIVATE ".")
 
         target_compile_features(${PROJECT_NAME} PRIVATE "cxx_std_11")
