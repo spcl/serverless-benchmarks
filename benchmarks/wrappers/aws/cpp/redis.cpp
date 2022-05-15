@@ -35,7 +35,7 @@ uint64_t Redis::download_file(Aws::String const &key,
     
   auto bef = timeSinceEpochMillisec();
   int retries = 0;
-  const int MAX_RETRIES = 1500;
+  const int MAX_RETRIES = 50000;
 
   while (retries < MAX_RETRIES) {
 

@@ -146,12 +146,12 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
       std::string new_key_response = client.key_join({data_key, prefix + "_response"});
 
       int ret = channel_client.download_file(new_key, retries, with_backoff);
-      channel_client.upload_file(new_key_response, size, pBuf);
-
       if(ret == 0) {
         std::cerr << "Failed download " << i << '\n';
         break;
       }
+
+      channel_client.upload_file(new_key_response, size, pBuf);
 
       channel_client.delete_file(new_key);
       channel_client.delete_file(new_key_response);
@@ -165,14 +165,13 @@ std::tuple<Aws::Utils::Json::JsonValue, int> function(Aws::Utils::Json::JsonView
       std::string new_key_response = client.key_join({data_key, prefix + "_response"});
 
       int ret = channel_client.download_file(new_key, retries, with_backoff);
-      channel_client.upload_file(new_key_response, size, pBuf);
-
-      retries_times.push_back(retries);
-
       if(ret == 0) {
         std::cerr << "Failed download " << i << '\n';
         break;
       }
+
+      retries_times.push_back(retries);
+      channel_client.upload_file(new_key_response, size, pBuf);
 
       channel_client.delete_file(new_key);
       channel_client.delete_file(new_key_response);
