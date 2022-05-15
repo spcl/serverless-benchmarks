@@ -227,6 +227,7 @@ class AWSResources(Resources):
                 ret.logging_handlers = handlers
                 ret.logging.info("No cached resources for AWS found, using user configuration.")
             else:
+                AWSResources.initialize(ret, {})
                 ret.logging_handlers = handlers
                 ret.logging.info("No resources for AWS found, initialize!")
 
