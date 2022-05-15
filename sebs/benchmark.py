@@ -318,11 +318,12 @@ class Benchmark(LoggingBase):
     def add_deployment_package_cpp(self, output_dir):
 
         # FIXME: Configure CMakeLists.txt dependencies
+        # FIXME: Configure for AWS - this should be generic
         cmake_script = """
         cmake_minimum_required(VERSION 3.9)
         set(CMAKE_CXX_STANDARD 11)
         project(benchmark LANGUAGES CXX)
-        add_executable(${PROJECT_NAME} "handler.cpp" "storage.cpp" "utils.cpp" "main.cpp")
+        add_executable(${PROJECT_NAME} "handler.cpp" "key-value.cpp" "storage.cpp" "utils.cpp" "main.cpp")
         target_include_directories(${PROJECT_NAME} PRIVATE ".")
 
         target_compile_features(${PROJECT_NAME} PRIVATE "cxx_std_11")
@@ -335,7 +336,7 @@ class Benchmark(LoggingBase):
         target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
         target_link_libraries(${PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
 
-        find_package(AWSSDK COMPONENTS s3 core)
+        find_package(AWSSDK COMPONENTS s3 dynamodb core)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${AWSSDK_LINK_LIBRARIES})
 
         # this line creates a target that packages your binary and zips it up
