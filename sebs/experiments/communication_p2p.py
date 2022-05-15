@@ -26,6 +26,7 @@ class CommunicationP2P(Experiment):
         STORAGE = ("storage",)
         KEY_VALUE = "key-value"
         REDIS = "redis"
+        TCP = "tcp"
 
         @staticmethod
         def deserialize(val: str) -> CommunicationP2P.Type:
@@ -41,6 +42,7 @@ class CommunicationP2P(Experiment):
             CommunicationP2P.Type.STORAGE: "051.communication.storage",
             CommunicationP2P.Type.KEY_VALUE: "052.communication.key-value",
             CommunicationP2P.Type.REDIS: "053.communication.redis",
+            CommunicationP2P.Type.TCP: "054.communication.tcp",
         }
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
@@ -122,11 +124,17 @@ class CommunicationP2P(Experiment):
                     current_input["invocations"]["iteration"] = iteration
                     current_input["invocations"]["offset"] = offset
 
-                    # FIXME: propert implementation in language triggers
-                    fut = pool.submit(
-                        self._trigger.sync_invoke, {**current_input, "role": "producer"}
+                    key = str(uuid.uuid4())[0:8]
+                    producer_input = self._additional_settings_producer(
+                        type_name, current_input, key
                     )
-                    consumer = self._trigger.sync_invoke({**current_input, "role": "consumer"})
+                    consumer_input = self._additional_settings_consumer(
+                        type_name, current_input, key
+                    )
+
+                    # FIXME: propert implementation in language triggers
+                    fut = pool.submit(self._trigger.sync_invoke, producer_input)
+                    consumer = self._trigger.sync_invoke(consumer_input)
                     producer = fut.result()
 
                     if consumer.stats.failure or producer.stats.failure:
@@ -209,6 +217,7 @@ class CommunicationP2P(Experiment):
                 CommunicationP2P.Type.STORAGE,
                 CommunicationP2P.Type.KEY_VALUE,
                 CommunicationP2P.Type.REDIS,
+                CommunicationP2P.Type.TCP,
             ]:
 
                 out_dir = os.path.join(directory, self.name(), experiment_type)
@@ -284,6 +293,32 @@ class CommunicationP2P(Experiment):
 
         if experiment_type == CommunicationP2P.Type.REDIS:
             config["redis"] = self.settings["redis"]
+        elif experiment_type == CommunicationP2P.Type.TCP:
+            config["tcpuncher"] = self.settings["tcpuncher"]
+
+    def _additional_settings_producer(
+        self, experiment_type: CommunicationP2P.Type, config: dict, key: str
+    ) -> dict:
+        new_config = config.copy()
+        new_config["role"] = "producer"
+
+        if experiment_type == CommunicationP2P.Type.TCP:
+            new_config["tcpuncher"]["id"] = 0
+            new_config["tcpuncher"]["pairing_key"] = key
+
+        return new_config
+
+    def _additional_settings_consumer(
+        self, experiment_type: CommunicationP2P.Type, config: dict, key: str
+    ) -> dict:
+        new_config = config.copy()
+        new_config["role"] = "consumer"
+
+        if experiment_type == CommunicationP2P.Type.TCP:
+            new_config["tcpuncher"]["id"] = 0
+            new_config["tcpuncher"]["pairing_key"] = key
+
+        return new_config
 
     @staticmethod
     def name() -> str:
