@@ -205,7 +205,11 @@ class CommunicationP2P(Experiment):
                 ]
             )
 
-            for experiment_type in [CommunicationP2P.Type.STORAGE, CommunicationP2P.Type.KEY_VALUE]:
+            for experiment_type in [
+                CommunicationP2P.Type.STORAGE,
+                CommunicationP2P.Type.KEY_VALUE,
+                CommunicationP2P.Type.REDIS,
+            ]:
 
                 out_dir = os.path.join(directory, self.name(), experiment_type)
                 for f in glob.glob(os.path.join(out_dir, "*.json")):
