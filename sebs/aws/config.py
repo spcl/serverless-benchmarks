@@ -123,8 +123,11 @@ class AWSResources(Resources):
                 ],
             }
             role_name = "sebs-lambda-role"
+            # FIXME: this should be configurable
             attached_policies = [
                 "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+                "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",
+                "arn:aws:iam::aws:policy/service-rol/AWSLambdaVPCAccessExecutionRole",
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
             ]
             try:
