@@ -1,0 +1,26 @@
+{
+    "root": "split",
+    "states": {
+        "split": {
+            "type": "task",
+            "func_name": "split",
+            "next": "map"
+        },
+        "map": {
+            "type": "map",
+            "func_name": "map",
+            "array": "list",
+            "next": "shuffle"
+        },
+        "shuffle": {
+            "type": "task",
+            "func_name": "shuffle",
+            "next": "reduce"
+        },
+        "reduce": {
+            "type": "map",
+            "func_name": "reduce",
+            "array": "list"
+        }
+    }
+}

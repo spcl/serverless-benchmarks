@@ -1,6 +1,6 @@
 size_generators = {
     'test' : (5, 0),
-    'small': (50, 10),
+    'small': (50, 2),
     'large': (100, 1),
 }
 

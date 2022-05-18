@@ -47,6 +47,11 @@ class storage:
         self.client.download_fileobj(bucket, file, data)
         return data.getbuffer()
 
+    def list_directory(self, bucket, prefix):
+        objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        for obj in objects['Contents']:
+            yield obj['Key']
+
     def get_instance():
         if storage.instance is None:
             storage.instance = storage()

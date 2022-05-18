@@ -55,6 +55,11 @@ class storage:
         blob.download_to_file(data)
         return data.getbuffer()
 
+    def list_directory(self, bucket, prefix):
+        objects = self.client.bucket(bucket).list_blobs(prefix=prefix)
+        for obj in objects:
+            yield obj.name
+
     def get_instance():
         if storage.instance is None:
             storage.instance = storage()

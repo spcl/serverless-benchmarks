@@ -29,7 +29,7 @@ class storage:
     def download(self, container, file, filepath):
         with open(filepath, 'wb') as download_file:
             download_file.write( self.download_stream(container, file) )
-    
+
     def download_directory(self, container, prefix, path):
         client = self.client.get_container_client(container=container)
         objects = client.list_blobs(name_starts_with=prefix)
@@ -38,7 +38,7 @@ class storage:
             path_to_file = os.path.dirname(file_name)
             os.makedirs(os.path.join(path, path_to_file), exist_ok=True)
             self.download(container, file_name, os.path.join(path, file_name))
-    
+
     def upload_stream(self, container, file, data):
         key_name = storage.unique_name(file)
         client = self.client.get_blob_client(
@@ -51,7 +51,13 @@ class storage:
     def download_stream(self, container, file):
         client = self.client.get_blob_client(container=container, blob=file)
         return client.download_blob().readall()
-    
+
+    def list_directory(self, container, prefix):
+        client = self.client.get_container_client(container=container)
+        objects = client.list_blobs(name_starts_with=prefix)
+        for obj in objects:
+            yield obj.name
+
     def get_instance():
         if storage.instance is None:
             storage.instance = storage()

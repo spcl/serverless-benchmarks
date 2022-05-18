@@ -51,6 +51,11 @@ class storage:
         data = self.client.get_object(bucket, file)
         return data.read()
 
+    def list_directory(self, bucket, prefix):
+        objects = self.client.list_objects_v2(bucket, prefix, recursive=True)
+        for obj in objects:
+            yield obj.object_name
+
     def get_instance():
         if storage.instance is None:
             storage.instance = storage()
