@@ -66,7 +66,7 @@ class Map(State):
         )
 
 
-class Loop(State):
+class Repeat(State):
     def __init__(self, name: str, func_name: str, count: int, next: Optional[str]):
         self.name = name
         self.func_name = func_name
@@ -75,15 +75,10 @@ class Loop(State):
 
     @classmethod
     def deserialize(cls, name: str, payload: dict) -> "Task":
-        return cls(
-            name=name,
-            func_name=payload["func_name"],
-            count=payload["count"],
-            next=payload.get("next"),
-        )
+        return cls(name=name, func_name=payload["func_name"], count=payload["count"], next=payload.get("next"))
 
 
-_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map, "loop": Loop}
+_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map, "repeat": Repeat}
 
 
 class Generator(ABC):
@@ -123,8 +118,8 @@ class Generator(ABC):
             return self.encode_switch(state)
         elif isinstance(state, Map):
             return self.encode_map(state)
-        elif isinstance(state, Loop):
-            return self.encode_loop(state)
+        elif isinstance(state, Repeat):
+            return self.encode_repeat(state)
         else:
             raise ValueError(f"Unknown state of type {type(state)}.")
 
@@ -140,7 +135,7 @@ class Generator(ABC):
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         pass
 
-    def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
+    def encode_repeat(self, state: Repeat) -> Union[dict, List[dict]]:
         tasks = []
         for i in range(state.count):
             name = state.name if i == 0 else f"{state.name}_{i}"

@@ -1,7 +1,7 @@
 import uuid
 from typing import Dict, Union, List
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map, Loop
+from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat
 
 
 class GCPGenerator(Generator):

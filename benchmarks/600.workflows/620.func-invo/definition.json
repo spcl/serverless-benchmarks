@@ -2,7 +2,7 @@
     "root": "process",
     "states": {
         "process": {
-            "type": "loop",
+            "type": "repeat",
             "func_name": "process",
             "count": 10
         }

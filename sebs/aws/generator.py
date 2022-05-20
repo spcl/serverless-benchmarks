@@ -1,7 +1,8 @@
 from typing import Dict, List, Union, Any
 import numbers
+import uuid
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map, Loop
+from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat
 
 
 class SFNGenerator(Generator):
@@ -27,7 +28,7 @@ class SFNGenerator(Generator):
         payload: Dict[str, Any] = {
             "Name": state.name,
             "Type": "Task",
-            "Resource": self._func_arns[state.func_name],
+            "Resource": self._func_arns[state.func_name]
         }
 
         if state.next:
@@ -55,14 +56,16 @@ class SFNGenerator(Generator):
         return {"Variable": "$." + case.var, cond: case.val, "Next": case.next}
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
+        map_func_name = "func_" + str(uuid.uuid4())[:8]
+
         payload: Dict[str, Any] = {
             "Name": state.name,
             "Type": "Map",
             "ItemsPath": "$." + state.array,
             "Iterator": {
-                "StartAt": "func",
+                "StartAt": map_func_name,
                 "States": {
-                    "func": {
+                    map_func_name: {
                         "Type": "Task",
                         "Resource": self._func_arns[state.func_name],
                         "End": True,
