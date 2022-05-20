@@ -1,6 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Optional, List, Callable, Union, Dict, Type
+from typing import Optional, List, Callable, Union, Dict, Type, Tuple
 import json
 
 
@@ -66,7 +66,19 @@ class Map(State):
         )
 
 
-_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map}
+class Loop(State):
+    def __init__(self, name: str, func_name: str, count: int, next: Optional[str]):
+        self.name = name
+        self.func_name = func_name
+        self.count = count
+        self.next = next
+
+    @classmethod
+    def deserialize(cls, name: str, payload: dict) -> "Task":
+        return cls(name=name, func_name=payload["func_name"], count=payload["count"], next=payload.get("next"))
+
+
+_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map, "loop": Loop}
 
 
 class Generator(ABC):
@@ -92,12 +104,12 @@ class Generator(ABC):
             else:
                 raise ValueError("Unknown encoded state returned.")
 
-        definition = self.postprocess(states, payloads)
+        definition = self.postprocess(payloads)
 
         return self._export_func(definition)
 
-    def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
-        return {s.name: p for (s, p) in zip(states, payloads)}
+    def postprocess(self, payloads: List[dict]) -> dict:
+        pass
 
     def encode_state(self, state: State) -> Union[dict, List[dict]]:
         if isinstance(state, Task):
@@ -106,6 +118,8 @@ class Generator(ABC):
             return self.encode_switch(state)
         elif isinstance(state, Map):
             return self.encode_map(state)
+        elif isinstance(state, Loop):
+            return self.encode_loop(state)
         else:
             raise ValueError(f"Unknown state of type {type(state)}.")
 
@@ -120,3 +134,13 @@ class Generator(ABC):
     @abstractmethod
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         pass
+
+    def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
+        tasks = []
+        for i in range(state.count):
+            name = state.name if i == 0 else f"{state.name}_{i}"
+            next = state.next if i == state.count-1 else f"{state.name}_{i+1}"
+            task = Task(name, state.func_name, next)
+            tasks.append(self.encode_task(task))
+
+        return tasks
