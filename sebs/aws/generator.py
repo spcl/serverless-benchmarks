@@ -2,7 +2,7 @@ from typing import Dict, List, Union, Any
 import numbers
 import uuid
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat
+from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat, Loop
 
 
 class SFNGenerator(Generator):
@@ -85,3 +85,13 @@ class SFNGenerator(Generator):
             payload["End"] = True
 
         return payload
+
+    def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
+        map_state = Map(self.name, self.func_name, self.array, self.next)
+        payload = self.encode_map(map_state)
+        payload["MaxConcurrency"] = 1
+        payload["ResultSelector"] = dict()
+        payload["ResultPath"] = "$." + str(uuid.uuid4())[:8]
+
+        return payload
+

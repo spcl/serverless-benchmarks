@@ -74,11 +74,28 @@ class Repeat(State):
         self.next = next
 
     @classmethod
-    def deserialize(cls, name: str, payload: dict) -> "Task":
+    def deserialize(cls, name: str, payload: dict) -> "Repeat":
         return cls(name=name, func_name=payload["func_name"], count=payload["count"], next=payload.get("next"))
 
 
-_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map, "repeat": Repeat}
+class Loop(State):
+    def __init__(self, name: str, func_name: str, array: str, next: Optional[str]):
+        self.name = name
+        self.func_name = func_name
+        self.array = array
+        self.next = next
+
+    @classmethod
+    def deserialize(cls, name: str, payload: dict) -> "Loop":
+        return cls(
+            name=name,
+            func_name=payload["func_name"],
+            array=payload["array"],
+            next=payload.get("next"),
+        )
+
+
+_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map, "repeat": Repeat, "loop": Loop}
 
 
 class Generator(ABC):
@@ -144,3 +161,7 @@ class Generator(ABC):
             tasks.append(self.encode_task(task))
 
         return tasks
+
+    @abstractmethod
+    def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
+        pass
