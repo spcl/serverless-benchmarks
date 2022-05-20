@@ -60,7 +60,7 @@ def run_workflow(context: df.DurableOrchestrationContext):
             res = yield context.task_all(tasks)
 
             current = states.get(current.next, None)
-        elif isinstance(current, Loop):
+        elif isinstance(current, Repeat):
             for i in range(current.count):
                 res = yield context.call_activity(current.func_name, res)
             current = states.get(current.next, None)

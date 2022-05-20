@@ -2,7 +2,7 @@ from typing import Dict, List, Union, Any
 import numbers
 import uuid
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map, Loop
+from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat
 
 
 class SFNGenerator(Generator):
