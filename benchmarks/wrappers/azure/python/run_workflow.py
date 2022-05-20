@@ -64,6 +64,11 @@ def run_workflow(context: df.DurableOrchestrationContext):
             for i in range(current.count):
                 res = yield context.call_activity(current.func_name, res)
             current = states.get(current.next, None)
+        elif isinstance(current, Loop):
+            array = get_var(res, current.array)
+            for elem in array:
+                yield context.call_activity(current.func_name, elem)
+            current = states.get(current.next, None)
         else:
             raise ValueError(f"Undefined state: {current}")
 

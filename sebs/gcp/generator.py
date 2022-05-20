@@ -1,7 +1,7 @@
 import uuid
 from typing import Dict, Union, List
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat
+from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat, Loop
 
 
 class GCPGenerator(Generator):
@@ -53,6 +53,27 @@ class GCPGenerator(Generator):
                 "call": "experimental.executions.map",
                 "args": {"workflow_id": id, "arguments": "${res." + state.array + "}"},
                 "result": "res",
+            }
+        }
+
+    def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
+        url = self._func_triggers[state.func_name]
+
+        return {
+            state.name: {
+                "for": {
+                    "value": "val",
+                    "index": "idx",
+                    "in": "${"+state.array+"}",
+                    "steps": [
+                        {
+                            "body": {
+                                "call": "http.post",
+                                "args": {"url": url, "body": "${val}"}
+                            }
+                        }
+                    ]
+                }
             }
         }
 
