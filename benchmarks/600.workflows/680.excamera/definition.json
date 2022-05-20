@@ -1,0 +1,10 @@
+{
+    "root": "encode",
+    "states": {
+        "encode": {
+            "type": "map",
+            "func_name": "encode",
+            "array": "segments"
+        }
+    }
+}
