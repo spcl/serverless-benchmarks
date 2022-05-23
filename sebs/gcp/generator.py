@@ -52,7 +52,7 @@ class GCPGenerator(Generator):
             state.name: {
                 "call": "experimental.executions.map",
                 "args": {"workflow_id": id, "arguments": "${res." + state.array + "}"},
-                "result": "res",
+                "result": "res." + state.array,
             }
         }
 

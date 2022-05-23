@@ -137,6 +137,8 @@ class Generator(ABC):
             return self.encode_map(state)
         elif isinstance(state, Repeat):
             return self.encode_repeat(state)
+        elif isinstance(state, Loop):
+            return self.encode_loop(state)
         else:
             raise ValueError(f"Unknown state of type {type(state)}.")
 

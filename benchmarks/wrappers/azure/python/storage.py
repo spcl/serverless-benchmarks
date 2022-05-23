@@ -22,9 +22,9 @@ class storage:
                     random=str(uuid.uuid4()).split('-')[0]
                 )
 
-    def upload(self, container, file, filepath):
+    def upload(self, container, file, filepath, unique_name=True):
         with open(filepath, 'rb') as data:
-            return self.upload_stream(container, file, data)
+            return self.upload_stream(container, file, data, unique_name=unique_name)
 
     def download(self, container, file, filepath):
         with open(filepath, 'wb') as download_file:
@@ -39,8 +39,8 @@ class storage:
             os.makedirs(os.path.join(path, path_to_file), exist_ok=True)
             self.download(container, file_name, os.path.join(path, file_name))
 
-    def upload_stream(self, container, file, data):
-        key_name = storage.unique_name(file)
+    def upload_stream(self, container, file, data, unique_name=True):
+        key_name = storage.unique_name(file) if unique_name else file
         client = self.client.get_blob_client(
                 container=container,
                 blob=key_name

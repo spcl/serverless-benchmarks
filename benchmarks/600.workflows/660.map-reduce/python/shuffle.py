@@ -3,7 +3,8 @@ import json
 from . import storage
 
 
-def handler(lst):
+def handler(event):
+    lst = event["list"]
     bucket = lst[0]["bucket"]
     prefix = lst[0]["prefix"]
 

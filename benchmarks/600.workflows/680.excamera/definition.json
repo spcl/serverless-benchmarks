@@ -1,9 +1,26 @@
 {
-    "root": "encode",
+    "root": "split",
     "states": {
+        "split": {
+            "type": "task",
+            "func_name": "split",
+            "next": "encode"
+        },
         "encode": {
             "type": "map",
             "func_name": "encode",
+            "array": "segments",
+            "next": "reencode"
+        },
+        "reencode": {
+            "type": "map",
+            "func_name": "reencode",
+            "array": "segments",
+            "next": "rebase"
+        },
+        "rebase": {
+            "type": "loop",
+            "func_name": "rebase",
             "array": "segments"
         }
     }

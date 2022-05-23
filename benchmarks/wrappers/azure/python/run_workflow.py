@@ -21,6 +21,15 @@ def get_var(obj, path: str):
     return obj
 
 
+def set_var(obj, val, path: str):
+    names = path.split(".")
+    assert(len(names) > 0)
+
+    for n in names[:-1]:
+        obj = obj[n]
+    obj[names[-1]] = val
+
+
 def run_workflow(context: df.DurableOrchestrationContext):
     with open("definition.json") as f:
         definition = json.load(f)
@@ -57,8 +66,9 @@ def run_workflow(context: df.DurableOrchestrationContext):
         elif isinstance(current, Map):
             array = get_var(res, current.array)
             tasks = [context.call_activity(current.func_name, e) for e in array]
-            res = yield context.task_all(tasks)
+            map_res = yield context.task_all(tasks)
 
+            set_var(res, map_res, current.array)
             current = states.get(current.next, None)
         elif isinstance(current, Repeat):
             for i in range(current.count):

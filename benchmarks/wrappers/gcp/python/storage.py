@@ -21,8 +21,8 @@ class storage:
                     random=str(uuid.uuid4()).split('-')[0]
                 )
 
-    def upload(self, bucket, file, filepath):
-        key_name = storage.unique_name(file)
+    def upload(self, bucket, file, filepath, unique_name=True):
+        key_name = storage.unique_name(file) if unique_name else file
         bucket_instance = self.client.bucket(bucket)
         blob = bucket_instance.blob(key_name)
         blob.upload_from_filename(filepath)

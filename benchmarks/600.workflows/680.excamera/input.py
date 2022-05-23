@@ -2,15 +2,10 @@ import random
 import os
 
 size_generators = {
-    "test" : (10, 6),
-    "small": (100, 6),
-    "large": (1000, 6)
+    "test" : (18, 6),
+    "small": (30, 6),
+    "large": (60, 6)
 }
-
-
-def chunks(lst, n):
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
 
 
 def buckets_count():
@@ -26,18 +21,22 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
             upload_func(0, bin, path)
 
     vid_dir = os.path.join(data_dir, "vid")
-    vid_segs = os.listdir(vid_dir)[:num_frames]
-    for seg in vid_segs:
-        path = os.path.join(vid_dir, seg)
-        upload_func(0, seg, path)
+    vid_segs = sorted(os.listdir(vid_dir))
+    new_vid_segs = []
 
-    vid_segs = sorted(vid_segs)
-    vid_segs = chunks(vid_segs, batch_size)
+    for i in range(num_frames):
+        seg = vid_segs[i % len(vid_segs)]
+        name = "{:08.0f}.y4m".format(i)
+        path = os.path.join(vid_dir, seg)
+
+        new_vid_segs.append(name)
+        upload_func(0, name, path)
+
+    assert(len(new_vid_segs) == num_frames)
 
     return {
-        "segments": [{
-            "segments": segs,
-            "input_bucket": input_buckets[0],
-            "output_bucket": output_buckets[0],
-        } for segs in vid_segs]
+        "segments": new_vid_segs,
+        "input_bucket": input_buckets[0],
+        "output_bucket": output_buckets[0],
+        "batch_size": batch_size
     }
