@@ -38,5 +38,6 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
         "segments": new_vid_segs,
         "input_bucket": input_buckets[0],
         "output_bucket": output_buckets[0],
-        "batch_size": batch_size
+        "batch_size": batch_size,
+        "quality": 1
     }

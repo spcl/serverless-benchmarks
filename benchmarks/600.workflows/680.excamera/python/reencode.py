@@ -18,8 +18,9 @@ def download_bin(bucket, name, dest_dir):
 
 def upload_files(bucket, paths):
     for path in paths:
-        name = os.path.basename(path)
-        client.upload(bucket, name, path, unique_name=False)
+        file = os.path.basename(path)
+        print("Uploading", file, "to", path)
+        client.upload(bucket, file, path, unique_name=False)
 
 
 def run(cmd):
@@ -37,20 +38,36 @@ def prev_seg_name(seg):
     return "{:08d}".format(idx)
 
 
-def reencode_first_frame(segs, data_dir):
-    for idx, input in enumerate(segs):
-        input_path = os.path.join(data_dir, input)
-        prev_input_path = os.path.join(data_dir, prev_seg_name(input))
-        output_path = input_path if idx == 0 else f"{input_path}-1"
-        extra = f"-O {input_path}-1.state" if idx == 0 else ""
+def reencode_first_frame(segs, data_dir, dry_run=False):
+    input_paths = []
+    output_paths = []
+    for idx in range(1, len(segs)):
+        name = segs[idx]
+        input_path = os.path.join(data_dir, name)
+        output_path = input_path if idx == 1 else f"{input_path}-1"
+        source_state_path = os.path.join(data_dir, prev_seg_name(name))+"-0"
+        output_state_path = f"{input_path}-1.state"
+        extra = f"-O {output_state_path}" if idx == 1 else ""
+        input_pred_path = f"{input_path}-0"
 
         cmd = XC_ENC_FIRST_FRAME.format(
             input=input_path,
             output=output_path,
-            source_state=f"{prev_input_path}-0",
+            source_state=source_state_path,
             extra=extra,
-            input_pred=f"{input_path}-0")
-        run(cmd)
+            input_pred=input_pred_path)
+        if not dry_run:
+            run(cmd)
+
+        input_paths.append(input_path+".y4m")
+        input_paths.append(source_state_path+".state")
+        input_paths.append(input_pred_path+".ivf")
+
+        output_paths.append(output_path+".ivf")
+        if idx == 1:
+            output_paths.append(output_state_path)
+
+    return input_paths, output_paths
 
 
 def handler(event):
@@ -58,36 +75,20 @@ def handler(event):
     output_bucket = event["output_bucket"]
     segs = event["segments"]
     segs = [os.path.splitext(seg)[0] for seg in segs]
-    should_reencode = event["reencode-first-frame"]
-
-    if not should_reencode:
-        return event
 
     tmp_dir = "/tmp"
     download_bin(input_bucket, "xc-enc", tmp_dir)
 
     data_dir = os.path.join(tmp_dir, str(uuid.uuid4()))
     os.makedirs(data_dir, exist_ok=True)
-    for seg in segs:
-        for ext in ["-0.state", "-0.ivf"]:
-            name = seg+ext
-            path = os.path.join(data_dir, name)
-            client.download(output_bucket, name, path)
+    input_paths, _ = reencode_first_frame(segs, data_dir, dry_run=True)
+    for path in input_paths:
+        file = os.path.basename(path)
+        bucket = input_bucket if ".y4m" in file else output_bucket
+        print("Downloading", file, "from", bucket)
+        client.download(bucket, file, path)
 
-        ext = ".y4m"
-        name = seg+ext
-        path = os.path.join(data_dir, name)
-        client.download(input_bucket, name, path)
-
-    final_state = prev_seg_name(segs[0])+"-0.state"
-    path = os.path.join(data_dir, final_state)
-    client.download(output_bucket, final_state, path)
-
-    reencode_first_frame(segs, data_dir)
-
-    output_paths = [os.path.join(data_dir, p+"-1.ivf") for p in segs[1:]]
-    output_paths.append(os.path.join(data_dir, segs[0]+".ivf"))
-    output_paths.append(os.path.join(data_dir, segs[0]+"-1.state"))
+    _, output_paths = reencode_first_frame(segs, data_dir)
     upload_files(output_bucket, output_paths)
 
     shutil.rmtree(data_dir)

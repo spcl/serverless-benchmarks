@@ -45,7 +45,8 @@ class storage:
                 container=container,
                 blob=key_name
         )
-        client.upload_blob(data)
+        overwrite = not unique_name
+        client.upload_blob(data, overwrite=overwrite)
         return key_name
 
     def download_stream(self, container, file):

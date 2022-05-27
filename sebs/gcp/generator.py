@@ -47,14 +47,15 @@ class GCPGenerator(Generator):
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         id = self._workflow_name + "_" + "map" + str(uuid.uuid4())[0:8]
         self._map_funcs[id] = self._func_triggers[state.func_name]
+        res_name = "res_" + str(uuid.uuid4())[0:8]
 
-        return {
+        return [{
             state.name: {
                 "call": "experimental.executions.map",
                 "args": {"workflow_id": id, "arguments": "${res." + state.array + "}"},
-                "result": "res." + state.array,
+                "result": res_name,
             }
-        }
+        }, {"assign_res_" + state.name: {"assign": [{"res."+state.array: "${"+res_name+"}"}]}}]
 
     def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
         url = self._func_triggers[state.func_name]
@@ -64,7 +65,7 @@ class GCPGenerator(Generator):
                 "for": {
                     "value": "val",
                     "index": "idx",
-                    "in": "${"+state.array+"}",
+                    "in": "${res."+state.array+"}",
                     "steps": [
                         {
                             "body": {

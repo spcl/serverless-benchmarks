@@ -7,15 +7,15 @@ def handler(event):
     segs = chunks(event["segments"], event["batch_size"])
     input_bucket = event["input_bucket"]
     output_bucket = event["output_bucket"]
+    quality = event["quality"]
 
     return {
         "segments": [
             {
                 "segments": ss,
+                "quality": quality,
                 "input_bucket": input_bucket,
                 "output_bucket": output_bucket,
-                "reencode-first-frame": idx > 0,
-                "rebase": idx > 1
             } for idx, ss in enumerate(segs)
         ]
     }

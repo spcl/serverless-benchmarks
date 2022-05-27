@@ -35,7 +35,7 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
 
     is_cold, container_id = probe_cold_start()
     status = await client.get_status(instance_id)
-    code = 500 if status.runtime_status == "Failed" else 200
+    code = 500 if str(status.runtime_status) == "Failed" else 200
 
     try:
         result = json.loads(res.get_body())
@@ -48,7 +48,7 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
         "is_cold": is_cold,
         "container_id": container_id,
         "request_id": context.invocation_id,
-        "result": result
+        "result": result,
     }
 
     return func.HttpResponse(

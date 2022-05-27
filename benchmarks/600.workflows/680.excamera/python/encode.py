@@ -20,8 +20,9 @@ def download_bin(bucket, name, dest_dir):
 
 def upload_files(bucket, paths):
     for path in paths:
-        name = os.path.basename(path)
-        client.upload(bucket, name, path, unique_name=False)
+        file = os.path.basename(path)
+        print("Uploading", file, "to", path)
+        client.upload(bucket, file, path, unique_name=False)
 
 
 def run(cmd):
@@ -33,29 +34,36 @@ def run(cmd):
         raise e
 
 
-def encode(segs, data_dir):
-    for idx, input in enumerate(segs):
-        output = f"{input}-vpxenc"
-        input_path = os.path.join(data_dir, input)
-        output_path = os.path.join(data_dir, output)
-        cmd = VPXENC.format(quality=63, input=input_path, output=output_path)
+def encode(segs, data_dir, quality):
+    files = []
+
+    for idx, name in enumerate(segs):
+        input_path = os.path.join(data_dir, name)
+        output_path = os.path.join(data_dir, f"{name}-vpxenc")
+        cmd = VPXENC.format(quality=quality, input=input_path, output=output_path)
         run(cmd)
 
         input_path = output_path
-        output = input if idx == 0 else f"{input}-0"
+        output = name if idx == 0 else f"{name}-0"
         output_path = os.path.join(data_dir, output)
         cmd = TERMINATE_CHUNK.format(input=input_path, output=output_path)
         run(cmd)
+        files.append(output_path+".ivf")
 
         input_path = output_path
+        output_path = os.path.join(data_dir, f"{name}-0")
         cmd = XC_DUMP_0.format(input=input_path, output=output_path)
         run(cmd)
+        files.append(output_path+".state")
+
+    return files
 
 
 def handler(event):
     input_bucket = event["input_bucket"]
     output_bucket = event["output_bucket"]
     segs = event["segments"]
+    quality = event["quality"]
 
     tmp_dir = "/tmp"
     download_bin(input_bucket, "vpxenc", tmp_dir)
@@ -69,12 +77,7 @@ def handler(event):
         client.download(input_bucket, seg, path)
 
     segs = [os.path.splitext(seg)[0] for seg in segs]
-    encode(segs, data_dir)
-
-    output_paths = [os.path.join(data_dir, p+"-0.ivf") for p in segs[1:]]
-    output_paths += [os.path.join(data_dir, p+"-0.state") for p in segs[1:]]
-    output_paths.append(os.path.join(data_dir, segs[0]+".ivf"))
-    output_paths.append(os.path.join(data_dir, segs[0]+".state"))
+    output_paths = encode(segs, data_dir, quality)
     upload_files(output_bucket, output_paths)
 
     shutil.rmtree(data_dir)

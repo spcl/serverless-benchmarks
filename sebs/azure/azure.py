@@ -292,7 +292,16 @@ class Azure(System):
         self._mount_function_code(code_package)
         url = self.publish_benchmark(benchmark, code_package, True)
 
-        trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
+        storage_account = self.config.resources.data_storage_account(self.cli_instance)
+        resource_group = self.config.resources.resource_group(self.cli_instance)
+
+        self.cli_instance.execute(
+            f"az functionapp config appsettings set --name {benchmark.name} "
+            f" --resource-group {resource_group} "
+            f" --settings STORAGE_CONNECTION_STRING={storage_account.connection_string}"
+        )
+
+        trigger = HTTPTrigger(url, storage_account)
         trigger.logging_handlers = self.logging_handlers
         benchmark.add_trigger(trigger)
 
