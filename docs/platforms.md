@@ -1,7 +1,13 @@
 
-SeBS supports three commercial serverless platforms: AWS Lambda, Azure Functions, and Google Cloud
-Functions.
+SeBS supports three commercial serverless platforms: AWS Lambda, Azure Functions, and Google Cloud Functions.
 Furthermore, we support the open source FaaS system OpenWhisk.
+
+The file `config/example.json` contains all parameters that users can change
+to customize the deployment.
+Some of these parameters, such as cloud credentials or storage instance address,
+are required.
+In the following subsections, we discuss the mandatory and optional customization
+points for each platform.
 
 ## AWS Lambda
 
@@ -127,8 +133,7 @@ To use a different Docker Hub repository, change the key
 
 Alternatively, OpenWhisk users can configure the FaaS platform to use a custom and
 private Docker registry and push new images there.
-Furthermore, a local Docker registry can speed up development when debugging
-a new function.
+A local Docker registry can speed up development when debugging a new function.
 SeBS can use alternative Docker registry - see `dockerRegistry` settings
 in the example to configure registry endpoint and credentials.
 When the `registry` URL is not provided, SeBS will use Docker Hub.
@@ -141,7 +146,7 @@ for details.
 
 **Warning**: this feature is experimental and has not been tested extensively.
 At the moment, it cannot be used on a `kind` cluster due to issues with
-Docker authorization on invoker nodes.
+Docker authorization on invoker nodes. [See the OpenWhisk issue for details](https://github.com/apache/openwhisk-deploy-kube/issues/721).
 
 ### Code Deployment
 
@@ -150,7 +155,7 @@ when the function's contents have changed, and when the user requests a forced r
 In OpenWhisk, this setup is changed - SeBS will first attempt to verify 
 if the image exists already in the registry and skip building the Docker
 image when possible.
-Then, SeBS tcan deploy seamlessly to OpenWhisk using default images
+Then, SeBS can deploy seamlessly to OpenWhisk using default images
 available on Docker Hub.
 Furthermore, checking for image existence in the registry helps
 avoid failing invocations in OpenWhisk.
@@ -167,10 +172,64 @@ To use that feature in SeBS, set the `experimentalManifest` flag to true.
 
 ### Storage 
 
-To provide persistent object storage in OpenWhisk, we deploy an instance
+To provide persistent object storage in OpenWhisk, users must first deploy an instance
 of [`Minio`](https://github.com/minio/minio) storage.
 The storage instance is deployed as a Docker container, and it can be retained
 across many experiments.
+OpenWhisk functions must be able to reach the storage instance.
+Even on a local machine, it's necessary to configure the network address, as OpenWhisk functions
+are running isolated from the host network and won't be able to reach other containers running on the Docker bridge.
+
+Use the following command to deploy the storage instance locally and map the host public port 9011 to Minio instance.
+
+```bash
+./sebs.py storage start minio --port 9011 --output-json out_storage.json
+```
+
+The output will look similar to the one below.
+As we can see, the storage container is running on the default Docker bridge network with address `172.17.0.2` and uses port `9000`.
+From the host network, port `9011` is mapped to the container's port `9000` to allow external parties - such as OpenWhisk functions - to reach the storage.
+
+```
+{
+  "address": "172.17.0.2:9000",
+  "mapped_port": 9011,
+  "access_key": "XXX",
+  "secret_key": "XXX",
+  "instance_id": "XXX",
+  "input_buckets": [],
+  "output_buckets": [],
+  "type": "minio"
+}
+```
+
+The storage configuration found in `out_storage.json` needs to be provided to SeBS,
+and the instance address must be updated to not use the internal address.
+In this case, the host machine's address is `172.22.20.30`.
+Note that that other parties must use the host network port `9011` to reach Minio instance.
+Docker's port mapping will take care of the rest.
+
+```
+jq --argfile file1 out_storage.json '.deployment.openwhisk.storage = $file1, .deployment.openwhisk.storage.address = 172.22.20.30:9011' config/example.json > config/openwhisk.json
+```
+
+Not sure which address is correct? Use `curl` to verify if Minio's instance can be reached:
+
+```
+curl -i 172.22.20.30:9011/minio/health/live
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Content-Length: 0
+Content-Security-Policy: block-all-mixed-content
+Server: MinIO
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Vary: Origin
+X-Amz-Request-Id: 16F3D9B9FDFFA340
+X-Content-Type-Options: nosniff
+X-Xss-Protection: 1; mode=block
+Date: Mon, 30 May 2022 10:01:21 GMT
+```
+
 The `shutdownStorage` switch controls the behavior of SeBS.
 When set to true, SeBS will remove the Minio instance after finishing all 
 work.
