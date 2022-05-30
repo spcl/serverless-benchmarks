@@ -1,6 +1,3 @@
-# SeBS: Serverless Benchmark Suite
-
-**FaaS benchmarking suite for serverless functions with automatic build, deployment, and measurements.**
 
 [![CircleCI](https://circleci.com/gh/spcl/serverless-benchmarks.svg?style=shield)](https://circleci.com/gh/spcl/serverless-benchmarks)
 ![Release](https://img.shields.io/github/v/release/spcl/serverless-benchmarks)
@@ -8,14 +5,21 @@
 ![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/spcl/serverless-benchmarks)
 
-SeBS is a diverse suite of FaaS benchmarks that allows an automatic performance analysis of
+# SeBS: Serverless Benchmark Suite
+
+**FaaS benchmarking suite for serverless functions with automatic build, deployment, and measurements.**
+
+![Overview of SeBS features and components.](docs/overview.png)
+
+SeBS is a diverse suite of FaaS benchmarks that allows automatic performance analysis of
 commercial and open-source serverless platforms. We provide a suite of
-[benchmark applications](#benchmark-applications) and [experiments](#experiments),
+[benchmark applications](#benchmark-applications) and [experiments](#experiments)
 and use them to test and evaluate different components of FaaS systems.
 See the [installation instructions](#installation) to learn how to configure SeBS to use selected
 cloud services and [usage instructions](#usage) to automatically launch experiments in the cloud!
 
-SeBS provides support for automatic deployment and invocation of benchmarks on
+
+SeBS provides support for **automatic deployment** and invocation of benchmarks on
 commercial and black-box platforms
 [AWS Lambda](https://aws.amazon.com/lambda/),
 [Azure Functions](https://azure.microsoft.com/en-us/services/functions/),
@@ -34,7 +38,19 @@ Did you encounter troubles with installing and using SeBS?
 Or do you want to use SeBS in your work and you need new features?
 Feel free to reach us through GitHub issues or by writing to <marcin.copik@inf.ethz.ch>.
 
-### Paper
+
+For more information on how to configure, use and extend SeBS, see our
+documentation:
+
+* [How to use SeBS?](docs/usage.md)
+* [Which benchmark applications are offered?](docs/benchmarks.md)
+* [Which experiments can be launched to evaluate FaaS platforms?](docs/experiment.md)
+* [How to configure serverless platforms?](docs/platforms.md)
+* [How SeBS builds and deploys functions?](docs/build.md)
+* [How SeBS package is designed?](docs/design.md)
+* [How to extend SeBS with new benchmarks, experiments, and platforms?](docs/modularity.md)
+
+### Publication
 
 When using SeBS, please cite our [Middleware '21 paper](https://dl.acm.org/doi/abs/10.1145/3464298.3476133).
 An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.14132), and you can
@@ -60,28 +76,11 @@ You can cite our software repository as well, using the citation button on the r
 }
 ```
 
-## Benchmark Applications
-
-For details on benchmark selection and their characterization, please refer to [our paper](#paper).
-
-| Type 		   | Benchmark           | Languages          | Description          |
-| :---         | :---:               | :---:              | :---:                |
-| Webapps      | 110.dynamic-html    | Python, Node.js    | Generate dynamic HTML from a template. |
-| Webapps      | 120.uploader    | Python, Node.js    | Uploader file from provided URL to cloud storage. |
-| Multimedia      | 210.thumbnailer    | Python, Node.js    | Generate a thumbnail of an image. |
-| Multimedia      | 220.video-processing    | Python    | Add a watermark and generate gif of a video file. |
-| Utilities      | 311.compression    | Python   | Create a .zip file for a group of files in storage and return to user to download. |
-| Utilities      | 504.dna-visualization    | Python   | Creates a visualization data for DNA sequence. |
-| Inference      | 411.image-recognition    | Python    | Image recognition with ResNet and pytorch. |
-| Scientific      | 501.graph-pagerank    | Python    | PageRank implementation with igraph. |
-| Scientific      | 501.graph-mst    | Python    | Minimum spanning tree (MST)  implementation with igraph. |
-| Scientific      | 501.graph-bfs    | Python    | Breadth-first search (BFS) implementation with igraph. |
-
 ## Installation
 
 Requirements:
 - Docker (at least 19)
-- Python 3.6+ with:
+- Python 3.7+ with:
     - pip
     - venv
 - `libcurl` and its headers must be available on your system to install `pycurl`
@@ -92,7 +91,7 @@ Requirements:
 To install the benchmarks with a support for all platforms, use:
 
 ```
-./install.py --aws --azure --gcp --local
+./install.py --aws --azure --gcp --openwhisk --local
 ```
 
 It will create a virtual environment in `python-virtualenv`, install necessary Python
@@ -106,153 +105,12 @@ virtual environment:
 Now you can deploy serverless experiments :-)
 
 The installation of additional platforms is controlled with the `--platform` and `--no-platform`
-switches. Currently, the default behavior for `install.py` is to install only the local
-environment.
+switches. Currently, the default behavior for `install.py` is to install only the
+local environment.
 
 **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
 
-To verify the correctness of installation, you can use [our regression testing](#regression).
-
-## Usage
-
-SeBS has three basic commands: `benchmark`, `experiment`, and `local`.
-For each command you can pass `--verbose` flag to increase the verbosity of the output.
-By default, all scripts will create a cache in directory `cache` to store code with
-dependencies and information on allocated cloud resources.
-Benchmarks will be rebuilt after a change in source code is detected.
-To enforce redeployment of code and benchmark input please use flags `--update-code`
-and `--update-storage`, respectively.
-**Note:** the cache does not support updating cloud region. If you want to deploy benchmarks
-to a new cloud region, then use a new cache directory.
-
-### Benchmark
-
-This command is used to build, deploy, and execute serverless benchmark in cloud.
-The example below invokes the benchmark `110.dynamic-html` on AWS via the standard HTTP trigger.
-
-```
-./sebs.py benchmark invoke 110.dynamic-html test --config config/example.json --deployment aws --verbose
-```
-
-To configure your benchmark, change settings in the config file or use command-line options.
-The full list is available by running `./sebs.py benchmark invoke --help`.
-
-### Regression
-
-Additionally, we provide a regression option to execute all benchmarks on a given platform.
-The example below demonstrates how to run the regression suite with `test` input size on AWS.
-
-```
-./sebs.py benchmark regression test --config config/example.json --deployment aws
-```
-
-The regression can be executed on a single benchmark as well:
-
-```
-./sebs.py benchmark regression test --config config/example.json --deployment aws --benchmark-name 120.uploader
-```
-
-### Experiment
-
-This command is used to execute benchmarks described in the paper. The example below runs the experiment **perf-cost**:
-
-```
-./sebs.py experiment invoke perf-cost --config config/example.json --deployment aws
-```
-
-The configuration specifies that benchmark **110.dynamic-html** is executed 50 times, with 50 concurrent invocations, and both cold and warm invocations are recorded. 
-
-```json
-"perf-cost": {
-    "benchmark": "110.dynamic-html",
-    "experiments": ["cold", "warm"],
-    "input-size": "test",
-    "repetitions": 50,
-    "concurrent-invocations": 50,
-    "memory-sizes": [128, 256]
-}
-```
-
-To download cloud metrics and process the invocations into a .csv file with data, run the process construct
-
-```
-./sebs.py experiment process perf-cost --config example.json --deployment aws
-```
-
-### Local
-
-In addition to the cloud deployment, we provide an opportunity to launch benchmarks locally with the help of [minio](https://min.io/) storage.
-This allows us to conduct debugging and a local characterization of the benchmarks.
-
-To launch Docker containers, use the following command - this example launches benchmark `110.dynamic-html` with size `test`:
-
-```
-./sebs.py local start 110.dynamic-html test out.json --config config/example.json --deployments 1
-```
-
-The output file `out.json` will contain the information on containers deployed and the endpoints that can be used to invoke functions:
-
-```
-{
-  "functions": [
-    {
-      "benchmark": "110.dynamic-html",
-      "hash": "5ff0657337d17b0cf6156f712f697610",
-      "instance_id": "e4797ae01c52ac54bfc22aece1e413130806165eea58c544b2a15c740ec7d75f",
-      "name": "110.dynamic-html-python-128",
-      "port": 9000,
-      "triggers": [],
-      "url": "172.17.0.3:9000"
-    }
-  ],
-  "inputs": [
-    {
-      "random_len": 10,
-      "username": "testname"
-    }
-  ]
-}
-```
-
-In our example, we can use `curl` to invoke the function with provided input:
-
-```
-curl 172.17.0.3:9000 --request POST --data '{"random_len": 10,"username": "testname"}' --header 'Content-Type: application/json'
-```
-
-To stop containers, you can use the following command:
-
-```
-./sebs.py local stop out.json
-```
-
-The stopped containers won't be automatically removed unless the option `--remove-containers` has been passed to the `start` command.
-
-## Experiments
-
-For details on experiments and methodology, please refer to [our paper](#paper).
-
-#### Performance & cost
-
-Invokes given benchmark a selected number of times, measuring the time and cost of invocations.
-Supports `cold` and `warm` invocations with a selected number of concurrent invocations.
-In addition, to accurately measure the overheads of Azure Function Apps, we offer `burst` and `sequential` invocation type that doesn't distinguish
-between cold and warm startups.
-
-#### Network ping-pong
-
-Measures the distribution of network latency between benchmark driver and function instance.
-
-#### Invocation overhead
-
-The experiment performs the clock drift synchronization protocol to accurately measure the startup time of a function by comparing
-benchmark driver and function timestamps.
-
-#### Eviction model
-
-Executes test functions multiple times, with varying size, memory and runtime configurations, to test for how long function instances stay alive.
-The result helps to estimate the analytical models describing cold startups.
-Currently supported only on AWS.
+To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
 
 ## Authors
 
