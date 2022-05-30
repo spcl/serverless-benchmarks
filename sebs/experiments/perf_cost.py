@@ -87,7 +87,7 @@ class PerfCost(Experiment):
     def compute_statistics(self, times: List[float]):
 
         mean, median, std, cv = basic_stats(times)
-        self.logging.info(f"Mean {mean}, median {median}, std {std}, CV {cv}")
+        self.logging.info(f"Mean {mean} [ms], median {median} [ms], std {std}, CV {cv}")
         for alpha in [0.95, 0.99]:
             ci_interval = ci_tstudents(alpha, times)
             interval_width = ci_interval[1] - ci_interval[0]
@@ -173,15 +173,11 @@ class PerfCost(Experiment):
                             ret = res.get()
                             if first_iteration:
                                 continue
-                            if (run_type == PerfCost.RunType.COLD and not ret.stats.cold_start) or (
-                                run_type == PerfCost.RunType.WARM and ret.stats.cold_start
-                            ):
-                                self.logging.info(
-                                    f"Invocation {ret.request_id} "
-                                    f"cold: {ret.stats.cold_start} "
-                                    f"on experiment {run_type.str()}!"
-                                )
+                            if run_type == PerfCost.RunType.COLD and not ret.stats.cold_start:
+                                self.logging.info(f"Invocation {ret.request_id} is not cold!")
                                 incorrect.append(ret)
+                            elif run_type == PerfCost.RunType.WARM and ret.stats.cold_start:
+                                self.logging.info(f"Invocation {ret.request_id} is cold!")
                             else:
                                 result.add_invocation(self._function, ret)
                                 colds_count += ret.stats.cold_start
@@ -190,14 +186,15 @@ class PerfCost(Experiment):
                         except Exception as e:
                             error_count += 1
                             error_executions.append(str(e))
-                    self.logging.info(
-                        f"Processed {samples_gathered} samples out of {repetitions},"
-                        f"{error_count} errors"
-                    )
                     samples_generated += invocations
                     if first_iteration:
                         self.logging.info(
-                            f"Processed {samples_gathered} warm-up samples, ignore results."
+                            f"Processed {samples_gathered} warm-up samples, ignoring these results."
+                        )
+                    else:
+                        self.logging.info(
+                            f"Processed {samples_gathered} samples out of {repetitions},"
+                            f" {error_count} errors"
                         )
 
                     first_iteration = False

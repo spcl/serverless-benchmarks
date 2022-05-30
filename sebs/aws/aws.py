@@ -217,8 +217,7 @@ class AWS(System):
                 Timeout=timeout,
                 Code=code_config,
             )
-            # url = self.create_http_trigger(func_name, None, None)
-            # print(url)
+
             lambda_function = LambdaFunction(
                 func_name,
                 code_package.benchmark,
@@ -229,6 +228,8 @@ class AWS(System):
                 function_cfg,
                 code_bucket,
             )
+
+            self.wait_function_active(lambda_function)
 
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import LibraryTrigger
@@ -280,15 +281,15 @@ class AWS(System):
             self.client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
             )
-        self.logging.info(
-            f"Updated code of {name} function. "
-            "Sleep 5 seconds before updating configuration to avoid cloud errors."
-        )
-        time.sleep(5)
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated code of {name} function. ")
         # and update config
         self.client.update_function_configuration(
             FunctionName=name, Timeout=function.config.timeout, MemorySize=function.config.memory
         )
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated configuration of {name} function. ")
+        self.wait_function_updated(function)
         self.logging.info("Published new function code")
 
     def update_function_configuration(self, function: Function, benchmark: Benchmark):
@@ -298,6 +299,8 @@ class AWS(System):
             Timeout=function.config.timeout,
             MemorySize=function.config.memory,
         )
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated configuration of {function.name} function. ")
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -512,6 +515,22 @@ class AWS(System):
         self.cold_start_counter += 1
         for func in functions:
             self._enforce_cold_start(func)
-        import time
+        self.logging.info("Sent function updates enforcing cold starts.")
+        for func in functions:
+            lambda_function = cast(LambdaFunction, func)
+            self.wait_function_updated(lambda_function)
+        self.logging.info("Finished function updates enforcing cold starts.")
 
-        time.sleep(5)
+    def wait_function_active(self, func: LambdaFunction):
+
+        self.logging.info("Waiting for Lambda function to be created...")
+        waiter = self.client.get_waiter("function_active_v2")
+        waiter.wait(FunctionName=func.name)
+        self.logging.info("Lambda function has been created.")
+
+    def wait_function_updated(self, func: LambdaFunction):
+
+        self.logging.info("Waiting for Lambda function to be updated...")
+        waiter = self.client.get_waiter("function_updated_v2")
+        waiter.wait(FunctionName=func.name)
+        self.logging.info("Lambda function has been updated.")
