@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from sebs.cache import Cache
 from sebs.local.function import LocalFunction
-from sebs.local.storage import Minio
+from sebs.storage.minio import Minio, MinioConfig
 from sebs.utils import serialize
 
 
@@ -39,10 +39,11 @@ class Deployment:
                 deployment._inputs.append(input_cfg)
             for func in input_data["functions"]:
                 deployment._functions.append(LocalFunction.deserialize(func))
-            deployment._storage = Minio.deserialize(input_data["storage"], cache_client)
+            deployment._storage = Minio.deserialize(
+                MinioConfig.deserialize(input_data["storage"]), cache_client
+            )
             return deployment
 
     def shutdown(self):
         for func in self._functions:
             func.stop()
-        self._storage.stop()

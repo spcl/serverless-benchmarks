@@ -18,7 +18,7 @@ class BlobStorage(PersistentStorage):
 
     def __init__(self, region: str, cache_client: Cache, conn_string: str, replace_existing: bool):
         super().__init__(region, cache_client, replace_existing)
-        self.client = BlobServiceClient.from_connection_string(conn_string)
+        self.client: BlobServiceClient = BlobServiceClient.from_connection_string(conn_string)
 
     """
         Internal implementation of creating a new container.
@@ -83,7 +83,10 @@ class BlobStorage(PersistentStorage):
         self.logging.info("Upload {} to {}".format(filepath, container_name))
         client = self.client.get_blob_client(container_name, key)
         with open(filepath, "rb") as upload_file:
-            client.upload_blob(upload_file.read())
+            client.upload_blob(upload_file)  # type: ignore
+
+    def exists_bucket(self, container: str) -> bool:
+        return self.client.get_container_client(container).exists()
 
     """
         Return list of files in a container.

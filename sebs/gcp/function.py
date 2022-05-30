@@ -1,6 +1,6 @@
 from typing import cast, Optional
 
-from sebs.faas.function import Function
+from sebs.faas.function import Function, FunctionConfig
 from sebs.gcp.storage import GCPStorage
 
 
@@ -10,13 +10,10 @@ class GCPFunction(Function):
         name: str,
         benchmark: str,
         code_package_hash: str,
-        timeout: int,
-        memory: int,
+        cfg: FunctionConfig,
         bucket: Optional[str] = None,
     ):
-        super().__init__(benchmark, name, code_package_hash)
-        self.timeout = timeout
-        self.memory = memory
+        super().__init__(benchmark, name, code_package_hash, cfg)
         self.bucket = bucket
 
     @staticmethod
@@ -26,8 +23,6 @@ class GCPFunction(Function):
     def serialize(self) -> dict:
         return {
             **super().serialize(),
-            "timeout": self.timeout,
-            "memory": self.memory,
             "bucket": self.bucket,
         }
 
@@ -36,12 +31,12 @@ class GCPFunction(Function):
         from sebs.faas.function import Trigger
         from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger
 
+        cfg = FunctionConfig.deserialize(cached_config["config"])
         ret = GCPFunction(
             cached_config["name"],
             cached_config["benchmark"],
             cached_config["hash"],
-            cached_config["timeout"],
-            cached_config["memory"],
+            cfg,
             cached_config["bucket"],
         )
         for trigger in cached_config["triggers"]:

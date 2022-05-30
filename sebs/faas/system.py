@@ -104,7 +104,14 @@ class System(ABC, LoggingBase):
     """
 
     @abstractmethod
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> Tuple[str, int]:
         pass
 
     @abstractmethod
@@ -184,12 +191,18 @@ class System(ABC, LoggingBase):
             )
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash or rebuilt:
-                self.logging.info(
-                    f"Cached function {func_name} with hash "
-                    f"{function.code_package_hash} is not up to date with "
-                    f"current build {code_package.hash} in "
-                    f"{code_location}, updating cloud version!"
-                )
+                if function.code_package_hash != code_package.hash:
+                    self.logging.info(
+                        f"Cached function {func_name} with hash "
+                        f"{function.code_package_hash} is not up to date with "
+                        f"current build {code_package.hash} in "
+                        f"{code_location}, updating cloud version!"
+                    )
+                if rebuilt:
+                    self.logging.info(
+                        f"Enforcing rebuild and update of of cached function "
+                        f"{func_name} with hash {function.code_package_hash}."
+                    )
                 self.update_function(function, code_package)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
@@ -200,7 +213,53 @@ class System(ABC, LoggingBase):
                     function=function,
                 )
                 code_package.query_cache()
+            # code up to date, but configuration needs to be updated
+            # FIXME: detect change in function config
+            elif self.is_configuration_changed(function, code_package):
+                self.update_function_configuration(function, code_package)
+                self.cache_client.update_function(function)
+                code_package.query_cache()
+            else:
+                self.logging.info(f"Cached function {func_name} is up to date.")
             return function
+
+    @abstractmethod
+    def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
+        pass
+
+    """
+        This function checks for common function parameters to verify if their value is
+        still up to date.
+    """
+
+    def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
+
+        changed = False
+        for attr in ["timeout", "memory"]:
+            new_val = getattr(benchmark.benchmark_config, attr)
+            old_val = getattr(cached_function.config, attr)
+            if new_val != old_val:
+                self.logging.info(
+                    f"Updating function configuration due to changed attribute {attr}: "
+                    f"cached function has value {old_val} whereas {new_val} has been requested."
+                )
+                changed = True
+                setattr(cached_function.config, attr, new_val)
+
+        for lang_attr in [["language"] * 2, ["language_version", "version"]]:
+            new_val = getattr(benchmark, lang_attr[0])
+            old_val = getattr(cached_function.config.runtime, lang_attr[1])
+            if new_val != old_val:
+                # FIXME: should this even happen? we should never pick the function with
+                # different runtime - that should be encoded in the name
+                self.logging.info(
+                    f"Updating function configuration due to changed runtime attribute {attr}: "
+                    f"cached function has value {old_val} whereas {new_val} has been requested."
+                )
+                changed = True
+                setattr(cached_function.config.runtime, lang_attr[1], new_val)
+
+        return changed
 
     @abstractmethod
     def default_function_name(self, code_package: Benchmark) -> str:

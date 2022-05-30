@@ -2,7 +2,7 @@ import concurrent.futures
 import docker
 import json
 
-from sebs.faas.function import ExecutionResult, Function, Trigger
+from sebs.faas.function import ExecutionResult, Function, FunctionConfig, Trigger
 
 
 class HTTPTrigger(Trigger):
@@ -37,9 +37,15 @@ class HTTPTrigger(Trigger):
 
 class LocalFunction(Function):
     def __init__(
-        self, docker_container, port: int, name: str, benchmark: str, code_package_hash: str
+        self,
+        docker_container,
+        port: int,
+        name: str,
+        benchmark: str,
+        code_package_hash: str,
+        config: FunctionConfig,
     ):
-        super().__init__(benchmark, name, code_package_hash)
+        super().__init__(benchmark, name, code_package_hash, config)
         self._instance = docker_container
         self._instance_id = docker_container.id
         self._instance.reload()
@@ -74,12 +80,14 @@ class LocalFunction(Function):
         try:
             instance_id = cached_config["instance_id"]
             instance = docker.from_env().containers.get(instance_id)
+            cfg = FunctionConfig.deserialize(cached_config["config"])
             return LocalFunction(
                 instance,
                 cached_config["port"],
                 cached_config["name"],
                 cached_config["benchmark"],
                 cached_config["hash"],
+                cfg,
             )
         except docker.errors.NotFound:
             raise RuntimeError(f"Cached container {instance_id} not available anymore!")

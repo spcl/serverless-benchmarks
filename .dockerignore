@@ -6,3 +6,4 @@ config
 cache
 python-venv
 regression-*
+*_code

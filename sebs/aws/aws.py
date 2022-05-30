@@ -16,7 +16,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
-from sebs.faas.function import Function, ExecutionResult, Trigger
+from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 
@@ -122,7 +122,14 @@ class AWS(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -161,6 +168,7 @@ class AWS(System):
         code_bucket: Optional[str] = None
         func_name = AWS.format_function_name(func_name)
         storage_client = self.get_storage()
+        function_cfg = FunctionConfig.from_benchmark(code_package)
 
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -175,10 +183,9 @@ class AWS(System):
                 code_package.benchmark,
                 ret["Configuration"]["FunctionArn"],
                 code_package.hash,
-                timeout,
-                memory,
                 language_runtime,
                 self.config.resources.lambda_role(self.session),
+                function_cfg,
             )
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
@@ -210,19 +217,19 @@ class AWS(System):
                 Timeout=timeout,
                 Code=code_config,
             )
-            # url = self.create_http_trigger(func_name, None, None)
-            # print(url)
+
             lambda_function = LambdaFunction(
                 func_name,
                 code_package.benchmark,
                 ret["FunctionArn"],
                 code_package.hash,
-                timeout,
-                memory,
                 language_runtime,
                 self.config.resources.lambda_role(self.session),
+                function_cfg,
                 code_bucket,
             )
+
+            self.wait_function_active(lambda_function)
 
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import LibraryTrigger
@@ -274,24 +281,32 @@ class AWS(System):
             self.client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
             )
-        self.logging.info(
-            f"Updated code of {name} function. "
-            "Sleep 5 seconds before updating configuration to avoid cloud errors."
-        )
-        time.sleep(5)
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated code of {name} function. ")
         # and update config
         self.client.update_function_configuration(
-            FunctionName=name, Timeout=function.timeout, MemorySize=function.memory
+            FunctionName=name, Timeout=function.config.timeout, MemorySize=function.config.memory
         )
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated configuration of {name} function. ")
+        self.wait_function_updated(function)
         self.logging.info("Published new function code")
+
+    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+        function = cast(LambdaFunction, function)
+        self.client.update_function_configuration(
+            FunctionName=function.name,
+            Timeout=function.config.timeout,
+            MemorySize=function.config.memory,
+        )
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated configuration of {function.name} function. ")
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
-            code_package.benchmark,
-            code_package.language_name,
-            code_package.benchmark_config.memory,
+            code_package.benchmark, code_package.language_name, code_package.language_version
         )
         return AWS.format_function_name(func_name)
 
@@ -471,6 +486,11 @@ class AWS(System):
                 SourceArn=f"{http_api.arn}/*/*",
             )
             trigger = HTTPTrigger(http_api.endpoint, api_name)
+            self.logging.info(
+                f"Created HTTP trigger for {func.name} function. "
+                "Sleep 5 seconds to avoid cloud errors."
+            )
+            time.sleep(5)
             trigger.logging_handlers = self.logging_handlers
         elif trigger_type == Trigger.TriggerType.LIBRARY:
             # should already exist
@@ -486,8 +506,8 @@ class AWS(System):
         func = cast(LambdaFunction, function)
         self.get_lambda_client().update_function_configuration(
             FunctionName=func.name,
-            Timeout=func.timeout,
-            MemorySize=func.memory,
+            Timeout=func.config.timeout,
+            MemorySize=func.config.memory,
             Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
 
@@ -495,6 +515,22 @@ class AWS(System):
         self.cold_start_counter += 1
         for func in functions:
             self._enforce_cold_start(func)
-        import time
+        self.logging.info("Sent function updates enforcing cold starts.")
+        for func in functions:
+            lambda_function = cast(LambdaFunction, func)
+            self.wait_function_updated(lambda_function)
+        self.logging.info("Finished function updates enforcing cold starts.")
 
-        time.sleep(5)
+    def wait_function_active(self, func: LambdaFunction):
+
+        self.logging.info("Waiting for Lambda function to be created...")
+        waiter = self.client.get_waiter("function_active_v2")
+        waiter.wait(FunctionName=func.name)
+        self.logging.info("Lambda function has been created.")
+
+    def wait_function_updated(self, func: LambdaFunction):
+
+        self.logging.info("Waiting for Lambda function to be updated...")
+        waiter = self.client.get_waiter("function_updated_v2")
+        waiter.wait(FunctionName=func.name)
+        self.logging.info("Lambda function has been updated.")

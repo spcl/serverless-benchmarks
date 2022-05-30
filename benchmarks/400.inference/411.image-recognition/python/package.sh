@@ -9,11 +9,11 @@ cd $1
 rm -rf external
 find . -type d -name "tests" -exec rm -rf {} +
 find . -type d -name "test" -exec rm -rf {} +
-find . -type d -name "bin" -exec rm -rf {} +
+find . -type d -name "bin" -not -path "*/torch/*" -exec rm -rf {} +
 
 # cleaning
-find -name "*.so" -not -path "*/PIL/*" | xargs strip
-find -name "*.so.*" -not -path "*/PIL/*" | xargs strip
+find -name "*.so" -not -path "*/PIL/*" -not -path "*/Pillow.libs/*" | xargs strip
+find -name "*.so.*" -not -path "*/PIL/*" -not -path "*/Pillow.libs/*" | xargs strip
 
 rm -r pip > /dev/null
 rm -r pip-* > /dev/null

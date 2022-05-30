@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import json
+import concurrent.futures
 from abc import ABC
 from abc import abstractmethod
-import concurrent.futures
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, Dict, List, Optional  # noqa
+from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 
+from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 
 """
@@ -180,7 +184,7 @@ class Trigger(ABC, LoggingBase):
                     return member
             raise Exception("Unknown trigger type {}".format(member))
 
-    def _http_invoke(self, payload: dict, url: str) -> ExecutionResult:
+    def _http_invoke(self, payload: dict, url: str, verify_ssl: bool = True) -> ExecutionResult:
         import pycurl
         from io import BytesIO
 
@@ -188,6 +192,9 @@ class Trigger(ABC, LoggingBase):
         c.setopt(pycurl.HTTPHEADER, ["Content-Type: application/json"])
         c.setopt(pycurl.POST, 1)
         c.setopt(pycurl.URL, url)
+        if not verify_ssl:
+            c.setopt(pycurl.SSL_VERIFYHOST, 0)
+            c.setopt(pycurl.SSL_VERIFYPEER, 0)
         data = BytesIO()
         c.setopt(pycurl.WRITEFUNCTION, data.write)
 
@@ -211,6 +218,9 @@ class Trigger(ABC, LoggingBase):
             result = ExecutionResult.from_times(begin, end)
             result.times.http_startup = conn_time
             result.times.http_first_byte_return = receive_time
+            # OpenWhisk will not return id on a failure
+            if "request_id" not in output:
+                raise RuntimeError(f"Cannot process allocation with output: {output}")
             result.request_id = output["request_id"]
             # General benchmark output parsing
             result.parse_benchmark_output(output)
@@ -244,6 +254,85 @@ class Trigger(ABC, LoggingBase):
         pass
 
 
+class Language(Enum):
+    PYTHON = "python"
+    NODEJS = "nodejs"
+
+    # FIXME: 3.7+ python with future annotations
+    @staticmethod
+    def deserialize(val: str) -> Language:
+        for member in Language:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown language type {member}")
+
+
+class Architecture(Enum):
+    X86 = "x86"
+    ARM = "arm"
+
+    def serialize(self) -> str:
+        return self.value
+
+    @staticmethod
+    def deserialize(val: str) -> Architecture:
+        for member in Architecture:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown architecture type {member}")
+
+
+@dataclass
+class Runtime:
+
+    language: Language
+    version: str
+
+    def serialize(self) -> dict:
+        return {"language": self.language.value, "version": self.version}
+
+    @staticmethod
+    def deserialize(config: dict) -> Runtime:
+        languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS}
+        return Runtime(language=languages[config["language"]], version=config["version"])
+
+
+T = TypeVar("T", bound="FunctionConfig")
+
+
+@dataclass
+class FunctionConfig:
+    timeout: int
+    memory: int
+    runtime: Runtime
+    architecture: Architecture = Architecture.X86
+
+    @staticmethod
+    def _from_benchmark(benchmark: Benchmark, obj_type: Type[T]) -> T:
+        runtime = Runtime(language=benchmark.language, version=benchmark.language_version)
+        cfg = obj_type(
+            timeout=benchmark.benchmark_config.timeout,
+            memory=benchmark.benchmark_config.memory,
+            runtime=runtime,
+        )
+        # FIXME: configure architecture
+        return cfg
+
+    @staticmethod
+    def from_benchmark(benchmark: Benchmark) -> FunctionConfig:
+        return FunctionConfig._from_benchmark(benchmark, FunctionConfig)
+
+    @staticmethod
+    def deserialize(data: dict) -> FunctionConfig:
+        keys = list(FunctionConfig.__dataclass_fields__.keys())
+        data = {k: v for k, v in data.items() if k in keys}
+        data["runtime"] = Runtime.deserialize(data["runtime"])
+        return FunctionConfig(**data)
+
+    def serialize(self) -> dict:
+        return self.__dict__
+
+
 """
     Abstraction base class for FaaS function. Contains a list of associated triggers
     and might implement non-trigger execution if supported by the SDK.
@@ -252,13 +341,18 @@ class Trigger(ABC, LoggingBase):
 
 
 class Function(LoggingBase):
-    def __init__(self, benchmark: str, name: str, code_hash: str):
+    def __init__(self, benchmark: str, name: str, code_hash: str, cfg: FunctionConfig):
         super().__init__()
         self._benchmark = benchmark
         self._name = name
         self._code_package_hash = code_hash
         self._updated_code = False
         self._triggers: Dict[Trigger.TriggerType, List[Trigger]] = {}
+        self._cfg = cfg
+
+    @property
+    def config(self) -> FunctionConfig:
+        return self._cfg
 
     @property
     def name(self):
@@ -304,6 +398,7 @@ class Function(LoggingBase):
             "name": self._name,
             "hash": self._code_package_hash,
             "benchmark": self._benchmark,
+            "config": self.config.serialize(),
             "triggers": [
                 obj.serialize() for t_type, triggers in self._triggers.items() for obj in triggers
             ],

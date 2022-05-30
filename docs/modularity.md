@@ -51,6 +51,13 @@ def handler(event):
 
 Configure dependencies in `requirements.txt` and `package.json`. By default, only  source code is deployed. If you need to use additional resources, e.g., HTML template, use script `init.sh` (see an example in `110.dynamic-html`).
 
+**Important** By default, SeBS deploys code packages using code packages.
+Starting from OpenWhisk addition in release 1.1, we are adding function
+deployment as Docker images. Docker images with existing benchmarks
+are available on [Docker Hub](https://hub.docker.com/repository/docker/spcleth/serverless-benchmarks).
+When adding a new benchmark, it is possible to use a local Docker registry
+to push images with the new functions - see [OpenWhisk documentation for details](platforms.md).
+
 ### How to add a new serverless platform?
 
 First, implement the interfaces in `sebs/faas/*.py` - details can be found in the

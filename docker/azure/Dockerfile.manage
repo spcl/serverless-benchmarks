@@ -1,6 +1,6 @@
 FROM python:3.7-slim-stretch
-ARG USER
-ARG UID
+#ARG USER
+#ARG UID
 # disable telemetry by default
 ENV FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
 
@@ -20,13 +20,22 @@ RUN apt-get clean && apt-get update\
 
 # https://github.com/moby/moby/issues/20295
 # https://github.com/moby/moby/issues/20295
-ENV HOME=/home/${USER}
-RUN useradd --non-unique --uid ${UID} -m ${USER}\
-    && chown ${USER}:${USER} ${HOME}\
-    && chown ${USER}:${USER} /mnt
-WORKDIR ${HOME}
-USER ${USER}:${USER}
+#ENV HOME=/home/${USER}
+#RUN useradd --non-unique --uid ${UID} -m ${USER}\
+#    && chown ${USER}:${USER} ${HOME}\
+#    && chown ${USER}:${USER} /mnt
+#WORKDIR ${HOME}
+#USER ${USER}:${USER}
 
 # Extension must be installed for a specific user, I guess.
 # Installed with root does not work for user.
-RUN az extension add --name application-insights
+#RUN /usr/bin/az extension add --name application-insights
+
+RUN apt-get -y --no-install-recommends install gosu
+RUN mkdir -p /sebs/
+COPY docker/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/entrypoint.sh
+
+ENV SCRIPT_FILE=/mnt/function/package.sh
+#ENV CMD='/usr/bin/ extension add --name application-insights'
+ENTRYPOINT ["/sebs/entrypoint.sh"]

@@ -1,5 +1,8 @@
+from typing import cast, Optional
+
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
+from sebs.storage.minio import MinioConfig
 from sebs.utils import LoggingHandlers
 
 
@@ -12,13 +15,32 @@ class LocalCredentials(Credentials):
         return LocalCredentials()
 
 
+"""
+    No need to cache and store - we prepare the benchmark and finish.
+    The rest is used later by the user.
+"""
+
+
 class LocalResources(Resources):
+    def __init__(self, storage_cfg: Optional[MinioConfig] = None):
+        super().__init__()
+        self._storage = storage_cfg
+
+    @property
+    def storage_config(self) -> Optional[MinioConfig]:
+        return self._storage
+
     def serialize(self) -> dict:
         return {}
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
-        return LocalResources()
+        ret = LocalResources()
+        # Check for new config
+        if "storage" in config:
+            ret._storage = MinioConfig.deserialize(config["storage"])
+            ret.logging.info("Using user-provided configuration of storage for local containers.")
+        return ret
 
 
 class LocalConfig(Config):
@@ -43,10 +65,17 @@ class LocalConfig(Config):
     def resources(self) -> LocalResources:
         return self._resources
 
+    @resources.setter
+    def resources(self, val: LocalResources):
+        self._resources = val
+
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
 
         config_obj = LocalConfig()
+        config_obj.resources = cast(
+            LocalResources, LocalResources.deserialize(config, cache, handlers)
+        )
         config_obj.logging_handlers = handlers
         return config_obj
 

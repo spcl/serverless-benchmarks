@@ -16,7 +16,7 @@ from google.cloud import monitoring_v3
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
-from ..faas.function import Function, Trigger
+from ..faas.function import Function, FunctionConfig, Trigger
 from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
@@ -103,9 +103,7 @@ class GCP(System):
     def default_function_name(code_package: Benchmark) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
-            code_package.benchmark,
-            code_package.language_name,
-            code_package.benchmark_config.memory,
+            code_package.benchmark, code_package.language_name, code_package.language_version
         )
         return GCP.format_function_name(func_name)
 
@@ -131,7 +129,14 @@ class GCP(System):
         :return: path to packaged code and its size
     """
 
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],
@@ -194,6 +199,7 @@ class GCP(System):
         storage_client = self.get_storage()
         location = self.config.region
         project_name = self.config.project_name
+        function_cfg = FunctionConfig.from_benchmark(code_package)
 
         code_package_name = cast(str, os.path.basename(package))
         code_bucket, idx = storage_client.add_input_bucket(benchmark)
@@ -247,7 +253,7 @@ class GCP(System):
             self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
-                func_name, benchmark, code_package.hash, timeout, memory, code_bucket
+                func_name, benchmark, code_package.hash, function_cfg, code_bucket
             )
         else:
             # if result is not empty, then function does exists
@@ -257,8 +263,7 @@ class GCP(System):
                 name=func_name,
                 benchmark=benchmark,
                 code_package_hash=code_package.hash,
-                timeout=timeout,
-                memory=memory,
+                cfg=function_cfg,
                 bucket=code_bucket,
             )
             self.update_function(function, code_package)
@@ -336,8 +341,8 @@ class GCP(System):
                     "name": full_func_name,
                     "entryPoint": "handler",
                     "runtime": code_package.language_name + language_runtime.replace(".", ""),
-                    "availableMemoryMb": function.memory,
-                    "timeout": str(function.timeout) + "s",
+                    "availableMemoryMb": function.config.memory,
+                    "timeout": str(function.config.timeout) + "s",
                     "httpsTrigger": {},
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
                 },
@@ -351,6 +356,33 @@ class GCP(System):
             else:
                 break
         self.logging.info("Published new function code and configuration.")
+
+    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+        function = cast(GCPFunction, function)
+        full_func_name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, function.name
+        )
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .patch(
+                name=full_func_name,
+                updateMask="availableMemoryMb,timeout",
+                body={
+                    "availableMemoryMb": function.config.memory,
+                    "timeout": str(function.config.timeout) + "s",
+                },
+            )
+        )
+        res = req.execute()
+        versionId = res["metadata"]["versionId"]
+        while True:
+            if not self.is_deployed(function.name, versionId):
+                time.sleep(5)
+            else:
+                break
+        self.logging.info("Published new function configuration.")
 
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str):

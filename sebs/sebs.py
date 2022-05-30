@@ -2,11 +2,14 @@ from typing import Optional, Dict, Type
 
 import docker
 
+import sebs.storage
+from sebs import types
 from sebs.local import Local
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
+from sebs.faas.storage import PersistentStorage
 from sebs.faas.config import Config
 from sebs.utils import has_platform, LoggingHandlers, LoggingBase
 
@@ -34,6 +37,10 @@ class SeBS(LoggingBase):
     @property
     def logging_filename(self) -> Optional[str]:
         return self._logging_filename
+
+    @property
+    def config(self) -> SeBSConfig:
+        return self._config
 
     def generate_logging_handlers(self, logging_filename: Optional[str] = None) -> LoggingHandlers:
         filename = logging_filename if logging_filename else self.logging_filename
@@ -76,8 +83,8 @@ class SeBS(LoggingBase):
         deployment_config: Optional[Config] = None,
     ) -> FaaSSystem:
         name = config["name"]
-
         implementations: Dict[str, Type[FaaSSystem]] = {"local": Local}
+
         if has_platform("aws"):
             from sebs.aws import AWS
 
@@ -90,6 +97,10 @@ class SeBS(LoggingBase):
             from sebs.gcp import GCP
 
             implementations["gcp"] = GCP
+        if has_platform("openwhisk"):
+            from sebs.openwhisk import OpenWhisk
+
+            implementations["openwhisk"] = OpenWhisk
 
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
@@ -163,6 +174,20 @@ class SeBS(LoggingBase):
             logging_filename=logging_filename
         )
         return benchmark
+
+    @staticmethod
+    def get_storage_implementation(storage_type: types.Storage) -> Type[PersistentStorage]:
+        _storage_implementations = {types.Storage.MINIO: sebs.storage.minio.Minio}
+        impl = _storage_implementations.get(storage_type)
+        assert impl
+        return impl
+
+    @staticmethod
+    def get_storage_config_implementation(storage_type: types.Storage):
+        _storage_implementations = {types.Storage.MINIO: sebs.storage.config.MinioConfig}
+        impl = _storage_implementations.get(storage_type)
+        assert impl
+        return impl
 
     def shutdown(self):
         self.cache_client.shutdown()

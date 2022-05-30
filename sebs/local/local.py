@@ -4,14 +4,13 @@ from typing import cast, Dict, List, Optional, Type, Tuple  # noqa
 
 import docker
 
-# from sebs.local.minio import Minio
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
-from sebs.local.storage import Minio
+from sebs.storage.minio import Minio
 from sebs.local.function import LocalFunction
-from sebs.faas.function import Function, ExecutionResult, Trigger
+from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 from sebs.benchmark import Benchmark
@@ -45,14 +44,6 @@ class Local(System):
     def remove_containers(self, val: bool):
         self._remove_containers = val
 
-    @property
-    def shutdown_storage(self) -> bool:
-        return self._shutdown_storage
-
-    @shutdown_storage.setter
-    def shutdown_storage(self, val: bool):
-        self._shutdown_storage = val
-
     def __init__(
         self,
         sebs_config: SeBSConfig,
@@ -64,9 +55,7 @@ class Local(System):
         super().__init__(sebs_config, cache_client, docker_client)
         self.logging_handlers = logger_handlers
         self._config = config
-        self._storage_instance: Optional[Minio] = None
         self._remove_containers = True
-        self._shutdown_storage = True
 
     """
         Create wrapper object for minio storage and fill buckets.
@@ -79,23 +68,26 @@ class Local(System):
     """
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        if not self._storage_instance:
-            self._storage_instance = Minio(
-                self._docker_client, self._cache_client, replace_existing
+        if not hasattr(self, "storage"):
+
+            if not self.config.resources.storage_config:
+                raise RuntimeError(
+                    "The local deployment is missing the configuration of pre-allocated storage!"
+                )
+            self.storage = Minio.deserialize(
+                self.config.resources.storage_config, self.cache_client
             )
-            self._storage_instance.logging_handlers = self.logging_handlers
-            self._storage_instance.start()
+            self.storage.logging_handlers = self.logging_handlers
         else:
-            self._storage_instance.replace_existing = replace_existing
-        return self._storage_instance
+            self.storage.replace_existing = replace_existing
+        return self.storage
 
     """
         Shut down minio storage instance.
     """
 
     def shutdown(self):
-        if self._storage_instance and self.shutdown_storage:
-            self._storage_instance.stop()
+        pass
 
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.
@@ -115,7 +107,14 @@ class Local(System):
         benchmark: benchmark name
     """
 
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -138,34 +137,35 @@ class Local(System):
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
 
-        home_dir = os.path.join(
-            "/home", self._system_config.username(self.name(), code_package.language_name)
-        )
         container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),
             code_package.language_name,
             code_package.language_version,
         )
         environment: Dict[str, str] = {}
-        if self._storage_instance:
+        if self.config.resources.storage_config:
             environment = {
-                "MINIO_ADDRESS": self._storage_instance._url,
-                "MINIO_ACCESS_KEY": self._storage_instance._access_key,
-                "MINIO_SECRET_KEY": self._storage_instance._secret_key,
+                "MINIO_ADDRESS": self.config.resources.storage_config.address,
+                "MINIO_ACCESS_KEY": self.config.resources.storage_config.access_key,
+                "MINIO_SECRET_KEY": self.config.resources.storage_config.secret_key,
+                "CONTAINER_UID": str(os.getuid()),
+                "CONTAINER_GID": str(os.getgid()),
+                "CONTAINER_USER": self._system_config.username(
+                    self.name(), code_package.language_name
+                ),
             }
         container = self._docker_client.containers.run(
             image=container_name,
-            command=f"python3 server.py {self.DEFAULT_PORT}",
-            volumes={
-                code_package.code_location: {"bind": os.path.join(home_dir, "code"), "mode": "ro"}
-            },
+            command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
+            volumes={code_package.code_location: {"bind": "/function", "mode": "ro"}},
             environment=environment,
             # FIXME: make CPUs configurable
+            # FIXME: configure memory
+            # FIXME: configure timeout
             # cpuset_cpus=cpuset,
             # required to access perf counters
             # alternative: use custom seccomp profile
             privileged=True,
-            user=os.getuid(),
             security_opt=["seccomp:unconfined"],
             network_mode="bridge",
             # somehow removal of containers prevents checkpointing from working?
@@ -175,8 +175,14 @@ class Local(System):
             detach=True,
             # tty=True,
         )
+        function_cfg = FunctionConfig.from_benchmark(code_package)
         func = LocalFunction(
-            container, self.DEFAULT_PORT, func_name, code_package.benchmark, code_package.hash
+            container,
+            self.DEFAULT_PORT,
+            func_name,
+            code_package.benchmark,
+            code_package.hash,
+            function_cfg,
         )
         self.logging.info(
             f"Started {func_name} function at container {container.id} , running on {func._url}"
@@ -212,6 +218,10 @@ class Local(System):
     def cached_function(self, function: Function):
         pass
 
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+        self.logging.error("Updating function configuration of local deployment is not supported")
+        raise RuntimeError("Updating function configuration of local deployment is not supported")
+
     def download_metrics(
         self,
         function_name: str,
@@ -229,9 +239,7 @@ class Local(System):
     def default_function_name(code_package: Benchmark) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
-            code_package.benchmark,
-            code_package.language_name,
-            code_package.benchmark_config.memory,
+            code_package.benchmark, code_package.language_name, code_package.language_version
         )
         return func_name
 

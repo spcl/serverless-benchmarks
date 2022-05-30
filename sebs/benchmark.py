@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sebs.experiments.config import Config as ExperimentConfig
-    from sebs.experiments.config import Language
+    from sebs.faas.function import Language
 
 
 class BenchmarkConfig:
@@ -29,9 +29,17 @@ class BenchmarkConfig:
     def timeout(self) -> int:
         return self._timeout
 
+    @timeout.setter
+    def timeout(self, val: int):
+        self._timeout = val
+
     @property
     def memory(self) -> int:
         return self._memory
+
+    @memory.setter
+    def memory(self, val: int):
+        self._memory = val
 
     @property
     def languages(self) -> List["Language"]:
@@ -40,7 +48,7 @@ class BenchmarkConfig:
     # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
-        from sebs.experiments.config import Language
+        from sebs.faas.function import Language
 
         return BenchmarkConfig(
             json_object["timeout"],
@@ -170,7 +178,9 @@ class Benchmark(LoggingBase):
         self._docker_client = docker_client
         self._system_config = system_config
         self._hash_value = None
-        self._output_dir = os.path.join(output_dir, f"{benchmark}_code")
+        self._output_dir = os.path.join(
+            output_dir, f"{benchmark}_code", self._language.value, self._language_version
+        )
 
         # verify existence of function in cache
         self.query_cache()
@@ -215,6 +225,7 @@ class Benchmark(LoggingBase):
             deployment=self._deployment_name,
             benchmark=self._benchmark,
             language=self.language_name,
+            language_version=self.language_version,
         )
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
@@ -297,7 +308,7 @@ class Benchmark(LoggingBase):
                 json.dump(package_json, package_file, indent=2)
 
     def add_deployment_package(self, output_dir):
-        from sebs.experiments.config import Language
+        from sebs.faas.function import Language
 
         if self.language == Language.PYTHON:
             self.add_deployment_package_python(output_dir)
@@ -321,8 +332,8 @@ class Benchmark(LoggingBase):
         ):
             self.logging.info(
                 (
-                    "Docker build image for {deployment} run in {language} "
-                    "is not available, skipping"
+                    "There is no Docker build image for {deployment} run in {language}, "
+                    "thus skipping the Docker-based installation of dependencies."
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
@@ -378,9 +389,12 @@ class Benchmark(LoggingBase):
                         stdout = self._docker_client.containers.run(
                             "{}:{}".format(repo_name, image_name),
                             volumes=volumes,
-                            environment={"APP": self.benchmark},
-                            # user="1000:1000",
-                            user=uid,
+                            environment={
+                                "CONTAINER_UID": str(os.getuid()),
+                                "CONTAINER_GID": str(os.getgid()),
+                                "CONTAINER_USER": "docker_user",
+                                "APP": self.benchmark,
+                            },
                             remove=True,
                             stdout=True,
                             stderr=True,
@@ -413,7 +427,10 @@ class Benchmark(LoggingBase):
                             container.put_archive("/mnt/function", data.read())
                         # do the build step
                         exit_code, stdout = container.exec_run(
-                            cmd="/bin/bash installer.sh", stdout=True, stderr=True
+                            cmd="/bin/bash /sebs/installer.sh",
+                            user="docker_user",
+                            stdout=True,
+                            stderr=True,
                         )
                         # copy updated code with package
                         data, stat = container.get_archive("/mnt/function")
@@ -447,7 +464,7 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str], Tuple[str, int]]
+        self, deployment_build_step: Callable[[str, str, str, str, bool], Tuple[str, int]]
     ) -> Tuple[bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
@@ -477,7 +494,11 @@ class Benchmark(LoggingBase):
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         self._code_location, self._code_size = deployment_build_step(
-            os.path.abspath(self._output_dir), self.language_name, self.benchmark
+            os.path.abspath(self._output_dir),
+            self.language_name,
+            self.language_version,
+            self.benchmark,
+            self.is_cached,
         )
         self.logging.info(
             (
