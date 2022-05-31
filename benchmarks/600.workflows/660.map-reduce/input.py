@@ -23,6 +23,7 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     with open(list_path, "w") as f:
         f.writelines(w+"\n" for w in list)
     upload_func(0, list_name, list_path)
+    os.remove(list_path)
 
     return {
         "words_bucket": input_buckets[0],
