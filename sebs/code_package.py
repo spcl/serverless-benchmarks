@@ -288,6 +288,9 @@ class CodePackage(LoggingBase):
         for file in handlers:
             shutil.copy2(file, os.path.join(output_dir))
 
+        for file in glob.glob(os.path.join(self.path, "*.c")):
+            shutil.copy2(file, os.path.join(output_dir))
+
         if self.language_name == "python":
             handler_path = os.path.join(output_dir, "handler.py")
             handler_function_path = os.path.join(output_dir, "handler_function.py")

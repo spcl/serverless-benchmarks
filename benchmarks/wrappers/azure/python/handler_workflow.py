@@ -40,13 +40,19 @@ def main(event):
     end = datetime.datetime.now().timestamp()
 
     is_cold, container_id = probe_cold_start()
-    payload = json.dumps({
+    payload = {
         "func": func_name,
         "start": start,
         "end": end,
         "is_cold": is_cold,
         "container_id": container_id,
-    })
+    }
+
+    func_res = os.getenv("SEBS_FUNCTION_RESULT")
+    if func_res:
+        payload["result"] = json.loads(func_res)
+
+    payload = json.dumps(payload)
 
     redis = Redis(host={{REDIS_HOST}},
           port=6379,
