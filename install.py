@@ -16,9 +16,9 @@ for deployment in ["local"]:
 parser.add_argument("--with-pypapi", action="store_true")
 args = parser.parse_args()
 
-def execute(cmd):
+def execute(cmd, cwd=None):
     ret = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True, cwd=cwd
     )
     if ret.returncode:
         raise RuntimeError(
@@ -69,8 +69,22 @@ if args.local:
     print("Initialize Docker image for local storage.")
     execute("docker pull minio/minio:latest")
 
-print("Initialize git submodules")
-execute("git submodule update --init --recursive")
+print("Download benchmarks data")
+try:
+    execute("git submodule update --init --recursive")
+except RuntimeError as error:
+    msg = str(error)
+    # we're not in a git repository
+    if "not a git repository" in msg:
+        data_dir = "benchmarks-data"
+        # not empty - already cloned, so only update
+        if any(os.scandir(data_dir)):
+            execute(f"git pull", cwd=data_dir)
+        # clone
+        else:
+            execute(f"git clone https://github.com/spcl/serverless-benchmarks-data.git {data_dir}")
+    else:
+        raise error
 
 if args.with_pypapi:
     print("Build and install pypapi")
