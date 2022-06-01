@@ -1,3 +1,5 @@
+// THIS IS THE SELFISH DETOUR EXAMPLE FROM NETGAUGE https://spcl.inf.ethz.ch/Research/Performance/Netgauge/OS_Noise/
+
 #include <stdio.h>
 #include <inttypes.h>
 #include <unistd.h>
@@ -25,10 +27,8 @@ double get_ticks_per_second() {
 
     HRT_TIMESTAMP_T t1, t2;
     uint64_t res[NUM_TESTS];
-    static uint64_t min=0;
+    uint64_t min=0;
     int count;
-
-    if (min > 0) {return ((double) min);}
 
     for (count=0; count<NUM_TESTS; count++) {
         HRT_GET_TIMESTAMP(t1);
