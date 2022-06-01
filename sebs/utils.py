@@ -119,6 +119,13 @@ def download_measurements(redis: Redis, workflow_name: str, after: float, **stat
             try:
                 payload = json.loads(payload)
 
+                if "result" in payload:
+                    res = payload["result"]
+                    if isinstance(res, dict):
+                        del payload["result"]
+                        for key, val in res.items():
+                            payload["result."+key] = val
+
                 # make sure only measurements from our benchmark are saved
                 if payload["start"] > after:
                     payload = {**payload, **static_args}

@@ -346,7 +346,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
             retries = 0
 
     if len(measurements) > 0:
-        name = df_name if df_name else workflow.name
+        name = df_name if df_name else benchmark
         path = os.path.join(output_dir, "results", name, deployment_client.name()+".csv")
         os.makedirs(os.path.dirname(path), exist_ok=True)
 

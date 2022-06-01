@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <inttypes.h>
+#include <unistd.h>
 
 #define UINT64_T uint64_t
 #define UINT32_T uint32_t
@@ -18,6 +19,31 @@ typedef struct {
                                                           (((( UINT64_T ) t1.h) << 32) | t1.l);
 
 #define HRT_GET_TIME(t1, time) time = (((( UINT64_T ) t1.h) << 32) | t1.l)
+
+double get_ticks_per_second() {
+    #define NUM_TESTS 10
+
+    HRT_TIMESTAMP_T t1, t2;
+    uint64_t res[NUM_TESTS];
+    static uint64_t min=0;
+    int count;
+
+    if (min > 0) {return ((double) min);}
+
+    for (count=0; count<NUM_TESTS; count++) {
+        HRT_GET_TIMESTAMP(t1);
+        sleep(1);
+        HRT_GET_TIMESTAMP(t2);
+        HRT_GET_ELAPSED_TICKS(t1, t2, &res[count])
+    }
+
+    min = res[0];
+    for (count=0; count<NUM_TESTS; count++) {
+        if (min > res[count]) min = res[count];
+    }
+
+    return ((double) min);
+}
 
 void selfish_detour(int num_runs, int threshold, uint64_t *results) {
     int cnt=0, num_not_smaller = 0;
