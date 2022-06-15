@@ -269,12 +269,13 @@ class AzureResources(Resources):
 
 
 class AzureConfig(Config):
-    def __init__(self, credentials: AzureCredentials, resources: AzureResources, redis_host: str):
+    def __init__(self, credentials: AzureCredentials, resources: AzureResources, redis_host: str, redis_password: str):
         super().__init__()
         self._resources_id = ""
         self._credentials = credentials
         self._resources = resources
         self._redis_host = redis_host
+        self._redis_password = redis_password
 
     @property
     def credentials(self) -> AzureCredentials:
@@ -292,12 +293,17 @@ class AzureConfig(Config):
     def redis_host(self) -> str:
         return self._redis_host
 
+    @property
+    def redis_password(self) -> str:
+        return self._redis_password
+
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(AzureConfig, cfg)
         config._region = dct["region"]
         config._redis_host = dct["redis_host"]
+        config._redis_password = dct["redis_password"]
         if "resources_id" in dct:
             config._resources_id = dct["resources_id"]
         else:
@@ -314,7 +320,7 @@ class AzureConfig(Config):
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(AzureCredentials, AzureCredentials.deserialize(config, cache, handlers))
         resources = cast(AzureResources, AzureResources.deserialize(config, cache, handlers))
-        config_obj = AzureConfig(credentials, resources, cached_config["redis_host"])
+        config_obj = AzureConfig(credentials, resources, cached_config["redis_host"], cached_config["redis_password"])
         config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:
@@ -348,5 +354,6 @@ class AzureConfig(Config):
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
             "redis_host": self._redis_host,
+            "redis_password": self._redis_password,
         }
         return out

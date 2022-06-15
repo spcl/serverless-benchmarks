@@ -204,6 +204,7 @@ class Azure(System):
 
         handler_path = os.path.join(directory, WRAPPER_FILES[code_package.language_name][0])
         replace_string_in_file(handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
+        replace_string_in_file(handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"')
 
         # copy every wrapper file to respective function dirs
         for wrapper_file in wrapper_files:

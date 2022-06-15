@@ -156,6 +156,7 @@ class AWS(System):
 
         handler_path = os.path.join(directory, CONFIG_FILES[code_package.language_name][0])
         replace_string_in_file(handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
+        replace_string_in_file(handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"')
 
         # For python, add an __init__ file
         if code_package.language_name == "python":
@@ -640,6 +641,10 @@ class AWS(System):
 
     def _enforce_cold_start(self, function: Function):
         func = cast(LambdaFunction, function)
+
+        # Wait for code update to finish before updating config
+        self.wait_for_function(func.name)
+
         self.get_lambda_client().update_function_configuration(
             FunctionName=func.name,
             Timeout=func.timeout,

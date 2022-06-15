@@ -47,7 +47,8 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
         "end": end.strftime("%s.%f"),
         "is_cold": is_cold,
         "container_id": container_id,
-        "request_id": context.invocation_id,
+        "provider.request_id": context.invocation_id,
+        "request_id": event["request_id"],
         "result": result,
     }
 

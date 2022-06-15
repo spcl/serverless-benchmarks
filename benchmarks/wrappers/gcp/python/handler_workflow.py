@@ -35,17 +35,19 @@ def handler(req):
     full_function_name = os.getenv("FUNCTION_NAME")
     workflow_name, func_name = full_function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
-    res = function.handler(event)
+    res = function.handler(event["payload"])
 
     end = datetime.datetime.now().timestamp()
 
+    provider_request_id = req.headers.get("Function-Execution-Id")
     is_cold, container_id = probe_cold_start()
     payload = {
         "func": func_name,
         "start": start,
         "end": end,
         "is_cold": is_cold,
-        "container_id": container_id
+        "container_id": container_id,
+        "provider.request_id": provider_request_id
     }
 
     func_res = os.getenv("SEBS_FUNCTION_RESULT")
@@ -57,9 +59,11 @@ def handler(req):
     redis = Redis(host={{REDIS_HOST}},
       port=6379,
       decode_responses=True,
-      socket_connect_timeout=10)
+      socket_connect_timeout=10,
+      password={{REDIS_PASSWORD}})
 
-    key = os.path.join(workflow_name, func_name, str(uuid.uuid4())[0:8])
+    req_id = event["request_id"]
+    key = os.path.join(workflow_name, func_name, req_id, str(uuid.uuid4())[0:8])
     redis.set(key, payload)
 
     return res

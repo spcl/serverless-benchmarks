@@ -306,15 +306,11 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
     else:
         trigger = triggers[0]
 
-    # reset redis cache from previous experiments
-    download_measurements(redis, workflow.name, datetime.now().timestamp())
-
     i = 0
     retries = 0
     num_payloads = -1
     while i < repetitions:
         sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
-        time = datetime.now().timestamp()
 
         try:
             ret = trigger.sync_invoke(input_config)
@@ -329,15 +325,12 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
             if retries >= 3:
                 raise
         else:
-            payloads = download_measurements(redis, workflow.name, time, rep=i)
+            payloads = download_measurements(redis, workflow.name, ret.request_id, rep=i)
             if num_payloads == -1 and len(payloads) > 0:
                 num_payloads = len(payloads)
                 sebs_client.logging.warning(f"Will be expecting {num_payloads} measurements/repetition.")
             elif num_payloads != len(payloads):
                 sebs_client.logging.warning(f"Invalid number of measurments. Expected {num_payloads} payloads but downloaded {len(payloads)}. Retry.")
-
-                sleep(3)
-                download_measurements(redis, workflow.name, time)
 
                 continue
 
@@ -347,6 +340,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
 
     if len(measurements) > 0:
         name = df_name if df_name else benchmark
+        name += "_"+benchmark_input_size
         path = os.path.join(output_dir, "results", name, deployment_client.name()+".csv")
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
@@ -512,8 +506,9 @@ def experiment():
 
 @experiment.command("invoke")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
+@click.option("--workflow", type=bool, default=False)
 @common_params
-def experiment_invoke(experiment, **kwargs):
+def experiment_invoke(experiment, workflow, **kwargs):
     (
         config,
         output_dir,
@@ -521,7 +516,7 @@ def experiment_invoke(experiment, **kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    experiment = sebs_client.get_experiment(experiment, config["experiments"])
+    experiment = sebs_client.get_experiment(experiment, config["experiments"], workflow)
     experiment.prepare(sebs_client, deployment_client)
     experiment.run()
 
@@ -529,8 +524,9 @@ def experiment_invoke(experiment, **kwargs):
 @experiment.command("process")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
 @click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
+@click.option("--workflow", type=bool, default=False)
 @common_params
-def experment_process(experiment, extend_time_interval, **kwargs):
+def experiment_process(experiment, extend_time_interval, workflow, **kwargs):
     (
         config,
         output_dir,
@@ -538,8 +534,11 @@ def experment_process(experiment, extend_time_interval, **kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    experiment = sebs_client.get_experiment(experiment, config["experiments"])
-    experiment.process(sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval)
+    experiment = sebs_client.get_experiment(experiment, config["experiments"], workflow)
+    if workflow:
+        experiment.process_workflow(sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval)
+    else:
+        experiment.process(sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval)
 
 
 if __name__ == "__main__":

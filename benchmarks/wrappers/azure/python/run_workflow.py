@@ -2,6 +2,7 @@ import json
 import sys
 import os
 import operator
+import logging
 
 import azure.durable_functions as df
 
@@ -37,11 +38,16 @@ def run_workflow(context: df.DurableOrchestrationContext):
     states = {n: State.deserialize(n, s)
                    for n, s in definition["states"].items()}
     current = states[definition["root"]]
-    res = context.get_input()
+    input = context.get_input()
+    logging.info("START")
+    res = input["payload"]
+    request_id = input["request_id"]
 
     while current:
+        logging.info(current.name)
         if isinstance(current, Task):
-            res = yield context.call_activity(current.func_name, res)
+            input = {"payload": res, "request_id": request_id}
+            res = yield context.call_activity(current.func_name, input)
             current = states.get(current.next, None)
         elif isinstance(current, Switch):
             ops = {
@@ -65,19 +71,24 @@ def run_workflow(context: df.DurableOrchestrationContext):
             current = next
         elif isinstance(current, Map):
             array = get_var(res, current.array)
-            tasks = [context.call_activity(current.func_name, e) for e in array]
+            tasks = []
+            for elem in array:
+                input = {"payload": elem, "request_id": request_id}
+                tasks.append(context.call_activity(current.func_name, input))
             map_res = yield context.task_all(tasks)
 
             set_var(res, map_res, current.array)
             current = states.get(current.next, None)
         elif isinstance(current, Repeat):
             for i in range(current.count):
-                res = yield context.call_activity(current.func_name, res)
+                input = {"payload": res, "request_id": request_id}
+                res = yield context.call_activity(current.func_name, input)
             current = states.get(current.next, None)
         elif isinstance(current, Loop):
             array = get_var(res, current.array)
             for elem in array:
-                yield context.call_activity(current.func_name, elem)
+                input = {"payload": elem, "request_id": request_id}
+                yield context.call_activity(current.func_name, input)
             current = states.get(current.next, None)
         else:
             raise ValueError(f"Undefined state: {current}")

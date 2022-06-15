@@ -1,7 +1,7 @@
 from random import shuffle
 
 def handler(event):
-    size = len(event)
+    size = int(event["size"])
     elems = list(range(size))
     shuffle(elems)
 

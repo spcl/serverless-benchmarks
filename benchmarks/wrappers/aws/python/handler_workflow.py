@@ -32,7 +32,7 @@ def handler(event, context):
 
     workflow_name, func_name = context.function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
-    res = function.handler(event)
+    res = function.handler(event["payload"])
 
     end = datetime.datetime.now().timestamp()
 
@@ -42,7 +42,8 @@ def handler(event, context):
         "start": start,
         "end": end,
         "is_cold": is_cold,
-        "container_id": container_id
+        "container_id": container_id,
+        "provider.request_id": context.aws_request_id
     }
 
     func_res = os.getenv("SEBS_FUNCTION_RESULT")
@@ -54,9 +55,12 @@ def handler(event, context):
     redis = Redis(host={{REDIS_HOST}},
                   port=6379,
                   decode_responses=True,
-                  socket_connect_timeout=10)
+                  socket_connect_timeout=10,
+                  password={{REDIS_PASSWORD}})
 
-    key = os.path.join(workflow_name, func_name, str(uuid.uuid4())[0:8])
+
+    req_id = event["request_id"]
+    key = os.path.join(workflow_name, func_name, req_id, str(uuid.uuid4())[0:8])
     redis.set(key, payload)
 
     return res

@@ -168,6 +168,7 @@ class GCP(System):
         shutil.move(old_path, new_path)
 
         replace_string_in_file(new_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
+        replace_string_in_file(new_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"')
 
         """
             zip the whole directroy (the zip-file gets uploaded to gcp later)
@@ -415,8 +416,26 @@ class GCP(System):
                     },
                 )
             )
-            create_req.execute()
-            self.logging.info(f"Map workflow {map_id} has been created!")
+
+            try:
+                create_req.execute()
+                self.logging.info(f"Map workflow {map_id} has been created!")
+            except HttpError:
+                patch_req = (
+                    self.workflow_client.projects()  # type: ignore
+                    .locations()
+                    .workflows()
+                    .patch(
+                        name=full_workflow_name,
+                        body={
+                            "name": full_workflow_name,
+                            "sourceContents": map_def,
+                        },
+                    )
+                )
+                patch_req.execute()
+                self.logging.info("Published new map workflow code.")
+
 
         full_workflow_name = GCP.get_full_workflow_name(project_name, location, workflow_name)
         get_req = (
@@ -681,6 +700,10 @@ class GCP(System):
             results = client.list_time_series(list_request)
             for result in results:
                 if result.resource.labels.get("function_name") == function_name:
+                    if metric == "user_memory_bytes":
+                        for req_id, res in requests.items():
+                            res.billing.memory = int(result.metric.labels["memory"])
+                            # res.stats.memory_used = result.points.value.distribution_value.mean
                     for point in result.points:
                         metrics[metric] += [
                             {

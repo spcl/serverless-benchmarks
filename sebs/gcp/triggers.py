@@ -1,6 +1,7 @@
 import concurrent.futures
 import datetime
 import json
+import uuid
 import time
 from typing import Dict, Optional  # noqa
 
@@ -106,14 +107,21 @@ class WorkflowLibraryTrigger(LibraryTrigger):
             config.project_name, config.region, self.name
         )
 
+        request_id = str(uuid.uuid4())[0:8]
+        input = {
+            "payload": payload,
+            "request_id": request_id
+        }
+
         execution_client = ExecutionsClient()
-        execution = Execution(argument=json.dumps(payload))
+        execution = Execution(argument=json.dumps(input))
 
         begin = datetime.datetime.now()
         res = execution_client.create_execution(parent=full_workflow_name, execution=execution)
         end = datetime.datetime.now()
 
         gcp_result = ExecutionResult.from_times(begin, end)
+        gcp_result.request_id = request_id
 
         # Wait for execution to finish, then print results.
         execution_finished = False

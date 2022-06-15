@@ -23,7 +23,7 @@ def probe_cold_start():
     return is_cold, container_id
 
 
-def main(event):
+def main(event, context: func.Context):
     start = datetime.datetime.now().timestamp()
 
     workflow_name = os.getenv("APPSETTING_WEBSITE_SITE_NAME")
@@ -35,7 +35,7 @@ def main(event):
     function = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(function)
 
-    res = function.handler(event)
+    res = function.handler(event["payload"])
 
     end = datetime.datetime.now().timestamp()
 
@@ -46,6 +46,7 @@ def main(event):
         "end": end,
         "is_cold": is_cold,
         "container_id": container_id,
+        "provider.request_id": context.invocation_id
     }
 
     func_res = os.getenv("SEBS_FUNCTION_RESULT")
@@ -57,9 +58,11 @@ def main(event):
     redis = Redis(host={{REDIS_HOST}},
           port=6379,
           decode_responses=True,
-          socket_connect_timeout=10)
+          socket_connect_timeout=10,
+          password={{REDIS_PASSWORD}})
 
-    key = os.path.join(workflow_name, func_name, str(uuid.uuid4())[0:8])
+    req_id = event["request_id"]
+    key = os.path.join(workflow_name, func_name, req_id, str(uuid.uuid4())[0:8])
     redis.set(key, payload)
 
     return res

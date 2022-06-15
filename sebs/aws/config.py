@@ -237,11 +237,12 @@ class AWSResources(Resources):
 
 
 class AWSConfig(Config):
-    def __init__(self, credentials: AWSCredentials, resources: AWSResources, redis_host: str):
+    def __init__(self, credentials: AWSCredentials, resources: AWSResources, redis_host: str, redis_password: str):
         super().__init__()
         self._credentials = credentials
         self._resources = resources
         self._redis_host = redis_host
+        self._redis_password = redis_password
 
     @staticmethod
     def typename() -> str:
@@ -259,12 +260,17 @@ class AWSConfig(Config):
     def redis_host(self) -> str:
         return self._redis_host
 
+    @property
+    def redis_password(self) -> str:
+        return self._redis_password
+
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(AWSConfig, cfg)
         config._region = dct["region"]
         config._redis_host = dct["redis_host"]
+        config._redis_password = dct["redis_password"]
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -273,7 +279,7 @@ class AWSConfig(Config):
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(AWSCredentials, AWSCredentials.deserialize(config, cache, handlers))
         resources = cast(AWSResources, AWSResources.deserialize(config, cache, handlers))
-        config_obj = AWSConfig(credentials, resources, cached_config["redis_host"])
+        config_obj = AWSConfig(credentials, resources, cached_config["redis_host"], cached_config["redis_password"])
         config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:
@@ -305,5 +311,6 @@ class AWSConfig(Config):
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
             "redis_host": self._redis_host,
+            "redis_password": self._redis_password,
         }
         return out

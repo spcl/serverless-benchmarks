@@ -15,13 +15,14 @@ def buckets_count():
 def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     mult, n_mappers = size_generators[size]
     words = ["cat", "dog", "bird", "horse", "pig"]
-    list = mult * words
-    random.shuffle(list)
+    lst = mult * words
+    random.shuffle(lst)
 
     list_path = os.path.join(data_dir, "list.txt")
     list_name = "words"
     with open(list_path, "w") as f:
-        f.writelines(w+"\n" for w in list)
+        f.writelines(w+"\n" for w in lst)
+
     upload_func(0, list_name, list_path)
     os.remove(list_path)
 

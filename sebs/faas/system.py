@@ -130,6 +130,12 @@ class System(ABC, LoggingBase):
     def update_function(self, function: Function, code_package: CodePackage):
         pass
 
+    def update_benchmark(self, benchmark: Benchmark, code_package: CodePackage):
+        if isinstance(benchmark, Function):
+            self.update_function(benchmark, code_package)
+        else:
+            self.update_workflow(benchmark, code_package)
+
     """
         a)  if a cached function with given name is present and code has not changed,
             then just return function name

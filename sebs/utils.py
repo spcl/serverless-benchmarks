@@ -99,18 +99,20 @@ def replace_string_in_file(path: str, from_str: str, to_str: str):
 
 
 def connect_to_redis_cache(host: str):
-    redis = Redis(host=host, port=6379, decode_responses=True, socket_connect_timeout=10)
+    redis = Redis(host=host, port=6379, decode_responses=True, socket_connect_timeout=10, password="isad39fjhd238")
     redis.ping()
 
     return redis
 
 
-def download_measurements(redis: Redis, workflow_name: str, after: float, **static_args):
-    time.sleep(1)
+def download_measurements(redis: Redis, workflow_name: str, request_id: Optional[str], **static_args):
+    time.sleep(5)
     payloads = []
+    pattern = f"{workflow_name}/*/{request_id}/*" if request_id else f"{workflow_name}/*"
 
-    for key in redis.scan_iter(match=f"{workflow_name}/*"):
-        assert key[: len(workflow_name)] == workflow_name
+    for key in redis.scan_iter(match=pattern):
+        wname, fname, request_id, invoc_id = key.split("/")
+        assert wname == workflow_name
 
         payload = redis.get(key)
         redis.delete(key)
@@ -126,10 +128,10 @@ def download_measurements(redis: Redis, workflow_name: str, after: float, **stat
                         for key, val in res.items():
                             payload["result."+key] = val
 
-                # make sure only measurements from our benchmark are saved
-                if payload["start"] > after:
-                    payload = {**payload, **static_args}
-                    payloads.append(payload)
+                payload["request_id"] = request_id
+
+                payload = {**payload, **static_args}
+                payloads.append(payload)
             except json.decoder.JSONDecodeError:
                 print(f"Failed to decode payload: {payload}")
 

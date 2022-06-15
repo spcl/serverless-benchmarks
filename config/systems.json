@@ -2,7 +2,7 @@
   "general": {
     "docker_repository": "spcleth/serverless-benchmarks"
   },
-  "local" : {
+  "local": {
     "experiments": {
       "python": ["papi", "time", "disk-io", "memory"],
       "nodejs": ["time"]
@@ -50,14 +50,14 @@
       },
       "nodejs": {
         "base_images": {
-          "12.x" : "lambci/lambda:build-nodejs12.x",
-          "10.x" : "lambci/lambda:build-nodejs10.x"
+          "12.x": "lambci/lambda:build-nodejs12.x",
+          "10.x": "lambci/lambda:build-nodejs10.x"
         },
         "versions": ["10.x", "12.x"],
         "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.js", "storage.js"],
+          "files": ["handler.js", "storage.js"],
           "packages": {
             "uuid": "3.4.0"
           }
@@ -75,19 +75,31 @@
         "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": ["handler_function.py", "main_workflow.py", "handler_workflow.py", "storage.py", "fsm.py", "run_workflow.py"],
-          "packages": ["azure-storage-blob", "azure-functions", "azure-functions-durable", "redis"]
+          "files": [
+            "handler_function.py",
+            "main_workflow.py",
+            "handler_workflow.py",
+            "storage.py",
+            "fsm.py",
+            "run_workflow.py"
+          ],
+          "packages": [
+            "azure-storage-blob",
+            "azure-functions",
+            "azure-functions-durable",
+            "redis"
+          ]
         }
       },
       "nodejs": {
         "base_images": {
-          "10" : "mcr.microsoft.com/azure-functions/node:2.0-node10",
-          "8" : "mcr.microsoft.com/azure-functions/node:2.0-node8"
+          "10": "mcr.microsoft.com/azure-functions/node:2.0-node10",
+          "8": "mcr.microsoft.com/azure-functions/node:2.0-node8"
         },
         "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.js", "storage.js"],
+          "files": ["handler.js", "storage.js"],
           "packages": {
             "@azure/storage-blob": "^12.0.0",
             "uuid": "3.4.0"
@@ -111,19 +123,19 @@
         "username": "docker_user",
         "deployment": {
           "files": ["handler_function.py", "handler_workflow.py", "storage.py"],
-          "packages": ["google-cloud-storage", "redis"]
+          "packages": ["google-cloud-storage==1.44.0", "redis"]
         }
       },
       "nodejs": {
         "base_images": {
-          "6" : "gcr.io/google-appengine/nodejs",
-          "8" : "gcr.io/google-appengine/nodejs",
-          "10" : "gcr.io/google-appengine/nodejs"
+          "6": "gcr.io/google-appengine/nodejs",
+          "8": "gcr.io/google-appengine/nodejs",
+          "10": "gcr.io/google-appengine/nodejs"
         },
         "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.js", "storage.js"],
+          "files": ["handler.js", "storage.js"],
           "packages": {
             "@google-cloud/storage": "^4.0.0",
             "uuid": "3.4.0"

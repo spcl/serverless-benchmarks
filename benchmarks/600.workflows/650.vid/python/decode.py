@@ -1,9 +1,10 @@
 import os
 import uuid
 from . import storage
-import requests
 
 import cv2
+
+client = storage.storage.get_instance()
 
 
 def chunks(lst, n):
@@ -11,12 +12,10 @@ def chunks(lst, n):
         yield lst[i:i + n]
 
 
-def download_video(url, path):
-    r = requests.get(url, allow_redirects=True)
-    with open(path,'wb') as f:
-        for chunk in r.iter_content(chunk_size=255):
-            if chunk:
-                f.write(chunk)
+def load_video(bucket, blob, dest_dir):
+    path = os.path.join(dest_dir, blob)
+    client.download(bucket, blob, path)
+    return path
 
 
 def decode_video(path, n_frames, dest_dir):
@@ -41,17 +40,16 @@ def upload_imgs(bucket, paths):
 
 
 def handler(event):
-    vid_url = event["video_url"]
+    vid_blob = event["video"]
     n_frames = event["n_frames"]
     batch_size = event["batch_size"]
     frames_bucket = event["frames_bucket"]
+    input_bucket = event["input_bucket"]
 
     tmp_dir = os.path.join("/tmp", str(uuid.uuid4()))
     os.makedirs(tmp_dir, exist_ok=True)
 
-    vid_path = os.path.join(tmp_dir, "video")
-    download_video(vid_url, vid_path)
-
+    vid_path = load_video(input_bucket, vid_blob, tmp_dir)
     img_paths = decode_video(vid_path, n_frames, tmp_dir)
     paths = list(upload_imgs(frames_bucket, img_paths))
     frames = list(chunks(paths, batch_size))
@@ -60,7 +58,7 @@ def handler(event):
         "frames": [{
             "frames_bucket": frames_bucket,
             "frames": fs,
-            "model_bucket": event["model_bucket"],
+            "model_bucket": input_bucket,
             "model_config": event["model_config"],
             "model_weights": event["model_weights"]
         } for fs in frames]

@@ -144,11 +144,12 @@ class GCPConfig(Config):
 
     _project_name: str
 
-    def __init__(self, credentials: GCPCredentials, resources: GCPResources, redis_host: str):
+    def __init__(self, credentials: GCPCredentials, resources: GCPResources, redis_host: str, redis_password: str):
         super().__init__()
         self._credentials = credentials
         self._resources = resources
         self._redis_host = redis_host
+        self._redis_password = redis_password
 
     @property
     def region(self) -> str:
@@ -170,12 +171,16 @@ class GCPConfig(Config):
     def redis_host(self) -> str:
         return self._redis_host
 
+    @property
+    def redis_password(self) -> str:
+        return self._redis_password
+
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         cached_config = cache.get_config("gcp")
         credentials = cast(GCPCredentials, GCPCredentials.deserialize(config, cache, handlers))
         resources = cast(GCPResources, GCPResources.deserialize(config, cache, handlers))
-        config_obj = GCPConfig(credentials, resources, cached_config["redis_host"])
+        config_obj = GCPConfig(credentials, resources, cached_config["redis_host"], cached_config["redis_password"])
         config_obj.logging_handlers = handlers
         if cached_config:
             config_obj.logging.info("Loading cached config for GCP")
@@ -226,6 +231,7 @@ class GCPConfig(Config):
         config._project_name = dct["project_name"]
         config._region = dct["region"]
         config._redis_host = dct["redis_host"]
+        config._redis_password = dct["redis_password"]
 
     def serialize(self) -> dict:
         out = {
@@ -235,6 +241,7 @@ class GCPConfig(Config):
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
             "redis_host": self._redis_host,
+            "redis_password": self._redis_password,
         }
         return out
 
