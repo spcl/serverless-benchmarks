@@ -210,7 +210,7 @@ class Trigger(ABC, LoggingBase):
         try:
             output = json.loads(data.getvalue())
 
-            if status_code != 200:
+            if status_code not in (200, 202):
                 self.logging.error(
                     "Invocation on URL {} failed with status code {}!".format(url, status_code)
                 )

@@ -1,20 +1,20 @@
 {
-    "root": "decode",
-    "states": {
-        "decode": {
-            "type": "task",
-            "func_name": "decode",
-            "next": "analyse"
-        },
-        "analyse": {
-            "type": "map",
-            "func_name": "analyse",
-            "array": "frames",
-            "next": "summarize"
-        },
-        "summarize": {
-            "type": "task",
-            "func_name": "summarize"
-        }
+  "root": "decode",
+  "states": {
+    "decode": {
+      "type": "task",
+      "func_name": "decode",
+      "next": "analyse"
+    },
+    "analyse": {
+      "type": "map",
+      "func_name": "analyse",
+      "array": "frames",
+      "next": "summarize"
+    },
+    "summarize": {
+      "type": "task",
+      "func_name": "summarize"
     }
+  }
 }

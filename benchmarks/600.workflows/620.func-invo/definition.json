@@ -9,7 +9,7 @@
     "process": {
       "type": "repeat",
       "func_name": "process",
-      "count": 9
+      "count": 8
     }
   }
 }

@@ -101,12 +101,12 @@ class PerfCost(Experiment):
         for memory in memory_sizes:
             self.logging.info(f"Begin experiment on memory size {memory}")
             self._benchmark.memory = memory
-            self._deployment_client.update_benchmark(self._benchmark, self._code_package)
-            if self.is_workflow and platform != "azure":
-                for func in self._benchmark.functions:
-                    func.memory = memory
-                    self._deployment_client.update_benchmark(func, self._code_package)
-            self._sebs_client.cache_client.update_benchmark(self._benchmark)
+            # self._deployment_client.update_benchmark(self._benchmark, self._code_package)
+            # if self.is_workflow and platform != "azure":
+            #     for func in self._benchmark.functions:
+            #         func.memory = memory
+            #         self._deployment_client.update_benchmark(func, self._code_package)
+            # self._sebs_client.cache_client.update_benchmark(self._benchmark)
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
 
     def compute_statistics(self, times: List[float]):
@@ -147,10 +147,6 @@ class PerfCost(Experiment):
 
         self._deployment_client.cold_start_counter = randrange(100)
 
-        redis = None
-        if self.is_workflow:
-            redis = connect_to_redis_cache(self._deployment_client.config.redis_host)
-
         """
             Cold experiment: schedule all invocations in parallel.
         """
@@ -163,6 +159,14 @@ class PerfCost(Experiment):
         platform = self._deployment_client.name()
         result_dir = os.path.join(self._out_dir, self._code_package.name, platform)
         os.makedirs(result_dir, exist_ok=True)
+
+        def _download_measurements(request_id):
+            try:
+                redis = connect_to_redis_cache(self._deployment_client.config.redis_host)
+                payloads = download_measurements(redis, self._benchmark.name, request_id)
+                return payloads
+            except:
+                return None
 
         self.logging.info(f"Begin {run_type.str()} experiments")
         incorrect_executions = []
@@ -191,6 +195,7 @@ class PerfCost(Experiment):
                         funcs = self._benchmark.functions
 
                     if run_type == PerfCost.RunType.COLD or run_type == PerfCost.RunType.BURST:
+                        self.logging.info("Enforcing cold start...")
                         self._deployment_client.enforce_cold_start(
                             funcs, self._code_package
                         )
@@ -199,6 +204,7 @@ class PerfCost(Experiment):
 
                     results = []
                     for i in range(0, invocations):
+                        self.logging.info(f"Triggering benchmark {i}")
                         results.append(
                             pool.apply_async(
                                 self._trigger.sync_invoke, args=(self._benchmark_input,)
@@ -207,8 +213,9 @@ class PerfCost(Experiment):
 
                     incorrect = []
                     first_iteration_request_ids = []
-                    for res in results:
+                    for idx, res in enumerate(results):
                         try:
+                            self.logging.info(f"Waiting for benchmark {idx} to finish...")
                             ret = res.get()
                             if ret.stats.failure:
                                 raise RuntimeError("Failed invocation")
@@ -219,10 +226,16 @@ class PerfCost(Experiment):
 
                             was_cold_start = ret.stats.cold_start
                             if self.is_workflow:
-                                try:
-                                    payloads = download_measurements(redis, self._benchmark.name, ret.request_id)
-                                except:
-                                    payloads = download_measurements(redis, self._benchmark.name, ret.request_id)
+                                self.logging.info(f"Downloading measurements for {ret.request_id}")
+                                payloads = _download_measurements(ret.request_id)
+                                retries = 0
+                                while not payloads and retries < 10:
+                                    self.logging.info("Failed to download measurments. Retrying...")
+                                    payloads = _download_measurements(ret.request_id)
+                                    retries += 1
+                                if retries > 0:
+                                    self.logging.info("Downloaded all measurments.")
+
                                 df = pd.DataFrame(payloads)
                                 if df.shape[0] > 0:
                                     was_cold_start = df.sort_values(["start"]).at[0, "is_cold"]
@@ -268,7 +281,16 @@ class PerfCost(Experiment):
 
                     first_iteration = False
                     if self.is_workflow and self.num_expected_payloads == -1:
-                        payloads = download_measurements(redis, self._benchmark.name, None)
+                        self.logging.info(f"Downloading measurements for first iterations")
+                        payloads = _download_measurements(None)
+                        retries = 0
+                        while not payloads and retries < 10:
+                            self.logging.info("Failed to download measurments. Retrying...")
+                            payloads = _download_measurements(None)
+                            retries += 1
+                        if retries > 0:
+                            self.logging.info("Downloaded all measurments.")
+
                         df = pd.DataFrame(payloads)
 
                         df = df[df["request_id"].isin(first_iteration_request_ids)]
@@ -360,7 +382,7 @@ class PerfCost(Experiment):
 
         benchmark_name = self.config._experiment_configs[PerfCost.name()]["benchmark"]
         platform = deployment_client.name()
-        result_dir = os.path.join(directory, "perf-cost", benchmark_name, platform)
+        result_dir = os.path.join(directory, "perf-cost", benchmark_name, platform+"_vpc_*")
 
         settings = self.config.experiment_settings(self.name())
         code_package = sebs_client.get_benchmark(
@@ -388,10 +410,19 @@ class PerfCost(Experiment):
                 requests[id] = res
 
             times = (df["start"].min(), df["end"].max())
+            if extend_time_interval > 0:
+                times = (
+                    -extend_time_interval * 60 + times[0],
+                    extend_time_interval * 60 + times[1],
+                )
+
             metrics = dict()
 
-            prefix = workflow_name + "___"
-            func_names = [prefix+fn for fn in df.func.unique()]
+            if isinstance(deployment_client, Azure):
+                func_names = [workflow_name]
+            else:
+                prefix = workflow_name + "___"
+                func_names = [prefix+fn for fn in df.func.unique()]
 
             for func_name in func_names:
                 deployment_client.download_metrics(

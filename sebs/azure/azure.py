@@ -206,6 +206,10 @@ class Azure(System):
         replace_string_in_file(handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
         replace_string_in_file(handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"')
 
+        handler_path = os.path.join(directory, "run_workflow", "run_workflow.py")
+        replace_string_in_file(handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
+        replace_string_in_file(handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"')
+
         # copy every wrapper file to respective function dirs
         for wrapper_file in wrapper_files:
             src_path = os.path.join(directory, wrapper_file)
@@ -461,6 +465,25 @@ class Azure(System):
 
         timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
 
+        subscription_id = "d8879099-5404-4394-b515-6ed63b47b6fc"
+        ret = self.cli_instance.execute(f"az monitor metrics list --resource /subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Web/sites/{function_name} --metric FunctionExecutionUnits,FunctionExecutionCount --aggregation Total --start-time {start_time_str} {timezone_str} --end-time {end_time_str} {timezone_str}")
+        ret = json.loads(ret)
+
+        aggs = [0, 0]
+        for idx, val in enumerate(ret["value"]):
+            ts = val["timeseries"]
+            assert(len(ts) == 1)
+            t = ts[0]
+            for d in t["data"]:
+                aggs[idx] += d["total"]
+
+        mbms = aggs[0]
+        count = aggs[1]
+        if count > 0:
+            gbs = mbms / 1024000 / count
+        else:
+            gbs = 0
+
         query = (
             "requests | project timestamp, operation_Name, success, "
             "resultCode, duration, cloud_RoleName, "
@@ -496,6 +519,7 @@ class Azure(System):
             func_exec_time = request[-1]
             invocations_processed.add(invocation_id)
             requests[invocation_id].provider_times.execution = int(float(func_exec_time) * 1000)
+            requests[invocation_id].billing.gb_seconds = gbs
         self.logging.info(
             f"Azure: Found time metrics for {len(invocations_processed)} "
             f"out of {len(requests.keys())} invocations."

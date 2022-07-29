@@ -1,5 +1,7 @@
 import concurrent.futures
 import uuid
+import time
+import requests
 from typing import Any, Dict, Optional  # noqa
 
 from sebs.azure.config import AzureResources
@@ -40,6 +42,22 @@ class HTTPTrigger(AzureTrigger):
 
         ret = self._http_invoke(input, self.url)
         ret.request_id = request_id
+
+        # Wait for execution to finish, then print results.
+        execution_running = True
+        while execution_running:
+            res = requests.get(ret.output["statusQueryGetUri"]).json()
+            status = res["runtimeStatus"]
+            execution_running = status in ("Pending", "Running")
+
+            # If we haven't seen the result yet, wait a second.
+            if execution_running:
+                time.sleep(10)
+            elif status == "Failed":
+                self.logging.error(f"Invocation of {self.url} failed: {res}")
+                self.logging.error(f"Input: {payload}")
+                ret.stats.failure = True
+                return ret
 
         return ret
 

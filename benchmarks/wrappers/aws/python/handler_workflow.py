@@ -29,6 +29,8 @@ def probe_cold_start():
 
 def handler(event, context):
     start = datetime.datetime.now().timestamp()
+    os.environ["STORAGE_UPLOAD_BYTES"] = "0"
+    os.environ["STORAGE_DOWNLOAD_BYTES"] = "0"
 
     workflow_name, func_name = context.function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
@@ -49,6 +51,14 @@ def handler(event, context):
     func_res = os.getenv("SEBS_FUNCTION_RESULT")
     if func_res:
         payload["result"] = json.loads(func_res)
+
+    bytes_upload = os.getenv("STORAGE_UPLOAD_BYTES", 0)
+    if bytes_upload:
+        payload["blob.upload"] = int(bytes_upload)
+
+    bytes_download = os.getenv("STORAGE_DOWNLOAD_BYTES", 0)
+    if bytes_download:
+        payload["blob.download"] = int(bytes_download)
 
     payload = json.dumps(payload)
 

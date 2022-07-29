@@ -29,31 +29,34 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
 
     client = df.DurableOrchestrationClient(starter)
     instance_id = await client.start_new("run_workflow", None, event)
-    res = await client.wait_for_completion_or_create_check_status_response(req, instance_id, 1000000)
+
+    res = client.create_check_status_response(req, instance_id)
+    # res = await client.wait_for_completion_or_create_check_status_response(req, instance_id, 1000000)
 
     end = datetime.datetime.now()
 
     is_cold, container_id = probe_cold_start()
-    status = await client.get_status(instance_id)
-    code = 500 if str(status.runtime_status) == "Failed" else 200
+    # status = await client.get_status(instance_id)
+    # code = 500 if str(status.runtime_status) == "Failed" else 200
 
-    try:
-        result = json.loads(res.get_body())
-    except json.decoder.JSONDecodeError:
-        result = res.get_body().decode()
+    # try:
+    #     result = json.loads(res.get_body())
+    # except json.decoder.JSONDecodeError:
+    #     result = res.get_body().decode()
 
+    body = json.loads(res.get_body())
     body = {
+        **body,
         "begin": begin.strftime("%s.%f"),
         "end": end.strftime("%s.%f"),
         "is_cold": is_cold,
         "container_id": container_id,
         "provider.request_id": context.invocation_id,
         "request_id": event["request_id"],
-        "result": result,
     }
 
     return func.HttpResponse(
-        status_code=code,
+        status_code=res.status_code,
         body=json.dumps(body),
         mimetype="application/json"
     )

@@ -12,7 +12,6 @@ import numpy as np
 def str_to_cls(cls_name):
     print(cls_name)
     return globals()[cls_name]
-    return getattr(sys.modules[__name__], cls_name)
 
 
 def load_dataset(bucket, features, labels):

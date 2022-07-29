@@ -102,3 +102,5 @@ def handler(event):
     upload_files(output_bucket, output_paths)
 
     shutil.rmtree(data_dir)
+
+    return event
