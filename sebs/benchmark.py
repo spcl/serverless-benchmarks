@@ -628,6 +628,7 @@ class BenchmarkModuleInterface:
 def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
     # Look for input generator file in the directory containing benchmark
     import importlib.machinery
+    import importlib.util
 
     loader = importlib.machinery.SourceFileLoader("input", os.path.join(benchmark_path, "input.py"))
     spec = importlib.util.spec_from_loader(loader.name, loader)
