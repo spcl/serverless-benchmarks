@@ -416,6 +416,14 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
     # Otherwise we want to clean up as much as possible
     deployment_client.shutdown_storage = False
     result.serialize(output)
+
+    mem_measure_thread = deployment_client._mem_measure_thread
+    if mem_measure_thread is not None:
+        mem_measure_thread.running.clear()
+        measurements = mem_measure_thread.mem
+        if len(measurements) != 0:
+            sebs_client.logging.info(f"Max memory consumption is {max(measurements)/(10e6)} MiB")
+
     sebs_client.logging.info(f"Save results to {os.path.abspath(output)}")
 
 

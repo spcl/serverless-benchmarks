@@ -14,7 +14,7 @@ from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigge
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 from sebs.benchmark import Benchmark
-
+from sebs.faas.measureMem import MeasureMem
 
 class Local(System):
 
@@ -56,6 +56,7 @@ class Local(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
+        self._mem_measure_thread = None
 
     """
         Create wrapper object for minio storage and fill buckets.
@@ -175,6 +176,15 @@ class Local(System):
             detach=True,
             # tty=True,
         )
+
+        # create a thread to measure memory of the container
+        if self._mem_measure_thread is None:
+            self._mem_measure_thread = MeasureMem(container.id)
+            self._mem_measure_thread.start()
+            self.logging.info("Started memory measurements")
+        else:
+            self._mem_measure_thread.containerId = container.id
+
         function_cfg = FunctionConfig.from_benchmark(code_package)
         func = LocalFunction(
             container,
