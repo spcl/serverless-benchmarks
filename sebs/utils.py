@@ -4,9 +4,8 @@ import os
 import shutil
 import subprocess
 import sys
-
-from sebs.faas.storage import PersistentStorage
-
+import uuid
+from typing import List, Optional, TextIO, Union
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 PACK_CODE_APP = "pack_code_{}.sh"
@@ -23,25 +22,39 @@ class JSONSerializer(json.JSONEncoder):
         elif isinstance(o, dict):
             return str(o)
         else:
-            return vars(o)
+            try:
+                return vars(o)
+            except TypeError:
+                return str(o)
 
 
-def serialize(obj):
-    return json.dumps(obj, cls=JSONSerializer, sort_keys=True, indent=2)
+def serialize(obj) -> str:
+    if hasattr(obj, "serialize"):
+        return json.dumps(obj.serialize(), sort_keys=True, indent=2)
+    else:
+        return json.dumps(obj, cls=JSONSerializer, sort_keys=True, indent=2)
 
 
 # Executing with shell provides options such as wildcard expansion
-def execute(cmd, shell=False):
+def execute(cmd, shell=False, cwd=None):
     if not shell:
         cmd = cmd.split()
     ret = subprocess.run(
-        cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        cmd, shell=shell, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
     if ret.returncode:
         raise RuntimeError(
             "Running {} failed!\n Output: {}".format(cmd, ret.stdout.decode("utf-8"))
         )
     return ret.stdout.decode("utf-8")
+
+
+def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
+    if value:
+        # make sure parent keys exist
+        for key in keys[:-1]:
+            cfg = cfg.setdefault(key, {})
+        cfg[keys[-1]] = value
 
 
 def find(name, path):
@@ -57,31 +70,53 @@ def create_output(directory, preserve_dir, verbose):
         shutil.rmtree(output_dir)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-    os.chdir(output_dir)
-    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(message)s"
-    logging_date_format = "%H:%M:%S"
-
-    # default file log
-    logging.basicConfig(
-        filename=os.path.join(output_dir, "out.log"),
-        filemode="w",
-        format=logging_format,
-        datefmt=logging_date_format,
-        level=logging.DEBUG if verbose else logging.INFO,
-    )
-    # Add stdout output
-    stdout = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter(logging_format, logging_date_format)
-    stdout.setFormatter(formatter)
-    stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
-    logging.getLogger().addHandler(stdout)
-
-    # disable information from libraries logging to decrease output noise
-    for name in logging.root.manager.loggerDict:
-        if name.startswith("urllib3"):
-            logging.getLogger(name).setLevel(logging.ERROR)
+    configure_logging()
 
     return output_dir
+
+
+def configure_logging():
+
+    # disable information from libraries logging to decrease output noise
+    loggers = ["urrlib3", "docker", "botocore"]
+    for name in logging.root.manager.loggerDict:
+        for logger in loggers:
+            if name.startswith(logger):
+                logging.getLogger(name).setLevel(logging.ERROR)
+
+
+# def configure_logging(verbose: bool = False, output_dir: Optional[str] = None):
+#    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
+#    logging_date_format = "%H:%M:%S"
+#
+#    # default file log
+#    options = {
+#        "format": logging_format,
+#        "datefmt": logging_date_format,
+#        "level": logging.DEBUG if verbose else logging.INFO,
+#    }
+#    if output_dir:
+#        options = {
+#            **options,
+#            "filename": os.path.join(output_dir, "out.log"),
+#            "filemode": "w",
+#        }
+#    logging.basicConfig(**options)
+#    # Add stdout output
+#    if output_dir:
+#        stdout = logging.StreamHandler(sys.stdout)
+#        formatter = logging.Formatter(logging_format, logging_date_format)
+#        stdout.setFormatter(formatter)
+#        stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
+#        logging.getLogger().addHandler(stdout)
+#    # disable information from libraries logging to decrease output noise
+#    for name in logging.root.manager.loggerDict:
+#        if (
+#            name.startswith("urllib3")
+#            or name.startswith("docker")
+#            or name.startswith("botocore")
+#        ):
+#            logging.getLogger(name).setLevel(logging.ERROR)
 
 
 """
@@ -100,19 +135,67 @@ def find_benchmark(benchmark: str, path: str):
     return benchmark_path
 
 
-"""
-    Download all files in a storage bucket.
-    Warning: assumes flat directory in a bucket! Does not handle bucket files
-    with directory marks in a name, e.g. 'dir1/dir2/file'
-"""
+def global_logging():
+    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
+    logging_date_format = "%H:%M:%S"
+    logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
 
 
-def download_bucket(
-    storage_client: PersistentStorage, bucket_name: str, output_dir: str
-):
+class LoggingHandlers:
+    def __init__(self, verbose: bool = False, filename: Optional[str] = None):
+        logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
+        logging_date_format = "%H:%M:%S"
+        formatter = logging.Formatter(logging_format, logging_date_format)
+        self.handlers: List[Union[logging.FileHandler, logging.StreamHandler[TextIO]]] = []
 
-    files = storage_client.list_bucket(bucket_name)
-    for f in files:
-        output_file = os.path.join(output_dir, f)
-        if not os.path.exists(output_file):
-            storage_client.download(bucket_name, f, output_file)
+        # Add stdout output
+        if verbose:
+            stdout = logging.StreamHandler(sys.stdout)
+            stdout.setFormatter(formatter)
+            stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
+            self.handlers.append(stdout)
+
+        # Add file output if needed
+        if filename:
+            file_out = logging.FileHandler(filename=filename, mode="w")
+            file_out.setFormatter(formatter)
+            file_out.setLevel(logging.DEBUG if verbose else logging.INFO)
+            self.handlers.append(file_out)
+
+
+class LoggingBase:
+    def __init__(self):
+        uuid_name = str(uuid.uuid4())[0:4]
+        if hasattr(self, "typename"):
+            self.logging = logging.getLogger(f"{self.typename()}-{uuid_name}")
+        else:
+            self.logging = logging.getLogger(f"{self.__class__.__name__}-{uuid_name}")
+        self.logging.setLevel(logging.INFO)
+
+    @property
+    def logging_handlers(self) -> LoggingHandlers:
+        return self._logging_handlers
+
+    @logging_handlers.setter
+    def logging_handlers(self, handlers: LoggingHandlers):
+        self._logging_handlers = handlers
+        self.logging.propagate = False
+        for handler in handlers.handlers:
+            self.logging.addHandler(handler)
+
+
+def has_platform(name: str) -> bool:
+    return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "true"
+
+
+def catch_interrupt():
+
+    import signal
+    import sys
+    import traceback
+
+    def handler(x, y):
+        traceback.print_stack()
+        sys.exit(signal.SIGINT)
+
+    signal.signal(signal.SIGINT, handler)

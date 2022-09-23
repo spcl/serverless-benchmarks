@@ -1,5 +1,5 @@
 
-import datetime, io, json, os, sys
+import datetime, io, json, os, sys, uuid
 
 # Add current directory to allow location of packages
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
@@ -8,16 +8,21 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/si
 # implement support for S3 and others
 def handler(event, context):
 
+    income_timestamp = datetime.datetime.now().timestamp()
+
     # HTTP trigger with API Gateaway
-    if 'httpMethod' in event:
+    if 'body' in event:
         event = json.loads(event['body'])
+    req_id = context.aws_request_id
+    event['request-id'] = req_id
+    event['income-timestamp'] = income_timestamp
     begin = datetime.datetime.now()
     from function import function
     ret = function.handler(event)
     end = datetime.datetime.now()
 
     log_data = {
-        'result': ret['result']
+        'output': ret['result']
     }
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
@@ -27,7 +32,6 @@ def handler(event, context):
         from function import storage
         storage_inst = storage.storage.get_instance()
         b = event.get('logs').get('bucket')
-        req_id = context.aws_request_id
         storage_inst.upload_stream(b, '{}.json'.format(req_id),
                 io.BytesIO(json.dumps(log_data).encode('utf-8')))
         results_end = datetime.datetime.now()
@@ -37,10 +41,19 @@ def handler(event, context):
 
     # cold test
     is_cold = False
-    fname = os.path.join('/tmp','cold_run')
+    fname = os.path.join('/tmp', 'cold_run')
     if not os.path.exists(fname):
         is_cold = True
-        open(fname, 'a').close()
+        container_id = str(uuid.uuid4())[0:8]
+        with open(fname, 'a') as f:
+            f.write(container_id)
+    else:
+        with open(fname, 'r') as f:
+            container_id = f.read()
+
+    cold_start_var = ""
+    if "cold_start" in os.environ:
+        cold_start_var = os.environ["cold_start"]
 
     return {
         'statusCode': 200,
@@ -50,7 +63,9 @@ def handler(event, context):
             'results_time': results_time,
             'is_cold': is_cold,
             'result': log_data,
-            'request_id': context.aws_request_id
+            'request_id': context.aws_request_id,
+            'cold_start_var': cold_start_var,
+            'container_id': container_id,
         })
     }
 

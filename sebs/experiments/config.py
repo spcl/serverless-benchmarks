@@ -1,57 +1,16 @@
-from enum import Enum
 from typing import Dict
 
-
-class Language(Enum):
-    PYTHON = "python"
-    NODEJS = "nodejs"
-
-    # FIXME: 3.7+ python with future annotations
-    @staticmethod
-    def deserialize(val: str) -> "Language":
-        for member in Language:
-            if member.value == val:
-                return member
-        raise Exception("Unknown language type {}".format(member))
-
-
-class Runtime:
-
-    _language: Language
-    _version: str
-
-    @property
-    def language(self) -> Language:
-        return self._language
-
-    @property
-    def version(self) -> str:
-        return self._version
-
-    @version.setter
-    def version(self, val: str):
-        self._version = val
-
-    def serialize(self) -> dict:
-        return {"language": self._language.value, "version": self._version}
-
-    # FIXME: 3.7+ python with future annotations
-    @staticmethod
-    def deserialize(config: dict) -> "Runtime":
-        cfg = Runtime()
-        languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS}
-        cfg._language = languages[config["language"]]
-        cfg._version = config["version"]
-        return cfg
+from sebs.faas.function import Runtime
 
 
 class Config:
-
-    _update_code: bool
-    _update_storage: bool
-    _download_results: bool
-    _flags: Dict[str, bool]
-    _runtime: Runtime
+    def __init__(self):
+        self._update_code: bool = False
+        self._update_storage: bool = False
+        self._download_results: bool = False
+        self._flags: Dict[str, bool] = {}
+        self._experiment_configs: Dict[str, dict] = {}
+        self._runtime = Runtime(None, None)
 
     @property
     def update_code(self) -> bool:
@@ -72,6 +31,9 @@ class Config:
     def runtime(self) -> Runtime:
         return self._runtime
 
+    def experiment_settings(self, name: str) -> dict:
+        return self._experiment_configs[name]
+
     def serialize(self) -> dict:
         out = {
             "update_code": self._update_code,
@@ -79,6 +41,7 @@ class Config:
             "download_results": self._download_results,
             "runtime": self._runtime.serialize(),
             "flags": self._flags,
+            "experiments": self._experiment_configs,
         }
         return out
 
@@ -92,4 +55,16 @@ class Config:
         cfg._download_results = config["download_results"]
         cfg._runtime = Runtime.deserialize(config["runtime"])
         cfg._flags = config["flags"] if "flags" in config else {}
+
+        from sebs.experiments import (
+            NetworkPingPong,
+            PerfCost,
+            InvocationOverhead,
+            EvictionModel,
+        )
+
+        for exp in [NetworkPingPong, PerfCost, InvocationOverhead, EvictionModel]:
+            if exp.name() in config:
+                cfg._experiment_configs[exp.name()] = config[exp.name()]
+
         return cfg

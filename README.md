@@ -1,185 +1,123 @@
 
+[![CircleCI](https://circleci.com/gh/spcl/serverless-benchmarks.svg?style=shield)](https://circleci.com/gh/spcl/serverless-benchmarks)
+![Release](https://img.shields.io/github/v/release/spcl/serverless-benchmarks)
+![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
+![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/spcl/serverless-benchmarks)
+
 # SeBS: Serverless Benchmark Suite
 
-SeBS is a diverse suite of FaaS benchmarks that allows an automatic performance
-analysis of commercial and open-source serverless platforms. We provide a suite
-of [benchmark applications](#benchmark-applications) and [experiments](#experiments)
-using them to evaluate different parts of FaaS systems. See [installation instructions](
-#installation) to configure SeBS to use selected cloud services and [usage instructions](
-#usage) to automatically launch experiments in the cloud!
+**FaaS benchmarking suite for serverless functions with automatic build, deployment, and measurements.**
 
-### Benchmark Applications
+![Overview of SeBS features and components.](docs/overview.png)
 
-TODO: description of benchmarks
+SeBS is a diverse suite of FaaS benchmarks that allows automatic performance analysis of
+commercial and open-source serverless platforms. We provide a suite of
+[benchmark applications](#benchmark-applications) and [experiments](#experiments)
+and use them to test and evaluate different components of FaaS systems.
+See the [installation instructions](#installation) to learn how to configure SeBS to use selected
+cloud services and [usage instructions](#usage) to automatically launch experiments in the cloud!
 
-#### How to add new benchmarks?
 
-Benchmarks follow the naming structure `x.y.z` where x is benchmark group, y is benchmark
-ID and z is benchmark version. For examples of implementations, look at `210.thumbnailer`
-or `311.compression`. Benchmark requires the following files:
+SeBS provides support for **automatic deployment** and invocation of benchmarks on
+commercial and black-box platforms
+[AWS Lambda](https://aws.amazon.com/lambda/),
+[Azure Functions](https://azure.microsoft.com/en-us/services/functions/),
+and [Google Cloud Functions](https://cloud.google.com/functions).
+Furthermore, we support the open-source platform [OpenWhisk](https://openwhisk.apache.org/)
+and offer a custom, Docker-based local evaluation platform.
+See the [documentation on cloud providers](docs/platforms.md)
+for details on configuring each platform in SeBS.
+The documentation describes in detail [the design and implementation of our
+tool](docs/design.md), and see the [modularity](docs/modularity.md)
+section to learn how SeBS can be extended with new platforms, benchmarks, and experiments.
+Find out more about our project in [a paper summary](mcopik.github.io/projects/sebs/).
 
-**config.json**
-```json
-{
-  "timeout": 60,
-  "memory": 256,
-  "languages": ["python", "nodejs"]
+Do you have further questions not answered by our documentation?
+Did you encounter troubles with installing and using SeBS?
+Or do you want to use SeBS in your work and you need new features?
+Feel free to reach us through GitHub issues or by writing to <marcin.copik@inf.ethz.ch>.
+
+
+For more information on how to configure, use and extend SeBS, see our
+documentation:
+
+* [How to use SeBS?](docs/usage.md)
+* [Which benchmark applications are offered?](docs/benchmarks.md)
+* [Which experiments can be launched to evaluate FaaS platforms?](docs/experiments.md)
+* [How to configure serverless platforms?](docs/platforms.md)
+* [How SeBS builds and deploys functions?](docs/build.md)
+* [How SeBS package is designed?](docs/design.md)
+* [How to extend SeBS with new benchmarks, experiments, and platforms?](docs/modularity.md)
+
+### Publication
+
+When using SeBS, please cite our [Middleware '21 paper](https://dl.acm.org/doi/abs/10.1145/3464298.3476133).
+An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.14132), and you can
+find more details about research work [in this paper summary](https://mcopik.github.io/projects/sebs/).
+You can cite our software repository as well, using the citation button on the right.
+
+```
+@inproceedings{copik2021sebs,
+  author = {Copik, Marcin and Kwasniewski, Grzegorz and Besta, Maciej and Podstawski, Michal and Hoefler, Torsten},
+  title = {SeBS: A Serverless Benchmark Suite for Function-as-a-Service Computing},
+  year = {2021},
+  isbn = {9781450385343},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3464298.3476133},
+  doi = {10.1145/3464298.3476133},
+  booktitle = {Proceedings of the 22nd International Middleware Conference},
+  pages = {64–78},
+  numpages = {15},
+  keywords = {benchmark, serverless, FaaS, function-as-a-service},
+  location = {Qu\'{e}bec city, Canada},
+  series = {Middleware '21}
 }
 ```
 
-**input.py**
-```python
-'''
-  :return: number of input and output buckets necessary 
-'''
-def buckets_count():
-    return (1, 1)
-
-'''
-    Generate test, small and large workload for thumbnailer.
-
-    :param data_dir: directory where benchmark data is placed
-    :param size: workload size
-    :param input_buckets: input storage containers for this benchmark
-    :param output_buckets:
-    :param upload_func: upload function taking three params(bucket_idx, key, filepath)
-    :return: input config for benchmark
-'''
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
-
-```
-
-Input files for benchmark, e.g. pretrained model and test images for deep learning
-inference, will be uploaded to input benchmark according `generate_input`.
-Output buckets are cleaned after experiments. The function should return input
-configuration in form of a dictionary that will be passed to the function at
-invocation.
-
-Then place source code and resources in `python` or `nodejs` directories. The entrypoint
-should be located in file named `function` and take just one argument:
-
-```python
-def handler(event):
-```
-
-Configure dependencies in `requirements.txt` and `package.json`. By default, only 
-source code is deployed. If you need to use additional resources, e.g. HTML template,
-use script `init.sh` (see an example in `110.dynamic-html`).
-
-### Experiments
-
-TODO :-(
-
-
-#### Performance&Cost Variability
-
-### Installation
+## Installation
 
 Requirements:
 - Docker (at least 19)
-- Python 3.6 with:
+- Python 3.7+ with:
     - pip
     - venv
+- `libcurl` and its headers must be available on your system to install `pycurl`
 - Standard Linux tools and `zip` installed
+
 ... and that should be all.
 
-Run `install.py`. It will create a virtual environment in `sebs-virtualenv`,
-install necessary Python dependecies and install third-party dependencies.
-Then just activate the newly created Python virtual environment, e.g. with
-`source sebs-virtualenv/bin/activate`. Now you can deploy serverless experiments :-)
-
-**Make sure** that your Docker daemon is running and your user has sufficient permissions
-to use it. Otherwise you might see a lot of "Connection refused" and "Permission
-denied" errors when using **SeBS**.
-
-You can run `tools/build_docker_images.py` to create all necessary Docker images.
-to build and run benchmarks. Otherwise they'll be pulled from the Docker Hub repository.
-
-#### AWS
-
-AWS provides one year of free services, including significant amount of compute
-time in AWS Lambda. To work with AWS, you need to provide access and secret keys to a role 
-with permissions sufficient to manage functions and S3 resources. Additionally,
-the account must have `AmazonAPIGatewayAdministrator` permission to set-up automatically
-AWS HTTP trigger. Additionally, you
-neet to provide Lambda [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
-with permissions to Lambda and S3. 
-
-Pass them as environmental variables for the first run. They will be cached for future use.
+To install the benchmarks with a support for all platforms, use:
 
 ```
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
+./install.py --aws --azure --gcp --openwhisk --local
 ```
 
-Pass lambda role in config JSON, see an example in `config/example.json`.
-
-#### Azure
-
-**temporarily disabled**
-
-Azure provides 2000 USD for the first month.
-You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) to
-enable non-interactive login through CLI. Since this process has [an easy, one-step
-CLI solution](https://docs.microsoft.com/en-us/cli/azure/ad/sp?view=azure-cli-latest#az-ad-sp-create-for-rbac),
-we added a small tool **tools/create_azure_credentials** that uses the interactive web-browser
-authentication to login into Azure CLI and create service principal.
-
-```console
-Please provide the intended principal name                                                                                                         
-XXXXX
-Please follow the login instructions to generate credentials...                                                            
-To sign in, use a web browser to open the page https://microsoft.com/devicelogin and enter the code YYYYYYY to authenticate.
-
-Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}                                          
-Created service principal http://XXXXX
-
-AZURE_SECRET_APPLICATION_ID = 2a49e1e9-b47d-422b-8d81-461af9e1a61f                                                         
-AZURE_SECRET_TENANT = 93ea0232-1fea-4dc8-a174-4ff4a312127a                                                                                                                                     
-AZURE_SECRET_PASSWORD = 1u0WtswVq-3gLtPpfJYh_KdUJCWY2J2flg
-```
-
-Save these credentials - the password is non retrievable! Provide them to SeBS
-through environmental variables and we will create additional resources (storage account, resource group)
-to deploy functions.
-
-### Usage
-
-By default, all scripts will create a cache in directory `cache` to handle benchmarks
-with necessaries and information on cloud storage resources. Benchmarks will be rebuilt
-after change in source code fails (hopefully). If you see in the logs that a cached
-entry is still used, pass flag `--update` to force rebuild.
-
-#### Cloud
-
-Use `sebs.py` with options `test`, `publish` and `invoke`. Right now
-only a single `test` is supported. Experiments and log querying are coming up now.
-
-Example (please modify the `config/example.json` for your needs).
+It will create a virtual environment in `python-virtualenv`, install necessary Python
+dependecies and third-party dependencies. To use SeBS, you must first active the new Python
+virtual environment:
 
 ```
-sebs.py --repetitions 1 test_invoke ${benchmark} ${out_dir} ${input_size} config/example.json
+. python-virtualenv/bin/activate
 ```
 
-where `input_size` could be `test`, `small`, `large`. `out_dir` is used to store
-local results. Command line options allow to override config (`--deployment`, `--language`).
+Now you can deploy serverless experiments :-)
 
-#### Local
+The installation of additional platforms is controlled with the `--platform` and `--no-platform`
+switches. Currently, the default behavior for `install.py` is to install only the
+local environment.
 
-**Might not work currently**
+**Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
 
-Use `scripts/run_experiments.py` to execute code locally with thelp of minio,
-object storage service, running in a container. There are four types of experiments
-that can be run: `time`, `memory`, `disk-io` and `papi`. The last one works only
-for Python and memory/disk-io are WiP for NodeJS.
+To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
 
-If your benchmark fails for some reason, you should see an error directly. If not,
-inspect files in `${out_dir}/${experiment}/instance_0/logs`. Use `scripts/clean.sh`
-to kill measurement processes if we didn't work.
+## Authors
 
-Containers are usually shutdown after an experiment. The flag `--no-shutdown-containers`
-provides a way to leave them alive and inspect the environment for problems.
-Simply run `./run.sh ${experiment}.json`.
-
-
+* [Marcin Copik (ETH Zurich)](https://github.com/mcopik/) - main author.
+* [Michał Podstawski (Future Processing SA)](https://github.com/micpod/) - contributed graph and DNA benchmarks, and worked on Google Cloud support.
+* [Nico Graf (ETH Zurich)](https://github.com/ncograf/) - contributed implementation of regression tests, bugfixes, and helped with testing and documentation.
+* [Kacper Janda](https://github.com/Kacpro), [Mateusz Knapik](https://github.com/maknapik), [JmmCz](https://github.com/JmmCz), AGH University of Science and Technology - contributed together Google Cloud support.
+* [Grzegorz Kwaśniewski (ETH Zurich)](https://github.com/gkwasniewski) - worked on the modeling experiments.
+* [Paweł Żuk (University of Warsaw)](https://github.com/pmzuk) - contributed OpenWhisk support.
 

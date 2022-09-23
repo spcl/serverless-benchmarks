@@ -1,10 +1,10 @@
 version: 2.1
 
 orbs:
-  python: circleci/python@0.2.1
+  python: circleci/python@1.4.0
 
 jobs:
-  build:
+  linting:
     executor: python/default
     steps:
       - checkout
@@ -12,17 +12,21 @@ jobs:
           key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
       - run:
           command: |
-            python3 install.py
+            sudo apt update && sudo apt install libcurl4-openssl-dev
+          name: Install curl-config from Ubuntu APT
+      - run:
+          command: |
+            python3 install.py --aws --azure --gcp --no-local
           name: Install pip dependencies
       - run:
           command: |
-            . sebs-virtualenv/bin/activate
-            flake8 sebs --config=flake8.cfg --black-config=black.toml --tee --output-file flake-reports
+            . python-venv/bin/activate
+            flake8 sebs --config=.flake8.cfg --black-config=.black.toml --tee --output-file flake-reports
           name: Python code lint with flake8
       - run:
           command: |
-            . sebs-virtualenv/bin/activate
-            mypy sebs
+            . python-venv/bin/activate
+            mypy sebs --config-file=.mypy.ini
           name: Python static code verification with mypy
       - store_artifacts:
           path: flake-reports
@@ -40,13 +44,13 @@ jobs:
             then
               ls $HOME/docker/*.tar.gz | xargs -I {file} sh -c "zcat {file} | docker load";
             else
-              docker pull mcopik/serverless-benchmarks:build.aws.python.3.6
-              docker pull mcopik/serverless-benchmarks:build.aws.nodejs.10.x
+              docker pull mcopik/serverless-benchmarks:build.aws.python.3.7
+              docker pull mcopik/serverless-benchmarks:build.aws.nodejs.12.x
             fi
           name: Load Docker images
       - run:
           command: |
-            python3 install.py
+            python3 install.py --aws
           name: Install pip dependencies
       - run:
           command: |
@@ -68,6 +72,5 @@ jobs:
 workflows:
   main:
     jobs:
-      - build
-      - test-aws
+      - linting
 
