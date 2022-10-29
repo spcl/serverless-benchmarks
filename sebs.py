@@ -458,11 +458,16 @@ def stop(input_json, output_json, **kwargs):
                 except ValueError:
                     continue
 
-    with open(output_json, "w") as out:
-        for container in measurements:
-            out.write(
-                f"mean: {mean(measurements[container])}, length: {len(measurements[container])}"
-            )
+    for container in measurements:
+        measurements[container] = {
+            "mean mem. usage" : mean(measurements[container]),
+            "max mem. usage" : max(measurements[container]),
+            "number of measurements" : len(measurements[container]),
+            "full profile" : measurements[container]
+        }
+
+    with open("out.json", "w") as out:
+        json.dump(measurements, out, indent=6)
 
     # remove the temporary file the measurements were written to
     subprocess.Popen("rm measurements_temp_file.txt", shell=True)
