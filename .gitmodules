@@ -1,6 +1,0 @@
-[submodule "third-party/pypapi"]
-	path = third-party/pypapi
-  url = https://github.com/mcopik/pypapi.git
-[submodule "benchmarks-data"]
-	path = benchmarks-data
-  url = https://github.com/spcl/serverless-benchmarks-data.git

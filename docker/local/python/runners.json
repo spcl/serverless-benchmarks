@@ -1,7 +1,0 @@
-{
-  "papi": "papi-runner.py",
-  "time" : {"warm" : "time-in-proc.py", "cold" : "time-out-proc.py"},
-  "memory": "analyzer-runner.py",
-  "disk-io": "analyzer-runner.py",
-  "config": ["python3", "config.py"]
-}

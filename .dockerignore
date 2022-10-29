@@ -1,9 +1,0 @@
-benchmarks
-benchmarks-data
-config
-
-# Files that might be created during development
-cache
-python-venv
-regression-*
-*_code

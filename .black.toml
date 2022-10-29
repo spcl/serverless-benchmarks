@@ -1,3 +1,0 @@
-[tool.black]
-line_length = 100
-skip_string_normalization = false
