@@ -44,7 +44,7 @@ documentation:
 
 * [How to use SeBS?](docs/usage.md)
 * [Which benchmark applications are offered?](docs/benchmarks.md)
-* [Which experiments can be launched to evaluate FaaS platforms?](docs/experiment.md)
+* [Which experiments can be launched to evaluate FaaS platforms?](docs/experiments.md)
 * [How to configure serverless platforms?](docs/platforms.md)
 * [How SeBS builds and deploys functions?](docs/build.md)
 * [How SeBS package is designed?](docs/design.md)
