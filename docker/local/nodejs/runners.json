@@ -1,0 +1,6 @@
+{
+  "time" : {"warm" : "time-in-proc.js", "cold" : "time-out-proc.py"},
+  "memory": "analyzer-runner.js",
+  "disk-io": "analyzer-runner.js",
+  "config": ["node", "config.js"]
+}

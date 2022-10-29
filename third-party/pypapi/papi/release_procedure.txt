@@ -1,0 +1,154 @@
+Release Procedure for PAPI  28 Oct, 2013
+
+Below is a step-wise procedure for making a PAPI release.
+This is a living document and may not be totally current or accurate.
+It is an attempt to capture current practice in making a PAPI release.
+Please update it as appropriate.
+
+One way to use this procedure is to print a copy and check off
+the lines as they are completed to avoid confusion.
+================================================================================
+__ 0a. Notify developers that a release is imminent and the repository should be
+	considered frozen. Check buildbot / make fulltest results to make sure
+	the codebase is bug-free.
+
+__ 0b. Update your local copy from git to make sure you have all changes.
+	git pull
+
+__ 1. Update any documentation that may have changed. Pay particular attention
+	to INSTALL.txt.
+
+__ 2. Check/Change the version number in: papi.spec, src/papi.h, src/configure.in, src/Makefile.in,
+	doc/Doxyfile-common (PROJECT_NUMBER) ; and commit to the repo.
+	Do not "git push" until autoconf is run (Step 3)
+        The number may already have been updated after the last release, if so, skip this step.
+
+-- 2a. On the icl machine gonzo:
+	export PATH=/mnt/scratch/sw/doxygen-1.8.5/bin:$PATH
+	-- or --
+	setenv PATH /mnt/scratch/sw/doxygen-1.8.5/bin:$PATH
+
+-- 2b. Rebuild the doxygen manpages
+        ( cd doc && make && make install )
+	You will want to check if anything needs to be committed to git.
+	(Usually the $(papi_dir)/man/man1 and man3 directories)
+
+-- 2c. Update the website docs... works on gonzo;
+	We use Doxyfile-html for this,
+	newgrp papi
+	changes your defacto group to papi (starts a new shell)
+	( cd doc && make clean html )
+	Cleanup web dir on gonzo:/mnt/papi/docs and install new files
+	Log on gonzo
+	( /bin/rm -rf /mnt/papi/docs/* )
+	( cp -R doc/html/* /mnt/papi/docs )
+	( chmod -R 775 /mnt/papi/docs )
+	Older instructions below
+		rm -rf /silk/homes/icl/projectsdev/papi/docs/*
+		cp -R doc/html/* /silk/homes/icl/projectsdev/papi/docs;
+		chmod -R 775 /silk/homes/icl/projectsdev/papi/docs
+
+__ 3. If configure.in is changed, run autoconf (2.59) and commit the resulting
+	configure file.
+	NOTE: Using an autoconf version >2.59 will work, but will produce an
+	inordinate number of extraneous differences between versions.
+	One possible machine with 2.59 is zoot.
+
+__ 4. Create a ChangeLog for the current release.
+	We use a python script gitlog2changelog.py to generate is for us.
+	It expects the tag of the last release as an argument.
+	./gitlog2changelog.py papi-a-b-c-t
+	mv ChangeLog ChangeLogP4XYZ.txt
+
+__ 5. Scan the ChangeLog to remove extraneous fluff, like perfctr imports.
+
+__ 6. Modfy RELEASENOTES.txt to summarize the major changes listed in the log.
+
+__ 7. Add ChangeLogXYZ.txt to git and commit both ChangeLogXYZ.txt and
+	RELEASENOTES.txt.
+
+__ 8. If this is not an incremental release, branch git.
+	git checkout -b stable-X.Y [starting point eg master]
+
+__ 9. Tag git: papi-X-Y-Z-t.
+	git tag -a papi-X-Y-Z-t
+
+__ 10. Push everything to the central repo.
+	git push --tags
+	-- or -- If you've created a new branch.
+	git push --tags origin stable-X.Y:
+
+__ 11. Create a fresh clone of the papi repository.
+	> git clone https://icl.cs.utk.edu/git/papi.git papi-X.Y.Z
+	> cd papi-X.Y.Z
+       Note. If you created a new branch, check if the clone contains
+       your last commit and ChangeLog.  If not, you may need to switch
+       to the master, merge the branch and push.  
+      ( ## if new branch ## git checkout master; git merge stable-X.Y; git push )
+       
+__ 12. Delete any unneccessary files or directories
+		particularly .doc and .pdf files in the /doc directory
+	Things needed in /doc {Doxyfile, Doxyfile-everything}
+        You can use the delete_before_release.sh script for this.
+	NOTE: This deletes the .git directory, don't release out of your normal
+		  work directory, you will loose all the marbles this way.
+
+__ 13. tar the directory:
+	> tar -cvf papi-X.Y.Z.tar papi-X.Y.Z
+
+__ 14. zip the tarball:
+	gzip papi-X.Y.Z.tar
+
+__ 15. Copy the tarball to /silk/homes/icl/projects/papi/downloads
+       New location: gonzo:/mnt/papi/downloads
+
+__ 16. Check permissions on the tarball. 664 is good.
+
+__ 17. Create a link with supporting text on the PAPI software web page.
+
+__ 18. Create a News item on the PAPI Web page.
+
+__ 19. Email the papi developer and discussion lists with an announcement.
+
+__ 20. Post the announcement on the PAPI User Forum.
+
+__ 21. Bump the version number in the repository AFTER the release (look at step 2)
+       papi.spec, src/papi.h, src/configure.in, src/Makefile.in, doc/Doxyfile-common (PROJECT_NUMBER) 
+       Regenerate the configure using autoconf 2.59 (probably on gonzo). Then commit.
+       ( git commit -m "Updated version to X.Y.Z after the release"  doc/Doxyfile-common papi.spec release_procedure.txt src/Makefile.in src/configure src/configure.in  src/papi.h )
+
+================================================================================
+
+Patch Procedure for PAPI  January 29, 2010
+
+Below is a step-wise procedure for making a PAPI patch.
+
+One way to use this procedure is to print a copy and check off
+the lines as they are completed to avoid confusion.
+================================================================================
+__ 0. Make sure you're on the branch you want to patch against.
+	> git branch
+	* stable-5.0
+
+__1. Generate the patch.
+	> git diff -p papi-5-0-0-t stable-5.0 > papi-5-0-1.patch
+
+__ 2. Apply the patch.
+	> wget http://icl.cs.utk.edu/projects/papi/downloads/papi-5.0.0.tar.gz
+	> tar xzf papi-5.0.0.tar.gz && cd papi-5.0.0
+	> patch -p1 ../papi-5-0-1.patch
+
+__ 3. If the patch applied cleanly, build and test on affected platforms;
+         otherwise clean up the patch and try again.
+
+__ 4. Copy the diff file to icl:/sw/www/icl/projects/papi/downloads/patches
+
+__ 5. Check permissions on the diff. 644 is good.
+
+__ 6. Create a link with supporting text on the PAPI software web page.
+
+__ 7. Create a News item on the PAPI Web page.
+
+__ 8. Email the papi discussion list with an announcement.
+
+__ 9. Post the announcement on the PAPI User Forum.

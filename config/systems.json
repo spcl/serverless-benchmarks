@@ -1,0 +1,168 @@
+{
+  "general": {
+    "docker_repository": "spcleth/serverless-benchmarks"
+  },
+  "local" : {
+    "experiments": {
+      "python": ["papi", "time", "disk-io", "memory"],
+      "nodejs": ["time"]
+    },
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.7": "python:3.7-slim",
+          "3.8": "python:3.8-slim"
+        },
+        "images": ["run", "build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": ["storage.py"],
+          "packages": []
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "12": "node:12-slim",
+          "14": "node:14-slim"
+        },
+        "images": ["run", "build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": ["storage.js"],
+          "packages": []
+        }
+      }
+    }
+  },
+  "aws": { 
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.9": "amazon/aws-lambda-python:3.9",
+          "3.8": "amazon/aws-lambda-python:3.8",
+          "3.7": "amazon/aws-lambda-python:3.7"
+        },
+        "versions": ["3.7", "3.8", "3.9"],
+        "images": ["build"],
+        "deployment": {
+          "files": [ "handler.py", "storage.py"],
+          "packages": []
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "14.x" : "amazon/aws-lambda-nodejs:14",
+          "12.x" : "amazon/aws-lambda-nodejs:12"
+        },
+        "versions": ["12.x", "14.x"],
+        "images": ["build"],
+        "deployment": {
+          "files": [ "handler.js", "storage.js"],
+          "packages": {
+            "uuid": "3.4.0"
+          }
+        }
+      }
+    }
+  },
+  "azure": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.7": "mcr.microsoft.com/azure-functions/python:3.0-python3.7",
+          "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8",
+          "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9"
+        },
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "handler.py", "storage.py"],
+          "packages": ["azure-storage-blob"]
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "14" : "mcr.microsoft.com/azure-functions/node:3.0-node14",
+          "12" : "mcr.microsoft.com/azure-functions/node:3.0-node12"
+        },
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "handler.js", "storage.js"],
+          "packages": {
+            "@azure/storage-blob": "^12.0.0",
+            "uuid": "3.4.0"
+          }
+        }
+      }
+    },
+    "images": {
+      "manage": {
+        "username": "docker_user"
+      }
+    }
+  },
+  "gcp": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.7": "gcr.io/google-appengine/python"
+        },
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "handler.py", "storage.py"],
+          "packages": ["google-cloud-storage"]
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "10" : "gcr.io/google-appengine/nodejs",
+          "12" : "gcr.io/google-appengine/nodejs",
+          "14" : "gcr.io/google-appengine/nodejs"
+        },
+        "images": ["build"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "handler.js", "storage.js"],
+          "packages": {
+            "@google-cloud/storage": "^4.0.0",
+            "uuid": "3.4.0"
+          }
+        }
+      }
+    }
+  },
+  "openwhisk": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.7": "openwhisk/action-python-v3.7",
+          "3.9": "openwhisk/action-python-v3.9"
+        },
+        "images": ["function"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "__main__.py", "storage.py", "setup.py"],
+          "packages": {
+            "minio": "^5.0.10"
+          }
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "10" : "openwhisk/action-nodejs-v10",
+          "12" : "openwhisk/action-nodejs-v12"
+        },
+        "images": ["function"],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "index.js", "storage.js"],
+          "packages": {
+            "minio": "^7.0.16"
+          }
+        }
+      }
+    }
+  }
+}

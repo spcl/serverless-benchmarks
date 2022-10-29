@@ -1,0 +1,24 @@
+language: python
+
+python:
+    - "2.7"
+    - "3.6"
+    - "3.7"
+
+dist: bionic
+sudo: required
+
+addons:
+  apt:
+    packages:
+    - build-essential
+
+install:
+    - git submodule init
+    - git submodule update
+    - pip install -r requirements.txt
+
+script:
+    - flake8 pypapi
+    - python setup.py build
+

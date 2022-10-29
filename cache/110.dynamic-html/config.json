@@ -1,0 +1,18 @@
+{
+  "local": {
+    "python": {
+      "code_package": {
+        "3.7": {
+          "size": 80,
+          "hash": "f2a3c8ea36ffbbb7967c026fc690890c",
+          "location": "110.dynamic-html/local/python/3.7/code",
+          "date": {
+            "created": "2022-09-07 12:13:00.985766",
+            "modified": "2022-09-07 12:13:00.985766"
+          }
+        }
+      },
+      "functions": {}
+    }
+  }
+}

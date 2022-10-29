@@ -1,0 +1,94 @@
+libpfm4 (8.0) unstable; urgency=low
+  * add Intel Knights Landing support
+  * add Intel Goldmont support
+  * update Intel event tables
+  * allow . as delimiter for event string
+  * add SQ_MISC:SPLIT_LOCK
+  * enable Broadwell EP
+  * various fixes
+
+ -- Stephane Eranian <eranian@gmail.com>  Sat, 5 Nov  2016 14:38:01 +0200
+
+libpfm4 (7.0) unstable; urgency=low
+  * add Intel Skylake support
+  * add Intel Haswell-EP uncore PMU support
+  * add Broadwell DE support
+  * updated most Intel x86 event tables to match official tables
+  * refreshed perf_event.h header to 4.2
+  * more bug fixes and minor updates
+
+ -- Stephane Eranian <eranian@gmail.com>  Thu, 11 Feb  2016 16:56:01 +0200
+
+libpfm4 (6.0) unstable; urgency=low
+  * add Intel Broadwell (desktop) support
+  * add Intel Haswell-EP support (core)
+  * add Applied Micro X-Gene processor support
+  * simplified X86 model detection for Intel processors
+  * Intel SNB, IVB, HSW event table updates
+  * IBM Power8 event table updates
+  * add ARM Cortex A53 support
+  * more bug fixes and minor updates
+
+ -- Stephane Eranian <eranian@gmail.com>  Tue, 30 Dec  2014 16:56:01 +0200
+
+libpfm4 (5.0) unstable; urgency=low
+  * Intel IVB-EP uncore PMU support
+  * Intel Silvermont support
+  * Perf raw event syntax support
+  * Intel RAPL event support
+  * AMD Fam15h northbridge support
+  * Qualcomm Krait support
+  * IBM Power 8 support
+  * IBM s390 updates
+  * AMD Fam15h fixes
+  * various IVB, SNB, HSW event table updates
+  * more bug fixes
+
+ -- Stephane Eranian <eranian@gmail.com>  Fri, 21 Feb  2014 18:45:01 +0200
+
+libpfm4 (4.0) unstable; urgency=low
+  * Intel IVB-EP support
+  * Intel IVB updates support
+  * Intel SNB updates support
+  * Intel SNB-EP uncore support
+  * ldlat support (PEBS-LL)
+  * New Intel Atom support
+  * bug fixes
+
+ -- Stephane Eranian <eranian@gmail.com>  Fri, 08 JUn  2013 18:45:01 +0200
+
+libpfm4 (3.0) unstable; urgency=low
+
+  * ARM Cortex A15 support
+  * updated Intel Sandy Bridge core PMU events
+  * Intel Sandy Bridge desktop (model 42) uncore PMU support
+  * Intel Ivy Bridge support
+  * full perf_events generic event support
+  * updated perf_examples
+  * enabled Intel Nehalem/Westmere uncore PMU support
+  * AMD LLano processor supoprt (Fam 12h)
+  * AMD Turion rocessor supoprt (Fam 11h)
+  * Intel Atom Cedarview processor support
+  * Win32 compilation support
+  * perf_events excl attribute
+  * perf_events generic hw event aliases support
+  * many bug fixes
+
+ -- Stephane Eranian <eranian@gmail.com>  Mon, 27 Aug  2012 17:45:22 +0200
+
+libpfm4 (2.0) unstable; urgency=low
+
+  * updated event tables for Intel X86 processors
+  * new AMD Fam15h support
+  * new MIPS 74k support
+  * updated ARM Cortex A8/A9 support
+  * 30% size reduction for Intel/AMD X86 event tables
+  * bug fixes and other improvements
+
+ -- Stephane Eranian <eranian@gmail.com>  Fri, 7 Oct  2011 15:55:22 +0200
+
+libpfm4 (1.0) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Arun Sharma <aruns@google.com>  Mon, 21 Jun 2010 15:17:22 -0700

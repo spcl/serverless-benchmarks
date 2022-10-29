@@ -1,0 +1,2 @@
+INFINIBAND_IBMAD_DIR = @infiniband_ibmad_dir@
+INFINIBAND_IBUMAD_DIR = @infiniband_ibumad_dir@

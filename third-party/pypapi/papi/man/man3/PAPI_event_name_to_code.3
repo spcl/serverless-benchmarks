@@ -1,0 +1,83 @@
+.TH "PAPI_event_name_to_code" 3 "Thu Nov 17 2016" "Version 5.5.1.0" "PAPI" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+PAPI_event_name_to_code \- 
+.PP
+Convert a name to a numeric hardware event code\&.  
+
+.SH SYNOPSIS
+.br
+.PP
+.SH "Detailed Description"
+.PP 
+
+.PP
+.nf
+@par C Interface:
+\#include <papi.h> @n
+int PAPI_event_name_to_code( char * EventName, int * EventCode );
+
+PAPI_event_name_to_code is used to translate an ASCII PAPI event name 
+into an integer PAPI event code. 
+
+@param *EventCode 
+    The numeric code for the event. 
+@param *EventName
+    A string containing the event name as listed in PAPI_presets or discussed in PAPI_native.
+
+@retval PAPI_EINVAL 
+    One or more of the arguments is invalid.
+@retval PAPI_ENOTPRESET 
+    The hardware event specified is not a valid PAPI preset.
+@retval PAPI_ENOINIT 
+    The PAPI library has not been initialized.
+@retval PAPI_ENOEVNT 
+    The hardware event is not available on the underlying hardware. 
+
+@par Examples:
+
+.fi
+.PP
+ 
+.PP
+.nf
+*   int EventCode, EventSet = PAPI_NULL;
+*   // Convert to integer
+*   if ( PAPI_event_name_to_code( "PAPI_TOT_INS", &EventCode ) != PAPI_OK )
+*   handle_error( 1 );
+*   // Create the EventSet
+*   if ( PAPI_create_eventset( &EventSet ) != PAPI_OK )
+*   handle_error( 1 );
+*   // Add Total Instructions Executed to our EventSet
+*   if ( PAPI_add_event( EventSet, EventCode ) != PAPI_OK )
+*   handle_error( 1 );
+*   
+
+.fi
+.PP
+.PP
+\fBSee Also:\fP
+.RS 4
+\fBPAPI_event_code_to_name\fP 
+.PP
+\fBPAPI_remove_event\fP 
+.PP
+\fBPAPI_get_event_info\fP 
+.PP
+\fBPAPI_enum_event\fP 
+.PP
+\fBPAPI_add_event\fP 
+.PP
+\fBPAPI_add_named_event\fP 
+.PP
+PAPI_presets 
+.PP
+PAPI_native 
+.RE
+.PP
+
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for PAPI from the source code\&.
