@@ -408,6 +408,11 @@ def start(benchmark, benchmark_input_size, output, deployments, measure_interval
         experiment_config,
         logging_filename=logging_filename,
     )
+
+    # initialize an empty file for measurements to be writtent to
+    subprocess.Popen("touch measurements_temp_file.txt && echo \"\" > measurements_temp_file.txt",
+                        shell=True)
+
     storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
     result.set_storage(storage)
     input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
@@ -418,6 +423,7 @@ def start(benchmark, benchmark_input_size, output, deployments, measure_interval
             benchmark_obj, deployment_client.default_function_name(benchmark_obj)
         )
         result.add_function(func)
+
 
     # Disable shutdown of storage only after we succed
     # Otherwise we want to clean up as much as possible
@@ -437,8 +443,7 @@ def stop(input_json, output_json, **kwargs):
 
     # kill measuring processes
     with open(input_json, "r") as file:
-        dict = json.load(file)
-        procs = dict["memory_measurements"]
+        procs = json.load(file)["memory_measurements"]
         for proc in procs:
             subprocess.Popen(f"kill {proc}", shell=True)
 
@@ -468,10 +473,10 @@ def stop(input_json, output_json, **kwargs):
 
     for container in measurements:
         measurements[container] = {
-            "mean mem. usage" : mean(measurements[container]),
-            "max mem. usage" : max(measurements[container]),
+            "mean mem. usage" : f"{mean(measurements[container])/10e5} MiB",
+            "max mem. usage" : f"{max(measurements[container])/10e5} MiB",
             "number of measurements" : len(measurements[container]),
-            "full profile" : measurements[container]
+            "full profile (in bytes)" : measurements[container]
         }
 
     # write to output_json file

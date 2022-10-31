@@ -15,19 +15,19 @@ def measure(container_id: str, measure_interval: int) -> None:
     while True:
         time_start = time.perf_counter_ns()
         longId = "docker-" + container_id + ".scope"
-        # try:
+        try:
+            cmd = f"cat /sys/fs/cgroup/system.slice/{longId}/memory.current"
+            p = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE, shell=True)
+            f.write(
+                    f"{container_id} {int(p.communicate()[0].decode())}\n"
+            )
+        except:
+            cmd = f"cat /sys/fs/cgroup/docker/{container_id}/memory.current"
+            p = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE, shell=True)
+            f.write(f"{int(p.communicate()[0].decode())}")
 
-        cmd = f"cat /sys/fs/cgroup/system.slice/{longId}/memory.current"
-        p = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE, shell=True)
-        f.write(
-                f"{container_id} {int(p.communicate()[0].decode())}\n"
-        )
-        # except:
-        #     cmd = "cat /sys/fs/cgroup/memory/system.slice/{id:}/memory.current".format(id=longId)
-        #     p = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-        #                          stdout=subprocess.PIPE, shell=True)
-        #     f.write(f"{int(p.communicate()[0].decode())}")
         iter_duration = time.perf_counter_ns() - time_start
         if iter_duration / 10e5 > measure_interval and measure_interval > 0:
             f.write(

@@ -186,8 +186,6 @@ class Local(System):
             # tty=True,
         )
 
-        subprocess.Popen("touch measurements_temp_file.txt && echo \"\" > measurements_temp_file.txt",
-                            shell=True)
         p = subprocess.Popen(["python3", "./sebs/local/measureMem.py",
                               "-container_id", container.id,
                               "-measure_interval", str(self._measure_interval)

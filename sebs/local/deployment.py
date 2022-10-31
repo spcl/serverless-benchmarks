@@ -41,9 +41,6 @@ class Deployment:
         with open(path, "r") as in_f:
             input_data = json.load(in_f)
             deployment = Deployment()
-            # kill the memory measurement processes
-            for measure_process in input_data['memory_measurements']:
-                subprocess.Popen(f"kill {measure_process}", shell=True)
             for input_cfg in input_data["inputs"]:
                 deployment._inputs.append(input_cfg)
             for func in input_data["functions"]:
