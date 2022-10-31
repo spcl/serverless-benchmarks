@@ -10,9 +10,8 @@ import time
 import argparse
 import sys
 
-# change filename to write to. serialize in
 def measure(container_id: str, measure_interval: int) -> None:
-    f = open("measurements_temp_file.txt", "w")
+    f = open("measurements_temp_file.txt", "a")
     while True:
         time_start = time.perf_counter_ns()
         longId = "docker-" + container_id + ".scope"
@@ -30,11 +29,11 @@ def measure(container_id: str, measure_interval: int) -> None:
         #                          stdout=subprocess.PIPE, shell=True)
         #     f.write(f"{int(p.communicate()[0].decode())}")
         iter_duration = time.perf_counter_ns() - time_start
-        # if iter_duration * 10e6 > measure_interval and measure_interval > 0:
-            # not good. not enough precision. print a warning.
-            # do something here
-        """that shit doesnt work"""
-        time.sleep(max(0, (measure_interval - iter_duration*10e6)/1000))
+        if iter_duration / 10e5 > measure_interval and measure_interval > 0:
+            f.write(
+                "precision not met\n"
+            )
+        time.sleep(max(0, (measure_interval - iter_duration/10e5)/1000))
 
 
 """

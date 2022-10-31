@@ -6,6 +6,8 @@ import logging
 import functools
 import os
 import traceback
+import subprocess
+from statistics import mean
 from typing import cast, Optional
 
 import click
@@ -426,14 +428,12 @@ def start(benchmark, benchmark_input_size, output, deployments, measure_interval
 
 @local.command()
 @click.argument("input-json", type=str)
-@click.argument("output-json", type=str)
+@click.argument("output-json", type=str, default="memory_stats.json")
 # @simplified_common_params
 def stop(input_json, output_json, **kwargs):
     """
     Stop function and storage containers.
     """
-
-    sebs.utils.global_logging()
 
     # kill measuring processes
     with open(input_json, "r") as file:
@@ -442,20 +442,28 @@ def stop(input_json, output_json, **kwargs):
         for proc in procs:
             subprocess.Popen(f"kill {proc}", shell=True)
 
+    sebs.utils.global_logging()
+
     # create dictionary with the measurements
     measurements = {}
+    precision_errors = 0
     with open("measurements_temp_file.txt", "r") as file:
         for line in file:
+            if line == "precision not met\n":
+                precision_errors += 1
+
             line = line.split()
+            if len(line) == 0:
+                continue
             if not line[0] in measurements:
                 try:
                     measurements[line[0]] = [int(line[1])]
-                except ValueError:
+                except:
                     continue
             else:
                 try:
                     measurements[line[0]].append(int(line[1]))
-                except ValueError:
+                except:
                     continue
 
     for container in measurements:
@@ -466,7 +474,10 @@ def stop(input_json, output_json, **kwargs):
             "full profile" : measurements[container]
         }
 
-    with open("out.json", "w") as out:
+    # write to output_json file
+    with open(output_json, "w") as out:
+        if precision_errors > 0:
+            out.write(f"Precision could not be met in {precision_errors} cases. Try using a longer measure interval.\n")
         json.dump(measurements, out, indent=6)
 
     # remove the temporary file the measurements were written to
