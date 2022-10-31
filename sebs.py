@@ -473,8 +473,8 @@ def stop(input_json, output_json, **kwargs):
 
     for container in measurements:
         measurements[container] = {
-            "mean mem. usage" : f"{mean(measurements[container])/10e5} MiB",
-            "max mem. usage" : f"{max(measurements[container])/10e5} MiB",
+            "mean mem. usage" : f"{mean(measurements[container])/10e5} MB",
+            "max mem. usage" : f"{max(measurements[container])/10e5} MB",
             "number of measurements" : len(measurements[container]),
             "full profile (in bytes)" : measurements[container]
         }
