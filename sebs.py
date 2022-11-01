@@ -378,8 +378,7 @@ def local():
 @click.argument("benchmark", type=str)
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
-@click.option("--deployments", default=1, type=int,
-              help="Number of deployed containers.")
+@click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
 @click.option("--measure-interval", type=int, default=0,
               help="Interval duration between memory measurements in ms.")
 @click.option(

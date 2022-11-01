@@ -29,8 +29,7 @@ class Deployment:
         with open(path, "w") as out:
             out.write(
                 serialize(
-                    {"functions": self._functions, "storage": self._storage,
-                     "inputs": self._inputs,
+                    {"functions": self._functions, "storage": self._storage, "inputs": self._inputs,
                      "memory_measurements": self._memory_measurements}
                 )
             )
