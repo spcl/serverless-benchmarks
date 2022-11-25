@@ -26,7 +26,9 @@ def measure(container_id: str, measure_interval: int) -> None:
             cmd = f"cat /sys/fs/cgroup/docker/{container_id}/memory.current"
             p = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, shell=True)
-            f.write(f"{int(p.communicate()[0].decode())}")
+            f.write(
+                    f"{container_id} {int(p.communicate()[0].decode())}\n"
+            )
 
         iter_duration = time.perf_counter_ns() - time_start
         if iter_duration / 1e6 > measure_interval and measure_interval > 0:
