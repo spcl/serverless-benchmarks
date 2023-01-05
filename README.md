@@ -104,13 +104,19 @@ virtual environment:
 
 Now you can deploy serverless experiments :-)
 
-The installation of additional platforms is controlled with the `--platform` and `--no-platform`
+The installation of additional platforms is controlled with the `--{platform}` and `--no-{platform}`
 switches. Currently, the default behavior for `install.py` is to install only the
 local environment.
 
-**Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
+
 
 To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
+
+> **Warning**
+> We use libcurl to make HTTP requests. `pycurl` will attempt to build its bindings and it needs headers for that - make sure that you have all development packages installed. If you see an error like this one: `src/pycurl.h:206:13: fatal error: gnutls/gnutls.h: No such file or directory`, it means that you are missing some of the dependencies.
+
+> **Warning**
+> **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise you might see a lot of "Connection refused" and "Permission denied" errors when using SeBS.
 
 ## Authors
 
