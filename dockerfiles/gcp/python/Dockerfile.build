@@ -13,8 +13,8 @@ ENV VIRTUAL_ENV /sebs/env
 ENV PATH /sebs/env/bin:${PATH}
 
 RUN mkdir -p /sebs/
-COPY docker/python_installer.sh /sebs/installer.sh
-COPY docker/entrypoint.sh /sebs/entrypoint.sh
+COPY dockerfiles/python_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/entrypoint.sh
 
 # useradd and groupmod is installed in /usr/sbin which is not in PATH

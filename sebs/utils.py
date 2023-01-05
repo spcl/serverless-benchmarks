@@ -8,6 +8,7 @@ import uuid
 from typing import List, Optional, TextIO, Union
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
+DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
 PACK_CODE_APP = "pack_code_{}.sh"
 
 
