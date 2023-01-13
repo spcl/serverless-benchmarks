@@ -41,6 +41,8 @@ jobs:
       - setup_remote_docker
       - restore_cache:
           key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
+      - run: 
+          docker -v /var/run/docker.sock:/var/run/docker.sock
       - run:
           command: |
             if [[ -d $HOME/docker ]];
