@@ -25,6 +25,9 @@ jobs:
           name: Python code lint with flake8
       - run:
           command: |
+             python3 -m pip install types-PyYAML && mypy --install-types
+      - run:
+          command: |
             . python-venv/bin/activate
             mypy sebs --config-file=.mypy.ini
           name: Python static code verification with mypy
