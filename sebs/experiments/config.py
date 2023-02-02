@@ -61,9 +61,10 @@ class Config:
             PerfCost,
             InvocationOverhead,
             EvictionModel,
+            CommunicationP2P,
         )
 
-        for exp in [NetworkPingPong, PerfCost, InvocationOverhead, EvictionModel]:
+        for exp in [NetworkPingPong, PerfCost, InvocationOverhead, EvictionModel, CommunicationP2P]:
             if exp.name() in config:
                 cfg._experiment_configs[exp.name()] = config[exp.name()]
 

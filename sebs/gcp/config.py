@@ -106,8 +106,8 @@ class GCPResources(Resources):
         super().__init__()
 
     @staticmethod
-    def initialize(dct: dict) -> Resources:
-        return GCPResources()
+    def initialize(res: Resources, dct: dict):
+        pass
 
     """
         Serialize to JSON for storage in cache.
@@ -118,14 +118,15 @@ class GCPResources(Resources):
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
+
         cached_config = cache.get_config("gcp")
-        ret: GCPResources
+        ret = GCPResources()
         if cached_config and "resources" in cached_config:
-            ret = cast(GCPResources, GCPResources.initialize(cached_config["resources"]))
+            GCPResources.initialize(ret, cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for GCP")
         else:
-            ret = cast(GCPResources, GCPResources.initialize(config))
+            GCPResources.initialize(ret, config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("No cached resources for GCP found, using user configuration.")
         return ret
@@ -141,17 +142,11 @@ class GCPResources(Resources):
 
 
 class GCPConfig(Config):
-
-    _project_name: str
-
     def __init__(self, credentials: GCPCredentials, resources: GCPResources):
-        super().__init__()
+        super().__init__(name="gcp")
         self._credentials = credentials
         self._resources = resources
-
-    @property
-    def region(self) -> str:
-        return self._region
+        self._project_name: str = ""
 
     @property
     def project_name(self) -> str:
@@ -216,22 +211,21 @@ class GCPConfig(Config):
 
     @staticmethod
     def initialize(cfg: Config, dct: dict):
+        super(GCPConfig, GCPConfig).initialize(cfg, dct)
         config = cast(GCPConfig, cfg)
         config._project_name = dct["project_name"]
-        config._region = dct["region"]
 
     def serialize(self) -> dict:
         out = {
-            "name": "gcp",
+            **super().serialize(),
             "project_name": self._project_name,
-            "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }
         return out
 
     def update_cache(self, cache: Cache):
+        super().update_cache(cache)
         cache.update_config(val=self.project_name, keys=["gcp", "project_name"])
-        cache.update_config(val=self.region, keys=["gcp", "region"])
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)

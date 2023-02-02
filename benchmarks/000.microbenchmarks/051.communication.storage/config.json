@@ -1,0 +1,16 @@
+{
+  "timeout": 900,
+  "memory": 2048,
+  "languages": ["cpp"],
+  "deployment": {
+    "package": {
+      "build_dependencies": {
+        "cpp": {
+          "common": ["boost"],
+          "aws": ["sdk"]
+        }
+      }
+    },
+    "image": null
+  }
+}

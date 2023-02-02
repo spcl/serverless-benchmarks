@@ -138,6 +138,7 @@ class SeBS(LoggingBase):
             NetworkPingPong,
             InvocationOverhead,
             EvictionModel,
+            CommunicationP2P,
         )
 
         implementations: Dict[str, Type[Experiment]] = {
@@ -145,6 +146,7 @@ class SeBS(LoggingBase):
             "network-ping-pong": NetworkPingPong,
             "invocation-overhead": InvocationOverhead,
             "eviction-model": EvictionModel,
+            CommunicationP2P.name(): CommunicationP2P,
         }
         if experiment_type not in implementations:
             raise RuntimeError(f"Experiment {experiment_type} not supported!")

@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 from abc import ABC
 from abc import abstractmethod
+from enum import Enum
+from typing import Dict, Optional
+import uuid
 
 from sebs.cache import Cache
 from sebs.utils import has_platform, LoggingBase, LoggingHandlers
-
-# FIXME: Replace type hints for static generators after migration to 3.7
-# https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
 
 """
     Credentials for FaaS system used to authorize operations on functions
@@ -29,7 +31,7 @@ class Credentials(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Credentials":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
         pass
 
     """
@@ -51,8 +53,87 @@ class Credentials(ABC, LoggingBase):
 
 
 class Resources(ABC, LoggingBase):
-    def __init__(self):
+    class StorageType(str, Enum):
+        DEPLOYMENT = "deployment"
+        BENCHMARKS = "benchmarks"
+        EXPERIMENTS = "experiments"
+
+        @staticmethod
+        def deserialize(val: str) -> Resources.StorageType:
+            for member in Resources.StorageType:
+                if member.value == val:
+                    return member
+            raise Exception(f"Unknown storage bucket type type {val}")
+
+    def __init__(self, name: str):
         super().__init__()
+        self._name = name
+        self._buckets: Dict[Resources.StorageType, str] = {}
+        self._tables: Dict[Resources.StorageType, str] = {}
+        self._resources_id = ""
+
+    @property
+    def resources_id(self) -> str:
+        return self._resources_id
+
+    @resources_id.setter
+    def resources_id(self, resources_id: str):
+        self._resources_id = resources_id
+
+    @property
+    def region(self) -> str:
+        return self._region
+
+    @region.setter
+    def region(self, region: str):
+        self._region = region
+
+    def get_storage_bucket(self, bucket_type: Resources.StorageType) -> Optional[str]:
+        return self._buckets.get(bucket_type)
+
+    def get_storage_bucket_name(self, bucket_type: Resources.StorageType) -> str:
+        return f"sebs-{bucket_type.value}-{self._resources_id}"
+
+    def set_storage_bucket(self, bucket_type: Resources.StorageType, bucket_name: str):
+        self._buckets[bucket_type] = bucket_name
+
+    def _create_key_value_table(self, name: str):
+        raise NotImplementedError()
+
+    def get_key_value_table(self, table_type: Resources.StorageType) -> str:
+
+        table = self._tables.get(table_type)
+
+        if table is None:
+
+            table = self.get_key_value_table_name(table_type)
+            self._create_key_value_table(table)
+            self.set_key_value_table(table_type, table)
+
+        return table
+
+    def get_key_value_table_name(self, table_type: Resources.StorageType) -> str:
+        return f"sebs-{table_type.value}-{self._resources_id}"
+
+    def set_key_value_table(self, table_type: Resources.StorageType, table_name: str):
+        self._tables[table_type] = table_name
+
+    @staticmethod
+    @abstractmethod
+    def initialize(res: Resources, dct: dict):
+        if "resources_id" in dct:
+            res._resources_id = dct["resources_id"]
+        else:
+            res._resources_id = str(uuid.uuid1())[0:8]
+            res.logging.info(
+                f"Generating unique resource name for " f"the experiments: {res._resources_id}"
+            )
+        if "storage_buckets" in dct:
+            for key, value in dct["storage_buckets"].items():
+                res._buckets[Resources.StorageType.deserialize(key)] = value
+        if "key-value-tables" in dct:
+            for key, value in dct["key-value-tables"].items():
+                res._tables[Resources.StorageType.deserialize(key)] = value
 
     """
         Create credentials instance from user config and cached values.
@@ -60,7 +141,7 @@ class Resources(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
         pass
 
     """
@@ -69,7 +150,21 @@ class Resources(ABC, LoggingBase):
 
     @abstractmethod
     def serialize(self) -> dict:
-        pass
+        out = {"resources_id": self.resources_id}
+        for key, value in self._buckets.items():
+            out[key.value] = value
+        return out
+
+    def update_cache(self, cache: Cache):
+        cache.update_config(val=self.resources_id, keys=[self._name, "resources", "resources_id"])
+        for key, value in self._buckets.items():
+            cache.update_config(
+                val=value, keys=[self._name, "resources", "storage_buckets", key.value]
+            )
+        for key, value in self._tables.items():
+            cache.update_config(
+                val=value, keys=[self._name, "resources", "key-value-tables", key.value]
+            )
 
 
 """
@@ -79,11 +174,10 @@ class Resources(ABC, LoggingBase):
 
 
 class Config(ABC, LoggingBase):
-
-    _region: str
-
-    def __init__(self):
+    def __init__(self, name: str):
         super().__init__()
+        self._region = ""
+        self._name = name
 
     @property
     def region(self) -> str:
@@ -101,7 +195,12 @@ class Config(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
+    def initialize(cfg: Config, dct: dict):
+        cfg._region = dct["region"]
+
+    @staticmethod
+    @abstractmethod
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
         from sebs.local.config import LocalConfig
 
         name = config["name"]
@@ -126,10 +225,9 @@ class Config(ABC, LoggingBase):
         assert func, "Unknown config type!"
         return func(config[name] if name in config else config, cache, handlers)
 
-    @abstractmethod
     def serialize(self) -> dict:
-        pass
+        return {"name": self._name, "region": self._region}
 
     @abstractmethod
     def update_cache(self, cache: Cache):
-        pass
+        cache.update_config(val=self.region, keys=[self._name, "region"])

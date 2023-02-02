@@ -12,12 +12,17 @@ points for each platform.
 ## AWS Lambda
 
 AWS provides one year of free services, including a significant amount of computing time in AWS Lambda.
-To work with AWS, you need to provide access and secret keys to a role with permissions
-sufficient to manage functions and S3 resources.
+To work with AWS, you need to provide access and secret keys with permissions
+sufficient to manage functions, S3 resources.
+When working with communication benchmarks, it might be necessary to use DynamoDB as well.
 Additionally, the account must have `AmazonAPIGatewayAdministrator` permission to set up
 automatically AWS HTTP trigger.
+
 You can provide a [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
 with permissions to access AWS Lambda and S3; otherwise, one will be created automatically.
+To run communication benchmarks, the role needs to access DynamoDB.
+Furthermore, to access AWS ElastiCache, the role needs an additional permission:
+`AWSLambdaVPCAccessExecutionRole`.
 To use a user-defined lambda role, set the name in config JSON - see an example in `config/example.json`.
 
 **Pass the credentials as environmental variables for the first run.** They will be cached for future use.

@@ -63,7 +63,7 @@ def simplified_common_params(func):
     @click.option(
         "--language",
         default=None,
-        type=click.Choice(["python", "nodejs"]),
+        type=click.Choice(["python", "nodejs", "cpp"]),
         help="Benchmark language",
     )
     @click.option("--language-version", default=None, type=str, help="Benchmark language version")
@@ -460,7 +460,7 @@ def experiment_invoke(experiment, **kwargs):
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
 @click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
 @common_params
-def experment_process(experiment, extend_time_interval, **kwargs):
+def experiment_process(experiment, extend_time_interval, **kwargs):
     (
         config,
         output_dir,

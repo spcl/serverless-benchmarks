@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from sebs.cache import Cache
 from sebs.local.function import LocalFunction
+from sebs.local.config import LocalResources
 from sebs.storage.minio import Minio, MinioConfig
 from sebs.utils import serialize
 
@@ -30,6 +31,7 @@ class Deployment:
                 )
             )
 
+    # FIXME: do we still use it?
     @staticmethod
     def deserialize(path: str, cache_client: Cache) -> "Deployment":
         with open(path, "r") as in_f:
@@ -40,7 +42,7 @@ class Deployment:
             for func in input_data["functions"]:
                 deployment._functions.append(LocalFunction.deserialize(func))
             deployment._storage = Minio.deserialize(
-                MinioConfig.deserialize(input_data["storage"]), cache_client
+                MinioConfig.deserialize(input_data["storage"]), cache_client, LocalResources()
             )
             return deployment
 

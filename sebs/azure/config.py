@@ -133,7 +133,7 @@ class AzureResources(Resources):
         storage_accounts: List["AzureResources.Storage"] = [],
         data_storage_account: Optional["AzureResources.Storage"] = None,
     ):
-        super().__init__()
+        super().__init__(name="azure")
         self._resource_group = resource_group
         self._storage_accounts = storage_accounts
         self._data_storage_account = data_storage_account
@@ -225,16 +225,16 @@ class AzureResources(Resources):
     def update_cache(self, cache_client: Cache):
         cache_client.update_config(val=self.serialize(), keys=["azure", "resources"])
 
-    # FIXME: python3.7+ future annotatons
     @staticmethod
-    def initialize(dct: dict) -> Resources:
-        return AzureResources(
-            resource_group=dct["resource_group"],
-            storage_accounts=[
-                AzureResources.Storage.deserialize(x) for x in dct["storage_accounts"]
-            ],
-            data_storage_account=AzureResources.Storage.deserialize(dct["data_storage_account"]),
-        )
+    def initialize(res: Resources, dct: dict):
+
+        ret = cast(AzureResources, res)
+
+        ret._resource_group = dct["resource_group"]
+        ret._storage_accounts = [
+            AzureResources.Storage.deserialize(x) for x in dct["storage_accounts"]
+        ]
+        ret._data_storage_account = AzureResources.Storage.deserialize(dct["data_storage_account"])
 
     def serialize(self) -> dict:
         out: Dict[str, Any] = {}
@@ -250,15 +250,15 @@ class AzureResources(Resources):
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
 
         cached_config = cache.get_config("azure")
-        ret: AzureResources
+        ret = AzureResources()
         # Load cached values
         if cached_config and "resources" in cached_config and len(cached_config["resources"]) > 0:
             logging.info("Using cached resources for Azure")
-            ret = cast(AzureResources, AzureResources.initialize(cached_config["resources"]))
+            AzureResources.initialize(ret, cached_config["resources"])
         else:
             # Check for new config
             if "resources" in config:
-                ret = cast(AzureResources, AzureResources.initialize(config["resources"]))
+                AzureResources.initialize(ret, config["resources"])
                 ret.logging_handlers = handlers
                 ret.logging.info("No cached resources for Azure found, using user configuration.")
             else:
@@ -270,8 +270,7 @@ class AzureResources(Resources):
 
 class AzureConfig(Config):
     def __init__(self, credentials: AzureCredentials, resources: AzureResources):
-        super().__init__()
-        self._resources_id = ""
+        super().__init__(name="azure")
         self._credentials = credentials
         self._resources = resources
 
@@ -283,23 +282,9 @@ class AzureConfig(Config):
     def resources(self) -> AzureResources:
         return self._resources
 
-    @property
-    def resources_id(self) -> str:
-        return self._resources_id
-
-    # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
-        config = cast(AzureConfig, cfg)
-        config._region = dct["region"]
-        if "resources_id" in dct:
-            config._resources_id = dct["resources_id"]
-        else:
-            config._resources_id = str(uuid.uuid1())[0:8]
-            config.logging.info(
-                f"Azure: generating unique resource name for "
-                f"the experiments: {config._resources_id}"
-            )
+        super(AzureConfig, AzureConfig).initialize(cfg, dct)
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -329,16 +314,13 @@ class AzureConfig(Config):
     """
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.region, keys=["azure", "region"])
-        cache.update_config(val=self.resources_id, keys=["azure", "resources_id"])
+        super().update_cache(cache)
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
 
     def serialize(self) -> dict:
         out = {
-            "name": "azure",
-            "region": self._region,
-            "resources_id": self.resources_id,
+            **super().serialize(),
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }

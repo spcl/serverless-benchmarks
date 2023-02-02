@@ -1,0 +1,7 @@
+{
+  "package": {
+    "common": ["boost"],
+    "aws": ["sdk"]
+  },
+  "image": null
+}

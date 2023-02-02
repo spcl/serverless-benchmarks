@@ -20,6 +20,7 @@ from sebs.utils import LoggingHandlers, execute
 from ..faas.function import Function, FunctionConfig, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
+from sebs.types import Language
 
 
 class Azure(System):
@@ -98,6 +99,7 @@ class Azure(System):
             self.storage = BlobStorage(
                 self.config.region,
                 self.cache_client,
+                self.config.resources,
                 self.config.resources.data_storage_account(self.cli_instance).connection_string,
                 replace_existing=replace_existing,
             )
@@ -117,7 +119,7 @@ class Azure(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         benchmark: str,
         is_cached: bool,
@@ -125,12 +127,12 @@ class Azure(System):
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
-        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js"}
+        EXEC_FILES = {Language.PYTHON: "handler.py", Language.NODEJS: "handler.js"}
         CONFIG_FILES = {
-            "python": ["requirements.txt", ".python_packages"],
-            "nodejs": ["package.json", "node_modules"],
+            Language.PYTHON: ["requirements.txt", ".python_packages"],
+            Language.NODEJS: ["package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[language]
 
         handler_dir = os.path.join(directory, "handler")
         os.makedirs(handler_dir)
@@ -143,7 +145,7 @@ class Azure(System):
         # generate function.json
         # TODO: extension to other triggers than HTTP
         default_function_json = {
-            "scriptFile": EXEC_FILES[language_name],
+            "scriptFile": EXEC_FILES[language],
             "bindings": [
                 {
                     "authLevel": "function",
@@ -260,7 +262,7 @@ class Azure(System):
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
-                self.config.resources_id,
+                self.config.resources.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")
