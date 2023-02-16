@@ -78,7 +78,7 @@ to file `out_storage.json`
 ```
 
 Then, we need to update the configuration of `local` deployment with information on the storage 
-instance. The `.deployment.local`` object in the configuration JSON needs to contain a new object
+instance. The `.deployment.local` object in the configuration JSON needs to contain a new object
 `storage` with the data provided in the `out_storage.json` file. Fortunately, we can achieve
 automatically with a single command by using `jq`:
 
