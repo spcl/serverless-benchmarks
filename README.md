@@ -94,12 +94,12 @@ To install the benchmarks with a support for all platforms, use:
 ./install.py --aws --azure --gcp --openwhisk --local
 ```
 
-It will create a virtual environment in `python-virtualenv`, install necessary Python
+It will create a virtual environment in `python-venv`, install necessary Python
 dependecies and third-party dependencies. To use SeBS, you must first active the new Python
 virtual environment:
 
 ```
-. python-virtualenv/bin/activate
+. python-venv/bin/activate
 ```
 
 Now you can deploy serverless experiments :-)
