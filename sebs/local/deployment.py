@@ -22,11 +22,15 @@ class Deployment:
     def set_storage(self, storage: Minio):
         self._storage = storage
 
+    def add_memory_measurements(self, pid: list):
+        self._memory_measurements = pid
+
     def serialize(self, path: str):
         with open(path, "w") as out:
             out.write(
                 serialize(
-                    {"functions": self._functions, "storage": self._storage, "inputs": self._inputs}
+                    {"functions": self._functions, "storage": self._storage, "inputs": self._inputs,
+                     "memory_measurements": self._memory_measurements}
                 )
             )
 

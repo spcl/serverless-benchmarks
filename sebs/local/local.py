@@ -1,6 +1,7 @@
 import os
 import shutil
 from typing import cast, Dict, List, Optional, Type, Tuple  # noqa
+import subprocess
 
 import docker
 
@@ -44,6 +45,14 @@ class Local(System):
     def remove_containers(self, val: bool):
         self._remove_containers = val
 
+    @property
+    def measure_interval(self) -> bool:
+        return self._measure_interval
+
+    @measure_interval.setter
+    def measure_interval(self, val: int):
+        self._measure_interval = val
+
     def __init__(
         self,
         sebs_config: SeBSConfig,
@@ -56,6 +65,7 @@ class Local(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
+        self.measure_processes = []
 
     """
         Create wrapper object for minio storage and fill buckets.
@@ -175,6 +185,13 @@ class Local(System):
             detach=True,
             # tty=True,
         )
+        # launch subprocess to measure memory
+        p = subprocess.Popen(["python3", "./sebs/local/measureMem.py",
+                              "-container_id", container.id,
+                              "-measure_interval", str(self._measure_interval)
+                              ])
+        self.measure_processes.append(p.pid)
+
         function_cfg = FunctionConfig.from_benchmark(code_package)
         func = LocalFunction(
             container,
