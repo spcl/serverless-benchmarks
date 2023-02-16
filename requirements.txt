@@ -4,7 +4,7 @@ tzlocal>=2.1
 #linting
 flake8
 flake8-boto3
-black
+black==22.8.0
 flake8-black
 mypy
 types-pycurl
