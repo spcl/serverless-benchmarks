@@ -33,7 +33,7 @@ RUN apt-get clean && apt-get update\
 
 RUN apt-get -y --no-install-recommends install gosu
 RUN mkdir -p /sebs/
-COPY docker/entrypoint.sh /sebs/entrypoint.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/entrypoint.sh
 
 ENV SCRIPT_FILE=/mnt/function/package.sh

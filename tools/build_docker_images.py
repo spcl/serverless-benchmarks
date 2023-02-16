@@ -6,7 +6,7 @@ import json
 import os
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
-DOCKER_DIR = os.path.join(PROJECT_DIR, "docker")
+DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
 
 parser = argparse.ArgumentParser(description="Run local app experiments.")
 parser.add_argument(
@@ -28,9 +28,9 @@ def build(image_type, system, language=None, version=None, version_name=None):
         msg += " with version *" + version + "*"
     print(msg)
     if language is not None:
-        dockerfile = os.path.join(PROJECT_DIR, "docker", system, language, f"Dockerfile.{image_type}")
+        dockerfile = os.path.join(DOCKER_DIR, system, language, f"Dockerfile.{image_type}")
     else:
-        dockerfile = os.path.join(PROJECT_DIR, "docker", system, f"Dockerfile.{image_type}")
+        dockerfile = os.path.join(DOCKER_DIR, system, f"Dockerfile.{image_type}")
     target = f'{config["general"]["docker_repository"]}:{image_type}.{system}'
     if language:
         target += "." + language

@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+from abc import abstractmethod
 from typing import Any, Callable, Dict, List, Tuple
 
 import docker
@@ -611,10 +612,12 @@ class Benchmark(LoggingBase):
 
 class BenchmarkModuleInterface:
     @staticmethod
+    @abstractmethod
     def buckets_count() -> Tuple[int, int]:
         pass
 
     @staticmethod
+    @abstractmethod
     def generate_input(
         data_dir: str,
         size: str,

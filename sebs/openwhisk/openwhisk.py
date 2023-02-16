@@ -11,7 +11,7 @@ from sebs.faas import System, PersistentStorage
 from sebs.faas.function import Function, ExecutionResult, Trigger
 from sebs.openwhisk.storage import Minio
 from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
-from sebs.utils import PROJECT_DIR, LoggingHandlers, execute
+from sebs.utils import DOCKER_DIR, LoggingHandlers, execute
 from .config import OpenWhiskConfig
 from .function import OpenWhiskFunction, OpenWhiskFunctionConfig
 from ..config import SeBSConfig
@@ -156,10 +156,10 @@ class OpenWhisk(System):
                     f"building OpenWhisk package for {benchmark}."
                 )
 
-        build_dir = os.path.join(directory, "docker")
+        build_dir = DOCKER_DIR
         os.makedirs(build_dir)
         shutil.copy(
-            os.path.join(PROJECT_DIR, "docker", self.name(), language_name, "Dockerfile.function"),
+            os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
             os.path.join(build_dir, "Dockerfile"),
         )
 
