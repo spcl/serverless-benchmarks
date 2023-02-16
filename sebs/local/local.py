@@ -46,7 +46,7 @@ class Local(System):
         self._remove_containers = val
 
     @property
-    def measure_interval(self) -> bool:
+    def measure_interval(self) -> int:
         return self._measure_interval
 
     @measure_interval.setter
@@ -65,7 +65,8 @@ class Local(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
-        self.measure_processes = []
+
+        self._measure_processes_pids: List[int] = []
 
     """
         Create wrapper object for minio storage and fill buckets.
@@ -186,11 +187,17 @@ class Local(System):
             # tty=True,
         )
         # launch subprocess to measure memory
-        p = subprocess.Popen(["python3", "./sebs/local/measureMem.py",
-                              "-container_id", container.id,
-                              "-measure_interval", str(self._measure_interval)
-                              ])
-        self.measure_processes.append(p.pid)
+        p = subprocess.Popen(
+            [
+                "python3",
+                "./sebs/local/measureMem.py",
+                "-container_id",
+                container.id,
+                "-measure_interval",
+                str(self._measure_interval),
+            ]
+        )
+        self._measure_processes_pids.append(p.pid)
 
         function_cfg = FunctionConfig.from_benchmark(code_package)
         func = LocalFunction(
