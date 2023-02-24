@@ -12,6 +12,7 @@ class Deployment:
         self._functions: List[LocalFunction] = []
         self._storage: Optional[Minio]
         self._inputs: List[dict] = []
+        self._memory_measurements: Optional[List[int]] = None
 
     def add_function(self, func: LocalFunction):
         self._functions.append(func)
@@ -22,21 +23,21 @@ class Deployment:
     def set_storage(self, storage: Minio):
         self._storage = storage
 
-    def add_memory_measurements(self, pid: list):
+    def add_memory_measurements(self, pid: List[int]):
         self._memory_measurements = pid
 
     def serialize(self, path: str):
         with open(path, "w") as out:
-            out.write(
-                serialize(
-                    {
-                        "functions": self._functions,
-                        "storage": self._storage,
-                        "inputs": self._inputs,
-                        "memory_measurements": self._memory_measurements,
-                    }
-                )
-            )
+            config: dict = {
+                "functions": self._functions,
+                "storage": self._storage,
+                "inputs": self._inputs,
+            }
+
+            if self._memory_measurements is not None:
+                config["memory_measurements"] = self._memory_measurements
+
+            out.write(serialize(config))
 
     @staticmethod
     def deserialize(path: str, cache_client: Cache) -> "Deployment":

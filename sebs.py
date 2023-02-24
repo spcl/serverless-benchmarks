@@ -379,7 +379,8 @@ def local():
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
 @click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
-@click.option("--measure-interval", type=int, default=0,
+@click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
+@click.option("--measure-interval", type=int, default=-1,
               help="Interval duration between memory measurements in ms.")
 @click.option(
     "--remove-containers/--no-remove-containers",
@@ -415,7 +416,10 @@ def start(benchmark, benchmark_input_size, output, deployments, measure_interval
     result.set_storage(storage)
     input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
     result.add_input(input_config)
-    result.add_memory_measurements(deployment_client.measure_processes)
+
+    if measure_interval >= 0:
+        result.add_memory_measurements(deployment_client.measure_processes)
+
     for i in range(deployments):
         func = deployment_client.get_function(
             benchmark_obj, deployment_client.default_function_name(benchmark_obj)
