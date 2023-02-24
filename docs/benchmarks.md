@@ -17,6 +17,9 @@
 
 For details on benchmark selection and their characterization, please refer to [our paper](#paper).
 
+> **Note**
+> Benchmarks whose number starts with the digit 0, such as `020.server-reply` are internal microbenchmarks used by specific experiments. They are not intended to be directly invoked by users.
+
 ## Workflow Applications
 
 **(WiP)** Coming soon!
