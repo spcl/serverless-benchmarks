@@ -6,8 +6,6 @@ import logging
 import functools
 import os
 import traceback
-import subprocess
-from statistics import mean
 from typing import cast, Optional
 
 import click
@@ -399,8 +397,8 @@ def start(benchmark, benchmark_input_size, output, deployments, measure_interval
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers
-    deployment_client.measure_interval = measure_interval
     result = sebs.local.Deployment()
+    result.measurement_file = deployment_client.start_measurements(measure_interval)
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     benchmark_obj = sebs_client.get_benchmark(
@@ -409,16 +407,10 @@ def start(benchmark, benchmark_input_size, output, deployments, measure_interval
         experiment_config,
         logging_filename=logging_filename,
     )
-    # initialize an empty file for measurements to be written to
-    subprocess.Popen("touch measurements_temp_file.txt && echo \"\" > measurements_temp_file.txt",
-                        shell=True)
     storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
     result.set_storage(storage)
     input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
     result.add_input(input_config)
-
-    if measure_interval >= 0:
-        result.add_memory_measurements(deployment_client.measure_processes)
 
     for i in range(deployments):
         func = deployment_client.get_function(
@@ -444,54 +436,9 @@ def stop(input_json, output_json, **kwargs):
 
     sebs.utils.global_logging()
 
-    # kill measuring processes
-    with open(input_json, "r") as file:
-        procs = json.load(file)["memory_measurements"]
-        for proc in procs:
-            subprocess.Popen(f"kill {proc}", shell=True)
-
-    # create dictionary with the measurements
-    measurements = {}
-    precision_errors = 0
-    with open("measurements_temp_file.txt", "r") as file:
-        for line in file:
-            if line == "precision not met\n":
-                precision_errors += 1
-
-            line = line.split()
-            if len(line) == 0:
-                continue
-            if not line[0] in measurements:
-                try:
-                    measurements[line[0]] = [int(line[1])]
-                except:
-                    continue
-            else:
-                try:
-                    measurements[line[0]].append(int(line[1]))
-                except:
-                    continue
-
-    for container in measurements:
-        measurements[container] = {
-            "mean mem. usage" : f"{mean(measurements[container])/1e6} MB",
-            "max mem. usage" : f"{max(measurements[container])/1e6} MB",
-            "number of measurements" : len(measurements[container]),
-            "full profile (in bytes)" : measurements[container]
-        }
-
-    # write to output_json file
-    with open(output_json, "w") as out:
-        if precision_errors > 0:
-            out.write(f"Precision could not be met in {precision_errors} cases. Try using a longer measure interval.\n")
-        json.dump(measurements, out, indent=6)
-
-    # remove the temporary file the measurements were written to
-    subprocess.Popen("rm measurements_temp_file.txt", shell=True)
-
     logging.info(f"Stopping deployment from {os.path.abspath(input_json)}")
     deployment = sebs.local.Deployment.deserialize(input_json, None)
-    deployment.shutdown()
+    deployment.shutdown(output_json)
     logging.info(f"Stopped deployment from {os.path.abspath(input_json)}")
 
 
