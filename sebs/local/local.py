@@ -284,6 +284,6 @@ class Local(System):
             return
 
         # initialize an empty file for measurements to be written to
-        subprocess.Popen(
-            'touch measurements_temp_file.txt && echo "" > measurements_temp_file.txt', shell=True
-        )
+        from pathlib import Path
+
+        Path("measurements_temp_file.txt").touch()

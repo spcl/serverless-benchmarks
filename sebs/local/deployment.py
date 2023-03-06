@@ -1,5 +1,7 @@
 import json
-import subprocess
+import logging
+import os
+from signal import SIGKILL
 from statistics import mean
 from typing import List, Optional
 
@@ -60,9 +62,11 @@ class Deployment:
 
         if len(self._memory_measurement_pids) > 0:
 
+            logging.info("Killing memory measurement processes")
+
             # kill measuring processes
             for proc in self._memory_measurement_pids:
-                subprocess.Popen(f"kill {proc}", shell=True)
+                os.kill(proc, SIGKILL)
 
             # create dictionary with the measurements
             measurements: dict = {}
@@ -94,6 +98,7 @@ class Deployment:
                     "full profile (in bytes)": measurements[container],
                 }
 
+            logging.info(f"Gathering memory measurement data in {output_json}")
             # write to output_json file
             with open(output_json, "w") as out:
                 if precision_errors > 0:
@@ -101,7 +106,7 @@ class Deployment:
                 json.dump(measurements, out, indent=6)
 
             # remove the temporary file the measurements were written to
-            subprocess.Popen("rm measurements_temp_file.txt", shell=True)
+            os.remove("measurements_temp_file.txt")
 
         for func in self._functions:
             func.stop()
