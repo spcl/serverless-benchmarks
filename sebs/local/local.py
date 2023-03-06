@@ -10,6 +10,7 @@ from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
 from sebs.storage.minio import Minio
+from sebs.local.deployment import Deployment
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
@@ -53,6 +54,10 @@ class Local(System):
     def measure_interval(self, val: int):
         self._measure_interval = val
 
+    @property
+    def measurements_enabled(self) -> bool:
+        return self._measure_interval > -1
+
     def __init__(
         self,
         sebs_config: SeBSConfig,
@@ -65,8 +70,6 @@ class Local(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
-
-        self._measure_processes_pids: List[int] = []
 
     """
         Create wrapper object for minio storage and fill buckets.
@@ -186,18 +189,21 @@ class Local(System):
             detach=True,
             # tty=True,
         )
-        # launch subprocess to measure memory
-        p = subprocess.Popen(
-            [
-                "python3",
-                "./sebs/local/measureMem.py",
-                "-container_id",
-                container.id,
-                "-measure_interval",
-                str(self._measure_interval),
-            ]
-        )
-        self._measure_processes_pids.append(p.pid)
+
+        pid: Optional[int] = None
+        if self.measurements_enabled:
+            # launch subprocess to measure memory
+            proc = subprocess.Popen(
+                [
+                    "python3",
+                    "./sebs/local/measureMem.py",
+                    "-container_id",
+                    container.id,
+                    "-measure_interval",
+                    str(self._measure_interval),
+                ]
+            )
+            pid = proc.pid
 
         function_cfg = FunctionConfig.from_benchmark(code_package)
         func = LocalFunction(
@@ -207,6 +213,7 @@ class Local(System):
             code_package.benchmark,
             code_package.hash,
             function_cfg,
+            pid,
         )
         self.logging.info(
             f"Started {func_name} function at container {container.id} , running on {func._url}"
@@ -270,3 +277,13 @@ class Local(System):
     @staticmethod
     def format_function_name(func_name: str) -> str:
         return func_name
+
+    def start_measurements(self, deployment: Deployment):
+
+        if not self.measurements_enabled:
+            return
+
+        # initialize an empty file for measurements to be written to
+        subprocess.Popen(
+            'touch measurements_temp_file.txt && echo "" > measurements_temp_file.txt', shell=True
+        )
