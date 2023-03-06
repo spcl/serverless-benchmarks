@@ -154,3 +154,16 @@ To stop containers, you can use the following command:
 
 The stopped containers won't be automatically removed unless the option `--remove-containers` has been passed to the `start` command.
 
+#### Memory Measurements
+
+The local backend allows additional continuous measurement of function containers. At the moment,
+we support memory measurements. To enable this, pass the following flag to `./sebs.py local start`
+
+```
+--measure-interval <val>
+```
+
+The value specifies the time between two consecutive measurements. Measurements will be aggregated
+and written to a file when calling `./sebs.py local stop <file>`. By default, the data is written
+to `memory_stats.json`.
+
