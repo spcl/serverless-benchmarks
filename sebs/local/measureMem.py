@@ -11,9 +11,9 @@ import time
 import argparse
 
 
-def measure(container_id: str, measure_interval: int) -> None:
+def measure(container_id: str, measure_interval: int, measurement_file: str) -> None:
 
-    f = open("measurements_temp_file.txt", "a")
+    f = open(measurement_file, "a")
 
     while True:
         time_start = time.perf_counter_ns()
@@ -38,7 +38,8 @@ def measure(container_id: str, measure_interval: int) -> None:
 """
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-container_id", type=str)
-    parser.add_argument("-measure_interval", type=int)
+    parser.add_argument("--container-id", type=str)
+    parser.add_argument("--measurement-file", type=str)
+    parser.add_argument("--measure-interval", type=int)
     args, unknown = parser.parse_known_args()
-    measure(args.container_id, args.measure_interval)
+    measure(args.container_id, args.measure_interval, args.measurement_file)

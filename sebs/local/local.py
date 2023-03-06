@@ -10,7 +10,6 @@ from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
 from sebs.storage.minio import Minio
-from sebs.local.deployment import Deployment
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
@@ -50,13 +49,13 @@ class Local(System):
     def measure_interval(self) -> int:
         return self._measure_interval
 
-    @measure_interval.setter
-    def measure_interval(self, val: int):
-        self._measure_interval = val
-
     @property
     def measurements_enabled(self) -> bool:
         return self._measure_interval > -1
+
+    @property
+    def measurement_path(self) -> Optional[str]:
+        return self._memory_measurement_path
 
     def __init__(
         self,
@@ -70,6 +69,7 @@ class Local(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
+        self._memory_measurement_path: Optional[str] = None
 
     """
         Create wrapper object for minio storage and fill buckets.
@@ -191,16 +191,18 @@ class Local(System):
         )
 
         pid: Optional[int] = None
-        if self.measurements_enabled:
+        if self.measurements_enabled and self._memory_measurement_path is not None:
             # launch subprocess to measure memory
             proc = subprocess.Popen(
                 [
                     "python3",
                     "./sebs/local/measureMem.py",
-                    "-container_id",
+                    "--container-id",
                     container.id,
-                    "-measure_interval",
+                    "--measure-interval",
                     str(self._measure_interval),
+                    "--measurement-file",
+                    self._memory_measurement_path,
                 ]
             )
             pid = proc.pid
@@ -278,12 +280,19 @@ class Local(System):
     def format_function_name(func_name: str) -> str:
         return func_name
 
-    def start_measurements(self, deployment: Deployment):
+    def start_measurements(self, measure_interval: int) -> Optional[str]:
+
+        self._measure_interval = measure_interval
 
         if not self.measurements_enabled:
-            return
+            return None
 
         # initialize an empty file for measurements to be written to
+        import tempfile
         from pathlib import Path
 
-        Path("measurements_temp_file.txt").touch()
+        fd, self._memory_measurement_path = tempfile.mkstemp()
+        Path(self._memory_measurement_path).touch()
+        os.close(fd)
+
+        return self._memory_measurement_path

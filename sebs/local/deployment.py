@@ -12,11 +12,20 @@ from sebs.utils import serialize
 
 
 class Deployment:
+    @property
+    def measurement_file(self) -> Optional[str]:
+        return self._measurement_file
+
+    @measurement_file.setter
+    def measurement_file(self, val: Optional[str]):
+        self._measurement_file = val
+
     def __init__(self):
         self._functions: List[LocalFunction] = []
         self._storage: Optional[Minio]
         self._inputs: List[dict] = []
         self._memory_measurement_pids: List[int] = []
+        self._measurement_file: Optional[str] = None
 
     def add_function(self, func: LocalFunction):
         self._functions.append(func)
@@ -37,8 +46,11 @@ class Deployment:
                 "inputs": self._inputs,
             }
 
-            if self._memory_measurement_pids is not None:
-                config["memory_measurements"] = self._memory_measurement_pids
+            if self._measurement_file is not None:
+                config["memory_measurements"] = {
+                    "pids": self._memory_measurement_pids,
+                    "file": self._measurement_file,
+                }
 
             out.write(serialize(config))
 
@@ -52,7 +64,8 @@ class Deployment:
             for func in input_data["functions"]:
                 deployment._functions.append(LocalFunction.deserialize(func))
             if "memory_measurements" in input_data:
-                deployment._memory_measurement_pids = input_data["memory_measurements"]
+                deployment._memory_measurement_pids = input_data["memory_measurements"]["pids"]
+                deployment._measurement_file = input_data["memory_measurements"]["file"]
             deployment._storage = Minio.deserialize(
                 MinioConfig.deserialize(input_data["storage"]), cache_client
             )
@@ -68,10 +81,13 @@ class Deployment:
             for proc in self._memory_measurement_pids:
                 os.kill(proc, SIGKILL)
 
+        if self._measurement_file is not None:
+
+            logging.info(f"Gathering memory measurement data in {output_json}")
             # create dictionary with the measurements
             measurements: dict = {}
             precision_errors = 0
-            with open("measurements_temp_file.txt", "r") as file:
+            with open(self._measurement_file, "r") as file:
                 for line in file:
                     if line == "precision not met\n":
                         precision_errors += 1
@@ -98,7 +114,6 @@ class Deployment:
                     "full profile (in bytes)": measurements[container],
                 }
 
-            logging.info(f"Gathering memory measurement data in {output_json}")
             # write to output_json file
             with open(output_json, "w") as out:
                 if precision_errors > 0:
@@ -106,7 +121,7 @@ class Deployment:
                 json.dump(measurements, out, indent=6)
 
             # remove the temporary file the measurements were written to
-            os.remove("measurements_temp_file.txt")
+            os.remove(self._measurement_file)
 
         for func in self._functions:
             func.stop()

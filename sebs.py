@@ -397,8 +397,8 @@ def start(benchmark, benchmark_input_size, output, deployments, measure_interval
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers
-    deployment_client.measure_interval = measure_interval
     result = sebs.local.Deployment()
+    result.measurement_file = deployment_client.start_measurements(measure_interval)
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     benchmark_obj = sebs_client.get_benchmark(
@@ -411,8 +411,6 @@ def start(benchmark, benchmark_input_size, output, deployments, measure_interval
     result.set_storage(storage)
     input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
     result.add_input(input_config)
-
-    deployment_client.start_measurements(result)
 
     for i in range(deployments):
         func = deployment_client.get_function(
