@@ -70,6 +70,8 @@ class Local(System):
         self._config = config
         self._remove_containers = True
         self._memory_measurement_path: Optional[str] = None
+        # disable external measurements
+        self._measure_interval = -1
 
     """
         Create wrapper object for minio storage and fill buckets.
