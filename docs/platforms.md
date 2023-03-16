@@ -203,20 +203,22 @@ From the host network, port `9011` is mapped to the container's port `9000` to a
 }
 ```
 
-The storage configuration found in `out_storage.json` needs to be provided to SeBS,
-and the instance address must be updated to not use the internal address.
-In this case, the host machine's address is `172.22.20.30`.
-Note that that other parties must use the host network port `9011` to reach Minio instance.
-Docker's port mapping will take care of the rest.
+The storage configuration found in `out_storage.json` needs to be provided to
+SeBS via the SeBS configuration, however the address in `out_storage.json` is likely incorrect.  By
+default, it is a address in the local bridge network not accessible to most of
+the Kubernetes cluster. It should be replaced with an external address of the
+machine and the mapped port. You can typically find an externally accessible address via `ip addr`.
+
+For example, for an external address `10.10.1.15` (a LAN-local address on CloudLab) and mapped port `9011`, set the SeBS configuration as follows:
 
 ```
-jq --argfile file1 out_storage.json '.deployment.openwhisk.storage = $file1, .deployment.openwhisk.storage.address = 172.22.20.30:9011' config/example.json > config/openwhisk.json
+jq --argfile file1 out_storage.json '.deployment.openwhisk.storage = $file1 | .deployment.openwhisk.storage.address = "10.10.1.15:9011"' config/example.json > config/openwhisk.json
 ```
 
-Not sure which address is correct? Use `curl` to verify if Minio's instance can be reached:
+You can validate this is the correct address by use `curl` to access the Minio instance from another machine or container:
 
 ```
-curl -i 172.22.20.30:9011/minio/health/live
+$ curl -i 10.10.1.15:9011/minio/health/live
 HTTP/1.1 200 OK
 Accept-Ranges: bytes
 Content-Length: 0
