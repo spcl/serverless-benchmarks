@@ -32,7 +32,7 @@ class ExceptionProcesser(click.Group):
         except Exception as e:
             logging.error(e)
             traceback.print_exc()
-            ColoredPrinter.print(Colors.ERROR, sebs_client.logging, "Experiments failed! See out.log for details")
+            ColoredPrinter.print(Colors.ERROR, logging, "Experiments failed! See out.log for details")
         finally:
             # Close
             if deployment_client is not None:
