@@ -12,6 +12,10 @@ class Colors:
 class ColoredPrinter:
     @staticmethod
     def print(color, logging_instance, message):
+        # Print the colored message by click
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-        logging_instance.info(message)
         click.echo(f"{color}{Colors.BOLD}[{timestamp}]{Colors.END} {message}")
+
+        # Log the message but don't propagate to stdout
+        logging_instance.propagate = False
+        logging_instance.info(message)
