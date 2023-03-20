@@ -17,6 +17,7 @@ from sebs.regression import regression_suite
 from sebs.utils import update_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
+from sebs.color import Colors, ColoredPrinter
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -122,6 +123,7 @@ def parse_common_params(
 
     sebs_client = sebs.SeBS(cache, output_dir, verbose, logging_filename)
     output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
+    
     sebs_client.logging.info("Created experiment output at {}".format(output_dir))
 
     # CLI overrides JSON options
