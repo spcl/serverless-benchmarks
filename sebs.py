@@ -32,7 +32,7 @@ class ExceptionProcesser(click.Group):
         except Exception as e:
             logging.error(e)
             traceback.print_exc()
-            logging.info("# Experiments failed! See out.log for details")
+            ColoredPrinter.print(Colors.ERROR, sebs_client.logging, "Experiments failed! See out.log for details")
         finally:
             # Close
             if deployment_client is not None:
@@ -122,9 +122,8 @@ def parse_common_params(
     logging_filename = os.path.abspath(os.path.join(output_dir, output_file))
 
     sebs_client = sebs.SeBS(cache, output_dir, verbose, logging_filename)
-    output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
-    
-    sebs_client.logging.info("Created experiment output at {}".format(output_dir))
+    output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)    
+    ColoredPrinter.print(Colors.STATUS, sebs_client.logging, "Created experiment output at {}".format(output_dir))
 
     # CLI overrides JSON options
     update_nested_dict(config_obj, ["experiments", "runtime", "language"], language)
@@ -248,10 +247,10 @@ def invoke(
     else:
         trigger = triggers[0]
     for i in range(repetitions):
-        sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
+        ColoredPrinter.print(Colors.STATUS, sebs_client.logging, f"Beginning repetition {i+1}/{repetitions}")
         ret = trigger.sync_invoke(input_config)
         if ret.stats.failure:
-            sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
+            ColoredPrinter.print(Colors.ERROR, sebs_client.logging, f"Failure on repetition {i+1}/{repetitions}")
             # deployment_client.get_invocation_error(
             #    function_name=func.name, start_time=start_time, end_time=end_time
             # )
@@ -259,7 +258,8 @@ def invoke(
     result.end()
     with open("experiments.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
-    sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+    ColoredPrinter.print(Colors.STATUS, sebs_client.logging, 
+                         "Save results to {}".format(os.path.abspath("experiments.json")))
 
 
 @benchmark.command()
@@ -273,7 +273,8 @@ def process(**kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    sebs_client.logging.info("Load results from {}".format(os.path.abspath("experiments.json")))
+    ColoredPrinter.print(Colors.STATUS, sebs_client.logging, 
+                         "Load results from {}".format(os.path.abspath("experiments.json")))
     with open("experiments.json", "r") as in_f:
         config = json.load(in_f)
         experiments = sebs.experiments.ExperimentResult.deserialize(
@@ -288,7 +289,8 @@ def process(**kwargs):
         )
     with open("results.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(experiments))
-    sebs_client.logging.info("Save results to {}".format(os.path.abspath("results.json")))
+    ColoredPrinter.print(Colors.STATUS, sebs_client.logging,
+                         "Save results to {}".format(os.path.abspath("results.json")))
 
 
 @benchmark.command()
@@ -343,15 +345,15 @@ def storage_start(storage, output_json, port):
     sebs.utils.global_logging()
     storage_type = sebs.SeBS.get_storage_implementation(StorageTypes(storage))
     storage_instance = storage_type(docker.from_env(), None, True)
-    logging.info(f"Starting storage {str(storage)} on port {port}.")
+    ColoredPrinter.print(Colors.STATUS, logging, f"Starting storage {str(storage)} on port {port}.")
     storage_instance.start(port)
     if output_json:
-        logging.info(f"Writing storage configuration to {output_json}.")
+        ColoredPrinter.print(Colors.STATUS, logging, f"Writing storage configuration to {output_json}.")
         with open(output_json, "w") as f:
             json.dump(storage_instance.serialize(), fp=f, indent=2)
     else:
-        logging.info("Writing storage configuration to stdout.")
-        logging.info(json.dumps(storage_instance.serialize(), indent=2))
+        ColoredPrinter.print(Colors.STATUS, logging, "Writing storage configuration to stdout.")
+        ColoredPrinter.print(Colors.STATUS, logging, json.dumps(storage_instance.serialize(), indent=2))
 
 
 @storage.command("stop")
@@ -363,10 +365,10 @@ def storage_stop(input_json):
         cfg = json.load(f)
         storage_type = cfg["type"]
         storage_cfg = sebs.SeBS.get_storage_config_implementation(storage_type).deserialize(cfg)
-        logging.info(f"Stopping storage deployment of {storage_type}.")
+        ColoredPrinter.print(Colors.STATUS, logging, f"Stopping storage deployment of {storage_type}.")
         storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(storage_cfg, None)
         storage.stop()
-        logging.info(f"Stopped storage deployment of {storage_type}.")
+        ColoredPrinter.print(Colors.END, logging, f"Stopped storage deployment of {storage_type}.")
 
 
 @cli.group()
@@ -424,7 +426,7 @@ def start(benchmark, benchmark_input_size, output, deployments, measure_interval
     # Otherwise we want to clean up as much as possible
     deployment_client.shutdown_storage = False
     result.serialize(output)
-    sebs_client.logging.info(f"Save results to {os.path.abspath(output)}")
+    ColoredPrinter.print(Colors.STATUS, sebs_client.logging, f"Save results to {os.path.abspath(output)}")
 
 
 @local.command()
@@ -438,10 +440,10 @@ def stop(input_json, output_json, **kwargs):
 
     sebs.utils.global_logging()
 
-    logging.info(f"Stopping deployment from {os.path.abspath(input_json)}")
+    ColoredPrinter.print(Colors.STATUS, logging, f"Stopping deployment from {os.path.abspath(input_json)}")
     deployment = sebs.local.Deployment.deserialize(input_json, None)
     deployment.shutdown(output_json)
-    logging.info(f"Stopped deployment from {os.path.abspath(input_json)}")
+    ColoredPrinter.print(Colors.END, logging, f"Stopped deployment from {os.path.abspath(input_json)}")
 
 
 @cli.group()
