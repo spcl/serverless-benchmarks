@@ -175,10 +175,15 @@ class LoggingBase:
         else:
             self.logging = logging.getLogger(f"{self.__class__.__name__}-{uuid_name}")
         self.logging.setLevel(logging.INFO)
+        self.colored_printer = ColoredPrinter(self.logging)
 
     @property
     def logging_handlers(self) -> LoggingHandlers:
         return self._logging_handlers
+    
+    @property
+    def logging(self) -> logging.Logger:
+        return self.colored_printer
 
     @logging_handlers.setter
     def logging_handlers(self, handlers: LoggingHandlers):
@@ -204,9 +209,7 @@ def catch_interrupt():
 
     signal.signal(signal.SIGINT, handler)
 
-
-
-class Colors:
+class ColoredPrinter:
     SUCCESS = "\033[92m"
     STATUS = "\033[94m"
     WARNING = "\033[93m"
@@ -214,9 +217,25 @@ class Colors:
     BOLD = "\033[1m"
     END = "\033[0m"
 
-class ColoredPrinter:
-    @staticmethod
-    def print(color, logging_instance, message):
+    def __init__(self, logging_instance):
+        self.logging_instance = logging_instance
+
+    def debug(self, message):
+        self._print(message, ColoredPrinter.STATUS)
+    
+    def info(self, message):
+        self._print(message, ColoredPrinter.SUCCESS)
+
+    def warning(self, message):
+        self._print(message, ColoredPrinter.WARNING)
+
+    def error(self, message):
+        self._print(message, ColoredPrinter.ERROR)
+
+    def critical(self, message):
+        self._print(message, ColoredPrinter.ERROR)
+
+    def _print(self, message, color):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
-        logging_instance.info(message)
-        click.echo(f"{color}{Colors.BOLD}[{timestamp}]{Colors.END} {message}")
+        self.logging_instance.info(message)
+        click.echo(f"{color}{ColoredPrinter.BOLD}[{timestamp}]{ColoredPrinter.END} {message}")
