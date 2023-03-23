@@ -171,11 +171,11 @@ class LoggingBase:
     def __init__(self):
         uuid_name = str(uuid.uuid4())[0:4]
         if hasattr(self, "typename"):
-            self.logging = logging.getLogger(f"{self.typename()}-{uuid_name}")
+            self._logging = logging.getLogger(f"{self.typename()}-{uuid_name}")
         else:
-            self.logging = logging.getLogger(f"{self.__class__.__name__}-{uuid_name}")
-        self.logging.setLevel(logging.INFO)
-        self.colored_printer = ColoredPrinter(self.logging)
+            self._logging = logging.getLogger(f"{self.__class__.__name__}-{uuid_name}")
+        self._logging.setLevel(logging.INFO)
+        self.colored_printer = ColoredPrinter(self._logging)
 
     @property
     def logging_handlers(self) -> LoggingHandlers:
@@ -188,9 +188,9 @@ class LoggingBase:
     @logging_handlers.setter
     def logging_handlers(self, handlers: LoggingHandlers):
         self._logging_handlers = handlers
-        self.logging.propagate = False
+        self._logging.propagate = False
         for handler in handlers.handlers:
-            self.logging.addHandler(handler)
+            self._logging.addHandler(handler)
 
 
 def has_platform(name: str) -> bool:
