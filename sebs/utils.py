@@ -217,6 +217,6 @@ class Colors:
 class ColoredPrinter:
     @staticmethod
     def print(color, logging_instance, message):
-        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
         logging_instance.info(message)
         click.echo(f"{color}{Colors.BOLD}[{timestamp}]{Colors.END} {message}")
