@@ -46,21 +46,22 @@ class PerfCost(Experiment):
         self._benchmark = sebs_client.get_benchmark(
             settings["benchmark"], deployment_client, self.config
         )
-        self._function = deployment_client.get_function(self._benchmark)
+        self._functions = deployment_client.get_function(self._benchmark, 3)
         # prepare benchmark input
         self._storage = deployment_client.get_storage(replace_existing=self.config.update_storage)
         self._benchmark_input = self._benchmark.prepare_input(
             storage=self._storage, size=settings["input-size"]
         )
+        for i in range(len(self._functions)):
 
-        # add HTTP trigger
-        triggers = self._function.triggers(Trigger.TriggerType.HTTP)
-        if len(triggers) == 0:
-            self._trigger = deployment_client.create_trigger(
-                self._function, Trigger.TriggerType.HTTP
-            )
-        else:
-            self._trigger = triggers[0]
+            # add HTTP trigger
+            triggers = self._functions[i].triggers(Trigger.TriggerType.HTTP)
+            if len(triggers) == 0:
+                self._trigger = deployment_client.create_trigger(
+                    self._functions[i], Trigger.TriggerType.HTTP
+                )
+            else:
+                self._trigger = triggers[0]
 
         self._out_dir = os.path.join(sebs_client.output_dir, "perf-cost")
         if not os.path.exists(self._out_dir):
@@ -77,15 +78,15 @@ class PerfCost(Experiment):
         if len(memory_sizes) == 0:
             self.logging.info("Begin experiment")
             self.run_configuration(settings, settings["repetitions"])
-        for memory in memory_sizes:
-            self.logging.info(f"Begin experiment on memory size {memory}")
-            self._function.memory = memory
-            self._deployment_client.update_function(self._function, self._benchmark)
-            self._sebs_client.cache_client.update_function(self._function)
-            self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
+        for i in range(len(self._functions)):
+            for memory in memory_sizes:
+                self.logging.info(f"Begin experiment on memory size {memory}")
+                self._functions[i].memory = memory
+                self._deployment_client.update_function(self._functions[i], self._benchmark)
+                self._sebs_client.cache_client.update_function(self._functions[i])
+                self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
 
     def compute_statistics(self, times: List[float]):
-
         mean, median, std, cv = basic_stats(times)
         self.logging.info(f"Mean {mean} [ms], median {median} [ms], std {std}, CV {cv}")
         for alpha in [0.95, 0.99]:
@@ -154,9 +155,8 @@ class PerfCost(Experiment):
 
                     if run_type == PerfCost.RunType.COLD or run_type == PerfCost.RunType.BURST:
                         self._deployment_client.enforce_cold_start(
-                            [self._function], self._benchmark
+                            self._functions, self._benchmark
                         )
-
                     time.sleep(5)
 
                     results = []
@@ -179,7 +179,8 @@ class PerfCost(Experiment):
                             elif run_type == PerfCost.RunType.WARM and ret.stats.cold_start:
                                 self.logging.info(f"Invocation {ret.request_id} is cold!")
                             else:
-                                result.add_invocation(self._function, ret)
+                                for i in range(len(self._functions)):
+                                    result.add_invocation(self._functions[i], ret)
                                 colds_count += ret.stats.cold_start
                                 client_times.append(ret.times.client / 1000.0)
                                 samples_gathered += 1
@@ -224,7 +225,6 @@ class PerfCost(Experiment):
                 )
 
     def run_configuration(self, settings: dict, repetitions: int, suffix: str = ""):
-
         for experiment_type in settings["experiments"]:
             if experiment_type == "cold":
                 self._run_configuration(
