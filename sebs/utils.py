@@ -144,7 +144,7 @@ def global_logging():
     logging_date_format = "%H:%M:%S"
     logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
 
-class ColoredPrinter:
+class ColoredWrapper:
     SUCCESS = "\033[92m"
     STATUS = "\033[94m"
     WARNING = "\033[93m"
@@ -152,44 +152,44 @@ class ColoredPrinter:
     BOLD = "\033[1m"
     END = "\033[0m"
 
-    def __init__(self, logging_instance, verbose=True):
-        self.logging_instance = logging_instance
+    def __init__(self, logger, verbose=True):
         self.verbose = verbose
+        self._logging = logger
 
     def debug(self, message):
         if self.verbose:
-            self._print(message, ColoredPrinter.STATUS)
+            self._print(message, ColoredWrapper.STATUS)
+            self._logging.debug(message)
     
     def info(self, message):
-        self._print(message, ColoredPrinter.SUCCESS)
+        self._print(message, ColoredWrapper.SUCCESS)
+        self._logging.info(message)
 
     def warning(self, message):
-        self._print(message, ColoredPrinter.WARNING)
+        self._print(message, ColoredWrapper.WARNING)
+        self._logging.warning(message)
 
     def error(self, message):
-        self._print(message, ColoredPrinter.ERROR)
+        self._print(message, ColoredWrapper.ERROR)
+        self._logging.error(message)
 
     def critical(self, message):
-        self._print(message, ColoredPrinter.ERROR)
+        self._print(message, ColoredWrapper.ERROR)
+        self._logging.critical(message)
 
     def _print(self, message, color):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
-        self.logging_instance.info(message)
-        click.echo(f"{color}{ColoredPrinter.BOLD}[{timestamp}]{ColoredPrinter.END} {message}")
+        click.echo(f"{color}{ColoredWrapper.BOLD}[{timestamp}]{ColoredWrapper.END} {message}")
 
 class LoggingHandlers:
     def __init__(self, verbose: bool = False, filename: Optional[str] = None):
         logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
         logging_date_format = "%H:%M:%S"
         formatter = logging.Formatter(logging_format, logging_date_format)
-        self.handlers: List[Union[logging.FileHandler, logging.StreamHandler[TextIO]]] = []
+        self.handler: logging.FileHandler = None
 
-        # Add stdout output
-        if verbose:
-            stdout = logging.StreamHandler(sys.stdout)
-            stdout.setFormatter(formatter)
-            stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
-            self.handlers.append(stdout)
+        # Remember verbosity for colored wrapper
+        self.verbosity = verbose
 
         # Add file output if needed
         if filename:
@@ -207,16 +207,11 @@ class LoggingBase:
         else:
             self._logging = logging.getLogger(f"{self.__class__.__name__}-{uuid_name}")
         self._logging.setLevel(logging.INFO)
-        self.colored_printer = ColoredPrinter(self._logging)
+        self.wrapper = ColoredWrapper(self._logging)
     
     @property
-    def logging(self):
-        # Returns either 
-        # 1. Colored printer that outputs to CLI
-        # 2. Normal logger that writes to a file
-        # Both of them have the same interface
-        return None 
-        
+    def logging(self) -> ColoredWrapper:
+        return self.wrapper
     
     @property
     def logging_handlers(self) -> LoggingHandlers:
@@ -225,9 +220,12 @@ class LoggingBase:
     @logging_handlers.setter
     def logging_handlers(self, handlers: LoggingHandlers):
         self._logging_handlers = handlers
+        
         self._logging.propagate = False
-        for handler in handlers.handlers:
-            self._logging.addHandler(handler)
+        self.wrapper = ColoredWrapper(self._logging, verbose=handlers.verbosity)
+
+        if not (self._logging_handlers.handler is None):
+            self._logging.addHandler(self._logging_handlers.handler)
 
 
 def has_platform(name: str) -> bool:
