@@ -17,7 +17,6 @@ from sebs.regression import regression_suite
 from sebs.utils import update_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
-from sebs.color import Colors, ColoredPrinter
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
