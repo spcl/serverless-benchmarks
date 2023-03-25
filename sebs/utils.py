@@ -210,8 +210,13 @@ class LoggingBase:
         self.colored_printer = ColoredPrinter(self._logging)
     
     @property
-    def logging(self) -> logging.Logger:
-        return self.colored_printer
+    def logging(self):
+        # Returns either 
+        # 1. Colored printer that outputs to CLI
+        # 2. Normal logger that writes to a file
+        # Both of them have the same interface
+        return None 
+        
     
     @property
     def logging_handlers(self) -> LoggingHandlers:
