@@ -176,14 +176,14 @@ class LoggingBase:
             self._logging = logging.getLogger(f"{self.__class__.__name__}-{uuid_name}")
         self._logging.setLevel(logging.INFO)
         self.colored_printer = ColoredPrinter(self._logging)
-
-    @property
-    def logging_handlers(self) -> LoggingHandlers:
-        return self._logging_handlers
     
     @property
     def logging(self) -> logging.Logger:
         return self.colored_printer
+    
+    @property
+    def logging_handlers(self) -> LoggingHandlers:
+        return self._logging_handlers
 
     @logging_handlers.setter
     def logging_handlers(self, handlers: LoggingHandlers):
