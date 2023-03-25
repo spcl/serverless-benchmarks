@@ -237,5 +237,4 @@ class ColoredPrinter:
 
     def _print(self, message, color):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
-        self.logging_instance.info(message)
         click.echo(f"{color}{ColoredPrinter.BOLD}[{timestamp}]{ColoredPrinter.END} {message}")
