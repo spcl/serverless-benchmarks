@@ -182,7 +182,7 @@ class LoggingBase:
         return self._logging_handlers
     
     @property
-    def logging(self) -> logging.Logger:
+    def logging(self) -> ColoredPrinter:
         return self.colored_printer
 
     @logging_handlers.setter
