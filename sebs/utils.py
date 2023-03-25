@@ -152,30 +152,36 @@ class ColoredWrapper:
     BOLD = "\033[1m"
     END = "\033[0m"
 
-    def __init__(self, logger, verbose=True):
+    def __init__(self, logger, verbose=True, propagte=False):
         self.verbose = verbose
+        self.propagte = propagte
         self._logging = logger
 
     def debug(self, message):
         if self.verbose:
             self._print(message, ColoredWrapper.STATUS)
-            self._logging.debug(message)
+            if self.propagte:
+                self._logging.debug(message)
     
     def info(self, message):
         self._print(message, ColoredWrapper.SUCCESS)
-        self._logging.info(message)
+        if self.propagte:
+            self._logging.info(message)
 
     def warning(self, message):
         self._print(message, ColoredWrapper.WARNING)
-        self._logging.warning(message)
+        if self.propagte:
+            self._logging.warning(message)
 
     def error(self, message):
         self._print(message, ColoredWrapper.ERROR)
-        self._logging.error(message)
+        if self.propagte:
+            self._logging.error(message)
 
     def critical(self, message):
         self._print(message, ColoredWrapper.ERROR)
-        self._logging.critical(message)
+        if self.propagte:
+            self._logging.critical(message)
 
     def _print(self, message, color):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
@@ -222,9 +228,11 @@ class LoggingBase:
         self._logging_handlers = handlers
 
         self._logging.propagate = False
-        self.wrapper = ColoredWrapper(self._logging, verbose=handlers.verbosity)
+        self.wrapper = ColoredWrapper(self._logging, 
+                                      verbose=handlers.verbosity,
+                                      propagte=handlers.handler is not None)
 
-        if not (self._logging_handlers.handler is None):
+        if self._logging_handlers.handler is not None:
             self._logging.addHandler(self._logging_handlers.handler)
 
 
