@@ -196,7 +196,7 @@ class LoggingHandlers:
             file_out = logging.FileHandler(filename=filename, mode="w")
             file_out.setFormatter(formatter)
             file_out.setLevel(logging.DEBUG if verbose else logging.INFO)
-            self.handlers.append(file_out)
+            self.handler = file_out
 
 
 class LoggingBase:
