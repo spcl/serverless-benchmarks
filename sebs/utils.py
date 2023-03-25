@@ -152,9 +152,10 @@ class ColoredWrapper:
     BOLD = "\033[1m"
     END = "\033[0m"
 
-    def __init__(self, logger, verbose=True, propagte=False):
+    def __init__(self, prefix, logger, verbose=True, propagte=False):
         self.verbose = verbose
         self.propagte = propagte
+        self.prefix = prefix
         self._logging = logger
 
     def debug(self, message):
@@ -185,7 +186,7 @@ class ColoredWrapper:
 
     def _print(self, message, color):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
-        click.echo(f"{color}{ColoredWrapper.BOLD}[{timestamp}]{ColoredWrapper.END} {message}")
+        click.echo(f"{color}{ColoredWrapper.BOLD}[{timestamp}]{ColoredWrapper.END} {self.prefix} {message}")
 
 class LoggingHandlers:
     def __init__(self, verbose: bool = False, filename: Optional[str] = None):
@@ -209,14 +210,18 @@ class LoggingBase:
     def __init__(self):
         uuid_name = str(uuid.uuid4())[0:4]
         if hasattr(self, "typename"):
-            self._logging = logging.getLogger(f"{self.typename()}-{uuid_name}")
+            self.log_name = f"{self.typename()}-{uuid_name}"
         else:
-            self._logging = logging.getLogger(f"{self.__class__.__name__}-{uuid_name}")
+            self.log_name = f"{self.__class__.__name__}-{uuid_name}"
+
+        self._logging = logging.getLogger(self.log_name)
         self._logging.setLevel(logging.INFO)
-        self.wrapper = ColoredWrapper(self._logging)
+        self.wrapper = ColoredWrapper(self.log_name, self._logging)
     
     @property
     def logging(self) -> ColoredWrapper:
+        # This would always print log with color. And only if
+        # filename in LoggingHandlers is set, it would log to file.
         return self.wrapper
     
     @property
@@ -228,7 +233,7 @@ class LoggingBase:
         self._logging_handlers = handlers
 
         self._logging.propagate = False
-        self.wrapper = ColoredWrapper(self._logging, 
+        self.wrapper = ColoredWrapper(self.log_name, self._logging, 
                                       verbose=handlers.verbosity,
                                       propagte=handlers.handler is not None)
 
