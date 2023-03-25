@@ -144,6 +144,38 @@ def global_logging():
     logging_date_format = "%H:%M:%S"
     logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
 
+class ColoredPrinter:
+    SUCCESS = "\033[92m"
+    STATUS = "\033[94m"
+    WARNING = "\033[93m"
+    ERROR = "\033[91m"
+    BOLD = "\033[1m"
+    END = "\033[0m"
+
+    def __init__(self, logging_instance, verbose=True):
+        self.logging_instance = logging_instance
+        self.verbose = verbose
+
+    def debug(self, message):
+        if self.verbose:
+            self._print(message, ColoredPrinter.STATUS)
+    
+    def info(self, message):
+        self._print(message, ColoredPrinter.SUCCESS)
+
+    def warning(self, message):
+        self._print(message, ColoredPrinter.WARNING)
+
+    def error(self, message):
+        self._print(message, ColoredPrinter.ERROR)
+
+    def critical(self, message):
+        self._print(message, ColoredPrinter.ERROR)
+
+    def _print(self, message, color):
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
+        self.logging_instance.info(message)
+        click.echo(f"{color}{ColoredPrinter.BOLD}[{timestamp}]{ColoredPrinter.END} {message}")
 
 class LoggingHandlers:
     def __init__(self, verbose: bool = False, filename: Optional[str] = None):
@@ -208,33 +240,3 @@ def catch_interrupt():
         sys.exit(signal.SIGINT)
 
     signal.signal(signal.SIGINT, handler)
-
-class ColoredPrinter:
-    SUCCESS = "\033[92m"
-    STATUS = "\033[94m"
-    WARNING = "\033[93m"
-    ERROR = "\033[91m"
-    BOLD = "\033[1m"
-    END = "\033[0m"
-
-    def __init__(self, logging_instance):
-        self.logging_instance = logging_instance
-
-    def debug(self, message):
-        self._print(message, ColoredPrinter.STATUS)
-    
-    def info(self, message):
-        self._print(message, ColoredPrinter.SUCCESS)
-
-    def warning(self, message):
-        self._print(message, ColoredPrinter.WARNING)
-
-    def error(self, message):
-        self._print(message, ColoredPrinter.ERROR)
-
-    def critical(self, message):
-        self._print(message, ColoredPrinter.ERROR)
-
-    def _print(self, message, color):
-        timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
-        click.echo(f"{color}{ColoredPrinter.BOLD}[{timestamp}]{ColoredPrinter.END} {message}")
