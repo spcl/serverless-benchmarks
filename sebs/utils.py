@@ -220,7 +220,7 @@ class LoggingBase:
     @logging_handlers.setter
     def logging_handlers(self, handlers: LoggingHandlers):
         self._logging_handlers = handlers
-        
+
         self._logging.propagate = False
         self.wrapper = ColoredWrapper(self._logging, verbose=handlers.verbosity)
 
