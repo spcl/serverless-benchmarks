@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 from signal import SIGKILL
 from statistics import mean
@@ -8,10 +7,10 @@ from typing import List, Optional
 from sebs.cache import Cache
 from sebs.local.function import LocalFunction
 from sebs.storage.minio import Minio, MinioConfig
-from sebs.utils import serialize
+from sebs.utils import serialize, LoggingBase
 
 
-class Deployment:
+class Deployment(LoggingBase):
     @property
     def measurement_file(self) -> Optional[str]:
         return self._measurement_file
@@ -21,6 +20,7 @@ class Deployment:
         self._measurement_file = val
 
     def __init__(self):
+        super().__init__()
         self._functions: List[LocalFunction] = []
         self._storage: Optional[Minio]
         self._inputs: List[dict] = []
@@ -75,7 +75,7 @@ class Deployment:
 
         if len(self._memory_measurement_pids) > 0:
 
-            logging.info("Killing memory measurement processes")
+            self.logging.info("Killing memory measurement processes")
 
             # kill measuring processes
             for proc in self._memory_measurement_pids:
@@ -83,7 +83,7 @@ class Deployment:
 
         if self._measurement_file is not None:
 
-            logging.info(f"Gathering memory measurement data in {output_json}")
+            self.logging.info(f"Gathering memory measurement data in {output_json}")
             # create dictionary with the measurements
             measurements: dict = {}
             precision_errors = 0
