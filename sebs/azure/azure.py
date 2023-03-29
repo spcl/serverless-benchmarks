@@ -246,7 +246,9 @@ class Azure(System):
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout
-        self.logging.warn("Updating function's memory and timeout configuration is not supported.")
+        self.logging.warning(
+            "Updating function's memory and timeout configuration is not supported."
+        )
 
     def _mount_function_code(self, code_package: Benchmark):
         self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")

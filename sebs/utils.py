@@ -3,12 +3,11 @@ import logging
 import os
 import shutil
 import subprocess
-import sys
 import uuid
 import click
 import datetime
 
-from typing import List, Optional, TextIO, Union
+from typing import List, Optional
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
@@ -144,6 +143,7 @@ def global_logging():
     logging_date_format = "%H:%M:%S"
     logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
 
+
 class ColoredWrapper:
     SUCCESS = "\033[92m"
     STATUS = "\033[94m"
@@ -163,7 +163,7 @@ class ColoredWrapper:
             self._print(message, ColoredWrapper.STATUS)
             if self.propagte:
                 self._logging.debug(message)
-    
+
     def info(self, message):
         self._print(message, ColoredWrapper.SUCCESS)
         if self.propagte:
@@ -186,14 +186,17 @@ class ColoredWrapper:
 
     def _print(self, message, color):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
-        click.echo(f"{color}{ColoredWrapper.BOLD}[{timestamp}]{ColoredWrapper.END} {self.prefix} {message}")
+        click.echo(
+            f"{color}{ColoredWrapper.BOLD}[{timestamp}]{ColoredWrapper.END} {self.prefix} {message}"
+        )
+
 
 class LoggingHandlers:
     def __init__(self, verbose: bool = False, filename: Optional[str] = None):
         logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
         logging_date_format = "%H:%M:%S"
         formatter = logging.Formatter(logging_format, logging_date_format)
-        self.handler: logging.FileHandler = None
+        self.handler: Optional[logging.FileHandler] = None
 
         # Remember verbosity for colored wrapper
         self.verbosity = verbose
@@ -217,13 +220,13 @@ class LoggingBase:
         self._logging = logging.getLogger(self.log_name)
         self._logging.setLevel(logging.INFO)
         self.wrapper = ColoredWrapper(self.log_name, self._logging)
-    
+
     @property
     def logging(self) -> ColoredWrapper:
         # This would always print log with color. And only if
         # filename in LoggingHandlers is set, it would log to file.
         return self.wrapper
-    
+
     @property
     def logging_handlers(self) -> LoggingHandlers:
         return self._logging_handlers
@@ -233,9 +236,12 @@ class LoggingBase:
         self._logging_handlers = handlers
 
         self._logging.propagate = False
-        self.wrapper = ColoredWrapper(self.log_name, self._logging, 
-                                      verbose=handlers.verbosity,
-                                      propagte=handlers.handler is not None)
+        self.wrapper = ColoredWrapper(
+            self.log_name,
+            self._logging,
+            verbose=handlers.verbosity,
+            propagte=handlers.handler is not None,
+        )
 
         if self._logging_handlers.handler is not None:
             self._logging.addHandler(self._logging_handlers.handler)
