@@ -122,6 +122,7 @@ def parse_common_params(
 
     sebs_client = sebs.SeBS(cache, output_dir, verbose, logging_filename)
     output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
+    
     sebs_client.logging.info("Created experiment output at {}".format(output_dir))
 
     # CLI overrides JSON options
