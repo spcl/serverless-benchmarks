@@ -115,7 +115,7 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def create_function(self, code_package: Benchmark, func_name: str, num: int) -> Function:
+    def create_function(self, code_package: Benchmark, func_name: str) -> Function:
         pass
 
     @abstractmethod
@@ -139,7 +139,7 @@ class System(ABC, LoggingBase):
 
     """
 
-    def get_function(self, code_package: Benchmark, num: int, func_name: Optional[str] = None) -> List[Function]:
+    def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
 
         if code_package.language_version not in self.system_config.supported_language_versions(
             self.name(), code_package.language_name
@@ -171,16 +171,15 @@ class System(ABC, LoggingBase):
                 else "function {} not found in cache.".format(func_name)
             )
             self.logging.info("Creating new function! Reason: " + msg)
-            function_list = self.create_function(code_package, func_name, num)
-            for function in function_list:
-                self.cache_client.add_function(
-                    deployment_name=self.name(),
-                    language_name=code_package.language_name,
-                    code_package=code_package,
-                    function=function,
-                )
-                code_package.query_cache()
-            return function_list
+            function = self.create_function(code_package, func_name)
+            self.cache_client.add_function(
+                deployment_name=self.name(),
+                language_name=code_package.language_name,
+                code_package=code_package,
+                function=function,
+            )
+            code_package.query_cache()
+            return function
         else:
             # retrieve function
             cached_function = functions[func_name]
@@ -222,9 +221,7 @@ class System(ABC, LoggingBase):
                 code_package.query_cache()
             else:
                 self.logging.info(f"Cached function {func_name} is up to date.")
-            function_list = []
-            function_list.append(function)
-            return function_list
+            return function
 
     @abstractmethod
     def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):

@@ -105,7 +105,6 @@ class Local(System):
     def shutdown(self):
         if hasattr(self, "storage") and self.config.shutdownStorage:
             self.storage.stop()
-
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.
         However, to have a compatible function implementation across providers,
@@ -152,8 +151,8 @@ class Local(System):
 
         return directory, bytes_size
 
-    def create_function(self, code_package: Benchmark, func_name: str, num: int) -> "LocalFunction":
-        func_list = []
+    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+
         container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),
             code_package.language_name,
@@ -171,72 +170,69 @@ class Local(System):
                     self.name(), code_package.language_name
                 ),
             }
-        for i in range(num):
-            container = self._docker_client.containers.run(
-                image=container_name,
-                name=func_name+f"_{i}",
-                command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
-                volumes={code_package.code_location: {"bind": "/function", "mode": "ro"}},
-                environment=environment,
-                # FIXME: make CPUs configurable
-                # FIXME: configure memory
-                # FIXME: configure timeout
-                # cpuset_cpus=cpuset,
-                # required to access perf counters
-                # alternative: use custom seccomp profile
-                privileged=True,
-                security_opt=["seccomp:unconfined"],
-                network_mode="bridge",
-                # somehow removal of containers prevents checkpointing from working?
-                remove=self.remove_containers,
-                stdout=True,
-                stderr=True,
-                detach=True,
-                # tty=True,
-            )
 
-            pid: Optional[int] = None
-            if self.measurements_enabled and self._memory_measurement_path is not None:
-                # launch subprocess to measure memory
-                proc = subprocess.Popen(
-                    [
-                        "python3",
-                        "./sebs/local/measureMem.py",
-                        "--container-id",
-                        container.id,
-                        "--measure-interval",
-                        str(self._measure_interval),
-                        "--measurement-file",
-                        self._memory_measurement_path,
-                    ]
-                )
-                pid = proc.pid
+        container = self._docker_client.containers.run(
+            image=container_name,
+            name=func_name,
+            command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
+            volumes={code_package.code_location: {"bind": "/function", "mode": "ro"}},
+            environment=environment,
+            # FIXME: make CPUs configurable
+            # FIXME: configure memory
+            # FIXME: configure timeout
+            # cpuset_cpus=cpuset,
+            # required to access perf counters
+            # alternative: use custom seccomp profile
+            privileged=True,
+            security_opt=["seccomp:unconfined"],
+            network_mode="bridge",
+            # somehow removal of containers prevents checkpointing from working?
+            remove=self.remove_containers,
+            stdout=True,
+            stderr=True,
+            detach=True,
+            # tty=True,
+        )
 
-            function_cfg = FunctionConfig.from_benchmark(code_package)
-            func = LocalFunction(
-                container,
-                self.DEFAULT_PORT,
-                func_name,
-                code_package.benchmark,
-                code_package.hash,
-                function_cfg,
-                pid,
+        pid: Optional[int] = None
+        if self.measurements_enabled and self._memory_measurement_path is not None:
+            # launch subprocess to measure memory
+            proc = subprocess.Popen(
+                [
+                    "python3",
+                    "./sebs/local/measureMem.py",
+                    "--container-id",
+                    container.id,
+                    "--measure-interval",
+                    str(self._measure_interval),
+                    "--measurement-file",
+                    self._memory_measurement_path,
+                ]
             )
-            func_list.append(func)
-            self.logging.info(
-                f"Started {func_name} function at container {container.id} , running on {func._url}"
-            )
-        return func_list
+            pid = proc.pid
+
+        function_cfg = FunctionConfig.from_benchmark(code_package)
+        func = LocalFunction(
+            container,
+            self.DEFAULT_PORT,
+            func_name,
+            code_package.benchmark,
+            code_package.hash,
+            function_cfg,
+            pid,
+        )
+        self.logging.info(
+            f"Started {func_name} function at container {container.id} , running on {func._url}"
+        )
+        return func
 
     def update_function(self, function: Function, code_package: Benchmark):
         # kill existing containers
-        count = 0
         for ctr in self._docker_client.containers.list():
             if ctr.name in function.name:
-                count += 1
                 ctr.kill()
         # deploy new containers with updated function
-        self.create_function(code_package, function.name, count)
+        self.create_function(code_package, function.name)
 
     """
         For local functions, we don't need to do anything for a cached function.
@@ -278,8 +274,7 @@ class Local(System):
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         fn_names = [fn.name for fn in functions]
         for ctr in self._docker_client.containers.list():
-            for i in range(len(fn_names)):
-                if ctr.name in fn_names[i]:
+                if ctr.name in fn_names:
                     ctr.kill()
 
     @staticmethod
