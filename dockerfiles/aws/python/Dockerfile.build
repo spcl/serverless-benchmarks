@@ -1,22 +1,32 @@
-ARG BASE_IMAGE
-FROM ${BASE_IMAGE}
+FROM alpine
 ARG VERSION
 ENV PYTHON_VERSION=${VERSION}
 
-# useradd, groupmod
-RUN yum install -y shadow-utils
+# Install useradd and groupmod shadow package
+RUN apk add --no-cache shadow
+
+# Set environment variable
 ENV GOSU_VERSION 1.14
+
+# Download and install gosu
 # https://github.com/tianon/gosu/releases/tag/1.14
-# key https://keys.openpgp.org/search?q=tianon%40debian.org
+# Key https://keys.openpgp.org/search?q=tianon%40debian.org
 RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-amd64" \
     && chmod +x /usr/local/bin/gosu
+
+# Create directory for our script and copy it to
 RUN mkdir -p /sebs/
 COPY dockerfiles/python_installer.sh /sebs/installer.sh
 COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/entrypoint.sh
 
-# useradd and groupmod is installed in /usr/sbin which is not in PATH
+# Set the PATH environment variable to include /usr/sbin so that useradd and groupmod can be used
 ENV PATH=/usr/sbin:$PATH
+
+# Set the SCRIPT_FILE environment variable to the location of our package
 ENV SCRIPT_FILE=/mnt/function/package.sh
+
+# Set the command to run our installer in the box
 CMD /bin/bash /sebs/installer.sh
+
 ENTRYPOINT ["/sebs/entrypoint.sh"]
