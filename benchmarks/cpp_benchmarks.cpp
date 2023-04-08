@@ -1,6 +1,6 @@
 #include <benchmark/benchmark.h>
 
-static void BM_FunctionName(benchmark::State& state) {
+static void Setup(benchmark::State& state) {
   // Setup code here
   for (auto _ : state) {
     // Code to benchmark here
@@ -8,7 +8,7 @@ static void BM_FunctionName(benchmark::State& state) {
   // Teardown code here
 }
 
-BENCHMARK(BM_FunctionName);
+BENCHMARK(Setup);
 
 BENCHMARK_MAIN();
 
