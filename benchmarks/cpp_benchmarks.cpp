@@ -1,22 +1,14 @@
-## .py benchmark example 
+#include <benchmark/benchmark.h>
 
-import subprocess
+static void BM_FunctionName(benchmark::State& state) {
+  // Setup code here
+  for (auto _ : state) {
+    // Code to benchmark here
+  }
+  // Teardown code here
+}
 
-def run_python_benchmarks():
-    # Run Python benchmarks using existing benchmarking script
-    ...
+BENCHMARK(BM_FunctionName);
 
-def run_nodejs_benchmarks():
-    # Run Node.js benchmarks using existing benchmarking script
-    ...
+BENCHMARK_MAIN();
 
-def run_cpp_benchmarks():
-    # Run C++ benchmarks using subprocess module
-    cpp_benchmarks_proc = subprocess.Popen(['./cpp_benchmarks'], stdout=subprocess.PIPE)
-    cpp_benchmarks_output = cpp_benchmarks_proc.stdout.read()
-    print(cpp_benchmarks_output)
-
-if __name__ == '__main__':
-    run_python_benchmarks()
-    run_nodejs_benchmarks()
-    run_cpp_benchmarks()
