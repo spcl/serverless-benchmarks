@@ -10,7 +10,7 @@
 
 #include <benchmark/benchmark.h>
 
-void run_cpp_benchmark() {
+void setup(benchmark::State& state) {
   std::vector<std::string> compile_cmd = {"g++", "-std=c++11", "-O3", "-DNDEBUG", "-I./benchmark/include", "cpp_benchmark.cpp", "-o", "cpp_benchmark"};
   std::vector<std::string> run_cmd = {"./cpp_benchmark", "--benchmark_format=json"};
 
@@ -56,6 +56,8 @@ void run_cpp_benchmark() {
       overall_results[benchmark_name]["cpp"] = benchmark_time;
     }
   }
+
+  for (auto _ : state) {}
 }
 
 // ...
@@ -64,7 +66,10 @@ int main(int argc, char** argv) {
   // ...
 
   // Run the C++ benchmark
-  run_cpp_benchmark();
+  benchmark::RegisterBenchmark("cpp", setup)->Unit(benchmark::kMillisecond);
+
+  benchmark::Initialize(&argc, argv);
+  benchmark::RunSpecifiedBenchmarks();
 
   // Print the overall results
   // ...
