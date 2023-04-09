@@ -77,36 +77,4 @@ void setup(benchmark::State& state) {
 
   // Delete the Lambda function
   Aws::Lambda::Model::DeleteFunctionRequest deleteRequest;
-  deleteRequest.SetFunctionName("cpp_benchmark");
-  lambdaClient.DeleteFunction(deleteRequest);
-
-// Run the benchmarking loop
-for (auto _ : state) {
-  std::ostringstream benchmark_out;
-  int benchmark_ret = benchmark::RunSpecifiedCommand(run_cmd, &benchmark_out);
-  if (benchmark_ret != 0) {
-    std::cerr << "Failed to run C++ benchmark:\n" << benchmark_out.str() << std::endl;
-    return;
-  }
-
-  Aws::Lambda::Model::InvokeRequest invokeRequest;
-  invokeRequest.SetFunctionName("cpp_benchmark");
-  invokeRequest.SetInvocationType(Aws::Lambda::Model::InvocationType::RequestResponse);
-  invokeRequest.SetPayload(benchmark_out.str());
-
-  auto invokeOutcome = lambdaClient.Invoke(invokeRequest);
-  if (!invokeOutcome.IsSuccess()) {
-    std::cerr << "Failed to invoke Lambda function: " << invokeOutcome.GetError().GetMessage() << std::endl;
-    return;
-  }
-
-  Aws::String result = invokeOutcome.GetResult().GetPayload().AsString();
-  Aws::Utils::Json::JsonValue jsonResult(result.c_str());
-
-  for (const auto& benchmark : jsonResult.GetObject()) {
-    std::string benchmark_name = benchmark.GetName();
-    double benchmark_time = benchmark.GetValue().AsDouble() / benchmark::kNumIterations;
-
-    overall_results[benchmark_name]["aws_lambda"] = benchmark_time;
-  }
-}
+  delete
