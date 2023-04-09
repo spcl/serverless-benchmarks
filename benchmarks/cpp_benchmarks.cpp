@@ -8,7 +8,10 @@
 #include <chrono>
 #include <iomanip>
 
+// Include the benchmark library
 #include <benchmark/benchmark.h>
+
+// Include the AWS SDK
 #include <aws/core/Aws.h>
 #include <aws/core/utils/json/JsonValue.h>
 #include <aws/lambda/LambdaClient.h>
@@ -16,8 +19,10 @@
 #include <aws/lambda/model/InvokeRequest.h>
 #include <aws/lambda/model/DeleteFunctionRequest.h>
 
+// Define a map to store the benchmark results
 std::map<std::string, std::map<std::string, double>> overall_results;
 
+// Define the setup function for the benchmark
 void setup(benchmark::State& state) {
   // Set up compile and run commands for the C++ benchmark
   std::vector<std::string> compile_cmd = {"g++", "-std=c++11", "-O3", "-DNDEBUG", "-I./benchmark/include", "cpp_benchmark.cpp", "-o", "cpp_benchmark"};
