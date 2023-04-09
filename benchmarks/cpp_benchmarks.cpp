@@ -9,6 +9,14 @@
 #include <iomanip>
 
 #include <benchmark/benchmark.h>
+#include <aws/core/Aws.h>
+#include <aws/core/utils/json/JsonValue.h>
+#include <aws/lambda/LambdaClient.h>
+#include <aws/lambda/model/CreateFunctionRequest.h>
+#include <aws/lambda/model/InvokeRequest.h>
+#include <aws/lambda/model/DeleteFunctionRequest.h>
+
+std::map<std::string, std::map<std::string, double>> overall_results;
 
 void setup(benchmark::State& state) {
   // Set up compile and run commands for the C++ benchmark
@@ -23,64 +31,53 @@ void setup(benchmark::State& state) {
     return;
   }
 
-  // Run the C++ benchmark
-  std::ostringstream run_out;
-  int run_ret = benchmark::RunSpecifiedCommand(run_cmd, &run_out);
-  if (run_ret != 0) {
-    std::cerr << "Failed to run C++ benchmark:\n" << run_out.str() << std::endl;
+  // Set up the Lambda client
+  Aws::SDKOptions options;
+  Aws::InitAPI(options);
+  Aws::Client::ClientConfiguration clientConfig;
+  Aws::Lambda::LambdaClient lambdaClient(clientConfig);
+
+  // Build the request to create the Lambda function
+  Aws::Lambda::Model::CreateFunctionRequest createRequest;
+  createRequest.SetFunctionName("cpp_benchmark");
+  createRequest.SetRuntime("provided");
+  createRequest.SetRole("arn:aws:iam::123456789012:role/lambda-role");
+  createRequest.SetHandler("cpp_benchmark.handler");
+  createRequest.SetCode(Aws::Lambda::Model::FunctionCode().WithZipFile("path/to/cpp_benchmark.zip"));
+
+  // Create the Lambda function
+  auto createOutcome = lambdaClient.CreateFunction(createRequest);
+  if (!createOutcome.IsSuccess()) {
+    std::cerr << "Failed to create Lambda function: " << createOutcome.GetError().GetMessage() << std::endl;
     return;
   }
 
-  // Parse the output of the C++ benchmark and store the results
-  std::string output = run_out.str();
-  std::istringstream ss(output);
-  std::string line;
-  while (std::getline(ss, line)) {
-    std::istringstream ls(line);
-    std::string field, value;
-    std::getline(ls, field, ':');
-    std::getline(ls, value, ',');
+  // Build the request to invoke the Lambda function
+  Aws::Lambda::Model::InvokeRequest invokeRequest;
+  invokeRequest.SetFunctionName("cpp_benchmark");
+  invokeRequest.SetInvocationType(Aws::Lambda::Model::InvocationType::RequestResponse);
 
-    if (field == "\"name\"") {
-      // Extract the name of the benchmark
-      std::string benchmark_name = value.substr(1, value.size() - 2);
-      double benchmark_time = 0.0;
-
-      // Extract the real time taken by the benchmark
-      while (std::getline(ss, line) && line != "},") {
-        std::istringstream ls(line);
-        std::string field, value;
-        std::getline(ls, field, ':');
-        std::getline(ls, value, ',');
-
-        if (field == "\"real_time\"") {
-          benchmark_time = std::stod(value) / benchmark::kNumIterations;
-        }
-      }
-
-      // Store the benchmark results
-      overall_results[benchmark_name]["cpp"] = benchmark_time;
-    }
+  // Invoke the Lambda function and store the results
+  auto invokeOutcome = lambdaClient.Invoke(invokeRequest);
+  if (!invokeOutcome.IsSuccess()) {
+    std::cerr << "Failed to invoke Lambda function: " << invokeOutcome.GetError().GetMessage() << std::endl;
+    return;
   }
 
-  // Run the benchmarking loop (this loop is empty)
-  for (auto _ : state) {}
-}
+  // Parse the output of the Lambda function and store the results
+  Aws::String result = invokeOutcome.GetResult().GetPayload().AsString();
+  Aws::Utils::Json::JsonValue jsonResult(result.c_str());
 
-// ...
+  for (const auto& benchmark : jsonResult.GetObject()) {
+    std::string benchmark_name = benchmark.GetName();
+    double benchmark_time = benchmark.GetValue().AsDouble() / benchmark::kNumIterations;
 
-int main(int argc, char** argv) {
-  // ...
+    overall_results[benchmark_name]["cpp"] = benchmark_time;
+  }
 
-  // Register the C++ benchmark and set its unit of measurement
-  benchmark::RegisterBenchmark("cpp", setup)->Unit(benchmark::kMillisecond);
+  // Delete the Lambda function
+  Aws::Lambda::Model::DeleteFunctionRequest deleteRequest;
+  deleteRequest.SetFunctionName("cpp_benchmark");
+  lambdaClient.DeleteFunction(deleteRequest);
 
-  // Initialize the benchmark framework and run the benchmarks
-  benchmark::Initialize(&argc, argv);
-  benchmark::RunSpecifiedBenchmarks();
-
-  // Print the overall results
-  // ...
-
-  return 0;
-}
+  // Run the benchmark
