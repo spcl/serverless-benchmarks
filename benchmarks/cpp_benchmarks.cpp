@@ -75,6 +75,22 @@ void setup(benchmark::State& state) {
     overall_results[benchmark_name]["cpp"] = benchmark_time;
   }
 
-  // Delete the Lambda function
+   // Delete the Lambda function
   Aws::Lambda::Model::DeleteFunctionRequest deleteRequest;
-  delete
+  deleteRequest.SetFunctionName("cpp_benchmark");
+  lambdaClient.DeleteFunction(deleteRequest);
+
+  // Print the benchmark results
+  std::cout << "Benchmark Results:\n";
+  std::cout << std::setw(20) << std::left << "Benchmark Name" << std::setw(15) << std::right << "Local (ms)" << std::setw(15) << std::right << "AWS Lambda (ms)" << std::endl;
+  std::cout << "------------------------------------------------------\n";
+  for (const auto& benchmark : overall_results) {
+    std::cout << std::setw(20) << std::left << benchmark.first << std::fixed << std::setprecision(2) << std::setw(15) << std::right << benchmark.second["cpp"] << std::setw(15) << std::right << benchmark.second["aws_lambda"] << std::endl;
+  }
+
+  // Shut down the AWS SDK
+  Aws::ShutdownAPI(options);
+}
+
+BENCHMARK(setup);
+
