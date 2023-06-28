@@ -55,11 +55,11 @@ def handler(event):
     upload_time = (upload_end - upload_begin) / datetime.timedelta(microseconds=1)
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
     return {
-            'result': {
-                'bucket': output_bucket,
-                'key': key_name
-            },
+            'status': 'success',
+            'result': 'Returned with no error',
             'measurement': {
+                'bucket': output_bucket,
+                'key': key_name,    
                 'download_time': download_time,
                 'download_size': len(img),
                 'upload_time': upload_time,

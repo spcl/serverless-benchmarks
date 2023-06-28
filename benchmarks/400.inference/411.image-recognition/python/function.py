@@ -68,8 +68,11 @@ def handler(event):
     model_process_time = (model_process_end - model_process_begin) / datetime.timedelta(microseconds=1)
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
     return {
-            'result': {'idx': index.item(), 'class': ret},
+            'status': 'success',
+            'result': 'Returned with no error',
             'measurement': {
+                'idx': index.item(),
+                'class': ret,
                 'download_time': download_time + model_download_time,
                 'compute_time': process_time + model_process_time,
                 'model_time': model_process_time,

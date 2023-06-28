@@ -35,8 +35,8 @@ def handler(event):
             i += 1
             consecutive_failures += 1
             if consecutive_failures == 7:
-                print("Can't setup the connection")
-                break
+                server_socket.close()
+                return { 'status': 'failure', 'result': 'Unable to setup connection' }
             continue
         if i > 0:
             times.append([i, send_begin, recv_end])
@@ -56,16 +56,13 @@ def handler(event):
         server_socket.settimeout(4)
     server_socket.close()
    
-    if consecutive_failures != 5:
-        with open('/tmp/data.csv', 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile, delimiter=',')
-            writer.writerow(["id", "client_send", "client_rcv"]) 
-            for row in times:
-                writer.writerow(row)
-      
-        client = storage.storage.get_instance()
-        key = client.upload(output_bucket, 'results-{}.csv'.format(request_id), '/tmp/data.csv')
-    else:
-        key = None
+    with open('/tmp/data.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',')
+        writer.writerow(["id", "client_send", "client_rcv"]) 
+        for row in times:
+            writer.writerow(row)
+    
+    client = storage.storage.get_instance()
+    key = client.upload(output_bucket, 'results-{}.csv'.format(request_id), '/tmp/data.csv')
 
-    return { 'result': {'bucket-key': key, 'timestamp':  event['income-timestamp']} }
+    return { 'status': 'success', 'result': 'Returned with no error', 'measurement': {'bucket-key': key, 'timestamp': event['income-timestamp']} }

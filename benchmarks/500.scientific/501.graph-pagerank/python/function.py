@@ -17,6 +17,7 @@ def handler(event):
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
 
     return {
+            'status': 'success',
             'result': result[0],
             'measurement': {
                 'graph_generating_time': graph_generating_time,

@@ -10,4 +10,4 @@ def handler(event):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(addr)
     msg = s.recv(1024).decode()
-    return {"result": msg}
+    return { 'status': 'success', 'result': 'Returned with no error', "measurement": msg }
