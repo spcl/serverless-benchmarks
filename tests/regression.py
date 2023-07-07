@@ -16,18 +16,20 @@ from sebs.faas.function import Trigger
 
 parser = argparse.ArgumentParser(description="Run tests.")
 parser.add_argument("--deployment", choices=["aws", "azure", "local"], nargs="+")
+parser.add_argument("--language", choices=["python", "nodejs"], default="python")
+parser.add_argument("--language-version", choices=["3.7", "3.8", "3.9"], default="3.7")
 
 benchmarks = [
-    "110.dynamic-html",
-    "120.uploader",
-    "210.thumbnailer",
-    "220.video-processing",
-    "311.compression",
-    "411.image-recognition",
+    #"110.dynamic-html",
+    #"120.uploader",
+    #"210.thumbnailer",
+    #"220.video-processing",
+    #"311.compression",
+    #"411.image-recognition",
     "501.graph-pagerank",
-    "502.graph-mst",
-    "503.graph-bfs",
-    "504.dna-visualisation",
+    #"502.graph-mst",
+    #"503.graph-bfs",
+    #"504.dna-visualisation",
 ]
 tmp_dir = tempfile.TemporaryDirectory()
 client = sebs.SeBS("regression-cache", "regression-output")
@@ -43,19 +45,24 @@ class TestSequenceMeta(type):
         cls.deployment_name = deployment_name
         cls.config = config
         cls.experiment_config = experiment_config
+        cls.language = None
+        cls.language_version = None
 
     def __new__(mcs, name, bases, dict, deployment_name, config, experiment_config):
         def gen_test(benchmark_name):
             def test(self):
+
                 deployment_client = client.get_deployment(
                     self.config,
-                    os.path.join("regression-output", f"regression_test_{deployment_name}_{benchmark_name}.log")
+                    os.path.join("regression-output", f"regression_test_{deployment_name}_{benchmark_name}_{self.language}_{self.language_version}.log")
                 )
                 logging.info(
                     f"Begin regression test of {benchmark_name} on " f"{deployment_client.name()}"
                 )
                 deployment_client.initialize()
-                print(self.experiment_config)
+
+                self.experiment_config["runtime"]["language"] = self.language
+                self.experiment_config["runtime"]["version"] = self.language_version
                 experiment_config = client.get_experiment_config(self.experiment_config)
 
                 benchmark = client.get_benchmark(
@@ -63,7 +70,6 @@ class TestSequenceMeta(type):
                 )
                 func = deployment_client.get_function(
                     benchmark, deployment_client.default_function_name(benchmark)
-
                 )
                 storage = deployment_client.get_storage(
                     replace_existing=experiment_config.update_storage
@@ -159,7 +165,10 @@ if "azure" in args.deployment:
 tests = []
 for case in suite:
     for test in case:
+        test.language = args.language
+        test.language_version = args.language_version
         tests.append(test)
+
 concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
 result = TracingStreamResult()
 result.startTestRun()
