@@ -20,16 +20,16 @@ parser.add_argument("--language", choices=["python", "nodejs"], default="python"
 parser.add_argument("--language-version", choices=["3.7", "3.8", "3.9"], default="3.7")
 
 benchmarks = [
-    #"110.dynamic-html",
-    #"120.uploader",
-    #"210.thumbnailer",
-    #"220.video-processing",
-    #"311.compression",
-    #"411.image-recognition",
+    "110.dynamic-html",
+    "120.uploader",
+    "210.thumbnailer",
+    "220.video-processing",
+    "311.compression",
+    "411.image-recognition",
     "501.graph-pagerank",
-    #"502.graph-mst",
-    #"503.graph-bfs",
-    #"504.dna-visualisation",
+    "502.graph-mst",
+    "503.graph-bfs",
+    "504.dna-visualisation",
 ]
 tmp_dir = tempfile.TemporaryDirectory()
 client = sebs.SeBS("regression-cache", "regression-output")
