@@ -36,7 +36,7 @@ else:
     print("Using existing Python virtualenv at {}".format(env_dir))
 
 print("Install Python dependencies with pip")
-execute(". {}/bin/activate && pip3 install -r requirements.txt --upgrade && pip3 install typing-extensions --upgrade".format(env_dir))
+execute(". {}/bin/activate && pip3 install -r requirements.txt --upgrade".format(env_dir))
 
 if args.aws:
     print("Install Python dependencies for AWS")
@@ -68,6 +68,10 @@ if args.local:
     execute(". {}/bin/activate && pip3 install -r requirements.local.txt".format(env_dir))
     print("Initialize Docker image for local storage.")
     execute("docker pull minio/minio:latest")
+
+# One of the installed dependencies causes a downgrade, which in turns breaks static typing.
+print("Update typing-extensions (resolving bug with mypy)")
+execute(". {}/bin/activate && pip3 install typing-extensions --upgrade".format(env_dir))
 
 print("Download benchmarks data")
 try:
