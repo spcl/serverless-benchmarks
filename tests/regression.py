@@ -17,9 +17,9 @@ from sebs.faas.function import Trigger
 parser = argparse.ArgumentParser(description="Run tests.")
 parser.add_argument("--deployment", choices=["aws", "azure", "local"], nargs="+")
 parser.add_argument("--language", choices=["python", "nodejs"], default="python")
-parser.add_argument("--language-version", choices=["3.7", "3.8", "3.9"], default="3.7")
+parser.add_argument("--language-version", choices=["3.7", "3.8", "3.9", "10", "12", "14"], default="3.7")
 
-benchmarks = [
+benchmarks_python = [
     "110.dynamic-html",
     "120.uploader",
     "210.thumbnailer",
@@ -31,6 +31,11 @@ benchmarks = [
     "503.graph-bfs",
     "504.dna-visualisation",
 ]
+benchmarks_nodejs = [
+    "110.dynamic-html",
+    "120.uploader",
+    "210.thumbnailer"
+]
 tmp_dir = tempfile.TemporaryDirectory()
 client = sebs.SeBS("regression-cache", "regression-output")
 
@@ -40,15 +45,16 @@ if not args.deployment:
 
 
 class TestSequenceMeta(type):
-    def __init__(cls, name, bases, attrs, deployment_name, config, experiment_config):
+    def __init__(cls, name, bases, attrs, benchmarks, deployment_name, config, experiment_config):
         type.__init__(cls, name, bases, attrs)
+        cls.benchmarks = benchmarks
         cls.deployment_name = deployment_name
         cls.config = config
         cls.experiment_config = experiment_config
         cls.language = None
         cls.language_version = None
 
-    def __new__(mcs, name, bases, dict, deployment_name, config, experiment_config):
+    def __new__(mcs, name, bases, dict, benchmarks, deployment_name, config, experiment_config):
         def gen_test(benchmark_name):
             def test(self):
 
@@ -94,9 +100,10 @@ class TestSequenceMeta(type):
         return type.__new__(mcs, name, bases, dict)
 
 
-class AWSTestSequence(
+class AWSTestSequencePython(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
     deployment_name="aws",
     config={"name": "aws", "aws": {"region": "us-east-1"}},
     experiment_config={
@@ -108,10 +115,25 @@ class AWSTestSequence(
 ):
     pass
 
-
-class AzureTestSequence(
+class AWSTestSequenceNodejs(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    deployment_name="aws",
+    config={"name": "aws", "aws": {"region": "us-east-1"}},
+    experiment_config={
+        "update_code": False,
+        "update_storage": False,
+        "download_results": False,
+        "runtime": {"language": "python", "version": "3.7"},
+    },
+):
+    pass
+
+class AzureTestSequencePython(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
     deployment_name="azure",
     config={"name": "azure", "azure": {"region": "westeurope"}},
     experiment_config={
@@ -159,9 +181,12 @@ class TracingStreamResult(testtools.StreamResult):
 
 suite = unittest.TestSuite()
 if "aws" in args.deployment:
-    suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequence))
+    if args.language == "python":
+        suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequencePython))
+    elif args.language == "nodejs":
+        suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceNodejs))
 if "azure" in args.deployment:
-    suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequence))
+    suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequencePython))
 tests = []
 for case in suite:
     for test in case:
