@@ -12,6 +12,7 @@ PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.
 sys.path.append(PROJECT_DIR)
 
 import sebs
+from sebs.faas.function import Trigger
 
 parser = argparse.ArgumentParser(description="Run tests.")
 parser.add_argument("--deployment", choices=["aws", "azure", "local"], nargs="+")
@@ -20,13 +21,13 @@ benchmarks = [
     "110.dynamic-html",
     "120.uploader",
     "210.thumbnailer",
-    #"220.video-processing",
-    #"311.compression",
-    #"411.image-recognition",
-    #"501.graph-pagerank",
-    #"502.graph-mst",
-    #"503.graph-bfs",
-    #"504.dna-visualisation"
+    "220.video-processing",
+    "311.compression",
+    "411.image-recognition",
+    "501.graph-pagerank",
+    "502.graph-mst",
+    "503.graph-bfs",
+    "504.dna-visualisation",
 ]
 tmp_dir = tempfile.TemporaryDirectory()
 client = sebs.SeBS("regression-cache", "regression-output")
@@ -35,8 +36,8 @@ args = parser.parse_args()
 if not args.deployment:
     args.deployment = []
 
-class TestSequenceMeta(type):
 
+class TestSequenceMeta(type):
     def __init__(cls, name, bases, attrs, deployment_name, config, experiment_config):
         type.__init__(cls, name, bases, attrs)
         cls.deployment_name = deployment_name
@@ -44,30 +45,41 @@ class TestSequenceMeta(type):
         cls.experiment_config = experiment_config
 
     def __new__(mcs, name, bases, dict, deployment_name, config, experiment_config):
-
         def gen_test(benchmark_name):
             def test(self):
-                deployment_client = client.get_deployment(self.config, f"regression_test_{deployment_name}_{benchmark_name}.log")
+                deployment_client = client.get_deployment(
+                    self.config,
+                    os.path.join("regression-output", f"regression_test_{deployment_name}_{benchmark_name}.log")
+                )
                 logging.info(
-                    f"Begin regression test of {benchmark_name} on "
-                    f"{deployment_client.name()}"
+                    f"Begin regression test of {benchmark_name} on " f"{deployment_client.name()}"
                 )
                 deployment_client.initialize()
-                experiment_config = client.get_experiment(self.experiment_config)
+                print(self.experiment_config)
+                experiment_config = client.get_experiment_config(self.experiment_config)
+
                 benchmark = client.get_benchmark(
-                    benchmark_name, tmp_dir.name, deployment_client, experiment_config
+                    benchmark_name, deployment_client, experiment_config
+                )
+                func = deployment_client.get_function(
+                    benchmark, deployment_client.default_function_name(benchmark)
+
                 )
                 storage = deployment_client.get_storage(
                     replace_existing=experiment_config.update_storage
                 )
                 input_config = benchmark.prepare_input(storage=storage, size="test")
-                func = deployment_client.get_function(
-                    benchmark,
-                    deployment_client.default_function_name(benchmark)
-                )
-                ret = func.triggers[0].sync_invoke(input_config)
+
+                trigger_type = Trigger.TriggerType.get("http")
+                triggers = func.triggers(trigger_type)
+                if len(triggers) == 0:
+                    trigger = deployment_client.create_trigger(func, trigger_type)
+                else:
+                    trigger = triggers[0]
+                ret = trigger.sync_invoke(input_config)
                 if ret.stats.failure:
                     raise RuntimeError(f"Test of {benchmark_name} failed!")
+
             return test
 
         for benchmark in benchmarks:
@@ -75,54 +87,43 @@ class TestSequenceMeta(type):
             dict[test_name] = gen_test(benchmark)
         return type.__new__(mcs, name, bases, dict)
 
-class AWSTestSequence(unittest.TestCase,
-        metaclass=TestSequenceMeta,
-        deployment_name="aws",
-        config = {
-            "name": "aws",
-            "aws": {
-                "region": "us-east-1"
-            }
-        },
-        experiment_config = {
-            "update_code": False,
-            "update_storage": False,
-            "download_results": False,
-            "runtime": {
-              "language": "python",
-              "version": "3.6"
-            }
-        }
-    ):
+
+class AWSTestSequence(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    deployment_name="aws",
+    config={"name": "aws", "aws": {"region": "us-east-1"}},
+    experiment_config={
+        "update_code": False,
+        "update_storage": False,
+        "download_results": False,
+        "runtime": {"language": "python", "version": "3.7"},
+    },
+):
     pass
 
-class AzureTestSequence(unittest.TestCase,
-        metaclass=TestSequenceMeta,
-        deployment_name="azure",
-        config = {
-            "name": "azure",
-            "azure": {
-                "region": "westeurope"
-            }
-        },
-        experiment_config = {
-            "update_code": False,
-            "update_storage": False,
-            "download_results": False,
-            "runtime": {
-              "language": "python",
-              "version": "3.6"
-            },
-        }
-    ):
+
+class AzureTestSequence(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    deployment_name="azure",
+    config={"name": "azure", "azure": {"region": "westeurope"}},
+    experiment_config={
+        "update_code": False,
+        "update_storage": False,
+        "download_results": False,
+        "runtime": {"language": "python", "version": "3.6"},
+    },
+):
     pass
 
-    #def setUp(self):
+    # def setUp(self):
     #    self.stream_handler = logging.StreamHandler(sys.stdout)
     #    logger.addHandler(self.stream_handler)
 
-    #def tearDown(self):
+    # def tearDown(self):
     #    logger.removeHandler(self.stream_handler)
+
 
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
 class TracingStreamResult(testtools.StreamResult):
@@ -136,15 +137,15 @@ class TracingStreamResult(testtools.StreamResult):
 
     def status(self, *args, **kwargs):
         self.all_correct = self.all_correct and (kwargs["test_status"] in ["inprogress", "success"])
-        test_name = kwargs["test_id"].split('_')[-1]
+        test_name = kwargs["test_id"].split("_")[-1]
         if not kwargs["test_status"]:
             test_id = kwargs["test_id"]
             if test_id not in self.output:
                 self.output[test_id] = b""
             self.output[test_id] += kwargs["file_bytes"]
         elif kwargs["test_status"] == "fail":
-            print('{0[test_id]}: {0[test_status]}'.format(kwargs))
-            print('{0[test_id]}: {1}'.format(kwargs, self.output[kwargs["test_id"]].decode()))
+            print("{0[test_id]}: {0[test_status]}".format(kwargs))
+            print("{0[test_id]}: {1}".format(kwargs, self.output[kwargs["test_id"]].decode()))
             self.failures.add(test_name)
         elif kwargs["test_status"] == "success":
             self.success.add(test_name)
