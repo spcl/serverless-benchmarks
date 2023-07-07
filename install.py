@@ -36,7 +36,7 @@ else:
     print("Using existing Python virtualenv at {}".format(env_dir))
 
 print("Install Python dependencies with pip")
-execute(". {}/bin/activate && pip3 install -r requirements.txt --upgrade".format(env_dir))
+execute(". {}/bin/activate && pip3 install -r requirements.txt --upgrade && pip3 install typing-extensions --upgrade".format(env_dir))
 
 if args.aws:
     print("Install Python dependencies for AWS")
