@@ -395,6 +395,7 @@ class Benchmark(LoggingBase):
                                 "CONTAINER_GID": str(os.getgid()),
                                 "CONTAINER_USER": "docker_user",
                                 "APP": self.benchmark,
+                                "PLATFORM": self._deployment_name.upper(),
                             },
                             remove=True,
                             stdout=True,

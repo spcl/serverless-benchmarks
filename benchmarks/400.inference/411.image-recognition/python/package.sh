@@ -24,7 +24,7 @@ find . -name \*.pyc -delete
 cd ${CUR_DIR}
 echo "Stripped size $(du -sh $1 | cut -f1)"
 
-if [[ "${PYTHON_VERSION}" == "3.8" ]] || [[ "${PYTHON_VERSION}" == "3.9" ]]; then
+if ([[ "${PLATFORM}" == "AWS" ]] || [[ "${PLATFORM}" == "GCP" ]]) && ([[ "${PYTHON_VERSION}" == "3.8" ]] || [[ "${PYTHON_VERSION}" == "3.9" ]]); then
 	zip -qr torch.zip $1/torch
 	rm -rf $1/torch
 	echo "Torch-zipped size $(du -sh ${CUR_DIR} | cut -f1)"
