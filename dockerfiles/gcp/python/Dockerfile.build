@@ -2,15 +2,20 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG VERSION
 ENV PYTHON_VERSION=${VERSION}
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV TZ="Europe/Zurich"
 
 RUN apt-get update\
-  && apt-get install -y gosu gcc build-essential python-dev libxml2 libxml2-dev zlib1g-dev\
+  && apt-get install -y --no-install-recommends gosu gcc build-essential libxml2 libxml2-dev zlib1g-dev software-properties-common gpg-agent zip\
+  && add-apt-repository -y ppa:deadsnakes/ppa\
+  && apt-get update\
+  && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-venv python${PYTHON_VERSION}-dev\
   && apt-get purge -y --auto-remove
 
-RUN export PATH=/opt/python3.7/bin:/opt/python3.6/bin:/opt/python3.5/bin:/opt/python3.4/bin:$PATH
-RUN virtualenv -p python${PYTHON_VERSION} /sebs/env
-ENV VIRTUAL_ENV /sebs/env
+#RUN export PATH=/opt/python3.7/bin:/opt/python3.6/bin:/opt/python3.5/bin:/opt/python3.4/bin:$PATH
+RUN python${PYTHON_VERSION} -mvenv /sebs/env
 ENV PATH /sebs/env/bin:${PATH}
+ENV VIRTUAL_ENV /sebs/env
 
 RUN mkdir -p /sebs/
 COPY dockerfiles/python_installer.sh /sebs/installer.sh
