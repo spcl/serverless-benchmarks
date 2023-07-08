@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import logging
 import os
 import tempfile
@@ -15,7 +16,8 @@ import sebs
 from sebs.faas.function import Trigger
 
 parser = argparse.ArgumentParser(description="Run tests.")
-parser.add_argument("--deployment", choices=["aws", "azure", "local"], nargs="+")
+parser.add_argument("--config", default=None, type=str)
+parser.add_argument("--deployment", choices=["aws", "azure", "gcp"], nargs="+")
 parser.add_argument("--language", choices=["python", "nodejs"], default="python")
 parser.add_argument("--language-version", choices=["3.7", "3.8", "3.9", "10", "12", "14"], default="3.7")
 
@@ -25,7 +27,7 @@ benchmarks_python = [
     "210.thumbnailer",
     "220.video-processing",
     "311.compression",
-    "411.image-recognition",
+    #"411.image-recognition",
     "501.graph-pagerank",
     "502.graph-mst",
     "503.graph-bfs",
@@ -145,12 +147,35 @@ class AzureTestSequencePython(
 ):
     pass
 
-    # def setUp(self):
-    #    self.stream_handler = logging.StreamHandler(sys.stdout)
-    #    logger.addHandler(self.stream_handler)
+class GCPTestSequencePython(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
+    deployment_name="gcp",
+    config={"name": "gcp", "gcp": {"region": "us-east-1"}},
+    experiment_config={
+        "update_code": False,
+        "update_storage": False,
+        "download_results": False,
+        "runtime": {"language": "python", "version": "3.7"},
+    },
+):
+    pass
 
-    # def tearDown(self):
-    #    logger.removeHandler(self.stream_handler)
+class GCPTestSequenceNodejs(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    deployment_name="gcp",
+    config={"name": "gcp", "gcp": {"region": "us-east-1"}},
+    experiment_config={
+        "update_code": False,
+        "update_storage": False,
+        "download_results": False,
+        "runtime": {"language": "python", "version": "3.7"},
+    },
+):
+    pass
 
 
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
@@ -185,13 +210,23 @@ if "aws" in args.deployment:
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequencePython))
     elif args.language == "nodejs":
         suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceNodejs))
+if "gcp" in args.deployment:
+    if args.language == "python":
+        suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequencePython))
+    elif args.language == "nodejs":
+        suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceNodejs))
 if "azure" in args.deployment:
     suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequencePython))
+
 tests = []
 for case in suite:
     for test in case:
         test.language = args.language
         test.language_version = args.language_version
+
+        if args.config is not None:
+            test.config[test.deployment_name] = json.load(open(args.config, 'r'))['deployment'][test.deployment_name]
+
         tests.append(test)
 
 concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
