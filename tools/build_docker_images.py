@@ -14,6 +14,7 @@ parser.add_argument(
 )
 parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
 parser.add_argument("--language", default=None, choices=["python", "nodejs"], action="store")
+parser.add_argument("--language-version", default=None, type=str, action="store")
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
 client = docker.from_env()
@@ -55,7 +56,10 @@ def build_language(system, language, language_config):
     configs = []
     if "base_images" in language_config:
         for version, base_image in language_config["base_images"].items():
-            configs.append([version, base_image])
+            if args.language_version is not None and args.language_version == version:
+                configs.append([version, base_image])
+            elif args.language_version is None:
+                configs.append([version, base_image])
     else:
         configs.append([None, None])
 
