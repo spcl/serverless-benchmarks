@@ -79,7 +79,7 @@ class PerfCost(Experiment):
             self.run_configuration(settings, settings["repetitions"])
         for memory in memory_sizes:
             self.logging.info(f"Begin experiment on memory size {memory}")
-            self._function.memory = memory
+            self._function.config.memory = memory
             self._deployment_client.update_function(self._function, self._benchmark)
             self._sebs_client.cache_client.update_function(self._function)
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
