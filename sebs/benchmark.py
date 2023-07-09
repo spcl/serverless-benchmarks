@@ -254,6 +254,10 @@ class Benchmark(LoggingBase):
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
+        # support node.js benchmarks with language specific packages
+        nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
+        if os.path.exists(nodejs_package_json):
+            shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
 
     def add_benchmark_data(self, output_dir):
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"

@@ -1,0 +1,10 @@
+{
+  "name": "",
+  "version": "1.0.0",
+  "description": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "sharp": "^0.28"
+  }
+}
