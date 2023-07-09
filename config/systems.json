@@ -77,7 +77,8 @@
       },
       "nodejs": {
         "base_images": {
-          "14": "amazon/aws-lambda-nodejs:14"
+          "14": "amazon/aws-lambda-nodejs:14",
+          "16": "amazon/aws-lambda-nodejs:16"
         },
         "versions": [
           "14"
@@ -172,7 +173,8 @@
         "base_images": {
           "10": "gcr.io/google-appengine/nodejs",
           "12": "gcr.io/google-appengine/nodejs",
-          "14": "gcr.io/google-appengine/nodejs"
+          "14": "gcr.io/google-appengine/nodejs",
+          "16": "gcr.io/google-appengine/nodejs"
         },
         "images": [
           "build"

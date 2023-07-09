@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(description="Run tests.")
 parser.add_argument("--config", default=None, type=str)
 parser.add_argument("--deployment", choices=["aws", "azure", "gcp"], nargs="+")
 parser.add_argument("--language", choices=["python", "nodejs"], default="python")
-parser.add_argument("--language-version", choices=["3.7", "3.8", "3.9", "10", "12", "14"], default="3.7")
+parser.add_argument("--language-version", choices=["3.7", "3.8", "3.9", "10", "12", "14", "16"], default="3.7")
 
 benchmarks_python = [
     "110.dynamic-html",
