@@ -49,7 +49,15 @@ def build(image_type, system, language=None, version=None, version_name=None):
             target, PROJECT_DIR, dockerfile, buildargs
         )
     )
-    client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
+    try:
+        client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
+    except docker.errors.BuildError as exc:
+        print("Error! Build failed!")
+        print(exc)
+        print("Build log")
+        for line in exc.build_log:
+            if 'stream' in line:
+                print(line['stream'].strip())
 
 
 def build_language(system, language, language_config):
