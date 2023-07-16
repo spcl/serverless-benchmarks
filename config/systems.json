@@ -81,7 +81,7 @@
           "16": "amazon/aws-lambda-nodejs:16"
         },
         "versions": [
-          "14"
+          "14", "16"
         ],
         "images": [
           "build"
