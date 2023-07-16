@@ -1,21 +1,21 @@
-FROM python:3.7-slim-stretch
+FROM python:3.11-slim-bullseye
 #ARG USER
 #ARG UID
 # disable telemetry by default
 ENV FUNCTIONS_CORE_TOOLS_TELEMETRY_OPTOUT=1
 
 RUN apt-get clean && apt-get update\
-  && apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg libicu57\
+  && apt-get install -y ca-certificates curl apt-transport-https lsb-release gnupg libicu67\
   && curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor\
     | tee /etc/apt/trusted.gpg.d/microsoft.asc.gpg > /dev/null\
   && AZ_REPO=$(lsb_release -cs)\
   && echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main"\
     | tee /etc/apt/sources.list.d/azure-cli.list\
-  && echo "deb [arch=amd64] https://packages.microsoft.com/debian/9/prod $(lsb_release -cs) main" > /etc/apt/sources.list.d/dotnetdev.list\
+  && echo "deb [arch=amd64] https://packages.microsoft.com/debian/11/prod $(lsb_release -cs) main" > /etc/apt/sources.list.d/dotnetdev.list\
   && apt-get update\
   && apt-get install -y azure-cli azure-functions-core-tools-3\
-# Install NodeJS 10.x to test functions locally with func host
-  && curl -sL https://deb.nodesource.com/setup_10.x | bash - && apt-get install -y nodejs\
+# Install NodeJS 14.x to test functions locally with func host
+  && curl -sL https://deb.nodesource.com/setup_14.x | bash - && apt-get install -y nodejs\
   && apt-get purge -y --auto-remove curl lsb-release gnupg
 
 # https://github.com/moby/moby/issues/20295
