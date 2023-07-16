@@ -12,8 +12,9 @@ find . -type d -name "test" -exec rm -rf {} +
 find . -type d -name "bin" -not -path "*/torch/*" -exec rm -rf {} +
 
 # cleaning
-find -name "*.so" -not -path "*/PIL/*" -not -path "*/Pillow.libs/*" | xargs strip
-find -name "*.so.*" -not -path "*/PIL/*" -not -path "*/Pillow.libs/*" | xargs strip
+# stripping some of the numpy libs - libgfortran-2e0d59d6.so.5.0.0 - causes issues on Azure
+find -name "*.so" -not -path "*/PIL/*" -not -path "*/Pillow.libs/*" -not -path "*libgfortran*" | xargs strip
+find -name "*.so.*" -not -path "*/PIL/*" -not -path "*/Pillow.libs/*" -not -path "*libgfortran*" | xargs strip
 
 rm -r pip >/dev/null
 rm -r pip-* >/dev/null
