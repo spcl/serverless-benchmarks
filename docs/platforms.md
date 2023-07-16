@@ -37,12 +37,12 @@ we added a small tool **tools/create_azure_credentials** that uses the interacti
 authentication to login into Azure CLI and create a service principal.
 
 ```console
-Please provide the intended principal name                                                                                                         
+Please provide the intended principal name
 XXXXX
-Please follow the login instructions to generate credentials...                                                            
+Please follow the login instructions to generate credentials...
 To sign in, use a web browser to open the page https://microsoft.com/devicelogin and enter the code YYYYYYY to authenticate.
 
-Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}                                          
+Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}
 Created service principal http://XXXXX
 
 AZURE_SECRET_APPLICATION_ID = XXXXXXXXXXXXXXXX
@@ -53,6 +53,9 @@ AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
 **Save these credentials - the password is non-retrievable! Provide them to SeBS through environmental variables**,
 and we will create additional resources (storage account, resource group) to deploy functions.
 We will create a storage account and the resource group and handle access keys.
+
+> **Warning**
+> The tool assumes there is only one subscription active on the account. If you want to bind the newly created service principal to a specific subscription, or the created credentials do not work with SeBS and you see errors such as "No subscriptions found for X", then you must specify a subscription when creating the service principal. Check your subscription ID on in the Azure portal, and use the CLI option `tools/create_azure_credentials.py --subscription <SUBSCRIPTION_ID>`.
 
 ### Resources
 
@@ -67,7 +70,7 @@ The Google Cloud Free Tier gives free resources. It has two parts:
 - A 12-month free trial with $300 credit to use with any Google Cloud services.
 - Always Free, which provides limited access to many common Google Cloud resources, free of charge.
 
-You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions.
+You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions.
 You have two options to pass the credentials to SeBS:
 
 - specify the project name nand path to JSON credentials in the config JSON file, see an example in `config/example.json`
