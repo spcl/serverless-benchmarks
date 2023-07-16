@@ -97,9 +97,10 @@ class TestSequenceMeta(type):
             return test
 
         for benchmark in benchmarks:
-            for trigger in triggers:
-                test_name = "test_%s" % benchmark
-                dict[test_name] = gen_test(benchmark)
+
+            # for trigger in triggers:
+            test_name = f"test_{deployment_name}_{benchmark}"
+            dict[test_name] = gen_test(benchmark)
         dict["lock"] = threading.Lock()
         dict["cfg"] = None
         return type.__new__(mcs, name, bases, dict)
@@ -238,6 +239,16 @@ class TracingStreamResult(testtools.StreamResult):
             self.success.add(test_name)
 
 
+def filter_out_benchmarks(
+    benchmark: str, deployment_name: str, language: str, language_version: str
+) -> bool:
+
+    if deployment_name == "aws" and language == "python" and language_version == "3.9":
+        return "411.image-recognition" not in benchmark
+
+    return True
+
+
 def regression_suite(
     sebs_client: "SeBS",
     experiment_config: dict,
@@ -250,6 +261,7 @@ def regression_suite(
     cloud_config = deployment_config
 
     language = experiment_config["runtime"]["language"]
+    language_version = experiment_config["runtime"]["version"]
 
     if "aws" in providers:
         assert "aws" in cloud_config
@@ -271,14 +283,25 @@ def regression_suite(
     # mypy is confused here
     for case in suite:
         for test in case:  # type: ignore
+
             # skip
             test_name = cast(unittest.TestCase, test)._testMethodName
+
+            # Remove unsupported benchmarks
+            if not filter_out_benchmarks(
+                test_name, test.deployment_name, language, language_version  # type: ignore
+            ):
+                print(f"Skip test {test_name} - not supported.")
+                continue
+
+            # Use only a selected benchmark
             if not benchmark_name or (benchmark_name and benchmark_name in test_name):
                 test.client = sebs_client  # type: ignore
                 test.experiment_config = experiment_config  # type: ignore
                 tests.append(test)
             else:
                 print(f"Skip test {test_name}")
+
     concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
     result = TracingStreamResult()
     result.startTestRun()
