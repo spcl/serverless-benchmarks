@@ -174,6 +174,32 @@ class AzureTestSequencePython(
             return deployment_client
 
 
+class AzureTestSequenceNodejs(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    deployment_name="azure",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    def get_deployment(self, benchmark_name):
+        deployment_name = "azure"
+        assert cloud_config
+        with AzureTestSequencePython.lock:
+            if not AzureTestSequencePython.cfg:
+                AzureTestSequencePython.cfg = self.client.get_deployment_config(
+                    cloud_config,
+                    logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+                )
+            deployment_client = self.client.get_deployment(
+                cloud_config,
+                logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+                deployment_config=AzureTestSequencePython.cfg,
+            )
+            deployment_client.initialize()
+            deployment_client.allocate_shared_resource()
+            return deployment_client
+
+
 class GCPTestSequencePython(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
@@ -277,7 +303,10 @@ def regression_suite(
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceNodejs))
     if "azure" in providers:
         assert "azure" in cloud_config
-        suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequencePython))
+        if language == "python":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequencePython))
+        elif language == "nodejs":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceNodejs))
 
     tests = []
     # mypy is confused here
