@@ -189,22 +189,32 @@ class Azure(System):
                         function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
                 )
-                # ret = self.cli_instance.execute(
-                #    "bash -c 'cd /mnt/function "
-                #    "&& az functionapp deployment source config-zip "
-                #    "--src {}.zip -g {} -n {} --build-remote false '".format(
-                #        code_package.benchmark, resource_group, function.name
-                #    )
-                # )
-                # print(ret)
                 url = ""
                 for line in ret.split(b"\n"):
                     line = line.decode("utf-8")
                     if "Invoke url:" in line:
                         url = line.split("Invoke url:")[1].strip()
                         break
+
+                # We failed to find the URL the normal way
+                # Sometimes, the output does not include functions.
                 if url == "":
-                    raise RuntimeError("Couldnt find URL in {}".format(ret.decode("utf-8")))
+                    self.logging.warning(
+                        "Couldnt find function URL in the output: {}".format(ret.decode("utf-8"))
+                    )
+
+                    resource_group = self.config.resources.resource_group(self.cli_instance)
+                    ret = self.cli_instance.execute(
+                        "az functionapp function show --function-name handler "
+                        f"--name {function.name} --resource-group {resource_group}"
+                    )
+                    try:
+                        url = json.loads(ret.decode("utf-8"))["invokeUrlTemplate"]
+                    except json.decoder.JSONDecodeError:
+                        raise RuntimeError(
+                            f"Couldn't find the function URL in {ret.decode('utf-8')}"
+                        )
+
                 success = True
             except RuntimeError as e:
                 error = str(e)
