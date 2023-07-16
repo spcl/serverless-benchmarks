@@ -122,8 +122,7 @@
       },
       "nodejs": {
         "base_images": {
-          "14": "mcr.microsoft.com/azure-functions/node:3.0-node14",
-          "12": "mcr.microsoft.com/azure-functions/node:3.0-node12"
+          "14": "mcr.microsoft.com/azure-functions/node:3.0-node14"
         },
         "images": [
           "build"
