@@ -146,7 +146,7 @@ class Azure(System):
             "scriptFile": EXEC_FILES[language_name],
             "bindings": [
                 {
-                    "authLevel": "function",
+                    "authLevel": "anonymous",
                     "type": "httpTrigger",
                     "direction": "in",
                     "name": "req",
