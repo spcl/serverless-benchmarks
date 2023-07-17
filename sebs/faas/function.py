@@ -142,6 +142,9 @@ class ExecutionResult:
 
     def parse_benchmark_output(self, output: dict):
         self.output = output
+        # FIXME: temporary handling of errorenous invocation
+        if "is_cold" not in self.output:
+            raise RuntimeError(f"Invocation failed! Reason: {output['result']}")
         self.stats.cold_start = self.output["is_cold"]
         self.times.benchmark = int(
             (
