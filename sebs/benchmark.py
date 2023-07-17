@@ -273,7 +273,6 @@ class Benchmark(LoggingBase):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                 )
-                self.logging.debug(out.stdout.decode("utf-8"))
 
     def add_deployment_files(self, output_dir):
         handlers_dir = project_absolute_path(
