@@ -354,7 +354,7 @@ class OpenWhisk(System):
             raise RuntimeError(e)
         except subprocess.CalledProcessError as e:
             self.logging.error(f"Unknown error when running function update: {e}!")
-            self.logging.error(f"Output: {e.stdout.decode('utf-8')}")
+            self.logging.error("Make sure to remove SeBS cache after restarting OpenWhisk!")
             self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
             raise RuntimeError(e)
 
@@ -373,12 +373,17 @@ class OpenWhisk(System):
                     str(code_package.benchmark_config.timeout * 1000),
                     *self.storage_arguments(),
                 ],
-                stderr=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
                 check=True,
             )
         except FileNotFoundError as e:
             self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
+            raise RuntimeError(e)
+        except subprocess.CalledProcessError as e:
+            self.logging.error(f"Unknown error when running function update: {e}!")
+            self.logging.error("Make sure to remove SeBS cache after restarting OpenWhisk!")
+            self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
             raise RuntimeError(e)
 
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
