@@ -293,8 +293,8 @@ class OpenWhisk(System):
                             *self.storage_arguments(),
                             code_package.code_location,
                         ],
-                        stderr=subprocess.DEVNULL,
-                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
                         check=True,
                     )
                     function_cfg.docker_image = docker_image
@@ -303,6 +303,7 @@ class OpenWhisk(System):
                     )
                 except subprocess.CalledProcessError as e:
                     self.logging.error(f"Cannot create action {func_name}.")
+                    self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
                     raise RuntimeError(e)
 
         except FileNotFoundError:
