@@ -47,8 +47,7 @@ class TestSequenceMeta(type):
 
                 deployment_client = self.get_deployment(benchmark_name)
                 logging_wrapper.info(
-                    f"Begin regression test of {benchmark_name} on {deployment_client.name()}, "
-                    f"region: {deployment_client.config.region}."
+                    f"Begin regression test of {benchmark_name} on {deployment_client.name()}."
                 )
                 experiment_config = self.client.get_experiment_config(self.experiment_config)
                 benchmark = self.client.get_benchmark(
@@ -236,6 +235,42 @@ class GCPTestSequenceNodejs(
         return deployment_client
 
 
+class OpenWhiskTestSequencePython(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
+    deployment_name="openwhisk",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    def get_deployment(self, benchmark_name):
+        deployment_name = "gcp"
+        assert cloud_config
+        deployment_client = self.client.get_deployment(
+            cloud_config,
+            logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+        )
+        deployment_client.initialize()
+        return deployment_client
+
+
+class OpenWhiskTestSequenceNodejs(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    deployment_name="openwhisk",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    def get_deployment(self, benchmark_name):
+        deployment_name = "gcp"
+        assert cloud_config
+        deployment_client = self.client.get_deployment(
+            cloud_config,
+            logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+        )
+        deployment_client.initialize()
+        return deployment_client
+
+
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
 class TracingStreamResult(testtools.StreamResult):
     all_correct: bool
@@ -307,6 +342,16 @@ def regression_suite(
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequencePython))
         elif language == "nodejs":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceNodejs))
+    if "openwhisk" in providers:
+        assert "openwhisk" in cloud_config
+        if language == "python":
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequencePython)
+            )
+        elif language == "nodejs":
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequenceNodejs)
+            )
 
     tests = []
     # mypy is confused here
