@@ -69,7 +69,6 @@
         ],
         "deployment": {
           "files": [
-<<<<<<< HEAD
             "handler_function.py",
             "handler_workflow.py",
             "storage.py"
@@ -77,12 +76,6 @@
           "packages": [
             "redis"
           ]
-=======
-            "handler.py",
-            "storage.py"
-          ],
-          "packages": []
->>>>>>> dev
         }
       },
       "nodejs": {
@@ -91,12 +84,8 @@
           "16": "amazon/aws-lambda-nodejs:16"
         },
         "versions": [
-<<<<<<< HEAD
           "14",
           "16"
-=======
-          "14", "16"
->>>>>>> dev
         ],
         "images": [
           "build"
@@ -127,7 +116,6 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-<<<<<<< HEAD
             "handler_function.py",
             "main_workflow.py",
             "handler_workflow.py",
@@ -140,13 +128,6 @@
             "azure-functions",
             "azure-functions-durable",
             "redis"
-=======
-            "handler.py",
-            "storage.py"
-          ],
-          "packages": [
-            "azure-storage-blob"
->>>>>>> dev
           ]
         }
       },
@@ -190,7 +171,6 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-<<<<<<< HEAD
             "handler_function.py",
             "handler_workflow.py",
             "storage.py"
@@ -198,13 +178,6 @@
           "packages": [
             "google-cloud-storage",
             "redis"
-=======
-            "handler.py",
-            "storage.py"
-          ],
-          "packages": [
-            "google-cloud-storage"
->>>>>>> dev
           ]
         }
       },
