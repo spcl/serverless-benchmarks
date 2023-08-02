@@ -202,12 +202,14 @@ class AWSResources(Resources):
 
     def serialize(self) -> dict:
         out = {
+            **super().serialize(),
             "lambda-role": self._lambda_role,
             "http-apis": {key: value.serialize() for (key, value) in self._http_apis.items()},
         }
         return out
 
     def update_cache(self, cache: Cache):
+        super().update_cache_redis(keys=["aws", "resources"], cache=cache)
         cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
         for name, api in self._http_apis.items():
             cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
@@ -217,15 +219,18 @@ class AWSResources(Resources):
 
         cached_config = cache.get_config("aws")
         ret: AWSResources
+
         # Load cached values
         if cached_config and "resources" in cached_config:
             ret = cast(AWSResources, AWSResources.initialize(cached_config["resources"]))
+            ret.load_redis(cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for AWS")
         else:
             # Check for new config
             if "resources" in config:
                 ret = cast(AWSResources, AWSResources.initialize(config["resources"]))
+                ret.load_redis(config["resources"])
                 ret.logging_handlers = handlers
                 ret.logging.info("No cached resources for AWS found, using user configuration.")
             else:
@@ -237,12 +242,10 @@ class AWSResources(Resources):
 
 
 class AWSConfig(Config):
-    def __init__(self, credentials: AWSCredentials, resources: AWSResources, redis_host: str, redis_password: str):
+    def __init__(self, credentials: AWSCredentials, resources: AWSResources):
         super().__init__()
         self._credentials = credentials
         self._resources = resources
-        self._redis_host = redis_host
-        self._redis_password = redis_password
 
     @staticmethod
     def typename() -> str:
@@ -256,21 +259,11 @@ class AWSConfig(Config):
     def resources(self) -> AWSResources:
         return self._resources
 
-    @property
-    def redis_host(self) -> str:
-        return self._redis_host
-
-    @property
-    def redis_password(self) -> str:
-        return self._redis_password
-
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(AWSConfig, cfg)
         config._region = dct["region"]
-        config._redis_host = dct["redis_host"]
-        config._redis_password = dct["redis_password"]
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -279,7 +272,8 @@ class AWSConfig(Config):
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(AWSCredentials, AWSCredentials.deserialize(config, cache, handlers))
         resources = cast(AWSResources, AWSResources.deserialize(config, cache, handlers))
-        config_obj = AWSConfig(credentials, resources, cached_config["redis_host"], cached_config["redis_password"])
+
+        config_obj = AWSConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:
@@ -310,7 +304,5 @@ class AWSConfig(Config):
             "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
-            "redis_host": self._redis_host,
-            "redis_password": self._redis_password,
         }
         return out

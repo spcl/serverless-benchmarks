@@ -1,6 +1,6 @@
 from typing import List, cast, Optional
 
-from sebs.faas.benchmark import Workflow
+from sebs.faas.function import FunctionConfig, Workflow
 from sebs.gcp.function import GCPFunction
 from sebs.gcp.storage import GCPStorage
 
@@ -12,14 +12,11 @@ class GCPWorkflow(Workflow):
         functions: List[GCPFunction],
         benchmark: str,
         code_package_hash: str,
-        timeout: int,
-        memory: int,
+        cfg: FunctionConfig,
         bucket: Optional[str] = None,
     ):
-        super().__init__(benchmark, name, code_package_hash)
+        super().__init__(benchmark, name, code_package_hash, cfg)
         self.functions = functions
-        self.timeout = timeout
-        self.memory = memory
         self.bucket = bucket
 
     @staticmethod
@@ -30,24 +27,22 @@ class GCPWorkflow(Workflow):
         return {
             **super().serialize(),
             "functions": [f.serialize() for f in self.functions],
-            "timeout": self.timeout,
-            "memory": self.memory,
             "bucket": self.bucket,
         }
 
     @staticmethod
     def deserialize(cached_config: dict) -> "GCPWorkflow":
-        from sebs.faas.benchmark import Trigger
+        from sebs.faas.function import Trigger
         from sebs.gcp.triggers import WorkflowLibraryTrigger, HTTPTrigger
 
+        cfg = FunctionConfig.deserialize(cached_config["config"])
         funcs = [GCPFunction.deserialize(f) for f in cached_config["functions"]]
         ret = GCPWorkflow(
             cached_config["name"],
             funcs,
             cached_config["code_package"],
             cached_config["hash"],
-            cached_config["timeout"],
-            cached_config["memory"],
+            cfg,
             cached_config["bucket"],
         )
         for trigger in cached_config["triggers"]:

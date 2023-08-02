@@ -223,6 +223,7 @@ class AzureResources(Resources):
     """
 
     def update_cache(self, cache_client: Cache):
+        super().update_cache_redis(keys=["azure", "resources"], cache=cache_client)
         cache_client.update_config(val=self.serialize(), keys=["azure", "resources"])
 
     # FIXME: python3.7+ future annotatons
@@ -244,7 +245,7 @@ class AzureResources(Resources):
             out["resource_group"] = self._resource_group
         if self._data_storage_account:
             out["data_storage_account"] = self._data_storage_account.serialize()
-        return out
+        return {**super().serialize(), **out}
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
@@ -255,10 +256,12 @@ class AzureResources(Resources):
         if cached_config and "resources" in cached_config and len(cached_config["resources"]) > 0:
             logging.info("Using cached resources for Azure")
             ret = cast(AzureResources, AzureResources.initialize(cached_config["resources"]))
+            ret.load_redis(cached_config["resources"])
         else:
             # Check for new config
             if "resources" in config:
                 ret = cast(AzureResources, AzureResources.initialize(config["resources"]))
+                ret.load_redis(config["resources"])
                 ret.logging_handlers = handlers
                 ret.logging.info("No cached resources for Azure found, using user configuration.")
             else:
@@ -269,13 +272,11 @@ class AzureResources(Resources):
 
 
 class AzureConfig(Config):
-    def __init__(self, credentials: AzureCredentials, resources: AzureResources, redis_host: str, redis_password: str):
+    def __init__(self, credentials: AzureCredentials, resources: AzureResources):
         super().__init__()
         self._resources_id = ""
         self._credentials = credentials
         self._resources = resources
-        self._redis_host = redis_host
-        self._redis_password = redis_password
 
     @property
     def credentials(self) -> AzureCredentials:
@@ -289,21 +290,11 @@ class AzureConfig(Config):
     def resources_id(self) -> str:
         return self._resources_id
 
-    @property
-    def redis_host(self) -> str:
-        return self._redis_host
-
-    @property
-    def redis_password(self) -> str:
-        return self._redis_password
-
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(AzureConfig, cfg)
         config._region = dct["region"]
-        config._redis_host = dct["redis_host"]
-        config._redis_password = dct["redis_password"]
         if "resources_id" in dct:
             config._resources_id = dct["resources_id"]
         else:
@@ -320,7 +311,7 @@ class AzureConfig(Config):
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(AzureCredentials, AzureCredentials.deserialize(config, cache, handlers))
         resources = cast(AzureResources, AzureResources.deserialize(config, cache, handlers))
-        config_obj = AzureConfig(credentials, resources, cached_config["redis_host"], cached_config["redis_password"])
+        config_obj = AzureConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:
@@ -353,7 +344,5 @@ class AzureConfig(Config):
             "resources_id": self.resources_id,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
-            "redis_host": self._redis_host,
-            "redis_password": self._redis_password,
         }
         return out

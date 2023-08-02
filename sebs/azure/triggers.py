@@ -1,11 +1,8 @@
 import concurrent.futures
-import uuid
-import time
-import requests
 from typing import Any, Dict, Optional  # noqa
 
 from sebs.azure.config import AzureResources
-from sebs.faas.benchmark import ExecutionResult, Trigger
+from sebs.faas.function import ExecutionResult, Trigger
 
 
 class AzureTrigger(Trigger):
@@ -33,33 +30,8 @@ class HTTPTrigger(AzureTrigger):
         return Trigger.TriggerType.HTTP
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
-        request_id = str(uuid.uuid4())[0:8]
-        input = {
-            "payload": payload,
-            "request_id": request_id,
-            "connection_string": self.data_storage_account.connection_string
-        }
-
-        ret = self._http_invoke(input, self.url)
-        ret.request_id = request_id
-
-        # Wait for execution to finish, then print results.
-        execution_running = True
-        while execution_running:
-            res = requests.get(ret.output["statusQueryGetUri"]).json()
-            status = res["runtimeStatus"]
-            execution_running = status in ("Pending", "Running")
-
-            # If we haven't seen the result yet, wait a second.
-            if execution_running:
-                time.sleep(10)
-            elif status == "Failed":
-                self.logging.error(f"Invocation of {self.url} failed: {res}")
-                self.logging.error(f"Input: {payload}")
-                ret.stats.failure = True
-                return ret
-
-        return ret
+        payload["connection_string"] = self.data_storage_account.connection_string
+        return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         pool = concurrent.futures.ThreadPoolExecutor()

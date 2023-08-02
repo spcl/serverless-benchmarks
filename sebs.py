@@ -16,11 +16,7 @@ import sebs
 from sebs import SeBS
 from sebs.types import Storage as StorageTypes
 from sebs.regression import regression_suite
-<<<<<<< HEAD
 from sebs.utils import update_nested_dict, download_measurements, connect_to_redis_cache, catch_interrupt
-=======
-from sebs.utils import update_nested_dict, catch_interrupt
->>>>>>> dev
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
 from sebs.local import Local
@@ -165,7 +161,6 @@ def benchmark():
     pass
 
 
-<<<<<<< HEAD
 @benchmark.command()
 @click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
 @click.argument(
@@ -269,35 +264,19 @@ def function(
         out_f.write(sebs.utils.serialize(result))
     sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
 
-=======
->>>>>>> dev
 @benchmark.command()
 @click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])
 )  # help="Input test size")
-@click.option("--repetitions", default=5, type=int, help="Number of experimental repetitions.")
+@click.option(
+    "--repetitions", default=5, type=int, help="Number of experimental repetitions."
+)
 @click.option(
     "--trigger",
     type=click.Choice(["library", "http"]),
     default="http",
-<<<<<<< HEAD
     help="Workflow trigger to be used."
-=======
-    help="Function trigger to be used.",
-)
-@click.option(
-    "--memory",
-    default=None,
-    type=int,
-    help="Override default memory settings for the benchmark function.",
-)
-@click.option(
-    "--timeout",
-    default=None,
-    type=int,
-    help="Override default timeout settings for the benchmark function.",
->>>>>>> dev
 )
 @click.option(
     "--workflow-name",
@@ -305,28 +284,8 @@ def function(
     type=str,
     help="Override workflow name for random generation.",
 )
-@click.option(
-    "--image-tag-prefix",
-    default=None,
-    type=str,
-    help="Attach prefix to generated Docker image tag.",
-)
 @common_params
-<<<<<<< HEAD
 def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_name, **kwargs):
-=======
-def invoke(
-    benchmark,
-    benchmark_input_size,
-    repetitions,
-    trigger,
-    memory,
-    timeout,
-    function_name,
-    image_tag_prefix,
-    **kwargs,
-):
->>>>>>> dev
 
     (
         config,
@@ -335,25 +294,18 @@ def invoke(
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-<<<<<<< HEAD
     if isinstance(deployment_client, Local):
         raise NotImplementedError("Local workflow deployment is currently not supported.")
 
     redis = connect_to_redis_cache(deployment_client.config.redis_host)
-=======
-    if image_tag_prefix is not None:
-        sebs_client.config.image_tag_prefix = image_tag_prefix
->>>>>>> dev
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
-    update_nested_dict(config, ["experiments", "benchmark"], benchmark)
     benchmark_obj = sebs_client.get_benchmark(
         benchmark,
         deployment_client,
         experiment_config,
         logging_filename=logging_filename,
     )
-<<<<<<< HEAD
     workflow = deployment_client.get_workflow(
         benchmark_obj, workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj)
     )
@@ -367,33 +319,15 @@ def invoke(
     measurements = []
     result = sebs.experiments.ExperimentResult(
         experiment_config, deployment_client.config
-=======
-    if memory is not None:
-        benchmark_obj.benchmark_config.memory = memory
-    if timeout is not None:
-        benchmark_obj.benchmark_config.timeout = timeout
-
-    func = deployment_client.get_function(
-        benchmark_obj,
-        function_name if function_name else deployment_client.default_function_name(benchmark_obj),
->>>>>>> dev
     )
-    storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
-    input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
-
-    result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
     result.begin()
 
     trigger_type = Trigger.TriggerType.get(trigger)
     triggers = workflow.triggers(trigger_type)
     if len(triggers) == 0:
-<<<<<<< HEAD
         trigger = deployment_client.create_trigger(
             workflow, trigger_type
         )
-=======
-        trigger = deployment_client.create_trigger(func, trigger_type)
->>>>>>> dev
     else:
         trigger = triggers[0]
     for i in range(repetitions):
@@ -401,16 +335,9 @@ def invoke(
         ret = trigger.sync_invoke(input_config)
         if ret.stats.failure:
             sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
-<<<<<<< HEAD
 
         measurements += download_measurements(redis, workflow.name, result.begin_time, rep=i)
         result.add_invocation(workflow, ret)
-=======
-            # deployment_client.get_invocation_error(
-            #    function_name=func.name, start_time=start_time, end_time=end_time
-            # )
-        result.add_invocation(func, ret)
->>>>>>> dev
     result.end()
 
     path = os.path.join(output_dir, "results", workflow.name, deployment_client.name()+".csv")

@@ -1,7 +1,7 @@
 import uuid
 from typing import Dict, Union, List
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat, Loop
+from sebs.faas.fsm import Generator, State, Task, Switch, Map
 
 
 class GCPGenerator(Generator):
@@ -11,19 +11,10 @@ class GCPGenerator(Generator):
         self._func_triggers = func_triggers
         self._map_funcs: Dict[str, str] = dict()
 
-    def postprocess(self, payloads: List[dict]) -> dict:
-        assign_input = {
-            "assign_input": {
-                "assign": [
-                    {"payload": "${input.payload}"},
-                    {"request_id": "${input.request_id}"}
-                ]
-            }
-        }
-        return_res = {"final": {"return": ["${payload}"]}}
+    def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
+        payloads.append({"final": {"return": ["${res}"]}})
 
-        payloads = [assign_input] + payloads + [return_res]
-        definition = {"main": {"params": ["input"], "steps": payloads}}
+        definition = {"main": {"params": ["res"], "steps": payloads}}
 
         return definition
 
@@ -34,17 +25,11 @@ class GCPGenerator(Generator):
             {
                 state.name: {
                     "call": "http.post",
-                    "args": {
-                        "url": url,
-                        "body": {
-                            "request_id": "${request_id}",
-                            "payload": "${payload}"
-                        }
-                    },
-                    "result": "payload",
+                    "args": {"url": url, "body": "${res}"},
+                    "result": "res",
                 }
             },
-            {"assign_payload_" + state.name: {"assign": [{"payload": "${payload.body}"}]}},
+            {"assign_res_" + state.name: {"assign": [{"res": "${res.body}"}]}},
         ]
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
@@ -56,74 +41,18 @@ class GCPGenerator(Generator):
         }
 
     def _encode_case(self, case: Switch.Case) -> dict:
-        cond = "payload." + case.var + " " + case.op + " " + str(case.val)
+        cond = "res." + case.var + " " + case.op + " " + str(case.val)
         return {"condition": "${" + cond + "}", "next": case.next}
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
-        id = self._workflow_name + "_" + state.name + "_map"
+        id = self._workflow_name + "_" + "map" + str(uuid.uuid4())[0:8]
         self._map_funcs[id] = self._func_triggers[state.func_name]
-        res_name = "payload_" + str(uuid.uuid4())[0:8]
-        array = state.name+"_input"
-        tmp = "tmp_" + str(uuid.uuid4())[0:8]
-
-        return [
-        {
-            state.name+"_init_empty": {
-                "assign": [
-                    {array: "${[]}"}
-                ]
-            }
-        },
-        {
-            state.name+"_init": {
-                "for": {
-                    "value": "val",
-                    "in": "${payload." + state.array + "}",
-                    "steps": [
-                        {
-                            state.name+"_body": {
-                                "assign": [
-                                    {tmp: {"payload": "${val}", "request_id": "${request_id}"}},
-                                    {array: "${list.concat("+array+", "+tmp+")}"}
-                                ]
-                            }
-                        }
-                    ]
-                }
-            }
-        },
-        {
-            state.name: {
-                "call": "experimental.executions.map",
-                "args": {"workflow_id": id, "arguments": "${"+array+"}"},
-                "result": res_name,
-            }
-        }, {"assign_payload_" + state.name: {"assign": [{"payload."+state.array: "${"+res_name+"}"}]}}]
-
-    def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
-        url = self._func_triggers[state.func_name]
 
         return {
             state.name: {
-                "for": {
-                    "value": "val",
-                    "index": "idx",
-                    "in": "${payload."+state.array+"}",
-                    "steps": [
-                        {
-                            state.name+"_body": {
-                                "call": "http.post",
-                                "args": {
-                                    "url": url,
-                                    "body": {
-                                        "request_id": "${request_id}",
-                                        "payload": "${val}"
-                                    }
-                                }
-                            }
-                        }
-                    ]
-                }
+                "call": "experimental.executions.map",
+                "args": {"workflow_id": id, "arguments": "${res." + state.array + "}"},
+                "result": "res",
             }
         }
 
@@ -139,17 +68,11 @@ class GCPGenerator(Generator):
                                 {
                                     "map": {
                                         "call": "http.post",
-                                        "args": {
-                                            "url": url,
-                                            "body": {
-                                                "request_id": "${elem.request_id}",
-                                                "payload": "${elem.payload}"
-                                            }
-                                        },
-                                        "result": "elem"
+                                        "args": {"url": url, "body": "${elem}"},
+                                        "result": "elem",
                                     }
                                 },
-                                {"ret": {"return": "${elem.body}"}}
+                                {"ret": {"return": "${elem.body}"}},
                             ],
                         }
                     }

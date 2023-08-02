@@ -19,7 +19,6 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
-<<<<<<< HEAD
 from sebs.faas.function import (
     CloudBenchmark,
     Function,
@@ -28,9 +27,6 @@ from sebs.faas.function import (
     FunctionConfig,
     Workflow,
 )
-=======
-from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
->>>>>>> dev
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 
@@ -150,16 +146,7 @@ class AWS(System):
     """
 
     def package_code(
-<<<<<<< HEAD
         self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
-=======
-        self,
-        directory: str,
-        language_name: str,
-        language_version: str,
-        benchmark: str,
-        is_cached: bool,
->>>>>>> dev
     ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
@@ -202,14 +189,6 @@ class AWS(System):
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
         return os.path.join(directory, "{}.zip".format(code_package.benchmark)), bytes_size
-
-    def _map_language_runtime(self, language: str, runtime: str):
-
-        # AWS uses different naming scheme for Node.js versions
-        # For example, it's 12.x instead of 12.
-        if language == "nodejs":
-            return f"{runtime}.x"
-        return runtime
 
     def _map_language_runtime(self, language: str, runtime: str):
 
@@ -294,12 +273,6 @@ class AWS(System):
             )
 
             self.wait_function_active(lambda_function)
-<<<<<<< HEAD
-=======
-
-        # Add LibraryTrigger to a new function
-        from sebs.aws.triggers import LibraryTrigger
->>>>>>> dev
 
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import FunctionLibraryTrigger
@@ -352,18 +325,11 @@ class AWS(System):
             self.lambda_client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
             )
-<<<<<<< HEAD
 
         self.wait_function_updated(function)
         self.logging.info(f"Updated code of {name} function. ")
         # and update config
         self.lambda_client.update_function_configuration(
-=======
-        self.wait_function_updated(function)
-        self.logging.info(f"Updated code of {name} function. ")
-        # and update config
-        self.client.update_function_configuration(
->>>>>>> dev
             FunctionName=name, Timeout=function.config.timeout, MemorySize=function.config.memory
         )
         self.wait_function_updated(function)
@@ -371,7 +337,6 @@ class AWS(System):
         self.wait_function_updated(function)
         self.logging.info("Published new function code")
 
-<<<<<<< HEAD
     def create_function_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.aws.triggers import HTTPTrigger
 
@@ -515,11 +480,6 @@ class AWS(System):
     def update_function_configuration(self, function: Function, benchmark: Benchmark):
         function = cast(LambdaFunction, function)
         self.lambda_client.update_function_configuration(
-=======
-    def update_function_configuration(self, function: Function, benchmark: Benchmark):
-        function = cast(LambdaFunction, function)
-        self.client.update_function_configuration(
->>>>>>> dev
             FunctionName=function.name,
             Timeout=function.config.timeout,
             MemorySize=function.config.memory,
@@ -749,21 +709,13 @@ class AWS(System):
     def wait_function_active(self, func: LambdaFunction):
 
         self.logging.info("Waiting for Lambda function to be created...")
-<<<<<<< HEAD
         waiter = self.lambda_client.get_waiter("function_active_v2")
-=======
-        waiter = self.client.get_waiter("function_active_v2")
->>>>>>> dev
         waiter.wait(FunctionName=func.name)
         self.logging.info("Lambda function has been created.")
 
     def wait_function_updated(self, func: LambdaFunction):
 
         self.logging.info("Waiting for Lambda function to be updated...")
-<<<<<<< HEAD
         waiter = self.lambda_client.get_waiter("function_updated_v2")
-=======
-        waiter = self.client.get_waiter("function_updated_v2")
->>>>>>> dev
         waiter.wait(FunctionName=func.name)
         self.logging.info("Lambda function has been updated.")

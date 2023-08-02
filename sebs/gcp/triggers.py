@@ -1,7 +1,6 @@
 import concurrent.futures
 import datetime
 import json
-import uuid
 import time
 from typing import Dict, Optional  # noqa
 
@@ -9,7 +8,7 @@ from google.cloud.workflows.executions_v1beta import ExecutionsClient
 from google.cloud.workflows.executions_v1beta.types import Execution
 
 from sebs.gcp.gcp import GCP
-from sebs.faas.benchmark import ExecutionResult, Trigger
+from sebs.faas.function import ExecutionResult, Trigger
 
 
 class LibraryTrigger(Trigger):
@@ -107,21 +106,14 @@ class WorkflowLibraryTrigger(LibraryTrigger):
             config.project_name, config.region, self.name
         )
 
-        request_id = str(uuid.uuid4())[0:8]
-        input = {
-            "payload": payload,
-            "request_id": request_id
-        }
-
         execution_client = ExecutionsClient()
-        execution = Execution(argument=json.dumps(input))
+        execution = Execution(argument=json.dumps(payload))
 
         begin = datetime.datetime.now()
         res = execution_client.create_execution(parent=full_workflow_name, execution=execution)
         end = datetime.datetime.now()
 
         gcp_result = ExecutionResult.from_times(begin, end)
-        gcp_result.request_id = request_id
 
         # Wait for execution to finish, then print results.
         execution_finished = False

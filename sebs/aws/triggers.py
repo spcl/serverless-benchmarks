@@ -1,13 +1,12 @@
 import base64
 import concurrent.futures
 import datetime
-import uuid
 import json
 import time
 from typing import Dict, Optional  # noqa
 
 from sebs.aws.aws import AWS
-from sebs.faas.benchmark import ExecutionResult, Trigger
+from sebs.faas.function import ExecutionResult, Trigger
 
 
 class LibraryTrigger(Trigger):
@@ -43,9 +42,8 @@ class LibraryTrigger(Trigger):
 
 class FunctionLibraryTrigger(LibraryTrigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
-        self.logging.debug(f"Invoke function {self.name}")
 
-        self.deployment_client.wait_for_function(self.name)
+        self.logging.debug(f"Invoke function {self.name}")
 
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
@@ -102,16 +100,13 @@ class WorkflowLibraryTrigger(LibraryTrigger):
 
         self.logging.debug(f"Invoke workflow {self.name}")
 
-        request_id = str(uuid.uuid4())[0:8]
-        input = {"payload": payload, "request_id": request_id}
-
         client = self.deployment_client.get_sfn_client()
         begin = datetime.datetime.now()
-        ret = client.start_execution(stateMachineArn=self.name, input=json.dumps(input))
+        ret = client.start_execution(stateMachineArn=self.name, input=json.dumps(payload))
         end = datetime.datetime.now()
 
         aws_result = ExecutionResult.from_times(begin, end)
-        aws_result.request_id = request_id
+        aws_result.request_id = ret["ResponseMetadata"]["RequestId"]
         execution_arn = ret["executionArn"]
 
         # Wait for execution to finish, then print results.

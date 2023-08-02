@@ -8,7 +8,7 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.faas import System, PersistentStorage
-from sebs.faas.function import Function, ExecutionResult, Trigger
+from sebs.faas.function import CloudBenchmark, Function, ExecutionResult, Trigger
 from sebs.openwhisk.storage import Minio
 from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
 from sebs.utils import DOCKER_DIR, LoggingHandlers, execute
@@ -198,17 +198,18 @@ class OpenWhisk(System):
         return True
 
     def package_code(
-        self,
-        directory: str,
-        language_name: str,
-        language_version: str,
-        benchmark: str,
-        is_cached: bool,
+        self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
     ) -> Tuple[str, int]:
 
         # Regardless of Docker image status, we need to create .zip file
         # to allow registration of function with OpenWhisk
-        self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
+        self.build_base_image(
+            directory,
+            code_package.language_name,
+            code_package.language_version,
+            code_package.benchmark,
+            is_cached,
+        )
 
         # We deploy Minio config in code package since this depends on local
         # deployment - it cannnot be a part of Docker image
@@ -216,9 +217,9 @@ class OpenWhisk(System):
             "python": ["__main__.py"],
             "nodejs": ["index.js"],
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[code_package.language_name]
 
-        benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
+        benchmark_archive = os.path.join(directory, f"{code_package.benchmark}.zip")
         subprocess.run(
             ["zip", benchmark_archive] + package_config, stdout=subprocess.DEVNULL, cwd=directory
         )
@@ -442,12 +443,12 @@ class OpenWhisk(System):
             trigger = HTTPTrigger(function.name, url)
             trigger.logging_handlers = self.logging_handlers
             function.add_trigger(trigger)
-            self.cache_client.update_function(function)
+            self.cache_client.update_benchmark(function)
             return trigger
         else:
             raise RuntimeError("Not supported!")
 
-    def cached_function(self, function: Function):
+    def cached_benchmark(self, function: CloudBenchmark):
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             trigger.logging_handlers = self.logging_handlers
             cast(LibraryTrigger, trigger).wsk_cmd = self.get_wsk_cmd()

@@ -1,5 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
+from typing import List, Optional
 
 from sebs.cache import Cache
 from sebs.utils import has_platform, LoggingBase, LoggingHandlers
@@ -53,6 +54,8 @@ class Credentials(ABC, LoggingBase):
 class Resources(ABC, LoggingBase):
     def __init__(self):
         super().__init__()
+        self._redis_host: Optional[str] = None
+        self._redis_password: Optional[str] = None
 
     """
         Create credentials instance from user config and cached values.
@@ -67,9 +70,29 @@ class Resources(ABC, LoggingBase):
         Serialize to JSON for storage in cache.
     """
 
-    @abstractmethod
     def serialize(self) -> dict:
-        pass
+        if self._redis_host is not None:
+            return {"redis": {"host": self._redis_host, "password": self._redis_password}}
+        else:
+            return {}
+
+    def load_redis(self, config: dict):
+        if "redis" in config:
+            self._redis_host = config["redis"]["host"]
+            self._redis_password = config["redis"]["password"]
+
+    def update_cache_redis(self, keys: List[str], cache: Cache):
+        if self._redis_host is not None:
+            cache.update_config(val=self._redis_host, keys=[*keys, "redis", "host"])
+            cache.update_config(val=self._redis_password, keys=[*keys, "redis", "password"])
+
+    @property
+    def redis_host(self) -> Optional[str]:
+        return self._redis_host
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        return self._redis_password
 
 
 """

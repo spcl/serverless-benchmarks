@@ -110,16 +110,7 @@ class System(ABC, LoggingBase):
 
     @abstractmethod
     def package_code(
-<<<<<<< HEAD
         self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
-=======
-        self,
-        directory: str,
-        language_name: str,
-        language_version: str,
-        benchmark: str,
-        is_cached: bool,
->>>>>>> dev
     ) -> Tuple[str, int]:
         pass
 
@@ -230,11 +221,7 @@ class System(ABC, LoggingBase):
             # FIXME: detect change in function config
             elif self.is_configuration_changed(function, code_package):
                 self.update_function_configuration(function, code_package)
-<<<<<<< HEAD
                 self.cache_client.update_benchmark(function)
-=======
-                self.cache_client.update_function(function)
->>>>>>> dev
                 code_package.query_cache()
             else:
                 self.logging.info(f"Cached function {func_name} is up to date.")
@@ -244,7 +231,6 @@ class System(ABC, LoggingBase):
     def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
         pass
 
-<<<<<<< HEAD
     def update_workflow(self, workflow: Workflow, code_package: Benchmark):
         pass
 
@@ -319,8 +305,6 @@ class System(ABC, LoggingBase):
                 code_package.query_cache()
             return workflow
 
-=======
->>>>>>> dev
     """
         This function checks for common function parameters to verify if their value is
         still up to date.

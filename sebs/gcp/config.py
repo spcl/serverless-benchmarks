@@ -114,7 +114,7 @@ class GCPResources(Resources):
     """
 
     def serialize(self) -> dict:
-        return {}
+        return {**super().serialize()}
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
@@ -122,16 +122,18 @@ class GCPResources(Resources):
         ret: GCPResources
         if cached_config and "resources" in cached_config:
             ret = cast(GCPResources, GCPResources.initialize(cached_config["resources"]))
+            ret.load_redis(cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for GCP")
         else:
             ret = cast(GCPResources, GCPResources.initialize(config))
+            ret.load_redis(config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("No cached resources for GCP found, using user configuration.")
         return ret
 
     def update_cache(self, cache: Cache):
-        pass
+        super().update_cache_redis(keys=["gcp", "resources"], cache=cache)
 
 
 """
@@ -144,12 +146,10 @@ class GCPConfig(Config):
 
     _project_name: str
 
-    def __init__(self, credentials: GCPCredentials, resources: GCPResources, redis_host: str, redis_password: str):
+    def __init__(self, credentials: GCPCredentials, resources: GCPResources):
         super().__init__()
         self._credentials = credentials
         self._resources = resources
-        self._redis_host = redis_host
-        self._redis_password = redis_password
 
     @property
     def region(self) -> str:
@@ -167,20 +167,12 @@ class GCPConfig(Config):
     def resources(self) -> GCPResources:
         return self._resources
 
-    @property
-    def redis_host(self) -> str:
-        return self._redis_host
-
-    @property
-    def redis_password(self) -> str:
-        return self._redis_password
-
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         cached_config = cache.get_config("gcp")
         credentials = cast(GCPCredentials, GCPCredentials.deserialize(config, cache, handlers))
         resources = cast(GCPResources, GCPResources.deserialize(config, cache, handlers))
-        config_obj = GCPConfig(credentials, resources, cached_config["redis_host"], cached_config["redis_password"])
+        config_obj = GCPConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         if cached_config:
             config_obj.logging.info("Loading cached config for GCP")
@@ -192,8 +184,7 @@ class GCPConfig(Config):
             if "project_name" not in config or not config["project_name"]:
                 if "GCP_PROJECT_NAME" in os.environ:
                     GCPConfig.initialize(
-                        config_obj,
-                        {**config, "project_name": os.environ["GCP_PROJECT_NAME"]},
+                        config_obj, {**config, "project_name": os.environ["GCP_PROJECT_NAME"]}
                     )
                 else:
                     raise RuntimeError(
@@ -230,8 +221,6 @@ class GCPConfig(Config):
         config = cast(GCPConfig, cfg)
         config._project_name = dct["project_name"]
         config._region = dct["region"]
-        config._redis_host = dct["redis_host"]
-        config._redis_password = dct["redis_password"]
 
     def serialize(self) -> dict:
         out = {
@@ -240,8 +229,6 @@ class GCPConfig(Config):
             "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
-            "redis_host": self._redis_host,
-            "redis_password": self._redis_password,
         }
         return out
 

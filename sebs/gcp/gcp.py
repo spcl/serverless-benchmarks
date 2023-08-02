@@ -16,11 +16,7 @@ from google.cloud import monitoring_v3  # type: ignore
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
-<<<<<<< HEAD
 from sebs.faas.function import CloudBenchmark, Function, FunctionConfig, Trigger, Workflow
-=======
-from ..faas.function import Function, FunctionConfig, Trigger
->>>>>>> dev
 from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
@@ -144,16 +140,7 @@ class GCP(System):
     """
 
     def package_code(
-<<<<<<< HEAD
         self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
-=======
-        self,
-        directory: str,
-        language_name: str,
-        language_version: str,
-        benchmark: str,
-        is_cached: bool,
->>>>>>> dev
     ) -> Tuple[str, int]:
 
         CONFIG_FILES = {

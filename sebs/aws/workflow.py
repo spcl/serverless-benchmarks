@@ -1,8 +1,8 @@
 from typing import cast, List
 
 from sebs.aws.s3 import S3
-from sebs.aws.function import LambdaFunction
-from sebs.faas.benchmark import Workflow
+from sebs.aws.function import FunctionConfig, LambdaFunction
+from sebs.faas.function import Workflow
 
 
 class SFNWorkflow(Workflow):
@@ -13,8 +13,9 @@ class SFNWorkflow(Workflow):
         benchmark: str,
         arn: str,
         code_package_hash: str,
+        cfg: FunctionConfig,
     ):
-        super().__init__(benchmark, name, code_package_hash)
+        super().__init__(benchmark, name, code_package_hash, cfg)
         self.functions = functions
         self.arn = arn
 
@@ -31,16 +32,18 @@ class SFNWorkflow(Workflow):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "SFNWorkflow":
-        from sebs.faas.benchmark import Trigger
+        from sebs.faas.function import Trigger
         from sebs.aws.triggers import WorkflowLibraryTrigger, HTTPTrigger
 
         funcs = [LambdaFunction.deserialize(f) for f in cached_config["functions"]]
+        cfg = FunctionConfig.deserialize(cached_config["config"])
         ret = SFNWorkflow(
             cached_config["name"],
             funcs,
             cached_config["code_package"],
             cached_config["arn"],
             cached_config["hash"],
+            cfg,
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(

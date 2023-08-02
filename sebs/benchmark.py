@@ -264,19 +264,11 @@ class Benchmark(LoggingBase):
         path = os.path.join(self.benchmark_path, self.language_name)
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
-<<<<<<< HEAD
                 yield os.path.join(path, f)
 
     def copy_code(self, output_dir: str):
         for path in self.get_code_files():
             shutil.copy2(path, output_dir)
-=======
-                shutil.copy2(os.path.join(path, f), output_dir)
-        # support node.js benchmarks with language specific packages
-        nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
-        if os.path.exists(nodejs_package_json):
-            shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
->>>>>>> dev
 
     def add_benchmark_data(self, output_dir):
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"
@@ -500,13 +492,9 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-<<<<<<< HEAD
         self,
         deployment_build_step: Callable[["Benchmark", str, bool, bool], Tuple[str, int]],
         is_workflow: bool,
-=======
-        self, deployment_build_step: Callable[[str, str, str, str, bool], Tuple[str, int]]
->>>>>>> dev
     ) -> Tuple[bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
@@ -536,15 +524,7 @@ class Benchmark(LoggingBase):
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         self._code_location, self._code_size = deployment_build_step(
-<<<<<<< HEAD
             self, os.path.abspath(self._output_dir), is_workflow, self.is_cached
-=======
-            os.path.abspath(self._output_dir),
-            self.language_name,
-            self.language_version,
-            self.benchmark,
-            self.is_cached,
->>>>>>> dev
         )
         self.logging.info(
             (

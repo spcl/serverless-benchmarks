@@ -16,7 +16,6 @@ from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-<<<<<<< HEAD
 from sebs.utils import LoggingHandlers, execute, replace_string_in_file
 from sebs.faas.function import (
     CloudBenchmark,
@@ -28,12 +27,6 @@ from sebs.faas.function import (
 )
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
-=======
-from sebs.utils import LoggingHandlers, execute
-from ..faas.function import Function, FunctionConfig, ExecutionResult
-from ..faas.storage import PersistentStorage
-from ..faas.system import System
->>>>>>> dev
 
 
 class Azure(System):
@@ -133,16 +126,7 @@ class Azure(System):
     # host.json
     # requirements.txt/package.json
     def package_code(
-<<<<<<< HEAD
         self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
-=======
-        self,
-        directory: str,
-        language_name: str,
-        language_version: str,
-        benchmark: str,
-        is_cached: bool,
->>>>>>> dev
     ) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
@@ -152,36 +136,9 @@ class Azure(System):
             "python": ["requirements.txt", ".python_packages"],
             "nodejs": ["package.json", "node_modules"],
         }
-<<<<<<< HEAD
         WRAPPER_FILES = {
             "python": ["handler.py", "storage.py", "fsm.py"],
             "nodejs": ["handler.js", "storage.js"],
-=======
-        package_config = CONFIG_FILES[language_name]
-
-        handler_dir = os.path.join(directory, "handler")
-        os.makedirs(handler_dir)
-        # move all files to 'handler' except package config
-        for f in os.listdir(directory):
-            if f not in package_config:
-                source_file = os.path.join(directory, f)
-                shutil.move(source_file, handler_dir)
-
-        # generate function.json
-        # TODO: extension to other triggers than HTTP
-        default_function_json = {
-            "scriptFile": EXEC_FILES[language_name],
-            "bindings": [
-                {
-                    "authLevel": "anonymous",
-                    "type": "httpTrigger",
-                    "direction": "in",
-                    "name": "req",
-                    "methods": ["get", "post"],
-                },
-                {"type": "http", "direction": "out", "name": "$return"},
-            ],
->>>>>>> dev
         }
         file_type = FILES[code_package.language_name]
         package_config = CONFIG_FILES[code_package.language_name]
@@ -301,10 +258,7 @@ class Azure(System):
                         function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
                 )
-<<<<<<< HEAD
 
-=======
->>>>>>> dev
                 url = ""
                 for line in ret.split(b"\n"):
                     line = line.decode("utf-8")

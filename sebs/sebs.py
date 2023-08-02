@@ -8,7 +8,7 @@ from sebs import types
 from sebs.local import Local
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.code_package import CodePackage
+from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.config import Config
@@ -133,7 +133,7 @@ class SeBS(LoggingBase):
         return ExperimentConfig.deserialize(config)
 
     def get_experiment(
-        self, experiment_type: str, config: dict, is_workflow: bool, logging_filename: Optional[str] = None
+        self, experiment_type: str, config: dict, logging_filename: Optional[str] = None
     ) -> Experiment:
         from sebs.experiments import (
             Experiment,
@@ -151,7 +151,7 @@ class SeBS(LoggingBase):
         }
         if experiment_type not in implementations:
             raise RuntimeError(f"Experiment {experiment_type} not supported!")
-        experiment = implementations[experiment_type](self.get_experiment_config(config), is_workflow)
+        experiment = implementations[experiment_type](self.get_experiment_config(config))
         experiment.logging_handlers = self.generate_logging_handlers(
             logging_filename=logging_filename
         )
@@ -163,8 +163,8 @@ class SeBS(LoggingBase):
         deployment: FaaSSystem,
         config: ExperimentConfig,
         logging_filename: Optional[str] = None,
-    ) -> CodePackage:
-        code_package = CodePackage(
+    ) -> Benchmark:
+        code_package = Benchmark(
             name,
             deployment.name(),
             config,

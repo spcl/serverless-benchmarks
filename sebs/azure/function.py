@@ -1,12 +1,8 @@
 from sebs.azure.config import AzureResources
-<<<<<<< HEAD
 from sebs.faas import function
 from sebs.faas.function import CloudBenchmark, FunctionConfig
 
 from typing import cast
-=======
-from sebs.faas.function import Function, FunctionConfig
->>>>>>> dev
 
 
 class Function(CloudBenchmark):
@@ -28,11 +24,7 @@ class Function(CloudBenchmark):
         }
 
     @staticmethod
-<<<<<<< HEAD
     def deserialize(cached_config: dict) -> function.CloudBenchmark:
-=======
-    def deserialize(cached_config: dict) -> Function:
->>>>>>> dev
         cfg = FunctionConfig.deserialize(cached_config["config"])
         ret = AzureFunction(
             cached_config["name"],

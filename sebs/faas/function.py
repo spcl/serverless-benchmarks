@@ -9,10 +9,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 
-<<<<<<< HEAD
 from google.cloud.workflows.executions_v1beta.types import Execution
-=======
->>>>>>> dev
 from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 
@@ -241,13 +238,9 @@ class Trigger(ABC, LoggingBase):
             result.parse_benchmark_output(output)
             return result
         except json.decoder.JSONDecodeError:
-<<<<<<< HEAD
             self.logging.error(
                 "Invocation on URL {} failed with status code {}!".format(url, status_code)
             )
-=======
-            self.logging.error("Invocation on URL {} failed!".format(url))
->>>>>>> dev
             if len(data.getvalue()) > 0:
                 self.logging.error("Output: {}".format(data.getvalue().decode()))
             else:
@@ -364,11 +357,7 @@ class FunctionConfig:
 """
 
 
-<<<<<<< HEAD
 class CloudBenchmark(LoggingBase):
-=======
-class Function(LoggingBase):
->>>>>>> dev
     def __init__(self, benchmark: str, name: str, code_hash: str, cfg: FunctionConfig):
         super().__init__()
         self._benchmark = benchmark

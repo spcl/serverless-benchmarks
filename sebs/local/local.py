@@ -11,7 +11,6 @@ from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
 from sebs.storage.minio import Minio
 from sebs.local.function import LocalFunction
-<<<<<<< HEAD
 from sebs.faas.function import (
     CloudBenchmark,
     Function,
@@ -20,9 +19,6 @@ from sebs.faas.function import (
     Trigger,
     Workflow,
 )
-=======
-from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
->>>>>>> dev
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 from sebs.benchmark import Benchmark
@@ -139,16 +135,7 @@ class Local(System):
     """
 
     def package_code(
-<<<<<<< HEAD
         self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
-=======
-        self,
-        directory: str,
-        language_name: str,
-        language_version: str,
-        benchmark: str,
-        is_cached: bool,
->>>>>>> dev
     ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
@@ -301,7 +288,6 @@ class Local(System):
     def format_function_name(func_name: str) -> str:
         return func_name
 
-<<<<<<< HEAD
     def create_workflow(self, code_package: Benchmark, workflow_name: str) -> Workflow:
         raise NotImplementedError()
 
@@ -313,8 +299,6 @@ class Local(System):
     def update_workflow(self, workflow: Workflow, code_package: Benchmark):
         raise NotImplementedError()
 
-=======
->>>>>>> dev
     def start_measurements(self, measure_interval: int) -> Optional[str]:
 
         self._measure_interval = measure_interval
