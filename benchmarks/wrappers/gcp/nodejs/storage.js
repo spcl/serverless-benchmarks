@@ -23,7 +23,7 @@ class gcp_storage {
     return [uniqueName, bucket.upload(filepath, options)];
   };
 
-  download(bucket, file, filepath) {
+  download(container, file, filepath) {
     let bucket = this.storage.bucket(container);
     var file = bucket.file(file);
     file.download({destination: filepath});

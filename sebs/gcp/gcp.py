@@ -15,8 +15,12 @@ from google.cloud import monitoring_v3  # type: ignore
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.code_package import CodePackage
-from sebs.faas.benchmark import Benchmark, Function, Trigger, Workflow
+from sebs.benchmark import Benchmark
+<<<<<<< HEAD
+from sebs.faas.function import CloudBenchmark, Function, FunctionConfig, Trigger, Workflow
+=======
+from ..faas.function import Function, FunctionConfig, Trigger
+>>>>>>> dev
 from .storage import PersistentStorage
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
@@ -110,12 +114,10 @@ class GCP(System):
         return self.storage
 
     @staticmethod
-    def default_benchmark_name(code_package: CodePackage) -> str:
+    def default_function_name(code_package: Benchmark) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
-            code_package.name,
-            code_package.language_name,
-            code_package.config.memory,
+            code_package.benchmark, code_package.language_name, code_package.language_version
         )
         return GCP.format_function_name(func_name)
 
@@ -142,8 +144,18 @@ class GCP(System):
     """
 
     def package_code(
-        self, code_package: CodePackage, directory: str, is_workflow: bool
+<<<<<<< HEAD
+        self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
+=======
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+>>>>>>> dev
     ) -> Tuple[str, int]:
+
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],
             "nodejs": ["handler.js", "node_modules"],
@@ -167,8 +179,10 @@ class GCP(System):
         new_path = os.path.join(directory, new_name)
         shutil.move(old_path, new_path)
 
-        replace_string_in_file(new_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
-        replace_string_in_file(new_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"')
+        if self.config.resources.redis_host is not None:
+            replace_string_in_file(
+                new_path, "{{REDIS_HOST}}", f'"{self.config.resources.redis_host}"'
+            )
 
         """
             zip the whole directroy (the zip-file gets uploaded to gcp later)
@@ -181,7 +195,7 @@ class GCP(System):
             which leads to a "race condition" when running several benchmarks
             in parallel, since a change of the current directory is NOT Thread specfic.
         """
-        benchmark_archive = "{}.zip".format(os.path.join(directory, code_package.name))
+        benchmark_archive = "{}.zip".format(os.path.join(directory, code_package.benchmark))
         GCP.recursive_zip(directory, benchmark_archive)
         logging.info("Created {} archive".format(benchmark_archive))
 
@@ -192,19 +206,20 @@ class GCP(System):
         # rename the main.py back to handler.py
         shutil.move(new_path, old_path)
 
-        return os.path.join(directory, "{}.zip".format(code_package.name)), bytes_size
+        return os.path.join(directory, "{}.zip".format(code_package.benchmark)), bytes_size
 
-    def create_function(self, code_package: CodePackage, func_name: str) -> "GCPFunction":
+    def create_function(self, code_package: Benchmark, func_name: str) -> "GCPFunction":
 
         package = code_package.code_location
-        benchmark = code_package.name
+        benchmark = code_package.benchmark
         language_runtime = code_package.language_version
-        timeout = code_package.config.timeout
-        memory = code_package.config.memory
+        timeout = code_package.benchmark_config.timeout
+        memory = code_package.benchmark_config.memory
         code_bucket: Optional[str] = None
         storage_client = self.get_storage()
         location = self.config.region
         project_name = self.config.project_name
+        function_cfg = FunctionConfig.from_benchmark(code_package)
 
         code_package_name = cast(str, os.path.basename(package))
         code_bucket, idx = storage_client.add_input_bucket(benchmark)
@@ -230,7 +245,7 @@ class GCP(System):
                         "timeout": str(timeout) + "s",
                         "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
-                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_package_name,
+                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_package.benchmark,
                     },
                 )
             )
@@ -245,10 +260,7 @@ class GCP(System):
                     body={
                         "policy": {
                             "bindings": [
-                                {
-                                    "role": "roles/cloudfunctions.invoker",
-                                    "members": ["allUsers"],
-                                }
+                                {"role": "roles/cloudfunctions.invoker", "members": ["allUsers"]}
                             ]
                         }
                     },
@@ -258,7 +270,7 @@ class GCP(System):
             self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
-                func_name, benchmark, code_package.hash, timeout, memory, code_bucket
+                func_name, benchmark, code_package.hash, function_cfg, code_bucket
             )
         else:
             # if result is not empty, then function does exists
@@ -268,8 +280,7 @@ class GCP(System):
                 name=func_name,
                 benchmark=benchmark,
                 code_package_hash=code_package.hash,
-                timeout=timeout,
-                memory=memory,
+                cfg=function_cfg,
                 bucket=code_bucket,
             )
             self.update_function(function, code_package)
@@ -316,26 +327,26 @@ class GCP(System):
         self.cache_client.update_benchmark(function)
         return trigger
 
-    def cached_benchmark(self, benchmark: Benchmark):
+    def cached_benchmark(self, function: CloudBenchmark):
 
-        from sebs.faas.benchmark import Trigger
+        from sebs.faas.function import Trigger
         from sebs.gcp.triggers import LibraryTrigger
 
-        for trigger in benchmark.triggers(Trigger.TriggerType.LIBRARY):
+        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             gcp_trigger = cast(LibraryTrigger, trigger)
             gcp_trigger.logging_handlers = self.logging_handlers
             gcp_trigger.deployment_client = self
 
-    def update_function(self, function: Function, code_package: CodePackage):
+    def update_function(self, function: Function, code_package: Benchmark):
 
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version
         code_package_name = os.path.basename(code_package.code_location)
         storage = cast(GCPStorage, self.get_storage())
 
-        bucket = function.code_bucket(code_package.name, storage)
+        bucket = function.code_bucket(code_package.benchmark, storage)
         storage.upload(bucket, code_package.code_location, code_package_name)
-        self.logging.info(f"Uploaded new code package to {bucket}/{code_package_name}")
+        self.logging.info(f"Uploaded new code package to {bucket}/{code_package.benchmark}")
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
@@ -349,38 +360,86 @@ class GCP(System):
                     "name": full_func_name,
                     "entryPoint": "handler",
                     "runtime": code_package.language_name + language_runtime.replace(".", ""),
-                    "availableMemoryMb": function.memory,
-                    "timeout": str(function.timeout) + "s",
+                    "availableMemoryMb": function.config.memory,
+                    "timeout": str(function.config.timeout) + "s",
                     "httpsTrigger": {},
-                    "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+                    "sourceArchiveUrl": "gs://" + bucket + "/" + code_package.benchmark,
                 },
             )
         )
         res = req.execute()
         versionId = res["metadata"]["versionId"]
-        while True:
-            if not self.is_deployed(function.name, versionId):
+        retries = 0
+        last_version = -1
+        while retries < 100:
+            is_deployed, last_version = self.is_deployed(function.name, versionId)
+            if not is_deployed:
                 time.sleep(5)
+                retries += 1
             else:
                 break
+            if retries > 0 and retries % 10 == 0:
+                self.logging.info(f"Waiting for function deployment, {retries} retries.")
+        if retries == 100:
+            raise RuntimeError(
+                "Failed to publish new function code after 10 attempts. "
+                f"Version {versionId} has not been published, last version {last_version}."
+            )
         self.logging.info("Published new function code and configuration.")
+
+    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+        function = cast(GCPFunction, function)
+        full_func_name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, function.name
+        )
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .patch(
+                name=full_func_name,
+                updateMask="availableMemoryMb,timeout",
+                body={
+                    "availableMemoryMb": function.config.memory,
+                    "timeout": str(function.config.timeout) + "s",
+                },
+            )
+        )
+        res = req.execute()
+        versionId = res["metadata"]["versionId"]
+        retries = 0
+        last_version = -1
+        while retries < 100:
+            is_deployed, last_version = self.is_deployed(function.name, versionId)
+            if not is_deployed:
+                time.sleep(5)
+                retries += 1
+            else:
+                break
+            if retries > 0 and retries % 10 == 0:
+                self.logging.info(f"Waiting for function deployment, {retries} retries.")
+        if retries == 100:
+            raise RuntimeError(
+                "Failed to publish new function code after 10 attempts. "
+                f"Version {versionId} has not been published, last version {last_version}."
+            )
+        self.logging.info("Published new function configuration.")
 
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str):
         return f"projects/{project_name}/locations/{location}/functions/{func_name}"
 
-    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> "GCPWorkflow":
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "GCPWorkflow":
         from sebs.gcp.triggers import HTTPTrigger
 
-        benchmark = code_package.name
-        timeout = code_package.config.timeout
-        memory = code_package.config.memory
+        benchmark = code_package.benchmark
         code_bucket: Optional[str] = None
         location = self.config.region
         project_name = self.config.project_name
+        function_cfg = FunctionConfig.from_benchmark(code_package)
 
         # Make sure we have a valid workflow benchmark
-        definition_path = os.path.join(code_package.path, "definition.json")
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
         if not os.path.exists(definition_path):
             raise ValueError(f"No workflow definition found for {workflow_name}")
 
@@ -416,26 +475,8 @@ class GCP(System):
                     },
                 )
             )
-
-            try:
-                create_req.execute()
-                self.logging.info(f"Map workflow {map_id} has been created!")
-            except HttpError:
-                patch_req = (
-                    self.workflow_client.projects()  # type: ignore
-                    .locations()
-                    .workflows()
-                    .patch(
-                        name=full_workflow_name,
-                        body={
-                            "name": full_workflow_name,
-                            "sourceContents": map_def,
-                        },
-                    )
-                )
-                patch_req.execute()
-                self.logging.info("Published new map workflow code.")
-
+            create_req.execute()
+            self.logging.info(f"Map workflow {map_id} has been created!")
 
         full_workflow_name = GCP.get_full_workflow_name(project_name, location, workflow_name)
         get_req = (
@@ -469,8 +510,7 @@ class GCP(System):
                 funcs,
                 benchmark,
                 code_package.hash,
-                timeout,
-                memory,
+                function_cfg,
                 code_bucket,
             )
         else:
@@ -484,8 +524,7 @@ class GCP(System):
                 functions=funcs,
                 benchmark=benchmark,
                 code_package_hash=code_package.hash,
-                timeout=timeout,
-                memory=memory,
+                cfg=function_cfg,
                 bucket=code_bucket,
             )
             self.update_workflow(workflow, code_package)
@@ -514,13 +553,13 @@ class GCP(System):
         self.cache_client.update_benchmark(workflow)
         return trigger
 
-    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
+    def update_workflow(self, workflow: Workflow, code_package: Benchmark):
         from sebs.gcp.triggers import HTTPTrigger
 
         workflow = cast(GCPWorkflow, workflow)
 
         # Make sure we have a valid workflow benchmark
-        definition_path = os.path.join(code_package.path, "definition.json")
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
         if not os.path.exists(definition_path):
             raise ValueError(f"No workflow definition found for {workflow.name}")
 
@@ -585,12 +624,7 @@ class GCP(System):
         super().shutdown()
 
     def download_metrics(
-        self,
-        function_name: str,
-        start_time: int,
-        end_time: int,
-        requests: dict,
-        metrics: dict,
+        self, function_name: str, start_time: int, end_time: int, requests: dict, metrics: dict
     ):
 
         from google.api_core import exceptions
@@ -700,10 +734,6 @@ class GCP(System):
             results = client.list_time_series(list_request)
             for result in results:
                 if result.resource.labels.get("function_name") == function_name:
-                    if metric == "user_memory_bytes":
-                        for req_id, res in requests.items():
-                            res.billing.memory = int(result.metric.labels["memory"])
-                            # res.stats.memory_used = result.points.value.distribution_value.mean
                     for point in result.points:
                         metrics[metric] += [
                             {
@@ -733,7 +763,7 @@ class GCP(System):
 
         return new_version
 
-    def enforce_cold_start(self, functions: List[Function], code_package: CodePackage):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
 
         new_versions = []
         for func in functions:
@@ -745,7 +775,8 @@ class GCP(System):
         deployment_done = False
         while not deployment_done:
             for versionId, func in new_versions:
-                if not self.is_deployed(func.name, versionId):
+                is_deployed, last_version = self.is_deployed(func.name, versionId)
+                if not is_deployed:
                     undeployed_functions.append((versionId, func))
             deployed = len(new_versions) - len(undeployed_functions)
             self.logging.info(f"Redeployed {deployed} out of {len(new_versions)}")
@@ -758,9 +789,7 @@ class GCP(System):
 
         self.cold_start_counter += 1
 
-    def get_functions(
-        self, code_package: CodePackage, function_names: List[str]
-    ) -> List["Function"]:
+    def get_functions(self, code_package: Benchmark, function_names: List[str]) -> List["Function"]:
 
         functions: List["Function"] = []
         undeployed_functions_before = []
@@ -774,7 +803,8 @@ class GCP(System):
         deployment_done = False
         while not deployment_done:
             for func in undeployed_functions_before:
-                if not self.is_deployed(func.name):
+                is_deployed, last_version = self.is_deployed(func.name)
+                if not is_deployed:
                     undeployed_functions.append(func)
             deployed = len(undeployed_functions_before) - len(undeployed_functions)
             self.logging.info(f"Deployed {deployed} out of {len(undeployed_functions_before)}")
@@ -788,15 +818,15 @@ class GCP(System):
 
         return functions
 
-    def is_deployed(self, func_name: str, versionId: int = -1) -> bool:
+    def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
         name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
         function_client = self.get_function_client()
         status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()
         if versionId == -1:
-            return status_res["status"] == "ACTIVE"
+            return (status_res["status"] == "ACTIVE", status_res["versionId"])
         else:
-            return status_res["versionId"] == versionId
+            return (status_res["versionId"] == versionId, status_res["versionId"])
 
     def deployment_version(self, func: Function) -> int:
         name = GCP.get_full_function_name(self.config.project_name, self.config.region, func.name)

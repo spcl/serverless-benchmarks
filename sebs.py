@@ -4,9 +4,7 @@
 import json
 import logging
 import functools
-from datetime import datetime
 import os
-import sys
 import traceback
 from time import sleep
 from typing import cast, Optional
@@ -16,10 +14,15 @@ import pandas as pd
 
 import sebs
 from sebs import SeBS
+from sebs.types import Storage as StorageTypes
 from sebs.regression import regression_suite
-from sebs.utils import update_nested_dict, download_measurements, connect_to_redis_cache
+<<<<<<< HEAD
+from sebs.utils import update_nested_dict, download_measurements, connect_to_redis_cache, catch_interrupt
+=======
+from sebs.utils import update_nested_dict, catch_interrupt
+>>>>>>> dev
 from sebs.faas import System as FaaSSystem
-from sebs.faas.benchmark import Trigger
+from sebs.faas.function import Trigger
 from sebs.local import Local
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -43,6 +46,7 @@ class ExceptionProcesser(click.Group):
             if sebs_client is not None:
                 sebs_client.shutdown()
 
+
 def simplified_common_params(func):
     @click.option(
         "--config",
@@ -50,12 +54,8 @@ def simplified_common_params(func):
         type=click.Path(readable=True),
         help="Location of experiment config.",
     )
-    @click.option(
-        "--output-dir", default=os.path.curdir, help="Output directory for results."
-    )
-    @click.option(
-        "--output-file", default="out.log", help="Output filename for logging."
-    )
+    @click.option("--output-dir", default=os.path.curdir, help="Output directory for results.")
+    @click.option("--output-file", default="out.log", help="Output filename for logging.")
     @click.option(
         "--cache",
         default=os.path.join(os.path.curdir, "cache"),
@@ -73,14 +73,13 @@ def simplified_common_params(func):
         type=click.Choice(["python", "nodejs"]),
         help="Benchmark language",
     )
-    @click.option(
-        "--language-version", default=None, type=str, help="Benchmark language version"
-    )
+    @click.option("--language-version", default=None, type=str, help="Benchmark language version")
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
     return wrapper
+
 
 def common_params(func):
     @click.option(
@@ -96,7 +95,7 @@ def common_params(func):
     @click.option(
         "--deployment",
         default=None,
-        type=click.Choice(["azure", "aws", "gcp", "local"]),
+        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
         help="Cloud deployment to use.",
     )
     @simplified_common_params
@@ -120,8 +119,9 @@ def parse_common_params(
     language,
     language_version,
     initialize_deployment: bool = True,
-    ignore_cache: bool = False
+    ignore_cache: bool = False,
 ):
+
     global sebs_client, deployment_client
     config_obj = json.load(open(config, "r"))
     os.makedirs(output_dir, exist_ok=True)
@@ -129,17 +129,15 @@ def parse_common_params(
 
     sebs_client = sebs.SeBS(cache, output_dir, verbose, logging_filename)
     output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
+    
     sebs_client.logging.info("Created experiment output at {}".format(output_dir))
 
     # CLI overrides JSON options
     update_nested_dict(config_obj, ["experiments", "runtime", "language"], language)
-    update_nested_dict(
-        config_obj, ["experiments", "runtime", "version"], language_version
-    )
+    update_nested_dict(config_obj, ["experiments", "runtime", "version"], language_version)
     update_nested_dict(config_obj, ["deployment", "name"], deployment)
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
-    update_nested_dict(config_obj, ["experiments", "benchmark"], benchmark)
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
@@ -151,6 +149,8 @@ def parse_common_params(
 
     if ignore_cache:
         sebs_client.ignore_cache()
+
+    catch_interrupt()
 
     return config_obj, output_dir, logging_filename, sebs_client, deployment_client
 
@@ -164,19 +164,31 @@ def cli():
 def benchmark():
     pass
 
+
+<<<<<<< HEAD
 @benchmark.command()
 @click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])
 )  # help="Input test size")
-@click.option(
-    "--repetitions", default=5, type=int, help="Number of experimental repetitions."
-)
+@click.option("--repetitions", default=5, type=int, help="Number of experimental repetitions.")
 @click.option(
     "--trigger",
     type=click.Choice(["library", "http"]),
     default="http",
-    help="Function trigger to be used."
+    help="Function trigger to be used.",
+)
+@click.option(
+    "--memory",
+    default=None,
+    type=int,
+    help="Override default memory settings for the benchmark function.",
+)
+@click.option(
+    "--timeout",
+    default=None,
+    type=int,
+    help="Override default timeout settings for the benchmark function.",
 )
 @click.option(
     "--function-name",
@@ -184,8 +196,24 @@ def benchmark():
     type=str,
     help="Override function name for random generation.",
 )
+@click.option(
+    "--image-tag-prefix",
+    default=None,
+    type=str,
+    help="Attach prefix to generated Docker image tag.",
+)
 @common_params
-def function(benchmark, benchmark_input_size, repetitions, trigger, function_name, **kwargs):
+def function(
+    benchmark,
+    benchmark_input_size,
+    repetitions,
+    trigger,
+    memory,
+    timeout,
+    function_name,
+    image_tag_prefix,
+    **kwargs,
+):
 
     (
         config,
@@ -194,34 +222,36 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
+    if image_tag_prefix is not None:
+        sebs_client.config.image_tag_prefix = image_tag_prefix
+
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    update_nested_dict(config, ["experiments", "benchmark"], benchmark)
     benchmark_obj = sebs_client.get_benchmark(
         benchmark,
         deployment_client,
         experiment_config,
         logging_filename=logging_filename,
     )
-    func = deployment_client.get_function(
-        benchmark_obj, function_name if function_name else deployment_client.default_benchmark_name(benchmark_obj)
-    )
-    storage = deployment_client.get_storage(
-        replace_existing=experiment_config.update_storage
-    )
-    input_config = benchmark_obj.prepare_input(
-        storage=storage, size=benchmark_input_size
-    )
+    if memory is not None:
+        benchmark_obj.benchmark_config.memory = memory
+    if timeout is not None:
+        benchmark_obj.benchmark_config.timeout = timeout
 
-    result = sebs.experiments.ExperimentResult(
-        experiment_config, deployment_client.config
+    func = deployment_client.get_function(
+        benchmark_obj,
+        function_name if function_name else deployment_client.default_function_name(benchmark_obj),
     )
+    storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
+    input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
+
+    result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
     result.begin()
 
     trigger_type = Trigger.TriggerType.get(trigger)
     triggers = func.triggers(trigger_type)
     if len(triggers) == 0:
-        trigger = deployment_client.create_trigger(
-            func, trigger_type
-        )
+        trigger = deployment_client.create_trigger(func, trigger_type)
     else:
         trigger = triggers[0]
 
@@ -230,28 +260,44 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
         ret = trigger.sync_invoke(input_config)
         if ret.stats.failure:
             sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
-            #deployment_client.get_invocation_error(
+            # deployment_client.get_invocation_error(
             #    function_name=func.name, start_time=start_time, end_time=end_time
-            #)
+            # )
         result.add_invocation(func, ret)
     result.end()
     with open("experiments.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
     sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
 
+=======
+>>>>>>> dev
 @benchmark.command()
 @click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])
 )  # help="Input test size")
-@click.option(
-    "--repetitions", default=5, type=int, help="Number of experimental repetitions."
-)
+@click.option("--repetitions", default=5, type=int, help="Number of experimental repetitions.")
 @click.option(
     "--trigger",
     type=click.Choice(["library", "http"]),
     default="http",
+<<<<<<< HEAD
     help="Workflow trigger to be used."
+=======
+    help="Function trigger to be used.",
+)
+@click.option(
+    "--memory",
+    default=None,
+    type=int,
+    help="Override default memory settings for the benchmark function.",
+)
+@click.option(
+    "--timeout",
+    default=None,
+    type=int,
+    help="Override default timeout settings for the benchmark function.",
+>>>>>>> dev
 )
 @click.option(
     "--workflow-name",
@@ -260,13 +306,28 @@ def function(benchmark, benchmark_input_size, repetitions, trigger, function_nam
     help="Override workflow name for random generation.",
 )
 @click.option(
-    "--df-name",
+    "--image-tag-prefix",
     default=None,
     type=str,
-    help="Override dataframe name.",
+    help="Attach prefix to generated Docker image tag.",
 )
 @common_params
-def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_name, df_name, **kwargs):
+<<<<<<< HEAD
+def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_name, **kwargs):
+=======
+def invoke(
+    benchmark,
+    benchmark_input_size,
+    repetitions,
+    trigger,
+    memory,
+    timeout,
+    function_name,
+    image_tag_prefix,
+    **kwargs,
+):
+>>>>>>> dev
+
     (
         config,
         output_dir,
@@ -274,20 +335,27 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
+<<<<<<< HEAD
     if isinstance(deployment_client, Local):
         raise NotImplementedError("Local workflow deployment is currently not supported.")
 
     redis = connect_to_redis_cache(deployment_client.config.redis_host)
+=======
+    if image_tag_prefix is not None:
+        sebs_client.config.image_tag_prefix = image_tag_prefix
+>>>>>>> dev
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    update_nested_dict(config, ["experiments", "benchmark"], benchmark)
     benchmark_obj = sebs_client.get_benchmark(
         benchmark,
         deployment_client,
         experiment_config,
         logging_filename=logging_filename,
     )
+<<<<<<< HEAD
     workflow = deployment_client.get_workflow(
-        benchmark_obj, workflow_name if workflow_name else deployment_client.default_benchmark_name(benchmark_obj)
+        benchmark_obj, workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj)
     )
     storage = deployment_client.get_storage(
         replace_existing=experiment_config.update_storage
@@ -297,57 +365,63 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
     )
 
     measurements = []
+    result = sebs.experiments.ExperimentResult(
+        experiment_config, deployment_client.config
+=======
+    if memory is not None:
+        benchmark_obj.benchmark_config.memory = memory
+    if timeout is not None:
+        benchmark_obj.benchmark_config.timeout = timeout
+
+    func = deployment_client.get_function(
+        benchmark_obj,
+        function_name if function_name else deployment_client.default_function_name(benchmark_obj),
+>>>>>>> dev
+    )
+    storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
+    input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
+
+    result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
+    result.begin()
+
     trigger_type = Trigger.TriggerType.get(trigger)
     triggers = workflow.triggers(trigger_type)
     if len(triggers) == 0:
+<<<<<<< HEAD
         trigger = deployment_client.create_trigger(
             workflow, trigger_type
         )
+=======
+        trigger = deployment_client.create_trigger(func, trigger_type)
+>>>>>>> dev
     else:
         trigger = triggers[0]
-
-    i = 0
-    retries = 0
-    num_payloads = -1
-    while i < repetitions:
+    for i in range(repetitions):
         sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
+        ret = trigger.sync_invoke(input_config)
+        if ret.stats.failure:
+            sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
+<<<<<<< HEAD
 
-        try:
-            ret = trigger.sync_invoke(input_config)
-            if ret.stats.failure:
-                raise RuntimeError("Exception during workflow execution.")
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            sebs_client.logging.error(e)
+        measurements += download_measurements(redis, workflow.name, result.begin_time, rep=i)
+        result.add_invocation(workflow, ret)
+=======
+            # deployment_client.get_invocation_error(
+            #    function_name=func.name, start_time=start_time, end_time=end_time
+            # )
+        result.add_invocation(func, ret)
+>>>>>>> dev
+    result.end()
 
-            retries += 1
-            if retries >= 3:
-                raise
-        else:
-            payloads = download_measurements(redis, workflow.name, ret.request_id, rep=i)
-            if num_payloads == -1 and len(payloads) > 0:
-                num_payloads = len(payloads)
-                sebs_client.logging.warning(f"Will be expecting {num_payloads} measurements/repetition.")
-            elif num_payloads != len(payloads):
-                sebs_client.logging.warning(f"Invalid number of measurments. Expected {num_payloads} payloads but downloaded {len(payloads)}. Retry.")
+    path = os.path.join(output_dir, "results", workflow.name, deployment_client.name()+".csv")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
 
-                continue
+    df = pd.DataFrame(measurements)
+    df.to_csv(path, index=False)
 
-            measurements += payloads
-            i += 1
-            retries = 0
-
-    if len(measurements) > 0:
-        name = df_name if df_name else benchmark
-        name += "_"+benchmark_input_size
-        path = os.path.join(output_dir, "results", name, deployment_client.name()+".csv")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-
-        df = pd.DataFrame(measurements)
-        df.to_csv(path, index=False)
-
-        sebs_client.logging.info(f"Save results to {path}")
+    with open("experiments.json", "w") as out_f:
+        out_f.write(sebs.utils.serialize(result))
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
 
 
 @benchmark.command()
@@ -367,16 +441,17 @@ def process(**kwargs):
         experiments = sebs.experiments.ExperimentResult.deserialize(
             config,
             sebs_client.cache_client,
-            sebs_client.logging_handlers(logging_filename),
+            sebs_client.generate_logging_handlers(logging_filename),
         )
 
     for func in experiments.functions():
         deployment_client.download_metrics(
-            func, *experiments.times(), experiments.invocations(func)
+            func, *experiments.times(), experiments.invocations(func), experiments.metrics(func)
         )
     with open("results.json", "w") as out_f:
         out_f.write(sebs.utils.serialize(experiments))
     sebs_client.logging.info("Save results to {}".format(os.path.abspath("results.json")))
+
 
 @benchmark.command()
 @click.argument(
@@ -395,67 +470,99 @@ def process(**kwargs):
     help="Location of experiments cache.",
 )
 @click.option(
-    "--output-dir", default=os.path.join(os.path.curdir, "regression-output"), help="Output directory for results."
+    "--output-dir",
+    default=os.path.join(os.path.curdir, "regression-output"),
+    help="Output directory for results.",
 )
 def regression(benchmark_input_size, benchmark_name, **kwargs):
     # for regression, deployment client is initialized locally
     # disable default initialization
-    (
-        config,
-        output_dir,
-        logging_filename,
-        sebs_client,
-        _
-    ) = parse_common_params(
-        initialize_deployment=False,
-        **kwargs
+    (config, output_dir, logging_filename, sebs_client, _) = parse_common_params(
+        initialize_deployment=False, **kwargs
     )
-    succ = regression_suite(
+    regression_suite(
         sebs_client,
         config["experiments"],
-        set( (config['deployment']['name'],) ),
+        set((config["deployment"]["name"],)),
         config["deployment"],
-        benchmark_name
+        benchmark_name,
     )
+
+
+@cli.group()
+def storage():
+    pass
+
+
+@storage.command("start")
+@click.argument("storage", type=click.Choice([StorageTypes.MINIO]))
+@click.option("--output-json", type=click.Path(dir_okay=False, writable=True), default=None)
+@click.option("--port", type=int, default=9000)
+def storage_start(storage, output_json, port):
+
+    import docker
+
+    sebs.utils.global_logging()
+    storage_type = sebs.SeBS.get_storage_implementation(StorageTypes(storage))
+    storage_instance = storage_type(docker.from_env(), None, True)
+    logging.info(f"Starting storage {str(storage)} on port {port}.")
+    storage_instance.start(port)
+    if output_json:
+        logging.info(f"Writing storage configuration to {output_json}.")
+        with open(output_json, "w") as f:
+            json.dump(storage_instance.serialize(), fp=f, indent=2)
+    else:
+        logging.info("Writing storage configuration to stdout.")
+        logging.info(json.dumps(storage_instance.serialize(), indent=2))
+
+
+@storage.command("stop")
+@click.argument("input-json", type=click.Path(exists=True, dir_okay=False, readable=True))
+def storage_stop(input_json):
+
+    sebs.utils.global_logging()
+    with open(input_json, "r") as f:
+        cfg = json.load(f)
+        storage_type = cfg["type"]
+        storage_cfg = sebs.SeBS.get_storage_config_implementation(storage_type).deserialize(cfg)
+        logging.info(f"Stopping storage deployment of {storage_type}.")
+        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(storage_cfg, None)
+        storage.stop()
+        logging.info(f"Stopped storage deployment of {storage_type}.")
+
 
 @cli.group()
 def local():
     pass
 
+
 @local.command()
 @click.argument("benchmark", type=str)
-@click.argument(
-    "benchmark-input-size", type=click.Choice(["test", "small", "large"])
-)
+@click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
+@click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
+@click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
+@click.option("--measure-interval", type=int, default=-1,
+              help="Interval duration between memory measurements in ms.")
 @click.option(
-    "--deployments", default=1, type=int, help="Number of deployed containers."
-)
-@click.option(
-    "--remove-containers/--no-remove-containers", default=True, help="Remove containers after stopping."
+    "--remove-containers/--no-remove-containers",
+    default=True,
+    help="Remove containers after stopping.",
 )
 @simplified_common_params
-def start(benchmark, benchmark_input_size, output, deployments, remove_containers, **kwargs):
+def start(benchmark, benchmark_input_size, output, deployments, measure_interval,
+          remove_containers, **kwargs):
     """
-        Start a given number of function instances and a storage instance.
+    Start a given number of function instances and a storage instance.
     """
 
-    (
-        config,
-        output_dir,
-        logging_filename,
-        sebs_client,
-        deployment_client
-    ) = parse_common_params(
-        ignore_cache = True,
-        update_code = False,
-        update_storage = False,
-        deployment = "local",
-        **kwargs
+    (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
+        ignore_cache=True, update_code=False, update_storage=False, deployment="local", **kwargs
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers
     result = sebs.local.Deployment()
+    result.measurement_file = deployment_client.start_measurements(measure_interval)
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     benchmark_obj = sebs_client.get_benchmark(
@@ -464,17 +571,14 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
         experiment_config,
         logging_filename=logging_filename,
     )
-    storage = deployment_client.get_storage(
-        replace_existing=experiment_config.update_storage
-    )
+    storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
     result.set_storage(storage)
-    input_config = benchmark_obj.prepare_input(
-        storage=storage, size=benchmark_input_size
-    )
+    input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
     result.add_input(input_config)
+
     for i in range(deployments):
         func = deployment_client.get_function(
-            benchmark_obj, deployment_client.default_benchmark_name(benchmark_obj)
+            benchmark_obj, deployment_client.default_function_name(benchmark_obj)
         )
         result.add_function(func)
 
@@ -484,20 +588,23 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
     result.serialize(output)
     sebs_client.logging.info(f"Save results to {os.path.abspath(output)}")
 
+
 @local.command()
 @click.argument("input-json", type=str)
-#@simplified_common_params
-def stop(input_json, **kwargs):
+@click.argument("output-json", type=str, default="memory_stats.json")
+# @simplified_common_params
+def stop(input_json, output_json, **kwargs):
     """
-        Stop function and storage containers.
+    Stop function and storage containers.
     """
 
     sebs.utils.global_logging()
 
     logging.info(f"Stopping deployment from {os.path.abspath(input_json)}")
     deployment = sebs.local.Deployment.deserialize(input_json, None)
-    deployment.shutdown()
+    deployment.shutdown(output_json)
     logging.info(f"Stopped deployment from {os.path.abspath(input_json)}")
+
 
 @cli.group()
 def experiment():
@@ -506,9 +613,8 @@ def experiment():
 
 @experiment.command("invoke")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
-@click.option("--workflow", type=bool, default=False)
 @common_params
-def experiment_invoke(experiment, workflow, **kwargs):
+def experiment_invoke(experiment, **kwargs):
     (
         config,
         output_dir,
@@ -516,7 +622,7 @@ def experiment_invoke(experiment, workflow, **kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    experiment = sebs_client.get_experiment(experiment, config["experiments"], workflow)
+    experiment = sebs_client.get_experiment(experiment, config["experiments"])
     experiment.prepare(sebs_client, deployment_client)
     experiment.run()
 
@@ -524,9 +630,8 @@ def experiment_invoke(experiment, workflow, **kwargs):
 @experiment.command("process")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
 @click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
-@click.option("--workflow", type=bool, default=False)
 @common_params
-def experiment_process(experiment, extend_time_interval, workflow, **kwargs):
+def experment_process(experiment, extend_time_interval, **kwargs):
     (
         config,
         output_dir,
@@ -534,13 +639,11 @@ def experiment_process(experiment, extend_time_interval, workflow, **kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    experiment = sebs_client.get_experiment(experiment, config["experiments"], workflow)
-    if workflow:
-        experiment.process_workflow(sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval)
-    else:
-        experiment.process(sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval)
+    experiment = sebs_client.get_experiment(experiment, config["experiments"])
+    experiment.process(
+        sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval
+    )
 
 
 if __name__ == "__main__":
     cli()
-

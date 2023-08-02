@@ -4,13 +4,16 @@ import os
 import time
 import shutil
 import subprocess
-import sys
 import uuid
-from typing import List, Optional, TextIO, Union
+import click
+import datetime
+
+from typing import List, Optional
 
 from redis import Redis
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
+DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
 PACK_CODE_APP = "pack_code_{}.sh"
 
 
@@ -194,36 +197,89 @@ def global_logging():
     logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
 
 
+class ColoredWrapper:
+    SUCCESS = "\033[92m"
+    STATUS = "\033[94m"
+    WARNING = "\033[93m"
+    ERROR = "\033[91m"
+    BOLD = "\033[1m"
+    END = "\033[0m"
+
+    def __init__(self, prefix, logger, verbose=True, propagte=False):
+        self.verbose = verbose
+        self.propagte = propagte
+        self.prefix = prefix
+        self._logging = logger
+
+    def debug(self, message):
+        if self.verbose:
+            self._print(message, ColoredWrapper.STATUS)
+            if self.propagte:
+                self._logging.debug(message)
+
+    def info(self, message):
+        self._print(message, ColoredWrapper.SUCCESS)
+        if self.propagte:
+            self._logging.info(message)
+
+    def warning(self, message):
+        self._print(message, ColoredWrapper.WARNING)
+        if self.propagte:
+            self._logging.warning(message)
+
+    def error(self, message):
+        self._print(message, ColoredWrapper.ERROR)
+        if self.propagte:
+            self._logging.error(message)
+
+    def critical(self, message):
+        self._print(message, ColoredWrapper.ERROR)
+        if self.propagte:
+            self._logging.critical(message)
+
+    def _print(self, message, color):
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
+        click.echo(
+            f"{color}{ColoredWrapper.BOLD}[{timestamp}]{ColoredWrapper.END} "
+            f"{ColoredWrapper.BOLD}{self.prefix}{ColoredWrapper.END} {message}"
+        )
+
+
 class LoggingHandlers:
     def __init__(self, verbose: bool = False, filename: Optional[str] = None):
         logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
         logging_date_format = "%H:%M:%S"
         formatter = logging.Formatter(logging_format, logging_date_format)
-        self.handlers: List[Union[logging.FileHandler, logging.StreamHandler[TextIO]]] = []
+        self.handler: Optional[logging.FileHandler] = None
 
-        # Add stdout output
-        if verbose:
-            stdout = logging.StreamHandler(sys.stdout)
-            stdout.setFormatter(formatter)
-            stdout.setLevel(logging.DEBUG if verbose else logging.INFO)
-            self.handlers.append(stdout)
+        # Remember verbosity for colored wrapper
+        self.verbosity = verbose
 
         # Add file output if needed
         if filename:
             file_out = logging.FileHandler(filename=filename, mode="w")
             file_out.setFormatter(formatter)
             file_out.setLevel(logging.DEBUG if verbose else logging.INFO)
-            self.handlers.append(file_out)
+            self.handler = file_out
 
 
 class LoggingBase:
     def __init__(self):
         uuid_name = str(uuid.uuid4())[0:4]
         if hasattr(self, "typename"):
-            self.logging = logging.getLogger(f"{self.typename()}-{uuid_name}")
+            self.log_name = f"{self.typename()}-{uuid_name}"
         else:
-            self.logging = logging.getLogger(f"{self.__class__.__name__}-{uuid_name}")
-        self.logging.setLevel(logging.INFO)
+            self.log_name = f"{self.__class__.__name__}-{uuid_name}"
+
+        self._logging = logging.getLogger(self.log_name)
+        self._logging.setLevel(logging.INFO)
+        self.wrapper = ColoredWrapper(self.log_name, self._logging)
+
+    @property
+    def logging(self) -> ColoredWrapper:
+        # This would always print log with color. And only if
+        # filename in LoggingHandlers is set, it would log to file.
+        return self.wrapper
 
     @property
     def logging_handlers(self) -> LoggingHandlers:
@@ -232,10 +288,31 @@ class LoggingBase:
     @logging_handlers.setter
     def logging_handlers(self, handlers: LoggingHandlers):
         self._logging_handlers = handlers
-        self.logging.propagate = False
-        for handler in handlers.handlers:
-            self.logging.addHandler(handler)
+
+        self._logging.propagate = False
+        self.wrapper = ColoredWrapper(
+            self.log_name,
+            self._logging,
+            verbose=handlers.verbosity,
+            propagte=handlers.handler is not None,
+        )
+
+        if self._logging_handlers.handler is not None:
+            self._logging.addHandler(self._logging_handlers.handler)
 
 
 def has_platform(name: str) -> bool:
     return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "true"
+
+
+def catch_interrupt():
+
+    import signal
+    import sys
+    import traceback
+
+    def handler(x, y):
+        traceback.print_stack()
+        sys.exit(signal.SIGINT)
+
+    signal.signal(signal.SIGINT, handler)

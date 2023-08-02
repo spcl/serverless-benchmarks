@@ -10,16 +10,30 @@ import docker
 
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
-from sebs.azure.function_app import FunctionApp, AzureFunction, AzureWorkflow
+from sebs.azure.function import AzureFunction, AzureWorkflow
 from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
-from sebs.code_package import CodePackage
+from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+<<<<<<< HEAD
 from sebs.utils import LoggingHandlers, execute, replace_string_in_file
-from sebs.faas.benchmark import Benchmark, Function, ExecutionResult, Workflow, Trigger
+from sebs.faas.function import (
+    CloudBenchmark,
+    FunctionConfig,
+    Function,
+    ExecutionResult,
+    Workflow,
+    Trigger,
+)
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
+=======
+from sebs.utils import LoggingHandlers, execute
+from ..faas.function import Function, FunctionConfig, ExecutionResult
+from ..faas.storage import PersistentStorage
+from ..faas.system import System
+>>>>>>> dev
 
 
 class Azure(System):
@@ -119,7 +133,16 @@ class Azure(System):
     # host.json
     # requirements.txt/package.json
     def package_code(
-        self, code_package: CodePackage, directory: str, is_workflow: bool
+<<<<<<< HEAD
+        self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
+=======
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+>>>>>>> dev
     ) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
@@ -129,9 +152,36 @@ class Azure(System):
             "python": ["requirements.txt", ".python_packages"],
             "nodejs": ["package.json", "node_modules"],
         }
+<<<<<<< HEAD
         WRAPPER_FILES = {
             "python": ["handler.py", "storage.py", "fsm.py"],
             "nodejs": ["handler.js", "storage.js"],
+=======
+        package_config = CONFIG_FILES[language_name]
+
+        handler_dir = os.path.join(directory, "handler")
+        os.makedirs(handler_dir)
+        # move all files to 'handler' except package config
+        for f in os.listdir(directory):
+            if f not in package_config:
+                source_file = os.path.join(directory, f)
+                shutil.move(source_file, handler_dir)
+
+        # generate function.json
+        # TODO: extension to other triggers than HTTP
+        default_function_json = {
+            "scriptFile": EXEC_FILES[language_name],
+            "bindings": [
+                {
+                    "authLevel": "anonymous",
+                    "type": "httpTrigger",
+                    "direction": "in",
+                    "name": "req",
+                    "methods": ["get", "post"],
+                },
+                {"type": "http", "direction": "out", "name": "$return"},
+            ],
+>>>>>>> dev
         }
         file_type = FILES[code_package.language_name]
         package_config = CONFIG_FILES[code_package.language_name]
@@ -142,7 +192,7 @@ class Azure(System):
             os.rename(main_path, os.path.join(directory, "main.py"))
 
             # Make sure we have a valid workflow benchmark
-            src_path = os.path.join(code_package.path, "definition.json")
+            src_path = os.path.join(code_package.benchmark_path, "definition.json")
             if not os.path.exists(src_path):
                 raise ValueError(f"No workflow definition found in {directory}")
 
@@ -157,7 +207,7 @@ class Azure(System):
                 "name": "req",
                 "type": "httpTrigger",
                 "direction": "in",
-                "authLevel": "function",
+                "authLevel": "anonymous",
                 "methods": ["post"],
             },
             {"name": "starter", "type": "durableClient", "direction": "in"},
@@ -203,12 +253,10 @@ class Azure(System):
             json.dump(payload, open(dst_json, "w"), indent=2)
 
         handler_path = os.path.join(directory, WRAPPER_FILES[code_package.language_name][0])
-        replace_string_in_file(handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
-        replace_string_in_file(handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"')
-
-        handler_path = os.path.join(directory, "run_workflow", "run_workflow.py")
-        replace_string_in_file(handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
-        replace_string_in_file(handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"')
+        if self.config.resources.redis_host is not None:
+            replace_string_in_file(
+                handler_path, "{{REDIS_HOST}}", f'"{self.config.resources.redis_host}"'
+            )
 
         # copy every wrapper file to respective function dirs
         for wrapper_file in wrapper_files:
@@ -228,40 +276,61 @@ class Azure(System):
         }
         json.dump(host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
-        code_size = CodePackage.directory_size(directory)
+        code_size = Benchmark.directory_size(directory)
         execute(
-            "zip -qu -r9 {}.zip * .".format(code_package.name),
+            "zip -qu -r9 {}.zip * .".format(code_package.benchmark),
             shell=True,
             cwd=directory,
         )
         return directory, code_size
 
-    def publish_benchmark(
+    def publish_function(
         self,
-        benchmark: Benchmark,
-        code_package: CodePackage,
+        function: CloudBenchmark,
+        code_package: Benchmark,
         repeat_on_failure: bool = False,
     ) -> str:
         success = False
         url = ""
-        self.logging.info("Attempting publish of {}".format(benchmark.name))
+        self.logging.info("Attempting publish of function {}".format(function.name))
         while not success:
             try:
                 ret = self.cli_instance.execute(
                     "bash -c 'cd /mnt/function "
                     "&& func azure functionapp publish {} --{} --no-build'".format(
-                        benchmark.name, self.AZURE_RUNTIMES[code_package.language_name]
+                        function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
                 )
+<<<<<<< HEAD
 
+=======
+>>>>>>> dev
                 url = ""
                 for line in ret.split(b"\n"):
                     line = line.decode("utf-8")
                     if "Invoke url:" in line:
                         url = line.split("Invoke url:")[1].strip()
                         break
+
+                # We failed to find the URL the normal way
+                # Sometimes, the output does not include functions.
                 if url == "":
-                    raise RuntimeError("Couldnt find URL in {}".format(ret.decode("utf-8")))
+                    self.logging.warning(
+                        "Couldnt find function URL in the output: {}".format(ret.decode("utf-8"))
+                    )
+
+                    resource_group = self.config.resources.resource_group(self.cli_instance)
+                    ret = self.cli_instance.execute(
+                        "az functionapp function show --function-name handler "
+                        f"--name {function.name} --resource-group {resource_group}"
+                    )
+                    try:
+                        url = json.loads(ret.decode("utf-8"))["invokeUrlTemplate"]
+                    except json.decoder.JSONDecodeError:
+                        raise RuntimeError(
+                            f"Couldn't find the function URL in {ret.decode('utf-8')}"
+                        )
+
                 success = True
             except RuntimeError as e:
                 error = str(e)
@@ -272,7 +341,7 @@ class Azure(System):
                     time.sleep(30)
                     self.logging.info(
                         "Sleep 30 seconds for Azure to register function app {}".format(
-                            benchmark.name
+                            function.name
                         )
                     )
                 # escape loop. we failed!
@@ -291,36 +360,34 @@ class Azure(System):
         :return: URL to reach HTTP-triggered function
     """
 
-    def update_benchmark(self, benchmark: Benchmark, code_package: CodePackage):
+    def update_benchmark(self, function: CloudBenchmark, code_package: Benchmark):
 
         # Mount code package in Docker instance
         self._mount_function_code(code_package)
-        url = self.publish_benchmark(benchmark, code_package, True)
+        url = self.publish_function(function, code_package, True)
 
-        storage_account = self.config.resources.data_storage_account(self.cli_instance)
-        resource_group = self.config.resources.resource_group(self.cli_instance)
+        trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
+        trigger.logging_handlers = self.logging_handlers
+        function.add_trigger(trigger)
 
-        self.cli_instance.execute(
-            f"az functionapp config appsettings set --name {benchmark.name} "
-            f" --resource-group {resource_group} "
-            f" --settings STORAGE_CONNECTION_STRING={storage_account.connection_string}"
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+        # FIXME: this does nothing currently - we don't specify timeout
+        self.logging.warning(
+            "Updating function's memory and timeout configuration is not supported."
         )
 
-        trigger = HTTPTrigger(url, storage_account)
-        trigger.logging_handlers = self.logging_handlers
-        benchmark.add_trigger(trigger)
-
-    def _mount_function_code(self, code_package: CodePackage):
+    def _mount_function_code(self, code_package: Benchmark):
         self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
 
-    def default_benchmark_name(self, code_package: CodePackage) -> str:
+    def default_function_name(self, code_package: Benchmark) -> str:
         """
         Functionapp names must be globally unique in Azure.
         """
         func_name = (
-            "{}-{}-{}".format(
-                code_package.name,
+            "{}-{}-{}-{}".format(
+                code_package.benchmark,
                 code_package.language_name,
+                code_package.language_version,
                 self.config.resources_id,
             )
             .replace(".", "-")
@@ -328,13 +395,16 @@ class Azure(System):
         )
         return func_name
 
-    B = TypeVar("B", bound=FunctionApp)
+    from sebs import azure
 
-    def create_benchmark(self, code_package: CodePackage, name: str, benchmark_cls: Type[B]) -> B:
+    B = TypeVar("B", bound=azure.function.Function)
+
+    def create_benchmark(self, code_package: Benchmark, name: str, benchmark_cls: Type[B]) -> B:
         language = code_package.language_name
         language_runtime = code_package.language_version
         resource_group = self.config.resources.resource_group(self.cli_instance)
         region = self.config.region
+        function_cfg = FunctionConfig.from_benchmark(code_package)
 
         config = {
             "resource_group": resource_group,
@@ -388,36 +458,43 @@ class Azure(System):
                     # Rethrow -> another error
                     else:
                         raise
-        benchmark = benchmark_cls(
+        function = benchmark_cls(
             name=name,
-            benchmark=code_package.name,
+            benchmark=code_package.benchmark,
             code_hash=code_package.hash,
             function_storage=function_storage_account,
+            cfg=function_cfg,
         )
 
         # update existing function app
-        self.update_benchmark(benchmark, code_package)
+        self.update_benchmark(function, code_package)
 
-        return benchmark
+        self.cache_client.add_benchmark(
+            deployment_name=self.name(),
+            language_name=language,
+            code_package=code_package,
+            benchmark=function,
+        )
+        return function
 
-    def cached_benchmark(self, benchmark: Benchmark):
+    def cached_benchmark(self, function: CloudBenchmark):
 
         data_storage_account = self.config.resources.data_storage_account(self.cli_instance)
-        for trigger in benchmark.triggers_all():
+        for trigger in function.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
 
-    def create_function(self, code_package: CodePackage, func_name: str) -> AzureFunction:
+    def create_function(self, code_package: Benchmark, func_name: str) -> AzureFunction:
         return self.create_benchmark(code_package, func_name, AzureFunction)
 
-    def update_function(self, function: Function, code_package: CodePackage):
+    def update_function(self, function: Function, code_package: Benchmark):
         self.update_benchmark(function, code_package)
 
-    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> AzureWorkflow:
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> AzureWorkflow:
         return self.create_benchmark(code_package, workflow_name, AzureWorkflow)
 
-    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
+    def update_workflow(self, workflow: Workflow, code_package: Benchmark):
         self.update_benchmark(workflow, code_package)
 
     """
@@ -440,6 +517,8 @@ class Azure(System):
         requests: Dict[str, ExecutionResult],
         metrics: Dict[str, dict],
     ):
+
+        self.cli_instance.install_insights()
 
         resource_group = self.config.resources.resource_group(self.cli_instance)
         # Avoid warnings in the next step
@@ -464,25 +543,6 @@ class Azure(System):
         from tzlocal import get_localzone
 
         timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
-
-        subscription_id = "d8879099-5404-4394-b515-6ed63b47b6fc"
-        ret = self.cli_instance.execute(f"az monitor metrics list --resource /subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Web/sites/{function_name} --metric FunctionExecutionUnits,FunctionExecutionCount --aggregation Total --start-time {start_time_str} {timezone_str} --end-time {end_time_str} {timezone_str}")
-        ret = json.loads(ret)
-
-        aggs = [0, 0]
-        for idx, val in enumerate(ret["value"]):
-            ts = val["timeseries"]
-            assert(len(ts) == 1)
-            t = ts[0]
-            for d in t["data"]:
-                aggs[idx] += d["total"]
-
-        mbms = aggs[0]
-        count = aggs[1]
-        if count > 0:
-            gbs = mbms / 1024000 / count
-        else:
-            gbs = 0
 
         query = (
             "requests | project timestamp, operation_Name, success, "
@@ -519,7 +579,6 @@ class Azure(System):
             func_exec_time = request[-1]
             invocations_processed.add(invocation_id)
             requests[invocation_id].provider_times.execution = int(float(func_exec_time) * 1000)
-            requests[invocation_id].billing.gb_seconds = gbs
         self.logging.info(
             f"Azure: Found time metrics for {len(invocations_processed)} "
             f"out of {len(requests.keys())} invocations."
@@ -530,7 +589,7 @@ class Azure(System):
 
         # TODO: query performance counters for mem
 
-    def _enforce_cold_start(self, function: Function, code_package: CodePackage):
+    def _enforce_cold_start(self, function: Function, code_package: Benchmark):
 
         fname = function.name
         resource_group = self.config.resources.resource_group(self.cli_instance)
@@ -541,9 +600,9 @@ class Azure(System):
             f" --settings ForceColdStart={self.cold_start_counter}"
         )
 
-        self.update_benchmark(function, code_package)
+        self.update_function(function, code_package)
 
-    def enforce_cold_start(self, functions: List[Function], code_package: CodePackage):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         self.cold_start_counter += 1
         for func in functions:
             self._enforce_cold_start(func, code_package)

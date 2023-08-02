@@ -118,6 +118,10 @@ class Config(ABC, LoggingBase):
             from sebs.gcp.config import GCPConfig
 
             implementations["gcp"] = GCPConfig.deserialize
+        if has_platform("openwhisk"):
+            from sebs.openwhisk.config import OpenWhiskConfig
+
+            implementations["openwhisk"] = OpenWhiskConfig.deserialize
         func = implementations.get(name)
         assert func, "Unknown config type!"
         return func(config[name] if name in config else config, cache, handlers)

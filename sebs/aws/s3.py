@@ -103,6 +103,13 @@ class S3(PersistentStorage):
         self.logging.info("Download {}:{} to {}".format(bucket_name, key, filepath))
         self.client.download_file(Bucket=bucket_name, Key=key, Filename=filepath)
 
+    def exists_bucket(self, bucket_name: str) -> bool:
+        try:
+            self.client.head_bucket(Bucket=bucket_name)
+            return True
+        except self.client.exceptions.ClientError:
+            return False
+
     def list_bucket(self, bucket_name: str):
         objects_list = self.client.list_objects_v2(Bucket=bucket_name)
         objects: List[str]

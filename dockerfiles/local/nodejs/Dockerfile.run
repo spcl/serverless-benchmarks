@@ -1,0 +1,27 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+RUN deps=''\
+  && apt-get update\
+  && apt-get install -y --no-install-recommends curl net-tools gosu python3 sudo ${deps}\
+  && apt-get purge -y --auto-remove ${deps}
+
+RUN mkdir -p /sebs
+RUN cd /sebs/ && npm install -g uuid strftime express minio
+# NODE_PATH=$(npm root --quiet -g)
+# https://github.com/moby/moby/issues/29110
+ENV NODE_PATH=/usr/local/lib/node_modules
+
+COPY dockerfiles/local/*.py /sebs/
+COPY dockerfiles/local/run.sh /sebs/
+COPY dockerfiles/local/nodejs/*.js /sebs/
+COPY dockerfiles/local/nodejs/run_server.sh /sebs/
+COPY dockerfiles/local/nodejs/timeit.sh /sebs/
+COPY dockerfiles/local/nodejs/runners.json /sebs/
+COPY dockerfiles/local/nodejs/package.json /sebs/
+
+COPY dockerfiles/local/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/entrypoint.sh
+RUN chmod +x /sebs/run.sh
+
+ENTRYPOINT ["/sebs/entrypoint.sh"]

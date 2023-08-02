@@ -7,11 +7,11 @@ import shutil
 import threading
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING  # noqa
 
-from sebs.utils import LoggingBase
+from sebs.utils import LoggingBase, serialize
 
 if TYPE_CHECKING:
-    from sebs.code_package import CodePackage
-    from sebs.faas.benchmark import Benchmark
+    from sebs.benchmark import Benchmark
+    from sebs.faas.function import CloudBenchmark
 
 
 def update(d, u):
@@ -45,7 +45,7 @@ class Cache(LoggingBase):
     def __init__(self, cache_dir: str):
         super().__init__()
         self.cache_dir = os.path.abspath(cache_dir)
-        self.ignore_benchmarks: bool = False
+        self.ignore_functions: bool = False
         self.ignore_storage: bool = False
         self._lock = threading.RLock()
         if not os.path.exists(self.cache_dir):
@@ -55,11 +55,11 @@ class Cache(LoggingBase):
 
     @staticmethod
     def typename() -> str:
-        return "CodePackage"
+        return "Benchmark"
 
     def load_config(self):
         with self._lock:
-            for cloud in ["azure", "aws", "gcp"]:
+            for cloud in ["azure", "aws", "gcp", "openwhisk"]:
                 cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
                 if os.path.exists(cloud_config_file):
                     self.cached_config[cloud] = json.load(open(cloud_config_file, "r"))
@@ -86,7 +86,7 @@ class Cache(LoggingBase):
 
     def shutdown(self):
         if self.config_updated:
-            for cloud in ["azure", "aws", "gcp"]:
+            for cloud in ["azure", "aws", "gcp", "openwhisk"]:
                 if cloud in self.cached_config:
                     cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
                     self.logging.info("Update cached config {}".format(cloud_config_file))
@@ -121,20 +121,20 @@ class Cache(LoggingBase):
     """
 
     def get_code_package(
-        self, deployment: str, benchmark: str, language: str
+        self, deployment: str, benchmark: str, language: str, language_version: str
     ) -> Optional[Dict[str, Any]]:
         cfg = self.get_benchmark_config(deployment, benchmark)
-        if cfg and language in cfg:
-            return cfg[language]["code_package"]
+        if cfg and language in cfg and language_version in cfg[language]["code_package"]:
+            return cfg[language]["code_package"][language_version]
         else:
             return None
 
-    def get_benchmarks(
+    def get_functions(
         self, deployment: str, benchmark: str, language: str
     ) -> Optional[Dict[str, Any]]:
         cfg = self.get_benchmark_config(deployment, benchmark)
-        if cfg and language in cfg and not self.ignore_benchmarks:
-            return cfg[language]["benchmarks"]
+        if cfg and language in cfg and not self.ignore_functions:
+            return cfg[language]["functions"]
         else:
             return None
 
@@ -162,15 +162,14 @@ class Cache(LoggingBase):
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
-    def add_code_package(
-        self, deployment_name: str, language_name: str, code_package: "CodePackage"
-    ):
+    def add_code_package(self, deployment_name: str, language_name: str, code_package: "Benchmark"):
         with self._lock:
             language = code_package.language_name
-            benchmark_dir = os.path.join(self.cache_dir, code_package.name)
+            language_version = code_package.language_version
+            benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
             # Check if cache directory for this deployment exist
-            cached_dir = os.path.join(benchmark_dir, deployment_name, language)
+            cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
             if not os.path.exists(cached_dir):
                 os.makedirs(cached_dir, exist_ok=True)
 
@@ -183,29 +182,43 @@ class Cache(LoggingBase):
                     package_name = os.path.basename(code_package.code_location)
                     cached_location = os.path.join(cached_dir, package_name)
                     shutil.copy2(code_package.code_location, cached_dir)
-                language_config: Dict[str, Any] = {
-                    "code_package": code_package.serialize(),
-                    "benchmarks": {},
-                }
+                language_config = code_package.serialize()
                 # don't store absolute path to avoid problems with moving cache dir
                 relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
-                language_config["code_package"]["location"] = relative_cached_loc
+                language_config["location"] = relative_cached_loc
                 date = str(datetime.datetime.now())
-                language_config["code_package"]["date"] = {
+                language_config["date"] = {
                     "created": date,
                     "modified": date,
                 }
-                config = {deployment_name: {language: language_config}}
+                # config = {deployment_name: {language: language_config}}
+                config = {
+                    deployment_name: {
+                        language: {
+                            "code_package": {language_version: language_config},
+                            "functions": {},
+                        }
+                    }
+                }
+
                 # make sure to not replace other entries
                 if os.path.exists(os.path.join(benchmark_dir, "config.json")):
                     with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                         cached_config = json.load(fp)
                         if deployment_name in cached_config:
-                            cached_config[deployment_name][language] = language_config
+                            # language known, platform known, extend dictionary
+                            if language in cached_config[deployment_name]:
+                                cached_config[deployment_name][language]["code_package"][
+                                    language_version
+                                ] = language_config
+                            # language unknown, platform known - add new dictionary
+                            else:
+                                cached_config[deployment_name][language] = config[deployment_name][
+                                    language
+                                ]
                         else:
-                            cached_config[deployment_name] = {
-                                language: language_config,
-                            }
+                            # language unknown, platform unknown - add new dictionary
+                            cached_config[deployment_name] = config[deployment_name]
                         config = cached_config
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
@@ -213,18 +226,19 @@ class Cache(LoggingBase):
                 # TODO: update
                 raise RuntimeError(
                     "Cached application {} for {} already exists!".format(
-                        code_package.name, deployment_name
+                        code_package.benchmark, deployment_name
                     )
                 )
 
     def update_code_package(
-        self, deployment_name: str, language_name: str, code_package: "CodePackage"
+        self, deployment_name: str, language_name: str, code_package: "Benchmark"
     ):
         with self._lock:
             language = code_package.language_name
-            benchmark_dir = os.path.join(self.cache_dir, code_package.name)
+            language_version = code_package.language_version
+            benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             # Check if cache directory for this deployment exist
-            cached_dir = os.path.join(benchmark_dir, deployment_name, language)
+            cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
             if os.path.exists(cached_dir):
 
                 # copy code
@@ -244,15 +258,19 @@ class Cache(LoggingBase):
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                     config = json.load(fp)
                     date = str(datetime.datetime.now())
-                    config[deployment_name][language]["code_package"]["date"]["modified"] = date
-                    config[deployment_name][language]["code_package"]["hash"] = code_package.hash
+                    config[deployment_name][language]["code_package"][language_version]["date"][
+                        "modified"
+                    ] = date
+                    config[deployment_name][language]["code_package"][language_version][
+                        "hash"
+                    ] = code_package.hash
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
             else:
                 self.add_code_package(deployment_name, language_name, code_package)
 
     """
-        Add new benchmark to cache.
+        Add new function to cache.
 
         :param deployment:
         :param benchmark:
@@ -266,42 +284,42 @@ class Cache(LoggingBase):
         self,
         deployment_name: str,
         language_name: str,
-        code_package: "CodePackage",
-        benchmark: "Benchmark",
+        code_package: "Benchmark",
+        benchmark: "CloudBenchmark",
     ):
-        if self.ignore_benchmarks:
+        if self.ignore_functions:
             return
         with self._lock:
-            benchmark_dir = os.path.join(self.cache_dir, code_package.name)
+            benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             language = code_package.language_name
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
-                benchmarks_config: Dict[str, Any] = {benchmark.name: {**benchmark.serialize()}}
+                functions_config: Dict[str, Any] = {benchmark.name: {**benchmark.serialize()}}
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
-                    if "benchmarks" not in cached_config[deployment_name][language]:
-                        cached_config[deployment_name][language]["benchmarks"] = benchmarks_config
+                    if "functions" not in cached_config[deployment_name][language]:
+                        cached_config[deployment_name][language]["functions"] = functions_config
                     else:
-                        cached_config[deployment_name][language]["benchmarks"].update(
-                            benchmarks_config
+                        cached_config[deployment_name][language]["functions"].update(
+                            functions_config
                         )
                     config = cached_config
                 with open(cache_config, "w") as fp:
-                    json.dump(config, fp, indent=2)
+                    fp.write(serialize(config))
             else:
                 raise RuntimeError(
-                    "Can't cache benchmark {} for a non-existing code package!".format(
+                    "Can't cache function {} for a non-existing code package!".format(
                         benchmark.name
                     )
                 )
 
-    def update_benchmark(self, benchmark: "Benchmark"):
-        if self.ignore_benchmarks:
+    def update_benchmark(self, benchmark: "CloudBenchmark"):
+        if self.ignore_functions:
             return
         with self._lock:
-            benchmark_dir = os.path.join(self.cache_dir, benchmark.code_package)
+            benchmark_dir = os.path.join(self.cache_dir, benchmark.benchmark)
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
@@ -310,18 +328,18 @@ class Cache(LoggingBase):
                     cached_config = json.load(fp)
                     for deployment, cfg in cached_config.items():
                         for language, cfg2 in cfg.items():
-                            if "benchmarks" not in cfg2:
+                            if "functions" not in cfg2:
                                 continue
-                            for name, func in cfg2["benchmarks"].items():
+                            for name, func in cfg2["functions"].items():
                                 if name == benchmark.name:
-                                    cached_config[deployment][language]["benchmarks"][
+                                    cached_config[deployment][language]["functions"][
                                         name
                                     ] = benchmark.serialize()
                 with open(cache_config, "w") as fp:
-                    json.dump(cached_config, fp, indent=2)
+                    fp.write(serialize(cached_config))
             else:
                 raise RuntimeError(
-                    "Can't cache benchmark {} for a non-existing code package!".format(
+                    "Can't cache function {} for a non-existing code package!".format(
                         benchmark.name
                     )
                 )

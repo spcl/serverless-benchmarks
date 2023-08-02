@@ -1,48 +1,6 @@
-from enum import Enum
 from typing import Dict
 
-
-class Language(Enum):
-    PYTHON = "python"
-    NODEJS = "nodejs"
-
-    # FIXME: 3.7+ python with future annotations
-    @staticmethod
-    def deserialize(val: str) -> "Language":
-        for member in Language:
-            if member.value == val:
-                return member
-        raise Exception("Unknown language type {}".format(member))
-
-
-class Runtime:
-
-    _language: Language
-    _version: str
-
-    @property
-    def language(self) -> Language:
-        return self._language
-
-    @property
-    def version(self) -> str:
-        return self._version
-
-    @version.setter
-    def version(self, val: str):
-        self._version = val
-
-    def serialize(self) -> dict:
-        return {"language": self._language.value, "version": self._version}
-
-    # FIXME: 3.7+ python with future annotations
-    @staticmethod
-    def deserialize(config: dict) -> "Runtime":
-        cfg = Runtime()
-        languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS}
-        cfg._language = languages[config["language"]]
-        cfg._version = config["version"]
-        return cfg
+from sebs.faas.function import Runtime
 
 
 class Config:
@@ -52,7 +10,7 @@ class Config:
         self._download_results: bool = False
         self._flags: Dict[str, bool] = {}
         self._experiment_configs: Dict[str, dict] = {}
-        self._runtime = Runtime()
+        self._runtime = Runtime(None, None)
 
     @property
     def update_code(self) -> bool:

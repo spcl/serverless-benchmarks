@@ -1,7 +1,9 @@
-from .sebs import SeBS  # noqa
+"""
+    SeBS
+"""
 
-# from .aws import *  # noqa
-# from .azure import *  # noqa
+from .version import __version__  # noqa
+from .sebs import SeBS  # noqa
 
 from .cache import Cache  # noqa
 from .code_package import CodePackage  # noqa

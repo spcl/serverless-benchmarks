@@ -15,11 +15,22 @@ from sebs.aws.workflow import SFNWorkflow
 from sebs.aws.generator import SFNGenerator
 from sebs.aws.config import AWSConfig
 from sebs.utils import execute, replace_string_in_file
-from sebs.code_package import CodePackage
+from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
-from sebs.faas.benchmark import Benchmark, Function, ExecutionResult, Trigger, Workflow
+<<<<<<< HEAD
+from sebs.faas.function import (
+    CloudBenchmark,
+    Function,
+    ExecutionResult,
+    Trigger,
+    FunctionConfig,
+    Workflow,
+)
+=======
+from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
+>>>>>>> dev
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 
@@ -139,8 +150,18 @@ class AWS(System):
     """
 
     def package_code(
-        self, code_package: CodePackage, directory: str, is_workflow: bool
+<<<<<<< HEAD
+        self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
+=======
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+>>>>>>> dev
     ) -> Tuple[str, int]:
+
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
@@ -155,8 +176,10 @@ class AWS(System):
                 shutil.move(file, function_dir)
 
         handler_path = os.path.join(directory, CONFIG_FILES[code_package.language_name][0])
-        replace_string_in_file(handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"')
-        replace_string_in_file(handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"')
+        if self.config.resources.redis_host is not None:
+            replace_string_in_file(
+                handler_path, "{{REDIS_HOST}}", f'"{self.config.resources.redis_host}"'
+            )
 
         # For python, add an __init__ file
         if code_package.language_name == "python":
@@ -167,51 +190,47 @@ class AWS(System):
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
         execute(
-            "zip -qu -r9 {}.zip * .".format(code_package.name),
+            "zip -qu -r9 {}.zip * .".format(code_package.benchmark),
             shell=True,
             cwd=directory,
         )
-        benchmark_archive = "{}.zip".format(os.path.join(directory, code_package.name))
+        benchmark_archive = "{}.zip".format(os.path.join(directory, code_package.benchmark))
         self.logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
-        return os.path.join(directory, "{}.zip".format(code_package.name)), bytes_size
+        return os.path.join(directory, "{}.zip".format(code_package.benchmark)), bytes_size
 
-    def wait_for_function(self, func_name: str):
-        ready = False
-        count = 0
-        while not ready:
-            ret = self.lambda_client.get_function(FunctionName=func_name)
-            state = ret["Configuration"]["State"]
-            update_status = ret["Configuration"].get("LastUpdateStatus", "Successful")
-            ready = (state == "Active") and (update_status == "Successful")
+    def _map_language_runtime(self, language: str, runtime: str):
 
-            # If we haven't seen the result yet, wait a second.
-            if not ready:
-                count += 1
-                time.sleep(10)
-            elif "Failed" in (state, update_status):
-                self.logging.error(f"Cannot wait for failed {func_name}")
-                break
+        # AWS uses different naming scheme for Node.js versions
+        # For example, it's 12.x instead of 12.
+        if language == "nodejs":
+            return f"{runtime}.x"
+        return runtime
 
-            if count > 6:
-                self.logging.error(f"Function {func_name} stuck in state {state} after 60s")
-                break
+    def _map_language_runtime(self, language: str, runtime: str):
 
-    def create_function(self, code_package: CodePackage, func_name: str) -> "LambdaFunction":
+        # AWS uses different naming scheme for Node.js versions
+        # For example, it's 12.x instead of 12.
+        if language == "nodejs":
+            return f"{runtime}.x"
+        return runtime
+
+    def create_function(self, code_package: Benchmark, func_name: str) -> "LambdaFunction":
         package = code_package.code_location
-        benchmark = code_package.name
+        benchmark = code_package.benchmark
         language = code_package.language_name
         language_runtime = code_package.language_version
-        timeout = code_package.config.timeout
-        memory = code_package.config.memory
+        timeout = code_package.benchmark_config.timeout
+        memory = code_package.benchmark_config.memory
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
-        func_name = AWS.format_resource_name(func_name)
+        func_name = AWS.format_function_name(func_name)
         storage_client = self.get_storage()
+        function_cfg = FunctionConfig.from_benchmark(code_package)
 
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -223,13 +242,12 @@ class AWS(System):
             # Here we assume a single Lambda role
             lambda_function = LambdaFunction(
                 func_name,
-                code_package.name,
+                code_package.benchmark,
                 ret["Configuration"]["FunctionArn"],
                 code_package.hash,
-                timeout,
-                memory,
                 language_runtime,
                 self.config.resources.lambda_role(self.session),
+                function_cfg,
             )
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
@@ -254,26 +272,34 @@ class AWS(System):
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_package_name}
             ret = self.lambda_client.create_function(
                 FunctionName=func_name,
-                Runtime="{}{}".format(language, language_runtime),
+                Runtime="{}{}".format(
+                    language, self._map_language_runtime(language, language_runtime)
+                ),
                 Handler="handler.handler",
                 Role=self.config.resources.lambda_role(self.session),
                 MemorySize=memory,
                 Timeout=timeout,
                 Code=code_config,
             )
-            # url = self.create_http_trigger(func_name, None, None)
-            # print(url)
+
             lambda_function = LambdaFunction(
                 func_name,
-                code_package.name,
+                code_package.benchmark,
                 ret["FunctionArn"],
                 code_package.hash,
-                timeout,
-                memory,
                 language_runtime,
                 self.config.resources.lambda_role(self.session),
+                function_cfg,
                 code_bucket,
             )
+
+            self.wait_function_active(lambda_function)
+<<<<<<< HEAD
+=======
+
+        # Add LibraryTrigger to a new function
+        from sebs.aws.triggers import LibraryTrigger
+>>>>>>> dev
 
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import FunctionLibraryTrigger
@@ -284,14 +310,14 @@ class AWS(System):
 
         return lambda_function
 
-    def cached_benchmark(self, benchmark: Benchmark):
+    def cached_benchmark(self, function: CloudBenchmark):
 
         from sebs.aws.triggers import LibraryTrigger
 
-        for trigger in benchmark.triggers(Trigger.TriggerType.LIBRARY):
+        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             trigger.logging_handlers = self.logging_handlers
             cast(LibraryTrigger, trigger).deployment_client = self
-        for trigger in benchmark.triggers(Trigger.TriggerType.HTTP):
+        for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
 
     """
@@ -305,7 +331,7 @@ class AWS(System):
         :param memory: memory limit for function
     """
 
-    def update_function(self, function: Function, code_package: CodePackage):
+    def update_function(self, function: Function, code_package: Benchmark):
 
         function = cast(LambdaFunction, function)
         name = function.name
@@ -321,21 +347,31 @@ class AWS(System):
         else:
             code_package_name = os.path.basename(package)
             storage = cast(S3, self.get_storage())
-            bucket = function.code_bucket(code_package.name, storage)
+            bucket = function.code_bucket(code_package.benchmark, storage)
             storage.upload(bucket, package, code_package_name)
             self.lambda_client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
             )
+<<<<<<< HEAD
 
-        # Wait for code update to finish before updating config
-        self.wait_for_function(name)
-
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated code of {name} function. ")
         # and update config
         self.lambda_client.update_function_configuration(
-            FunctionName=name, Timeout=function.timeout, MemorySize=function.memory
+=======
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated code of {name} function. ")
+        # and update config
+        self.client.update_function_configuration(
+>>>>>>> dev
+            FunctionName=name, Timeout=function.config.timeout, MemorySize=function.config.memory
         )
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated configuration of {name} function. ")
+        self.wait_function_updated(function)
         self.logging.info("Published new function code")
 
+<<<<<<< HEAD
     def create_function_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.aws.triggers import HTTPTrigger
 
@@ -365,12 +401,12 @@ class AWS(System):
         self.cache_client.update_benchmark(function)
         return trigger
 
-    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> "SFNWorkflow":
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "SFNWorkflow":
 
-        workflow_name = AWS.format_resource_name(workflow_name)
+        workflow_name = AWS.format_function_name(workflow_name)
 
         # Make sure we have a valid workflow benchmark
-        definition_path = os.path.join(code_package.path, "definition.json")
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
         if not os.path.exists(definition_path):
             raise ValueError(f"No workflow definition found for {workflow_name}")
 
@@ -387,6 +423,7 @@ class AWS(System):
         definition = gen.generate()
 
         package = code_package.code_location
+        function_cfg = FunctionConfig.from_benchmark(code_package)
 
         # We cannot retrieve the state machine because we don't know its ARN
         # so we just create it and catch any errors
@@ -402,9 +439,10 @@ class AWS(System):
             workflow = SFNWorkflow(
                 workflow_name,
                 funcs,
-                code_package.name,
+                code_package.benchmark,
                 ret["stateMachineArn"],
                 code_package.hash,
+                function_cfg,
             )
         except self.sfn_client.exceptions.StateMachineAlreadyExists as e:
             match = re.search("'([^']*)'", str(e))
@@ -417,7 +455,9 @@ class AWS(System):
             )
 
             # Here we assume a single Lambda role
-            workflow = SFNWorkflow(workflow_name, funcs, code_package.name, arn, code_package.hash)
+            workflow = SFNWorkflow(
+                workflow_name, funcs, code_package.benchmark, arn, code_package.hash, function_cfg
+            )
 
             self.update_workflow(workflow, code_package)
             workflow.updated_code = True
@@ -431,11 +471,11 @@ class AWS(System):
 
         return workflow
 
-    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
+    def update_workflow(self, workflow: Workflow, code_package: Benchmark):
         workflow = cast(SFNWorkflow, workflow)
 
         # Make sure we have a valid workflow benchmark
-        definition_path = os.path.join(code_package.path, "definition.json")
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
         if not os.path.exists(definition_path):
             raise ValueError(f"No workflow definition found for {workflow.name}")
 
@@ -472,18 +512,31 @@ class AWS(System):
         else:
             raise RuntimeError("Not supported!")
 
-    @staticmethod
-    def default_benchmark_name(code_package: CodePackage) -> str:
-        # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.name,
-            code_package.language_name,
-            code_package.config.memory,
+    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+        function = cast(LambdaFunction, function)
+        self.lambda_client.update_function_configuration(
+=======
+    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+        function = cast(LambdaFunction, function)
+        self.client.update_function_configuration(
+>>>>>>> dev
+            FunctionName=function.name,
+            Timeout=function.config.timeout,
+            MemorySize=function.config.memory,
         )
-        return AWS.format_resource_name(func_name)
+        self.wait_function_updated(function)
+        self.logging.info(f"Updated configuration of {function.name} function. ")
 
     @staticmethod
-    def format_resource_name(func_name: str) -> str:
+    def default_function_name(code_package: Benchmark) -> str:
+        # Create function name
+        func_name = "{}-{}-{}".format(
+            code_package.benchmark, code_package.language_name, code_package.language_version
+        )
+        return AWS.format_function_name(func_name)
+
+    @staticmethod
+    def format_function_name(func_name: str) -> str:
         # AWS Lambda does not allow hyphens in function names
         func_name = func_name.replace("-", "_")
         func_name = func_name.replace(".", "_")
@@ -639,23 +692,78 @@ class AWS(System):
             f"out of {results_count} invocations"
         )
 
+    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+        from sebs.aws.triggers import HTTPTrigger
+
+        function = cast(LambdaFunction, func)
+
+        if trigger_type == Trigger.TriggerType.HTTP:
+
+            api_name = "{}-http-api".format(function.name)
+            http_api = self.config.resources.http_api(api_name, function, self.session)
+            # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
+            # but this is wrong - source arn must be {api-arn}/*/*
+            self.get_lambda_client().add_permission(
+                FunctionName=function.name,
+                StatementId=str(uuid.uuid1()),
+                Action="lambda:InvokeFunction",
+                Principal="apigateway.amazonaws.com",
+                SourceArn=f"{http_api.arn}/*/*",
+            )
+            trigger = HTTPTrigger(http_api.endpoint, api_name)
+            self.logging.info(
+                f"Created HTTP trigger for {func.name} function. "
+                "Sleep 5 seconds to avoid cloud errors."
+            )
+            time.sleep(5)
+            trigger.logging_handlers = self.logging_handlers
+        elif trigger_type == Trigger.TriggerType.LIBRARY:
+            # should already exist
+            return func.triggers(Trigger.TriggerType.LIBRARY)[0]
+        else:
+            raise RuntimeError("Not supported!")
+
+        function.add_trigger(trigger)
+        self.cache_client.update_benchmark(function)
+        return trigger
+
     def _enforce_cold_start(self, function: Function):
         func = cast(LambdaFunction, function)
-
-        # Wait for code update to finish before updating config
-        self.wait_for_function(func.name)
-
         self.get_lambda_client().update_function_configuration(
             FunctionName=func.name,
-            Timeout=func.timeout,
-            MemorySize=func.memory,
+            Timeout=func.config.timeout,
+            MemorySize=func.config.memory,
             Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
 
-    def enforce_cold_start(self, functions: List[Function], code_package: CodePackage):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         self.cold_start_counter += 1
         for func in functions:
             self._enforce_cold_start(func)
-        import time
+        self.logging.info("Sent function updates enforcing cold starts.")
+        for func in functions:
+            lambda_function = cast(LambdaFunction, func)
+            self.wait_function_updated(lambda_function)
+        self.logging.info("Finished function updates enforcing cold starts.")
 
-        time.sleep(5)
+    def wait_function_active(self, func: LambdaFunction):
+
+        self.logging.info("Waiting for Lambda function to be created...")
+<<<<<<< HEAD
+        waiter = self.lambda_client.get_waiter("function_active_v2")
+=======
+        waiter = self.client.get_waiter("function_active_v2")
+>>>>>>> dev
+        waiter.wait(FunctionName=func.name)
+        self.logging.info("Lambda function has been created.")
+
+    def wait_function_updated(self, func: LambdaFunction):
+
+        self.logging.info("Waiting for Lambda function to be updated...")
+<<<<<<< HEAD
+        waiter = self.lambda_client.get_waiter("function_updated_v2")
+=======
+        waiter = self.client.get_waiter("function_updated_v2")
+>>>>>>> dev
+        waiter.wait(FunctionName=func.name)
+        self.logging.info("Lambda function has been updated.")

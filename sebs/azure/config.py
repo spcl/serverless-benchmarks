@@ -309,7 +309,7 @@ class AzureConfig(Config):
         else:
             config._resources_id = str(uuid.uuid1())[0:8]
             config.logging.info(
-                f"Azure: generating unique resource name for"
+                f"Azure: generating unique resource name for "
                 f"the experiments: {config._resources_id}"
             )
 

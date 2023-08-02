@@ -25,14 +25,27 @@ class AzureCLI:
         self.docker_instance = docker_client.containers.run(
             image=repo_name + ":" + image_name,
             command="/bin/bash",
-            user="1000:1000",
-            volumes={},
-            # remove=True,
+            environment={
+                "CONTAINER_UID": str(os.getuid()),
+                "CONTAINER_GID": str(os.getgid()),
+                "CONTAINER_USER": "docker_user",
+            },
+            remove=True,
             stdout=True,
             stderr=True,
             detach=True,
             tty=True,
         )
+        self._insights_installed = False
+        logging.info("Started Azure CLI container.")
+        while True:
+            try:
+                dkg = self.docker_instance.logs(stream=True, follow=True)
+                next(dkg).decode("utf-8")
+                break
+            except StopIteration:
+                pass
+
         logging.info("Starting Azure manage Docker instance")
 
     """
@@ -73,6 +86,10 @@ class AzureCLI:
         handle.seek(0)
         self.execute("mkdir -p {}".format(dest))
         self.docker_instance.put_archive(path=dest, data=handle.read())
+
+    def install_insights(self):
+        if not self._insights_installed:
+            self.execute("az extension add --name application-insights")
 
     """
         Shutdowns Docker instance.

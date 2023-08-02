@@ -54,7 +54,7 @@ configuration.
 
 `sebs/experiments/` - implements the SeBS experiments.
 
-`sebs/{aws,azure,gcp}/` - implementation of the FaaS interface for each platform.
+`sebs/{aws,azure,gcp,openwhisk}/` - implementation of the FaaS interface for each platform.
 
 `sebs/local/` - implements the local invocations of functions with Docker containers
 and `minio` storage.

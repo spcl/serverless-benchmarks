@@ -1,7 +1,7 @@
 from typing import cast, Optional
 
 from sebs.aws.s3 import S3
-from sebs.faas.benchmark import Function
+from sebs.faas.function import Function, FunctionConfig
 
 
 class LambdaFunction(Function):
@@ -11,18 +11,15 @@ class LambdaFunction(Function):
         benchmark: str,
         arn: str,
         code_package_hash: str,
-        timeout: int,
-        memory: int,
         runtime: str,
         role: str,
+        cfg: FunctionConfig,
         bucket: Optional[str] = None,
     ):
-        super().__init__(benchmark, name, code_package_hash)
+        super().__init__(benchmark, name, code_package_hash, cfg)
         self.arn = arn
-        self.timeout = timeout
-        self.memory = memory
-        self.runtime = runtime
         self.role = role
+        self.runtime = runtime
         self.bucket = bucket
 
     @staticmethod
@@ -33,8 +30,6 @@ class LambdaFunction(Function):
         return {
             **super().serialize(),
             "arn": self.arn,
-            "timeout": self.timeout,
-            "memory": self.memory,
             "runtime": self.runtime,
             "role": self.role,
             "bucket": self.bucket,
@@ -42,18 +37,18 @@ class LambdaFunction(Function):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "LambdaFunction":
-        from sebs.faas.benchmark import Trigger
+        from sebs.faas.function import Trigger
         from sebs.aws.triggers import FunctionLibraryTrigger, HTTPTrigger
 
+        cfg = FunctionConfig.deserialize(cached_config["config"])
         ret = LambdaFunction(
             cached_config["name"],
-            cached_config["code_package"],
+            cached_config["benchmark"],
             cached_config["arn"],
             cached_config["hash"],
-            cached_config["timeout"],
-            cached_config["memory"],
             cached_config["runtime"],
             cached_config["role"],
+            cfg,
             cached_config["bucket"],
         )
         for trigger in cached_config["triggers"]:

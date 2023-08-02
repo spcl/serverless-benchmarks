@@ -44,10 +44,16 @@ class Result:
         self.result_bucket = result_bucket
 
     def add_invocation(self, func: Function, invocation: ExecutionResult):
-        if func.name in self._invocations:
-            self._invocations.get(func.name)[invocation.request_id] = invocation  # type: ignore
+        # the function has most likely failed, thus no request id
+        if invocation.request_id:
+            req_id = invocation.request_id
         else:
-            self._invocations[func.name] = {invocation.request_id: invocation}
+            req_id = f"failed-{len(self._invocations.get(func.name, []))}"
+
+        if func.name in self._invocations:
+            self._invocations.get(func.name)[req_id] = invocation  # type: ignore
+        else:
+            self._invocations[func.name] = {req_id: invocation}
 
     def functions(self) -> List[str]:
         return list(self._invocations.keys())

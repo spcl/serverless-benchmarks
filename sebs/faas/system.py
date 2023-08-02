@@ -5,10 +5,10 @@ from typing import Dict, List, Optional, Tuple, Type
 
 import docker
 
-from sebs.code_package import CodePackage
+from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.faas.benchmark import Benchmark, Function, Trigger, ExecutionResult, Workflow
+from sebs.faas.function import CloudBenchmark, Function, Trigger, ExecutionResult, Workflow
 from sebs.faas.storage import PersistentStorage
 from sebs.utils import LoggingBase
 from .config import Config
@@ -110,31 +110,34 @@ class System(ABC, LoggingBase):
 
     @abstractmethod
     def package_code(
-        self, code_package: CodePackage, directory: str, is_workflow: bool
+<<<<<<< HEAD
+        self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
+=======
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+>>>>>>> dev
     ) -> Tuple[str, int]:
         pass
 
     @abstractmethod
-    def create_function(self, code_package: CodePackage, func_name: str) -> Function:
+    def create_function(self, code_package: Benchmark, func_name: str) -> Function:
         pass
 
     @abstractmethod
-    def create_workflow(self, code_package: CodePackage, workflow_name: str) -> Workflow:
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> Workflow:
         pass
 
     @abstractmethod
-    def cached_benchmark(self, benchmark: Benchmark):
+    def cached_benchmark(self, function: CloudBenchmark):
         pass
 
     @abstractmethod
-    def update_function(self, function: Function, code_package: CodePackage):
+    def update_function(self, function: Function, code_package: Benchmark):
         pass
-
-    def update_benchmark(self, benchmark: Benchmark, code_package: CodePackage):
-        if isinstance(benchmark, Function):
-            self.update_function(benchmark, code_package)
-        else:
-            self.update_workflow(benchmark, code_package)
 
     """
         a)  if a cached function with given name is present and code has not changed,
@@ -149,7 +152,8 @@ class System(ABC, LoggingBase):
 
     """
 
-    def get_function(self, code_package: CodePackage, func_name: Optional[str] = None) -> Function:
+    def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
+
         if code_package.language_version not in self.system_config.supported_language_versions(
             self.name(), code_package.language_name
         ):
@@ -162,7 +166,7 @@ class System(ABC, LoggingBase):
             )
 
         if not func_name:
-            func_name = self.default_benchmark_name(code_package)
+            func_name = self.default_function_name(code_package)
         rebuilt, _ = code_package.build(self.package_code, False)
 
         """
@@ -172,8 +176,8 @@ class System(ABC, LoggingBase):
             b) no -> retrieve function from the cache. Function code in cloud will
             be updated if the local version is different.
         """
-        benchmarks = code_package.benchmarks
-        if not benchmarks or func_name not in benchmarks:
+        functions = code_package.functions
+        if not functions or func_name not in functions:
             msg = (
                 "function name not provided."
                 if not func_name
@@ -191,7 +195,7 @@ class System(ABC, LoggingBase):
             return function
         else:
             # retrieve function
-            cached_function = benchmarks[func_name]
+            cached_function = functions[func_name]
             code_location = code_package.code_location
             function = self.function_type().deserialize(cached_function)
             self.cached_benchmark(function)
@@ -200,12 +204,18 @@ class System(ABC, LoggingBase):
             )
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash or rebuilt:
-                self.logging.info(
-                    f"Cached function {func_name} with hash "
-                    f"{function.code_package_hash} is not up to date with "
-                    f"current build {code_package.hash} in "
-                    f"{code_location}, updating cloud version!"
-                )
+                if function.code_package_hash != code_package.hash:
+                    self.logging.info(
+                        f"Cached function {func_name} with hash "
+                        f"{function.code_package_hash} is not up to date with "
+                        f"current build {code_package.hash} in "
+                        f"{code_location}, updating cloud version!"
+                    )
+                if rebuilt:
+                    self.logging.info(
+                        f"Enforcing rebuild and update of of cached function "
+                        f"{func_name} with hash {function.code_package_hash}."
+                    )
                 self.update_function(function, code_package)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
@@ -216,13 +226,29 @@ class System(ABC, LoggingBase):
                     benchmark=function,
                 )
                 code_package.query_cache()
+            # code up to date, but configuration needs to be updated
+            # FIXME: detect change in function config
+            elif self.is_configuration_changed(function, code_package):
+                self.update_function_configuration(function, code_package)
+<<<<<<< HEAD
+                self.cache_client.update_benchmark(function)
+=======
+                self.cache_client.update_function(function)
+>>>>>>> dev
+                code_package.query_cache()
+            else:
+                self.logging.info(f"Cached function {func_name} is up to date.")
             return function
 
     @abstractmethod
-    def update_workflow(self, workflow: Workflow, code_package: CodePackage):
+    def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
         pass
 
-    def get_workflow(self, code_package: CodePackage, workflow_name: Optional[str] = None):
+<<<<<<< HEAD
+    def update_workflow(self, workflow: Workflow, code_package: Benchmark):
+        pass
+
+    def get_workflow(self, code_package: Benchmark, workflow_name: Optional[str] = None):
         if code_package.language_version not in self.system_config.supported_language_versions(
             self.name(), code_package.language_name
         ):
@@ -235,7 +261,7 @@ class System(ABC, LoggingBase):
             )
 
         if not workflow_name:
-            workflow_name = self.default_benchmark_name(code_package)
+            workflow_name = self.default_function_name(code_package)
         rebuilt, _ = code_package.build(self.package_code, True)
 
         """
@@ -245,7 +271,7 @@ class System(ABC, LoggingBase):
             b) no -> retrieve function from the cache. Function code in cloud will
             be updated if the local version is different.
         """
-        benchmarks = code_package.benchmarks
+        benchmarks = code_package.functions
         if not benchmarks or workflow_name not in benchmarks:
             msg = (
                 "workflow name not provided."
@@ -293,12 +319,48 @@ class System(ABC, LoggingBase):
                 code_package.query_cache()
             return workflow
 
+=======
+>>>>>>> dev
+    """
+        This function checks for common function parameters to verify if their value is
+        still up to date.
+    """
+
+    def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
+
+        changed = False
+        for attr in ["timeout", "memory"]:
+            new_val = getattr(benchmark.benchmark_config, attr)
+            old_val = getattr(cached_function.config, attr)
+            if new_val != old_val:
+                self.logging.info(
+                    f"Updating function configuration due to changed attribute {attr}: "
+                    f"cached function has value {old_val} whereas {new_val} has been requested."
+                )
+                changed = True
+                setattr(cached_function.config, attr, new_val)
+
+        for lang_attr in [["language"] * 2, ["language_version", "version"]]:
+            new_val = getattr(benchmark, lang_attr[0])
+            old_val = getattr(cached_function.config.runtime, lang_attr[1])
+            if new_val != old_val:
+                # FIXME: should this even happen? we should never pick the function with
+                # different runtime - that should be encoded in the name
+                self.logging.info(
+                    f"Updating function configuration due to changed runtime attribute {attr}: "
+                    f"cached function has value {old_val} whereas {new_val} has been requested."
+                )
+                changed = True
+                setattr(cached_function.config.runtime, lang_attr[1], new_val)
+
+        return changed
+
     @abstractmethod
-    def default_benchmark_name(self, code_package: CodePackage) -> str:
+    def default_function_name(self, code_package: Benchmark) -> str:
         pass
 
     @abstractmethod
-    def enforce_cold_start(self, functions: List[Function], code_package: CodePackage):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         pass
 
     @abstractmethod

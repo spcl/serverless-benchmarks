@@ -1,8 +1,9 @@
 import concurrent.futures
 import docker
 import json
+from typing import Optional
 
-from sebs.faas.benchmark import ExecutionResult, Function, Trigger
+from sebs.faas.function import ExecutionResult, Function, FunctionConfig, Trigger
 
 
 class HTTPTrigger(Trigger):
@@ -43,8 +44,10 @@ class LocalFunction(Function):
         name: str,
         benchmark: str,
         code_package_hash: str,
+        config: FunctionConfig,
+        measurement_pid: Optional[int] = None,
     ):
-        super().__init__(benchmark, name, code_package_hash)
+        super().__init__(benchmark, name, code_package_hash, config)
         self._instance = docker_container
         self._instance_id = docker_container.id
         self._instance.reload()
@@ -61,6 +64,12 @@ class LocalFunction(Function):
             raise RuntimeError(
                 f"Incorrect detection of IP address for container with id {self._instance_id}"
             )
+
+        self._measurement_pid = measurement_pid
+
+    @property
+    def memory_measurement_pid(self) -> Optional[int]:
+        return self._measurement_pid
 
     @staticmethod
     def typename() -> str:
@@ -79,12 +88,14 @@ class LocalFunction(Function):
         try:
             instance_id = cached_config["instance_id"]
             instance = docker.from_env().containers.get(instance_id)
+            cfg = FunctionConfig.deserialize(cached_config["config"])
             return LocalFunction(
                 instance,
                 cached_config["port"],
                 cached_config["name"],
                 cached_config["benchmark"],
                 cached_config["hash"],
+                cfg,
             )
         except docker.errors.NotFound:
             raise RuntimeError(f"Cached container {instance_id} not available anymore!")
