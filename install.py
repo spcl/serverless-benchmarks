@@ -69,6 +69,10 @@ if args.local:
     print("Initialize Docker image for local storage.")
     execute("docker pull minio/minio:latest")
 
+# One of the installed dependencies causes a downgrade, which in turns breaks static typing.
+print("Update typing-extensions (resolving bug with mypy)")
+execute(". {}/bin/activate && pip3 install typing-extensions --upgrade".format(env_dir))
+
 print("Download benchmarks data")
 try:
     execute("git submodule update --init --recursive")

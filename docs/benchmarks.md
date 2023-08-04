@@ -18,6 +18,9 @@
 For details on benchmark selection and their characterization, please refer to [our paper](#paper).
 
 > **Note**
+> Benchmark 411.image-recognition contains PyTorch which is often too large to fit into a code package. Up to Python 3.7, we can directly ship the dependencies. For Python 3.8 and 3.9, we used an additional zipping step that requires additional setup during the first run, making cold invocations slower. Warm invocations are not affected.
+
+> **Note**
 > Benchmarks whose number starts with the digit 0, such as `020.server-reply` are internal microbenchmarks used by specific experiments. They are not intended to be directly invoked by users.
 
 ## Workflow Applications

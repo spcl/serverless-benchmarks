@@ -1,5 +1,14 @@
 import datetime, json, os, uuid
 
+# Extract zipped torch model - used in Python 3.8 and 3.9
+# The reason is that torch versions supported for these Python
+# versions are too large for Lambda packages.
+if os.path.exists('function/torch.zip'):
+    import zipfile, sys
+    # we cannot write to the read-only filesystem
+    zipfile.ZipFile('function/torch.zip').extractall('/tmp/')
+    sys.path.append(os.path.join(os.path.dirname(__file__), '/tmp/.python_packages/lib/site-packages'))
+
 from PIL import Image
 import torch
 from torchvision import transforms
@@ -13,7 +22,6 @@ SCRIPT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 class_idx = json.load(open(os.path.join(SCRIPT_DIR, "imagenet_class_index.json"), 'r'))
 idx2label = [class_idx[str(k)][1] for k in range(len(class_idx))]
 model = None
-
 
 def handler(event):
   

@@ -156,6 +156,14 @@ class AWS(System):
 
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
+    def _map_language_runtime(self, language: str, runtime: str):
+
+        # AWS uses different naming scheme for Node.js versions
+        # For example, it's 12.x instead of 12.
+        if language == "nodejs":
+            return f"{runtime}.x"
+        return runtime
+
     def create_function(self, code_package: Benchmark, func_name: str) -> "LambdaFunction":
 
         package = code_package.code_location
@@ -210,7 +218,9 @@ class AWS(System):
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_package_name}
             ret = self.client.create_function(
                 FunctionName=func_name,
-                Runtime="{}{}".format(language, language_runtime),
+                Runtime="{}{}".format(
+                    language, self._map_language_runtime(language, language_runtime)
+                ),
                 Handler="handler.handler",
                 Role=self.config.resources.lambda_role(self.session),
                 MemorySize=memory,

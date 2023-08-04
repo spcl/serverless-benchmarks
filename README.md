@@ -13,10 +13,10 @@
 
 SeBS is a diverse suite of FaaS benchmarks that allows automatic performance analysis of
 commercial and open-source serverless platforms. We provide a suite of
-[benchmark applications](#benchmark-applications) and [experiments](#experiments)
+[benchmark applications](docs/benchmarks.md) and [experiments](docs/experiments.md)
 and use them to test and evaluate different components of FaaS systems.
 See the [installation instructions](#installation) to learn how to configure SeBS to use selected
-cloud services and [usage instructions](#usage) to automatically launch experiments in the cloud!
+cloud services and [usage instructions](docs/usage.md) to automatically launch experiments in the cloud!
 
 
 SeBS provides support for **automatic deployment** and invocation of benchmarks on
