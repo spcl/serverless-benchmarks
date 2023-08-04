@@ -4,6 +4,8 @@ import igraph
 def handler(event):
 
     size = event.get('size')
+    if size is None or not isinstance(size, (int, float)):
+        return { "status": "failure", 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
 
     graph_generating_begin = datetime.datetime.now()
     graph = igraph.Graph.Barabasi(size, 10)
@@ -18,9 +20,10 @@ def handler(event):
 
     return {
             'status': 'success',
-            'result': result,
+            'result': "Returned with no error",
             'measurement': {
                 'graph_generating_time': graph_generating_time,
-                'compute_time': process_time
+                'compute_time': process_time,
+                'result': result
             }
     }
