@@ -5,6 +5,7 @@ import sys
 import uuid
 from urllib.parse import unquote_plus
 from PIL import Image
+from jsonschema import validate
 
 from . import storage
 client = storage.storage.get_instance()
@@ -27,11 +28,31 @@ def resize_image(image_bytes, w, h):
 
 def handler(event):
   
-    input_bucket = event.get('bucket').get('input')
-    output_bucket = event.get('bucket').get('output')
-    key = unquote_plus(event.get('object').get('key'))
-    width = event.get('object').get('width')
-    height = event.get('object').get('height')
+    scheme = {
+        "type": "object",
+        "required": ["bucket", "object"],
+        "properties": {
+            "bucket": {
+                "type": "object",
+                "required": ["output", "input"]
+            },
+            "object": {
+                "type": "object",
+                "required": ["key", "width", "height"]
+            }
+        }
+    }
+
+    try:
+        validate(event, schema=scheme)
+    except:
+        return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
+    
+    input_bucket = event['bucket']['input']
+    output_bucket = event['bucket']['output']
+    key = unquote_plus(event['object']['key'])
+    width = event['object']['width']
+    height = event['object']['height']
     # UUID to handle multiple calls
     #download_path = '/tmp/{}-{}'.format(uuid.uuid4(), key)
     #upload_path = '/tmp/resized-{}'.format(key)

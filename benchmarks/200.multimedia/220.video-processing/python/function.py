@@ -4,6 +4,7 @@ import datetime
 import os
 import stat
 import subprocess
+from jsonschema import validate
 
 
 from . import storage
@@ -52,11 +53,32 @@ def transcode_mp3(video, duration, event):
 operations = { 'transcode' : transcode_mp3, 'extract-gif' : to_gif, 'watermark' : watermark }
 
 def handler(event):
-    input_bucket = event.get('bucket').get('input')
-    output_bucket = event.get('bucket').get('output')
-    key = event.get('object').get('key')
-    duration = event.get('object').get('duration')
-    op = event.get('object').get('op')
+
+    scheme = {
+        "type": "object",
+        "required": ["bucket", "object"],
+        "properties": {
+            "bucket": {
+                "type": "object",
+                "required": ["output", "input"]
+            },
+            "object": {
+                "type": "object",
+                "required": ["key", "duration", "op"]
+            }
+        }
+    }
+
+    try:
+        validate(event, schema=scheme)
+    except:
+        return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
+    
+    input_bucket = event['bucket']['input']
+    output_bucket = event['bucket']['output']
+    key = event['object']['key']
+    duration = event['object']['duration']
+    op = event['object']['op']
     download_path = '/tmp/{}'.format(key)
 
     # Restore executable permission
@@ -99,4 +121,3 @@ def handler(event):
                 'compute_time': process_time
             }
         }
-

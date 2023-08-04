@@ -1,11 +1,25 @@
-
 import socket
 from time import sleep
+from jsonschema import validate
 
 def handler(event):
 
+    scheme = {
+        "type": "object",
+        "required": ["ip-address", "port"],
+        "properties": {
+            "ip-address": {"type": "number"},
+            "port": {"type": "integer"}
+        }
+    }
+    try:
+        validate(event, schema=scheme)
+    except:
+        return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
+    
     # start timing
-    addr = (event.get('ip-address'), event.get('port'))
+    addr = (event['ip-address'], event['port'])
+    
     socket.setdefaulttimeout(20)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect(addr)

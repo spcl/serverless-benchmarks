@@ -1,10 +1,9 @@
-
 from time import sleep
 
 def handler(event):
 
     # start timing
-    sleep_time = event.get('sleep', default=None)
+    sleep_time = event.get('sleep', None)
     if sleep_time is None:
         return { "status": "failure", "result": "Error: Key 'sleep' not found on input data." }
     elif not isinstance(sleep_time, (int, float)):

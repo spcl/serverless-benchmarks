@@ -1,20 +1,38 @@
-
 import datetime
 import os
 import uuid
-
 import urllib.request
+from jsonschema import validate
 
 from . import storage
 client = storage.storage.get_instance()
 
-
 def handler(event):
   
-    output_bucket = event.get('bucket').get('output')
-    url = event.get('object').get('url')
+    scheme = {
+        "type": "object",
+        "required": ["bucket", "object"],
+        "properties": {
+            "bucket": {
+                "type": "object",
+                "required": ["output"]
+            },
+            "object": {
+                "type": "object",
+                "required": ["url"]
+            }
+        }
+    }
+
+    try:
+        validate(event, schema=scheme)
+    except:
+        return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
+    
+    output_bucket = event['bucket']['output']
+    url = event['object']['url']
     name = os.path.basename(url)
-    download_path = '/tmp/{}'.format(name)
+    download_path = f'/tmp/{name}'
 
     process_begin = datetime.datetime.now()
     urllib.request.urlretrieve(url, filename=download_path)
