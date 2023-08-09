@@ -167,6 +167,10 @@ class AWS(System):
             replace_string_in_file(
                 handler_path, "{{REDIS_HOST}}", f'"{self.config.resources.redis_host}"'
             )
+        if self.config.resources.redis_password is not None:
+            replace_string_in_file(
+                handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.resources.redis_password}"'
+            )
 
         # For python, add an __init__ file
         if code_package.language_name == "python":

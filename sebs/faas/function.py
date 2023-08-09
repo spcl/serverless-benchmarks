@@ -9,7 +9,10 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 
-from google.cloud.workflows.executions_v1beta.types import Execution
+from google.cloud.workflows import executions_v1
+from google.cloud.workflows.executions_v1 import Execution
+from google.cloud.workflows.executions_v1.types import executions
+#from google.cloud.workflows.executions_v1beta.types import Execution
 from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 

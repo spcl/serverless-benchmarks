@@ -170,6 +170,10 @@ class GCP(System):
             replace_string_in_file(
                 new_path, "{{REDIS_HOST}}", f'"{self.config.resources.redis_host}"'
             )
+        if self.config.resources.redis_password is not None:
+            replace_string_in_file(
+                new_path, "{{REDIS_PASSWORD}}", f'"{self.config.resources.redis_password}"'
+            )
 
         """
             zip the whole directroy (the zip-file gets uploaded to gcp later)
@@ -232,7 +236,7 @@ class GCP(System):
                         "timeout": str(timeout) + "s",
                         "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
-                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_package.benchmark,
+                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_package_name,
                     },
                 )
             )
@@ -350,7 +354,7 @@ class GCP(System):
                     "availableMemoryMb": function.config.memory,
                     "timeout": str(function.config.timeout) + "s",
                     "httpsTrigger": {},
-                    "sourceArchiveUrl": "gs://" + bucket + "/" + code_package.benchmark,
+                    "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
                 },
             )
         )

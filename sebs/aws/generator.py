@@ -2,7 +2,7 @@ from typing import Dict, List, Union, Any
 import numbers
 import uuid
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map
+from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat, Loop
 
 
 class SFNGenerator(Generator):
@@ -10,8 +10,12 @@ class SFNGenerator(Generator):
         super().__init__()
         self._func_arns = func_arns
 
-    def postprocess(self, states: List[State], payloads: List[dict]) -> dict:
-        state_payloads = super().postprocess(states, payloads)
+    def postprocess(self, payloads: List[dict]) -> dict:
+        def _nameless(p: dict) -> dict:
+            del p["Name"]
+            return p
+
+        state_payloads = {p["Name"]: _nameless(p) for p in payloads}
         definition = {
             "Comment": "SeBS auto-generated benchmark",
             "StartAt": self.root.name,
@@ -21,7 +25,16 @@ class SFNGenerator(Generator):
         return definition
 
     def encode_task(self, state: Task) -> Union[dict, List[dict]]:
-        payload: Dict[str, Any] = {"Type": "Task", "Resource": self._func_arns[state.func_name]}
+        payload: Dict[str, Any] = {
+            "Name": state.name,
+            "Type": "Task",
+            "Resource": self._func_arns[state.func_name],
+            "Parameters": {
+                "request_id.$": "$.request_id",
+                "payload.$": "$.payload",
+            },
+            "ResultPath": "$.payload"
+        }
 
         if state.next:
             payload["Next"] = state.next
@@ -32,7 +45,7 @@ class SFNGenerator(Generator):
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
         choises = [self._encode_case(c) for c in state.cases]
-        return {"Type": "Choice", "Choices": choises, "Default": state.default}
+        return {"Name": state.name, "Type": "Choice", "Choices": choises, "Default": state.default}
 
     def _encode_case(self, case: Switch.Case) -> dict:
         type = "Numeric" if isinstance(case.val, numbers.Number) else "String"
@@ -45,14 +58,19 @@ class SFNGenerator(Generator):
         }
         cond = type + comp[case.op]
 
-        return {"Variable": "$." + case.var, cond: case.val, "Next": case.next}
+        return {"Variable": "$.payload" + case.var, cond: case.val, "Next": case.next}
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         map_func_name = "func_" + str(uuid.uuid4())[:8]
 
         payload: Dict[str, Any] = {
+            "Name": state.name,
             "Type": "Map",
-            "ItemsPath": "$." + state.array,
+            "ItemsPath": "$.payload." + state.array,
+            "Parameters": {
+                "request_id.$": "$.request_id",
+                "payload.$": "$$.Map.Item.Value",
+            },
             "Iterator": {
                 "StartAt": map_func_name,
                 "States": {
@@ -63,11 +81,21 @@ class SFNGenerator(Generator):
                     }
                 },
             },
+            "ResultPath": "$.payload." + state.array
         }
 
         if state.next:
             payload["Next"] = state.next
         else:
             payload["End"] = True
+
+        return payload
+
+    def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
+        map_state = Map(state.name, state.func_name, state.array, state.next)
+        payload = self.encode_map(map_state)
+        payload["MaxConcurrency"] = 1
+        payload["ResultSelector"] = dict()
+        payload["ResultPath"] = "$." + str(uuid.uuid4())[:8]
 
         return payload
