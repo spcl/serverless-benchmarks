@@ -297,7 +297,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
     if isinstance(deployment_client, Local):
         raise NotImplementedError("Local workflow deployment is currently not supported.")
 
-    redis = connect_to_redis_cache(deployment_client.config.redis_host)
+    redis = connect_to_redis_cache(deployment_client.config.resources.redis_host, deployment_client.config.resources.redis_password)
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     benchmark_obj = sebs_client.get_benchmark(

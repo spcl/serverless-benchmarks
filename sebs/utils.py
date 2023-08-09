@@ -100,8 +100,8 @@ def replace_string_in_file(path: str, from_str: str, to_str: str):
         f.write(data)
 
 
-def connect_to_redis_cache(host: str):
-    redis = Redis(host=host, port=6379, decode_responses=True, socket_connect_timeout=10)
+def connect_to_redis_cache(host: str, password : str):
+    redis = Redis(host=host, port=6379, decode_responses=True, socket_connect_timeout=10, password=password)
     redis.ping()
 
     return redis
