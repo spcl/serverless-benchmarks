@@ -12,8 +12,8 @@
 | Utilities      | 504.dna-visualization    | Python   | Creates a visualization data for DNA sequence. |
 | Inference      | 411.image-recognition    | Python    | Image recognition with ResNet and pytorch. |
 | Scientific      | 501.graph-pagerank    | Python    | PageRank implementation with igraph. |
-| Scientific      | 501.graph-mst    | Python    | Minimum spanning tree (MST)  implementation with igraph. |
-| Scientific      | 501.graph-bfs    | Python    | Breadth-first search (BFS) implementation with igraph. |
+| Scientific      | 502.graph-mst    | Python    | Minimum spanning tree (MST)  implementation with igraph. |
+| Scientific      | 503.graph-bfs    | Python    | Breadth-first search (BFS) implementation with igraph. |
 
 For details on benchmark selection and their characterization, please refer to [our paper](#paper).
 
