@@ -165,7 +165,7 @@ class Azure(System):
                 "type": "httpTrigger",
                 "direction": "in",
                 "authLevel": "anonymous",
-                "methods": ["post"],
+                "methods": ["get", "post"],
             },
             {"name": "starter", "type": "durableClient", "direction": "in"},
             {"name": "$return", "type": "http", "direction": "out"},
@@ -213,6 +213,10 @@ class Azure(System):
         if self.config.resources.redis_host is not None:
             replace_string_in_file(
                 handler_path, "{{REDIS_HOST}}", f'"{self.config.resources.redis_host}"'
+            )
+        if self.config.resources.redis_password is not None:
+            replace_string_in_file(
+                handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.resources.redis_password}"'
             )
 
         # copy every wrapper file to respective function dirs

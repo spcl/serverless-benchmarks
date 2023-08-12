@@ -26,7 +26,7 @@ class Function(CloudBenchmark):
     @staticmethod
     def deserialize(cached_config: dict) -> function.CloudBenchmark:
         cfg = FunctionConfig.deserialize(cached_config["config"])
-        ret = AzureFunction(
+        ret = Function(
             cached_config["name"],
             cached_config["benchmark"],
             cached_config["hash"],
@@ -45,10 +45,10 @@ class Function(CloudBenchmark):
 class AzureFunction(function.Function, Function):
     @staticmethod
     def deserialize(cached_config: dict) -> "AzureFunction":
-        return cast(AzureFunction, AzureFunction.deserialize(cached_config))
+        return cast(AzureFunction, Function.deserialize(cached_config))
 
 
 class AzureWorkflow(function.Workflow, Function):
     @staticmethod
     def deserialize(cached_config: dict) -> "AzureWorkflow":
-        return cast(AzureWorkflow, AzureFunction.deserialize(cached_config))
+        return cast(AzureWorkflow, Function.deserialize(cached_config))

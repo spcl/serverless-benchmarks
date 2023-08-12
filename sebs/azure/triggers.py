@@ -1,4 +1,5 @@
 import concurrent.futures
+import uuid
 from typing import Any, Dict, Optional  # noqa
 
 from sebs.azure.config import AzureResources
@@ -30,8 +31,13 @@ class HTTPTrigger(AzureTrigger):
         return Trigger.TriggerType.HTTP
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
-        payload["connection_string"] = self.data_storage_account.connection_string
-        return self._http_invoke(payload, self.url)
+        request_id = str(uuid.uuid4())[0:8]
+        input = {
+            "payload": payload,
+            "request_id": request_id,
+            "connection_string": self.data_storage_account.connection_string
+        }
+        return self._http_invoke(input, self.url)
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         pool = concurrent.futures.ThreadPoolExecutor()
