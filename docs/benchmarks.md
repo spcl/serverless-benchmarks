@@ -17,8 +17,14 @@
 
 For details on benchmark selection and their characterization, please refer to [our paper](#paper).
 
-> **Note**
-> Benchmark 411.image-recognition contains PyTorch which is often too large to fit into a code package. Up to Python 3.7, we can directly ship the dependencies. For Python 3.8 and 3.9, we used an additional zipping step that requires additional setup during the first run, making cold invocations slower. Warm invocations are not affected.
+> **Warning**
+> Benchmark 411.image-recognition contains PyTorch which is often too large to fit into a code package. Up to Python 3.7, we can directly ship the dependencies. For Python 3.8, we use an additional zipping step that requires additional setup during the first run, making cold invocations slower. Warm invocations are not affected.
+
+> **Warning**
+> Benchmark `411.image-recognition` does not work on AWS with Python 3.9 due to excessive code size. While it is possible to ship the benchmark by zipping `torchvision` and `numpy` (see `benchmarks/400.inference/411.image-recognition/python/package.sh`), this significantly affects cold startup. On the lowest supported memory configuration of 512 MB, the cold startup can reach 30 seconds, making HTTP trigger unusable due to 30 second timeout of API gateway. In future, we might support Docker-based deployment on AWS that are not affected by code size limitations.
+
+> **Warning**
+> Benchmark `411.image-recognition` does not work on GCP with Python 3.8 and 3.9 due to excessive code size. To the best of our knowledge, there is no way of circumventing that limit as Google Cloud offers neither layers nor custom Docker images.
 
 > **Note**
 > Benchmarks whose number starts with the digit 0, such as `020.server-reply` are internal microbenchmarks used by specific experiments. They are not intended to be directly invoked by users.

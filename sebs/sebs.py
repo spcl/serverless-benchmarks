@@ -1,3 +1,4 @@
+import os
 from typing import Optional, Dict, Type
 
 import docker
@@ -67,6 +68,8 @@ class SeBS(LoggingBase):
         self._logging_filename = logging_filename
         self._handlers: Dict[Optional[str], LoggingHandlers] = {}
         self.logging_handlers = self.generate_logging_handlers()
+
+        os.makedirs(self.output_dir, exist_ok=True)
 
     def ignore_cache(self):
         """

@@ -187,7 +187,8 @@ class ColoredWrapper:
     def _print(self, message, color):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
         click.echo(
-            f"{color}{ColoredWrapper.BOLD}[{timestamp}]{ColoredWrapper.END} {self.prefix} {message}"
+            f"{color}{ColoredWrapper.BOLD}[{timestamp}]{ColoredWrapper.END} "
+            f"{ColoredWrapper.BOLD}{self.prefix}{ColoredWrapper.END} {message}"
         )
 
 
