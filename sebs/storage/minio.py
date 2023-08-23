@@ -89,6 +89,13 @@ class Minio(PersistentStorage):
     def configure_connection(self):
         # who knows why? otherwise attributes are not loaded
         if self._cfg.address == "":
+
+            if self._storage_container is None:
+                raise RuntimeError(
+                    "Minio container is not available! Make sure that you deployed "
+                    "the Minio storage and provided configuration!"
+                )
+
             self._storage_container.reload()
             networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
             self._cfg.address = "{IPAddress}:{Port}".format(

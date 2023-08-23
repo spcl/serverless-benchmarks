@@ -156,8 +156,8 @@ class OpenWhisk(System):
                     f"building OpenWhisk package for {benchmark}."
                 )
 
-        build_dir = DOCKER_DIR
-        os.makedirs(build_dir)
+        build_dir = os.path.join(directory, "docker")
+        os.makedirs(build_dir, exist_ok=True)
         shutil.copy(
             os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
             os.path.join(build_dir, "Dockerfile"),
@@ -293,8 +293,8 @@ class OpenWhisk(System):
                             *self.storage_arguments(),
                             code_package.code_location,
                         ],
-                        stderr=subprocess.DEVNULL,
-                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
                         check=True,
                     )
                     function_cfg.docker_image = docker_image
@@ -303,6 +303,7 @@ class OpenWhisk(System):
                     )
                 except subprocess.CalledProcessError as e:
                     self.logging.error(f"Cannot create action {func_name}.")
+                    self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
                     raise RuntimeError(e)
 
         except FileNotFoundError:
@@ -343,14 +344,19 @@ class OpenWhisk(System):
                     *self.storage_arguments(),
                     code_package.code_location,
                 ],
-                stderr=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
                 check=True,
             )
             function.config.docker_image = docker_image
 
         except FileNotFoundError as e:
             self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
+            raise RuntimeError(e)
+        except subprocess.CalledProcessError as e:
+            self.logging.error(f"Unknown error when running function update: {e}!")
+            self.logging.error("Make sure to remove SeBS cache after restarting OpenWhisk!")
+            self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
             raise RuntimeError(e)
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
@@ -368,12 +374,17 @@ class OpenWhisk(System):
                     str(code_package.benchmark_config.timeout * 1000),
                     *self.storage_arguments(),
                 ],
-                stderr=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
                 check=True,
             )
         except FileNotFoundError as e:
             self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
+            raise RuntimeError(e)
+        except subprocess.CalledProcessError as e:
+            self.logging.error(f"Unknown error when running function update: {e}!")
+            self.logging.error("Make sure to remove SeBS cache after restarting OpenWhisk!")
+            self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
             raise RuntimeError(e)
 
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:

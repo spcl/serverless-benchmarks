@@ -350,11 +350,22 @@ class GCP(System):
         )
         res = req.execute()
         versionId = res["metadata"]["versionId"]
-        while True:
-            if not self.is_deployed(function.name, versionId):
+        retries = 0
+        last_version = -1
+        while retries < 100:
+            is_deployed, last_version = self.is_deployed(function.name, versionId)
+            if not is_deployed:
                 time.sleep(5)
+                retries += 1
             else:
                 break
+            if retries > 0 and retries % 10 == 0:
+                self.logging.info(f"Waiting for function deployment, {retries} retries.")
+        if retries == 100:
+            raise RuntimeError(
+                "Failed to publish new function code after 10 attempts. "
+                f"Version {versionId} has not been published, last version {last_version}."
+            )
         self.logging.info("Published new function code and configuration.")
 
     def update_function_configuration(self, function: Function, benchmark: Benchmark):
@@ -377,11 +388,22 @@ class GCP(System):
         )
         res = req.execute()
         versionId = res["metadata"]["versionId"]
-        while True:
-            if not self.is_deployed(function.name, versionId):
+        retries = 0
+        last_version = -1
+        while retries < 100:
+            is_deployed, last_version = self.is_deployed(function.name, versionId)
+            if not is_deployed:
                 time.sleep(5)
+                retries += 1
             else:
                 break
+            if retries > 0 and retries % 10 == 0:
+                self.logging.info(f"Waiting for function deployment, {retries} retries.")
+        if retries == 100:
+            raise RuntimeError(
+                "Failed to publish new function code after 10 attempts. "
+                f"Version {versionId} has not been published, last version {last_version}."
+            )
         self.logging.info("Published new function configuration.")
 
     @staticmethod
@@ -546,7 +568,8 @@ class GCP(System):
         deployment_done = False
         while not deployment_done:
             for versionId, func in new_versions:
-                if not self.is_deployed(func.name, versionId):
+                is_deployed, last_version = self.is_deployed(func.name, versionId)
+                if not is_deployed:
                     undeployed_functions.append((versionId, func))
             deployed = len(new_versions) - len(undeployed_functions)
             self.logging.info(f"Redeployed {deployed} out of {len(new_versions)}")
@@ -573,7 +596,8 @@ class GCP(System):
         deployment_done = False
         while not deployment_done:
             for func in undeployed_functions_before:
-                if not self.is_deployed(func.name):
+                is_deployed, last_version = self.is_deployed(func.name)
+                if not is_deployed:
                     undeployed_functions.append(func)
             deployed = len(undeployed_functions_before) - len(undeployed_functions)
             self.logging.info(f"Deployed {deployed} out of {len(undeployed_functions_before)}")
@@ -587,15 +611,15 @@ class GCP(System):
 
         return functions
 
-    def is_deployed(self, func_name: str, versionId: int = -1) -> bool:
+    def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
         name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
         function_client = self.get_function_client()
         status_req = function_client.projects().locations().functions().get(name=name)
         status_res = status_req.execute()
         if versionId == -1:
-            return status_res["status"] == "ACTIVE"
+            return (status_res["status"] == "ACTIVE", status_res["versionId"])
         else:
-            return status_res["versionId"] == versionId
+            return (status_res["versionId"] == versionId, status_res["versionId"])
 
     def deployment_version(self, func: Function) -> int:
         name = GCP.get_full_function_name(self.config.project_name, self.config.region, func.name)
