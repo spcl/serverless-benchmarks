@@ -28,7 +28,7 @@ def resize_image(image_bytes, w, h):
 
 def handler(event):
   
-    scheme = {
+    schema = {
         "type": "object",
         "required": ["bucket", "object"],
         "properties": {
@@ -44,7 +44,7 @@ def handler(event):
     }
 
     try:
-        validate(event, schema=scheme)
+        validate(event, schema=schema)
     except:
         return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
     

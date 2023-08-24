@@ -54,7 +54,7 @@ operations = { 'transcode' : transcode_mp3, 'extract-gif' : to_gif, 'watermark' 
 
 def handler(event):
 
-    scheme = {
+    schema = {
         "type": "object",
         "required": ["bucket", "object"],
         "properties": {
@@ -70,7 +70,7 @@ def handler(event):
     }
 
     try:
-        validate(event, schema=scheme)
+        validate(event, schema=schema)
     except:
         return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
     

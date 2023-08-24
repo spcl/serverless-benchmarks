@@ -4,7 +4,7 @@ from jsonschema import validate
 
 def handler(event):
 
-    scheme = {
+    schema = {
         "type": "object",
         "required": ["ip-address", "port"],
         "properties": {
@@ -13,7 +13,7 @@ def handler(event):
         }
     }
     try:
-        validate(event, schema=scheme)
+        validate(event, schema=schema)
     except:
         return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
     

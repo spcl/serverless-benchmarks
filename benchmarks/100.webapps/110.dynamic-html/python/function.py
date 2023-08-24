@@ -12,7 +12,7 @@ SCRIPT_DIR = path.abspath(path.join(path.dirname(__file__)))
 
 def handler(event):
 
-    scheme = {
+    schema = {
         "type": "object",
         "required": ["username", "random_len"],
         "properties": {
@@ -21,7 +21,7 @@ def handler(event):
         }
     }
     try:
-        validate(event, schema=scheme)
+        validate(event, schema=schema)
     except:
         return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
     # start timing
