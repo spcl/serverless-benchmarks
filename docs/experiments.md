@@ -87,7 +87,7 @@ At the end of each configuration, you should in the output statistical results s
 [01:37:06.778731] Experiment.PerfCost-04bb Non-parametric CI 0.99 from 1790.051 to 1821.556, within 0.8713239422285015% of median
 ```
 
-The full data can be found in the `experiments-result/perf-cost` directory. Each file has a format of `<experiment>_results_<mem-size>.json`, and contains the data for each invocation in a human-readable JSON format.
+The full data can be found in the `experiments-result/perf-cost` directory. Each file has a format of `<experiment>_results_<mem-size>.json`, and contains the data for each invocation in a human-readable JSON format. Furthermore, SeBS will produce an additional file, `result.csv`, containing all data in a single tabular file.
 
 #### Postprocessing Results
 
