@@ -24,10 +24,10 @@ Then, each benchmark has its own JSON object containing parameters specific to t
 ```
 
 We implemented four types of experiments:
-* [Perf-Cost](#perf-cost) evaluates the performance of specified functions, and estimates the cost of running them in the cloud. It supports four types fof invoking functions, and creates timing results involving various parts of the serverless stack.
-* [Network Ping-pong](#network-ping-pong) evaluates the network performance and latency profile for the connection between benchmarking machine and serverless function.
-* [Invocation Overhead](#invocation-overhead) estimates the invocation latency by running a clock-drift protocol and comparing timestamps between benchmarking machine and serverless function.
-* [Eviction](#eviction-model) runs functions with various configurations, invokes them after selected delay and checks if the function is still running in a warm container. The experiment verifies how different parameters affect container eviction.
+* [Perf-Cost](#perf-cost) evaluates the performance of specified functions and estimates the cost of running them in the cloud. It supports four types of invoking functions and creates timing results involving various parts of the serverless stack.
+* [Network Ping-pong](#network-ping-pong) evaluates the network performance and latency profile of the connection between the benchmarking machine and serverless function.
+* [Invocation Overhead](#invocation-overhead) estimates the invocation latency by running a clock-drift protocol and comparing timestamps between the benchmarking machine and serverless function.
+* [Eviction](#eviction-model) runs functions with various configurations, invokes them after a specified time, and checks if the function is still running in a warm container. The experiment verifies how different parameters affect container eviction.
 
 ### Perf-Cost
 
@@ -45,8 +45,8 @@ between cold and warm startups. These experiment types help to measure the invoc
 
 These experiments produce four types of timing results. All values returned are in **microseconds**.
 * `exec_time` - the actual time needed to execute the benchmark function, as measured by our lightweight shim.
-* `provider_time` - the execution time reported by the cloud provider. This time includes `exec_time`, the additional initialization time, and the small overheads of SeBS shim wrapper.
-* `client_time` - the time as measured by the SeBS driver on the client machine. This time includes `provider_time`, the overheads of the cloud gateway and FaaS management platform, as well as the data transmission time.
+* `provider_time` - the execution time reported by the cloud provider. This time includes `exec_time`, the additional initialization time, and the small overheads of the SeBS shim wrapper.
+* `client_time` - the time measured by the SeBS driver on the client machine. This time includes `provider_time`, the overheads of the cloud gateway and FaaS management platform, as well as the data transmission time.
 * `connection_time` - the time needed to establish an HTTP connection with the cloud gateway and start data transmission, as reported by cURL ([`PRETRANSFER_TIME`](https://curl.se/libcurl/c/CURLINFO_PRETRANSFER_TIME.html)).
 
 #### Configuring Benchmark
@@ -67,7 +67,7 @@ The file `config/example_perf_cost.json` contains an example of configuration:
 }
 ```
 
-The field `benchmark` and `input-size` specifies the benchmark function to be executed. SeBS will invoke the experiment with all configurations specified in `experiments` (see details above). The function will be invoked in batches, each batch consisting of `concurrent-invocations` instances, until SeBS will gather a number of results equal to the one specified in `repetitions`. While the number of submitted batches is usually equal to `repetitions/concurrent-invocations`, this can change between experiments as some results might be dropped. For examples, a `cold` experiment will ignore all results from a warm container. Furthermore, SeBS will repeat all experiments for each memory configuration provided in `memory-sizes`.
+The field `benchmark` and `input-size` specifies the benchmark function to be executed. SeBS will invoke the experiment with all configurations specified in `experiments` (see details above). The function will be invoked in batches, each consisting of `concurrent-invocations` instances until SeBS gathers as many results as specified in `repetitions`. While the number of submitted batches usually equals `repetitions/concurrent-invocations`, this can change between experiments as some results might be dropped. For example, a `cold` experiment will ignore all results from a warm container. Furthermore, SeBS will repeat all experiments for each memory configuration provided in `memory-sizes`.
 
 #### Running Benchmark
 
@@ -87,17 +87,17 @@ At the end of each configuration, you should in the output statistical results s
 [01:37:06.778731] Experiment.PerfCost-04bb Non-parametric CI 0.99 from 1790.051 to 1821.556, within 0.8713239422285015% of median
 ```
 
-The full data can be found in the `experiments-result/perf-cost` directory. Each file has a format of `<experiment>_results_<mem-size>.json`, and contains the data for each invocation, in a human-readable JSON format.
+The full data can be found in the `experiments-result/perf-cost` directory. Each file has a format of `<experiment>_results_<mem-size>.json`, and contains the data for each invocation in a human-readable JSON format.
 
 #### Postprocessing Results
 
-We support querying cloud logs to locate cloud provider billing data. SeBS achieves this by reading the experiment data obtained in the previous step, finding all invocation IDs, querying cloud log entries, and finding matching data. To process result, run:
+We support querying cloud logs to locate cloud provider billing data. SeBS achieves this by reading the experiment data obtained in the previous step, finding all invocation IDs, querying cloud log entries, and finding matching data. To process results, run:
 
 ```
 sebs.py experiment process perf-cost --config config/example_perf_cost.json --output-dir experiments-result
 ```
 
-For example, on the AWS you should see the following output for each experiment configuration:
+For example, on the AWS, you should see the following output for each experiment configuration:
 
 ```
 [02:16:22.871599] AWS.Config-81b0 Using cached config for AWS
@@ -106,7 +106,7 @@ For example, on the AWS you should see the following output for each experiment 
 [02:16:25.795266] AWS-696e Received 60 entries, found results for 50 out of 50 invocations
 ```
 
-Afterward, you will find a new file `<experiment>_results_<mem-size>-processed.json` for each experiment configuration. Each invocation will have a new data entry, containing billing data and time as measured by the cloud provider:
+Afterward, you will find a new file for each experiment configuration called `<experiment>_results_<mem-size>-processed.json`. Each invocation will have a new data entry, containing billing data and time as measured by the cloud provider:
 
 ```json
   "billing": {
@@ -117,7 +117,7 @@ Afterward, you will find a new file `<experiment>_results_<mem-size>-processed.j
 ```
 
 > **Warning**
-> Depending on the cloud provider, not all invocations might have corresponding result in cloud logs. Thus, it is recommended to increase the number of repetitions by roughly 10% to ensure the desired number of repetitions.
+> Depending on the cloud provider, not all invocations might have corresponding results in cloud logs. Thus, increasing the number of repetitions by roughly 10% is recommended to ensure the desired number of repetitions.
 
 #### Network Ping-pong
 
