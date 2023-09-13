@@ -16,7 +16,9 @@ commercial and open-source serverless platforms. We provide a suite of
 [benchmark applications](docs/benchmarks.md) and [experiments](docs/experiments.md)
 and use them to test and evaluate different components of FaaS systems.
 See the [installation instructions](#installation) to learn how to configure SeBS to use selected
-cloud services and [usage instructions](docs/usage.md) to automatically launch experiments in the cloud!
+commercial and open-source serverless systems.
+Then, take a look at [usage instructions](docs/usage.md) to see how
+SeBS can automatically launch seververless functions and entire experiments in the cloud!
 
 
 SeBS provides support for **automatic deployment** and invocation of benchmarks on
@@ -107,8 +109,6 @@ Now you can deploy serverless experiments :-)
 The installation of additional platforms is controlled with the `--{platform}` and `--no-{platform}`
 switches. Currently, the default behavior for `install.py` is to install only the
 local environment.
-
-
 
 To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
 
