@@ -27,7 +27,7 @@ class GCPCredentials(Credentials):
 
         self._gcp_credentials = gcp_credentials
 
-        gcp_data = json.load(open(gcp_credentials, "r"))
+        gcp_data = json.load(open(self._gcp_credentials, "r"))
         self._project_id = gcp_data["project_id"]
 
     @property
@@ -54,8 +54,8 @@ class GCPCredentials(Credentials):
             project_id = cached_config["credentials"]["project_id"]
 
         # Check for new config
-        if "credentials" in config and config["credentials"]:
-            ret = GCPCredentials.initialize(config["credentials"])
+        if "credentials" in config and "credentials-json" in config["credentials"]:
+            ret = GCPCredentials.initialize(config["credentials"]["credentials-json"])
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
         # Look for default GCP credentials
         elif "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
