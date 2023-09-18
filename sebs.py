@@ -256,9 +256,11 @@ def invoke(
             # )
         result.add_invocation(func, ret)
     result.end()
-    with open("experiments.json", "w") as out_f:
+
+    result_file = os.path.join(output_dir, "experiments.json")
+    with open(result_file, "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
-    sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath(result_file)))
 
 
 @benchmark.command()
@@ -272,8 +274,10 @@ def process(**kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    sebs_client.logging.info("Load results from {}".format(os.path.abspath("experiments.json")))
-    with open("experiments.json", "r") as in_f:
+
+    result_file = os.path.join(output_dir, "experiments.json")
+    sebs_client.logging.info("Load results from {}".format(os.path.abspath(result_file)))
+    with open(result_file, "r") as in_f:
         config = json.load(in_f)
         experiments = sebs.experiments.ExperimentResult.deserialize(
             config,
@@ -285,9 +289,11 @@ def process(**kwargs):
         deployment_client.download_metrics(
             func, *experiments.times(), experiments.invocations(func), experiments.metrics(func)
         )
-    with open("results.json", "w") as out_f:
+
+    output_file = os.path.join(output_dir, "results.json")
+    with open(output_file, "w") as out_f:
         out_f.write(sebs.utils.serialize(experiments))
-    sebs_client.logging.info("Save results to {}".format(os.path.abspath("results.json")))
+    sebs_client.logging.info("Save results to {}".format(output_file))
 
 
 @benchmark.command()
