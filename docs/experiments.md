@@ -43,11 +43,14 @@ between cold and warm startups. These experiment types help to measure the invoc
 
 #### Results
 
-These experiments produce four types of timing results. All values returned are in **microseconds**.
+These experiments produce four types of timing results. **All measurements are always in microseconds**.
 * `exec_time` - the actual time needed to execute the benchmark function, as measured by our lightweight shim.
-* `provider_time` - the execution time reported by the cloud provider. This time includes `exec_time`, the additional initialization time, and the small overheads of the SeBS shim wrapper.
 * `client_time` - the time measured by the SeBS driver on the client machine. This time includes `provider_time`, the overheads of the cloud gateway and FaaS management platform, as well as the data transmission time.
 * `connection_time` - the time needed to establish an HTTP connection with the cloud gateway and start data transmission, as reported by cURL ([`PRETRANSFER_TIME`](https://curl.se/libcurl/c/CURLINFO_PRETRANSFER_TIME.html)).
+* `provider_time` - the execution time reported by the cloud provider. This time includes `exec_time`, the additional initialization time, and the small overheads of the SeBS shim wrapper.
+
+In addition, on AWS, we provide `billing_time` in milliseconds, rounded up to the nearest integer.
+The cloud provider uses this value to determine the cost of running the function.
 
 #### Configuring Benchmark
 
