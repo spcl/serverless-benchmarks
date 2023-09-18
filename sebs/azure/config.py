@@ -83,7 +83,7 @@ class AzureCredentials(Credentials):
             old_subscription_id = cached_config["credentials"]["subscription_id"]
 
         # Check for new config
-        if "credentials" in config:
+        if "credentials" in config and "appId" in config["credentials"]:
             ret = AzureCredentials.initialize(config["credentials"], old_subscription_id)
         elif "AZURE_SECRET_APPLICATION_ID" in os.environ:
             ret = AzureCredentials(
