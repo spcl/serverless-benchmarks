@@ -67,8 +67,8 @@ class AzureCLI:
         Run azure login command on Docker instance.
     """
 
-    def login(self, appId: str, tenant: str, password: str):
-        self.execute(
+    def login(self, appId: str, tenant: str, password: str) -> bytes:
+        result = self.execute(
             "az login -u {0} --service-principal --tenant {1} -p {2}".format(
                 appId,
                 tenant,
@@ -76,6 +76,7 @@ class AzureCLI:
             )
         )
         logging.info("Azure login succesful")
+        return result
 
     def upload_package(self, directory: str, dest: str):
         handle = io.BytesIO()

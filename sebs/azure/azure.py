@@ -61,11 +61,19 @@ class Azure(System):
 
     def initialize(self, config: Dict[str, str] = {}):
         self.cli_instance = AzureCLI(self.system_config, self.docker_client)
-        self.cli_instance.login(
+        output = self.cli_instance.login(
             appId=self.config.credentials.appId,
             tenant=self.config.credentials.tenant,
             password=self.config.credentials.password,
         )
+
+        subscriptions = json.loads(output)
+        if len(subscriptions) == 0:
+            raise RuntimeError("Didn't find any valid subscription on Azure!")
+        if len(subscriptions) > 1:
+            raise RuntimeError("Found more than one valid subscription on Azure - not supported!")
+
+        self.config.credentials.subscription_id = subscriptions[0]["id"]
 
     def shutdown(self):
         if self.cli_instance:
