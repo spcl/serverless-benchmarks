@@ -10,7 +10,6 @@ from sebs.utils import LoggingBase
 
 
 class AzureCLI(LoggingBase):
-
     def __init__(self, system_config: SeBSConfig, docker_client: docker.client):
 
         super().__init__()

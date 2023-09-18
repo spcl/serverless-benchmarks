@@ -46,10 +46,7 @@ class AzureCredentials(Credentials):
     @subscription_id.setter
     def subscription_id(self, subscription_id: str):
 
-        if (
-            self._subscription_id is not None
-            and subscription_id != self._subscription_id
-        ):
+        if self._subscription_id is not None and subscription_id != self._subscription_id:
             self.logging.error(
                 f"The subscription id {subscription_id} from provided "
                 f"credentials is different from the subscription id "
