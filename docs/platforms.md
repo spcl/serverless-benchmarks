@@ -9,6 +9,13 @@ are required.
 In the following subsections, we discuss the mandatory and optional customization
 points for each platform.
 
+
+> **Warning**
+> On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through input configuration, do not commit nor publish these files anywhere.
+
+> **Note**
+> SeBS ensures that all locally cached cloud resources are valid by storing a unique identifier associated with each cloud account. Furthermore, we store this identifier in experiment results to easily match results with the cloud account or subscription that was used to obtain them. We use non-sensitive identifiers such as account IDs on AWS, subscription IDs on Azure, and Google Cloud project IDs.
+
 ## AWS Lambda
 
 AWS provides one year of free services, including a significant amount of computing time in AWS Lambda.
@@ -20,11 +27,27 @@ You can provide a [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-int
 with permissions to access AWS Lambda and S3; otherwise, one will be created automatically.
 To use a user-defined lambda role, set the name in config JSON - see an example in `config/example.json`.
 
-**Pass the credentials as environmental variables for the first run.** They will be cached for future use.
+You can pass the credentials either using the default AWS-specific environment variables:
 
 ```
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
+export AWS_ACCESS_KEY_ID=XXXX
+export AWS_SECRET_ACCESS_KEY=XXXX
+```
+
+or in the JSON input configuration:
+
+```json
+"deployment": {
+  "name": "aws",
+  "aws": {
+    "region": "us-east-1",
+    "lambda-role": "",
+    "credentials": {
+      "access_key": "YOUR AWS ACCESS KEY",
+      "secret_key": "YOUR AWS SECRET KEY"
+    }
+  }
+}
 ```
 
 ## Azure Functions
@@ -50,9 +73,31 @@ AZURE_SECRET_TENANT = XXXXXXXXXXXX
 AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
 ```
 
-**Save these credentials - the password is non-retrievable! Provide them to SeBS through environmental variables**,
-and we will create additional resources (storage account, resource group) to deploy functions.
-We will create a storage account and the resource group and handle access keys.
+**Save these credentials - the password is non-retrievable! Provide them to SeBS and we will create additional resources (storage account, resource group) to deploy functions. We will create a storage account and the resource group and handle access keys.
+
+You can pass the credentials either using the environment variables:
+
+```
+export AZURE_SECRET_APPLICATION_ID = XXXXXXXXXXXXXXXX
+export AZURE_SECRET_TENANT = XXXXXXXXXXXX
+export AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
+```
+
+or in the JSON input configuration:
+
+```json
+"deployment": {
+  "name": "azure",
+  "azure": {
+    "region": "westeurope"
+    "credentials": {
+      "appID": "YOUR SECRET APPLICATION ID",
+      "tenant": "YOUR SECRET TENANT",
+      "password": "YOUR SECRET PASSWORD"
+    }
+  }
+}
+```
 
 > **Warning**
 > The tool assumes there is only one subscription active on the account. If you want to bind the newly created service principal to a specific subscription, or the created credentials do not work with SeBS and you see errors such as "No subscriptions found for X", then you must specify a subscription when creating the service principal. Check your subscription ID on in the Azure portal, and use the CLI option `tools/create_azure_credentials.py --subscription <SUBSCRIPTION_ID>`.
@@ -60,7 +105,7 @@ We will create a storage account and the resource group and handle access keys.
 ### Resources
 
 * By default, all functions are allocated in the single resource group.
-* Each function has a seperate storage account allocated, following [Azure guidelines](https://docs.microsoft.com/en-us/azure/azure-functions/functions-best-practices#scalability-best-practices).
+* Each function has a separate storage account allocated, following [Azure guidelines](https://docs.microsoft.com/en-us/azure/azure-functions/functions-best-practices#scalability-best-practices).
 * All benchmark data is stored in the same storage account.
 
 ## Google Cloud Functions
@@ -70,15 +115,30 @@ The Google Cloud Free Tier gives free resources. It has two parts:
 - A 12-month free trial with $300 credit to use with any Google Cloud services.
 - Always Free, which provides limited access to many common Google Cloud resources, free of charge.
 
-You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions.
-You have two options to pass the credentials to SeBS:
+You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions. From the cloud problem, download the cloud credentials saved as a JSON file.
 
-- specify the project name nand path to JSON credentials in the config JSON file, see an example in `config/example.json`
-- use environment variables
+You can pass the credentials either using the default GCP-specific environment variable:
 
 ```
-export GCP_PROJECT_NAME = XXXX
-export GCP_SECRET_APPLICATION_CREDENTIALS = XXXX
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/project-credentials.json
+```
+
+using the SeBS environment variable:
+
+```
+export GCP_SECRET_APPLICATION_CREDENTIALS=/path/to/project-credentials.json
+```
+
+or in the JSON input configuration:
+
+```json
+"deployment": {
+  "name": "gcp",
+  "gcp": {
+    "region": "europe-west1",
+    "credentials": "/path/to/project-credentials.json"
+  }
+}
 ```
 
 ## OpenWhisk
