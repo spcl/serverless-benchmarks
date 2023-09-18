@@ -57,8 +57,9 @@ class AWSCredentials(Credentials):
         if cached_config and "credentials" in cached_config:
             account_id = cached_config["credentials"]["account_id"]
 
-        # Check for new config
-        if "credentials" in config:
+        # Check for new config.
+        # Loading old results might result in not having credentials in the JSON - need to check.
+        if "credentials" in config and "access_key" in config["credentials"]:
             ret = AWSCredentials.initialize(config["credentials"])
         elif "AWS_ACCESS_KEY_ID" in os.environ:
             ret = AWSCredentials(
