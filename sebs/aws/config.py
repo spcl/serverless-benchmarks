@@ -38,12 +38,7 @@ class AWSCredentials(Credentials):
 
     @property
     def account_id(self) -> str:
-        assert self._account_id is not None
         return self._account_id
-
-    @property
-    def has_account_id(self) -> bool:
-        return self._account_id is not None
 
     @staticmethod
     def initialize(dct: dict) -> "AWSCredentials":
