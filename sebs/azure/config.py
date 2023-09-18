@@ -18,14 +18,13 @@ class AzureCredentials(Credentials):
     _password: str
 
     def __init__(
-        self, appId: str, tenant: str, password: str, cached_subscription_id: Optional[str] = None
+        self, appId: str, tenant: str, password: str, subscription_id: Optional[str] = None
     ):
         super().__init__()
         self._appId = appId
         self._tenant = tenant
         self._password = password
-        self._subscription_id: Optional[str] = None
-        self._cached_subscription_id = cached_subscription_id
+        self._subscription_id = subscription_id
 
     @property
     def appId(self) -> str:
@@ -48,18 +47,18 @@ class AzureCredentials(Credentials):
     def subscription_id(self, subscription_id: str):
 
         if (
-            self._cached_subscription_id is not None
-            and subscription_id != self._cached_subscription_id
+            self._subscription_id is not None
+            and subscription_id != self._subscription_id
         ):
             self.logging.error(
                 f"The subscription id {subscription_id} from provided "
                 f"credentials is different from the subscription id "
-                f"{self._cached_subscription_id} found in the cache! "
+                f"{self._subscription_id} found in the cache! "
                 "Please change your cache directory or create a new one!"
             )
             raise RuntimeError(
                 f"Azure login credentials do not match the subscription "
-                f"{self._cached_subscription_id} in cache!"
+                f"{self._subscription_id} in cache!"
             )
 
         self._subscription_id = subscription_id
