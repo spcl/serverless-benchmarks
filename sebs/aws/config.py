@@ -71,7 +71,7 @@ class AWSCredentials(Credentials):
             ret.logging.error(
                 f"The account id {ret.account_id} from provided credentials is different "
                 f"from the account id {account_id} found in the cache! Please change "
-                " your cache directory or create a new one!"
+                "your cache directory or create a new one!"
             )
             raise RuntimeError(
                 f"AWS login credentials do not match the acccount {account_id} in cache!"
