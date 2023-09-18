@@ -23,13 +23,12 @@ from sebs.utils import LoggingHandlers
 
 class GCPCredentials(Credentials):
     def __init__(self, gcp_credentials: str):
+        super().__init__()
+
         self._gcp_credentials = gcp_credentials
 
         gcp_data = json.load(open(gcp_credentials, "r"))
-        client_id = gcp_data["client_id"]
         self._project_id = gcp_data["project_id"]
-
-        super().__init__(client_id)
 
     @property
     def gcp_credentials(self) -> str:
@@ -49,11 +48,9 @@ class GCPCredentials(Credentials):
         cached_config = cache.get_config("gcp")
         ret: GCPCredentials
         project_id: Optional[str] = None
-        client_id: Optional[str] = None
 
         # Load cached values
         if cached_config and "credentials" in cached_config:
-            client_id = cached_config["credentials"]["account_id"]
             project_id = cached_config["credentials"]["project_id"]
 
         # Check for new config
@@ -75,17 +72,14 @@ class GCPCredentials(Credentials):
             )
         ret.logging_handlers = handlers
 
-        if project_id is not None and (
-            project_id != ret._project_id or client_id != ret.account_id
-        ):
+        if project_id is not None and project_id != ret._project_id:
             ret.logging.error(
-                f"The account and project pair ({ret.account_id}, {ret._project_id}) from provided "
-                f"credentials is different from the pair ({client_id}, {project_id}) in the cache! "
+                f"The project id {ret._project_id} from provided "
+                f"credentials is different from the ID {project_id} in the cache! "
                 "Please change your cache directory or create a new one!"
             )
             raise RuntimeError(
-                f"GCP login credentials do not match the acccount {client_id} and "
-                f"project {project_id} in cache!"
+                f"GCP login credentials do not match the project {project_id} in cache!"
             )
 
         return ret
@@ -95,11 +89,10 @@ class GCPCredentials(Credentials):
     """
 
     def serialize(self) -> dict:
-        out = {**super().serialize(), "project_id": self._project_id}
+        out = {"project_id": self._project_id}
         return out
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.account_id, keys=["gcp", "credentials", "account_id"])
         cache.update_config(val=self._project_id, keys=["gcp", "credentials", "project_id"])
 
 

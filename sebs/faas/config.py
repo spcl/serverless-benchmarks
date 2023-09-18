@@ -1,7 +1,7 @@
 from abc import ABC
 from abc import abstractmethod
 
-from sebs.cache import Cache, Optional
+from sebs.cache import Cache
 from sebs.utils import has_platform, LoggingBase, LoggingHandlers
 
 # FIXME: Replace type hints for static generators after migration to 3.7
@@ -20,18 +20,8 @@ from sebs.utils import has_platform, LoggingBase, LoggingHandlers
 
 
 class Credentials(ABC, LoggingBase):
-    def __init__(self, account_id: Optional[str] = None):
+    def __init__(self):
         super().__init__()
-        self._account_id = account_id
-
-    @property
-    def account_id(self) -> str:
-        assert self._account_id is not None
-        return self._account_id
-
-    @property
-    def has_account_id(self) -> bool:
-        return self._account_id is not None
 
     """
         Create credentials instance from user config and cached values.
@@ -46,9 +36,9 @@ class Credentials(ABC, LoggingBase):
         Serialize to JSON for storage in cache.
     """
 
+    @abstractmethod
     def serialize(self) -> dict:
-        out = {"account_id": self._account_id}
-        return out
+        pass
 
 
 """

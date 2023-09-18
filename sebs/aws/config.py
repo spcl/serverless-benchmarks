@@ -14,15 +14,15 @@ from sebs.utils import LoggingHandlers
 
 class AWSCredentials(Credentials):
     def __init__(self, access_key: str, secret_key: str):
+        super().__init__()
+
         self._access_key = access_key
         self._secret_key = secret_key
 
         client = boto3.client(
             "sts", aws_access_key_id=self.access_key, aws_secret_access_key=self.secret_key
         )
-        account_id = client.get_caller_identity()["Account"]
-
-        super().__init__(account_id)
+        self._account_id = client.get_caller_identity()["Account"]
 
     @staticmethod
     def typename() -> str:
@@ -35,6 +35,15 @@ class AWSCredentials(Credentials):
     @property
     def secret_key(self) -> str:
         return self._secret_key
+
+    @property
+    def account_id(self) -> str:
+        assert self._account_id is not None
+        return self._account_id
+
+    @property
+    def has_account_id(self) -> bool:
+        return self._account_id is not None
 
     @staticmethod
     def initialize(dct: dict) -> "AWSCredentials":
@@ -81,6 +90,10 @@ class AWSCredentials(Credentials):
 
     def update_cache(self, cache: Cache):
         cache.update_config(val=self.account_id, keys=["aws", "credentials", "account_id"])
+
+    def serialize(self) -> dict:
+        out = {"account_id": self._account_id}
+        return out
 
 
 class AWSResources(Resources):
