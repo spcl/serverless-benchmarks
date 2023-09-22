@@ -61,11 +61,19 @@ class Azure(System):
 
     def initialize(self, config: Dict[str, str] = {}):
         self.cli_instance = AzureCLI(self.system_config, self.docker_client)
-        self.cli_instance.login(
+        output = self.cli_instance.login(
             appId=self.config.credentials.appId,
             tenant=self.config.credentials.tenant,
             password=self.config.credentials.password,
         )
+
+        subscriptions = json.loads(output)
+        if len(subscriptions) == 0:
+            raise RuntimeError("Didn't find any valid subscription on Azure!")
+        if len(subscriptions) > 1:
+            raise RuntimeError("Found more than one valid subscription on Azure - not supported!")
+
+        self.config.credentials.subscription_id = subscriptions[0]["id"]
 
     def shutdown(self):
         if self.cli_instance:
@@ -146,7 +154,7 @@ class Azure(System):
             "scriptFile": EXEC_FILES[language_name],
             "bindings": [
                 {
-                    "authLevel": "function",
+                    "authLevel": "anonymous",
                     "type": "httpTrigger",
                     "direction": "in",
                     "name": "req",
@@ -189,22 +197,32 @@ class Azure(System):
                         function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
                 )
-                # ret = self.cli_instance.execute(
-                #    "bash -c 'cd /mnt/function "
-                #    "&& az functionapp deployment source config-zip "
-                #    "--src {}.zip -g {} -n {} --build-remote false '".format(
-                #        code_package.benchmark, resource_group, function.name
-                #    )
-                # )
-                # print(ret)
                 url = ""
                 for line in ret.split(b"\n"):
                     line = line.decode("utf-8")
                     if "Invoke url:" in line:
                         url = line.split("Invoke url:")[1].strip()
                         break
+
+                # We failed to find the URL the normal way
+                # Sometimes, the output does not include functions.
                 if url == "":
-                    raise RuntimeError("Couldnt find URL in {}".format(ret.decode("utf-8")))
+                    self.logging.warning(
+                        "Couldnt find function URL in the output: {}".format(ret.decode("utf-8"))
+                    )
+
+                    resource_group = self.config.resources.resource_group(self.cli_instance)
+                    ret = self.cli_instance.execute(
+                        "az functionapp function show --function-name handler "
+                        f"--name {function.name} --resource-group {resource_group}"
+                    )
+                    try:
+                        url = json.loads(ret.decode("utf-8"))["invokeUrlTemplate"]
+                    except json.decoder.JSONDecodeError:
+                        raise RuntimeError(
+                            f"Couldn't find the function URL in {ret.decode('utf-8')}"
+                        )
+
                 success = True
             except RuntimeError as e:
                 error = str(e)
@@ -246,7 +264,9 @@ class Azure(System):
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout
-        self.logging.warn("Updating function's memory and timeout configuration is not supported.")
+        self.logging.warning(
+            "Updating function's memory and timeout configuration is not supported."
+        )
 
     def _mount_function_code(self, code_package: Benchmark):
         self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")

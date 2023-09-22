@@ -6,10 +6,14 @@ import tarfile
 import docker
 
 from sebs.config import SeBSConfig
+from sebs.utils import LoggingBase
 
 
-class AzureCLI:
+class AzureCLI(LoggingBase):
     def __init__(self, system_config: SeBSConfig, docker_client: docker.client):
+
+        super().__init__()
+
         repo_name = system_config.docker_repository()
         image_name = "manage.azure"
         try:
@@ -37,7 +41,7 @@ class AzureCLI:
             tty=True,
         )
         self._insights_installed = False
-        logging.info("Started Azure CLI container.")
+        self.logging.info(f"Started Azure CLI container: {self.docker_instance.id}.")
         while True:
             try:
                 dkg = self.docker_instance.logs(stream=True, follow=True)
@@ -46,7 +50,9 @@ class AzureCLI:
             except StopIteration:
                 pass
 
-        logging.info("Starting Azure manage Docker instance")
+    @staticmethod
+    def typename() -> str:
+        return "Azure.CLI"
 
     """
         Execute the given command in Azure CLI.
@@ -67,15 +73,16 @@ class AzureCLI:
         Run azure login command on Docker instance.
     """
 
-    def login(self, appId: str, tenant: str, password: str):
-        self.execute(
+    def login(self, appId: str, tenant: str, password: str) -> bytes:
+        result = self.execute(
             "az login -u {0} --service-principal --tenant {1} -p {2}".format(
                 appId,
                 tenant,
                 password,
             )
         )
-        logging.info("Azure login succesful")
+        self.logging.info("Azure login succesful")
+        return result
 
     def upload_package(self, directory: str, dest: str):
         handle = io.BytesIO()
@@ -96,5 +103,5 @@ class AzureCLI:
     """
 
     def shutdown(self):
-        logging.info("Stopping Azure manage Docker instance")
+        self.logging.info("Stopping Azure manage Docker instance")
         self.docker_instance.stop()

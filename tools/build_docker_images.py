@@ -6,7 +6,7 @@ import json
 import os
 
 PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
-DOCKER_DIR = os.path.join(PROJECT_DIR, "docker")
+DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
 
 parser = argparse.ArgumentParser(description="Run local app experiments.")
 parser.add_argument(
@@ -14,6 +14,7 @@ parser.add_argument(
 )
 parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
 parser.add_argument("--language", default=None, choices=["python", "nodejs"], action="store")
+parser.add_argument("--language-version", default=None, type=str, action="store")
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
 client = docker.from_env()
@@ -28,9 +29,9 @@ def build(image_type, system, language=None, version=None, version_name=None):
         msg += " with version *" + version + "*"
     print(msg)
     if language is not None:
-        dockerfile = os.path.join(PROJECT_DIR, "docker", system, language, f"Dockerfile.{image_type}")
+        dockerfile = os.path.join(DOCKER_DIR, system, language, f"Dockerfile.{image_type}")
     else:
-        dockerfile = os.path.join(PROJECT_DIR, "docker", system, f"Dockerfile.{image_type}")
+        dockerfile = os.path.join(DOCKER_DIR, system, f"Dockerfile.{image_type}")
     target = f'{config["general"]["docker_repository"]}:{image_type}.{system}'
     if language:
         target += "." + language
@@ -48,14 +49,25 @@ def build(image_type, system, language=None, version=None, version_name=None):
             target, PROJECT_DIR, dockerfile, buildargs
         )
     )
-    client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
+    try:
+        client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
+    except docker.errors.BuildError as exc:
+        print("Error! Build failed!")
+        print(exc)
+        print("Build log")
+        for line in exc.build_log:
+            if 'stream' in line:
+                print(line['stream'].strip())
 
 
 def build_language(system, language, language_config):
     configs = []
     if "base_images" in language_config:
         for version, base_image in language_config["base_images"].items():
-            configs.append([version, base_image])
+            if args.language_version is not None and args.language_version == version:
+                configs.append([version, base_image])
+            elif args.language_version is None:
+                configs.append([version, base_image])
     else:
         configs.append([None, None])
 

@@ -2,10 +2,17 @@
   "general": {
     "docker_repository": "spcleth/serverless-benchmarks"
   },
-  "local" : {
+  "local": {
     "experiments": {
-      "python": ["papi", "time", "disk-io", "memory"],
-      "nodejs": ["time"]
+      "python": [
+        "papi",
+        "time",
+        "disk-io",
+        "memory"
+      ],
+      "nodejs": [
+        "time"
+      ]
     },
     "languages": {
       "python": {
@@ -13,10 +20,15 @@
           "3.7": "python:3.7-slim",
           "3.8": "python:3.8-slim"
         },
-        "images": ["run", "build"],
+        "images": [
+          "run",
+          "build"
+        ],
         "username": "docker_user",
         "deployment": {
-          "files": ["storage.py"],
+          "files": [
+            "storage.py"
+          ],
           "packages": []
         }
       },
@@ -25,16 +37,21 @@
           "12": "node:12-slim",
           "14": "node:14-slim"
         },
-        "images": ["run", "build"],
+        "images": [
+          "run",
+          "build"
+        ],
         "username": "docker_user",
         "deployment": {
-          "files": ["storage.js"],
+          "files": [
+            "storage.js"
+          ],
           "packages": []
         }
       }
     }
   },
-  "aws": { 
+  "aws": {
     "languages": {
       "python": {
         "base_images": {
@@ -42,22 +59,38 @@
           "3.8": "amazon/aws-lambda-python:3.8",
           "3.7": "amazon/aws-lambda-python:3.7"
         },
-        "versions": ["3.7", "3.8", "3.9"],
-        "images": ["build"],
+        "versions": [
+          "3.7",
+          "3.8",
+          "3.9"
+        ],
+        "images": [
+          "build"
+        ],
         "deployment": {
-          "files": [ "handler.py", "storage.py"],
+          "files": [
+            "handler.py",
+            "storage.py"
+          ],
           "packages": []
         }
       },
       "nodejs": {
         "base_images": {
-          "14.x" : "amazon/aws-lambda-nodejs:14",
-          "12.x" : "amazon/aws-lambda-nodejs:12"
+          "14": "amazon/aws-lambda-nodejs:14",
+          "16": "amazon/aws-lambda-nodejs:16"
         },
-        "versions": ["12.x", "14.x"],
-        "images": ["build"],
+        "versions": [
+          "14", "16"
+        ],
+        "images": [
+          "build"
+        ],
         "deployment": {
-          "files": [ "handler.js", "storage.js"],
+          "files": [
+            "handler.js",
+            "storage.js"
+          ],
           "packages": {
             "uuid": "3.4.0"
           }
@@ -73,22 +106,33 @@
           "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8",
           "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9"
         },
-        "images": ["build"],
+        "images": [
+          "build"
+        ],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.py", "storage.py"],
-          "packages": ["azure-storage-blob"]
+          "files": [
+            "handler.py",
+            "storage.py"
+          ],
+          "packages": [
+            "azure-storage-blob"
+          ]
         }
       },
       "nodejs": {
         "base_images": {
-          "14" : "mcr.microsoft.com/azure-functions/node:3.0-node14",
-          "12" : "mcr.microsoft.com/azure-functions/node:3.0-node12"
+          "14": "mcr.microsoft.com/azure-functions/node:3.0-node14"
         },
-        "images": ["build"],
+        "images": [
+          "build"
+        ],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.js", "storage.js"],
+          "files": [
+            "handler.js",
+            "storage.js"
+          ],
           "packages": {
             "@azure/storage-blob": "^12.0.0",
             "uuid": "3.4.0"
@@ -106,26 +150,40 @@
     "languages": {
       "python": {
         "base_images": {
-          "3.7": "gcr.io/google-appengine/python"
+          "3.7": "ubuntu:22.04",
+          "3.8": "ubuntu:22.04",
+          "3.9": "ubuntu:22.04"
         },
-        "images": ["build"],
+        "images": [
+          "build"
+        ],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.py", "storage.py"],
-          "packages": ["google-cloud-storage"]
+          "files": [
+            "handler.py",
+            "storage.py"
+          ],
+          "packages": [
+            "google-cloud-storage"
+          ]
         }
       },
       "nodejs": {
         "base_images": {
-
-          "10" : "gcr.io/google-appengine/nodejs",
-          "12" : "gcr.io/google-appengine/nodejs",
-          "14" : "gcr.io/google-appengine/nodejs"
+          "10": "gcr.io/google-appengine/nodejs",
+          "12": "gcr.io/google-appengine/nodejs",
+          "14": "gcr.io/google-appengine/nodejs",
+          "16": "gcr.io/google-appengine/nodejs"
         },
-        "images": ["build"],
+        "images": [
+          "build"
+        ],
         "username": "docker_user",
         "deployment": {
-          "files": [ "handler.js", "storage.js"],
+          "files": [
+            "handler.js",
+            "storage.js"
+          ],
           "packages": {
             "@google-cloud/storage": "^4.0.0",
             "uuid": "3.4.0"
@@ -141,10 +199,16 @@
           "3.7": "openwhisk/action-python-v3.7",
           "3.9": "openwhisk/action-python-v3.9"
         },
-        "images": ["function"],
+        "images": [
+          "function"
+        ],
         "username": "docker_user",
         "deployment": {
-          "files": [ "__main__.py", "storage.py", "setup.py"],
+          "files": [
+            "__main__.py",
+            "storage.py",
+            "setup.py"
+          ],
           "packages": {
             "minio": "^5.0.10"
           }
@@ -152,13 +216,18 @@
       },
       "nodejs": {
         "base_images": {
-          "10" : "openwhisk/action-nodejs-v10",
-          "12" : "openwhisk/action-nodejs-v12"
+          "10": "openwhisk/action-nodejs-v10",
+          "12": "openwhisk/action-nodejs-v12"
         },
-        "images": ["function"],
+        "images": [
+          "function"
+        ],
         "username": "docker_user",
         "deployment": {
-          "files": [ "index.js", "storage.js"],
+          "files": [
+            "index.js",
+            "storage.js"
+          ],
           "packages": {
             "minio": "^7.0.16"
           }

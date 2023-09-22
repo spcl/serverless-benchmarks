@@ -122,6 +122,7 @@ def parse_common_params(
 
     sebs_client = sebs.SeBS(cache, output_dir, verbose, logging_filename)
     output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
+    
     sebs_client.logging.info("Created experiment output at {}".format(output_dir))
 
     # CLI overrides JSON options
@@ -255,9 +256,11 @@ def invoke(
             # )
         result.add_invocation(func, ret)
     result.end()
-    with open("experiments.json", "w") as out_f:
+
+    result_file = os.path.join(output_dir, "experiments.json")
+    with open(result_file, "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
-    sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath(result_file)))
 
 
 @benchmark.command()
@@ -271,8 +274,10 @@ def process(**kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    sebs_client.logging.info("Load results from {}".format(os.path.abspath("experiments.json")))
-    with open("experiments.json", "r") as in_f:
+
+    result_file = os.path.join(output_dir, "experiments.json")
+    sebs_client.logging.info("Load results from {}".format(os.path.abspath(result_file)))
+    with open(result_file, "r") as in_f:
         config = json.load(in_f)
         experiments = sebs.experiments.ExperimentResult.deserialize(
             config,
@@ -284,9 +289,11 @@ def process(**kwargs):
         deployment_client.download_metrics(
             func, *experiments.times(), experiments.invocations(func), experiments.metrics(func)
         )
-    with open("results.json", "w") as out_f:
+
+    output_file = os.path.join(output_dir, "results.json")
+    with open(output_file, "w") as out_f:
         out_f.write(sebs.utils.serialize(experiments))
-    sebs_client.logging.info("Save results to {}".format(os.path.abspath("results.json")))
+    sebs_client.logging.info("Save results to {}".format(output_file))
 
 
 @benchmark.command()
@@ -377,13 +384,17 @@ def local():
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
 @click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
+@click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
+@click.option("--measure-interval", type=int, default=-1,
+              help="Interval duration between memory measurements in ms.")
 @click.option(
     "--remove-containers/--no-remove-containers",
     default=True,
     help="Remove containers after stopping.",
 )
 @simplified_common_params
-def start(benchmark, benchmark_input_size, output, deployments, remove_containers, **kwargs):
+def start(benchmark, benchmark_input_size, output, deployments, measure_interval,
+          remove_containers, **kwargs):
     """
     Start a given number of function instances and a storage instance.
     """
@@ -394,6 +405,7 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers
     result = sebs.local.Deployment()
+    result.measurement_file = deployment_client.start_measurements(measure_interval)
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     benchmark_obj = sebs_client.get_benchmark(
@@ -406,6 +418,7 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
     result.set_storage(storage)
     input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
     result.add_input(input_config)
+
     for i in range(deployments):
         func = deployment_client.get_function(
             benchmark_obj, deployment_client.default_function_name(benchmark_obj)
@@ -421,8 +434,9 @@ def start(benchmark, benchmark_input_size, output, deployments, remove_container
 
 @local.command()
 @click.argument("input-json", type=str)
+@click.argument("output-json", type=str, default="memory_stats.json")
 # @simplified_common_params
-def stop(input_json, **kwargs):
+def stop(input_json, output_json, **kwargs):
     """
     Stop function and storage containers.
     """
@@ -431,7 +445,7 @@ def stop(input_json, **kwargs):
 
     logging.info(f"Stopping deployment from {os.path.abspath(input_json)}")
     deployment = sebs.local.Deployment.deserialize(input_json, None)
-    deployment.shutdown()
+    deployment.shutdown(output_json)
     logging.info(f"Stopped deployment from {os.path.abspath(input_json)}")
 
 

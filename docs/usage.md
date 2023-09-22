@@ -1,18 +1,18 @@
 
 SeBS has three basic commands: `benchmark`, `experiment`, and `local`.
 For each command you can pass `--verbose` flag to increase the verbosity of the output.
-By default, all scripts will create a cache in directory `cache` to store code with
+By default, all scripts will create a cache in the directory `cache` to store code with
 dependencies and information on allocated cloud resources.
 Benchmarks will be rebuilt after a change in source code is detected.
-To enforce redeployment of code and benchmark input please use flags `--update-code`
+To enforce redeployment of code and benchmark inputs please use flags `--update-code`
 and `--update-storage`, respectively.
 
-**Note:** the cache does not support updating cloud region. If you want to deploy benchmarks
+**Note:** The cache does not support updating the cloud region. If you want to deploy benchmarks
 to a new cloud region, then use a new cache directory.
 
 ### Benchmark
 
-This command is used to build, deploy, and execute serverless benchmark in cloud.
+This command builds, deploys, and executes serverless benchmarks in the cloud.
 The example below invokes the benchmark `110.dynamic-html` on AWS via the standard HTTP trigger.
 
 ```
@@ -64,6 +64,8 @@ To download cloud metrics and process the invocations into a .csv file with data
 ./sebs.py experiment process perf-cost --config example.json --deployment aws
 ```
 
+[You can find more details on running experiments and analyzing results in the separate documentation.](experiments.md)
+
 ### Local
 
 In addition to the cloud deployment, we provide an opportunity to launch benchmarks locally with the help of [minio](https://min.io/) storage.
@@ -78,9 +80,9 @@ to file `out_storage.json`
 ```
 
 Then, we need to update the configuration of `local` deployment with information on the storage 
-instance. The `.deployment.local`` object in the configuration JSON needs to contain a new object
-`storage` with the data provided in the `out_storage.json` file. Fortunately, we can achieve
-automatically with a single command by using `jq`:
+instance. The `.deployment.local` object in the configuration JSON must contain a new object
+`storage`, with the data provided in the `out_storage.json` file. Fortunately, we can achieve
+this automatically with a single command by using `jq`:
 
 ```
 jq --argfile file1 out_storage.json '.deployment.local.storage = $file1 ' config/example.json > config/local_deployment.json
@@ -153,4 +155,17 @@ To stop containers, you can use the following command:
 ```
 
 The stopped containers won't be automatically removed unless the option `--remove-containers` has been passed to the `start` command.
+
+#### Memory Measurements
+
+The local backend allows additional continuous measurement of function containers. At the moment,
+we support memory measurements. To enable this, pass the following flag to `./sebs.py local start`
+
+```
+--measure-interval <val>
+```
+
+The value specifies the time between two consecutive measurements. Measurements will be aggregated
+and written to a file when calling `./sebs.py local stop <file>`. By default, the data is written
+to `memory_stats.json`.
 

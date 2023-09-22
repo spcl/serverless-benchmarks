@@ -1,6 +1,7 @@
 import os
 import shutil
 from typing import cast, Dict, List, Optional, Type, Tuple  # noqa
+import subprocess
 
 import docker
 
@@ -44,6 +45,18 @@ class Local(System):
     def remove_containers(self, val: bool):
         self._remove_containers = val
 
+    @property
+    def measure_interval(self) -> int:
+        return self._measure_interval
+
+    @property
+    def measurements_enabled(self) -> bool:
+        return self._measure_interval > -1
+
+    @property
+    def measurement_path(self) -> Optional[str]:
+        return self._memory_measurement_path
+
     def __init__(
         self,
         sebs_config: SeBSConfig,
@@ -56,6 +69,9 @@ class Local(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
+        self._memory_measurement_path: Optional[str] = None
+        # disable external measurements
+        self._measure_interval = -1
 
     """
         Create wrapper object for minio storage and fill buckets.
@@ -175,6 +191,24 @@ class Local(System):
             detach=True,
             # tty=True,
         )
+
+        pid: Optional[int] = None
+        if self.measurements_enabled and self._memory_measurement_path is not None:
+            # launch subprocess to measure memory
+            proc = subprocess.Popen(
+                [
+                    "python3",
+                    "./sebs/local/measureMem.py",
+                    "--container-id",
+                    container.id,
+                    "--measure-interval",
+                    str(self._measure_interval),
+                    "--measurement-file",
+                    self._memory_measurement_path,
+                ]
+            )
+            pid = proc.pid
+
         function_cfg = FunctionConfig.from_benchmark(code_package)
         func = LocalFunction(
             container,
@@ -183,6 +217,7 @@ class Local(System):
             code_package.benchmark,
             code_package.hash,
             function_cfg,
+            pid,
         )
         self.logging.info(
             f"Started {func_name} function at container {container.id} , running on {func._url}"
@@ -246,3 +281,20 @@ class Local(System):
     @staticmethod
     def format_function_name(func_name: str) -> str:
         return func_name
+
+    def start_measurements(self, measure_interval: int) -> Optional[str]:
+
+        self._measure_interval = measure_interval
+
+        if not self.measurements_enabled:
+            return None
+
+        # initialize an empty file for measurements to be written to
+        import tempfile
+        from pathlib import Path
+
+        fd, self._memory_measurement_path = tempfile.mkstemp()
+        Path(self._memory_measurement_path).touch()
+        os.close(fd)
+
+        return self._memory_measurement_path

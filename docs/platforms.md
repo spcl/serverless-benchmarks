@@ -9,6 +9,20 @@ are required.
 In the following subsections, we discuss the mandatory and optional customization
 points for each platform.
 
+
+> **Warning**
+> On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through JSON input configuration, do not commit nor publish these files anywhere.
+
+### Cloud Account Identifiers
+
+SeBS ensures that all locally cached cloud resources are valid by storing a unique identifier associated with each cloud account. Furthermore, we store this identifier in experiment results to easily match results with the cloud account or subscription that was used to obtain them. We use non-sensitive identifiers such as account IDs on AWS, subscription IDs on Azure, and Google Cloud project IDs.
+
+If you have JSON result files, such as `experiment.json` from a benchmark run or '<experiment>/*.json' from an experiment, you can remove all identifying information by removing the JSON object `.config.deployment.credentials`. This can be achieved easily with the CLI tool `jq`:
+
+```
+jq 'del(.config.deployment.credentials)' <file.json> | sponge <file.json>
+```
+
 ## AWS Lambda
 
 AWS provides one year of free services, including a significant amount of computing time in AWS Lambda.
@@ -20,11 +34,27 @@ You can provide a [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-int
 with permissions to access AWS Lambda and S3; otherwise, one will be created automatically.
 To use a user-defined lambda role, set the name in config JSON - see an example in `config/example.json`.
 
-**Pass the credentials as environmental variables for the first run.** They will be cached for future use.
+You can pass the credentials either using the default AWS-specific environment variables:
 
 ```
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
+export AWS_ACCESS_KEY_ID=XXXX
+export AWS_SECRET_ACCESS_KEY=XXXX
+```
+
+or in the JSON input configuration:
+
+```json
+"deployment": {
+  "name": "aws",
+  "aws": {
+    "region": "us-east-1",
+    "lambda-role": "",
+    "credentials": {
+      "access_key": "YOUR AWS ACCESS KEY",
+      "secret_key": "YOUR AWS SECRET KEY"
+    }
+  }
+}
 ```
 
 ## Azure Functions
@@ -37,12 +67,12 @@ we added a small tool **tools/create_azure_credentials** that uses the interacti
 authentication to login into Azure CLI and create a service principal.
 
 ```console
-Please provide the intended principal name                                                                                                         
+Please provide the intended principal name
 XXXXX
-Please follow the login instructions to generate credentials...                                                            
+Please follow the login instructions to generate credentials...
 To sign in, use a web browser to open the page https://microsoft.com/devicelogin and enter the code YYYYYYY to authenticate.
 
-Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}                                          
+Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}
 Created service principal http://XXXXX
 
 AZURE_SECRET_APPLICATION_ID = XXXXXXXXXXXXXXXX
@@ -50,14 +80,39 @@ AZURE_SECRET_TENANT = XXXXXXXXXXXX
 AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
 ```
 
-**Save these credentials - the password is non-retrievable! Provide them to SeBS through environmental variables**,
-and we will create additional resources (storage account, resource group) to deploy functions.
-We will create a storage account and the resource group and handle access keys.
+**Save these credentials - the password is non-retrievable! Provide them to SeBS and we will create additional resources (storage account, resource group) to deploy functions. We will create a storage account and the resource group and handle access keys.
+
+You can pass the credentials either using the environment variables:
+
+```
+export AZURE_SECRET_APPLICATION_ID = XXXXXXXXXXXXXXXX
+export AZURE_SECRET_TENANT = XXXXXXXXXXXX
+export AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
+```
+
+or in the JSON input configuration:
+
+```json
+"deployment": {
+  "name": "azure",
+  "azure": {
+    "region": "westeurope"
+    "credentials": {
+      "appID": "YOUR SECRET APPLICATION ID",
+      "tenant": "YOUR SECRET TENANT",
+      "password": "YOUR SECRET PASSWORD"
+    }
+  }
+}
+```
+
+> **Warning**
+> The tool assumes there is only one subscription active on the account. If you want to bind the newly created service principal to a specific subscription, or the created credentials do not work with SeBS and you see errors such as "No subscriptions found for X", then you must specify a subscription when creating the service principal. Check your subscription ID on in the Azure portal, and use the CLI option `tools/create_azure_credentials.py --subscription <SUBSCRIPTION_ID>`.
 
 ### Resources
 
 * By default, all functions are allocated in the single resource group.
-* Each function has a seperate storage account allocated, following [Azure guidelines](https://docs.microsoft.com/en-us/azure/azure-functions/functions-best-practices#scalability-best-practices).
+* Each function has a separate storage account allocated, following [Azure guidelines](https://docs.microsoft.com/en-us/azure/azure-functions/functions-best-practices#scalability-best-practices).
 * All benchmark data is stored in the same storage account.
 
 ## Google Cloud Functions
@@ -67,15 +122,30 @@ The Google Cloud Free Tier gives free resources. It has two parts:
 - A 12-month free trial with $300 credit to use with any Google Cloud services.
 - Always Free, which provides limited access to many common Google Cloud resources, free of charge.
 
-You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions.
-You have two options to pass the credentials to SeBS:
+You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions. From the cloud problem, download the cloud credentials saved as a JSON file.
 
-- specify the project name nand path to JSON credentials in the config JSON file, see an example in `config/example.json`
-- use environment variables
+You can pass the credentials either using the default GCP-specific environment variable:
 
 ```
-export GCP_PROJECT_NAME = XXXX
-export GCP_SECRET_APPLICATION_CREDENTIALS = XXXX
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/project-credentials.json
+```
+
+using the SeBS environment variable:
+
+```
+export GCP_SECRET_APPLICATION_CREDENTIALS=/path/to/project-credentials.json
+```
+
+or in the JSON input configuration:
+
+```json
+"deployment": {
+  "name": "gcp",
+  "gcp": {
+    "region": "europe-west1",
+    "credentials": "/path/to/project-credentials.json"
+  }
+}
 ```
 
 ## OpenWhisk
@@ -203,20 +273,22 @@ From the host network, port `9011` is mapped to the container's port `9000` to a
 }
 ```
 
-The storage configuration found in `out_storage.json` needs to be provided to SeBS,
-and the instance address must be updated to not use the internal address.
-In this case, the host machine's address is `172.22.20.30`.
-Note that that other parties must use the host network port `9011` to reach Minio instance.
-Docker's port mapping will take care of the rest.
+The storage configuration found in `out_storage.json` needs to be provided to
+SeBS via the SeBS configuration, however the address in `out_storage.json` is likely incorrect.  By
+default, it is a address in the local bridge network not accessible to most of
+the Kubernetes cluster. It should be replaced with an external address of the
+machine and the mapped port. You can typically find an externally accessible address via `ip addr`.
+
+For example, for an external address `10.10.1.15` (a LAN-local address on CloudLab) and mapped port `9011`, set the SeBS configuration as follows:
 
 ```
-jq --argfile file1 out_storage.json '.deployment.openwhisk.storage = $file1, .deployment.openwhisk.storage.address = 172.22.20.30:9011' config/example.json > config/openwhisk.json
+jq --argfile file1 out_storage.json '.deployment.openwhisk.storage = $file1 | .deployment.openwhisk.storage.address = "10.10.1.15:9011"' config/example.json > config/openwhisk.json
 ```
 
-Not sure which address is correct? Use `curl` to verify if Minio's instance can be reached:
+You can validate this is the correct address by use `curl` to access the Minio instance from another machine or container:
 
 ```
-curl -i 172.22.20.30:9011/minio/health/live
+$ curl -i 10.10.1.15:9011/minio/health/live
 HTTP/1.1 200 OK
 Accept-Ranges: bytes
 Content-Length: 0

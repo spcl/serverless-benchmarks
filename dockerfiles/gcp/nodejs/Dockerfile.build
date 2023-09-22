@@ -7,8 +7,8 @@ RUN install_node --ignore-verification-failure v${VERSION}
 RUN apt-get update && apt-get install -y gosu
 
 RUN mkdir -p /sebs/
-COPY docker/nodejs_installer.sh /sebs/installer.sh
-COPY docker/entrypoint.sh /sebs/entrypoint.sh
+COPY dockerfiles/nodejs_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/entrypoint.sh
 
 # useradd and groupmod is installed in /usr/sbin which is not in PATH

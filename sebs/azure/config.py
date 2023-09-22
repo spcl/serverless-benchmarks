@@ -17,11 +17,14 @@ class AzureCredentials(Credentials):
     _tenant: str
     _password: str
 
-    def __init__(self, appId: str, tenant: str, password: str):
+    def __init__(
+        self, appId: str, tenant: str, password: str, subscription_id: Optional[str] = None
+    ):
         super().__init__()
         self._appId = appId
         self._tenant = tenant
         self._password = password
+        self._subscription_id = subscription_id
 
     @property
     def appId(self) -> str:
@@ -35,50 +38,68 @@ class AzureCredentials(Credentials):
     def password(self) -> str:
         return self._password
 
+    @property
+    def subscription_id(self) -> str:
+        assert self._subscription_id is not None
+        return self._subscription_id
+
+    @subscription_id.setter
+    def subscription_id(self, subscription_id: str):
+
+        if self._subscription_id is not None and subscription_id != self._subscription_id:
+            self.logging.error(
+                f"The subscription id {subscription_id} from provided "
+                f"credentials is different from the subscription id "
+                f"{self._subscription_id} found in the cache! "
+                "Please change your cache directory or create a new one!"
+            )
+            raise RuntimeError(
+                f"Azure login credentials do not match the subscription "
+                f"{self._subscription_id} in cache!"
+            )
+
+        self._subscription_id = subscription_id
+
+    @property
+    def has_subscription_id(self) -> bool:
+        return self._subscription_id is not None
+
     @staticmethod
-    def initialize(dct: dict) -> Credentials:
-        return AzureCredentials(dct["appId"], dct["tenant"], dct["password"])
+    def initialize(dct: dict, subscription_id: Optional[str]) -> "AzureCredentials":
+        return AzureCredentials(dct["appId"], dct["tenant"], dct["password"], subscription_id)
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
 
-        # FIXME: update return types of both functions to avoid cast
-        # needs 3.7+  to support annotations
         cached_config = cache.get_config("azure")
         ret: AzureCredentials
+        old_subscription_id: Optional[str] = None
         # Load cached values
         if cached_config and "credentials" in cached_config:
-            ret = cast(
-                AzureCredentials,
-                AzureCredentials.initialize(cached_config["credentials"]),
+            old_subscription_id = cached_config["credentials"]["subscription_id"]
+
+        # Check for new config
+        if "credentials" in config and "appId" in config["credentials"]:
+            ret = AzureCredentials.initialize(config["credentials"], old_subscription_id)
+        elif "AZURE_SECRET_APPLICATION_ID" in os.environ:
+            ret = AzureCredentials(
+                os.environ["AZURE_SECRET_APPLICATION_ID"],
+                os.environ["AZURE_SECRET_TENANT"],
+                os.environ["AZURE_SECRET_PASSWORD"],
+                old_subscription_id,
             )
-            ret.logging_handlers = handlers
-            ret.logging.info("Using cached credentials for Azure")
         else:
-            # Check for new config
-            if "credentials" in config:
-                ret = cast(
-                    AzureCredentials,
-                    AzureCredentials.initialize(config["credentials"]),
-                )
-            elif "AZURE_SECRET_APPLICATION_ID" in os.environ:
-                ret = AzureCredentials(
-                    os.environ["AZURE_SECRET_APPLICATION_ID"],
-                    os.environ["AZURE_SECRET_TENANT"],
-                    os.environ["AZURE_SECRET_PASSWORD"],
-                )
-            else:
-                raise RuntimeError(
-                    "Azure login credentials are missing! Please set "
-                    "up environmental variables AZURE_SECRET_APPLICATION_ID and "
-                    "AZURE_SECRET_TENANT and AZURE_SECRET_PASSWORD"
-                )
-            ret.logging_handlers = handlers
-            ret.logging.info("No cached credentials for Azure found, initialize!")
+            raise RuntimeError(
+                "Azure login credentials are missing! Please set "
+                "up environmental variables AZURE_SECRET_APPLICATION_ID and "
+                "AZURE_SECRET_TENANT and AZURE_SECRET_PASSWORD"
+            )
+        ret.logging_handlers = handlers
+
         return ret
 
     def serialize(self) -> dict:
-        out = {"appId": self.appId, "tenant": self.tenant, "password": self.password}
+        out = {"subscription_id": self.subscription_id}
         return out
 
     def update_cache(self, cache_client: Cache):

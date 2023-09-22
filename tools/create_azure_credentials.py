@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 
+import argparse
 import docker
 import json
 import os
 import subprocess
 import sys
+
+parser = argparse.ArgumentParser(description="Create Azure credentials.")
+parser.add_argument("--subscription", default=None, type=str, action="store")
+args = parser.parse_args()
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(dir_path, os.path.pardir))
@@ -31,7 +36,11 @@ except docker.errors.ImageNotFound:
 container = docker_client.containers.run(
     image=repo_name + ":" + image_name,
     command="/bin/bash",
-    user="1000:1000",
+    environment={
+        "CONTAINER_UID": str(os.getuid()),
+        "CONTAINER_GID": str(os.getgid()),
+        "CONTAINER_USER": "docker_user"
+    },
     remove=True,
     stdout=True,
     stderr=True,
@@ -46,14 +55,19 @@ print(next(out).decode())
 # wait for login finish
 ret = next(out)
 ret_json = json.loads(ret.decode())
-print('Loggin succesfull with user {}'.format(ret_json[0]['user']))
-status, out = container.exec_run("az ad sp create-for-rbac --name {} --only-show-errors".format(principal_name), user="docker_user")
+print('Logging succesfull with user {}'.format(ret_json[0]['user']))
+
+cmd = "az ad sp create-for-rbac --name {} --only-show-errors".format(principal_name)
+if args.subscription:
+    cmd = f"{cmd} --role Contributor --scopes /subscriptions/{args.subscription}"
+
+status, out = container.exec_run(cmd,user="docker_user")
 if status:
     print('Unsuccesfull principal creation!')
     print(out.decode())
 else:
     credentials = json.loads(out.decode())
-    print('Created service principal {}'.format(credentials['name']))
+    print('Created service principal {}'.format(credentials['displayName']))
     print('AZURE_SECRET_APPLICATION_ID = {}'.format(credentials['appId']))
     print('AZURE_SECRET_TENANT = {}'.format(credentials['tenant']))
     print('AZURE_SECRET_PASSWORD = {}'.format(credentials['password']))
