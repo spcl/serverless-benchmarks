@@ -1,0 +1,25 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+RUN deps=''\
+  && apt-get update\
+  # for route and sudo
+  && apt-get install --no-install-recommends -y curl gosu net-tools sudo ${deps}\
+  && apt-get purge -y --auto-remove ${deps}\
+  && pip3 install cffi minio bottle
+
+RUN mkdir -p /sebs
+COPY dockerfiles/local/run.sh /sebs/
+COPY dockerfiles/local/*.py /sebs/
+COPY dockerfiles/local/python/*.py /sebs/
+COPY dockerfiles/local/python/run_server.sh /sebs/
+COPY dockerfiles/local/python/timeit.sh /sebs/
+COPY dockerfiles/local/python/runners.json /sebs/
+ADD third-party/pypapi/pypapi /sebs/pypapi
+ENV PYTHONPATH=/sebs/.python_packages/lib/site-packages:$PYTHONPATH
+
+COPY dockerfiles/local/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/entrypoint.sh
+RUN chmod +x /sebs/run.sh
+
+ENTRYPOINT ["/sebs/entrypoint.sh"]

@@ -1,3 +1,11 @@
+# SeBS specific
+regression*
+*_code
+perf-cost*
+python-venv
+*cache*
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -170,3 +178,7 @@ dmypy.json
 sebs-*
 # cache
 cache
+
+# IntelliJ IDEA files
+.idea
+*.iml
