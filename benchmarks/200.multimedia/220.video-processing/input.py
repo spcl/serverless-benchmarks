@@ -12,7 +12,7 @@ def buckets_count():
     :param output_buckets:
     :param upload_func: upload function taking three params(bucket_idx, key, filepath)
 '''
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func):
     for file in glob.glob(os.path.join(data_dir, '*.mp4')):
         img = os.path.relpath(file, data_dir)
         upload_func(0, img, file)
@@ -21,6 +21,7 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     input_config['object']['key'] = img
     input_config['object']['op'] = 'watermark'
     input_config['object']['duration'] = 1
-    input_config['bucket']['input'] = input_buckets[0]
-    input_config['bucket']['output'] = output_buckets[0]
+    input_config['bucket']['bucket'] = benchmarks_bucket
+    input_config['bucket']['input'] = input_paths[0]
+    input_config['bucket']['output'] = output_paths[0]
     return input_config

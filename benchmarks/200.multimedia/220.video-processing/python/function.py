@@ -52,8 +52,9 @@ def transcode_mp3(video, duration, event):
 operations = { 'transcode' : transcode_mp3, 'extract-gif' : to_gif, 'watermark' : watermark }
 
 def handler(event):
-    input_bucket = event.get('bucket').get('input')
-    output_bucket = event.get('bucket').get('output')
+    bucket = event.get('bucket').get('bucket')
+    input_prefix = event.get('bucket').get('input')
+    output_prefix = event.get('bucket').get('output')
     key = event.get('object').get('key')
     duration = event.get('object').get('duration')
     op = event.get('object').get('op')
@@ -69,7 +70,7 @@ def handler(event):
         pass
 
     download_begin = datetime.datetime.now()
-    client.download(input_bucket, key, download_path)
+    client.download(bucket, os.path.join(input_prefix, key), download_path)
     download_size = os.path.getsize(download_path)
     download_stop = datetime.datetime.now()
 
@@ -80,7 +81,7 @@ def handler(event):
     upload_begin = datetime.datetime.now()
     filename = os.path.basename(upload_path)
     upload_size = os.path.getsize(upload_path)
-    client.upload(output_bucket, filename, upload_path)
+    upload_key = client.upload(bucket, os.path.join(output_prefix, key), upload_path)
     upload_stop = datetime.datetime.now()
 
     download_time = (download_stop - download_begin) / datetime.timedelta(microseconds=1)
@@ -88,8 +89,8 @@ def handler(event):
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
     return {
             'result': {
-                'bucket': output_bucket,
-                'key': filename
+                'bucket': bucket,
+                'key': upload_key
             },
             'measurement': {
                 'download_time': download_time,
