@@ -1,3 +1,4 @@
+import os
 import uuid
 from typing import List
 
@@ -47,7 +48,9 @@ class S3(PersistentStorage):
     def correct_name(self, name: str) -> str:
         return name
 
-    def _create_bucket(self, name: str, buckets: List[str] = [], randomize_name: bool = False):
+    def _create_bucket(
+        self, name: str, buckets: List[str] = [], randomize_name: bool = False
+    ) -> str:
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
@@ -85,21 +88,21 @@ class S3(PersistentStorage):
 
         return bucket_name
 
-    def uploader_func(self, bucket_idx, key, filepath):
+    def uploader_func(self, path_idx, key, filepath):
         # Skip upload when using cached buckets and not updating storage.
         if self.cached and not self.replace_existing:
             return
-        bucket_name = self.input_buckets[bucket_idx]
+
+        key = os.path.join(self.input_prefixes[path_idx], key)
+
+        bucket_name = self.benchmarks_bucket()
         if not self.replace_existing:
-            if "Contents" in self.input_buckets_files[bucket_idx]:
-                for f in self.input_buckets_files[bucket_idx]["Contents"]:
-                    f_name = f["Key"]
-                    if key == f_name:
-                        self.logging.info(
-                            "Skipping upload of {} to {}".format(filepath, bucket_name)
-                        )
-                        return
-        bucket_name = self.input_buckets[bucket_idx]
+            for f in self.input_prefixes_files[path_idx]:
+                f_name = f
+                if key == f_name:
+                    self.logging.info("Skipping upload of {} to {}".format(filepath, bucket_name))
+                    return
+
         self.upload(bucket_name, filepath, key)
 
     def upload(self, bucket_name: str, filepath: str, key: str):
@@ -117,8 +120,8 @@ class S3(PersistentStorage):
         except self.client.exceptions.ClientError:
             return False
 
-    def list_bucket(self, bucket_name: str):
-        objects_list = self.client.list_objects_v2(Bucket=bucket_name)
+    def list_bucket(self, bucket_name: str, prefix: str = ""):
+        objects_list = self.client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
         objects: List[str]
         if "Contents" in objects_list:
             objects = [obj["Key"] for obj in objects_list["Contents"]]

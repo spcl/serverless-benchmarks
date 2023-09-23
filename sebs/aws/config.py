@@ -242,6 +242,7 @@ class AWSResources(Resources):
                 ret.logging_handlers = handlers
                 ret.logging.info("No cached resources for AWS found, using user configuration.")
             else:
+                AWSResources.initialize(ret, {})
                 ret.logging_handlers = handlers
                 ret.logging.info("No resources for AWS found, initialize!")
 
@@ -250,7 +251,7 @@ class AWSResources(Resources):
 
 class AWSConfig(Config):
     def __init__(self, credentials: AWSCredentials, resources: AWSResources):
-        super().__init__()
+        super().__init__(name="aws")
         self._credentials = credentials
         self._resources = resources
 

@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 from abc import ABC
 from abc import abstractmethod
-
 from enum import Enum
 from typing import Dict, Optional
 import uuid
@@ -101,6 +102,7 @@ class Resources(ABC, LoggingBase):
     @staticmethod
     @abstractmethod
     def initialize(res: Resources, dct: dict):
+
         if "resources_id" in dct:
             res._resources_id = dct["resources_id"]
         else:
