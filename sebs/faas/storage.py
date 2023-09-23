@@ -144,20 +144,20 @@ class PersistentStorage(ABC, LoggingBase):
         cached_storage = self.cache_client.get_storage_config(self.deployment_name(), benchmark)
         self.cached = True
 
-        if cached_storage is None:
+        if cached_storage is not None:
+
+            cached_storage = cached_storage["buckets"]
+
+            # verify the input is up to date
+            for prefix in self.input_prefixes:
+                if prefix not in cached_storage["input"]:
+                    self.cached = False
+
+            for prefix in self.output_prefixes:
+                if prefix not in cached_storage["output"]:
+                    self.cached = False
+        else:
             self.cached = False
-            return self.input_prefixes, self.output_prefixes
-
-        cached_storage = cached_storage["buckets"]
-
-        # verify the input is up to date
-        for prefix in self.input_prefixes:
-            if prefix not in cached_storage["input"]:
-                self.cached = False
-
-        for prefix in self.output_prefixes:
-            if prefix not in cached_storage["output"]:
-                self.cached = False
 
         # query buckets if the input prefixes changed, or the input is not up to date.
         if self.cached is False or cached_storage["input_uploaded"] is False:
