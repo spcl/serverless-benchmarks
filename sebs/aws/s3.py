@@ -95,7 +95,7 @@ class S3(PersistentStorage):
 
         key = os.path.join(self.input_prefixes[path_idx], key)
 
-        bucket_name = self.benchmarks_bucket()
+        bucket_name = self.get_bucket(Resources.StorageBucketType.BENCHMARKS)
         if not self.replace_existing:
             for f in self.input_prefixes_files[path_idx]:
                 f_name = f

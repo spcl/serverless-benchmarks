@@ -164,7 +164,10 @@ class PersistentStorage(ABC, LoggingBase):
 
             for prefix in self.input_prefixes:
                 self.input_prefixes_files.append(
-                    self.list_bucket(self.benchmarks_bucket(), self.input_prefixes[-1])
+                    self.list_bucket(
+                        self.get_bucket(Resources.StorageBucketType.BENCHMARKS),
+                        self.input_prefixes[-1],
+                    )
                 )
 
         self._cache_client.update_storage(
@@ -228,27 +231,16 @@ class PersistentStorage(ABC, LoggingBase):
     #    )
     # self.save_storage(benchmark)
 
-    def benchmarks_bucket(self) -> str:
+    def get_bucket(self, bucket_type: Resources.StorageBucketType) -> str:
 
-        bucket_type = Resources.StorageBucketType.BENCHMARKS
         bucket = self._cloud_resources.get_storage_bucket(bucket_type)
         if bucket is None:
-            self.logging.info("Initialize a new bucket for benchmarks results")
-            bucket = self._create_bucket(
-                self.correct_name(self._cloud_resources.get_storage_bucket_name(bucket_type)),
-                randomize_name=False,
-            )
-            self._cloud_resources.set_storage_bucket(bucket_type, bucket)
-
-        return bucket
-
-    def experiments_bucket(self) -> str:
-
-        bucket_type = Resources.StorageBucketType.EXPERIMENTS
-        bucket = self._cloud_resources.get_storage_bucket(bucket_type)
-        if bucket is None:
-            self.logging.info("Initialize a new bucket for experiments results")
-            # FIXME: detect existing vucket
+            description = {
+                Resources.StorageBucketType.BENCHMARKS: "benchmarks",
+                Resources.StorageBucketType.EXPERIMENTS: "experiment results",
+                Resources.StorageBucketType.DEPLOYMENT: "code deployment",
+            }
+            self.logging.info(f"Initialize a new bucket for {description[bucket_type]}")
             bucket = self._create_bucket(
                 self.correct_name(self._cloud_resources.get_storage_bucket_name(bucket_type)),
                 randomize_name=False,

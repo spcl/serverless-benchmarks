@@ -11,6 +11,7 @@ import docker
 
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
+from sebs.faas.config import Resources
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
 from typing import TYPE_CHECKING
@@ -549,7 +550,7 @@ class Benchmark(LoggingBase):
         input_config = mod.generate_input(
             benchmark_data_path,
             size,
-            storage.benchmarks_bucket(),
+            storage.get_bucket(Resources.StorageBucketType.BENCHMARKS),
             input,
             output,
             storage.uploader_func,
