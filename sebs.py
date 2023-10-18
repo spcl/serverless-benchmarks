@@ -488,5 +488,70 @@ def experment_process(experiment, extend_time_interval, **kwargs):
     )
 
 
+@cli.group()
+def resources():
+    pass
+
+
+@resources.command("list")
+@common_params
+def resources_list(**kwargs):
+
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+
+    storage_client = deployment_client.get_storage(False)
+    buckets = storage_client.list_buckets()
+    sebs_client.logging.info("Storage buckets:")
+    for idx, bucket in enumerate(buckets):
+        sebs_client.logging.info(f"({idx}) {bucket}")
+
+
+@resources.command("remove")
+@click.argument(
+    "resource",
+    type=click.Choice(["storage"])
+)
+@click.argument(
+    "prefix",
+    type=str
+)
+@click.option(
+    "--dry-run/--no-dry-run",
+    type=bool,
+    default=False,
+    help="Simulate run without actual deletions."
+)
+@common_params
+def resources_remove(resource, prefix, dry_run, **kwargs):
+
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+
+    storage_client = deployment_client.get_storage(False)
+    if resource == "storage":
+
+        buckets = storage_client.list_buckets()
+        for idx, bucket in enumerate(buckets):
+
+            if len(prefix) > 0 and not bucket.startswith(prefix):
+                continue
+
+            sebs_client.logging.info(f"Removing bucket: {bucket}")
+            if not dry_run:
+                storage_client.clean_bucket(bucket)
+                storage_client.remove_bucket(bucket)
+
+
 if __name__ == "__main__":
     cli()
