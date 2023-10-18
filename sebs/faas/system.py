@@ -9,6 +9,7 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.faas.config import Resources
 from sebs.faas.function import Function, Trigger, ExecutionResult
 from sebs.faas.storage import PersistentStorage
 from sebs.utils import LoggingBase
@@ -100,9 +101,15 @@ class System(ABC, LoggingBase):
             self.logging.warning("Deployment resource IDs in the cloud: " f"{deployments}")
 
         # create
-        res_id = str(uuid.uuid1())[0:8]
+        res_id = ""
+        if select_prefix is not None:
+            res_id = f"{select_prefix}-{str(uuid.uuid1())[0:8]}"
+        else:
+            res_id = str(uuid.uuid1())[0:8]
         self.config.resources.resources_id = res_id
         self.logging.info(f"Generating unique resource name {res_id}")
+        # ensure that the bucket is created - this allocates the new resource
+        storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
 
     """
         Initialize the system. After the call the local or remot
