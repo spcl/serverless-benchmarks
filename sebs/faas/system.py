@@ -2,6 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 from random import randrange
 from typing import Dict, List, Optional, Tuple, Type
+import uuid
 
 import docker
 
@@ -64,6 +65,44 @@ class System(ABC, LoggingBase):
     @abstractmethod
     def function_type() -> "Type[Function]":
         pass
+
+    def initialize_resources(self, storage: PersistentStorage, select_prefix: Optional[str]):
+
+        # User provided resources or found in cache
+        if self.config.resources.has_resources_id:
+            self.logging.info(
+                f"Using existing resource name: {self.config.resources.resources_id}."
+            )
+            return
+
+        # Now search for existing resources
+        deployments = storage.find_deployments()
+
+        # If a prefix is specified, we find the first matching resource ID
+        if select_prefix is not None:
+
+            for dep in deployments:
+                if select_prefix in dep:
+                    self.logging.info(
+                        f"Using existing deployment {dep} that matches prefix {select_prefix}!"
+                    )
+                    self.config.resources.resources_id = dep
+                    return
+
+        # We warn users that we create a new resource ID
+        # They can use them with a new config
+        if len(deployments) > 0:
+            self.logging.warning(
+                f"We found {len(deployments)} existing deployments! "
+                "If you want to use any of them, please abort, and "
+                "provide the resource id in your input config."
+            )
+            self.logging.warning("Deployment resource IDs in the cloud: " f"{deployments}")
+
+        # create
+        res_id = str(uuid.uuid1())[0:8]
+        self.config.resources.resources_id = res_id
+        self.logging.info(f"Generating unique resource name {res_id}")
 
     """
         Initialize the system. After the call the local or remot

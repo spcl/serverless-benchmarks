@@ -4,7 +4,6 @@ from abc import ABC
 from abc import abstractmethod
 from enum import Enum
 from typing import Dict, Optional
-import uuid
 
 from sebs.cache import Cache
 from sebs.utils import has_platform, LoggingBase, LoggingHandlers
@@ -72,15 +71,20 @@ class Resources(ABC, LoggingBase):
         super().__init__()
         self._name = name
         self._buckets: Dict[Resources.StorageBucketType, str] = {}
-        self._resources_id = ""
+        self._resources_id: Optional[str] = None
 
     @property
     def resources_id(self) -> str:
+        assert self._resources_id is not None
         return self._resources_id
 
     @resources_id.setter
     def resources_id(self, resources_id: str):
         self._resources_id = resources_id
+
+    @property
+    def has_resources_id(self) -> bool:
+        return self._resources_id is not None
 
     @property
     def region(self) -> str:
@@ -105,11 +109,7 @@ class Resources(ABC, LoggingBase):
 
         if "resources_id" in dct:
             res._resources_id = dct["resources_id"]
-        else:
-            res._resources_id = str(uuid.uuid1())[0:8]
-            res.logging.info(
-                f"Generating unique resource name for " f"the experiments: {res._resources_id}"
-            )
+
         if "storage_buckets" in dct:
             for key, value in dct["storage_buckets"].items():
                 res._buckets[Resources.StorageBucketType.deserialize(key)] = value

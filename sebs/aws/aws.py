@@ -62,7 +62,7 @@ class AWS(System):
         self._config = config
         self.storage: Optional[S3] = None
 
-    def initialize(self, config: Dict[str, str] = {}):
+    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         # thread-safe
         self.session = boto3.session.Session(
             aws_access_key_id=self.config.credentials.access_key,
@@ -70,6 +70,7 @@ class AWS(System):
         )
         self.get_lambda_client()
         self.get_storage()
+        self.initialize_resources(self.get_storage(), select_prefix=resource_prefix)
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
