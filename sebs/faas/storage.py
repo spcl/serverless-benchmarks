@@ -127,6 +127,10 @@ class PersistentStorage(ABC, LoggingBase):
     def clean_bucket(self, bucket_name: str):
         pass
 
+    @abstractmethod
+    def remove_bucket(self, bucket: str):
+        pass
+
     """
         Allocate a set of input/output buckets for the benchmark.
         The routine checks the cache first to verify that buckets have not

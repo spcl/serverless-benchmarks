@@ -141,3 +141,6 @@ class S3(PersistentStorage):
         if "Contents" in objects:
             objects = [{"Key": obj["Key"]} for obj in objects["Contents"]]  # type: ignore
             self.client.delete_objects(Bucket=bucket, Delete={"Objects": objects})  # type: ignore
+
+    def remove_bucket(self, bucket: str):
+        self.client.delete_bucket(Bucket=bucket)
