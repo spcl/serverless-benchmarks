@@ -1,8 +1,9 @@
 import os
+import re
 
 from abc import ABC
 from abc import abstractmethod
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from sebs.faas.config import Resources
 from sebs.cache import Cache
@@ -60,6 +61,18 @@ class PersistentStorage(ABC, LoggingBase):
     def correct_name(self, name: str) -> str:
         pass
 
+    def find_deployments(self) -> List[str]:
+
+        deployments = []
+        buckets = self.list_buckets()
+        for bucket in buckets:
+            # The benchmarks bucket must exist in every deployment.
+            deployment_search = re.match("sebs-benchmarks-(.*)", bucket)
+            if deployment_search:
+                deployments.append(deployment_search.group(1))
+
+        return deployments
+
     @abstractmethod
     def _create_bucket(
         self, name: str, buckets: List[str] = [], randomize_name: bool = False
@@ -103,7 +116,7 @@ class PersistentStorage(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def list_buckets(self, bucket_name: str) -> List[str]:
+    def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         pass
 
     @abstractmethod

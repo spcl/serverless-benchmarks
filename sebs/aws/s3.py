@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import List
+from typing import List, Optional
 
 import boto3
 
@@ -129,9 +129,12 @@ class S3(PersistentStorage):
             objects = []
         return objects
 
-    def list_buckets(self, bucket_name: str) -> List[str]:
+    def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         s3_buckets = self.client.list_buckets()["Buckets"]
-        return [bucket["Name"] for bucket in s3_buckets if bucket_name in bucket["Name"]]
+        if bucket_name is not None:
+            return [bucket["Name"] for bucket in s3_buckets if bucket_name in bucket["Name"]]
+        else:
+            return [bucket["Name"] for bucket in s3_buckets]
 
     def clean_bucket(self, bucket: str):
         objects = self.client.list_objects_v2(Bucket=bucket)
