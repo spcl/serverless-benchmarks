@@ -125,7 +125,8 @@ class AWSTestSequencePython(
                 self.client.output_dir, f"regression_{deployment_name}_{benchmark_name}.log"
             ),
         )
-        deployment_client.initialize()
+        with AWSTestSequencePython.lock:
+            deployment_client.initialize(resource_prefix="regression")
         return deployment_client
 
 
@@ -143,7 +144,8 @@ class AWSTestSequenceNodejs(
             cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
-        deployment_client.initialize()
+        with AWSTestSequenceNodejs.lock:
+            deployment_client.initialize(resource_prefix="regression")
         return deployment_client
 
 
@@ -183,9 +185,9 @@ class AzureTestSequenceNodejs(
     def get_deployment(self, benchmark_name):
         deployment_name = "azure"
         assert cloud_config
-        with AzureTestSequencePython.lock:
-            if not AzureTestSequencePython.cfg:
-                AzureTestSequencePython.cfg = self.client.get_deployment_config(
+        with AzureTestSequenceNodejs.lock:
+            if not AzureTestSequenceNodejs.cfg:
+                AzureTestSequenceNodejs.cfg = self.client.get_deployment_config(
                     cloud_config,
                     logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 )
