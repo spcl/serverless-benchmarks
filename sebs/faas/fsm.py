@@ -48,6 +48,16 @@ class Switch(State):
 
         return cls(name=name, cases=cases, default=payload["default"])
 
+class Parallel(State):
+    def __init__(self, name: str, funcs: List[Task], next: Optional[str]):
+        self.name = name
+        self.funcs = funcs
+        self.next = next
+
+    @classmethod
+    def deserialize(cls, name:str, payload: dict) -> "Parallel":
+        return cls(name=name, funcs=payload.get("parallel_functions"), next=payload.get("next"))
+
 
 class Map(State):
     def __init__(self, name: str, func_name: str, array: str, next: Optional[str]):
@@ -95,7 +105,7 @@ class Loop(State):
         )
 
 
-_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map, "repeat": Repeat, "loop": Loop}
+_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map, "repeat": Repeat, "loop": Loop, "parallel": Parallel}
 
 
 class Generator(ABC):
@@ -139,6 +149,8 @@ class Generator(ABC):
             return self.encode_repeat(state)
         elif isinstance(state, Loop):
             return self.encode_loop(state)
+        elif isinstance(state, Parallel):
+            return self.encode_parallel(state)
         else:
             raise ValueError(f"Unknown state of type {type(state)}.")
 
@@ -152,6 +164,10 @@ class Generator(ABC):
 
     @abstractmethod
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
+        pass
+
+    @abstractmethod
+    def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
         pass
 
     def encode_repeat(self, state: Repeat) -> Union[dict, List[dict]]:

@@ -1,9 +1,17 @@
 from typing import Dict, List, Union, Any
 import numbers
 import uuid
+import json
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat, Loop
+from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat, Loop, Parallel
 
+def list2dict(lst, key):
+    dct = {}
+    for item in lst:
+        keyvalue = item[key]
+        del item[key]
+        dct[keyvalue] = item
+    return dct
 
 class SFNGenerator(Generator):
     def __init__(self, func_arns: Dict[str, str]):
@@ -11,11 +19,15 @@ class SFNGenerator(Generator):
         self._func_arns = func_arns
 
     def postprocess(self, payloads: List[dict]) -> dict:
-        def _nameless(p: dict) -> dict:
-            del p["Name"]
-            return p
 
-        state_payloads = {p["Name"]: _nameless(p) for p in payloads}
+        state_payloads = list2dict(payloads, "Name")
+        #replace Name entry for parallel states
+        #FIXME parallel states could also contain parallel states --> make recursive
+        for name in state_payloads:
+            if "Branches" in state_payloads[name]:
+                for branch in state_payloads[name]["Branches"]:
+                    branch["States"] = list2dict(branch["States"], "Name")
+
         definition = {
             "Comment": "SeBS auto-generated benchmark",
             "StartAt": self.root.name,
@@ -42,6 +54,34 @@ class SFNGenerator(Generator):
             payload["End"] = True
 
         return payload
+    
+    def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
+        states = {n: State.deserialize(n, s) for n, s in state.funcs.items()}
+        parallel_funcs = [self.encode_state(t) for t in states.values()]
+        
+        payload: Dict[str, Any] = {
+            "Name": state.name,
+            "Type": "Parallel",
+            "Branches": [
+                {
+                    "StartAt": parallel_funcs[0]["Name"],
+                    "States": [ parallel_funcs[0] ], 
+                },
+                {
+                    "StartAt": parallel_funcs[1]["Name"],
+                    "States": [ parallel_funcs[1] ], 
+                },
+            ]
+            }
+        
+        if state.next:
+            payload["Next"] = state.next
+        else:
+            payload["End"] = True
+
+        return payload
+
+
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
         choises = [self._encode_case(c) for c in state.cases]
