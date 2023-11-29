@@ -107,11 +107,13 @@ def connect_to_redis_cache(host: str, password : str):
     return redis
 
 
-def download_measurements(redis: Redis, workflow_name: str, after: float, **static_args):
+def download_measurements(redis: Redis, workflow_name: str, after: float, request_id: Optional[str], **static_args):
     payloads = []
+    pattern = f"{workflow_name}/*/{request_id}/*" if request_id else f"{workflow_name}/*"
 
-    for key in redis.scan_iter(match=f"{workflow_name}/*"):
-        assert key[: len(workflow_name)] == workflow_name
+    for key in redis.scan_iter(match=pattern):
+        wname, fname, request_id, invoc_id = key.split("/")
+        assert wname == workflow_name
 
         payload = redis.get(key)
         redis.delete(key)
@@ -122,6 +124,14 @@ def download_measurements(redis: Redis, workflow_name: str, after: float, **stat
 
                 # make sure only measurements from our benchmark are saved
                 if payload["start"] > after:
+                    if "result" in payload:
+                        res = payload["result"]
+                        if isinstance(res, dict):
+                            del payload["result"]
+                            for key, val in res.items():
+                                payload["result."+key] = val                    
+
+                    payload["request_id"] = request_id
                     payload = {**payload, **static_args}
                     payloads.append(payload)
             except json.decoder.JSONDecodeError:

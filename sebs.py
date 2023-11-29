@@ -306,6 +306,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         experiment_config,
         logging_filename=logging_filename,
     )
+
     workflow = deployment_client.get_workflow(
         benchmark_obj, workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj)
     )
@@ -540,8 +541,9 @@ def experiment():
 
 @experiment.command("invoke")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
+@click.option("--workflow", type=bool, default=False)
 @common_params
-def experiment_invoke(experiment, **kwargs):
+def experiment_invoke(experiment, workflow, **kwargs):
     (
         config,
         output_dir,
@@ -549,7 +551,7 @@ def experiment_invoke(experiment, **kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    experiment = sebs_client.get_experiment(experiment, config["experiments"])
+    experiment = sebs_client.get_experiment(experiment, config["experiments"], workflow)
     experiment.prepare(sebs_client, deployment_client)
     experiment.run()
 
@@ -557,8 +559,9 @@ def experiment_invoke(experiment, **kwargs):
 @experiment.command("process")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
 @click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
+@click.option("--workflow", type=bool, default=False)
 @common_params
-def experment_process(experiment, extend_time_interval, **kwargs):
+def experment_process(experiment, extend_time_interval, workflow, **kwargs):
     (
         config,
         output_dir,
@@ -566,10 +569,13 @@ def experment_process(experiment, extend_time_interval, **kwargs):
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    experiment = sebs_client.get_experiment(experiment, config["experiments"])
-    experiment.process(
-        sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval
-    )
+    experiment = sebs_client.get_experiment(experiment, config["experiments"], workflow)
+    if workflow:
+        experiment.process_workflow(sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval)
+    else: 
+        experiment.process(
+            sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval
+        )
 
 
 if __name__ == "__main__":
