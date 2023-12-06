@@ -9,12 +9,6 @@ def readfile(file):
     return content
 
 def handler(event):
-  #input: list of individuals_input (same length as no of individuals jobs) with fields: 
-  #input_bucket (enthält sifting file)
-  #individuals_output: filename des jeweiligen jobs
-  #individuals_output_bucket: bucket des individuals files
-  #populations (einfach durchreichen)
-
   #sifting stuff is the same for every list entry - just take the first element. 
   event = event["individuals_inputs"][0]
 
@@ -28,7 +22,7 @@ def handler(event):
   client.download(input_bucket, input_filename, inputfile)
 
   #c is the chromosome number - doesn't matter here. 
-  c = 1
+  c = 21
   final_name = 'sifted.SIFT.chr{}.txt'.format(c)
   final = os.path.join("/tmp", final_name)
 
@@ -43,7 +37,6 @@ def handler(event):
 
   siftfile = 'SIFT.chr{}.vcf'.format(c)
   siftfile = os.path.join("/tmp", siftfile)
-  #os.makedirs(siftfile, exist_ok=True)
   with open(siftfile, 'w') as f:
       subprocess.run(["grep -n \"deleterious\|tolerated\" {}".format(inputfile)], shell=True, stdout=f)
 

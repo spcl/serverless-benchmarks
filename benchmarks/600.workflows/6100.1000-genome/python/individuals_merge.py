@@ -6,6 +6,7 @@ import tempfile
 import shutil
 
 def handler(event):
+
   event = event["individuals_inputs"]
 
   individuals_output_bucket = event[0]["individuals_output_bucket"]
@@ -16,21 +17,12 @@ def handler(event):
   #download files
   client = storage.storage.get_instance()
   for file in filenames:
-      print("aiming to download file ", file, "from bucket", individuals_output_bucket)
       client.download(individuals_output_bucket, file, os.path.join('/tmp', file))
 
   #call merging with c and directories.
-  outputfile_name, outputfile = merging(1, filenames)
+  outputfile_name, outputfile = merging(21, filenames)
   #upload outputfile
   outputfile_name = client.upload(individuals_output_bucket, outputfile_name, outputfile)
-
-  #input: list of individuals_input (same length as no of individuals jobs) with fields: 
-  #input_bucket (enthält sifting file)
-  #individuals_output: filename des jeweiligen jobs
-  #individuals_output_bucket: bucket des individuals files
-  #populations (einfach durchreichen)
-
-  #call merging with c and directories. 
 
   return {
       "output_bucket": individuals_output_bucket,

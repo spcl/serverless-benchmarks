@@ -4,13 +4,6 @@ import uuid
 import re
 from . import storage
 
-# individuals_input
-
-#    words_bucket = event["words_bucket"]
-#    words_blob = event["words"]
-#    words_path = os.path.join("/tmp", "words.txt")
-
-
 def handler(event):
     individuals_bucket = event["input_bucket"]
     individuals_input = event["individuals_input"]
@@ -31,7 +24,6 @@ def handler(event):
         for i in range(0, num_individuals_jobs):
             #actually split file; return it afterwards. see e.g. split.py in 660.map-reduce.
             regex = re.compile('(?!#)')
-            # print(counter, min(stop, total), data[int(counter):int(min(stop, total))] )
             start = i * range_per_job
             end = i * range_per_job + range_per_job
             print("start: ", start, "end: ", end, "range_per_job: ", range_per_job, "num_individuals_jobs: ", num_individuals_jobs)

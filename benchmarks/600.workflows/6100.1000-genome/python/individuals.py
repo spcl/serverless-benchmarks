@@ -16,7 +16,6 @@ def readfile(file):
     return content
 
 def handler(event):
-
     individuals_bucket = event["bucket"]
     individuals_input = event["blob"]
     individuals_path = os.path.join("/tmp", "individuals_input.vcf")
@@ -34,7 +33,6 @@ def handler(event):
     ndir = os.path.join("/tmp", ndir)
     os.makedirs(ndir, exist_ok=True)
 
-    #with open(individuals_path, "r") as f:
     data = readfile(individuals_path)
     data = [x.rstrip('\n') for x in data] # Remove \n from words 
 
@@ -104,7 +102,6 @@ def handler(event):
     except OSError as e:
         print("Error: %s : %s" % (ndir, e.strerror))
 
-    #TODO also return output bucket where outputfile is loaded up to. 
     return {
         "input_bucket": event["columns_bucket"],
         "individuals_output": outputfile_name,
