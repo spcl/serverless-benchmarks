@@ -1,0 +1,47 @@
+{
+    "root": "split_input",
+    "states": {
+        "split_input": {
+            "type": "task",
+            "func_name": "split_input",
+            "next": "individuals"
+        },
+        "individuals": {
+            "type": "map",
+            "func_name": "individuals",
+            "array": "individuals_inputs",
+            "next": "merge_and_sifting"
+        },
+        "merge_and_sifting": {
+            "type": "parallel", 
+            "parallel_functions": {
+                "individuals_merge": {
+                    "type": "task",
+                    "func_name": "individuals_merge"
+                },
+                "sifting": {
+                    "type": "task",
+                    "func_name": "sifting"
+                }
+            },
+            "next": "frequency_and_overlap"
+        },
+        "frequency_and_overlap": {
+            "type": "parallel",
+            "parallel_functions": {
+                "frequency": {
+                    "type": "map",
+                    "func_name": "frequency",
+                    "array": "sifting.populations",
+                    "common_params": "sifting,individuals_merge"
+                },
+                "mutation_overlap": {
+                    "type": "map",
+                    "func_name": "mutation_overlap",
+                    "array": "sifting.populations",
+                    "common_params": "sifting,individuals_merge"
+                }
+            }
+        }
+    }
+}
