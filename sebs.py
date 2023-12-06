@@ -337,7 +337,7 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         if ret.stats.failure:
             sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
 
-        measurements += download_measurements(redis, workflow.name, result.begin_time, rep=i)
+        measurements += download_measurements(redis, workflow.name, result.begin_time, ret.request_id, rep=i)
         result.add_invocation(workflow, ret)
     result.end()
 
