@@ -59,6 +59,10 @@ class SFNGenerator(Generator):
         states = {n: State.deserialize(n, s) for n, s in state.funcs.items()}
         parallel_funcs = [self.encode_state(t) for t in states.values()]
         
+        #FIXME: support more than two branches
+        for func in parallel_funcs:
+            func["ResultPath"] = "$." + func["Name"]
+
         payload: Dict[str, Any] = {
             "Name": state.name,
             "Type": "Parallel",
@@ -71,7 +75,19 @@ class SFNGenerator(Generator):
                     "StartAt": parallel_funcs[1]["Name"],
                     "States": [ parallel_funcs[1] ], 
                 },
-            ]
+            ],
+            "ResultSelector": {
+                "payload": {
+                    parallel_funcs[0]["Name"] + ".$": "$[0]." + parallel_funcs[0]["Name"],
+                    parallel_funcs[1]["Name"] + ".$": "$[1]." + parallel_funcs[1]["Name"],
+                    #parallel_funcs[0]["Name"] + ".$": "$.0." + parallel_funcs[0]["Name"],
+                    #parallel_funcs[1]["Name"] + ".$": "$.1." + parallel_funcs[1]["Name"]
+                    #}
+                },
+                "request_id.$": "$[0].request_id",
+            }
+                #"request_id.$": "$.0.request_id",
+            #"ResultPath": "$.payload",
             }
         
         if state.next:
@@ -109,7 +125,7 @@ class SFNGenerator(Generator):
             "ItemsPath": "$.payload." + state.array,
             "Parameters": {
                 "request_id.$": "$.request_id",
-                "payload.$": "$$.Map.Item.Value",
+                #"payload.$": "$$.Map.Item.Value",
             },
             "Iterator": {
                 "StartAt": map_func_name,
@@ -123,6 +139,19 @@ class SFNGenerator(Generator):
             },
             "ResultPath": "$.payload." + state.array
         }
+
+        if state.common_params:
+            entries = {}
+            entries["array_element.$"] = "$$.Map.Item.Value"
+            params = state.common_params.split(",")
+            for param in params:
+                entries[param + ".$"] = "$.payload." + param
+                #payload["Parameters"]["payload.$"] += "$.payload." + param
+
+            payload["Parameters"]["payload"] = entries
+        else: 
+            payload["Parameters"]["payload.$"] = "$$.Map.Item.Value"
+
 
         if state.next:
             payload["Next"] = state.next
