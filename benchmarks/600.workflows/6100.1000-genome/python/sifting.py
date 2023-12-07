@@ -10,13 +10,13 @@ def readfile(file):
 
 def handler(event):
   #sifting stuff is the same for every list entry - just take the first element. 
-  event = event["individuals_inputs"][0]
+  #event = event["blob"][0]
 
-  input_bucket = event["input_bucket"]
+  input_bucket = event["columns_bucket"]
   input_filename = event["sifting_input"]
   inputfile = os.path.join("/tmp", "sifting_file.vcf")
 
-  output_bucket = event["individuals_output_bucket"]
+  output_bucket = event["bucket"]
 
   client = storage.storage.get_instance()
   client.download(input_bucket, input_filename, inputfile)

@@ -9,7 +9,8 @@
         "individuals": {
             "type": "map",
             "func_name": "individuals",
-            "array": "individuals_inputs",
+            "array": "blob",
+            "common_params": "bucket,columns,columns_bucket,populations,sifting_input",
             "next": "merge_and_sifting"
         },
         "merge_and_sifting": {

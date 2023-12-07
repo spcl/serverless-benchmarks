@@ -7,11 +7,11 @@ import shutil
 
 def handler(event):
 
-  event = event["individuals_inputs"]
+  #event = event["blob"]
 
-  individuals_output_bucket = event[0]["individuals_output_bucket"]
+  individuals_output_bucket = event["bucket"]
   filenames = []
-  for elem in event: 
+  for elem in event["blob"]: 
       filenames.append(elem["individuals_output"])
   
   #download files
@@ -25,10 +25,7 @@ def handler(event):
   outputfile_name = client.upload(individuals_output_bucket, outputfile_name, outputfile)
 
   return {
-      "output_bucket": individuals_output_bucket,
-      "merge_outputfile_name": outputfile_name,
-      "populations": event[0]["populations"], 
-      "input_bucket": event[0]["input_bucket"]
+      "merge_outputfile_name": outputfile_name
   }
 
 def compress(archive, input_dir):

@@ -40,16 +40,12 @@ def handler(event):
     os.remove(individuals_path)
 
     prefix = str(uuid.uuid4())[:8]
-    lst = [{
+    return {
         "bucket": output_bucket,
-        "blob": b,
-        "prefix": prefix,
+        "blob": blobs,
+        #"prefix": prefix,
         "columns_bucket": event["input_bucket"],
         "columns": event["columns"],
         "populations": event["populations"],
         "sifting_input": event["sifting_input"]
-    } for b in blobs]
-
-    return {
-        "individuals_inputs": lst,
     }

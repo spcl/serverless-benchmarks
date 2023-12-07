@@ -17,7 +17,7 @@ def readfile(file):
 
 def handler(event):
     individuals_bucket = event["bucket"]
-    individuals_input = event["blob"]
+    individuals_input = event["array_element"]
     individuals_path = os.path.join("/tmp", "individuals_input.vcf")
 
     columns = event["columns"]
@@ -103,9 +103,9 @@ def handler(event):
         print("Error: %s : %s" % (ndir, e.strerror))
 
     return {
-        "input_bucket": event["columns_bucket"],
+        #"input_bucket": event["columns_bucket"],
         "individuals_output": outputfile_name,
-        "individuals_output_bucket": individuals_bucket,
-        "populations": event["populations"],
-        "sifting_input": event["sifting_input"]
+        #"individuals_output_bucket": individuals_bucket,
+        #"populations": event["populations"],
+        #"sifting_input": event["sifting_input"]
     }
