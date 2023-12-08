@@ -34,7 +34,6 @@ def compress(archive, input_dir):
 
 def extract_all(archive, output_dir):
     with tarfile.open(archive, "r:*") as f:
-        #f.extractall(os.path.basename(output_dir))
         f.extractall(output_dir)
         flist = f.getnames()
         if flist[0] == '':

@@ -9,8 +9,6 @@ def readfile(file):
     return content
 
 def handler(event):
-  #sifting stuff is the same for every list entry - just take the first element. 
-  #event = event["blob"][0]
 
   input_bucket = event["columns_bucket"]
   input_filename = event["sifting_input"]

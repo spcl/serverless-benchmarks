@@ -1,16 +1,11 @@
 {
-    "root": "split_input",
+    "root": "individuals",
     "states": {
-        "split_input": {
-            "type": "task",
-            "func_name": "split_input",
-            "next": "individuals"
-        },
         "individuals": {
             "type": "map",
             "func_name": "individuals",
             "array": "blob",
-            "common_params": "bucket,columns,columns_bucket,populations,sifting_input",
+            "common_params": "bucket,columns,columns_bucket,populations,sifting_input,individuals_file",
             "next": "merge_and_sifting"
         },
         "merge_and_sifting": {

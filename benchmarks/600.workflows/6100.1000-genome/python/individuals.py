@@ -2,6 +2,7 @@ import os
 import uuid
 import tarfile
 import shutil
+import re
 from . import storage
 
 client = storage.storage.get_instance()
@@ -17,8 +18,10 @@ def readfile(file):
 
 def handler(event):
     individuals_bucket = event["bucket"]
-    individuals_input = event["array_element"]
-    individuals_path = os.path.join("/tmp", "individuals_input.vcf")
+    individuals_input = event["individuals_file"]
+
+    start_bytes = event["array_element"]["start_bytes"]
+    end_bytes = event["array_element"]["end_bytes"]
 
     columns = event["columns"]
     columns_bucket = event["columns_bucket"]
@@ -26,15 +29,15 @@ def handler(event):
     
     client = storage.storage.get_instance()
     client.download(columns_bucket, columns, columns_path)
-    client.download(individuals_bucket, individuals_input, individuals_path)
+    data = client.download_within_range(columns_bucket, individuals_input, start_bytes, end_bytes)
 
-    #name directory according to blob - return this as input to individuals_merge!
     ndir = 'chr{}n-{}/'.format(21, individuals_input)
     ndir = os.path.join("/tmp", ndir)
     os.makedirs(ndir, exist_ok=True)
 
-    data = readfile(individuals_path)
-    data = [x.rstrip('\n') for x in data] # Remove \n from words 
+    regex = re.compile('(?!#)')
+    data = data.split("\n")
+    data = list(filter(lambda line: regex.match(line) and line != "", data))
 
     chrp_data = {}
     columndata = readfile(columns_path)[0].rstrip('\n').split('\t')
@@ -55,6 +58,7 @@ def handler(event):
 
         with open(filename, 'w') as f:
             for line in data:
+                print("line: ", line)
                 #print(i, line.split('\t'))
                 #print("line: ", line, "col: ", col)
                 first = line.split('\t')[col]  # first =`echo $l | cut -d -f$i`
@@ -103,9 +107,5 @@ def handler(event):
         print("Error: %s : %s" % (ndir, e.strerror))
 
     return {
-        #"input_bucket": event["columns_bucket"],
         "individuals_output": outputfile_name,
-        #"individuals_output_bucket": individuals_bucket,
-        #"populations": event["populations"],
-        #"sifting_input": event["sifting_input"]
     }
