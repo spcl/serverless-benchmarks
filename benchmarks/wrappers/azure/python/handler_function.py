@@ -16,7 +16,7 @@ def main(req: func.HttpRequest, starter: str, context: func.Context) -> func.Htt
     begin = datetime.datetime.now()
     # We are deployed in the same directory
     from . import function
-    ret = function.handler(req_json)
+    ret = function.handler(req_json['payload'])
     end = datetime.datetime.now()
 
     log_data = {
