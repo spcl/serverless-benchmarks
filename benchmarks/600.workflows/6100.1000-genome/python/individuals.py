@@ -17,6 +17,8 @@ def readfile(file):
     return content
 
 def handler(event):
+    print("event: ", event)
+
     individuals_bucket = event["bucket"]
     individuals_input = event["individuals_file"]
 
@@ -58,7 +60,7 @@ def handler(event):
 
         with open(filename, 'w') as f:
             for line in data:
-                print("line: ", line)
+                #print("line: ", line)
                 #print(i, line.split('\t'))
                 #print("line: ", line, "col: ", col)
                 first = line.split('\t')[col]  # first =`echo $l | cut -d -f$i`

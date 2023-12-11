@@ -80,15 +80,10 @@ class SFNGenerator(Generator):
                 "payload": {
                     parallel_funcs[0]["Name"] + ".$": "$[0]." + parallel_funcs[0]["Name"],
                     parallel_funcs[1]["Name"] + ".$": "$[1]." + parallel_funcs[1]["Name"],
-                    #parallel_funcs[0]["Name"] + ".$": "$.0." + parallel_funcs[0]["Name"],
-                    #parallel_funcs[1]["Name"] + ".$": "$.1." + parallel_funcs[1]["Name"]
-                    #}
                 },
                 "request_id.$": "$[0].request_id",
             }
-                #"request_id.$": "$.0.request_id",
-            #"ResultPath": "$.payload",
-            }
+        }
         
         if state.next:
             payload["Next"] = state.next

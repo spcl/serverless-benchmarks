@@ -78,6 +78,14 @@ class storage:
 
         return data.getbuffer()
 
+    def download_within_range(self, bucket, file, start_byte, stop_byte):
+        bucket_instance = self.client.bucket(bucket)
+        blob = bucket_instance.blob(file)
+        blob.download_to_filename('/tmp/' + file, start=start_byte, end=stop_byte)
+        with open('/tmp/' + file, 'r') as f:
+            content = f.read()
+        return content
+
     def list_directory(self, bucket, prefix):
         objects = self.client.bucket(bucket).list_blobs(prefix=prefix)
         for obj in objects:
