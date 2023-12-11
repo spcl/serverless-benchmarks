@@ -60,11 +60,12 @@ class Parallel(State):
 
 
 class Map(State):
-    def __init__(self, name: str, func_name: str, array: str, next: Optional[str]):
+    def __init__(self, name: str, func_name: str, array: str, next: Optional[str], common_params: Optional[str]):
         self.name = name
         self.func_name = func_name
         self.array = array
         self.next = next
+        self.common_params = common_params
 
     @classmethod
     def deserialize(cls, name: str, payload: dict) -> "Map":
@@ -73,6 +74,7 @@ class Map(State):
             func_name=payload["func_name"],
             array=payload["array"],
             next=payload.get("next"),
+            common_params=payload.get("common_params")
         )
 
 

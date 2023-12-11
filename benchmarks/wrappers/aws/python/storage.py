@@ -64,6 +64,10 @@ class storage:
         self.client.download_fileobj(bucket, file, data)
         incr_io_env(data.tell(), "STORAGE_DOWNLOAD_BYTES")
         return data.getbuffer()
+    
+    def download_within_range(self, bucket, file, start_byte, stop_byte):
+        resp = self.client.get_object(Bucket=bucket, Key=file, Range='bytes={}-{}'.format(start_byte, stop_byte))
+        return resp['Body'].read().decode('utf-8')
 
     def list_directory(self, bucket, prefix):
         objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)

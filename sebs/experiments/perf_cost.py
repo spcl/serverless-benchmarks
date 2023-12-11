@@ -10,6 +10,8 @@ from typing import List, TYPE_CHECKING
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.function import Trigger, Benchmark, Function, Workflow, ExecutionResult
 from sebs.azure.azure import Azure
+from sebs.aws.aws import AWS
+from sebs.gcp.gcp import GCP
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.result import Result as ExperimentResult
 from sebs.experiments.config import Config as ExperimentConfig
@@ -96,8 +98,16 @@ class PerfCost(Experiment):
         for memory in memory_sizes:
             self.logging.info(f"Begin experiment on memory size {memory}")
             self._function.config.memory = memory
-            #self._deployment_client.update_function(self._function, self._benchmark)
-            #self._sebs_client.cache_client.update_function(self._function)
+
+            code_package = self._sebs_client.get_benchmark(
+            settings["benchmark"], self._deployment_client, self.config
+            )
+            if self.is_workflow: #and platform != "azure":
+                for func in self._function.functions:
+                    func.memory = memory
+                    self._deployment_client.update_function(func, code_package)
+            self._sebs_client.cache_client.update_benchmark(self._function)
+
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
 
     def compute_statistics(self, times: List[float]):
@@ -416,12 +426,14 @@ class PerfCost(Experiment):
             if isinstance(deployment_client, Azure):
                 func_names = [workflow_name]
             else:
-                #replace "." and "-" in workflow name by "_"
+                #FIXME don't hardcode python version
                 workflow_name = workflow_name.replace(".", "_") 
                 workflow_name = workflow_name.replace("-", "_")
-                prefix = workflow_name + "_python_3_7___"
+                if isinstance(deployment_client, GCP):
+                    prefix = "function-" + workflow_name + "_python_3_7___"
+                else:
+                    prefix = workflow_name + "_python_3_7___"
                 func_names = [prefix+fn for fn in df.func.unique()]
-                #func_names = ["630_parallel_sleep_python_3_7___process", "630_parallel_sleep_python_3_7___generate"]
 
             for func_name in func_names:
                 deployment_client.download_metrics(
