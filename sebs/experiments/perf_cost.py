@@ -49,7 +49,6 @@ class PerfCost(Experiment):
             return self.name.lower()
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
-
         self.num_expected_payloads = -1
 
         # create benchmark instance
@@ -87,7 +86,6 @@ class PerfCost(Experiment):
         self._sebs_client = sebs_client
 
     def run(self):
-
         settings = self.config.experiment_settings(self.name())
 
         # Execution on systems where memory configuration is not provided
@@ -164,6 +162,7 @@ class PerfCost(Experiment):
         def _download_measurements(request_id):
             try:
                 redis = connect_to_redis_cache(self._deployment_client.config.resources.redis_host, self._deployment_client.config.resources.redis_password)
+                print("trying to download for function.name = ", self._function.name)
                 payloads = download_measurements(redis, self._function.name, result.begin_time, request_id)
                 return payloads
             except:
@@ -200,15 +199,23 @@ class PerfCost(Experiment):
                             funcs, self._benchmark
                         )
 
-                    time.sleep(5)
+                    time.sleep(10)
 
                     results = []
-                    for i in range(0, invocations):
-                        results.append(
-                            pool.apply_async(
-                                self._trigger.sync_invoke, args=(self._benchmark_input,)
+                    if first_iteration == True:
+                        for i in range(0, 1):
+                            results.append(
+                                pool.apply_async(
+                                    self._trigger.sync_invoke, args=(self._benchmark_input,)
+                                )
                             )
-                        )
+                    else:
+                        for i in range(0, invocations):
+                            results.append(
+                                pool.apply_async(
+                                    self._trigger.sync_invoke, args=(self._benchmark_input,)
+                                )
+                            )
 
                     incorrect = []
                     first_iteration_request_ids = []
@@ -306,7 +313,10 @@ class PerfCost(Experiment):
                         self.num_expected_payloads = int(df.groupby("request_id").size().mean())
 
                         self.logging.info(f"Will be expecting {self.num_expected_payloads} measurements")
-
+                        file_name = f"{run_type.str()}_{suffix}_first_iteration.csv"
+                        csv_path = os.path.join(result_dir, file_name)
+                        write_header = not os.path.exists(csv_path)
+                        df.to_csv(csv_path, index=False, mode="a", header=write_header)
 
                     if len(incorrect) > 0:
                         incorrect_executions.extend(incorrect)
@@ -397,6 +407,9 @@ class PerfCost(Experiment):
 
         for f in glob.glob(os.path.join(result_dir, "*.csv")):
             filename = os.path.splitext(os.path.basename(f))[0]
+
+            print("Filename: ", filename)
+
             processed_path = os.path.join(result_dir, filename+"_processed.csv")
             processed = "processed" in f or os.path.exists(processed_path)
             if processed:
@@ -429,11 +442,14 @@ class PerfCost(Experiment):
                 #FIXME don't hardcode python version
                 workflow_name = workflow_name.replace(".", "_") 
                 workflow_name = workflow_name.replace("-", "_")
+                runtime_version = self.config.runtime.version
+                runtime_version = runtime_version.replace(".", "_")
                 if isinstance(deployment_client, GCP):
-                    prefix = "function-" + workflow_name + "_python_3_7___"
+                    prefix = "function-" + workflow_name + "_python_" + runtime_version + "___"
                 else:
-                    prefix = workflow_name + "_python_3_7___"
+                    prefix = workflow_name + "_python_" + runtime_version + "___"
                 func_names = [prefix+fn for fn in df.func.unique()]
+                print("looking for", func_names)
 
             for func_name in func_names:
                 deployment_client.download_metrics(
