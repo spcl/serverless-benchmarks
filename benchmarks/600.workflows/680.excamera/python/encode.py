@@ -21,7 +21,7 @@ def download_bin(bucket, name, dest_dir):
 def upload_files(bucket, paths):
     for path in paths:
         file = os.path.basename(path)
-        print("Uploading", file, "to", path)
+        #print("Uploading", file, "to", path)
         client.upload(bucket, file, path, unique_name=False)
 
 

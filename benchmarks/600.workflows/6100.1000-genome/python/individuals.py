@@ -17,7 +17,6 @@ def readfile(file):
     return content
 
 def handler(event):
-    print("event: ", event)
 
     individuals_bucket = event["bucket"]
     individuals_input = event["individuals_file"]
@@ -48,22 +47,23 @@ def handler(event):
     # position of the last element (normally equals to len(data[0].split(' '))
     #end_data = 2504
     end_data = len(columndata) - start_data
-    print("== Number of columns {}".format(end_data))
 
     for i in range(0, end_data):
         col = i + start_data
         name = columndata[col]
 
         filename = "{}/chr{}.{}".format(ndir, "21", name)
-        #print("=== Writing file {}".format(filename), end=" => ")
         chrp_data[i] = []
 
         with open(filename, 'w') as f:
+            zeilennummer = 0
             for line in data:
-                #print("line: ", line)
-                #print(i, line.split('\t'))
-                #print("line: ", line, "col: ", col)
-                first = line.split('\t')[col]  # first =`echo $l | cut -d -f$i`
+                zeilennummer += 1
+                try:
+                    first = line.split('\t')[col]  # first =`echo $l | cut -d -f$i`
+                except Exception as e:
+                    print("faulty line at col = ", col, "zeilennummer:", zeilennummer, " line : ", line)
+                    raise e
                 #second =`echo $l | cut -d -f 2, 3, 4, 5, 8 --output-delimiter = '   '`
                 second = line.split('\t')[0:8]
                 # We select the one we want
@@ -93,10 +93,8 @@ def handler(event):
                 except ValueError:
                     continue
 
-        print("processed")
 
     outputfile = "chr{}n-{}.tar.gz".format(21, individuals_input)
-    print("== Done. Zipping {} files into {}.".format(end_data, outputfile))
 
     # tar -zcf .. /$outputfile .
     compress(os.path.join("/tmp/", outputfile), ndir)

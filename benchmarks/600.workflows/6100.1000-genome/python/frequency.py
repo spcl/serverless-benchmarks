@@ -17,7 +17,6 @@ from . import storage
 
 class ReadData:
     def read_names(self, POP, pop_dir, columns_file):
-        print('reading inidviduals')
         tic = time.perf_counter()
         namefile = pop_dir + POP
         f = open(namefile, 'r')
@@ -32,11 +31,9 @@ class ReadData:
         genome_ids = text.split()
 
         ids = list(set(all_ids) & set(genome_ids))
-        #print('time: %s' % (time.perf_counter() - tic))
         return ids
 
     def read_rs_numbers(self, siftfile, SIFT):
-        print('reading in rs with sift scores below %s' % SIFT)
         ## NB This file is in the format of:
         ## line number, rs number, ENSG number, SIFT, Phenotype
         tic = time.perf_counter()
@@ -52,11 +49,9 @@ class ReadData:
                 map_variations[item[1]] = item[2]
                 variations[item[0]] = item[2]
 
-        #print('time: %s' % (time.perf_counter() - tic))
         return rs_numbers, map_variations
 
     def read_individuals(self, ids, rs_numbers, data_dir, chrom, individuals_merge_filename):
-        #print('reading in individual mutation files')
         tic = time.perf_counter()
         mutation_index_array = []
         for name in ids:
@@ -72,7 +67,6 @@ class ReadData:
             sifted_mutations = list(set(rs_numbers).intersection(text))
             mutation_index_array.append(sifted_mutations)
 
-        #print('time: %s' % (time.perf_counter() - tic))
         return mutation_index_array
 
 
@@ -80,7 +74,6 @@ class Results:
 
     def overlap_ind(self, ids, mutation_index_array, n_runs, n_indiv):
         n_p = len(mutation_index_array)
-        #print('calculating the number overlapings mutations between %s individuals selected randomly' % n_p)
         tic = time.perf_counter()
         list_p = np.linspace(0, n_p - 1, n_p).astype(int)
         mutation_overlap = []
@@ -93,29 +86,24 @@ class Results:
                 if 2 * pq >= len(randomized_list):
                     break
                 b_multiset = collections.Counter(mutation_index_array[randomized_list[2 * pq]])
-                print('time, inidividual: %s' % ids[randomized_list[2 * pq]])
                 r_ids.append(ids[randomized_list[2 * pq]])
                 result = result + b_multiset
             random_indiv.append(r_ids)
             mutation_overlap.append(result)
-        #print('time: %s' % (time.perf_counter() - tic))
         return mutation_overlap, random_indiv
 
     def histogram_overlap(self, mutation_overlap, n_runs):
-        #print('calculating the frequency/historgram of overlapings mutations')
         tic = time.perf_counter()
         histogram_overlap = []
         for run in range(n_runs):
             final_counts = [count for item, count in mutation_overlap[run].items()]
             histogram_overlap.append(collections.Counter(final_counts))
-        #print('time: %s' % (time.perf_counter() - tic))
         return histogram_overlap
 
 
 class PlotData:
 
     def plot_histogram_overlap(self, POP, histogram_overlap, outputFile, n_runs):
-        #print('ploting Histogram mutation overlap to %s' % outputFile)
         tic = time.perf_counter()
         for run in range(n_runs):
             output = outputFile + str(run) + '.png'
@@ -129,13 +117,11 @@ class PlotData:
             plt.xticks(np.arange(1, N + 1))
             plt.savefig(output)
             plt.close()
-        #print('time: %s' % (time.perf_counter() - tic))
 
 
 class WriteData:
 
     def write_histogram_overlap(self, histogram_overlapfile, histogram_overlap, n_runs, n_indiv):
-        #print('writing Frequency historgram of mutations overlapping to %s' % histogram_overlapfile)
         tic = time.perf_counter()
         for run in range(n_runs):
             overlapfile = histogram_overlapfile + str(run) + '.txt'
@@ -148,12 +134,8 @@ class WriteData:
                     f.write(str(i) + '-' + str(0) + '\n')
             f.close()
 
-        # for key, count in histogram_overlap[run].items() :
-        #	f.write(str(key) + '-' + str(count) + '\n')
-        #print('time: %s' % (time.perf_counter() - tic))
 
     def write_mutation_overlap(self, mutation_overlapfile, mutation_overlap, n_runs):
-        #print('writing Mutations overlapping to %s' % mutation_overlapfile)
         tic = time.perf_counter()
         for run in range(n_runs):
             overlapfile = mutation_overlapfile + str(run) + '.txt'
@@ -162,37 +144,30 @@ class WriteData:
             for key, count in mutation_overlap[run].items():
                 f.write(key + '-' + str(count) + '\n')
             f.close()
-        #print('time: %s' % (time.perf_counter() - tic))
 
     def write_random_indiv(self, randomindiv_file, random_indiv, n_runs):
         tic = time.perf_counter()
         for run in range(n_runs):
             randomfile = randomindiv_file + str(run) + '.txt'
             f = open(randomfile, 'w')
-            #print('writing Random individuals to %s' % randomfile)
             f.write('Individuals \n')
             for item in random_indiv[run]:
                 f.write("%s\n" % item)
             f.close()
-        #print('time: %s' % (time.perf_counter() - tic))
 
     def write_mutation_index_array(self, mutation_index_array_file, mutation_index_array):
-        #print('writing Mutation index array to %s' % mutation_index_array_file)
         tic = time.perf_counter()
         f = open(mutation_index_array_file, "w")
         for item in mutation_index_array:
             f.write("%s\n" % item)
         f.close()
-        #print('time: %s' % (time.perf_counter() - tic))
 
     def write_map_variations(self, map_variations_file, map_variations):
-        #print('writing map_variations to %s' % map_variations_file)
         tic = time.perf_counter()
         f = open(map_variations_file, 'w')
         for key, count in map_variations.items():
             f.write(key + '\t' + str(count) + '\n')
         f.close()
-        #print('time: %s' % (time.perf_counter() - tic))
 
 
 def handler(event):

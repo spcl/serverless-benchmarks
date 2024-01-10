@@ -20,7 +20,6 @@ from . import storage
 
 class ReadData :
     def read_names(self, POP, pop_dir, columns_file) :
-        #print('reading inidviduals')
         tic = time.perf_counter()
         namefile = pop_dir + POP
         f = open(namefile, 'r')
@@ -36,11 +35,9 @@ class ReadData :
         
         ids = list(set(all_ids) & set(genome_ids))
         
-        #print('time: %s' % (time.perf_counter() - tic))
         return ids
 
     def read_rs_numbers(self, siftfile, SIFT) :
-        print('reading in rs with sift scores below %s' % SIFT)
         ## NB This file is in the format of:
         ## line number, rs number, ENSG number, SIFT, Phenotype
         tic = time.perf_counter()
@@ -55,15 +52,9 @@ class ReadData :
                 rs_numbers.append(item[1])
                 map_variations[item[1]] = item[2]
         
-        #seen = set()            
-        #[x for x in all_variations if x not in seen and not seen.add(x)]
-        #all_variations = seen
-
-        #print('time: %s' % (time.perf_counter() - tic))
         return rs_numbers, map_variations
     
     def read_individuals(self, ids, rs_numbers, data_dir, chrom, individuals_merge_filename) :
-        #print('reading in individual mutation files')
         tic = time.perf_counter()
         mutation_index_array = []
         total_mutations={}  
@@ -78,38 +69,28 @@ class ReadData :
             mutation_index_array.append(sifted_mutations)
             total_mutations[name]= len(sifted_mutations)
             total_mutations_list.append(len(sifted_mutations))
-            #print len(list(seen)), len(seen)
         
-        print ('mutation index array for %s : %s' % ( ids[0], mutation_index_array[0]))
-        print ('total_len_mutations for %s : %s' % ( ids[0], total_mutations[ids[0]]))
-        print('total_mutations_list is %s ' % total_mutations_list)
-        #print('time: %s' % (time.perf_counter() - tic))
         return mutation_index_array, total_mutations, total_mutations_list    
    
     def read_pairs_overlap(self, indpairsfile) :
-        #print('reading in individual crossover mutations')
         tic = time.perf_counter()
         pairs_overlap = np.loadtxt(indpairsfile, unpack=True)
         pairs_overlap = np.transpose(pairs_overlap)
 
-        #print('time: %s' % (time.perf_counter() - tic))
         return pairs_overlap
 
 
 class Results :
 
     def group_indivuals(self, total_mutations_list, n_runs) :
-        #print('histograms mutations_individuals groups by 26')
         tic = time.perf_counter()
         n_group = 26
         random_mutations_list= []
         for run in range(n_runs):
             random_mutations_list.append(sample(total_mutations_list, n_group))
-        #print('time: %s' % (time.perf_counter() - tic))
         return random_mutations_list
 
     def pair_individuals(self, mutation_index_array, n_runs) :
-        #print('cross matching mutations in individuals')
         tic = time.perf_counter()
     
         n_p = len(mutation_index_array)
@@ -125,11 +106,9 @@ class Results :
                 pair_array = set(array1) & set(array2)
                 pairs_overlap[run][pq] = len(pair_array)
 
-        #print('time: %s' % (time.perf_counter() - tic))
         return pairs_overlap
 
     def total_pair_individuals (self, mutation_index_array) :
-        #print('cross matching mutations total individuals')
         tic = time.perf_counter()
         n_p = len(mutation_index_array)
         total_pairs_overlap = np.zeros((n_p, n_p))
@@ -144,11 +123,9 @@ class Results :
                                 simetric_overlap[run][pq] = len(pairs_array)
                                 simetric_overlap[pq][run]= len(pairs_array)
 
-        #print('time: %s' % (time.perf_counter() - tic))
         return total_pairs_overlap , simetric_overlap
 
     def half_pair_individuals(self, mutation_index_array) :
-        #print('cross matching mutations in individuals - half with half')
         tic = time.perf_counter()
         n_p = len(mutation_index_array)
         n_pairs = int(round(n_p/2))
@@ -161,11 +138,9 @@ class Results :
                 pairs_array = set(array1) & set(array2)
                 pairs_overlap[run][index]=len(pairs_array)
 
-        #print('time: %s' % (time.perf_counter() - tic))
         return pairs_overlap
 
     def gene_pairs(self, mutation_index_array) :
-        #print('cross matching pairs of variations')
 
         tic = time.perf_counter()
         n_p = len(mutation_index_array)
@@ -177,14 +152,12 @@ class Results :
                 if key not in gene_pair_list : gene_pair_list[key] = 1
                 else : gene_pair_list[key] += 1
 
-        #print('time: %s' % (time.perf_counter() - tic))
         
         return gene_pair_list
 
 class PlotData :        
 
     def individual_overlap(self, POP, pairs_overlap, outputFile, c, SIFT) :
-        #print('plotting cross matched number of individuals:%s '% len(pairs_overlap))
         tic = time.perf_counter()
         
         pairs_overlap = np.array(pairs_overlap)     
@@ -220,10 +193,8 @@ class PlotData :
             transform = ax.transAxes)
         plt.savefig(outputFile)  
         plt.close()
-        #print('time: %s' % (time.perf_counter() - tic))
 
     def total_colormap_overlap(self, POP, total_pairs_overlap, outputFile):
-        #print('plotting colormap number of individuals: %s' % len(total_pairs_overlap))
         tic = time.perf_counter()
         fig = plt.figure()
         cmap = mpl.colors.ListedColormap(['blue','black','red', 'green', 'pink'])
@@ -232,58 +203,45 @@ class PlotData :
 
         plt.savefig(outputFile)  
         plt.close()
-        #print('time: %s' % (time.perf_counter() - tic))
 
 
 class WriteData :
     def write_pair_individuals(self, indpairsfile, pairs_overlap) : 
-        #print('writing pairs overlapping mutations to %s' % indpairsfile)
         tic = time.perf_counter()
         np.savetxt(indpairsfile, pairs_overlap, fmt = '%i')
-        #print('time: %s' % (time.perf_counter() - tic))
     
     def write_gene_pairs(self, genepairsfile, gene_pair_list) :
-        #print('writing gene pair list to %s'% genepairsfile)
         tic = time.perf_counter()
         f = open(genepairsfile, 'w')
         for key, count in gene_pair_list.items() :
             f.write(key + '\t' + str(count) + '\n')
         f.close()
-        #print('time: %s' % (time.perf_counter() - tic))
     
     def write_total_indiv(self, total_mutations_filename, total_mutations) :
-        #print('writing total mutations list per individual to %s' % total_mutations_filename)
         tic = time.perf_counter()
         f = open(total_mutations_filename, 'w')
         for key, count in total_mutations.items() :
             f.write(key + '\t' + str(count) + '\n')
         f.close()
-        #print('time: %s' % (time.perf_counter() - tic))
     
     def write_random_mutations_list(self, random_mutations_filename, random_mutations_list, n_runs) :
-        #print('writing a list of 26 random individuals with the number mutations per indiv %s' % random_mutations_filename)
         for run in range(n_runs):
             filename= random_mutations_filename +'_run_' + str(run) + '.txt'
             f = open(filename, 'w')
             f.writelines(["%s\n" % item  for item in random_mutations_list[run]])
-        #print('time: %s' % (time.perf_counter() - tic))
     
     def write_mutation_index_array(self, mutation_index_array_file, mutation_index_array):
-        #print('writing mutation array  to %s' % mutation_index_array_file)
         f=open(mutation_index_array_file,"w")
         for item in mutation_index_array:
             f.write("%s\n" % item)
         f.close()
-        #print('time: %s' % (time.perf_counter() - tic))
 
     def write_map_variations(self, map_variations_file, map_variations) :
-        #print('writing map_variations to %s' % map_variations_file)
         tic = time.perf_counter()
         f = open(map_variations_file, 'w')
         for key, count in map_variations.items() :
             f.write(key + '\t' + str(count) + '\n')
         f.close()
-        #print('time: %s' % (time.perf_counter() - tic))
     
 
 

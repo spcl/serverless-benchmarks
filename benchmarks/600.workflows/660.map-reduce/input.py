@@ -18,13 +18,13 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     lst = mult * words
     random.shuffle(lst)
 
-    list_path = os.path.join(data_dir, "list.txt")
+    list_path = os.path.join(data_dir, "words")
     list_name = "words"
     with open(list_path, "w") as f:
         f.writelines(w+"\n" for w in lst)
 
     upload_func(0, list_name, list_path)
-    os.remove(list_path)
+    #os.remove(list_path)
 
     return {
         "words_bucket": input_buckets[0],

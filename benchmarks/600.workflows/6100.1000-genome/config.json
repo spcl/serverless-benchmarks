@@ -1,5 +1,5 @@
 {
-  "timeout": 600,
-  "memory": 1024,
+  "timeout": 540,
+  "memory": 2048,
   "languages": ["python"]
 }

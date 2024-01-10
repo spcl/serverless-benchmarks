@@ -7,8 +7,6 @@ import shutil
 
 def handler(event):
 
-  #event = event["blob"]
-
   individuals_output_bucket = event["bucket"]
   filenames = []
   for elem in event["blob"]: 
@@ -50,7 +48,6 @@ def writefile(filename, content):
         f.writelines(content)
 
 def merging(c, tar_files):
-    print('= Merging chromosome {}...'.format(c))
     tic = time.perf_counter()
 
     merged_dir = "merged_chr{}".format(c)
@@ -70,14 +67,12 @@ def merging(c, tar_files):
                 else:
                     data[filename] = content
 
-        print("Merged {} in {:0.2f} sec".format(tar, time.perf_counter()-tic_iter))
     
     for filename,content in data.items():
         writefile(os.path.join(merged_dir, filename), content)
     
     outputfile_name = "chr{}n.tar.gz".format(c)
     outputfile = os.path.join("/tmp", outputfile_name)
-    print("== Done. Zipping {} files into {}.".format(len(data), outputfile))
 
     compress(outputfile, merged_dir)
 
@@ -86,8 +81,5 @@ def merging(c, tar_files):
         shutil.rmtree(merged_dir)
     except OSError as e:
         print("Error: %s : %s" % (merged_dir, e.strerror))
-
-    print("= Chromosome {} merged in {:0.2f} seconds.".format(
-        c, time.perf_counter() - tic))
 
     return outputfile_name, outputfile

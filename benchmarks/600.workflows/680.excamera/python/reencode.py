@@ -19,7 +19,7 @@ def download_bin(bucket, name, dest_dir):
 def upload_files(bucket, paths):
     for path in paths:
         file = os.path.basename(path)
-        print("Uploading", file, "to", path)
+        #print("Uploading", file, "to", path)
         client.upload(bucket, file, path, unique_name=False)
 
 
@@ -85,7 +85,7 @@ def handler(event):
     for path in input_paths:
         file = os.path.basename(path)
         bucket = input_bucket if ".y4m" in file else output_bucket
-        print("Downloading", file, "from", bucket)
+        #print("Downloading", file, "from", bucket)
         client.download(bucket, file, path)
 
     _, output_paths = reencode_first_frame(segs, data_dir)

@@ -11,8 +11,9 @@ def handler(event):
     client = storage.storage.get_instance()
     count = 0
     for blob in client.list_directory(bucket, path):
-        buffer = client.download_stream(bucket, blob)
-        count += int(bytes(buffer).decode("utf-8"))
+        my_buffer = client.download_stream(bucket, blob)
+        count += int(bytes(my_buffer).decode("utf-8"))
+        #count += int(my_buffer.getvalue().decode("utf-8"))
 
     return {
         "word": os.path.basename(path),

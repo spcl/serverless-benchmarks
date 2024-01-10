@@ -21,8 +21,12 @@ def handler(event):
     prefix = event["prefix"]
 
     client = storage.storage.get_instance()
-    buffer = client.download_stream(bucket, blob)
-    words = bytes(buffer).decode("utf-8").split("\n")
+    my_buffer = client.download_stream(bucket, blob)
+    #words = my_buffer.getvalue()
+    #words = words.decode("utf-8")
+    #words = words.split("\n")
+    words = bytes(my_buffer).decode("utf-8").split("\n")
+    
 
     index = count_words(words)
     for word, count in index.items():

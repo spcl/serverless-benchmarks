@@ -28,6 +28,7 @@ def handler(event):
     map_lists = chunks(list, n_mappers)
     blobs = []
 
+
     for chunk in map_lists:
         name = str(uuid.uuid4())[:8]
         data = io.BytesIO()

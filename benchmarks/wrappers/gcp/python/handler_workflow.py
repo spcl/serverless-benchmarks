@@ -34,8 +34,7 @@ def handler(req):
     os.environ["STORAGE_DOWNLOAD_BYTES"] = "0"
 
     event = req.get_json()
-
-    full_function_name = os.getenv("FUNCTION_NAME")
+    full_function_name = os.getenv("MY_FUNCTION_NAME")
     workflow_name, func_name = full_function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
     res = function.handler(event["payload"])

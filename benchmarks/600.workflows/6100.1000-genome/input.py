@@ -5,7 +5,8 @@ import io
 
 size_generators = {
     "test" : (1),
-    "small": (4),
+    "small": (5),
+    "small-10": (10),
     "large": (10),
 }
 
@@ -14,7 +15,7 @@ def buckets_count():
 
 def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     #TODO replace individuals input with larger file. 
-    files = ["ALL.chr21.300.vcf", "ALL.chr21.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.annotation.vcf", "columns.txt", "AFR", "ALL", "AMR", "EAS", "EUR", "GBR", "SAS"]
+    files = ["ALL.chr21.2500.vcf", "ALL.chr21.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.annotation.vcf", "columns.txt", "AFR", "ALL", "AMR", "EAS", "EUR", "GBR", "SAS"]
     for name in files:
         #if name != "ALL.chr21.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.annotation.vcf":
         path = os.path.join(data_dir, name)
@@ -27,13 +28,13 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     with open(os.path.join(data_dir, files[0]), "r") as f:
         content = f.readlines()
         #TODO potentially change if input file with different number of lines is to be processed.
-        range_per_job = 300 / num_individuals_jobs
+        range_per_job = 2500 / num_individuals_jobs
         for i in range(0, num_individuals_jobs):
             #actually split file; return it afterwards. see e.g. split.py in 660.map-reduce.
             #regex = re.compile('(?!#)')
             start = i * range_per_job
             end = i * range_per_job + range_per_job
-            print("start: ", start, "end: ", end, "range_per_job: ", range_per_job, "num_individuals_jobs: ", num_individuals_jobs)
+            #print("start: ", start, "end: ", end, "range_per_job: ", range_per_job, "num_individuals_jobs: ", num_individuals_jobs)
             #data = list(filter(regex.match, content[int(start):int(end)]))
             data = content[int(start):int(end)]
             #name with start and end lines is not needed as all individuals jobs can just read their entire file. 
@@ -48,7 +49,7 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
 
             output = {
                 "start_bytes": start_bytes,
-                "end_bytes": start_bytes + nbytes
+                "end_bytes": start_bytes + nbytes - 1
             }
 
             blobs.append(output)
