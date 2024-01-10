@@ -42,7 +42,8 @@ class GCPGenerator(Generator):
                         "body": {
                             "request_id": "${request_id}",
                             "payload": "${payload}"
-                        }
+                        },
+                        "timeout": 900,
                     },
                     "result": "payload",
                 }
@@ -98,7 +99,7 @@ class GCPGenerator(Generator):
         {
             state.name: {
                 "call": "experimental.executions.map",
-                "args": {"workflow_id": id, "arguments": "${"+array+"}"},
+                "args": {"workflow_id": id, "arguments": "${"+array+"}", "timeout": 900,},
                 "result": res_name,
             }
         }, {"assign_payload_" + state.name: {"assign": [{"payload."+state.array: "${"+res_name+"}"}]}}
@@ -226,7 +227,8 @@ class GCPGenerator(Generator):
                                             "body": {
                                                 "request_id": "${elem.request_id}",
                                                 "payload": "${elem.payload}"
-                                            }
+                                            },
+                                            "timeout": 900,
                                         },
                                         "result": "elem"
                                     }
