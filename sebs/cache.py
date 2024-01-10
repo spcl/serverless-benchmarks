@@ -11,7 +11,7 @@ from sebs.utils import LoggingBase, serialize
 
 if TYPE_CHECKING:
     from sebs.benchmark import Benchmark
-    from sebs.faas.function import CloudBenchmark
+    from sebs.faas.function import CloudBenchmark, Workflow
 
 
 def update(d, u):
@@ -75,6 +75,7 @@ class Cache(LoggingBase):
 
     def update_config(self, val, keys):
         with self._lock:
+            print("updating config with val =", val, "keys= ", keys)
             update_dict(self.cached_config, val, keys)
         self.config_updated = True
 
@@ -240,7 +241,7 @@ class Cache(LoggingBase):
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
             if os.path.exists(cached_dir):
-
+                #self.add_code_package(deployment_name, language_name, code_package)
                 # copy code
                 if os.path.isdir(code_package.code_location):
                     cached_location = os.path.join(cached_dir, "code")
@@ -295,10 +296,13 @@ class Cache(LoggingBase):
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
+                #TODO add code_package here under benchmark.name. 
                 functions_config: Dict[str, Any] = {benchmark.name: {**benchmark.serialize()}}
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
+                    print("adding code_package an correct location.")
+                    functions_config[benchmark.name]["code_package"] = cached_config[deployment_name][language]["code_package"]
                     if "functions" not in cached_config[deployment_name][language]:
                         cached_config[deployment_name][language]["functions"] = functions_config
                     else:
@@ -319,7 +323,15 @@ class Cache(LoggingBase):
         if self.ignore_functions:
             return
         with self._lock:
-            benchmark_dir = os.path.join(self.cache_dir, benchmark.benchmark)
+            #print("cache_dir: ", self.cache_dir, "benchmark: ", benchmark.serialize(), "benchmark.benchmark:", benchmark.benchmark)
+            #if isinstance(benchmark, Workflow):
+            #FIXME will break for functions. 
+            #print("benchmark name: ", benchmark.functions[0].benchmark)
+            print("benchmark: ", benchmark)
+            if hasattr(benchmark, "functions"):
+                benchmark_dir = os.path.join(self.cache_dir, benchmark.functions[0].benchmark)
+            else:
+                benchmark_dir = os.path.join(self.cache_dir, benchmark.benchmark)
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
@@ -335,6 +347,7 @@ class Cache(LoggingBase):
                                     cached_config[deployment][language]["functions"][
                                         name
                                     ] = benchmark.serialize()
+                                    cached_config[deployment][language]["functions"][name]["code_package"] = cached_config[deployment][language]["code_package"]
                 with open(cache_config, "w") as fp:
                     fp.write(serialize(cached_config))
             else:
