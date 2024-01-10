@@ -237,6 +237,9 @@ class GCP(System):
                         "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
                         "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_package_name,
+                        "environmentVariables": {
+                            "MY_FUNCTION_NAME": func_name
+                        },
                     },
                 )
             )
@@ -355,9 +358,13 @@ class GCP(System):
                     "timeout": str(function.config.timeout) + "s",
                     "httpsTrigger": {},
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+                    "environmentVariables": {
+                            "MY_FUNCTION_NAME": function.name,
+                    },
                 },
             )
         )
+        print("function.name = ", function.name)
         res = req.execute()
         versionId = res["metadata"]["versionId"]
         retries = 0
@@ -746,7 +753,7 @@ class GCP(System):
             .patch(
                 name=name,
                 updateMask="environmentVariables",
-                body={"environmentVariables": {"cold_start": str(self.cold_start_counter)}},
+                body={"environmentVariables": {"cold_start": str(self.cold_start_counter), "MY_FUNCTION_NAME": function.name}},
             )
         )
         res = req.execute()
