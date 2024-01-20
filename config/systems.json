@@ -126,7 +126,7 @@
           "packages": [
             "azure-storage-blob",
             "azure-functions",
-            "azure-functions-durable",
+            "azure-functions-durable==1.1.6",
             "redis"
           ]
         }
