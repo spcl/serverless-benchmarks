@@ -1,3 +1,5 @@
+import uuid
+
 def chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
@@ -12,6 +14,7 @@ def handler(event):
     return {
         "segments": [
             {
+                "prefix": str(uuid.uuid4().int & (1<<64)-1)[:8],
                 "segments": ss,
                 "quality": quality,
                 "input_bucket": input_bucket,

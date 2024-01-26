@@ -14,7 +14,6 @@ def count_words(lst):
 
     return index
 
-
 def handler(event):
     bucket = event["bucket"]
     blob = event["blob"]
@@ -22,12 +21,8 @@ def handler(event):
 
     client = storage.storage.get_instance()
     my_buffer = client.download_stream(bucket, blob)
-    #words = my_buffer.getvalue()
-    #words = words.decode("utf-8")
-    #words = words.split("\n")
     words = bytes(my_buffer).decode("utf-8").split("\n")
-    
-
+ 
     index = count_words(words)
     for word, count in index.items():
         data = io.BytesIO()

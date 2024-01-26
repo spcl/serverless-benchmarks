@@ -192,7 +192,6 @@ def handler(event):
   #chromosome number, doesn't matter here - just used for naming
   c = 21
 
-
   SIFT = 'NO-SIFT'
   n_runs = 1000
   n_indiv = 52

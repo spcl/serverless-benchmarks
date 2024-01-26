@@ -13,7 +13,6 @@ def str_to_cls(cls_name):
     #print(cls_name)
     return globals()[cls_name]
 
-
 def load_dataset(bucket, features, labels):
     dataset_dir = os.path.join("/tmp", str(uuid.uuid4()))
     os.makedirs(dataset_dir, exist_ok=True)

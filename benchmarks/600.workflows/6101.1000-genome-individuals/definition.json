@@ -1,0 +1,11 @@
+{
+    "root": "individuals",
+    "states": {
+        "individuals": {
+            "type": "map",
+            "func_name": "individuals",
+            "array": "blob",
+            "common_params": "bucket,columns,columns_bucket,populations,sifting_input,individuals_file"
+        }
+    }
+}

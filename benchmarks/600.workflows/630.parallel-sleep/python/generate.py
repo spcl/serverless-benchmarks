@@ -3,6 +3,7 @@ def handler(event):
     sleep = int(event["sleep"])
     buffer = count * [sleep]
 
+
     return {
         "buffer": buffer
     }

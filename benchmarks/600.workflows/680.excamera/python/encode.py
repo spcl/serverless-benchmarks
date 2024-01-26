@@ -18,9 +18,10 @@ def download_bin(bucket, name, dest_dir):
         subprocess.check_output(f"chmod +x {path}", stderr=subprocess.STDOUT, shell=True)
 
 
-def upload_files(bucket, paths):
+def upload_files(bucket, paths, prefix):
     for path in paths:
         file = os.path.basename(path)
+        file = prefix + file
         #print("Uploading", file, "to", path)
         client.upload(bucket, file, path, unique_name=False)
 
@@ -64,6 +65,7 @@ def handler(event):
     output_bucket = event["output_bucket"]
     segs = event["segments"]
     quality = event["quality"]
+    prefix = event["prefix"]
 
     tmp_dir = "/tmp"
     download_bin(input_bucket, "vpxenc", tmp_dir)
@@ -78,7 +80,7 @@ def handler(event):
 
     segs = [os.path.splitext(seg)[0] for seg in segs]
     output_paths = encode(segs, data_dir, quality)
-    upload_files(output_bucket, output_paths)
+    upload_files(output_bucket, output_paths, prefix)
 
     shutil.rmtree(data_dir)
 

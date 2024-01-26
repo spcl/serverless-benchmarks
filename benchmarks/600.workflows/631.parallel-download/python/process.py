@@ -7,4 +7,5 @@ def handler(event):
     client = storage.storage.get_instance()
     buffer = client.download_stream(bucket, blob)
 
+
     return "ok"

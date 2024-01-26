@@ -50,6 +50,7 @@ def writefile(filename, content):
 def merging(c, tar_files):
     tic = time.perf_counter()
 
+
     merged_dir = "merged_chr{}".format(c)
     merged_dir = os.path.join("/tmp", merged_dir)
     os.makedirs(merged_dir, exist_ok=True)

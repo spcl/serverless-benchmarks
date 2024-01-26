@@ -16,10 +16,10 @@ def download_bin(bucket, name, dest_dir):
         subprocess.check_output(f"chmod +x {path}", stderr=subprocess.STDOUT, shell=True)
 
 
-def upload_files(bucket, paths):
+def upload_files(bucket, paths, prefix):
     for path in paths:
         file = os.path.basename(path)
-        #print("Uploading", file, "to", path)
+        file = prefix + file
         client.upload(bucket, file, path, unique_name=False)
 
 
@@ -75,6 +75,7 @@ def handler(event):
     output_bucket = event["output_bucket"]
     segs = event["segments"]
     segs = [os.path.splitext(seg)[0] for seg in segs]
+    prefix = event["prefix"]
 
     tmp_dir = "/tmp"
     download_bin(input_bucket, "xc-enc", tmp_dir)
@@ -84,12 +85,17 @@ def handler(event):
     input_paths, _ = reencode_first_frame(segs, data_dir, dry_run=True)
     for path in input_paths:
         file = os.path.basename(path)
-        bucket = input_bucket if ".y4m" in file else output_bucket
-        #print("Downloading", file, "from", bucket)
-        client.download(bucket, file, path)
+        
+        if ".y4m" in file:
+            client.download(input_bucket, file, path)
+        else:
+            file = prefix + file
+            client.download(output_bucket, file, path)        
+        
+        
 
     _, output_paths = reencode_first_frame(segs, data_dir)
-    upload_files(output_bucket, output_paths)
+    upload_files(output_bucket, output_paths, prefix)
 
     shutil.rmtree(data_dir)
 

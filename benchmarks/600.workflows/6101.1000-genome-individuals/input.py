@@ -7,6 +7,7 @@ size_generators = {
     "test" : (1),
     "small": (5),
     "small-10": (10),
+    "small-20": (20),
     "large": (10),
 }
 
@@ -14,12 +15,12 @@ def buckets_count():
     return (1, 1)
 
 def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
-    #TODO replace individuals input with larger file. 
     files = ["ALL.chr21.1250.vcf", "ALL.chr21.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.annotation.vcf", "columns.txt", "AFR", "ALL", "AMR", "EAS", "EUR", "GBR", "SAS"]
     for name in files:
+        if name == "ALL.chr21.1250.vcf" or name == "columns.txt":
         #if name != "ALL.chr21.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.annotation.vcf":
-        path = os.path.join(data_dir, name)
-        upload_func(0, name, path)
+            path = os.path.join(data_dir, name)
+            upload_func(0, name, path)
 
     num_individuals_jobs = size_generators[size]
 
@@ -27,7 +28,6 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     start_bytes = 0
     with open(os.path.join(data_dir, files[0]), "r") as f:
         content = f.readlines()
-        #TODO potentially change if input file with different number of lines is to be processed.
         range_per_job = 1250 / num_individuals_jobs
         for i in range(0, num_individuals_jobs):
             #actually split file; return it afterwards. see e.g. split.py in 660.map-reduce.
@@ -43,8 +43,6 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
             upload_data = io.BytesIO()
             upload_data.writelines((val).encode("utf-8") for val in data)
             upload_data.seek(0)
-            #name = client.upload_stream(output_bucket, name, upload_data)
-            #TODO keep track of start + stop bytes and return them. 
             nbytes = upload_data.getbuffer().nbytes
 
             output = {
