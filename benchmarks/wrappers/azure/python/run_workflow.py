@@ -33,7 +33,6 @@ def set_var(obj, val, path: str):
         obj = obj[n]
     obj[names[-1]] = val
 
-
 def handler(context: df.DurableOrchestrationContext):
     start = datetime.datetime.now().timestamp()
     ts = start
@@ -86,9 +85,21 @@ def handler(context: df.DurableOrchestrationContext):
         elif isinstance(current, Map):
             array = get_var(res, current.array)
             tasks = []
-            for elem in array:
-                input = {"payload": elem, "request_id": request_id}
-                tasks.append(context.call_activity(current.func_name, input))
+            if current.common_params:
+                #assemble input differently
+                for elem in array:
+                    #assemble payload
+                    payload = {}
+                    payload["array_element"] = elem
+                    params = current.common_params.split(",")
+                    for param in params:
+                        payload[param] = get_var(res, param)
+                    myinput = {"payload": payload, "request_id": request_id}
+                    tasks.append(context.call_activity(current.func_name, myinput))
+            else:    
+                for elem in array:
+                    myinput = {"payload": elem, "request_id": request_id}
+                    tasks.append(context.call_activity(current.func_name, myinput))
 
             duration += (now() - ts)
             map_res = yield context.task_all(tasks)
@@ -115,6 +126,75 @@ def handler(context: df.DurableOrchestrationContext):
                 ts = now()
 
             current = states.get(current.next, None)
+
+        elif isinstance(current, Parallel):
+            parallel_states = {n: State.deserialize(n, s) for n, s in current.funcs.items()}
+            
+            #parallel_funcs_names = [t.name for t in states.values()]
+            state_to_result = {}
+            for state in parallel_states.values():
+                state_to_result[state.func_name] = []
+            #find out what type they have and execute as above?
+
+            parallel_tasks = []
+            logging.info("states: ")
+            logging.info(parallel_states)
+            for state in parallel_states.values():
+                if isinstance(state, Task):
+                    input = {"payload": res, "request_id": request_id}
+
+                    duration += (now() - ts)
+                    parallel_tasks.append(context.call_activity(state.func_name, input))
+                    state_to_result[state.func_name].append(len(parallel_tasks)-1)
+                    
+                elif isinstance(state, Map):
+                    logging.info("Map")
+                    logging.info(state.func_name)
+                    array = get_var(res, state.array)
+                    tasks = []
+                    if state.common_params:
+                        #assemble input differently
+                        for elem in array:
+                            #assemble payload
+                            payload = {}
+                            payload["array_element"] = elem
+                            params = state.common_params.split(",")
+                            for param in params:
+                                payload[param] = get_var(res, param)
+                            myinput = {"payload": payload, "request_id": request_id}
+                            parallel_tasks.append(context.call_activity(state.func_name, myinput))
+                            state_to_result[state.func_name].append(len(parallel_tasks)-1)
+                    else:    
+                        for elem in array:
+                            myinput = {"payload": elem, "request_id": request_id}
+                            parallel_tasks.append(context.call_activity(state.func_name, myinput))
+                            state_to_result[state.func_name].append(len(parallel_tasks)-1)
+                
+            duration += (now() - ts)
+            map_res = yield context.task_all(parallel_tasks)
+            ts = now()
+            res = {}
+
+            #assemble return payload similarly to other platforms: key is function name, values is its return value.
+            for state in parallel_states.values():
+                #get respective results of map_res related to func according to state_to_result
+                indices = state_to_result[state.func_name]
+                logging.info("indices")
+                logging.info(indices)
+                if len(indices) > 1:
+                    output = []
+                    for index in indices:
+                        output.append(map_res[index])
+                    res[state.func_name] = output
+                else:
+                    #task state
+                    res[state.func_name] = map_res[indices[0]]
+
+            logging.info("res: ")
+            logging.info(res)
+
+            current = states.get(current.next, None)
+
         else:
             raise ValueError(f"Undefined state: {current}")
 

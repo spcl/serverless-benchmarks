@@ -73,6 +73,13 @@ class storage:
 
         return data
 
+    def download_within_range(self, container, file, start_byte, stop_byte):
+        client = self.client.get_blob_client(container=container, blob=file)
+        data = client.download_blob(offset=start_byte, length=(stop_byte-start_byte), encoding='UTF-8').readall()
+        incr_io_env(len(data), "STORAGE_DOWNLOAD_BYTES")
+
+        return data #.decode('utf-8')
+
     def list_directory(self, container, prefix):
         client = self.client.get_container_client(container=container)
         objects = client.list_blobs(name_starts_with=prefix)

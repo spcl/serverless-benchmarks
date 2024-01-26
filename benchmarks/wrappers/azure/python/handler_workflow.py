@@ -4,6 +4,8 @@ import os
 import uuid
 import importlib
 
+import logging
+
 from azure.storage.blob import BlobServiceClient
 import azure.functions as func
 from redis import Redis
@@ -27,6 +29,13 @@ def main(event, context: func.Context):
     start = datetime.datetime.now().timestamp()
     os.environ["STORAGE_UPLOAD_BYTES"] = "0"
     os.environ["STORAGE_DOWNLOAD_BYTES"] = "0"
+    #logging.info("event:")
+    #logging.info(event)
+    #TODO figure it where this should go and if it works like this. 
+    #if 'connection_string' in event['payload']:
+    #    os.environ['STORAGE_CONNECTION_STRING'] = event['payload']['connection_string']
+    #elif 'connection_string' in event:
+    #    os.environ['STORAGE_CONNECTION_STRING'] = event['connection_string']
 
     workflow_name = os.getenv("APPSETTING_WEBSITE_SITE_NAME")
     func_name = os.path.basename(os.path.dirname(__file__))
@@ -75,4 +84,8 @@ def main(event, context: func.Context):
     key = os.path.join(workflow_name, func_name, req_id, str(uuid.uuid4())[0:8])
     redis.set(key, payload)
 
+    #if 'connection_string' in event:
+    #    res['connection_string'] = event['connection_string']
+    
+    
     return res
