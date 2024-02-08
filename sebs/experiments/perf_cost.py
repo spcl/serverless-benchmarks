@@ -100,7 +100,8 @@ class PerfCost(Experiment):
             code_package = self._sebs_client.get_benchmark(
             settings["benchmark"], self._deployment_client, self.config
             )
-            if self.is_workflow: #and platform != "azure":
+            platform = self._deployment_client.name()
+            if self.is_workflow and platform != "azure":
                 for func in self._function.functions:
                     func.memory = memory
                     self._deployment_client.update_function(func, code_package)
@@ -244,12 +245,14 @@ class PerfCost(Experiment):
 
                                 df = pd.DataFrame(payloads)
                                 if df.shape[0] > 0:
-                                    was_cold_start = df.sort_values(["start"]).at[0, "is_cold"]
+                                    #ensure that first invocation was warm.
+                                    df = df.sort_values(["start"]).reset_index(drop=True)
+                                    was_cold_start = df.at[0, "is_cold"]
                                 else:
                                     raise RuntimeError(f"Did not find measurements for {ret.request_id}")
 
                             invalid = (run_type == PerfCost.RunType.COLD and not was_cold_start) or (
-                            run_type == PerfCost.RunType.WARM and was_cold_start)
+                                run_type == PerfCost.RunType.WARM and was_cold_start)
                             if self.is_workflow:
                                 invalid = invalid or (self.num_expected_payloads != len(payloads))
 
@@ -265,11 +268,6 @@ class PerfCost(Experiment):
                                 self.logging.info(msg)
                                 incorrect.append(ret)
 
-                            #if run_type == PerfCost.RunType.COLD and not ret.stats.cold_start:
-                            #    self.logging.info(f"Invocation {ret.request_id} is not cold!")
-                            #    incorrect.append(ret)
-                            #elif run_type == PerfCost.RunType.WARM and ret.stats.cold_start:
-                            #    self.logging.info(f"Invocation {ret.request_id} is cold!")
                             else:
                                 result.add_invocation(self._function, ret)
                                 colds_count += ret.stats.cold_start
@@ -403,7 +401,11 @@ class PerfCost(Experiment):
         code_package = sebs_client.get_benchmark(
             settings["benchmark"], deployment_client, self.config
         )
-        workflow_name = benchmark_name #deployment_client.default_benchmark_name(code_package)
+        
+        if isinstance(deployment_client, Azure):
+            workflow_name = deployment_client.default_function_name(code_package)
+        else:
+            workflow_name = benchmark_name #deployment_client.default_benchmark_name(code_package)
 
         for f in glob.glob(os.path.join(result_dir, "*.csv")):
             filename = os.path.splitext(os.path.basename(f))[0]
@@ -439,7 +441,6 @@ class PerfCost(Experiment):
             if isinstance(deployment_client, Azure):
                 func_names = [workflow_name]
             else:
-                #FIXME don't hardcode python version
                 workflow_name = workflow_name.replace(".", "_") 
                 workflow_name = workflow_name.replace("-", "_")
                 runtime_version = self.config.runtime.version

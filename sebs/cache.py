@@ -75,7 +75,6 @@ class Cache(LoggingBase):
 
     def update_config(self, val, keys):
         with self._lock:
-            print("updating config with val =", val, "keys= ", keys)
             update_dict(self.cached_config, val, keys)
         self.config_updated = True
 
