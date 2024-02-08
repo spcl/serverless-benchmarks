@@ -12,7 +12,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/si
 
 from redis import Redis
 
-
 def probe_cold_start():
     is_cold = False
     fname = os.path.join("/tmp", "cold_run")
