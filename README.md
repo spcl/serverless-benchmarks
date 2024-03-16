@@ -88,7 +88,8 @@ Requirements:
 - `libcurl` and its headers must be available on your system to install `pycurl`
 - Standard Linux tools and `zip` installed
 
-... and that should be all.
+... and that should be all. We currently support Linux and other POSIX systems with Bash available.
+On Windows, we recommend using WSL.
 
 To install the benchmarks with a support for all platforms, use:
 
