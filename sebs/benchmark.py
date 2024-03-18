@@ -399,6 +399,7 @@ class Benchmark(LoggingBase):
                                 "CONTAINER_USER": "docker_user",
                                 "APP": self.benchmark,
                                 "PLATFORM": self._deployment_name.upper(),
+                                "TARGET_ARCHITECTURE": self._experiment_config._architecture,
                             },
                             remove=True,
                             stdout=True,
