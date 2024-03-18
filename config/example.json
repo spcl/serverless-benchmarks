@@ -3,10 +3,11 @@
     "deployment": "openwhisk",
     "update_code": false,
     "update_storage": false,
-    "download_results": false,
+    "download_results": false, 
+    "architecture": "x86_64", 
     "runtime": {
       "language": "python",
-      "version": "3.7"
+      "version": "3.8"
     },
     "type": "invocation-overhead",
     "perf-cost": {
