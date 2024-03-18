@@ -7,7 +7,7 @@
     "architecture": "x86_64", 
     "runtime": {
       "language": "python",
-      "version": "3.8"
+      "version": "3.7"
     },
     "type": "invocation-overhead",
     "perf-cost": {
