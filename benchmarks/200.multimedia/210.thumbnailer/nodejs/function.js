@@ -5,8 +5,10 @@ const sharp = require('sharp'),
 let storage_handler = new storage.storage();
 
 exports.handler = async function(event) {
-  input_bucket = event.bucket.input
-  output_bucket = event.bucket.output
+
+  bucket = event.bucket.bucket
+  input_prefix = event.bucket.input
+  output_prefix = event.bucket.output
   let key = event.object.key
   width = event.object.width
   height = event.object.height
@@ -14,13 +16,13 @@ exports.handler = async function(event) {
   let upload_key = key.substr(0, pos < 0 ? key.length : pos) + '.png';
 
   const sharp_resizer = sharp().resize(width, height).png();
-  let read_promise = storage_handler.downloadStream(input_bucket, key);
-  let [writeStream, promise, uploadName] = storage_handler.uploadStream(output_bucket, upload_key);
+  let read_promise = storage_handler.downloadStream(bucket, path.join(input_prefix, key));
+  let [writeStream, promise, uploadName] = storage_handler.uploadStream(bucket, path.join(output_prefix, upload_key));
   read_promise.then(
     (input_stream) => {
       input_stream.pipe(sharp_resizer).pipe(writeStream);
     }
   );
   await promise;
-  return {bucket: output_bucket, key: uploadName}
+  return {bucket: output_prefix, key: uploadName}
 };

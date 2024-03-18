@@ -91,7 +91,7 @@ class Local(System):
                     "The local deployment is missing the configuration of pre-allocated storage!"
                 )
             self.storage = Minio.deserialize(
-                self.config.resources.storage_config, self.cache_client
+                self.config.resources.storage_config, self.cache_client, self.config.resources
             )
             self.storage.logging_handlers = self.logging_handlers
         else:

@@ -18,14 +18,15 @@ def parse_directory(directory):
 
 def handler(event):
   
-    input_bucket = event.get('bucket').get('input')
-    output_bucket = event.get('bucket').get('output')
+    bucket = event.get('bucket').get('bucket')
+    input_prefix = event.get('bucket').get('input')
+    output_prefix = event.get('bucket').get('output')
     key = event.get('object').get('key')
     download_path = '/tmp/{}-{}'.format(key, uuid.uuid4())
     os.makedirs(download_path)
 
     s3_download_begin = datetime.datetime.now()
-    client.download_directory(input_bucket, key, download_path)
+    client.download_directory(bucket, os.path.join(input_prefix, key), download_path)
     s3_download_stop = datetime.datetime.now()
     size = parse_directory(download_path)
 
@@ -36,7 +37,7 @@ def handler(event):
     s3_upload_begin = datetime.datetime.now()
     archive_name = '{}.zip'.format(key)
     archive_size = os.path.getsize(os.path.join(download_path, archive_name))
-    key_name = client.upload(output_bucket, archive_name, os.path.join(download_path, archive_name))
+    key_name = client.upload(bucket, os.path.join(output_prefix, archive_name), os.path.join(download_path, archive_name))
     s3_upload_stop = datetime.datetime.now()
 
     download_time = (s3_download_stop - s3_download_begin) / datetime.timedelta(microseconds=1)
@@ -44,7 +45,7 @@ def handler(event):
     process_time = (compress_end - compress_begin) / datetime.timedelta(microseconds=1)
     return {
             'result': {
-                'bucket': output_bucket,
+                'bucket': bucket,
                 'key': key_name
             },
             'measurement': {

@@ -6,6 +6,7 @@ from google.cloud import storage as gcp_storage
 from google.api_core import exceptions
 
 from sebs.cache import Cache
+from sebs.faas.config import Resources
 from ..faas.storage import PersistentStorage
 
 
@@ -26,8 +27,10 @@ class GCPStorage(PersistentStorage):
     def replace_existing(self, val: bool):
         self._replace_existing = val
 
-    def __init__(self, region: str, cache_client: Cache, replace_existing: bool):
-        super().__init__(region, cache_client, replace_existing)
+    def __init__(
+        self, region: str, cache_client: Cache, resources: Resources, replace_existing: bool
+    ):
+        super().__init__(region, cache_client, resources, replace_existing)
         self.replace_existing = replace_existing
         self.client = gcp_storage.Client()
         self.cached = False
@@ -35,7 +38,7 @@ class GCPStorage(PersistentStorage):
     def correct_name(self, name: str) -> str:
         return name
 
-    def _create_bucket(self, name, buckets: List[str] = []):
+    def _create_bucket(self, name, buckets: List[str] = [], randomize_name: bool = False):
         found_bucket = False
         for bucket_name in buckets:
             if name in bucket_name:
@@ -43,8 +46,13 @@ class GCPStorage(PersistentStorage):
                 break
 
         if not found_bucket:
-            random_name = str(uuid.uuid4())[0:16]
-            bucket_name = "{}-{}".format(name, random_name).replace(".", "_")
+
+            if randomize_name:
+                random_name = str(uuid.uuid4())[0:16]
+                bucket_name = "{}-{}".format(name, random_name).replace(".", "_")
+            else:
+                bucket_name = name
+
             self.client.create_bucket(bucket_name)
             logging.info("Created bucket {}".format(bucket_name))
             return bucket_name

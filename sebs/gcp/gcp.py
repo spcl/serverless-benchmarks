@@ -93,7 +93,9 @@ class GCP(System):
         buckets=None,
     ) -> PersistentStorage:
         if not self.storage:
-            self.storage = GCPStorage(self.config.region, self.cache_client, replace_existing)
+            self.storage = GCPStorage(
+                self.config.region, self.cache_client, self.config.resources, replace_existing
+            )
             self.storage.logging_handlers = self.logging_handlers
         else:
             self.storage.replace_existing = replace_existing

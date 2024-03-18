@@ -27,8 +27,9 @@ def resize_image(image_bytes, w, h):
 
 def handler(event):
   
-    input_bucket = event.get('bucket').get('input')
-    output_bucket = event.get('bucket').get('output')
+    bucket = event.get('bucket').get('bucket')
+    input_prefix = event.get('bucket').get('input')
+    output_prefix = event.get('bucket').get('output')
     key = unquote_plus(event.get('object').get('key'))
     width = event.get('object').get('width')
     height = event.get('object').get('height')
@@ -39,7 +40,7 @@ def handler(event):
     #resize_image(download_path, upload_path, width, height)
     #client.upload(output_bucket, key, upload_path)
     download_begin = datetime.datetime.now()
-    img = client.download_stream(input_bucket, key)
+    img = client.download_stream(bucket, os.path.join(input_prefix, key))
     download_end = datetime.datetime.now()
 
     process_begin = datetime.datetime.now()
@@ -48,7 +49,7 @@ def handler(event):
     process_end = datetime.datetime.now()
 
     upload_begin = datetime.datetime.now()
-    key_name = client.upload_stream(output_bucket, key, resized)
+    key_name = client.upload_stream(bucket, os.path.join(output_prefix, key), resized)
     upload_end = datetime.datetime.now()
 
     download_time = (download_end - download_begin) / datetime.timedelta(microseconds=1)
@@ -56,7 +57,7 @@ def handler(event):
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
     return {
             'result': {
-                'bucket': output_bucket,
+                'bucket': bucket,
                 'key': key_name
             },
             'measurement': {

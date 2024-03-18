@@ -4,6 +4,7 @@ from typing import List
 from azure.storage.blob import BlobServiceClient
 
 from sebs.cache import Cache
+from sebs.faas.config import Resources
 from ..faas.storage import PersistentStorage
 
 
@@ -16,21 +17,31 @@ class BlobStorage(PersistentStorage):
     def deployment_name():
         return "azure"
 
-    def __init__(self, region: str, cache_client: Cache, conn_string: str, replace_existing: bool):
-        super().__init__(region, cache_client, replace_existing)
+    def __init__(
+        self,
+        region: str,
+        cache_client: Cache,
+        resources: Resources,
+        conn_string: str,
+        replace_existing: bool,
+    ):
+        super().__init__(region, cache_client, resources, replace_existing)
         self.client: BlobServiceClient = BlobServiceClient.from_connection_string(conn_string)
 
     """
         Internal implementation of creating a new container.
     """
 
-    def _create_bucket(self, name: str, containers: List[str] = []) -> str:
+    def _create_bucket(
+        self, name: str, containers: List[str] = [], randomize_name: bool = False
+    ) -> str:
         for c in containers:
             if name in c:
                 self.logging.info("Container {} for {} already exists, skipping.".format(c, name))
                 return c
-        random_name = str(uuid.uuid4())[0:16]
-        name = "{}-{}".format(name, random_name)
+        if randomize_name:
+            random_name = str(uuid.uuid4())[0:16]
+            name = "{}-{}".format(name, random_name)
         self.client.create_container(name)
         self.logging.info("Created container {}".format(name))
         return name

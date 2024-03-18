@@ -1,6 +1,7 @@
 from typing import cast, Optional
 
 from sebs.aws.s3 import S3
+from sebs.faas.config import Resources
 from sebs.faas.function import Function, FunctionConfig
 
 
@@ -61,5 +62,5 @@ class LambdaFunction(Function):
         return ret
 
     def code_bucket(self, benchmark: str, storage_client: S3):
-        self.bucket, idx = storage_client.add_input_bucket(benchmark)
+        self.bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
         return self.bucket

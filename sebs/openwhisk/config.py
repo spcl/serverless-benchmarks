@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sebs.cache import Cache
 from sebs.faas.config import Credentials, Resources, Config
 from sebs.utils import LoggingHandlers
@@ -23,7 +25,7 @@ class OpenWhiskResources(Resources):
         password: Optional[str] = None,
         registry_updated: bool = False,
     ):
-        super().__init__()
+        super().__init__(name="openwhisk")
         self._docker_registry = registry if registry != "" else None
         self._docker_username = username if username != "" else None
         self._docker_password = password if password != "" else None
@@ -60,17 +62,21 @@ class OpenWhiskResources(Resources):
         return self._registry_updated
 
     @staticmethod
-    def initialize(dct: dict) -> Resources:
-        return OpenWhiskResources(dct["registry"], dct["username"], dct["password"])
+    def initialize(res: Resources, dct: dict):
+        ret = cast(OpenWhiskResources, res)
+        ret._docker_registry = dct["registry"]
+        ret._docker_username = dct["username"]
+        ret._docker_password = dct["password"]
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
 
         cached_config = cache.get_config("openwhisk")
-        ret: OpenWhiskResources
+        ret = OpenWhiskResources()
         # Check for new config - overrides but check if it's different
         if "docker_registry" in config:
-            ret = cast(OpenWhiskResources, OpenWhiskResources.initialize(config["docker_registry"]))
+
+            OpenWhiskResources.initialize(ret, config["docker_registry"])
             ret.logging.info("Using user-provided Docker registry for OpenWhisk.")
             ret.logging_handlers = handlers
 
@@ -89,10 +95,7 @@ class OpenWhiskResources(Resources):
             and "resources" in cached_config
             and "docker" in cached_config["resources"]
         ):
-            ret = cast(
-                OpenWhiskResources,
-                OpenWhiskResources.initialize(cached_config["resources"]["docker"]),
-            )
+            OpenWhiskResources.initialize(ret, cached_config["resources"]["docker"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached Docker registry for OpenWhisk")
         else:
