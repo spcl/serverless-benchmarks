@@ -1,1 +1,2 @@
 squiggle==0.3.1
+jsonschema>=4.17.0

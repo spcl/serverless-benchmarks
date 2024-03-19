@@ -4,6 +4,7 @@ import os
 import shutil
 import uuid
 import zlib
+from jsonschema import validate
 
 from . import storage
 client = storage.storage.get_instance()
@@ -17,11 +18,31 @@ def parse_directory(directory):
     return size
 
 def handler(event):
-  
-    input_bucket = event.get('bucket').get('input')
-    output_bucket = event.get('bucket').get('output')
-    key = event.get('object').get('key')
-    download_path = '/tmp/{}-{}'.format(key, uuid.uuid4())
+
+    schema = {
+        "type": "object",
+        "required": ["bucket", "object"],
+        "properties": {
+            "bucket": {
+                "type": "object",
+                "required": ["output", "input"]
+            },
+            "object": {
+                "type": "object",
+                "required": ["key"]
+            }
+        }
+    }
+
+    try:
+        validate(event, schema=schema)
+    except:
+        return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
+    
+    input_bucket = event['bucket']['input']
+    output_bucket = event['bucket']['output']
+    key = event['object']['key']
+    download_path = f'/tmp/{key}-{uuid.uuid4()}'
     os.makedirs(download_path)
 
     s3_download_begin = datetime.datetime.now()
@@ -34,7 +55,7 @@ def handler(event):
     compress_end = datetime.datetime.now()
 
     s3_upload_begin = datetime.datetime.now()
-    archive_name = '{}.zip'.format(key)
+    archive_name = f'{key}.zip'
     archive_size = os.path.getsize(os.path.join(download_path, archive_name))
     key_name = client.upload(output_bucket, archive_name, os.path.join(download_path, archive_name))
     s3_upload_stop = datetime.datetime.now()
@@ -43,11 +64,11 @@ def handler(event):
     upload_time = (s3_upload_stop - s3_upload_begin) / datetime.timedelta(microseconds=1)
     process_time = (compress_end - compress_begin) / datetime.timedelta(microseconds=1)
     return {
-            'result': {
-                'bucket': output_bucket,
-                'key': key_name
-            },
+            'status': 'success',
+            'result': 'Returned with no error',
             'measurement': {
+                'bucket': output_bucket,
+                'key': key_name,
                 'download_time': download_time,
                 'download_size': size,
                 'upload_time': upload_time,
@@ -55,4 +76,3 @@ def handler(event):
                 'compute_time': process_time
             }
         }
-

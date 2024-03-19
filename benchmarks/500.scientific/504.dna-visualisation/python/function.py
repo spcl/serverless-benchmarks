@@ -1,15 +1,36 @@
 import datetime, io, json
 # using https://squiggle.readthedocs.io/en/latest/
 from squiggle import transform
+from jsonschema import validate
 
 from . import storage
 client = storage.storage.get_instance()
 
 def handler(event):
 
-    input_bucket = event.get('bucket').get('input')
-    output_bucket = event.get('bucket').get('output')
-    key = event.get('object').get('key')
+    schema = {
+        "type": "object",
+        "required": ["bucket", "object"],
+        "properties": {
+            "bucket": {
+                "type": "object",
+                "required": ["input", "output"]
+            },
+            "object": {
+                "type": "object",
+                "required": ["key"]
+            }
+        }
+    }
+    
+    try:
+        validate(event, schema=schema)
+    except:
+        return { "status": "failure", 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
+
+    input_bucket = event['bucket']['input']
+    output_bucket = event['bucket']['output']
+    key = event['object']['key']
     download_path = '/tmp/{}'.format(key)
 
     download_begin = datetime.datetime.now()
@@ -30,13 +51,14 @@ def handler(event):
 
     download_time = (download_stop - download_begin) / datetime.timedelta(microseconds=1)
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
+    # !? To include upload_time
 
     return {
-            'result': {
-                'bucket': output_bucket,
-                'key': key_name
-            },
+            'status': 'success',
+            'result': 'Returned with no error',
             'measurement': {
+                'bucket': output_bucket,
+                'key': key_name,
                 'download_time': download_time,
                 'compute_time': process_time
             }

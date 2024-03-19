@@ -1,4 +1,3 @@
-
 import datetime, json, os, uuid
 
 # Extract zipped torch model - used in Python 3.8 and 3.9
@@ -14,6 +13,7 @@ from PIL import Image
 import torch
 from torchvision import transforms
 from torchvision.models import resnet50
+from jsonschema import validate
 
 from . import storage
 client = storage.storage.get_instance()
@@ -25,11 +25,31 @@ model = None
 
 def handler(event):
   
-    model_bucket = event.get('bucket').get('model')
-    input_bucket = event.get('bucket').get('input')
-    key = event.get('object').get('input')
-    model_key = event.get('object').get('model')
-    download_path = '/tmp/{}-{}'.format(key, uuid.uuid4())
+    schema = {
+        "type": "object",
+        "required": ["bucket", "object"],
+        "properties": {
+            "bucket": {
+                "type": "object",
+                "required": ["model", "input"]
+            },
+            "object": {
+                "type": "object",
+                "required": ["input", "model"]
+            }
+        }
+    }
+
+    try:
+        validate(event, schema=schema)
+    except:
+        return { 'status': 'failure', 'result': 'Some value(s) is/are not found in JSON data or of incorrect type' }
+    
+    model_bucket = event['bucket']['model']
+    input_bucket = event['bucket']['input']
+    key = event['object']['input']  # !? it is 'input' or 'key'
+    model_key = event['object']['model']
+    download_path = f'/tmp/{key}-{uuid.uuid4()}'
 
     image_download_begin = datetime.datetime.now()
     image_path = download_path
@@ -71,13 +91,16 @@ def handler(event):
     ret = idx2label[index]
     process_end = datetime.datetime.now()
 
-    download_time = (image_download_end- image_download_begin) / datetime.timedelta(microseconds=1)
+    download_time = (image_download_end - image_download_begin) / datetime.timedelta(microseconds=1)
     model_download_time = (model_download_end - model_download_begin) / datetime.timedelta(microseconds=1)
     model_process_time = (model_process_end - model_process_begin) / datetime.timedelta(microseconds=1)
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
     return {
-            'result': {'idx': index.item(), 'class': ret},
+            'status': 'success',
+            'result': 'Returned with no error',
             'measurement': {
+                'idx': index.item(),
+                'class': ret,
                 'download_time': download_time + model_download_time,
                 'compute_time': process_time + model_process_time,
                 'model_time': model_process_time,

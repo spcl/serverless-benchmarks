@@ -2,3 +2,4 @@
 #torchvision==0.4.0+cpu
 #https://download.pytorch.org/whl/cpu/torch-1.0.1.post2-cp37-cp37m-linux_x86_64.whl
 #torch==1.0.1.post2+cpu
+jsonschema>=4.17.0
