@@ -55,6 +55,7 @@ class Config:
         cfg._download_results = config["download_results"]
         cfg._runtime = Runtime.deserialize(config["runtime"])
         cfg._flags = config["flags"] if "flags" in config else {}
+        cfg._architecture = config["architecture"]
 
         from sebs.experiments import (
             NetworkPingPong,
