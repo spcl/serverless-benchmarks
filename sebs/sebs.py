@@ -104,6 +104,10 @@ class SeBS(LoggingBase):
             from sebs.openwhisk import OpenWhisk
 
             implementations["openwhisk"] = OpenWhisk
+        if has_platform("fission"):
+            from sebs.fission.fission import Fission
+
+            implementations["fission"] = Fission
 
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))

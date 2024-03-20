@@ -76,8 +76,6 @@ class S3(PersistentStorage):
             self.logging.error(e)
             raise e
 
-        return bucket_name
-
     def uploader_func(self, bucket_idx, key, filepath):
         # Skip upload when using cached buckets and not updating storage.
         if self.cached and not self.replace_existing:
