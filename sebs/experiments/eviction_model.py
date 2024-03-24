@@ -253,7 +253,7 @@ class EvictionModel(Experiment):
                 servers_results = []
 
                 """
-                    Start M server intances. Each one handles one set of invocations.
+                    Start M server instances. Each one handles one set of invocations.
                 """
                 for j in range(0, threads):
                     servers_results.append(

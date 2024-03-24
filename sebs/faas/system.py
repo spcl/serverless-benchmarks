@@ -66,7 +66,7 @@ class System(ABC, LoggingBase):
         pass
 
     """
-        Initialize the system. After the call the local or remot
+        Initialize the system. After the call the local or remote
         FaaS system should be ready to allocate functions, manage
         storage resources and invoke functions.
 
