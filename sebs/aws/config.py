@@ -199,6 +199,7 @@ class AWSResources(Resources):
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
 
+    # FIXME: python3.7+ future annotations
     @staticmethod
     def initialize(res: Resources, dct: dict):
 
