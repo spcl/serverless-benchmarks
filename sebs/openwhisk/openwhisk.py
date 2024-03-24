@@ -140,7 +140,7 @@ class OpenWhisk(System):
         else:
             registry_name = "Docker Hub"
 
-        # Check if we the image is already in the registry.
+        # Check if the image is already in the registry.
         if not is_cached:
             if self.find_image(repository_name, image_tag):
                 self.logging.info(

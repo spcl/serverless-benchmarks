@@ -2,6 +2,7 @@ import json
 import os
 import secrets
 import uuid
+import platform
 from typing import List, Optional, Type, TypeVar
 
 import docker
@@ -97,10 +98,17 @@ class Minio(PersistentStorage):
                 )
 
             self._storage_container.reload()
-            networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
-            self._cfg.address = "{IPAddress}:{Port}".format(
-                IPAddress=networks["bridge"]["IPAddress"], Port=9000
-            )
+
+            # Check if the system is Linux and that it's not WSL
+            if platform.system() == "Linux" and "microsoft" not in platform.release().lower():
+                networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
+                self._cfg.address = "{IPAddress}:{Port}".format(
+                    IPAddress=networks["bridge"]["IPAddress"], Port=9000
+                )
+            else:
+                # System is either WSL, Windows, or Mac
+                self._cfg.address = f"localhost:{self._cfg.mapped_port}"
+
             if not self._cfg.address:
                 self.logging.error(
                     f"Couldn't read the IP address of container from attributes "

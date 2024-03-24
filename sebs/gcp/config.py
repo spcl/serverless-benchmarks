@@ -15,7 +15,7 @@ from sebs.utils import LoggingHandlers
 
     The order of credentials initialization:
     1. Load credentials from cache.
-    2. If any new vaues are provided in the config, they override cache values.
+    2. If any new values are provided in the config, they override cache values.
     3. If nothing is provided, initialize using environmental variables.
     4. If no information is provided, then failure is reported.
 """

@@ -79,7 +79,7 @@ class AWSCredentials(Credentials):
                 "your cache directory or create a new one!"
             )
             raise RuntimeError(
-                f"AWS login credentials do not match the acccount {account_id} in cache!"
+                f"AWS login credentials do not match the account {account_id} in cache!"
             )
         ret.logging_handlers = handlers
         return ret
@@ -202,7 +202,7 @@ class AWSResources(Resources):
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
 
-    # FIXME: python3.7+ future annotatons
+    # FIXME: python3.7+ future annotations
     @staticmethod
     def initialize(dct: dict) -> Resources:
         ret = AWSResources(dct["lambda-role"] if "lambda-role" in dct else "")

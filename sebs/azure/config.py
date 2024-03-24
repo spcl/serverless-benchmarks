@@ -246,7 +246,7 @@ class AzureResources(Resources):
     def update_cache(self, cache_client: Cache):
         cache_client.update_config(val=self.serialize(), keys=["azure", "resources"])
 
-    # FIXME: python3.7+ future annotatons
+    # FIXME: python3.7+ future annotations
     @staticmethod
     def initialize(dct: dict) -> Resources:
         return AzureResources(
