@@ -1,0 +1,127 @@
+{
+  "deployment": {
+    "aws": {
+      "lambda-role": "",
+      "region": "us-east-1"
+    },
+    "azure": {
+      "region": "westeurope"
+    },
+    "gcp": {
+      "credentials": "",
+      "project_name": "",
+      "region": "europe-west1"
+    },
+    "local": {
+      "allocated_ports": [
+        9000,
+        9001,
+        9002,
+        9003,
+        9004,
+        9005,
+        9006,
+        9007,
+        9008,
+        9009,
+        9010,
+        9012,
+        9013,
+        9014,
+        9015,
+        9016,
+        9017,
+        9018,
+        9019,
+        9020,
+        9021,
+        9022,
+        9023,
+        9024,
+        9025
+      ],
+      "storage": {
+        "access_key": "7wlCw1NXZpesNxb04OzTCNPGBLNrMMf47h2P68Jmmww",
+        "address": "localhost:9011",
+        "input_buckets": [],
+        "instance_id": "c4f3ee226a7f8784097deaa56cd39a11893d832225bf42bdf2cf6e50b0fc40f5",
+        "mapped_port": 9011,
+        "output_buckets": [],
+        "secret_key": "1d9019ab7128b49f2c526ed6aa1ae1e85eb9cf4a225a1f004dfca0878029d900",
+        "type": "minio"
+      }
+    },
+    "name": "aws",
+    "openwhisk": {
+      "docker_registry": {
+        "password": "",
+        "registry": "",
+        "username": ""
+      },
+      "experimentalManifest": false,
+      "removeCluster": false,
+      "shutdownStorage": false,
+      "storage": {
+        "access_key": "",
+        "address": "",
+        "input_buckets": [],
+        "instance_id": "",
+        "mapped_port": -1,
+        "output_buckets": [],
+        "secret_key": "",
+        "type": "minio"
+      },
+      "wskBypassSecurity": "true",
+      "wskExec": "wsk"
+    }
+  },
+  "experiments": {
+    "deployment": "openwhisk",
+    "download_results": false,
+    "eviction-model": {
+      "function_copy_idx": 0,
+      "invocations": 1,
+      "repetitions": 5,
+      "sleep": 1
+    },
+    "invocation-overhead": {
+      "N": 20,
+      "code_begin": 1048576,
+      "code_end": 261619712,
+      "code_points": 20,
+      "payload_begin": 1024,
+      "payload_end": 6251000,
+      "payload_points": 20,
+      "repetitions": 5,
+      "type": "payload"
+    },
+    "network-ping-pong": {
+      "invocations": 50,
+      "repetitions": 1000,
+      "threads": 1
+    },
+    "perf-cost": {
+      "benchmark": "110.dynamic-html",
+      "concurrent-invocations": 50,
+      "experiments": [
+        "cold",
+        "warm",
+        "burst",
+        "sequential"
+      ],
+      "input-size": "test",
+      "memory-sizes": [
+        128,
+        256
+      ],
+      "repetitions": 50
+    },
+    "runtime": {
+      "language": "python",
+      "version": "3.7"
+    },
+    "type": "invocation-overhead",
+    "update_code": false,
+    "update_storage": false
+  }
+}
