@@ -82,7 +82,7 @@ class Azure(System):
 
     """
         Allow multiple deployment clients share the same settings.
-        Not an ideal situation,
+        Not an ideal situation, but makes regression testing much simpler.
     """
 
     def allocate_shared_resource(self):
