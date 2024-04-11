@@ -3,7 +3,6 @@ docker>=4.2.0
 tzlocal>=2.1
 #linting
 flake8
-flake8-boto3
 black==22.8.0
 flake8-black
 mypy
