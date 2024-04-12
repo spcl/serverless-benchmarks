@@ -257,11 +257,18 @@ class PersistentStorage(ABC, LoggingBase):
                 Resources.StorageBucketType.EXPERIMENTS: "experiment results",
                 Resources.StorageBucketType.DEPLOYMENT: "code deployment",
             }
-            self.logging.info(f"Initialize a new bucket for {description[bucket_type]}")
-            bucket = self._create_bucket(
-                self.correct_name(self._cloud_resources.get_storage_bucket_name(bucket_type)),
-                randomize_name=False,
-            )
+
+            name = self._cloud_resources.get_storage_bucket_name(bucket_type)
+
+            if not self.exists_bucket(name):
+                self.logging.info(f"Initialize a new bucket for {description[bucket_type]}")
+                bucket = self._create_bucket(
+                    self.correct_name(name),
+                    randomize_name=False,
+                )
+            else:
+                self.logging.info(f"Using existing bucket {name} for {description[bucket_type]}")
+                bucket = name
             self._cloud_resources.set_storage_bucket(bucket_type, bucket)
 
         return bucket
