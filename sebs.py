@@ -538,11 +538,17 @@ def resources_list(resource, **kwargs):
 @resources.command("remove")
 @click.argument(
     "resource",
-    type=click.Choice(["storage"])
+    type=click.Choice(["buckets", "resource-groups"])
 )
 @click.argument(
     "prefix",
     type=str
+)
+@click.option(
+    "--wait/--no-wait",
+    type=bool,
+    default=True,
+    help="Wait for completion of removal."
 )
 @click.option(
     "--dry-run/--no-dry-run",
@@ -551,7 +557,7 @@ def resources_list(resource, **kwargs):
     help="Simulate run without actual deletions."
 )
 @common_params
-def resources_remove(resource, prefix, dry_run, **kwargs):
+def resources_remove(resource, prefix, wait, dry_run, **kwargs):
 
     (
         config,
@@ -575,6 +581,19 @@ def resources_remove(resource, prefix, dry_run, **kwargs):
                 storage_client.clean_bucket(bucket)
                 storage_client.remove_bucket(bucket)
 
+    elif resource == "resource-groups":
+
+        if deployment_client.name() != "azure":
+            sebs_client.logging.error("Resource groups are only supported on Azure!")
+            return
+
+        groups = deployment_client.config.resources.list_resource_groups(deployment_client.cli_instance)
+        for idx, group in enumerate(groups):
+            if len(prefix) > 0 and not group.startswith(prefix):
+                continue
+
+            sebs_client.logging.info(f"Removing resource group: {group}")
+            deployment_client.config.resources.delete_resource_group(deployment_client.cli_instance, group, wait)
 
 if __name__ == "__main__":
     cli()

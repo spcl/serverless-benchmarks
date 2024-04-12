@@ -211,6 +211,21 @@ class AzureResources(Resources):
             self.logging.error(ret.decode())
             raise RuntimeError("Failed to parse response from Azure CLI!")
 
+    def delete_resource_group(
+        self, cli_instance: AzureCLI, name: str, wait: bool = True
+    ) -> List[str]:
+
+        cmd = "az group delete -y --name {0}".format(name)
+        if not wait:
+            cmd += " --no-wait"
+        ret = cli_instance.execute(cmd)
+        if len(ret) != 0:
+            self.logging.error("Failed to delete the resource group!")
+            self.logging.error(ret.decode())
+            raise RuntimeError("Failed to delete the resource group!")
+
+        return
+
     """
         Retrieve or create storage account associated with benchmark data.
         Last argument allows to override the resource - useful when handling
