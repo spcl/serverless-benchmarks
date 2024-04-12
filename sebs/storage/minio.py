@@ -161,9 +161,12 @@ class Minio(PersistentStorage):
             # rethrow
             raise err
 
-    def uploader_func(self, bucket_idx, file, filepath):
+    def uploader_func(self, path_idx, file, filepath):
         try:
-            self.connection.fput_object(self.input_buckets[bucket_idx], file, filepath)
+
+            key = os.path.join(self.input_prefixes[path_idx], file)
+            bucket_name = self.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+            self.connection.fput_object(bucket_name, key, filepath)
         except minio.error.ResponseError as err:
             self.logging.error("Upload failed!")
             raise (err)
@@ -192,6 +195,9 @@ class Minio(PersistentStorage):
         for error in errors:
             self.logging.error(f"Error when deleting object from bucket {bucket}: {error}!")
 
+    def remove_bucket(self, bucket: str):
+        self.connection.remove_bucket(Bucket=bucket)
+
     def correct_name(self, name: str) -> str:
         return name
 
@@ -199,19 +205,23 @@ class Minio(PersistentStorage):
         raise NotImplementedError()
 
     def exists_bucket(self, bucket_name: str) -> bool:
+        print(bucket_name)
         return self.connection.bucket_exists(bucket_name)
 
-    def list_bucket(self, bucket_name: str) -> List[str]:
+    def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         try:
             objects_list = self.connection.list_objects(bucket_name)
             objects: List[str]
-            return [obj.object_name for obj in objects_list]
+            return [obj.object_name for obj in objects_list if prefix in obj.object_name]
         except minio.error.NoSuchBucket:
             raise RuntimeError(f"Attempting to access a non-existing bucket {bucket_name}!")
 
-    def list_buckets(self, bucket_name: str) -> List[str]:
+    def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         buckets = self.connection.list_buckets()
-        return [bucket.name for bucket in buckets if bucket_name in bucket.name]
+        if bucket_name is not None:
+            return [bucket.name for bucket in buckets if bucket_name in bucket.name]
+        else:
+            return [bucket.name for bucket in buckets]
 
     def upload(self, bucket_name: str, filepath: str, key: str):
         raise NotImplementedError()
@@ -239,8 +249,8 @@ class Minio(PersistentStorage):
                 raise RuntimeError(f"Storage container {instance_id} does not exist!")
         else:
             obj._storage_container = None
-        obj.input_buckets = cached_config.input_buckets
-        obj.output_buckets = cached_config.output_buckets
+        obj._input_prefixes = cached_config.input_buckets
+        obj._output_prefixes = cached_config.output_buckets
         obj.configure_connection()
         return obj
 

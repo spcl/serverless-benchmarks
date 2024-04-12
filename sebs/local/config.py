@@ -49,7 +49,7 @@ class LocalResources(Resources):
 
 class LocalConfig(Config):
     def __init__(self):
-        super().__init__()
+        super().__init__(name="local")
         self._credentials = LocalCredentials()
         self._resources = LocalResources()
 

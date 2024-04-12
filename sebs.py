@@ -354,7 +354,9 @@ def storage_start(storage, output_json, port):
 
     sebs.utils.global_logging()
     storage_type = sebs.SeBS.get_storage_implementation(StorageTypes(storage))
-    storage_instance = storage_type(docker.from_env(), None, True)
+    storage_config = sebs.SeBS.get_storage_config_implementation(StorageTypes(storage))()
+
+    storage_instance = storage_type(docker.from_env(), None, storage_config.resources, True)
     logging.info(f"Starting storage {str(storage)} on port {port}.")
     storage_instance.start(port)
     if output_json:
@@ -376,7 +378,7 @@ def storage_stop(input_json):
         storage_type = cfg["type"]
         storage_cfg = sebs.SeBS.get_storage_config_implementation(storage_type).deserialize(cfg)
         logging.info(f"Stopping storage deployment of {storage_type}.")
-        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(storage_cfg, None)
+        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(storage_cfg, None, storage_cfg.resources)
         storage.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 
@@ -481,7 +483,7 @@ def experiment_invoke(experiment, **kwargs):
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
 @click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
 @common_params
-def experment_process(experiment, extend_time_interval, **kwargs):
+def experiment_process(experiment, extend_time_interval, **kwargs):
     (
         config,
         output_dir,

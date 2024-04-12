@@ -73,6 +73,8 @@ class Local(System):
         # disable external measurements
         self._measure_interval = -1
 
+        self.initialize_resources(select_prefix="local")
+
     """
         Create wrapper object for minio storage and fill buckets.
         Starts minio as a Docker instance, using always fresh buckets.

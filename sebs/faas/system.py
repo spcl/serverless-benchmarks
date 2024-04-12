@@ -129,7 +129,7 @@ class System(ABC, LoggingBase):
         :param config: systems-specific parameters
     """
 
-    def initialize(self, config: Dict[str, str] = {}):
+    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         pass
 
     """
