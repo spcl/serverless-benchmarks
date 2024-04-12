@@ -36,8 +36,21 @@ class gcp_storage {
     var file = bucket.file(uniqueName);
     let upload = file.createWriteStream();
     var write_stream = new stream.PassThrough();
+
     write_stream.pipe(upload);
-    return [write_stream, Promise.resolve(upload), uniqueName];
+
+    const promise = new Promise((resolve, reject) => {
+      upload.on('error', err => {
+        upload.end();
+        reject(err);
+      });
+
+      upload.on('finish', () => {
+        upload.end();
+        resolve(file.name);
+      });
+    });
+    return [write_stream, promise, uniqueName];
   };
 
   downloadStream(container, file) {
