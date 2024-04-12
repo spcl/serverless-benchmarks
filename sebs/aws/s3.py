@@ -73,7 +73,17 @@ class S3(PersistentStorage):
                     CreateBucketConfiguration={"LocationConstraint": self.region},
                 )
             else:
+                # This is incredible x2 - boto3 will not throw exception if you recreate
+                # a bucket in us-east-1
+                # https://github.com/boto/boto3/issues/4023
+                buckets = self.list_buckets()
+                if bucket_name in buckets:
+                    self.logging.error(
+                        f"The bucket {bucket_name} not successful; it exists already"
+                    )
+                    raise RuntimeError(f"Bucket {bucket_name} already exists")
                 self.client.create_bucket(Bucket=bucket_name)
+
             self.logging.info("Created bucket {}".format(bucket_name))
         except self.client.exceptions.BucketAlreadyExists as e:
             self.logging.error(f"The bucket {bucket_name} exists already in region {self.region}!")
