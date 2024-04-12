@@ -1,6 +1,7 @@
 import logging
+import os
 import uuid
-from typing import List
+from typing import List, Optional
 
 from google.cloud import storage as gcp_storage
 from google.api_core import exceptions
@@ -80,28 +81,35 @@ class GCPStorage(PersistentStorage):
         except exceptions.Forbidden:
             return False
 
-    def list_bucket(self, bucket_name: str) -> List[str]:
+    def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         bucket_instance = self.client.get_bucket(bucket_name)
         all_blobs = list(self.client.list_blobs(bucket_instance))
-        blobs = [blob.name for blob in all_blobs]
+        blobs = [blob.name for blob in all_blobs if prefix in blob.name]
         return blobs
 
-    def list_buckets(self, bucket_name: str) -> List[str]:
+    def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         all_buckets = list(self.client.list_buckets())
-        buckets = [bucket.name for bucket in all_buckets]
+        if bucket_name is not None:
+            buckets = [bucket.name for bucket in all_buckets if bucket_name in bucket.name]
+        else:
+            buckets = [bucket.name for bucket in all_buckets]
         return buckets
+
+    def remove_bucket(self, bucket_name: str):
+        self.client.get_bucket(bucket_name).delete()
 
     def clean_bucket(self, bucket: str):
         raise NotImplementedError()
 
-    def uploader_func(self, bucket_idx: int, key: str, filepath: str) -> None:
+    def uploader_func(self, path_idx: int, key: str, filepath: str) -> None:
         if self.cached and not self.replace_existing:
             return
-        bucket_name = self.input_buckets[bucket_idx]
+
+        key = os.path.join(self.input_prefixes[path_idx], key)
+        bucket_name = self.get_bucket(Resources.StorageBucketType.BENCHMARKS)
         if not self.replace_existing:
-            for blob in self.input_buckets_files[bucket_idx]:
+            for blob in self.input_prefixes_files[path_idx]:
                 if key == blob:
                     logging.info("Skipping upload of {} to {}".format(filepath, bucket_name))
                     return
-        bucket_name = self.input_buckets[bucket_idx]
         self.upload(bucket_name, filepath, key)

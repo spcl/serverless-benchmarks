@@ -107,18 +107,20 @@ class GCPCredentials(Credentials):
 
 class GCPResources(Resources):
     def __init__(self):
-        super().__init__()
+        super().__init__(name="gcp")
 
     @staticmethod
     def initialize(res: Resources, dct: dict):
-        pass
+        ret = cast(GCPResources, res)
+        super(GCPResources, GCPResources).initialize(ret, dct)
+        return ret
 
     """
         Serialize to JSON for storage in cache.
     """
 
     def serialize(self) -> dict:
-        return {}
+        return super().serialize()
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
@@ -130,13 +132,20 @@ class GCPResources(Resources):
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for GCP")
         else:
-            GCPResources.initialize(ret, config["resources"])
-            ret.logging_handlers = handlers
-            ret.logging.info("No cached resources for GCP found, using user configuration.")
+
+            if "resources" in config:
+                GCPResources.initialize(ret, config["resources"])
+                ret.logging_handlers = handlers
+                ret.logging.info("No cached resources for GCP found, using user configuration.")
+            else:
+                GCPResources.initialize(ret, {})
+                ret.logging_handlers = handlers
+                ret.logging.info("No resources for GCP found, initialize!")
+
         return ret
 
     def update_cache(self, cache: Cache):
-        pass
+        super().update_cache(cache)
 
 
 """
@@ -150,7 +159,7 @@ class GCPConfig(Config):
     _project_name: str
 
     def __init__(self, credentials: GCPCredentials, resources: GCPResources):
-        super().__init__()
+        super().__init__(name="gcp")
         self._credentials = credentials
         self._resources = resources
 

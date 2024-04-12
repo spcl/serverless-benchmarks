@@ -18,6 +18,7 @@ from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from ..faas.function import Function, FunctionConfig, Trigger
 from .storage import PersistentStorage
+from sebs.faas.config import Resources
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.storage import GCPStorage
@@ -71,9 +72,10 @@ class GCP(System):
         :param config: systems-specific parameters
     """
 
-    def initialize(self, config: Dict[str, str] = {}):
+    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         self.function_client = build("cloudfunctions", "v1", cache_discovery=False)
         self.get_storage()
+        self.initialize_resources(select_prefix=resource_prefix)
 
     def get_function_client(self):
         return self.function_client
@@ -204,8 +206,10 @@ class GCP(System):
         function_cfg = FunctionConfig.from_benchmark(code_package)
 
         code_package_name = cast(str, os.path.basename(package))
-        code_bucket, idx = storage_client.add_input_bucket(benchmark)
-        storage_client.upload(code_bucket, package, code_package_name)
+        code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+        code_prefix = os.path.join(benchmark, code_package_name)
+        storage_client.upload(code_bucket, package, code_prefix)
+
         self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
@@ -230,7 +234,7 @@ class GCP(System):
                         "timeout": str(timeout) + "s",
                         "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
-                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_package_name,
+                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
                     },
                 )
             )
