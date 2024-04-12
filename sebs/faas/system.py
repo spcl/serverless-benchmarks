@@ -70,9 +70,9 @@ class System(ABC, LoggingBase):
     def find_deployments(self) -> List[str]:
 
         """
-            Default implementation that uses storage buckets.
-            data storage accounts.
-            This can be overriden, e.g., in Azure that looks for unique
+        Default implementation that uses storage buckets.
+        data storage accounts.
+        This can be overriden, e.g., in Azure that looks for unique
         """
 
         return self.get_storage().find_deployments()
@@ -141,7 +141,7 @@ class System(ABC, LoggingBase):
     """
 
     @abstractmethod
-    def get_storage(self, replace_existing: bool) -> PersistentStorage:
+    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         pass
 
     """

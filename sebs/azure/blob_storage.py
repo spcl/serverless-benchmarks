@@ -1,3 +1,4 @@
+import os
 import uuid
 from typing import List, Optional
 
@@ -60,17 +61,14 @@ class BlobStorage(PersistentStorage):
                 for container in self.client.list_containers(name_starts_with=bucket_name)
             ]
         else:
-            return [
-                container["name"]
-                for container in self.client.list_containers()
-            ]
+            return [container["name"] for container in self.client.list_containers()]
 
     def uploader_func(self, container_idx, file, filepath):
         # Skip upload when using cached containers
         if self.cached and not self.replace_existing:
             return
 
-        container_name = os.path.join(self.input_prefixes[path_idx], key)
+        container_name = os.path.join(self.input_prefixes[container_idx], file)
         if not self.replace_existing:
             for f in self.input_prefixes_files[container_idx]:
                 if f == file:

@@ -87,7 +87,7 @@ class Azure(System):
     def find_deployments(self) -> List[str]:
 
         """
-            Look for duplicated resource groups.
+        Look for duplicated resource groups.
         """
         resource_groups = self.config.resources.list_resource_groups(self.cli_instance)
         deployments = []

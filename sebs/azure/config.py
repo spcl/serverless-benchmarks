@@ -182,9 +182,7 @@ class AzureResources(Resources):
 
             groups = self.list_resource_groups(cli_instance)
             if self._resource_group in groups:
-                self.logging.info(
-                    "Using existing resource group {}.".format(self._resource_group)
-                )
+                self.logging.info("Using existing resource group {}.".format(self._resource_group))
             else:
                 self.logging.info(
                     "Starting allocation of resource group {}.".format(self._resource_group)
@@ -197,18 +195,18 @@ class AzureResources(Resources):
                 self.logging.info("Resource group {} created.".format(self._resource_group))
         return self._resource_group
 
-    def list_resource_groups(self, cli_instance: AzureCLI) -> str:
+    def list_resource_groups(self, cli_instance: AzureCLI) -> List[str]:
 
         ret = cli_instance.execute(
-            "az group list --query \"[?starts_with(name,'sebs_resource_group_') && location=='{0}']\""
-            .format(
+            "az group list --query "
+            "\"[?starts_with(name,'sebs_resource_group_') && location=='{0}']\"".format(
                 self._region
             )
         )
         try:
             resource_groups = json.loads(ret.decode())
             return [x["name"] for x in resource_groups]
-        except:
+        except Exception:
             self.logging.error("Failed to parse the response!")
             self.logging.error(ret.decode())
             raise RuntimeError("Failed to parse response from Azure CLI!")
@@ -223,7 +221,7 @@ class AzureResources(Resources):
         if not self._data_storage_account:
 
             # remove non-numerical and non-alphabetic characters
-            parsed = re.compile('[^a-zA-Z0-9]').sub('', self.resources_id)
+            parsed = re.compile("[^a-zA-Z0-9]").sub("", self.resources_id)
 
             account_name = "storage{}".format(parsed)
             self._data_storage_account = self._create_storage_account(cli_instance, account_name)
@@ -232,16 +230,14 @@ class AzureResources(Resources):
     def list_storage_accounts(self, cli_instance: AzureCLI) -> List[str]:
 
         ret = cli_instance.execute(
-            (
-                "az storage account list --resource-group {0}"
-            ).format(
+            ("az storage account list --resource-group {0}").format(
                 self.resource_group(cli_instance)
             )
         )
         try:
             storage_accounts = json.loads(ret.decode())
             return [x["name"] for x in storage_accounts]
-        except:
+        except Exception:
             self.logging.error("Failed to parse the response!")
             self.logging.error(ret.decode())
             raise RuntimeError("Failed to parse response from Azure CLI!")
@@ -267,7 +263,9 @@ class AzureResources(Resources):
         does NOT add the account to any resource collection.
     """
 
-    def _create_storage_account(self, cli_instance: AzureCLI, account_name: str) -> "AzureResources.Storage":
+    def _create_storage_account(
+        self, cli_instance: AzureCLI, account_name: str
+    ) -> "AzureResources.Storage":
         sku = "Standard_LRS"
         self.logging.info("Starting allocation of storage account {}.".format(account_name))
         cli_instance.execute(
@@ -309,7 +307,9 @@ class AzureResources(Resources):
         else:
             ret._storage_accounts = []
         if "data_storage_account" in dct:
-            ret._data_storage_account = AzureResources.Storage.deserialize(dct["data_storage_account"])
+            ret._data_storage_account = AzureResources.Storage.deserialize(
+                dct["data_storage_account"]
+            )
 
     def serialize(self) -> dict:
         out = super().serialize()
