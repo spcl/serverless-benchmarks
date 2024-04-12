@@ -68,7 +68,8 @@ class BlobStorage(PersistentStorage):
         if self.cached and not self.replace_existing:
             return
 
-        container_name = os.path.join(self.input_prefixes[container_idx], file)
+        container_name = self.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+        key = os.path.join(self.input_prefixes[container_idx], file)
         if not self.replace_existing:
             for f in self.input_prefixes_files[container_idx]:
                 if f == file:
@@ -76,7 +77,7 @@ class BlobStorage(PersistentStorage):
                         "Skipping upload of {} to {}".format(filepath, container_name)
                     )
                     return
-        client = self.client.get_blob_client(container_name, file)
+        client = self.client.get_blob_client(container_name, key)
         with open(filepath, "rb") as file_data:
             client.upload_blob(data=file_data, overwrite=True)
         self.logging.info("Upload {} to {}".format(filepath, container_name))
