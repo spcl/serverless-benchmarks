@@ -501,8 +501,12 @@ def resources():
 
 
 @resources.command("list")
+@click.argument(
+    "resource",
+    type=click.Choice(["buckets", "resource-groups"])
+)
 @common_params
-def resources_list(**kwargs):
+def resources_list(resource, **kwargs):
 
     (
         config,
@@ -512,11 +516,23 @@ def resources_list(**kwargs):
         deployment_client,
     ) = parse_common_params(**kwargs)
 
-    storage_client = deployment_client.get_storage(False)
-    buckets = storage_client.list_buckets()
-    sebs_client.logging.info("Storage buckets:")
-    for idx, bucket in enumerate(buckets):
-        sebs_client.logging.info(f"({idx}) {bucket}")
+    if resource == "buckets":
+        storage_client = deployment_client.get_storage(False)
+        buckets = storage_client.list_buckets()
+        sebs_client.logging.info("Storage buckets:")
+        for idx, bucket in enumerate(buckets):
+            sebs_client.logging.info(f"({idx}) {bucket}")
+
+    elif resource == "resource-groups":
+
+        if deployment_client.name() != "azure":
+            sebs_client.logging.error("Resource groups are only supported on Azure!")
+            return
+
+        groups = deployment_client.config.resources.list_resource_groups(deployment_client.cli_instance)
+        sebs_client.logging.info("Resource grup:")
+        for idx, bucket in enumerate(groups):
+            sebs_client.logging.info(f"({idx}) {bucket}")
 
 
 @resources.command("remove")
