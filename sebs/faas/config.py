@@ -129,13 +129,18 @@ class Resources(ABC, LoggingBase):
 
     @abstractmethod
     def serialize(self) -> dict:
-        out = {"resources_id": self.resources_id}
+        out = {}
+        if self.has_resources_id:
+            out["resources_id"] = self.resources_id
         for key, value in self._buckets.items():
             out[key.value] = value
         return out
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.resources_id, keys=[self._name, "resources", "resources_id"])
+        if self.has_resources_id:
+            cache.update_config(
+                val=self.resources_id, keys=[self._name, "resources", "resources_id"]
+            )
         for key, value in self._buckets.items():
             cache.update_config(
                 val=value, keys=[self._name, "resources", "storage_buckets", key.value]
