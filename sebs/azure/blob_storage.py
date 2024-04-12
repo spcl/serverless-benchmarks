@@ -1,5 +1,5 @@
 import uuid
-from typing import List
+from typing import List, Optional
 
 from azure.storage.blob import BlobServiceClient
 
@@ -53,19 +53,26 @@ class BlobStorage(PersistentStorage):
     def correct_name(self, name: str) -> str:
         return name.replace(".", "-")
 
-    def list_buckets(self, bucket_name: str) -> List[str]:
-        return [
-            container["name"]
-            for container in self.client.list_containers(name_starts_with=bucket_name)
-        ]
+    def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
+        if bucket_name is not None:
+            return [
+                container["name"]
+                for container in self.client.list_containers(name_starts_with=bucket_name)
+            ]
+        else:
+            return [
+                container["name"]
+                for container in self.client.list_containers()
+            ]
 
     def uploader_func(self, container_idx, file, filepath):
         # Skip upload when using cached containers
         if self.cached and not self.replace_existing:
             return
-        container_name = self.input_buckets[container_idx]
+
+        container_name = os.path.join(self.input_prefixes[path_idx], key)
         if not self.replace_existing:
-            for f in self.input_buckets_files[container_idx]:
+            for f in self.input_prefixes_files[container_idx]:
                 if f == file:
                     self.logging.info(
                         "Skipping upload of {} to {}".format(filepath, container_name)
@@ -106,14 +113,14 @@ class BlobStorage(PersistentStorage):
         :return: list of file names. empty if container empty
     """
 
-    def list_bucket(self, container: str):
+    def list_bucket(self, container: str, prefix: str = ""):
         objects = list(
             map(
                 lambda x: x["name"],
                 self.client.get_container_client(container).list_blobs(),
             )
         )
-        return objects
+        return [x for x in objects if prefix in x]
 
     def clean_bucket(self, bucket: str):
         self.logging.info("Clean output container {}".format(bucket))
@@ -121,3 +128,6 @@ class BlobStorage(PersistentStorage):
         blobs = list(map(lambda x: x["name"], container_client.list_blobs()))
         if len(blobs) > 0:
             container_client.delete_blobs(*blobs)
+
+    def remove_bucket(self, bucket: str):
+        self.client.get_container_client(bucket).delete_container()

@@ -70,7 +70,7 @@ class AWS(System):
         )
         self.get_lambda_client()
         self.get_storage()
-        self.initialize_resources(self.get_storage(), select_prefix=resource_prefix)
+        self.initialize_resources(select_prefix=resource_prefix)
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import uuid
 from typing import cast, Any, Dict, List, Optional  # noqa
 
@@ -176,19 +177,41 @@ class AzureResources(Resources):
     def resource_group(self, cli_instance: AzureCLI) -> str:
         # Create resource group if not known
         if not self._resource_group:
-            uuid_name = str(uuid.uuid1())[0:8]
             # Only underscore and alphanumeric characters are allowed
-            self._resource_group = "sebs_resource_group_{}".format(uuid_name)
-            self.logging.info(
-                "Starting allocation of resource group {}.".format(self._resource_group)
-            )
-            cli_instance.execute(
-                "az group create --name {0} --location {1}".format(
-                    self._resource_group, self._region
+            self._resource_group = "sebs_resource_group_{}".format(self.resources_id)
+
+            groups = self.list_resource_groups(cli_instance)
+            if self._resource_group in groups:
+                self.logging.info(
+                    "Using existing resource group {}.".format(self._resource_group)
                 )
-            )
-            self.logging.info("Resource group {} created.".format(self._resource_group))
+            else:
+                self.logging.info(
+                    "Starting allocation of resource group {}.".format(self._resource_group)
+                )
+                cli_instance.execute(
+                    "az group create --name {0} --location {1}".format(
+                        self._resource_group, self._region
+                    )
+                )
+                self.logging.info("Resource group {} created.".format(self._resource_group))
         return self._resource_group
+
+    def list_resource_groups(self, cli_instance: AzureCLI) -> str:
+
+        ret = cli_instance.execute(
+            "az group list --query \"[?starts_with(name,'sebs_resource_group_') && location=='{0}']\""
+            .format(
+                self._region
+            )
+        )
+        try:
+            resource_groups = json.loads(ret.decode())
+            return [x["name"] for x in resource_groups]
+        except:
+            self.logging.error("Failed to parse the response!")
+            self.logging.error(ret.decode())
+            raise RuntimeError("Failed to parse response from Azure CLI!")
 
     """
         Retrieve or create storage account associated with benchmark data.
@@ -198,15 +221,43 @@ class AzureResources(Resources):
 
     def data_storage_account(self, cli_instance: AzureCLI) -> "AzureResources.Storage":
         if not self._data_storage_account:
-            self._data_storage_account = self._create_storage_account(cli_instance)
+
+            # remove non-numerical and non-alphabetic characters
+            parsed = re.compile('[^a-zA-Z0-9]').sub('', self.resources_id)
+
+            account_name = "storage{}".format(parsed)
+            self._data_storage_account = self._create_storage_account(cli_instance, account_name)
         return self._data_storage_account
+
+    def list_storage_accounts(self, cli_instance: AzureCLI) -> List[str]:
+
+        ret = cli_instance.execute(
+            (
+                "az storage account list --resource-group {0}"
+            ).format(
+                self.resource_group(cli_instance)
+            )
+        )
+        try:
+            storage_accounts = json.loads(ret.decode())
+            return [x["name"] for x in storage_accounts]
+        except:
+            self.logging.error("Failed to parse the response!")
+            self.logging.error(ret.decode())
+            raise RuntimeError("Failed to parse response from Azure CLI!")
 
     """
         Create a new function storage account and add to the list.
     """
 
     def add_storage_account(self, cli_instance: AzureCLI) -> "AzureResources.Storage":
-        account = self._create_storage_account(cli_instance)
+
+        # Create account. Only alphanumeric characters are allowed
+        # This one is used to store functions code - hence the name.
+        uuid_name = str(uuid.uuid1())[0:8]
+        account_name = "function{}".format(uuid_name)
+
+        account = self._create_storage_account(cli_instance, account_name)
         self._storage_accounts.append(account)
         return account
 
@@ -216,11 +267,8 @@ class AzureResources(Resources):
         does NOT add the account to any resource collection.
     """
 
-    def _create_storage_account(self, cli_instance: AzureCLI) -> "AzureResources.Storage":
+    def _create_storage_account(self, cli_instance: AzureCLI, account_name: str) -> "AzureResources.Storage":
         sku = "Standard_LRS"
-        # Create account. Only alphanumeric characters are allowed
-        uuid_name = str(uuid.uuid1())[0:8]
-        account_name = "sebsstorage{}".format(uuid_name)
         self.logging.info("Starting allocation of storage account {}.".format(account_name))
         cli_instance.execute(
             (
@@ -244,21 +292,27 @@ class AzureResources(Resources):
     """
 
     def update_cache(self, cache_client: Cache):
+        super().update_cache(cache_client)
         cache_client.update_config(val=self.serialize(), keys=["azure", "resources"])
 
     @staticmethod
     def initialize(res: Resources, dct: dict):
 
         ret = cast(AzureResources, res)
+        super(AzureResources, AzureResources).initialize(ret, dct)
 
         ret._resource_group = dct["resource_group"]
-        ret._storage_accounts = [
-            AzureResources.Storage.deserialize(x) for x in dct["storage_accounts"]
-        ]
-        ret._data_storage_account = AzureResources.Storage.deserialize(dct["data_storage_account"])
+        if "storage_accounts" in dct:
+            ret._storage_accounts = [
+                AzureResources.Storage.deserialize(x) for x in dct["storage_accounts"]
+            ]
+        else:
+            ret._storage_accounts = []
+        if "data_storage_account" in dct:
+            ret._data_storage_account = AzureResources.Storage.deserialize(dct["data_storage_account"])
 
     def serialize(self) -> dict:
-        out: Dict[str, Any] = {}
+        out = super().serialize()
         if len(self._storage_accounts) > 0:
             out["storage_accounts"] = [x.serialize() for x in self._storage_accounts]
         if self._resource_group:
@@ -291,8 +345,7 @@ class AzureResources(Resources):
 
 class AzureConfig(Config):
     def __init__(self, credentials: AzureCredentials, resources: AzureResources):
-        super().__init__()
-        self._resources_id = ""
+        super().__init__(name="azure")
         self._credentials = credentials
         self._resources = resources
 
@@ -304,23 +357,11 @@ class AzureConfig(Config):
     def resources(self) -> AzureResources:
         return self._resources
 
-    @property
-    def resources_id(self) -> str:
-        return self._resources_id
-
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(AzureConfig, cfg)
         config._region = dct["region"]
-        if "resources_id" in dct:
-            config._resources_id = dct["resources_id"]
-        else:
-            config._resources_id = str(uuid.uuid1())[0:8]
-            config.logging.info(
-                f"Azure: generating unique resource name for "
-                f"the experiments: {config._resources_id}"
-            )
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -351,7 +392,6 @@ class AzureConfig(Config):
 
     def update_cache(self, cache: Cache):
         cache.update_config(val=self.region, keys=["azure", "region"])
-        cache.update_config(val=self.resources_id, keys=["azure", "resources_id"])
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
 
@@ -359,7 +399,6 @@ class AzureConfig(Config):
         out = {
             "name": "azure",
             "region": self._region,
-            "resources_id": self.resources_id,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }

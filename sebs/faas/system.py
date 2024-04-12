@@ -67,7 +67,17 @@ class System(ABC, LoggingBase):
     def function_type() -> "Type[Function]":
         pass
 
-    def initialize_resources(self, storage: PersistentStorage, select_prefix: Optional[str]):
+    def find_deployments(self) -> List[str]:
+
+        """
+            Default implementation that uses storage buckets.
+            data storage accounts.
+            This can be overriden, e.g., in Azure that looks for unique
+        """
+
+        return self.get_storage().find_deployments()
+
+    def initialize_resources(self, select_prefix: Optional[str]):
 
         # User provided resources or found in cache
         if self.config.resources.has_resources_id:
@@ -77,7 +87,7 @@ class System(ABC, LoggingBase):
             return
 
         # Now search for existing resources
-        deployments = storage.find_deployments()
+        deployments = self.find_deployments()
 
         # If a prefix is specified, we find the first matching resource ID
         if select_prefix is not None:
@@ -109,7 +119,7 @@ class System(ABC, LoggingBase):
         self.config.resources.resources_id = res_id
         self.logging.info(f"Generating unique resource name {res_id}")
         # ensure that the bucket is created - this allocates the new resource
-        storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+        self.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
 
     """
         Initialize the system. After the call the local or remot
