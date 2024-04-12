@@ -176,9 +176,10 @@ class PersistentStorage(ABC, LoggingBase):
         else:
             self.cached = False
 
-        # query buckets if the input prefixes changed, or the input is not up to date.
-        if cached_storage["input_uploaded"] is False:
+        if self.cached is True and cached_storage["input_uploaded"] is False:
             self.cached = False
+
+        # query buckets if the input prefixes changed, or the input is not up to date.
         if self.cached is False:
 
             for prefix in self.input_prefixes:
