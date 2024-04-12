@@ -91,6 +91,12 @@ def common_params(func):
         type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
         help="Cloud deployment to use.",
     )
+    @click.option(
+        "--resource-prefix",
+        default=None,
+        type=str,
+        help="Resource prefix to look for.",
+    )
     @simplified_common_params
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -111,6 +117,7 @@ def parse_common_params(
     deployment,
     language,
     language_version,
+    resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
 ):
@@ -136,7 +143,7 @@ def parse_common_params(
         deployment_client = sebs_client.get_deployment(
             config_obj["deployment"], logging_filename=logging_filename
         )
-        deployment_client.initialize()
+        deployment_client.initialize(resource_prefix=resource_prefix)
     else:
         deployment_client = None
 
