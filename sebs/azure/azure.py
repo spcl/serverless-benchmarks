@@ -56,17 +56,22 @@ class Azure(System):
         self.logging_handlers = logger_handlers
         self._config = config
 
+    def initialize_cli(self, cli: AzureCLI):
+        self.cli_instance = cli
+        self.cli_instance_stop = False
+
     """
         Start the Docker container running Azure CLI tools.
     """
 
-    def initialize(self, cli: Optional[AzureCLI] = None, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
-        if cli is None:
+    def initialize(
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+    ):
+        if not hasattr(self, "cli_instance"):
             self.cli_instance = AzureCLI(self.system_config, self.docker_client)
             self.cli_instance_stop = True
-        else:
-            self.cli_instance = cli
-            self.cli_instance_stop = False
 
         output = self.cli_instance.login(
             appId=self.config.credentials.appId,

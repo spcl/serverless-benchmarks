@@ -6,6 +6,7 @@ import threading
 from time import sleep
 from typing import cast, Dict, Optional, Set, TYPE_CHECKING
 
+from sebs.azure.cli import AzureCLI
 from sebs.faas.function import Trigger
 from sebs.utils import ColoredWrapper
 
@@ -160,18 +161,25 @@ class AzureTestSequencePython(
         deployment_name = "azure"
         assert cloud_config
         with AzureTestSequencePython.lock:
+
             if not AzureTestSequencePython.cfg:
                 AzureTestSequencePython.cfg = self.client.get_deployment_config(
                     cloud_config,
                     logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 )
+
+            if not hasattr(AzureTestSequencePython, 'cli'):
+                AzureTestSequencePython.cli = AzureCLI(
+                    self.client.config, self.client.docker_client
+                )
+
             deployment_client = self.client.get_deployment(
                 cloud_config,
                 logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 deployment_config=AzureTestSequencePython.cfg,
             )
-            deployment_client.initialize()
-            deployment_client.allocate_shared_resource()
+            deployment_client.initialize_cli(cli=AzureTestSequencePython.cli)
+            deployment_client.initialize(resource_prefix="regr")
             return deployment_client
 
 
@@ -191,13 +199,19 @@ class AzureTestSequenceNodejs(
                     cloud_config,
                     logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 )
+
+            if not hasattr(AzureTestSequenceNodejs, 'cli'):
+                AzureTestSequenceNodejs.cli = AzureCLI(
+                    self.client.config, self.client.docker_client
+                )
+
             deployment_client = self.client.get_deployment(
                 cloud_config,
                 logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 deployment_config=AzureTestSequencePython.cfg,
             )
-            deployment_client.initialize()
-            deployment_client.allocate_shared_resource()
+            deployment_client.initialize_cli(cli=AzureTestSequenceNodejs.cli)
+            deployment_client.initialize(resource_prefix="regr")
             return deployment_client
 
 
@@ -390,4 +404,10 @@ def regression_suite(
         print(f"Failures when executing {len(result.failures)} out of {len(tests)} functions")
         for failure in result.failures:
             print(f"- {failure}")
+
+    if hasattr(AzureTestSequenceNodejs, 'cli'):
+        AzureTestSequenceNodejs.cli.shutdown()
+    if hasattr(AzureTestSequencePython, 'cli'):
+        AzureTestSequencePython.cli.shutdown()
+
     return not result.all_correct
