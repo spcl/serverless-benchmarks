@@ -60,8 +60,14 @@ class Azure(System):
         Start the Docker container running Azure CLI tools.
     """
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
-        self.cli_instance = AzureCLI(self.system_config, self.docker_client)
+    def initialize(self, cli: Optional[AzureCLI] = None, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+        if cli is None:
+            self.cli_instance = AzureCLI(self.system_config, self.docker_client)
+            self.cli_instance_stop = True
+        else:
+            self.cli_instance = cli
+            self.cli_instance_stop = False
+
         output = self.cli_instance.login(
             appId=self.config.credentials.appId,
             tenant=self.config.credentials.tenant,
@@ -80,7 +86,7 @@ class Azure(System):
         self.allocate_shared_resource()
 
     def shutdown(self):
-        if self.cli_instance:
+        if self.cli_instance and self.cli_instance_stop:
             self.cli_instance.shutdown()
         super().shutdown()
 
