@@ -354,9 +354,11 @@ def storage_start(storage, output_json, port):
 
     sebs.utils.global_logging()
     storage_type = sebs.SeBS.get_storage_implementation(StorageTypes(storage))
-    storage_config = sebs.SeBS.get_storage_config_implementation(StorageTypes(storage))()
+    storage_config, storage_resources = sebs.SeBS.get_storage_config_implementation(StorageTypes(storage))
+    config = storage_config()
+    resources = storage_resources()
 
-    storage_instance = storage_type(docker.from_env(), None, storage_config.resources, True)
+    storage_instance = storage_type(docker.from_env(), None, resources, True)
     logging.info(f"Starting storage {str(storage)} on port {port}.")
     storage_instance.start(port)
     if output_json:
@@ -376,9 +378,17 @@ def storage_stop(input_json):
     with open(input_json, "r") as f:
         cfg = json.load(f)
         storage_type = cfg["type"]
-        storage_cfg = sebs.SeBS.get_storage_config_implementation(storage_type).deserialize(cfg)
+
+        storage_cfg, storage_resources = sebs.SeBS.get_storage_config_implementation(storage_type)
+        config = storage_cfg.deserialize(cfg)
+
+        if "resources" in cfg:
+            resources = storage_resources.deserialize(cfg["resources"])
+        else:
+            resources = storage_resources()
+
         logging.info(f"Stopping storage deployment of {storage_type}.")
-        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(storage_cfg, None, storage_cfg.resources)
+        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(config, None, resources)
         storage.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 

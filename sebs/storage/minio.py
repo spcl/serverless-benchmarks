@@ -205,7 +205,6 @@ class Minio(PersistentStorage):
         raise NotImplementedError()
 
     def exists_bucket(self, bucket_name: str) -> bool:
-        print(bucket_name)
         return self.connection.bucket_exists(bucket_name)
 
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:

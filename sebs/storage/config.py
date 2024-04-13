@@ -39,13 +39,15 @@ class MinioConfig:
     instance_id: str = ""
     output_buckets: List[str] = field(default_factory=list)
     input_buckets: List[str] = field(default_factory=lambda: [])
-    resources: MinioResources = field(default_factory=MinioResources)
     type: str = "minio"
 
     def update_cache(self, path: List[str], cache: Cache):
+
         for key in MinioConfig.__dataclass_fields__.keys():
+            if key == "resources":
+                continue
             cache.update_config(val=getattr(self, key), keys=[*path, key])
-        self.resources.update_cache(cache)
+        # self.resources.update_cache(cache)
 
     @staticmethod
     def deserialize(data: dict) -> "MinioConfig":
@@ -53,9 +55,9 @@ class MinioConfig:
         data = {k: v for k, v in data.items() if k in keys}
 
         cfg = MinioConfig(**data)
-        cfg.resources = cast(MinioResources, MinioResources.deserialize(data["resources"]))
+        # cfg.resources = cast(MinioResources, MinioResources.deserialize(data["resources"]))
 
         return cfg
 
     def serialize(self) -> dict:
-        return {**self.__dict__, "resources": self.resources.serialize()}
+        return self.__dict__  # , "resources": self.resources.serialize()}
