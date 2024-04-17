@@ -55,6 +55,7 @@
     "languages": {
       "python": {
         "base_images": {
+          "3.10": "amazon/aws-lambda-python:3.10",
           "3.9": "amazon/aws-lambda-python:3.9",
           "3.8": "amazon/aws-lambda-python:3.8"
         },
