@@ -1,7 +1,7 @@
 import os
 import shutil
 import subprocess
-from typing import cast, Dict, List, Tuple, Type
+from typing import cast, Dict, List, Optional, Tuple, Type
 
 import docker
 
@@ -44,6 +44,9 @@ class OpenWhisk(System):
                     username=self.config.resources.docker_username,
                     password=self.config.resources.docker_password,
                 )
+
+    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+        self.initialize_resources(select_prefix=resource_prefix)
 
     @property
     def config(self) -> OpenWhiskConfig:
@@ -135,13 +138,14 @@ class OpenWhisk(System):
         image_tag = self.system_config.benchmark_image_tag(
             self.name(), benchmark, language_name, language_version
         )
-        if registry_name is not None:
+        if registry_name is not None and registry_name != "":
             repository_name = f"{registry_name}/{repository_name}"
         else:
             registry_name = "Docker Hub"
 
         # Check if we the image is already in the registry.
-        if not is_cached:
+        # cached package, rebuild not enforced -> check for new one
+        if is_cached:
             if self.find_image(repository_name, image_tag):
                 self.logging.info(
                     f"Skipping building OpenWhisk Docker package for {benchmark}, using "

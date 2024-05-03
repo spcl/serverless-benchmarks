@@ -73,6 +73,11 @@ class OpenWhiskResources(Resources):
 
         cached_config = cache.get_config("openwhisk")
         ret = OpenWhiskResources()
+        if cached_config:
+            super(OpenWhiskResources, OpenWhiskResources).initialize(
+                ret, cached_config["resources"]
+            )
+
         # Check for new config - overrides but check if it's different
         if "docker_registry" in config:
 
@@ -134,6 +139,7 @@ class OpenWhiskResources(Resources):
         return ret
 
     def update_cache(self, cache: Cache):
+        super().update_cache(cache)
         cache.update_config(
             val=self.docker_registry, keys=["openwhisk", "resources", "docker", "registry"]
         )
@@ -148,6 +154,7 @@ class OpenWhiskResources(Resources):
 
     def serialize(self) -> dict:
         out: dict = {
+            **super().serialize(),
             "docker_registry": self.docker_registry,
             "docker_username": self.docker_username,
             "docker_password": self.docker_password,
@@ -163,7 +170,7 @@ class OpenWhiskConfig(Config):
     cache: Cache
 
     def __init__(self, config: dict, cache: Cache):
-        super().__init__()
+        super().__init__(name="openwhisk")
         self._credentials = OpenWhiskCredentials()
         self._resources = OpenWhiskResources()
         self.shutdownStorage = config["shutdownStorage"]

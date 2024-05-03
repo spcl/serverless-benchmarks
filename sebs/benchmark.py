@@ -504,7 +504,7 @@ class Benchmark(LoggingBase):
             self.language_name,
             self.language_version,
             self.benchmark,
-            self.is_cached,
+            self.is_cached_valid,
         )
         self.logging.info(
             (
