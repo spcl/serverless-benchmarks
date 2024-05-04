@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import secrets
@@ -163,7 +164,6 @@ class Minio(PersistentStorage):
 
     def uploader_func(self, path_idx, file, filepath):
         try:
-
             key = os.path.join(self.input_prefixes[path_idx], file)
             bucket_name = self.get_bucket(Resources.StorageBucketType.BENCHMARKS)
             self.connection.fput_object(bucket_name, key, filepath)
@@ -248,8 +248,8 @@ class Minio(PersistentStorage):
                 raise RuntimeError(f"Storage container {instance_id} does not exist!")
         else:
             obj._storage_container = None
-        obj._input_prefixes = cached_config.input_buckets
-        obj._output_prefixes = cached_config.output_buckets
+        obj._input_prefixes = copy.copy(cached_config.input_buckets)
+        obj._output_prefixes = copy.copy(cached_config.output_buckets)
         obj.configure_connection()
         return obj
 
