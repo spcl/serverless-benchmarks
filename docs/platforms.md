@@ -154,14 +154,32 @@ or in the JSON input configuration:
 ## OpenWhisk
 
 SeBS expects users to deploy and configure an OpenWhisk instance.
-In `tools/openwhisk_preparation.py`, we include scripts that help install
-[kind (Kubernetes in Docker)](https://kind.sigs.k8s.io/) and deploy
-OpenWhisk on a `kind` cluster.
+Below, you will find example of instruction for deploying OpenWhisk instance.
 The configuration parameters of OpenWhisk for SeBS can be found
 in `config/example.json` under the key `['deployment']['openwhisk']`.
 In the subsections below, we discuss the meaning and use of each parameter.
 To correctly deploy SeBS functions to OpenWhisk, following the
 subsections on *Toolchain* and *Docker* configuration is particularly important.
+
+> [!WARNING]
+> Some benchmarks might require larger memory allocations, e.g., 2048 MB. Not all OpenWhisk deployments support this out-of-the-box.
+> The deployment section below shows an example of changing the default function memory limit from 512 MB to a higher value.
+
+### Deployment
+
+In `tools/openwhisk_preparation.py`, we include scripts that help install
+[kind (Kubernetes in Docker)](https://kind.sigs.k8s.io/) and deploy
+OpenWhisk on a `kind` cluster. Alternatively, you can deploy to an existing
+cluster by [using offical deployment instructions](https://github.com/apache/openwhisk-deploy-kube/blob/master/docs/k8s-kind.md):
+
+```shell
+./deploy/kind/start-kind.sh
+helm install owdev ./helm/openwhisk -n openwhisk --create-namespace -f deploy/kind/mycluster.yaml
+kubectl get pods -n openwhisk --watch
+```
+
+To change the maximum memory allocation per function, edit the `max` value under `memory` in file `helm/openwhisk/values.yaml`.
+To run all benchmarks, we recommend of at least "2048m".
 
 ### Toolchain
 
