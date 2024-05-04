@@ -259,13 +259,14 @@ class OpenWhiskTestSequencePython(
     triggers=[Trigger.TriggerType.HTTP],
 ):
     def get_deployment(self, benchmark_name):
-        deployment_name = "gcp"
+        deployment_name = "openwhisk"
         assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
-        deployment_client.initialize()
+        with OpenWhiskTestSequencePython.lock:
+            deployment_client.initialize(resource_prefix="regression")
         return deployment_client
 
 
@@ -277,13 +278,14 @@ class OpenWhiskTestSequenceNodejs(
     triggers=[Trigger.TriggerType.HTTP],
 ):
     def get_deployment(self, benchmark_name):
-        deployment_name = "gcp"
+        deployment_name = "openwhisk"
         assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
-        deployment_client.initialize()
+        with OpenWhiskTestSequenceNodejs.lock:
+            deployment_client.initialize(resource_prefix="regression")
         return deployment_client
 
 
