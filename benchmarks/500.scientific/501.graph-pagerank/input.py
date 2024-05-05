@@ -5,7 +5,7 @@ size_generators = {
 }
 
 def buckets_count():
-    return (1, 1)
+    return (0, 0)
 
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func):
     return { 'size': size_generators[size] }

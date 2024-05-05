@@ -21,7 +21,7 @@ def upload_files(data_root, data_dir, upload_func):
     :param output_buckets:
     :param upload_func: upload function taking three params(bucket_idx, key, filepath)
 '''
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func):
 
     # upload model
     model_name = 'resnet50-19c8e357.pth'
@@ -38,6 +38,7 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     input_config = {'object': {}, 'bucket': {}}
     input_config['object']['model'] = model_name
     input_config['object']['input'] = input_images[0][0]
-    input_config['bucket']['model'] = input_buckets[0]
-    input_config['bucket']['input'] = input_buckets[1]
+    input_config['bucket']['bucket'] = benchmarks_bucket
+    input_config['bucket']['input'] = input_paths[1]
+    input_config['bucket']['model'] = input_paths[0]
     return input_config
