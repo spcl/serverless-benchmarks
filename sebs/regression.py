@@ -168,7 +168,7 @@ class AzureTestSequencePython(
                     logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 )
 
-            if not hasattr(AzureTestSequencePython, 'cli'):
+            if not hasattr(AzureTestSequencePython, "cli"):
                 AzureTestSequencePython.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
@@ -200,7 +200,7 @@ class AzureTestSequenceNodejs(
                     logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 )
 
-            if not hasattr(AzureTestSequenceNodejs, 'cli'):
+            if not hasattr(AzureTestSequenceNodejs, "cli"):
                 AzureTestSequenceNodejs.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
@@ -407,9 +407,9 @@ def regression_suite(
         for failure in result.failures:
             print(f"- {failure}")
 
-    if hasattr(AzureTestSequenceNodejs, 'cli'):
+    if hasattr(AzureTestSequenceNodejs, "cli"):
         AzureTestSequenceNodejs.cli.shutdown()
-    if hasattr(AzureTestSequencePython, 'cli'):
+    if hasattr(AzureTestSequencePython, "cli"):
         AzureTestSequencePython.cli.shutdown()
 
     return not result.all_correct
