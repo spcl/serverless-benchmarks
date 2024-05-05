@@ -9,6 +9,7 @@ mypy
 types-pycurl
 types-requests
 types-PyYAML
+types-urllib3
 #
 pandas>=1.1.3
 numpy
