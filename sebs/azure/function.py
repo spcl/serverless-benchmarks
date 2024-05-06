@@ -15,7 +15,7 @@ class AzureFunction(Function):
     ):
         super().__init__(benchmark, name, code_hash, cfg)
         self.function_storage = function_storage
-    
+
     @staticmethod
     def typename() -> str:
         return "Azure.AzureFunction"
@@ -29,8 +29,7 @@ class AzureFunction(Function):
     @staticmethod
     def deserialize(cached_config: dict) -> Function:
         from sebs.faas.function import Trigger
-        from sebs.azure.triggers import HTTPTrigger, \
-                                        QueueTrigger, StorageTrigger
+        from sebs.azure.triggers import HTTPTrigger, QueueTrigger, StorageTrigger
 
         cfg = FunctionConfig.deserialize(cached_config["config"])
         ret = AzureFunction(
@@ -46,7 +45,7 @@ class AzureFunction(Function):
                 {"HTTP": HTTPTrigger,
                  "Queue": QueueTrigger,
                  "Storage": StorageTrigger
-                }.get(trigger["type"]),
+                }.get(trigger["type"])
             )
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))

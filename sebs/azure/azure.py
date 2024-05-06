@@ -12,7 +12,7 @@ from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
 from sebs.azure.function import AzureFunction
 from sebs.azure.config import AzureConfig, AzureResources
-from sebs.azure.triggers import AzureTrigger, HTTPTrigger, QueueTrigger, StorageTrigger
+from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.faas.function import Trigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache

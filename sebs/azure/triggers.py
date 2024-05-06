@@ -1,14 +1,12 @@
 import base64
 import concurrent.futures
 import json
-import os
 from typing import Any, Dict, Optional  # noqa
 
 from azure.core.exceptions import ResourceExistsError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
-from azure.storage.queue import QueueServiceClient, QueueClient, QueueMessage, BinaryBase64DecodePolicy, BinaryBase64EncodePolicy
-from sebs.azure.cli import AzureCLI
+from azure.storage.queue import QueueClient
 
 from sebs.azure.config import AzureResources
 from sebs.faas.function import ExecutionResult, Trigger

@@ -2,7 +2,7 @@ import base64
 import concurrent.futures
 import datetime
 import json
-from typing import Dict, Optional
+from typing import Optional
 import uuid  # noqa
 
 import boto3
@@ -160,22 +160,22 @@ class QueueTrigger(Trigger):
         sqs_client = boto3.client('sqs', region_name=self.deployment_client.config.region)
 
         serialized_payload = json.dumps(payload)
-        
+
         # Create queue
         self.logging.debug(f"Creating queue {self.name}")
-    
+
         queue_url = sqs_client.create_queue(QueueName=self.name)["QueueUrl"]
         queue_arn = sqs_client.get_queue_attributes(
                                                     QueueUrl=queue_url,
                                                     AttributeNames=["QueueArn"]
                                                    )["Attributes"]["QueueArn"]
 
-        self.logging.debug(f"Created queue")
+        self.logging.debug("Created queue")
 
         # Add queue trigger
         if (not len(lambda_client.list_event_source_mappings(EventSourceArn=queue_arn,
                                                              FunctionName=self.name)
-                                                            ["EventSourceMappings"])):
+                                                        ["EventSourceMappings"])):
             lambda_client.create_event_source_mapping(
                 EventSourceArn=queue_arn,
                 FunctionName=self.name,
@@ -236,7 +236,8 @@ class StorageTrigger(Trigger):
         # Prep
         serialized_payload = json.dumps(payload)
         bucket_name = self.name.replace('_', '-')  # AWS disallows underscores in bucket names
-        function_arn = lambda_client.get_function(FunctionName=self.name)["Configuration"]["FunctionArn"]
+        function_arn = lambda_client.get_function(FunctionName=self.name) \
+                        ["Configuration"]["FunctionArn"]
 
         # Create bucket
         self.logging.info(f"Creating bucket {bucket_name}")
@@ -273,8 +274,7 @@ class StorageTrigger(Trigger):
                     ],
 
                 },
-            ]}
-        )
+            ]})
         
         # Put object
         s3.Object(bucket_name, 'payload.json').put(Body=serialized_payload)
