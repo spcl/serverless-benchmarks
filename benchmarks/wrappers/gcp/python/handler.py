@@ -1,9 +1,10 @@
-import datetime, io, json, os, uuid, sys
+import base64, datetime, io, json, os, uuid, sys
+
+from google.cloud import storage as gcp_storage
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
 
-
-def handler(req):
+def handler_http(req):
     income_timestamp = datetime.datetime.now().timestamp()
     req_id = req.headers.get('Function-Execution-Id')
 
@@ -62,3 +63,34 @@ def handler(req):
             'cold_start_var': cold_start_var,
             'container_id': container_id,
         }), 200, {'ContentType': 'application/json'}
+
+def handler_queue(data, context):
+    serialized_payload = data.get('data')
+    payload = json.loads(base64.b64decode(serialized_payload).decode("ascii"))
+
+    from function import function
+    ret = function.handler(payload)
+
+    # TODO(oana)
+
+def handler_storage(data, context):
+    bucket_name = data.get('bucket')
+    name = data.get('name')
+    filepath = '/tmp/bucket_contents'
+    client = gcp_storage.Client();
+
+    print("Download {}:{} to {}".format(bucket_name, name, filepath))
+    print(data)
+    bucket_instance = client.bucket(bucket_name)
+    blob = bucket_instance.blob(name)
+    blob.download_to_filename(filepath)
+
+    payload = {}
+
+    with open(filepath, 'r') as fp:
+        payload = json.load(fp)
+
+    from function import function
+    ret = function.handler(payload)
+
+    # TODO(oana)
