@@ -1,18 +1,31 @@
 
 import datetime, io, json, os, sys, uuid
+import boto3
 
 # Add current directory to allow location of packages
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
 
-# TODO: usual trigger
-# implement support for S3 and others
 def handler(event, context):
 
     income_timestamp = datetime.datetime.now().timestamp()
 
+    # Queue trigger
+    if ("Records" in event and event["Records"][0]["eventSource"] == 'aws:sqs'):
+        event = json.loads(event["Records"][0]["body"])
+
+    # Storage trigger
+    if ("Records" in event and "s3" in event["Records"][0]):
+        s3_client = boto3.client('s3')
+        bucket_name = event["Records"][0]["s3"]["bucket"]["name"]
+        file_name = event["Records"][0]["s3"]["object"]["key"]
+        
+        obj = s3_client.get_object(Bucket=bucket_name, Key=file_name)
+        event = json.loads(obj['Body'].read())
+
     # HTTP trigger with API Gateaway
     if 'body' in event:
         event = json.loads(event['body'])
+
     req_id = context.aws_request_id
     event['request-id'] = req_id
     event['income-timestamp'] = income_timestamp

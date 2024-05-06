@@ -252,13 +252,19 @@ class AWS(System):
 
     def cached_function(self, function: Function):
 
-        from sebs.aws.triggers import LibraryTrigger
+        from sebs.aws.triggers import LibraryTrigger, QueueTrigger, StorageTrigger
 
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             trigger.logging_handlers = self.logging_handlers
             cast(LibraryTrigger, trigger).deployment_client = self
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
+        for trigger in function.triggers(Trigger.TriggerType.QUEUE):
+            trigger.logging_handlers = self.logging_handlers
+            cast(QueueTrigger, trigger).deployment_client = self
+        for trigger in function.triggers(Trigger.TriggerType.STORAGE):
+            trigger.logging_handlers = self.logging_handlers
+            cast(StorageTrigger, trigger).deployment_client = self
 
     """
         Update function code and configuration on AWS.
@@ -478,7 +484,7 @@ class AWS(System):
         )
 
     def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
-        from sebs.aws.triggers import HTTPTrigger
+        from sebs.aws.triggers import HTTPTrigger, QueueTrigger, StorageTrigger
 
         function = cast(LambdaFunction, func)
 
@@ -505,6 +511,14 @@ class AWS(System):
         elif trigger_type == Trigger.TriggerType.LIBRARY:
             # should already exist
             return func.triggers(Trigger.TriggerType.LIBRARY)[0]
+        elif trigger_type == Trigger.TriggerType.QUEUE:
+            trigger = QueueTrigger(func.name, self)
+            trigger.logging_handlers = self.logging_handlers
+            self.logging.info(f"Created Queue trigger for {func.name} function.")
+        elif trigger_type == Trigger.TriggerType.STORAGE:
+            trigger = StorageTrigger(func.name, self)
+            trigger.logging_handlers = self.logging_handlers
+            self.logging.info(f"Created Storage trigger for {func.name} function.")
         else:
             raise RuntimeError("Not supported!")
 
