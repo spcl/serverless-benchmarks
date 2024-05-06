@@ -11,7 +11,7 @@ from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
 from sebs.azure.function import AzureFunction
 from sebs.azure.config import AzureConfig, AzureResources
-from sebs.azure.triggers import AzureTrigger, HTTPTrigger
+from sebs.azure.triggers import AzureTrigger, HTTPTrigger, QueueTrigger, StorageTrigger
 from sebs.faas.function import Trigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
@@ -34,6 +34,10 @@ class Azure(System):
     @staticmethod
     def name():
         return "azure"
+
+    @staticmethod
+    def typename():
+        return "Azure"
 
     @property
     def config(self) -> AzureConfig:
@@ -114,6 +118,60 @@ class Azure(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
+    """
+        Composes the JSON config that describes the trigger and bindings configs
+        for a given function to be run on Azure.
+
+        :param benchmark:
+        :param exec_files: the files which define and implement the function to be executed
+        :return: JSON dictionary containing the function configuration
+    """
+    def create_function_json(self, benchmark, exec_files) -> Dict:
+        trigger = benchmark.split("-")[-1]
+
+        if (trigger == "queue"):
+            return {
+                "scriptFile": exec_files,
+                "entryPoint": "handler_queue",
+                "bindings": [
+                    {
+                        "name": "msg",
+                        "type": "queueTrigger",
+                        "direction": "in",
+                        "queueName": benchmark,
+                        "connection": "AzureWebJobsStorage"
+                    }
+                ]
+            }
+        elif (trigger == "storage"):
+            return {
+                "scriptFile": exec_files,
+                "entryPoint": "handler_storage",
+                "bindings": [
+                    {
+                        "name": "blob",
+                        "type": "blobTrigger",
+                        "direction": "in",
+                        "path": benchmark,
+                        "connection": "AzureWebJobsStorage"
+                    }
+                ]
+            }
+        return {  # HTTP
+            "scriptFile": exec_files,
+            "entryPoint": "handler_http",
+            "bindings": [
+                {
+                    "authLevel": "anonymous",
+                    "type": "httpTrigger",
+                    "direction": "in",
+                    "name": "req",
+                    "methods": ["get", "post"],
+                },
+                {"type": "http", "direction": "out", "name": "$return"},
+            ],
+        }
+    
     # Directory structure
     # handler
     # - source files
@@ -148,23 +206,26 @@ class Azure(System):
                 source_file = os.path.join(directory, f)
                 shutil.move(source_file, handler_dir)
 
+        benchmark_stripped = '-'.join(benchmark.split("-")[:-1])
+        trigger = benchmark.split("-")[-1]
+        func_name = (
+            "{}-{}-{}-{}-{}".format(
+                benchmark_stripped,
+                language_name,
+                language_version,
+                self.config.resources_id,
+                trigger
+            )
+            .replace(".", "-")
+            .replace("_", "-")
+        )
+
         # generate function.json
-        # TODO: extension to other triggers than HTTP
-        default_function_json = {
-            "scriptFile": EXEC_FILES[language_name],
-            "bindings": [
-                {
-                    "authLevel": "anonymous",
-                    "type": "httpTrigger",
-                    "direction": "in",
-                    "name": "req",
-                    "methods": ["get", "post"],
-                },
-                {"type": "http", "direction": "out", "name": "$return"},
-            ],
-        }
         json_out = os.path.join(directory, "handler", "function.json")
-        json.dump(default_function_json, open(json_out, "w"), indent=2)
+        json.dump(
+            self.create_function_json(func_name, EXEC_FILES[language_name]),
+            open(json_out, "w"), indent=2
+        )
 
         # generate host.json
         default_host_json = {
@@ -258,9 +319,11 @@ class Azure(System):
         self._mount_function_code(code_package)
         url = self.publish_function(function, code_package, True)
 
-        trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
-        trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(trigger)
+        # TODO(oana): this might need refactoring
+        if (function.name.endswith("http")):
+            trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
+            trigger.logging_handlers = self.logging_handlers
+            function.add_trigger(trigger)
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout
@@ -368,7 +431,6 @@ class Azure(System):
         return function
 
     def cached_function(self, function: Function):
-
         data_storage_account = self.config.resources.data_storage_account(self.cli_instance)
         for trigger in function.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
@@ -494,8 +556,40 @@ class Azure(System):
     """
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
-        raise NotImplementedError()
+        from sebs.azure.triggers import QueueTrigger, StorageTrigger
 
+        azure_function = cast(AzureFunction, function)
+        resource_group = self.config.resources.resource_group(self.cli_instance)
+        storage_account = azure_function.function_storage.account_name
+
+        ret = self.cli_instance.execute(
+            ('az storage account show --resource-group {} --name {} --query id')
+            .format(resource_group, storage_account)
+        )
+        self.cli_instance.execute(
+            ('az role assignment create --assignee "{}" \
+              --role "Storage {} Data Contributor" \
+              --scope {}')
+            .format(
+                os.environ["AZURE_USER_PRINCIPAL_NAME"],
+                "Queue" if trigger_type == Trigger.TriggerType.QUEUE else "Blob",
+                ret.decode("utf-8")
+            )
+        )
+
+        if trigger_type == Trigger.TriggerType.QUEUE:
+            trigger = QueueTrigger(function.name, storage_account)
+            self.logging.info(f"Created Queue trigger for {function.name} function")
+        elif trigger_type == Trigger.TriggerType.STORAGE:
+            trigger = StorageTrigger(function.name, storage_account)
+            self.logging.info(f"Created Storage trigger for {function.name} function")
+        else:
+            raise RuntimeError("Not supported!")
+
+        trigger.logging_handlers = self.logging_handlers
+        function.add_trigger(trigger)
+        self.cache_client.update_function(function)
+        return trigger
 
 #
 #    def create_azure_function(self, fname, config):

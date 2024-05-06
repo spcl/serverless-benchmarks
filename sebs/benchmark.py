@@ -493,6 +493,10 @@ class Benchmark(LoggingBase):
             shutil.rmtree(self._output_dir)
         os.makedirs(self._output_dir)
 
+        benchmark = self.benchmark
+        if self._deployment_name == "azure":
+            benchmark = "{}-{}".format(benchmark, self._experiment_config.trigger)
+
         self.copy_code(self._output_dir)
         self.add_benchmark_data(self._output_dir)
         self.add_deployment_files(self._output_dir)
@@ -502,7 +506,7 @@ class Benchmark(LoggingBase):
             os.path.abspath(self._output_dir),
             self.language_name,
             self.language_version,
-            self.benchmark,
+            benchmark,
             self.is_cached,
         )
         self.logging.info(

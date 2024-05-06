@@ -166,7 +166,7 @@ def benchmark():
 @click.option("--repetitions", default=5, type=int, help="Number of experimental repetitions.")
 @click.option(
     "--trigger",
-    type=click.Choice(["library", "http"]),
+    type=click.Choice(["library", "http", "queue", "storage"]),
     default="http",
     help="Function trigger to be used.",
 )
@@ -217,6 +217,9 @@ def invoke(
     if image_tag_prefix is not None:
         sebs_client.config.image_tag_prefix = image_tag_prefix
 
+    # Insert trigger into (experiment) config. Required by Azure when packaging.
+    update_nested_dict(config, ["experiments", "trigger"], (trigger if trigger is not None else "http"))
+
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     update_nested_dict(config, ["experiments", "benchmark"], benchmark)
     benchmark_obj = sebs_client.get_benchmark(
@@ -230,9 +233,15 @@ def invoke(
     if timeout is not None:
         benchmark_obj.benchmark_config.timeout = timeout
 
+    function_name = function_name if function_name else deployment_client.default_function_name(benchmark_obj)
+
+    # GCP: augment function name with trigger type: _http, _queue etc.
+    if deployment_client.name() == "gcp" or deployment_client.name() == "azure":
+        function_name = "{}-{}".format(function_name, trigger)
+
     func = deployment_client.get_function(
         benchmark_obj,
-        function_name if function_name else deployment_client.default_function_name(benchmark_obj),
+        function_name,
     )
     storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
     input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
