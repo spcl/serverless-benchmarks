@@ -187,7 +187,12 @@ class SeBS(LoggingBase):
 
     @staticmethod
     def get_storage_config_implementation(storage_type: types.Storage):
-        _storage_implementations = {types.Storage.MINIO: sebs.storage.config.MinioConfig}
+        _storage_implementations = {
+            types.Storage.MINIO: (
+                sebs.storage.config.MinioConfig,
+                sebs.storage.config.MinioResources,
+            )
+        }
         impl = _storage_implementations.get(storage_type)
         assert impl
         return impl

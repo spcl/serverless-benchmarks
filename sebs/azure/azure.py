@@ -1,5 +1,6 @@
 import datetime
 import json
+import re
 import os
 import shutil
 import time
@@ -59,12 +60,23 @@ class Azure(System):
         self.logging_handlers = logger_handlers
         self._config = config
 
+    def initialize_cli(self, cli: AzureCLI):
+        self.cli_instance = cli
+        self.cli_instance_stop = False
+
     """
         Start the Docker container running Azure CLI tools.
     """
 
-    def initialize(self, config: Dict[str, str] = {}):
-        self.cli_instance = AzureCLI(self.system_config, self.docker_client)
+    def initialize(
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+    ):
+        if not hasattr(self, "cli_instance"):
+            self.cli_instance = AzureCLI(self.system_config, self.docker_client)
+            self.cli_instance_stop = True
+
         output = self.cli_instance.login(
             appId=self.config.credentials.appId,
             tenant=self.config.credentials.tenant,
@@ -79,14 +91,32 @@ class Azure(System):
 
         self.config.credentials.subscription_id = subscriptions[0]["id"]
 
+        self.initialize_resources(select_prefix=resource_prefix)
+        self.allocate_shared_resource()
+
     def shutdown(self):
-        if self.cli_instance:
+        if self.cli_instance and self.cli_instance_stop:
             self.cli_instance.shutdown()
         super().shutdown()
 
+    def find_deployments(self) -> List[str]:
+
+        """
+        Look for duplicated resource groups.
+        """
+        resource_groups = self.config.resources.list_resource_groups(self.cli_instance)
+        deployments = []
+        for group in resource_groups:
+            # The benchmarks bucket must exist in every deployment.
+            deployment_search = re.match("sebs_resource_group_(.*)", group)
+            if deployment_search:
+                deployments.append(deployment_search.group(1))
+
+        return deployments
+
     """
         Allow multiple deployment clients share the same settings.
-        Not an ideal situation,
+        Not an ideal situation, but makes regression testing much simpler.
     """
 
     def allocate_shared_resource(self):
@@ -110,6 +140,7 @@ class Azure(System):
             self.storage = BlobStorage(
                 self.config.region,
                 self.cache_client,
+                self.config.resources,
                 self.config.resources.data_storage_account(self.cli_instance).connection_string,
                 replace_existing=replace_existing,
             )
@@ -343,7 +374,7 @@ class Azure(System):
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
-                self.config.resources_id,
+                self.config.resources.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")
@@ -436,18 +467,6 @@ class Azure(System):
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
-
-    """
-        Prepare Azure resources to store experiment results.
-        Allocate one container.
-
-        :param benchmark: benchmark name
-        :return: name of bucket to store experiment results
-    """
-
-    def prepare_experiment(self, benchmark: str):
-        logs_container = self.storage.add_output_bucket(benchmark, suffix="logs")
-        return logs_container
 
     def download_metrics(
         self,

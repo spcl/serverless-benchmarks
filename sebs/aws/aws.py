@@ -11,6 +11,7 @@ import docker
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
 from sebs.aws.config import AWSConfig
+from sebs.faas.config import Resources
 from sebs.utils import execute
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
@@ -61,7 +62,7 @@ class AWS(System):
         self._config = config
         self.storage: Optional[S3] = None
 
-    def initialize(self, config: Dict[str, str] = {}):
+    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         # thread-safe
         self.session = boto3.session.Session(
             aws_access_key_id=self.config.credentials.access_key,
@@ -69,6 +70,7 @@ class AWS(System):
         )
         self.get_lambda_client()
         self.get_storage()
+        self.initialize_resources(select_prefix=resource_prefix)
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
@@ -94,6 +96,7 @@ class AWS(System):
             self.storage = S3(
                 self.session,
                 self.cache_client,
+                self.config.resources,
                 self.config.region,
                 access_key=self.config.credentials.access_key,
                 secret_key=self.config.credentials.secret_key,
@@ -212,10 +215,13 @@ class AWS(System):
             # Upload code package to S3, then use it
             else:
                 code_package_name = cast(str, os.path.basename(package))
-                code_bucket, idx = storage_client.add_input_bucket(benchmark)
-                storage_client.upload(code_bucket, package, code_package_name)
+
+                code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+                code_prefix = os.path.join(benchmark, code_package_name)
+                storage_client.upload(code_bucket, package, code_prefix)
+
                 self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
-                code_config = {"S3Bucket": code_bucket, "S3Key": code_package_name}
+                code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix}
             ret = self.client.create_function(
                 FunctionName=func_name,
                 Runtime="{}{}".format(
@@ -352,9 +358,9 @@ class AWS(System):
         :return: name of bucket to store experiment results
     """
 
-    def prepare_experiment(self, benchmark: str):
-        logs_bucket = self.get_storage().add_output_bucket(benchmark, suffix="logs")
-        return logs_bucket
+    # def prepare_experiment(self, benchmark: str):
+    #    logs_bucket = self.get_storage().add_output_bucket(benchmark, suffix="logs")
+    #    return logs_bucket
 
     """
         Accepts AWS report after function invocation.

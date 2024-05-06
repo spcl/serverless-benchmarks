@@ -73,6 +73,8 @@ class Local(System):
         # disable external measurements
         self._measure_interval = -1
 
+        self.initialize_resources(select_prefix="local")
+
     """
         Create wrapper object for minio storage and fill buckets.
         Starts minio as a Docker instance, using always fresh buckets.
@@ -91,7 +93,7 @@ class Local(System):
                     "The local deployment is missing the configuration of pre-allocated storage!"
                 )
             self.storage = Minio.deserialize(
-                self.config.resources.storage_config, self.cache_client
+                self.config.resources.storage_config, self.cache_client, self.config.resources
             )
             self.storage.logging_handlers = self.logging_handlers
         else:
