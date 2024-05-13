@@ -169,9 +169,9 @@ class GCP(System):
         shutil.move(old_path, new_path)
 
         """
-            zip the whole directroy (the zip-file gets uploaded to gcp later)
+            zip the whole directory (the zip-file gets uploaded to gcp later)
 
-            Note that the function GCP.recusive_zip is slower than the use of e.g.
+            Note that the function GCP.recursive_zip is slower than the use of e.g.
             `utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)`
             or `shutil.make_archive(benchmark_archive, direcory, directory)`
             But both of the two alternatives need a chance of directory
@@ -647,7 +647,7 @@ class GCP(System):
        Helper method for recursive_zip
 
        :param base_directory: path to directory to be zipped
-       :param path: path to file of subdirecotry to be zipped
+       :param path: path to file of subdirectory to be zipped
        :param archive: ZipFile object
     """
 
@@ -669,7 +669,7 @@ class GCP(System):
        If the archive exists only new files are added and updated.
        If the archive does not exist a new one is created.
 
-       :param path: absolute path to the direcotry to be zipped
+       :param path: absolute path to the directory to be zipped
        :param archname: path to the zip file
     """
 
@@ -679,7 +679,7 @@ class GCP(System):
         if os.path.isdir(directory):
             GCP.helper_zip(directory, directory, archive)
         else:
-            # if the passed direcotry is acually a file we just add the file to the zip archive
+            # if the passed directory is actually a file we just add the file to the zip archive
             _, name = os.path.split(directory)
             archive.write(directory, name)
         archive.close()
