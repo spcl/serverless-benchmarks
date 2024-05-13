@@ -15,7 +15,8 @@ function streamToPromise(stream) {
 }
 
 exports.handler = async function(event) {
-  let output_bucket = event.bucket.output
+  let bucket = event.bucket.bucket
+  let output_prefix = event.bucket.output
   let url = event.object.url
   let upload_key = path.basename(url)
   let download_path = path.join('/tmp', upload_key)
@@ -26,10 +27,10 @@ exports.handler = async function(event) {
   var keyName;
   let upload = promise.then(
     async () => {
-      [keyName, promise] = storage_handler.upload(output_bucket, upload_key, download_path);
+      [keyName, promise] = storage_handler.upload(bucket, path.join(output_prefix, upload_key), download_path);
       await promise;
     }
   );
   await upload;
-  return {bucket: output_bucket, url: url, key: keyName}
+  return {bucket: bucket, url: url, key: keyName}
 };

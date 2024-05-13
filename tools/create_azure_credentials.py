@@ -9,6 +9,7 @@ import sys
 
 parser = argparse.ArgumentParser(description="Create Azure credentials.")
 parser.add_argument("--subscription", default=None, type=str, action="store")
+parser.add_argument("--tenant", default=None, type=str, action="store")
 args = parser.parse_args()
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -49,28 +50,64 @@ container = docker_client.containers.run(
 )
 print('Please provide the intended principal name')
 principal_name = input()
-_, out = container.exec_run("az login", user="docker_user", stream=True)
+if args.tenant:
+    _, out = container.exec_run(f"az login --tenant {args.tenant}", user="docker_user", stream=True)
+else:
+    _, out = container.exec_run("az login", user="docker_user", stream=True)
 print('Please follow the login instructions to generate credentials...')
 print(next(out).decode())
 # wait for login finish
 ret = next(out)
-ret_json = json.loads(ret.decode())
-print('Logging succesfull with user {}'.format(ret_json[0]['user']))
+try:
+    ret_json = json.loads(ret.decode())
+
+    users = ', '.join([x['user']['name'] for x in ret_json])
+    print(f'Login succesfull with users {users}')
+
+    if args.subscription:
+        found = False
+        for x in ret_json:
+            if args.subscription == x['id']:
+                found = True
+                user = x
+                break
+
+        if found:
+            print(f"Selecting user {x['user']['name']} according to the provided subscription ID")
+        else:
+            print(f"Couldn't find a user for provided subscription ID {args.subscription} !")
+
+        subscription_id = args.subscription
+    else:
+        for x in ret_json:
+            if x['isDefault']:
+                user = x
+                break
+        print(f"Selecting the default user {x['user']['name']} with subscription ID: {user['id']}")
+        subscription_id = user['id']
+
+except:
+    print("Failed to parse the response!")
+    print(ret.decode())
 
 cmd = "az ad sp create-for-rbac --name {} --only-show-errors".format(principal_name)
 if args.subscription:
-    cmd = f"{cmd} --role Contributor --scopes /subscriptions/{args.subscription}"
+    cmd = f"{cmd} --role Contributor --scopes /subscriptions/{subscription_id}"
 
 status, out = container.exec_run(cmd,user="docker_user")
 if status:
     print('Unsuccesfull principal creation!')
     print(out.decode())
 else:
-    credentials = json.loads(out.decode())
-    print('Created service principal {}'.format(credentials['displayName']))
-    print('AZURE_SECRET_APPLICATION_ID = {}'.format(credentials['appId']))
-    print('AZURE_SECRET_TENANT = {}'.format(credentials['tenant']))
-    print('AZURE_SECRET_PASSWORD = {}'.format(credentials['password']))
+    try:
+        credentials = json.loads(out.decode())
+        print('Created service principal {}'.format(credentials['displayName']))
+        print('export AZURE_SECRET_APPLICATION_ID={}'.format(credentials['appId']))
+        print('export AZURE_SECRET_TENANT={}'.format(credentials['tenant']))
+        print('export AZURE_SECRET_PASSWORD={}'.format(credentials['password']))
+    except:
+        print("Failed to parse the response!")
+        print(out.decode())
 
 container.stop()
 

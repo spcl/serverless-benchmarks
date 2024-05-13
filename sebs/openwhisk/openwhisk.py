@@ -1,7 +1,7 @@
 import os
 import shutil
 import subprocess
-from typing import cast, Dict, List, Tuple, Type
+from typing import cast, Dict, List, Optional, Tuple, Type
 
 import docker
 
@@ -45,6 +45,9 @@ class OpenWhisk(System):
                     password=self.config.resources.docker_password,
                 )
 
+    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+        self.initialize_resources(select_prefix=resource_prefix)
+
     @property
     def config(self) -> OpenWhiskConfig:
         return self._config
@@ -57,7 +60,7 @@ class OpenWhisk(System):
                     "OpenWhisk is missing the configuration of pre-allocated storage!"
                 )
             self.storage = Minio.deserialize(
-                self.config.resources.storage_config, self.cache_client
+                self.config.resources.storage_config, self.cache_client, self.config.resources
             )
             self.storage.logging_handlers = self.logging_handlers
         else:
@@ -135,13 +138,14 @@ class OpenWhisk(System):
         image_tag = self.system_config.benchmark_image_tag(
             self.name(), benchmark, language_name, language_version
         )
-        if registry_name is not None:
+        if registry_name is not None and registry_name != "":
             repository_name = f"{registry_name}/{repository_name}"
         else:
             registry_name = "Docker Hub"
 
-        # Check if the image is already in the registry.
-        if not is_cached:
+        # Check if we the image is already in the registry.
+        # cached package, rebuild not enforced -> check for new one
+        if is_cached:
             if self.find_image(repository_name, image_tag):
                 self.logging.info(
                     f"Skipping building OpenWhisk Docker package for {benchmark}, using "

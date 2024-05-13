@@ -229,7 +229,7 @@
             "storage.js"
           ],
           "packages": {
-            "minio": "^7.0.16"
+            "minio": "7.0.16"
           }
         }
       }

@@ -25,22 +25,23 @@ model = None
 
 def handler(event):
   
-    model_bucket = event.get('bucket').get('model')
-    input_bucket = event.get('bucket').get('input')
+    bucket = event.get('bucket').get('bucket')
+    input_prefix = event.get('bucket').get('input')
+    model_prefix = event.get('bucket').get('model')
     key = event.get('object').get('input')
     model_key = event.get('object').get('model')
     download_path = '/tmp/{}-{}'.format(key, uuid.uuid4())
 
     image_download_begin = datetime.datetime.now()
     image_path = download_path
-    client.download(input_bucket, key, download_path)
+    client.download(bucket, os.path.join(input_prefix, key), download_path)
     image_download_end = datetime.datetime.now()
 
     global model
     if not model:
         model_download_begin = datetime.datetime.now()
         model_path = os.path.join('/tmp', model_key)
-        client.download(model_bucket, model_key, model_path)
+        client.download(bucket, os.path.join(model_prefix, model_key), model_path)
         model_download_end = datetime.datetime.now()
         model_process_begin = datetime.datetime.now()
         model = resnet50(pretrained=False)
