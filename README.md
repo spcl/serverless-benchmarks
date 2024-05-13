@@ -123,9 +123,11 @@ To verify the correctness of installation, you can use [our regression testing](
 
 * [Marcin Copik (ETH Zurich)](https://github.com/mcopik/) - main author.
 * [Michał Podstawski (Future Processing SA)](https://github.com/micpod/) - contributed graph and DNA benchmarks, and worked on Google Cloud support.
-* [Nico Graf (ETH Zurich)](https://github.com/ncograf/) - contributed implementation of regression tests, bugfixes, and helped with testing and documentation.
+* [Laurin Brandner (ETH Zurich)](https://github.com/lbrndnr) - contributed serverless workflows.
+* [Nico Graf (ETH Zurich)](https://github.com/ncograf/) - contributed to the implementation of regression tests and bugfixes and helped with testing and documentation.
 * [Kacper Janda](https://github.com/Kacpro), [Mateusz Knapik](https://github.com/maknapik), [JmmCz](https://github.com/JmmCz), AGH University of Science and Technology - contributed together Google Cloud support.
 * [Grzegorz Kwaśniewski (ETH Zurich)](https://github.com/gkwasniewski) - worked on the modeling experiments.
 * [Paweł Żuk (University of Warsaw)](https://github.com/pmzuk) - contributed OpenWhisk support.
 * [Sascha Kehrli (ETH Zurich)](https://github.com/skehrli) - contributed local measurement of Docker containers.
-
+* [Kaleab](https://github.com/Kaleab-git) - contributed to SeBS local backend to make it portable between platforms and more robust on non-Linux systems.
+* [lawrence910426](https://github.com/lawrence910426) - contributed color-coded output to SeBS CLI.
