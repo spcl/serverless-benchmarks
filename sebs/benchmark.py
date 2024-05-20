@@ -524,9 +524,9 @@ class Benchmark(LoggingBase):
 
         # package already exists
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.update_code_package(self._deployment_name, self.language_name, self, self._experiment_config.trigger)
         else:
-            self._cache_client.add_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.add_code_package(self._deployment_name, self.language_name, self, self._experiment_config.trigger)
         self.query_cache()
 
         return True, self._code_location

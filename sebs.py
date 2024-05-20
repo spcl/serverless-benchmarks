@@ -225,7 +225,9 @@ def invoke(
         sebs_client.config.image_tag_prefix = image_tag_prefix
 
     # Insert trigger into (experiment) config. Required by Azure when packaging.
-    update_nested_dict(config, ["experiments", "trigger"], (trigger if trigger is not None else "http"))
+    # TODO(oana) is this still needed
+    trigger = trigger if trigger is not None else "http"
+    update_nested_dict(config, ["experiments", "trigger"], trigger)
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     update_nested_dict(config, ["experiments", "benchmark"], benchmark)
@@ -242,7 +244,10 @@ def invoke(
 
     function_name = function_name if function_name else deployment_client.default_function_name(benchmark_obj)
 
-    # GCP: augment function name with trigger type: _http, _queue etc.
+    # GCP and Azure only allow one trigger per function, so augment function name with
+    # trigger type: _http, _queue etc.
+    #
+    # Additionally, Azure requires for the trigger to be defined at deployment time.
     if deployment_client.name() == "gcp" or deployment_client.name() == "azure":
         function_name = "{}-{}".format(function_name, trigger)
 

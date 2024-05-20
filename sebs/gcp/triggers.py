@@ -151,7 +151,7 @@ class QueueTrigger(Trigger):
 
         # Prep
         # GCP is very particular with data encoding...
-        serialized_payload = base64.b64encode(json.dumps(payload).encode("ascii"))
+        serialized_payload = base64.b64encode(json.dumps(payload).encode("utf-8"))
 
         # Publish payload to queue
         pub_sub.projects().topics().publish(
@@ -208,7 +208,7 @@ class StorageTrigger(Trigger):
 
         # Upload object
         gcp_storage.blob._MAX_MULTIPART_SIZE = 5 * 1024 * 1024
-        blob = bucket_instance.blob(blob_name=payload, chunk_size=4 * 1024 * 1024)
+        blob = bucket_instance.blob(blob_name=file_name, chunk_size=4 * 1024 * 1024)
         blob.upload_from_filename(file_name)
 
         self.logging.info(f"Uploaded payload to bucket {bucket_name}")

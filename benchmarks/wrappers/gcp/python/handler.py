@@ -66,7 +66,7 @@ def handler_http(req):
 
 def handler_queue(data, context):
     serialized_payload = data.get('data')
-    payload = json.loads(base64.b64decode(serialized_payload).decode("ascii"))
+    payload = json.loads(base64.b64decode(serialized_payload).decode("utf-8"))
 
     from function import function
     ret = function.handler(payload)
@@ -77,13 +77,10 @@ def handler_storage(data, context):
     bucket_name = data.get('bucket')
     name = data.get('name')
     filepath = '/tmp/bucket_contents'
-    client = gcp_storage.Client();
 
-    print("Download {}:{} to {}".format(bucket_name, name, filepath))
-    print(data)
-    bucket_instance = client.bucket(bucket_name)
-    blob = bucket_instance.blob(name)
-    blob.download_to_filename(filepath)
+    from function import storage
+    storage_inst = storage.storage.get_instance()
+    storage_inst.download(bucket_name, name, filepath)
 
     payload = {}
 

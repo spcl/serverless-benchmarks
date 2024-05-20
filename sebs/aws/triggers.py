@@ -41,19 +41,22 @@ class LibraryTrigger(Trigger):
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
         begin = datetime.datetime.now()
-        ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
+        ret = client.invoke(FunctionName=self.name,
+                            Payload=serialized_payload, LogType="Tail")
         end = datetime.datetime.now()
 
         aws_result = ExecutionResult.from_times(begin, end)
         aws_result.request_id = ret["ResponseMetadata"]["RequestId"]
         if ret["StatusCode"] != 200:
             self.logging.error("Invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self.logging.error("Input: {}".format(
+                serialized_payload.decode("utf-8")))
             aws_result.stats.failure = True
             return aws_result
         if "FunctionError" in ret:
             self.logging.error("Invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self.logging.error("Input: {}".format(
+                serialized_payload.decode("utf-8")))
             aws_result.stats.failure = True
             return aws_result
         self.logging.debug(f"Invoke of function {self.name} was successful")
@@ -67,7 +70,8 @@ class LibraryTrigger(Trigger):
         if isinstance(function_output["body"], dict):
             aws_result.parse_benchmark_output(function_output["body"])
         else:
-            aws_result.parse_benchmark_output(json.loads(function_output["body"]))
+            aws_result.parse_benchmark_output(
+                json.loads(function_output["body"]))
         return aws_result
 
     def async_invoke(self, payload: dict):
@@ -82,8 +86,10 @@ class LibraryTrigger(Trigger):
             LogType="Tail",
         )
         if ret["StatusCode"] != 202:
-            self.logging.error("Async invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
+            self.logging.error(
+                "Async invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(
+                serialized_payload.decode("utf-8")))
             raise RuntimeError()
         return ret
 
@@ -157,7 +163,8 @@ class QueueTrigger(Trigger):
 
         # Init clients
         lambda_client = self.deployment_client.get_lambda_client()
-        sqs_client = boto3.client('sqs', region_name=self.deployment_client.config.region)
+        sqs_client = boto3.client(
+            'sqs', region_name=self.deployment_client.config.region)
 
         serialized_payload = json.dumps(payload)
 
@@ -166,16 +173,16 @@ class QueueTrigger(Trigger):
 
         queue_url = sqs_client.create_queue(QueueName=self.name)["QueueUrl"]
         queue_arn = sqs_client.get_queue_attributes(
-                                                    QueueUrl=queue_url,
-                                                    AttributeNames=["QueueArn"]
-                                                   )["Attributes"]["QueueArn"]
+            QueueUrl=queue_url,
+            AttributeNames=["QueueArn"]
+        )["Attributes"]["QueueArn"]
 
         self.logging.debug("Created queue")
 
         # Add queue trigger
         if (not len(lambda_client.list_event_source_mappings(EventSourceArn=queue_arn,
                                                              FunctionName=self.name)
-                                                        ["EventSourceMappings"])):
+                    ["EventSourceMappings"])):
             lambda_client.create_event_source_mapping(
                 EventSourceArn=queue_arn,
                 FunctionName=self.name,
@@ -183,7 +190,8 @@ class QueueTrigger(Trigger):
             )
 
         # Publish payload to queue
-        sqs_client.send_message(QueueUrl=queue_url, MessageBody=serialized_payload)
+        sqs_client.send_message(
+            QueueUrl=queue_url, MessageBody=serialized_payload)
         self.logging.info(f"Sent message to queue {self.name}")
 
         # TODO(oana): gather metrics
@@ -235,9 +243,10 @@ class StorageTrigger(Trigger):
 
         # Prep
         serialized_payload = json.dumps(payload)
-        bucket_name = self.name.replace('_', '-')  # AWS disallows underscores in bucket names
-        function_arn = lambda_client.get_function(FunctionName=self.name) \
-                        ["Configuration"]["FunctionArn"]
+        # AWS disallows underscores in bucket names
+        bucket_name = self.name.replace('_', '-')
+        function_arn = lambda_client.get_function(FunctionName=self.name)[
+            "Configuration"]["FunctionArn"]
 
         # Create bucket
         self.logging.info(f"Creating bucket {bucket_name}")
@@ -275,7 +284,7 @@ class StorageTrigger(Trigger):
 
                 },
             ]})
-        
+
         # Put object
         s3.Object(bucket_name, 'payload.json').put(Body=serialized_payload)
         self.logging.info(f"Uploaded payload to bucket {bucket_name}")

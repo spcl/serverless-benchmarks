@@ -46,6 +46,9 @@ class storage:
         data = io.BytesIO()
         self.client.download_fileobj(bucket, file, data)
         return data.getbuffer()
+
+    def get_object(self, bucket, file):
+        return self.client.get_object(Bucket=bucket, Key=file)
     
     def get_instance():
         if storage.instance is None:

@@ -244,7 +244,7 @@ class Azure(System):
                 benchmark_stripped,
                 language_name,
                 language_version,
-                self.config.resources_id,
+                self.config.resources.resources_id,
                 trigger
             )
             .replace(".", "-")
@@ -269,7 +269,7 @@ class Azure(System):
         json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
-        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+        execute("zip -qu -r9 {}.zip * .".format(benchmark_stripped), shell=True, cwd=directory)
         return directory, code_size
 
     def publish_function(
@@ -581,18 +581,21 @@ class Azure(System):
         resource_group = self.config.resources.resource_group(self.cli_instance)
         storage_account = azure_function.function_storage.account_name
 
-        ret = self.cli_instance.execute(
+        user_principal_name = self.cli_instance.execute('az ad user list')
+
+        storage_account_scope = self.cli_instance.execute(
             ('az storage account show --resource-group {} --name {} --query id')
             .format(resource_group, storage_account)
         )
+
         self.cli_instance.execute(
             ('az role assignment create --assignee "{}" \
               --role "Storage {} Data Contributor" \
               --scope {}')
             .format(
-                os.environ["AZURE_USER_PRINCIPAL_NAME"],
+                json.loads(user_principal_name.decode("utf-8"))[0]["userPrincipalName"],
                 "Queue" if trigger_type == Trigger.TriggerType.QUEUE else "Blob",
-                ret.decode("utf-8")
+                storage_account_scope.decode("utf-8")
             )
         )
 
