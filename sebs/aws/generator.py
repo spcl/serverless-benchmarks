@@ -33,7 +33,8 @@ class SFNGenerator(Generator):
             "StartAt": self.root.name,
             "States": state_payloads,
         }
-
+        print("workflow definition: ")
+        print(json.dumps(definition, default=lambda o: '<not serializable>', indent=2))
         return definition
 
     def encode_task(self, state: Task) -> Union[dict, List[dict]]:
@@ -56,31 +57,28 @@ class SFNGenerator(Generator):
         return payload
     
     def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
-        states = {n: State.deserialize(n, s) for n, s in state.funcs.items()}
-        parallel_funcs = [self.encode_state(t) for t in states.values()]
-        
-        #FIXME: support more than two branches
-        for func in parallel_funcs:
-            func["ResultPath"] = "$." + func["Name"]
+        branches = []
+        payloads = dict()
+        for i, subworkflow in enumerate(state.funcs):
+            states = {n: State.deserialize(n, s) for n, s in subworkflow["states"].items()}
+            parallel_funcs = [self.encode_state(t) for t in states.values()]
+            for func in parallel_funcs:
+                if "End" in func:
+                    func["ResultPath"] = "$." + subworkflow["root"] 
 
+            branch = dict()
+            branch["StartAt"] = subworkflow["root"]
+            branch["States"] = parallel_funcs
+            branches.append(branch)
+
+            payloads[subworkflow["root"] + ".$"] = "$[" + str(i) + "]." + subworkflow["root"]
+        
         payload: Dict[str, Any] = {
             "Name": state.name,
             "Type": "Parallel",
-            "Branches": [
-                {
-                    "StartAt": parallel_funcs[0]["Name"],
-                    "States": [ parallel_funcs[0] ], 
-                },
-                {
-                    "StartAt": parallel_funcs[1]["Name"],
-                    "States": [ parallel_funcs[1] ], 
-                },
-            ],
+            "Branches": branches,
             "ResultSelector": {
-                "payload": {
-                    parallel_funcs[0]["Name"] + ".$": "$[0]." + parallel_funcs[0]["Name"],
-                    parallel_funcs[1]["Name"] + ".$": "$[1]." + parallel_funcs[1]["Name"],
-                },
+                "payload": payloads,
                 "request_id.$": "$[0].request_id",
             }
         }
@@ -112,7 +110,15 @@ class SFNGenerator(Generator):
         return {"Variable": "$.payload" + case.var, cond: case.val, "Next": case.next}
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
-        map_func_name = "func_" + str(uuid.uuid4())[:8]
+        states = {n: State.deserialize(n, s) for n, s in state.funcs.items()}
+        #branch = [self.encode_state(t) for t in states.values()]
+        
+        
+        branch = dict()
+        for t in states.values():
+            mystate = self.encode_state(t)
+            branch[mystate["Name"]] = mystate
+            del mystate["Name"]
 
         payload: Dict[str, Any] = {
             "Name": state.name,
@@ -123,14 +129,8 @@ class SFNGenerator(Generator):
                 #"payload.$": "$$.Map.Item.Value",
             },
             "Iterator": {
-                "StartAt": map_func_name,
-                "States": {
-                    map_func_name: {
-                        "Type": "Task",
-                        "Resource": self._func_arns[state.func_name],
-                        "End": True,
-                    }
-                },
+                "StartAt": state.root,
+                "States": branch
             },
             "ResultPath": "$.payload." + state.array
         }
@@ -141,7 +141,6 @@ class SFNGenerator(Generator):
             params = state.common_params.split(",")
             for param in params:
                 entries[param + ".$"] = "$.payload." + param
-                #payload["Parameters"]["payload.$"] += "$.payload." + param
 
             payload["Parameters"]["payload"] = entries
         else: 

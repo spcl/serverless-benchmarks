@@ -49,7 +49,7 @@ class Switch(State):
         return cls(name=name, cases=cases, default=payload["default"])
 
 class Parallel(State):
-    def __init__(self, name: str, funcs: List[Task], next: Optional[str]):
+    def __init__(self, name: str, funcs: List, next: Optional[str]):
         self.name = name
         self.funcs = funcs
         self.next = next
@@ -60,10 +60,11 @@ class Parallel(State):
 
 
 class Map(State):
-    def __init__(self, name: str, func_name: str, array: str, next: Optional[str], common_params: Optional[str]):
+    def __init__(self, name: str, funcs: List, array: str, root: str, next: Optional[str], common_params: Optional[str]):
         self.name = name
-        self.func_name = func_name
+        self.funcs = funcs
         self.array = array
+        self.root = root
         self.next = next
         self.common_params = common_params
 
@@ -71,8 +72,9 @@ class Map(State):
     def deserialize(cls, name: str, payload: dict) -> "Map":
         return cls(
             name=name,
-            func_name=payload["func_name"],
+            funcs=payload["states"],
             array=payload["array"],
+            root=payload["root"],
             next=payload.get("next"),
             common_params=payload.get("common_params")
         )
@@ -118,6 +120,8 @@ class Generator(ABC):
         with open(path) as f:
             definition = json.load(f)
 
+        print("items:")
+        print(definition["states"].items())
         self.states = {n: State.deserialize(n, s) for n, s in definition["states"].items()}
         self.root = self.states[definition["root"]]
 
