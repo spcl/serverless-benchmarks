@@ -451,14 +451,14 @@ class GCP(System):
         triggers = [self.create_function_trigger(f, Trigger.TriggerType.HTTP) for f in funcs]
         urls = [cast(HTTPTrigger, t).url for t in triggers]
         func_triggers = {n: u for (n, u) in zip(func_names, urls)}
-
+        
         gen = GCPGenerator(workflow_name, func_triggers)
         gen.parse(definition_path)
         definition = gen.generate()
 
         # map functions require their own workflows
         parent = GCP.get_location(project_name, location)
-        for map_id, map_def in gen.generate_maps():
+        for map_id, map_def in gen.generate_maps().items():
             full_workflow_name = GCP.get_full_workflow_name(project_name, location, map_id)
             create_req = (
                 self.workflow_client.projects()  # type: ignore

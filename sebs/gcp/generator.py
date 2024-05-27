@@ -11,6 +11,7 @@ class GCPGenerator(Generator):
         self._workflow_name = workflow_name
         self._func_triggers = func_triggers
         self._map_funcs: Dict[str, str] = dict()
+        self._map_funcs_steps = dict()
 
     def postprocess(self, payloads: List[dict]) -> dict:
         assign_input = {
@@ -65,7 +66,13 @@ class GCPGenerator(Generator):
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         id = self._workflow_name + "_" + state.name + "_map"
-        self._map_funcs[id] = self._func_triggers[state.func_name]
+        #not only root function but also remember other map steps.
+        self._map_funcs[id] = self._func_triggers[state.root]
+
+        del state.funcs[state.root]
+        self._map_funcs_steps[id] = state.funcs
+        #self._map_funcs_steps[id] = {state.root : state.funcs}
+
         res_name = "payload_" + str(uuid.uuid4())[0:8]
         array = state.name+"_input"
         tmp = "tmp_" + str(uuid.uuid4())[0:8]
@@ -105,7 +112,6 @@ class GCPGenerator(Generator):
         }, {"assign_payload_" + state.name: {"assign": [{"payload."+state.array: "${"+res_name+"}"}]}}
         ]
 
-
         if state.common_params:
             entries = {}
             entries["array_element"] = "${val}"
@@ -116,7 +122,6 @@ class GCPGenerator(Generator):
 
             payload[1][state.name+"_init"]["for"]["steps"][0][state.name+"_body"]["assign"][0][tmp]["payload"] = entries
         
-        #print(json.dumps(payload, default=lambda o: '<not serializable>', indent=2))
         return payload
 
         
@@ -147,95 +152,110 @@ class GCPGenerator(Generator):
             }
         }
 
-    def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
-        states = {n: State.deserialize(n, s) for n, s in state.funcs.items()}
-        parallel_funcs = [self.encode_state(t) for t in states.values()]
-        parallel_funcs_names = [t.name for t in states.values()]
-        #TODO retrieve names: t.name for t in states.values()
-        for i, func in enumerate(parallel_funcs):
-            func_name = parallel_funcs_names[i]
-
-            #it is a task state
-            if len(func) == 2:
-                func[1]["assign_payload_" + func_name]["assign"] = [{func_name : "${" + func_name + ".body}"}]
-                func[0][func_name]["result"] = func_name
+    #payload of branch is passed by name of first function of the branch. 
+    def __replace_parallel(self, func, func_name, first_func_name):
+        if len(func) == 2:
+            #task state
+            func[1]["assign_payload_" + func_name]["assign"] = [{func_name : "${" + first_func_name + ".body}"}]
+            func[0][func_name]["result"] = first_func_name
+        else:
             #it is a map state
-            else:
-                print("func: ")
-                print(json.dumps(func, default=lambda o: '<not serializable>', indent=2))
-                print("end func")
-                func[3]["assign_payload_" + func_name]["assign"] = [{func_name : func[3]["assign_payload_" + func_name]["assign"][0][
-                    func[1][func_name + "_init"]["for"]["in"].replace("$", "").replace("{", "").replace("}", "")
-                ]}]
+            func[3]["assign_payload_" + func_name]["assign"] = [{first_func_name : func[3]["assign_payload_" + first_func_name]["assign"][0][
+                func[1][func_name + "_init"]["for"]["in"].replace("$", "").replace("{", "").replace("}", "")
+            ]}]
+        return func
 
-        #FIXME make work for more than two branches. 
+    def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
+        branches = []
+        payloads = dict()
+        names = dict()
+
+        for i, subworkflow in enumerate(state.funcs):
+            states = {n: State.deserialize(n, s) for n, s in subworkflow["states"].items()}
+            parallel_funcs = [(self.encode_state(t)) for t in states.values()]
+            parallel_funcs_names = [t.name for t in states.values()]
+            '''
+            for i, func in enumerate(parallel_funcs):
+                func_name = parallel_funcs_names[i]
+                self.__replace_parallel(func, func_name)
+            '''
+            #only change assign for last function. 
+            self.__replace_parallel(parallel_funcs[-1], parallel_funcs_names[-1], parallel_funcs_names[0])
+
+            names[parallel_funcs_names[0]] = {}
+
+            branch = dict()
+            parallel_funcs_simple = []
+            for func in parallel_funcs:
+                parallel_funcs_simple.append(func[0])
+            branch[parallel_funcs_names[0] + "_step"] = { "steps" : parallel_funcs_simple }
+            branches.append(branch)
+            #branches.append({[parallel_funcs_names[0] + "_step"] : { "steps" : parallel_funcs }})
+            payloads[parallel_funcs_names[0]] = "${" + parallel_funcs_names[0] + "}"
+
+        dict_names = [{n : x} for n, x in names.items()]
+        #add payload variable such that functions within parallel steps can write to it.
+        names["payload"] = ""
+
         payload = [
             {
             state.name+"_init" : {
-                "assign": [
-                    {
-                    parallel_funcs_names[0] : {}
-                    },
-                    {
-                    parallel_funcs_names[1] : {}
-                    }
-                ]
+                "assign": dict_names
                 }
             },
             { 
                 state.name : {
                     "parallel": {
-                        "shared": [x for x in parallel_funcs_names],
-                        "branches": [
-                            {
-                                parallel_funcs_names[0] + "_step" : {
-                                    "steps": 
-                            #{x for x in parallel_funcs}
-                            #FIXME extract from list.
-                            parallel_funcs[0]
-                            } },
-                            {
-                                parallel_funcs_names[1] + "_step" : {
-                                    "steps": 
-                            parallel_funcs[1] 
-                            } },
-                        ]
+                        "shared": [x for x in names.keys()],
+                        "branches": [ x for x in branches ]
                     }
                 }
             },
             
-            {"assign_payload_" + state.name: {"assign": [{"payload": {parallel_funcs_names[0] : "${" + parallel_funcs_names[0] + "}",
-                                                                      parallel_funcs_names[1] : "${" + parallel_funcs_names[1] + "}",
-                                                                      }}]}},
+            {"assign_payload_" + state.name: {"assign": [{"payload": payloads }]}},
         ]
         return payload
 
     def generate_maps(self):
+        workflows = dict ()
         for workflow_id, url in self._map_funcs.items():
-            yield (
-                workflow_id,
-                self._export_func(
-                    {
+            steps = self._map_funcs_steps[workflow_id]
+            states = {n: State.deserialize(n, s) for n, s in steps.items()}
+            branch = []
+            for t in states.values():
+                mystate = self.encode_state(t)
+                branch.append(mystate)
+
+            branch = [x for xs in branch for x in xs]
+            steps_int = [
+                {
+                    "map": {
+                        "call": "http.post",
+                        "args": {
+                            "url": url,
+                            "body": {
+                                "request_id": "${payload.request_id}",
+                                "payload": "${payload.payload}"
+                            },
+                            "timeout": 900,
+                        },
+                        "result": "payload"
+                    }
+                }
+            ]
+            if len(branch) != 0:
+                steps_int += [{"assign_payload_" + workflow_id: {"assign": [{"payload": "${payload.payload}"},
+                                                                        {"request_id": "${payload.request_id}"}]}}]
+                steps_int += branch
+            steps_int += [
+                {"ret": {"return": "${payload.body}"}}
+            ]
+            workflow = {
                         "main": {
-                            "params": ["elem"],
-                            "steps": [
-                                {
-                                    "map": {
-                                        "call": "http.post",
-                                        "args": {
-                                            "url": url,
-                                            "body": {
-                                                "request_id": "${elem.request_id}",
-                                                "payload": "${elem.payload}"
-                                            },
-                                            "timeout": 900,
-                                        },
-                                        "result": "elem"
-                                    }
-                                },
-                                {"ret": {"return": "${elem.body}"}}
-                            ],
+                            "params": ["payload"],
+                            "steps": steps_int,
                         }
                     }
-                ),
-            )
+
+            workflows[workflow_id] = self._export_func(workflow)
+            return workflows

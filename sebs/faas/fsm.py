@@ -120,8 +120,6 @@ class Generator(ABC):
         with open(path) as f:
             definition = json.load(f)
 
-        print("items:")
-        print(definition["states"].items())
         self.states = {n: State.deserialize(n, s) for n, s in definition["states"].items()}
         self.root = self.states[definition["root"]]
 
