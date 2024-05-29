@@ -111,9 +111,7 @@ class SFNGenerator(Generator):
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         states = {n: State.deserialize(n, s) for n, s in state.funcs.items()}
-        #branch = [self.encode_state(t) for t in states.values()]
-        
-        
+
         branch = dict()
         for t in states.values():
             mystate = self.encode_state(t)
@@ -126,7 +124,6 @@ class SFNGenerator(Generator):
             "ItemsPath": "$.payload." + state.array,
             "Parameters": {
                 "request_id.$": "$.request_id",
-                #"payload.$": "$$.Map.Item.Value",
             },
             "Iterator": {
                 "StartAt": state.root,
