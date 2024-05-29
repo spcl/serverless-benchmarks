@@ -121,7 +121,8 @@
             "handler_workflow.py",
             "storage.py",
             "fsm.py",
-            "run_workflow.py"
+            "run_workflow.py",
+            "run_subworkflow.py"
           ],
           "packages": [
             "azure-storage-blob",
