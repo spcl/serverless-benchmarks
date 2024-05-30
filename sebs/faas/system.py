@@ -171,6 +171,17 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
+    def build_base_image(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> bool:
+        pass 
+
+    @abstractmethod
     def create_function(self, code_package: Benchmark, func_name: str) -> Function:
         pass
 
