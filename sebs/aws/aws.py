@@ -165,6 +165,76 @@ class AWS(System):
             return "x86_64"
         return architecture
 
+    def build_base_image(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> bool:
+        """
+        When building function for the first time (according to SeBS cache),
+        check if Docker image is available in the registry.
+        If yes, then skip building.
+        If no, then continue building.
+
+        For every subsequent build, we rebuild image and push it to the
+        registry. These are triggered by users modifying code and enforcing
+        a build.
+        """
+        # get registry name 
+        registry_name = self.config.resources.docker_registry
+        # get repository name 
+        repository_name = self.system_config.docker_repository()
+        # get image tag 
+        image_tag = self.system_config.benchmark_image_tag(
+            self.name(), benchmark, language_name, language_version
+        )
+        if registry_name is not None:
+            repository_name = f"{registry_name}/{repository_name}"
+        else:
+            registry_name = "Docker Hub"
+
+        # Check if we the image is already in the registry. For AWS we need to check in the ECR.
+        # cached package, rebuild not enforced -> check for new one
+        if is_cached:
+            if self.find_image(repository_name, image_tag):
+                self.logging.info(
+                    f"Skipping building OpenWhisk Docker package for {benchmark}, using "
+                    f"Docker image {repository_name}:{image_tag} from registry: "
+                    f"{registry_name}."
+                )
+                return False
+            else:
+                # image doesn't exist, let's continue
+                self.logging.info(
+                    f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
+                    f"building OpenWhisk package for {benchmark}."
+                )
+
+        build_dir = os.path.join(directory, "docker")
+        os.makedirs(build_dir, exist_ok=True)
+
+    # To Do: Add this in the abstract class in faas/system.py
+    def find_image(self, repository_name, image_tag) -> bool:
+
+        if self.config.experimentalManifest:
+            try:
+                # This requires enabling experimental Docker features
+                # Furthermore, it's not yet supported in the Python library
+                execute(f"docker manifest inspect {repository_name}:{image_tag}")
+                return True
+            except RuntimeError:
+                return False
+        else:
+            try:
+                # default version requires pulling for an image
+                self.docker_client.images.pull(repository=repository_name, tag=image_tag)
+                return True
+            except docker.errors.NotFound:
+                return False
+
     def _map_language_runtime(self, language: str, runtime: str):
 
         # AWS uses different naming scheme for Node.js versions
