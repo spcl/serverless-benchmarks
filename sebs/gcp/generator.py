@@ -217,7 +217,7 @@ class GCPGenerator(Generator):
         return payload
 
     def generate_maps(self):
-        workflows = dict ()
+        #workflows = dict ()
         for workflow_id, url in self._map_funcs.items():
             steps = self._map_funcs_steps[workflow_id]
             states = {n: State.deserialize(n, s) for n, s in steps.items()}
@@ -234,8 +234,8 @@ class GCPGenerator(Generator):
                         "args": {
                             "url": url,
                             "body": {
-                                "request_id": "${payload.request_id}",
-                                "payload": "${payload.payload}"
+                                "request_id": "${elem.request_id}",
+                                "payload": "${elem.payload}"
                             },
                             "timeout": 900,
                         },
@@ -244,18 +244,27 @@ class GCPGenerator(Generator):
                 }
             ]
             if len(branch) != 0:
-                steps_int += [{"assign_payload_" + workflow_id: {"assign": [{"payload": "${payload.payload}"},
-                                                                        {"request_id": "${payload.request_id}"}]}}]
+                steps_int += [{"assign_payload_" + workflow_id: #{"assign": [{"payload": "${payload.body}"}]}}] 
+                                                                        {"assign": [{"payload": "${payload.body}"},
+                                                                        {"request_id": "${elem.request_id}"}]}}]
                 steps_int += branch
             steps_int += [
-                {"ret": {"return": "${payload.body}"}}
+                #{"ret": {"return": "${payload.body}"}}
+                {"ret": {"return": "${payload}"}}
             ]
             workflow = {
                         "main": {
-                            "params": ["payload"],
+                            #FIXME maybe elem instead of payload?!
+                            "params": ["elem"],
                             "steps": steps_int,
                         }
                     }
+            
+            yield (
+                workflow_id,
+                self._export_func(workflow)
+            )
+            
 
-            workflows[workflow_id] = self._export_func(workflow)
-            return workflows
+            #workflows[workflow_id] = self._export_func(workflow)
+        #return workflows

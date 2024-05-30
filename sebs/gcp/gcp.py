@@ -26,6 +26,8 @@ from sebs.gcp.workflow import GCPWorkflow
 from sebs.gcp.generator import GCPGenerator
 from sebs.utils import LoggingHandlers, replace_string_in_file
 
+import json
+
 """
     This class provides basic abstractions for the FaaS system.
     It provides the interface for initialization of the system and storage
@@ -364,7 +366,6 @@ class GCP(System):
                 },
             )
         )
-        print("function.name = ", function.name)
         res = req.execute()
         versionId = res["metadata"]["versionId"]
         retries = 0
@@ -458,7 +459,7 @@ class GCP(System):
 
         # map functions require their own workflows
         parent = GCP.get_location(project_name, location)
-        for map_id, map_def in gen.generate_maps().items():
+        for map_id, map_def in gen.generate_maps():
             full_workflow_name = GCP.get_full_workflow_name(project_name, location, map_id)
             create_req = (
                 self.workflow_client.projects()  # type: ignore
