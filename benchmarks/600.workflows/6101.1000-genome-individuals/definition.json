@@ -3,9 +3,15 @@
     "states": {
         "individuals": {
             "type": "map",
-            "func_name": "individuals",
+            "root": "individuals",
             "array": "blob",
-            "common_params": "bucket,columns,columns_bucket,populations,sifting_input,individuals_file"
+            "common_params": "bucket,columns,columns_bucket,populations,sifting_input,individuals_file",
+            "states": {
+              "individuals": {
+                "type": "task",
+                "func_name": "individuals"
+              }
+            }
         }
     }
 }

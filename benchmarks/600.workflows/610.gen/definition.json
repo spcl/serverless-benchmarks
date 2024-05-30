@@ -37,8 +37,14 @@
         "map_astros": {
             "type": "map",
             "array": "astros.people",
-            "func_name": "map_astros",
-            "next": "process_astros"
+            "root": "map_astros",
+            "next": "process_astros",
+            "states": {
+              "map_astros": {
+                "type": "task",
+                "func_name": "map_astros"
+              }
+            }
         },
         "process_astros": {
             "type": "task",

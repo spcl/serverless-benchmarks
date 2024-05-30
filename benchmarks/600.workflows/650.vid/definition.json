@@ -8,9 +8,15 @@
     },
     "analyse": {
       "type": "map",
-      "func_name": "analyse",
+      "root": "analyse",
       "array": "frames",
-      "next": "summarize"
+      "next": "summarize",
+      "states": {
+        "analyse": {
+          "type": "task",
+          "func_name": "analyse"
+        }
+      }
     },
     "summarize": {
       "type": "task",

@@ -3,41 +3,57 @@
     "states": {
         "individuals": {
             "type": "map",
-            "func_name": "individuals",
+            "root": "individuals",
             "array": "blob",
             "common_params": "bucket,columns,columns_bucket,populations,sifting_input,individuals_file",
-            "next": "merge_and_sifting"
+            "next": "merge_and_sifting",
+            "states": {
+              "individuals": {
+                "type": "task",
+                "func_name": "individuals"
+              }
+            }
         },
         "merge_and_sifting": {
             "type": "parallel", 
-            "parallel_functions": {
+            "parallel_functions": [{
+                "root": "individuals_merge",
+                "states": {
                 "individuals_merge": {
                     "type": "task",
                     "func_name": "individuals_merge"
-                },
+                }}},
+                { 
+                "root": "sifting",
+                "states": {
                 "sifting": {
                     "type": "task",
                     "func_name": "sifting"
-                }
-            },
+                 }
+            }}],
             "next": "frequency_and_overlap"
         },
         "frequency_and_overlap": {
             "type": "parallel",
-            "parallel_functions": {
+            "parallel_functions": [{
+                "root": "frequency",
+                "states": {
                 "frequency": {
                     "type": "map",
                     "func_name": "frequency",
                     "array": "sifting.populations",
                     "common_params": "sifting,individuals_merge"
-                },
+                }}},
+                {
+                "root": "mutation_overlap",
+                "states": {
                 "mutation_overlap": {
                     "type": "map",
                     "func_name": "mutation_overlap",
                     "array": "sifting.populations",
                     "common_params": "sifting,individuals_merge"
                 }
-            }
+            }}]
         }
     }
 }

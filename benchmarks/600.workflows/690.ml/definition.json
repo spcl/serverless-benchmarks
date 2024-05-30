@@ -8,8 +8,14 @@
         },
         "train": {
             "type": "map",
-            "func_name": "train",
-            "array": "schedules"
+            "root": "train",
+            "array": "schedules",
+            "states": {
+              "train": {
+                "type": "task",
+                "func_name": "train"
+              }
+            }
         }
     }
 }

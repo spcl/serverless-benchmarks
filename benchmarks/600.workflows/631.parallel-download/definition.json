@@ -8,8 +8,14 @@
         },
         "process": {
             "type": "map",
-            "func_name": "process",
-            "array": "buffer"
+            "root": "process",
+            "array": "buffer",
+            "states": {
+              "process": {
+                "type": "task",
+                "func_name": "process"
+              }
+            }
         }
     }
 }

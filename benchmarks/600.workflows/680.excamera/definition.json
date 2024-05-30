@@ -8,15 +8,27 @@
         },
         "encode": {
             "type": "map",
-            "func_name": "encode",
+            "root": "encode",
             "array": "segments",
-            "next": "reencode"
+            "next": "reencode",
+            "states": {
+              "encode": {
+                "type": "task",
+                "func_name": "encode"
+              }
+            }
         },
         "reencode": {
             "type": "map",
-            "func_name": "reencode",
+            "root": "reencode",
             "array": "segments",
-            "next": "rebase"
+            "next": "rebase",
+            "states": {
+              "reencode": {
+                "type": "task",
+                "func_name": "reencode"
+              }
+            }
         },
         "rebase": {
             "type": "loop",

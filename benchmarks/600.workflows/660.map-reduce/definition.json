@@ -8,9 +8,15 @@
         },
         "map": {
             "type": "map",
-            "func_name": "map",
+            "root": "map",
             "array": "list",
-            "next": "shuffle"
+            "next": "shuffle",
+            "states": {
+              "map": {
+                "type": "task",
+                "func_name": "map"
+              }
+            }
         },
         "shuffle": {
             "type": "task",
@@ -19,8 +25,14 @@
         },
         "reduce": {
             "type": "map",
-            "func_name": "reduce",
-            "array": "list"
+            "root": "reduce",
+            "array": "list",
+            "states": {
+              "reduce": {
+                "type": "task",
+                "func_name": "reduce"
+              }
+            }
         }
     }
 }
