@@ -113,10 +113,10 @@ local environment.
 
 To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
 
-> **Warning**
+> [!WARNING]
 > We use libcurl to make HTTP requests. `pycurl` will attempt to build its bindings and needs headers for that - make sure you have all development packages installed. If you see an error like this one: `src/pycurl.h:206:13: fatal error: gnutls/gnutls.h: No such file or directory`, it means that you are missing some of the dependencies.
 
-> **Warning**
+> [!WARNING]
 > **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise, you might see many "Connection refused" and "Permission denied" errors when using SeBS.
 
 ## Authors
