@@ -9,7 +9,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
-from sebs.storage.minio import Minio
+from sebs.local.storage import Minio
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
