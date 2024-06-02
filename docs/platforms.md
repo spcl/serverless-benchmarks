@@ -9,8 +9,7 @@ are required.
 In the following subsections, we discuss the mandatory and optional customization
 points for each platform.
 
-
-> **Warning**
+> [!WARNING]
 > On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through JSON input configuration, do not commit nor publish these files anywhere.
 
 ### Cloud Account Identifiers
