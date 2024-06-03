@@ -1,6 +1,6 @@
 from typing import Dict
 
-from sebs.faas.function import Runtime
+from sebs.faas.function import Runtime, Trigger
 
 
 class Config:
@@ -11,6 +11,7 @@ class Config:
         self._flags: Dict[str, bool] = {}
         self._experiment_configs: Dict[str, dict] = {}
         self._runtime = Runtime(None, None)
+        self._trigger: Trigger.TriggerType
 
     @property
     def update_code(self) -> bool:
@@ -31,6 +32,10 @@ class Config:
     def runtime(self) -> Runtime:
         return self._runtime
 
+    @property
+    def trigger(self) -> Trigger.TriggerType:
+        return self._trigger
+
     def experiment_settings(self, name: str) -> dict:
         return self._experiment_configs[name]
 
@@ -42,6 +47,7 @@ class Config:
             "runtime": self._runtime.serialize(),
             "flags": self._flags,
             "experiments": self._experiment_configs,
+            "trigger": self._trigger,
         }
         return out
 
@@ -55,6 +61,7 @@ class Config:
         cfg._download_results = config["download_results"]
         cfg._runtime = Runtime.deserialize(config["runtime"])
         cfg._flags = config["flags"] if "flags" in config else {}
+        cfg._trigger = config["trigger"] if "trigger" in config else {}
 
         from sebs.experiments import (
             NetworkPingPong,

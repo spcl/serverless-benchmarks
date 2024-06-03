@@ -1,12 +1,11 @@
 
-import datetime, io, json, os, uuid
+import base64
+import datetime, io, json, logging, os, uuid
 
 import azure.functions as func
 
 
-# TODO: usual trigger
-# implement support for blob and others
-def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
+def handler_http(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     income_timestamp = datetime.datetime.now().timestamp()
     req_json = req.get_json()
     if 'connection_string' in req_json:
@@ -73,3 +72,20 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
         mimetype="application/json"
     )
 
+def handler_queue(msg: func.QueueMessage):
+    logging.info('Python queue trigger function processed a queue item.')
+    payload = msg.get_body().decode('utf-8')
+
+    from . import function
+    ret = function.handler(payload)
+
+    # TODO(oana)
+
+def handler_storage(blob: func.InputStream):
+    logging.info('Python Blob trigger function processed %s', blob.name)
+    payload = blob.readline().decode('utf-8')  # TODO(oana)
+    
+    from . import function
+    ret = function.handler(payload)
+
+    # TODO(oana)

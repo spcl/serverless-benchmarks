@@ -179,6 +179,7 @@ class Trigger(ABC, LoggingBase):
         HTTP = "http"
         LIBRARY = "library"
         STORAGE = "storage"
+        QUEUE = "queue"
 
         @staticmethod
         def get(name: str) -> "Trigger.TriggerType":
