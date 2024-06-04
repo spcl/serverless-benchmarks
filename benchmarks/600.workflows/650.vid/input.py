@@ -1,9 +1,9 @@
 import os
 
 size_generators = {
-    "test" : (3, 10),
-    "small": (10, 5),
-    "large": (1000, 3),
+    "test" : (3, 10, "video_test.mp4"),
+    "small": (10, 5, "video_small.mp4"),
+    "large": (1000, 3, "video_large.mp4"),
 }
 
 
@@ -12,18 +12,22 @@ def buckets_count():
 
 
 def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
-    files = ["video_small.mp4", "video_test.mp4", "video_large.mp4", "frozen_inference_graph.pb", "faster_rcnn_resnet50_coco_2018_01_28.pbtxt"]
+    files = ["frozen_inference_graph.pb", "faster_rcnn_resnet50_coco_2018_01_28.pbtxt"]
     for name in files:
         path = os.path.join(data_dir, name)
         upload_func(0, name, path)
 
-    n_frames, batch_size = size_generators[size]
+    n_frames, batch_size, video_name = size_generators[size]
+    
+    path = os.path.join(data_dir, name)
+    upload_func(0, video_name, path)
+    
     return {
-        "video": files[0],
+        "video": video_name,
         "n_frames": n_frames,
         "batch_size": batch_size,
         "frames_bucket": output_buckets[0],
         "input_bucket": input_buckets[0],
-        "model_weights": files[1],
-        "model_config": files[2]
+        "model_weights": files[0],
+        "model_config": files[1]
     }
