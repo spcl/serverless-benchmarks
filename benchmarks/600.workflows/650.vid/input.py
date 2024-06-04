@@ -12,7 +12,7 @@ def buckets_count():
 
 
 def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
-    files = ["video.mp4", "frozen_inference_graph.pb", "faster_rcnn_resnet50_coco_2018_01_28.pbtxt"]
+    files = ["video_small.mp4", "video_test.mp4", "video_large.mp4", "frozen_inference_graph.pb", "faster_rcnn_resnet50_coco_2018_01_28.pbtxt"]
     for name in files:
         path = os.path.join(data_dir, name)
         upload_func(0, name, path)
