@@ -3,11 +3,17 @@
     "deployment": "openwhisk",
     "update_code": false,
     "update_storage": false,
-    "download_results": false, 
+    "download_results": false,
     "architecture": "arm64", 
+    "container_deployment": true,
+    "docker_registry": {
+        "registry": "",
+        "username": "",
+        "password": ""
+      },
     "runtime": {
-      "language": "nodejs",
-      "version": "16"
+      "language": "python",
+      "version": "3.8"
     },
     "type": "invocation-overhead",
     "perf-cost": {

@@ -140,6 +140,10 @@ class Benchmark(LoggingBase):
     def architecture(self) -> str:
         return self._architecture
 
+    @property
+    def container_deployment(self):
+        return self._container_deployment
+
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
@@ -170,7 +174,7 @@ class Benchmark(LoggingBase):
         self._language = config.runtime.language
         self._language_version = config.runtime.version
         self._architecture = self._experiment_config.architecture
-
+        self._container_deployment = config.container_deployment
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not self._benchmark_path:
             raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
@@ -486,8 +490,27 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str, str, bool], Tuple[str, int]]
+        self, deployment_build_step: Callable[[str, str, str, str, bool, bool], Tuple[str, int]]
     ) -> Tuple[bool, str]:
+
+        print("PK: Do we come here after the code packages is")
+        # This is the code below that checks for the code deplyoment but it is for docker deployment in AWS. We need to directly call the code_package which is the Callable deployment_build_step
+        # But also since openshishk and the deplyoement ddocker but it needs to build the code so it goes through the processs below.
+        # But for aws we do not need to do the building of the code zip files
+        # here in the deployment_build_step is the package_code function in the aws.py 
+        # print("PK: The containerized_deployment from benchmark is", self.container_deployment)
+        # if containerized_deployment deplyoement is True  
+        if self.container_deployment:
+            self._code_location, self._code_size = deployment_build_step(
+                os.path.abspath(self._output_dir),
+                self.language_name,
+                self.language_version,
+                self.benchmark,
+                self.is_cached_valid,
+                self.container_deployment,
+            )
+            print("PK: Exited from here")
+            exit(0)
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
@@ -505,6 +528,7 @@ class Benchmark(LoggingBase):
         # clear existing cache information
         self._code_package = None
 
+
         # create directory to be deployed
         if os.path.exists(self._output_dir):
             shutil.rmtree(self._output_dir)
@@ -515,6 +539,7 @@ class Benchmark(LoggingBase):
         self.add_deployment_files(self._output_dir)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
+        # here in the deployment_build_step is the package_code function in the aws.py 
         self._code_location, self._code_size = deployment_build_step(
             os.path.abspath(self._output_dir),
             self.language_name,
@@ -522,6 +547,7 @@ class Benchmark(LoggingBase):
             self.benchmark,
             self.is_cached_valid,
         )
+        print("after deployment_build_step")
         self.logging.info(
             (
                 "Created code package (source hash: {hash}), for run on {deployment}"

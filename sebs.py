@@ -230,6 +230,7 @@ def invoke(
     image_tag_prefix,
     **kwargs,
 ):
+    print("The first step is here")
 
     (
         config,
@@ -238,10 +239,14 @@ def invoke(
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
+    print("the second step is here")
     if image_tag_prefix is not None:
         sebs_client.config.image_tag_prefix = image_tag_prefix
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    print("PK: The Experiament config is", experiment_config)
+    print("PK: The dir of the config is", dir(experiment_config))
+    # print("PK: The config runtime is", experiment_config.containerized_deployment)
     update_nested_dict(config, ["experiments", "benchmark"], benchmark)
     benchmark_obj = sebs_client.get_benchmark(
         benchmark,
@@ -249,15 +254,20 @@ def invoke(
         experiment_config,
         logging_filename=logging_filename,
     )
+    print("the third step is here")
+
     if memory is not None:
         benchmark_obj.benchmark_config.memory = memory
     if timeout is not None:
         benchmark_obj.benchmark_config.timeout = timeout
 
+    print("the fourth step is here")
     func = deployment_client.get_function(
         benchmark_obj,
         function_name if function_name else deployment_client.default_function_name(benchmark_obj),
     )
+    print("the fith step is here")
+
     storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
     input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
 

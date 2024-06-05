@@ -132,7 +132,23 @@ class AWS(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        container_deployment: bool,
     ) -> Tuple[str, int]:
+
+        # Here we need to check if containerzied deployment is set to true. If set to true then do the containerzied deployment. 
+        # else we will just do the code deployment as below. 
+        print("PK: Do we come here in the AWS \n \n \n")
+        print("The containerzied deployment is", container_deployment)
+        # if the containerzied deployment is set to True
+        if container_deployment:
+            # build base image and upload to ECR 
+            # and return ( check what to return) , the create function is managed by create_function in the aws.py for AWS.
+            print("Now buildin the base Iamge")
+            print("the directory is", directory)
+            self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
+
+            exit(0)
+            return "", ""
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -184,7 +200,12 @@ class AWS(System):
         a build.
         """
         # get registry name 
+        print("PK: Printing self config to see the resource", self.config)
+        print("PK: Printing self config to see the resource", self.config.credentials.account_id)
+        print("PK: DIR Printing self config to see the resource", dir(self.config))
         registry_name = self.config.resources.docker_registry
+        print("The registry name is", registry_name)
+
         # get repository name 
         repository_name = self.system_config.docker_repository()
         # get image tag 
@@ -192,6 +213,7 @@ class AWS(System):
             self.name(), benchmark, language_name, language_version
         )
         if registry_name is not None:
+            # To Do: here we need to create the repository_name according to aws format. using the account id.
             repository_name = f"{registry_name}/{repository_name}"
         else:
             registry_name = "Docker Hub"
@@ -210,13 +232,53 @@ class AWS(System):
                 # image doesn't exist, let's continue
                 self.logging.info(
                     f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
-                    f"building OpenWhisk package for {benchmark}."
+                    f"building the image for {benchmark}."
                 )
 
         build_dir = os.path.join(directory, "docker")
         os.makedirs(build_dir, exist_ok=True)
 
-    # To Do: Add this in the abstract class in faas/system.py
+        shutil.copy(
+            os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
+            os.path.join(build_dir, "Dockerfile"),
+        )
+
+        for fn in os.listdir(directory):
+            if fn not in ("index.js", "__main__.py"):
+                file = os.path.join(directory, fn)
+                shutil.move(file, build_dir)
+
+        with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
+            f.write("Dockerfile")
+
+        builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
+            language_version
+        ]
+        self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
+
+        buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
+        image, _ = self.docker_client.images.build(
+            tag=f"{repository_name}:{image_tag}", path=build_dir, buildargs=buildargs
+        )
+
+        # Now push the image to the registry
+        # image will be located in a private repository // for AWS Image should be in the ECR
+        self.logging.info(
+            f"Push the benchmark base image {repository_name}:{image_tag} "
+            f"to registry: {registry_name}."
+        )
+        ret = self.docker_client.images.push(
+            repository=repository_name, tag=image_tag, stream=True, decode=True
+        )
+        # doesn't raise an exception for some reason
+        for val in ret:
+            if "error" in val:
+                self.logging.error(f"Failed to push the image to registry {registry_name}")
+                raise RuntimeError(val)
+        return True
+
+
+    # To Do: Add this in the abstract class in faas/system.py. 
     def find_image(self, repository_name, image_tag) -> bool:
 
         if self.config.experimentalManifest:
