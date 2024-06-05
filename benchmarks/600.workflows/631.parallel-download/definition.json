@@ -4,9 +4,9 @@
         "generate": {
             "type": "task",
             "func_name": "generate",
-            "next": "process"
+            "next": "process1"
         },
-        "process": {
+        "process1": {
             "type": "map",
             "root": "process",
             "array": "buffer",

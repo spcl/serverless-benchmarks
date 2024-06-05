@@ -4,9 +4,9 @@
         "split": {
             "type": "task",
             "func_name": "split",
-            "next": "map"
+            "next": "map-state"
         },
-        "map": {
+        "map-state": {
             "type": "map",
             "root": "map",
             "array": "list",
@@ -21,9 +21,9 @@
         "shuffle": {
             "type": "task",
             "func_name": "shuffle",
-            "next": "reduce"
+            "next": "reduce-state"
         },
-        "reduce": {
+        "reduce-state": {
             "type": "map",
             "root": "reduce",
             "array": "list",

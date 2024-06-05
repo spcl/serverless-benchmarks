@@ -4,9 +4,9 @@
         "generate": {
             "type": "task",
             "func_name": "generate",
-            "next": "train"
+            "next": "train-state"
         },
-        "train": {
+        "train-state": {
             "type": "map",
             "root": "train",
             "array": "schedules",

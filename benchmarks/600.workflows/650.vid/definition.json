@@ -4,9 +4,9 @@
     "decode": {
       "type": "task",
       "func_name": "decode",
-      "next": "analyse"
+      "next": "analyse-map"
     },
-    "analyse": {
+    "analyse-map": {
       "type": "map",
       "root": "analyse",
       "array": "frames",
