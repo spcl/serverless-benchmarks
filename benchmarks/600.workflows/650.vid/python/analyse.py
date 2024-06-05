@@ -67,7 +67,11 @@ def handler(event):
     net = load_model(event["model_bucket"], event["model_weights"], event["model_config"], tmp_dir)
 
     preds = [detect(net, frame) for frame in frames]
-    preds = {f"frame{idx}": dets for idx, dets in enumerate(preds)}
+    
+    frames_names = event["frames"]
+    frames_names = [x.split(".")[0] for x in event["frames"]]
+    
+    preds = {f"{frames_names[idx]}": dets for idx, dets in enumerate(preds)}
 
     return preds
 
