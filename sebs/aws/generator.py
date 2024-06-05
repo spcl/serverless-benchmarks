@@ -113,10 +113,15 @@ class SFNGenerator(Generator):
         states = {n: State.deserialize(n, s) for n, s in state.funcs.items()}
 
         branch = dict()
-        for t in states.values():
+        for i, t in enumerate(states.values()):
             mystate = self.encode_state(t)
             branch[mystate["Name"]] = mystate
             del mystate["Name"]
+
+            #FIXME how to make sure it is actually the last one?!
+            print(mystate.values())
+            if 'Next' not in mystate.values():
+                del mystate["ResultPath"]
 
         payload: Dict[str, Any] = {
             "Name": state.name,
@@ -131,6 +136,10 @@ class SFNGenerator(Generator):
             },
             "ResultPath": "$.payload." + state.array
         }
+
+        #FIXME resultPath should always be set, but not _inside_ the function if it's the last one. 
+        #if len(state.funcs.values() > 1):
+        #    payload["ResultPath"] = "$.payload." + state.array
 
         if state.common_params:
             entries = {}

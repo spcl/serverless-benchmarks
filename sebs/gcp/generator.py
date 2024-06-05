@@ -65,7 +65,7 @@ class GCPGenerator(Generator):
         return {"condition": "${" + cond + "}", "next": case.next}
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
-        id = self._workflow_name + "_" + state.name + "_map"
+        id = self._workflow_name + "_" + state.name #+ "_map"
         #not only root function but also remember other map steps.
         self._map_funcs[id] = self._func_triggers[state.root]
 
@@ -74,7 +74,8 @@ class GCPGenerator(Generator):
         #self._map_funcs_steps[id] = {state.root : state.funcs}
 
         res_name = "payload_" + str(uuid.uuid4())[0:8]
-        array = state.name+"_input"
+        #array = state.name+"_input"
+        array = "map_input"
         tmp = "tmp_" + str(uuid.uuid4())[0:8]
 
         payload = [
@@ -239,6 +240,7 @@ class GCPGenerator(Generator):
                             },
                             "timeout": 900,
                         },
+                        #"result": "elem"
                         "result": "payload"
                     }
                 }
@@ -248,13 +250,18 @@ class GCPGenerator(Generator):
                                                                         {"assign": [{"payload": "${payload.body}"},
                                                                         {"request_id": "${elem.request_id}"}]}}]
                 steps_int += branch
-            steps_int += [
-                #{"ret": {"return": "${payload.body}"}}
-                {"ret": {"return": "${payload}"}}
-            ]
+                steps_int += [
+                    {"ret": {"return": "${payload.body}"}}
+                    #{"ret": {"return": "${payload}"}}
+                ]
+            else:
+                steps_int[0]["map"]["result"] = "elem"
+                steps_int += [
+                    {"ret": {"return": "${elem.body}"}}
+                    #{"ret": {"return": "${payload}"}}
+                ]
             workflow = {
                         "main": {
-                            #FIXME maybe elem instead of payload?!
                             "params": ["elem"],
                             "steps": steps_int,
                         }

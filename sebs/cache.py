@@ -300,7 +300,6 @@ class Cache(LoggingBase):
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
-                    print("adding code_package an correct location.")
                     functions_config[benchmark.name]["code_package"] = cached_config[deployment_name][language]["code_package"]
                     if "functions" not in cached_config[deployment_name][language]:
                         cached_config[deployment_name][language]["functions"] = functions_config
