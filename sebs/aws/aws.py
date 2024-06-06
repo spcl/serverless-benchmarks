@@ -139,13 +139,14 @@ class AWS(System):
 
         print("The containerzied deployment is", container_deployment)
         print("PK: the directory is", directory)
+        container_uri = None
 
         # if the containerzied deployment is set to True
         if container_deployment:
             # build base image and upload to ECR 
             print("Now buildin the base Iamge")
             print("the directory is", directory)
-            self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
+            _, container_uri = self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -170,7 +171,7 @@ class AWS(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size, container_uri
 
     def _map_architecture(self, architecture: str) -> str:
 
@@ -207,6 +208,7 @@ class AWS(System):
         account_id = self.config.credentials.account_id
         region = self.config.region
         registry_name = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
+        # PK: To Do: Get repository name from the config.
         repository_name = "test_repo"
         image_tag = self.system_config.benchmark_image_tag(
             self.name(), benchmark, language_name, language_version
@@ -313,7 +315,7 @@ class AWS(System):
             f"Push the benchmark base image {repository_name}:{image_tag} "
             f"to registry: {registry_name}."
         )
-
+        # PK: Needs to be refactored
         def push_image_to_ecr():
             auth = ecr_client.get_authorization_token()
             auth_data = auth['authorizationData'][0]
@@ -339,7 +341,9 @@ class AWS(System):
             else:
                 raise e
 
-        return True
+        print("The repository_uri is", repository_uri)
+        print("The Image tag is", image_tag)
+        return True, repository_uri
 
     def _map_language_runtime(self, language: str, runtime: str):
 
@@ -349,7 +353,7 @@ class AWS(System):
             return f"{runtime}.x"
         return runtime
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LambdaFunction":
+    def create_function(self, code_package: Benchmark, func_name: str, container_deployment: bool, container_uri: str) -> "LambdaFunction":
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -382,9 +386,17 @@ class AWS(System):
             )
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
+            # PK: TO DO: Not sure if update function needs to be handled when performing container_deployment 
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
             self.logging.info("Creating function {} from {}".format(func_name, package))
+
+            package_type = "Zip"
+
+            if container_deployment:
+                package_type = "Image"
+                code_config = {"ImageUri": container_uri}
+
 
             # AWS Lambda limit on zip deployment size
             # Limit to 50 MB
@@ -403,7 +415,8 @@ class AWS(System):
                 storage_client.upload(code_bucket, package, code_prefix)
 
                 self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
-                code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix}
+                code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix} 
+
             ret = self.client.create_function(
                 FunctionName=func_name,
                 Runtime="{}{}".format(
@@ -413,6 +426,7 @@ class AWS(System):
                 Role=self.config.resources.lambda_role(self.session),
                 MemorySize=memory,
                 Timeout=timeout,
+                PackageType = package_type,
                 Code=code_config,
                 Architectures=[self._map_architecture(architecture)],
             )

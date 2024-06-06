@@ -183,7 +183,7 @@ class System(ABC, LoggingBase):
         pass 
 
     @abstractmethod
-    def create_function(self, code_package: Benchmark, func_name: str) -> Function:
+    def create_function(self, code_package: Benchmark, func_name: str, container_deployment: bool, container_uri: str) -> Function:
         pass
 
     @abstractmethod
@@ -225,7 +225,7 @@ class System(ABC, LoggingBase):
         print("PK: Uptil here")
         print("PK: The code package is", code_package)
 
-        rebuilt, _ = code_package.build(self.package_code)
+        rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
 
         # PK: Here we would have the docker image uplaoded in the ECR. 
         # PK: Now we need to create the function.
@@ -238,6 +238,9 @@ class System(ABC, LoggingBase):
             be updated if the local version is different.
         """
         functions = code_package.functions
+        print("The functions are", code_package.functions)
+        print("The container_deployment is", container_deployment)
+        print("The container_uri is", container_uri)
         if not functions or func_name not in functions:
             msg = (
                 "function name not provided."
@@ -245,7 +248,8 @@ class System(ABC, LoggingBase):
                 else "function {} not found in cache.".format(func_name)
             )
             self.logging.info("Creating new function! Reason: " + msg)
-            function = self.create_function(code_package, func_name)
+            function = self.create_function(code_package, func_name, container_deployment, container_uri)
+            print("After creating the function")
             self.cache_client.add_function(
                 deployment_name=self.name(),
                 language_name=code_package.language_name,

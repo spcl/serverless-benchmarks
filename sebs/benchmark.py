@@ -491,14 +491,16 @@ class Benchmark(LoggingBase):
 
     def build(
         self, deployment_build_step: Callable[[str, str, str, str, bool, bool], Tuple[str, int]]
-    ) -> Tuple[bool, str]:
+    ) -> Tuple[bool, str, str, str]:
+
+        print("Here we are")
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info(
                 "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
             )
-            return False, self.code_location
+            return False, self.code_location, self.container_deployment,  ""
 
         msg = (
             "no cached code package."
@@ -521,7 +523,7 @@ class Benchmark(LoggingBase):
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         # here in the deployment_build_step is the package_code function in the aws.py 
-        self._code_location, self._code_size = deployment_build_step(
+        self._code_location, self._code_size, container_uri = deployment_build_step(
             os.path.abspath(self._output_dir),
             self.language_name,
             self.language_version,
@@ -542,15 +544,13 @@ class Benchmark(LoggingBase):
             )
         )
 
-        # package already exists 
-        if not self.container_deployment:
-            if self.is_cached:
-                self._cache_client.update_code_package(self._deployment_name, self)
-            else:
-                self._cache_client.add_code_package(self._deployment_name, self)
-            self.query_cache()
+        if self.is_cached:
+            self._cache_client.update_code_package(self._deployment_name, self)
+        else:
+            self._cache_client.add_code_package(self._deployment_name, self)
+        self.query_cache()
 
-        return True, self._code_location
+        return True, self._code_location, self.container_deployment, container_uri
 
     """
         Locates benchmark input generator, inspect how many storage buckets
