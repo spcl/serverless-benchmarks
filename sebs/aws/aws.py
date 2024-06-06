@@ -180,7 +180,7 @@ class AWS(System):
         func_name = AWS.format_function_name(func_name)
         storage_client = self.get_storage()
         function_cfg = FunctionConfig.from_benchmark(code_package)
-
+        architecture = function_cfg.architecture.value
         # we can either check for exception or use list_functions
         # there's no API for test
         try:
@@ -232,6 +232,7 @@ class AWS(System):
                 MemorySize=memory,
                 Timeout=timeout,
                 Code=code_config,
+                Architectures = [architecture]
             )
 
             lambda_function = LambdaFunction(
