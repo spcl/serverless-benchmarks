@@ -226,7 +226,7 @@ class System(ABC, LoggingBase):
         print("PK: The code package is", code_package)
 
         rebuilt, _ = code_package.build(self.package_code)
-        print("Do we come uptil herhe \n \n \n \n \n \n")
+
         # PK: Here we would have the docker image uplaoded in the ECR. 
         # PK: Now we need to create the function.
 
