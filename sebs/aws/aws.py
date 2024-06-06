@@ -7,6 +7,8 @@ from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
 import docker
+import base64
+from botocore.exceptions import ClientError
 
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
@@ -16,7 +18,7 @@ from sebs.utils import execute
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingHandlers
+from sebs.utils import LoggingHandlers, DOCKER_DIR
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
@@ -135,20 +137,15 @@ class AWS(System):
         container_deployment: bool,
     ) -> Tuple[str, int]:
 
-        # Here we need to check if containerzied deployment is set to true. If set to true then do the containerzied deployment. 
-        # else we will just do the code deployment as below. 
-        print("PK: Do we come here in the AWS \n \n \n")
         print("The containerzied deployment is", container_deployment)
+        print("PK: the directory is", directory)
+
         # if the containerzied deployment is set to True
         if container_deployment:
             # build base image and upload to ECR 
-            # and return ( check what to return) , the create function is managed by create_function in the aws.py for AWS.
             print("Now buildin the base Iamge")
             print("the directory is", directory)
             self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
-
-            exit(0)
-            return "", ""
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -156,13 +153,13 @@ class AWS(System):
         }
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)
+        os.makedirs(function_dir) 
+        print("the function dir is", function_dir)
         # move all files to 'function' except handler.py
         for file in os.listdir(directory):
             if file not in package_config:
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
-
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
@@ -201,27 +198,69 @@ class AWS(System):
         """
         # get registry name 
         print("PK: Printing self config to see the resource", self.config)
+        print("PK: The region is", self.config.region)
+        print("PK: Printing self config to see the resource", dir(self.config))
         print("PK: Printing self config to see the resource", self.config.credentials.account_id)
         print("PK: DIR Printing self config to see the resource", dir(self.config))
-        registry_name = self.config.resources.docker_registry
-        print("The registry name is", registry_name)
+        print("PK: TRhe directory is", directory)
 
-        # get repository name 
-        repository_name = self.system_config.docker_repository()
-        # get image tag 
+        account_id = self.config.credentials.account_id
+        region = self.config.region
+        registry_name = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
+        repository_name = "test_repo"
         image_tag = self.system_config.benchmark_image_tag(
             self.name(), benchmark, language_name, language_version
         )
-        if registry_name is not None:
-            # To Do: here we need to create the repository_name according to aws format. using the account id.
-            repository_name = f"{registry_name}/{repository_name}"
-        else:
-            registry_name = "Docker Hub"
+        repository_uri = f"{registry_name}/{repository_name}:{image_tag}"
 
-        # Check if we the image is already in the registry. For AWS we need to check in the ECR.
+
+        print("PK: The Image tagg is", image_tag)
+        print("The region is", region)
+        ecr_client = boto3.client('ecr', region_name=region)
+
+        def image_exists_in_ecr(repository_uri):
+            repository_name, image_tag = repository_uri.split(':')[-2], repository_uri.split(':')[-1]
+            try:
+                response = ecr_client.describe_images(
+                    repositoryName=repository_name,
+                    imageIds=[{'imageTag': image_tag}]
+                )
+                if response['imageDetails']:
+                    return True
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'ImageNotFoundException':
+                    return False
+                else:
+                    raise e
+
+        def repository_exists(repository_name):
+            try:
+                ecr_client.describe_repositories(repositoryNames=[repository_name])
+                return True
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'RepositoryNotFoundException':
+                    return False
+                else:
+                    self.logging.error(f"Error checking repository: {e}")
+                    raise e 
+        def create_ecr_repository(repository_name):
+            if not repository_exists(repository_name):
+                try:
+                    ecr_client.create_repository(repositoryName=repository_name)
+                    self.logging.info(f"Created ECR repository: {repository_name}")
+                except ClientError as e:
+                    if e.response['Error']['Code'] != 'RepositoryAlreadyExistsException':
+                        self.logging.error(f"Failed to create ECR repository: {e}")
+                        raise e
+
+        # Create repository if it does not exist
+        create_ecr_repository(repository_name)
+
+        # PK: To Do: Check if we the image is already in the registry. For AWS we need to check in the ECR.
         # cached package, rebuild not enforced -> check for new one
+        print("Is chacned ornot", is_cached)
         if is_cached:
-            if self.find_image(repository_name, image_tag):
+            if image_exists_in_ecr(repository_uri):
                 self.logging.info(
                     f"Skipping building OpenWhisk Docker package for {benchmark}, using "
                     f"Docker image {repository_name}:{image_tag} from registry: "
@@ -236,13 +275,14 @@ class AWS(System):
                 )
 
         build_dir = os.path.join(directory, "docker")
+        print("the build dir is", build_dir)
         os.makedirs(build_dir, exist_ok=True)
+        print("Copying the file from", os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"))
 
         shutil.copy(
             os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
             os.path.join(build_dir, "Dockerfile"),
         )
-
         for fn in os.listdir(directory):
             if fn not in ("index.js", "__main__.py"):
                 file = os.path.join(directory, fn)
@@ -254,12 +294,16 @@ class AWS(System):
         builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
             language_version
         ]
+        print("THe builder Image is", builder_image)
         self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
 
         buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
+        print("the Build args are", buildargs)
         image, _ = self.docker_client.images.build(
-            tag=f"{repository_name}:{image_tag}", path=build_dir, buildargs=buildargs
+            tag=repository_uri, path=build_dir, buildargs=buildargs
         )
+        print(f"The etag for the build is {repository_name}:{image_tag}")
+        print("The Image After building is", image) 
 
         # Now push the image to the registry
         # image will be located in a private repository // for AWS Image should be in the ECR
@@ -267,35 +311,33 @@ class AWS(System):
             f"Push the benchmark base image {repository_name}:{image_tag} "
             f"to registry: {registry_name}."
         )
-        ret = self.docker_client.images.push(
-            repository=repository_name, tag=image_tag, stream=True, decode=True
-        )
-        # doesn't raise an exception for some reason
-        for val in ret:
-            if "error" in val:
-                self.logging.error(f"Failed to push the image to registry {registry_name}")
-                raise RuntimeError(val)
+
+        def push_image_to_ecr():
+            auth = ecr_client.get_authorization_token()
+            auth_data = auth['authorizationData'][0]
+            token = base64.b64decode(auth_data['authorizationToken']).decode('utf-8')
+            username, password = token.split(':')
+            registry_url = auth_data['proxyEndpoint']
+
+            self.docker_client.login(username=username, password=password, registry=registry_url)
+            ret = self.docker_client.images.push(
+                repository=repository_uri, tag=image_tag, stream=True, decode=True
+            )
+            for val in ret:
+                if "error" in val:
+                    self.logging.error(f"Failed to push the image to registry {registry_name}")
+                    raise RuntimeError(val)
+
+        try:
+            push_image_to_ecr()
+        except RuntimeError as e:
+            if 'authorization token has expired' in str(e):
+                self.logging.info("Authorization token expired. Re-authenticating and retrying...")
+                push_image_to_ecr()
+            else:
+                raise e
+
         return True
-
-
-    # To Do: Add this in the abstract class in faas/system.py. 
-    def find_image(self, repository_name, image_tag) -> bool:
-
-        if self.config.experimentalManifest:
-            try:
-                # This requires enabling experimental Docker features
-                # Furthermore, it's not yet supported in the Python library
-                execute(f"docker manifest inspect {repository_name}:{image_tag}")
-                return True
-            except RuntimeError:
-                return False
-        else:
-            try:
-                # default version requires pulling for an image
-                self.docker_client.images.pull(repository=repository_name, tag=image_tag)
-                return True
-            except docker.errors.NotFound:
-                return False
 
     def _map_language_runtime(self, language: str, runtime: str):
 

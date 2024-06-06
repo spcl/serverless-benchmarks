@@ -230,7 +230,6 @@ def invoke(
     image_tag_prefix,
     **kwargs,
 ):
-    print("The first step is here")
 
     (
         config,
@@ -239,7 +238,7 @@ def invoke(
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    print("the second step is here")
+
     if image_tag_prefix is not None:
         sebs_client.config.image_tag_prefix = image_tag_prefix
 
@@ -254,7 +253,6 @@ def invoke(
         experiment_config,
         logging_filename=logging_filename,
     )
-    print("the third step is here")
 
     if memory is not None:
         benchmark_obj.benchmark_config.memory = memory

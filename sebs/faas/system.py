@@ -208,7 +208,6 @@ class System(ABC, LoggingBase):
     """
 
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
-        print("PK: Are we here?")
 
         if code_package.language_version not in self.system_config.supported_language_versions(
             self.name(), code_package.language_name
@@ -227,6 +226,9 @@ class System(ABC, LoggingBase):
         print("PK: The code package is", code_package)
 
         rebuilt, _ = code_package.build(self.package_code)
+        print("Do we come uptil herhe \n \n \n \n \n \n")
+        # PK: Here we would have the docker image uplaoded in the ECR. 
+        # PK: Now we need to create the function.
 
         """
             There's no function with that name?

@@ -493,25 +493,6 @@ class Benchmark(LoggingBase):
         self, deployment_build_step: Callable[[str, str, str, str, bool, bool], Tuple[str, int]]
     ) -> Tuple[bool, str]:
 
-        print("PK: Do we come here after the code packages is")
-        # This is the code below that checks for the code deplyoment but it is for docker deployment in AWS. We need to directly call the code_package which is the Callable deployment_build_step
-        # But also since openshishk and the deplyoement ddocker but it needs to build the code so it goes through the processs below.
-        # But for aws we do not need to do the building of the code zip files
-        # here in the deployment_build_step is the package_code function in the aws.py 
-        # print("PK: The containerized_deployment from benchmark is", self.container_deployment)
-        # if containerized_deployment deplyoement is True  
-        if self.container_deployment:
-            self._code_location, self._code_size = deployment_build_step(
-                os.path.abspath(self._output_dir),
-                self.language_name,
-                self.language_version,
-                self.benchmark,
-                self.is_cached_valid,
-                self.container_deployment,
-            )
-            print("PK: Exited from here")
-            exit(0)
-
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info(
@@ -546,6 +527,7 @@ class Benchmark(LoggingBase):
             self.language_version,
             self.benchmark,
             self.is_cached_valid,
+            self.container_deployment,
         )
         print("after deployment_build_step")
         self.logging.info(
@@ -560,12 +542,13 @@ class Benchmark(LoggingBase):
             )
         )
 
-        # package already exists
-        if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self)
-        else:
-            self._cache_client.add_code_package(self._deployment_name, self)
-        self.query_cache()
+        # package already exists 
+        if not self.container_deployment:
+            if self.is_cached:
+                self._cache_client.update_code_package(self._deployment_name, self)
+            else:
+                self._cache_client.add_code_package(self._deployment_name, self)
+            self.query_cache()
 
         return True, self._code_location
 
