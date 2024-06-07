@@ -183,6 +183,22 @@ class System(ABC, LoggingBase):
         pass 
 
     @abstractmethod
+    def find_image(self, repository_client, repository_name, image_tag) -> bool:
+        pass 
+
+    @abstractmethod 
+    def push_image_to_repository(self, repository_client, repository_uri, image_tag):
+        pass
+    
+    @abstractmethod
+    def repository_exists(self, repository_client, repository_name):
+        pass
+    
+    @abstractmethod
+    def create_repository(self, repository_client, repository_name):
+        pass
+
+    @abstractmethod
     def create_function(self, code_package: Benchmark, func_name: str, container_deployment: bool, container_uri: str) -> Function:
         pass
 
@@ -222,13 +238,8 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package) 
-        print("PK: Uptil here")
-        print("PK: The code package is", code_package)
 
         rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
-
-        # PK: Here we would have the docker image uplaoded in the ECR. 
-        # PK: Now we need to create the function.
 
         """
             There's no function with that name?
@@ -238,9 +249,6 @@ class System(ABC, LoggingBase):
             be updated if the local version is different.
         """
         functions = code_package.functions
-        print("The functions are", code_package.functions)
-        print("The container_deployment is", container_deployment)
-        print("The container_uri is", container_uri)
         if not functions or func_name not in functions:
             msg = (
                 "function name not provided."
@@ -249,7 +257,6 @@ class System(ABC, LoggingBase):
             )
             self.logging.info("Creating new function! Reason: " + msg)
             function = self.create_function(code_package, func_name, container_deployment, container_uri)
-            print("After creating the function")
             self.cache_client.add_function(
                 deployment_name=self.name(),
                 language_name=code_package.language_name,

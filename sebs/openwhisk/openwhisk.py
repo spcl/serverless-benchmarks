@@ -94,8 +94,7 @@ class OpenWhisk(System):
             cmd.append("-i")
         return cmd
 
-    def find_image(self, repository_name, image_tag) -> bool:
-
+    def find_image(self, repository_client, repository_name, image_tag) -> bool:
         if self.config.experimentalManifest:
             try:
                 # This requires enabling experimental Docker features
@@ -111,6 +110,16 @@ class OpenWhisk(System):
                 return True
             except docker.errors.NotFound:
                 return False
+
+    def push_image_to_repository(self, repository_client, repository_uri, image_tag):
+        ret = self.repository_client.images.push(
+            repository=repository_uri, tag=image_tag, stream=True, decode=True
+        )
+        # doesn't raise an exception for some reason
+        for val in ret:
+            if "error" in val:
+                self.logging.error(f"Failed to push the image to registry {registry_name}")
+                raise RuntimeError(val)
 
     def build_base_image(
         self,
@@ -191,14 +200,9 @@ class OpenWhisk(System):
             f"Push the benchmark base image {repository_name}:{image_tag} "
             f"to registry: {registry_name}."
         )
-        ret = self.docker_client.images.push(
-            repository=repository_name, tag=image_tag, stream=True, decode=True
-        )
-        # doesn't raise an exception for some reason
-        for val in ret:
-            if "error" in val:
-                self.logging.error(f"Failed to push the image to registry {registry_name}")
-                raise RuntimeError(val)
+
+        self.push_image_to_repository(self.docker_client, repository_name, image_tag)
+
         return True
 
     def package_code(

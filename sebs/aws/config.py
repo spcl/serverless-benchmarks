@@ -23,7 +23,6 @@ class AWSCredentials(Credentials):
             "sts", aws_access_key_id=self.access_key, aws_secret_access_key=self.secret_key
         )
         self._account_id = client.get_caller_identity()["Account"]
-        print("THE account id is", self._account_id)
 
     @staticmethod
     def typename() -> str:

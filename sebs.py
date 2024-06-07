@@ -243,9 +243,6 @@ def invoke(
         sebs_client.config.image_tag_prefix = image_tag_prefix
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
-    print("PK: The Experiament config is", experiment_config)
-    print("PK: The dir of the config is", dir(experiment_config))
-    # print("PK: The config runtime is", experiment_config.containerized_deployment)
     update_nested_dict(config, ["experiments", "benchmark"], benchmark)
     benchmark_obj = sebs_client.get_benchmark(
         benchmark,

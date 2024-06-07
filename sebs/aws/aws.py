@@ -137,15 +137,11 @@ class AWS(System):
         container_deployment: bool,
     ) -> Tuple[str, int]:
 
-        print("The containerzied deployment is", container_deployment)
-        print("PK: the directory is", directory)
         container_uri = None
 
         # if the containerzied deployment is set to True
         if container_deployment:
             # build base image and upload to ECR 
-            print("Now buildin the base Iamge")
-            print("the directory is", directory)
             _, container_uri = self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
 
         CONFIG_FILES = {
@@ -155,7 +151,6 @@ class AWS(System):
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir) 
-        print("the function dir is", function_dir)
         # move all files to 'function' except handler.py
         for file in os.listdir(directory):
             if file not in package_config:
@@ -179,6 +174,55 @@ class AWS(System):
             return "x86_64"
         return architecture
 
+    # PK: To Do: Test
+    def find_image(self, repository_client, repository_name, image_tag) -> bool:
+        try:
+            response = repository_client.describe_images(
+                repositoryName=repository_name,
+                imageIds=[{'imageTag': image_tag}]
+            )
+            if response['imageDetails']:
+                return True
+        except ClientError as e:
+            return False
+
+    def push_image_to_repository(self, repository_client, repository_uri, image_tag):
+        auth = repository_client.get_authorization_token()
+        auth_data = auth['authorizationData'][0]
+        token = base64.b64decode(auth_data['authorizationToken']).decode('utf-8')
+        username, password = token.split(':')
+        registry_url = auth_data['proxyEndpoint']
+
+        self.docker_client.login(username=username, password=password, registry=registry_url)
+        ret = self.docker_client.images.push(
+            repository=repository_uri, tag=image_tag, stream=True, decode=True
+        )
+        for val in ret:
+            if "error" in val:
+                self.logging.error(f"Failed to push the image to registry {registry_name}")
+                raise RuntimeError(val)
+
+    def repository_exists(self, repository_client, repository_name):
+        try:
+            repository_client.describe_repositories(repositoryNames=[repository_name])
+            return True
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'RepositoryNotFoundException':
+                return False
+            else:
+                self.logging.error(f"Error checking repository: {e}")
+                raise e 
+
+    def create_repository(self, repository_client, repository_name):
+        if not self.repository_exists(repository_client, repository_name):
+            try:
+                repository_client.create_repository(repositoryName=repository_name)
+                self.logging.info(f"Created ECR repository: {repository_name}")
+            except ClientError as e:
+                if e.response['Error']['Code'] != 'RepositoryAlreadyExistsException':
+                    self.logging.error(f"Failed to create ECR repository: {e}")
+                    raise e
+
     def build_base_image(
         self,
         directory: str,
@@ -197,13 +241,6 @@ class AWS(System):
         registry. These are triggered by users modifying code and enforcing
         a build.
         """
-        # get registry name 
-        print("PK: Printing self config to see the resource", self.config)
-        print("PK: The region is", self.config.region)
-        print("PK: Printing self config to see the resource", dir(self.config))
-        print("PK: Printing self config to see the resource", self.config.credentials.account_id)
-        print("PK: DIR Printing self config to see the resource", dir(self.config))
-        print("PK: TRhe directory is", directory)
 
         account_id = self.config.credentials.account_id
         region = self.config.region
@@ -215,58 +252,17 @@ class AWS(System):
         )
         repository_uri = f"{registry_name}/{repository_name}:{image_tag}"
 
-
-        print("PK: The Image tagg is", image_tag)
-        print("The region is", region)
         ecr_client = boto3.client('ecr', region_name=region)
 
-        def image_exists_in_ecr(repository_uri):
-            repository_name, image_tag = repository_uri.split(':')[-2], repository_uri.split(':')[-1]
-            try:
-                response = ecr_client.describe_images(
-                    repositoryName=repository_name,
-                    imageIds=[{'imageTag': image_tag}]
-                )
-                if response['imageDetails']:
-                    return True
-            except ClientError as e:
-                if e.response['Error']['Code'] == 'ImageNotFoundException':
-                    return False
-                else:
-                    raise e
-        # PK: Needs to be refactored
-        def repository_exists(repository_name):
-            try:
-                ecr_client.describe_repositories(repositoryNames=[repository_name])
-                return True
-            except ClientError as e:
-                if e.response['Error']['Code'] == 'RepositoryNotFoundException':
-                    return False
-                else:
-                    self.logging.error(f"Error checking repository: {e}")
-                    raise e 
-
-        # PK: Needs to be refactored
-        def create_ecr_repository(repository_name):
-            if not repository_exists(repository_name):
-                try:
-                    ecr_client.create_repository(repositoryName=repository_name)
-                    self.logging.info(f"Created ECR repository: {repository_name}")
-                except ClientError as e:
-                    if e.response['Error']['Code'] != 'RepositoryAlreadyExistsException':
-                        self.logging.error(f"Failed to create ECR repository: {e}")
-                        raise e
-
         # Create repository if it does not exist
-        create_ecr_repository(repository_name)
+        self.create_repository(ecr_client, repository_name)
 
-        # PK: To Do: Check if we the image is already in the registry. For AWS we need to check in the ECR.
         # cached package, rebuild not enforced -> check for new one
-        print("Is chacned ornot", is_cached)
         if is_cached:
-            if image_exists_in_ecr(repository_uri):
+            repository_name, image_tag = repository_uri.split(':')[-2], repository_uri.split(':')[-1]
+            if self.find_image(self.docker_client, repository_name, image_tag):
                 self.logging.info(
-                    f"Skipping building OpenWhisk Docker package for {benchmark}, using "
+                    f"Skipping building AWS Docker package for {benchmark}, using "
                     f"Docker image {repository_name}:{image_tag} from registry: "
                     f"{registry_name}."
                 )
@@ -279,9 +275,7 @@ class AWS(System):
                 )
 
         build_dir = os.path.join(directory, "docker")
-        print("the build dir is", build_dir)
         os.makedirs(build_dir, exist_ok=True)
-        print("Copying the file from", os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"))
 
         shutil.copy(
             os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
@@ -298,16 +292,12 @@ class AWS(System):
         builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
             language_version
         ]
-        print("THe builder Image is", builder_image)
         self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
 
         buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
-        print("the Build args are", buildargs)
         image, _ = self.docker_client.images.build(
             tag=repository_uri, path=build_dir, buildargs=buildargs
         )
-        print(f"The etag for the build is {repository_name}:{image_tag}")
-        print("The Image After building is", image) 
 
         # Now push the image to the registry
         # image will be located in a private repository // for AWS Image should be in the ECR
@@ -315,34 +305,9 @@ class AWS(System):
             f"Push the benchmark base image {repository_name}:{image_tag} "
             f"to registry: {registry_name}."
         )
-        # PK: Needs to be refactored
-        def push_image_to_ecr():
-            auth = ecr_client.get_authorization_token()
-            auth_data = auth['authorizationData'][0]
-            token = base64.b64decode(auth_data['authorizationToken']).decode('utf-8')
-            username, password = token.split(':')
-            registry_url = auth_data['proxyEndpoint']
 
-            self.docker_client.login(username=username, password=password, registry=registry_url)
-            ret = self.docker_client.images.push(
-                repository=repository_uri, tag=image_tag, stream=True, decode=True
-            )
-            for val in ret:
-                if "error" in val:
-                    self.logging.error(f"Failed to push the image to registry {registry_name}")
-                    raise RuntimeError(val)
+        self.push_image_to_repository(ecr_client, repository_uri, image_tag)
 
-        try:
-            push_image_to_ecr()
-        except RuntimeError as e:
-            if 'authorization token has expired' in str(e):
-                self.logging.info("Authorization token expired. Re-authenticating and retrying...")
-                push_image_to_ecr()
-            else:
-                raise e
-
-        print("The repository_uri is", repository_uri)
-        print("The Image tag is", image_tag)
         return True, repository_uri
 
     def _map_language_runtime(self, language: str, runtime: str):
@@ -393,11 +358,6 @@ class AWS(System):
 
             package_type = "Zip"
 
-            if container_deployment:
-                package_type = "Image"
-                code_config = {"ImageUri": container_uri}
-
-
             # AWS Lambda limit on zip deployment size
             # Limit to 50 MB
             # mypy doesn't recognize correctly the case when the same
@@ -417,19 +377,26 @@ class AWS(System):
                 self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix} 
 
-            ret = self.client.create_function(
-                FunctionName=func_name,
-                Runtime="{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
-                ),
-                Handler="handler.handler",
-                Role=self.config.resources.lambda_role(self.session),
-                MemorySize=memory,
-                Timeout=timeout,
-                PackageType = package_type,
-                Code=code_config,
-                Architectures=[self._map_architecture(architecture)],
-            )
+            if container_deployment:
+                package_type = "Image"
+                code_config = {"ImageUri": container_uri}
+
+            create_function_params = {
+                "FunctionName": func_name,
+                "Role": self.config.resources.lambda_role(self.session),
+                "MemorySize": memory,
+                "Timeout": timeout,
+                "PackageType": package_type,
+                "Code": code_config, 
+                "Architectures": [self._map_architecture(architecture)],
+            }
+
+            if not container_deployment:
+                create_function_params["Runtime"] = "{}{}".format(language, self._map_language_runtime(language, language_runtime) )
+                create_function_params["Handler"] = "handler.handler"
+
+            create_function_params = {k: v for k, v in create_function_params.items() if v is not None}
+            ret = self.client.create_function(**create_function_params)
 
             lambda_function = LambdaFunction(
                 func_name,

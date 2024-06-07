@@ -493,8 +493,6 @@ class Benchmark(LoggingBase):
         self, deployment_build_step: Callable[[str, str, str, str, bool, bool], Tuple[str, int]]
     ) -> Tuple[bool, str, str, str]:
 
-        print("Here we are")
-
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info(
@@ -531,7 +529,6 @@ class Benchmark(LoggingBase):
             self.is_cached_valid,
             self.container_deployment,
         )
-        print("after deployment_build_step")
         self.logging.info(
             (
                 "Created code package (source hash: {hash}), for run on {deployment}"
