@@ -103,7 +103,8 @@
         "base_images": {
           "3.7": "mcr.microsoft.com/azure-functions/python:3.0-python3.7",
           "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8",
-          "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9"
+          "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9",
+          "3.10": "mcr.microsoft.com/azure-functions/python:4-python3.10"
         },
         "images": [
           "build"
@@ -121,9 +122,9 @@
       },
       "nodejs": {
         "base_images": {
-          "16": "mcr.microsoft.com/azure-functions/node:3.0-node16",
-          "18": "mcr.microsoft.com/azure-functions/node:3.0-node18",
-          "20": "mcr.microsoft.com/azure-functions/node:3.0-node20"
+          "16": "mcr.microsoft.com/azure-functions/node:4-node16",
+          "18": "mcr.microsoft.com/azure-functions/node:4-node18",
+          "20": "mcr.microsoft.com/azure-functions/node:4-node20"
         },
         "images": [
           "build"

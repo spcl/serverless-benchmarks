@@ -171,7 +171,7 @@ class Azure(System):
             "version": "2.0",
             "extensionBundle": {
                 "id": "Microsoft.Azure.Functions.ExtensionBundle",
-                "version": "[1.*, 2.0.0)",
+                "version": "[4.0.0, 5.0.0)",
             },
         }
         json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
@@ -335,6 +335,7 @@ class Azure(System):
                             " --os-type Linux --consumption-plan-location {region} "
                             " --runtime {runtime} --runtime-version {runtime_version} "
                             " --name {func_name} --storage-account {storage_account}"
+                            " --functions-version 4 "
                         ).format(**config)
                     )
                     self.logging.info("Azure: Created function app {}".format(func_name))
