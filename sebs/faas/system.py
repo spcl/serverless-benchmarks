@@ -238,7 +238,6 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package) 
-
         rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
 
         """
@@ -288,6 +287,8 @@ class System(ABC, LoggingBase):
                         f"Enforcing rebuild and update of of cached function "
                         f"{func_name} with hash {function.code_package_hash}."
                     )
+                if container_deployment:
+                    code_package = container_uri
                 self.update_function(function, code_package)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True

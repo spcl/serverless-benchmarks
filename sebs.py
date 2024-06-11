@@ -256,12 +256,10 @@ def invoke(
     if timeout is not None:
         benchmark_obj.benchmark_config.timeout = timeout
 
-    print("the fourth step is here")
     func = deployment_client.get_function(
         benchmark_obj,
         function_name if function_name else deployment_client.default_function_name(benchmark_obj),
     )
-    print("the fith step is here")
 
     storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
     input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)

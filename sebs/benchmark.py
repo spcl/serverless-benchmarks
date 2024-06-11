@@ -125,6 +125,11 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     @property
+    def container_uri(self):
+        if self.code_package:
+            return self.code_package['container_uri']
+
+    @property
     def language(self) -> "Language":
         return self._language
 
@@ -498,6 +503,9 @@ class Benchmark(LoggingBase):
             self.logging.info(
                 "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
             )
+            if self.container_deployment:
+                return False, self.code_location, self.container_deployment,  self.container_uri
+
             return False, self.code_location, self.container_deployment,  ""
 
         msg = (
@@ -521,7 +529,7 @@ class Benchmark(LoggingBase):
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         # here in the deployment_build_step is the package_code function in the aws.py 
-        self._code_location, self._code_size, container_uri = deployment_build_step(
+        self._code_location, self._code_size, self._container_uri = deployment_build_step(
             os.path.abspath(self._output_dir),
             self.language_name,
             self.language_version,
@@ -542,12 +550,12 @@ class Benchmark(LoggingBase):
         )
 
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self)
+            self._cache_client.update_code_package(self._deployment_name, self._container_uri, self)
         else:
-            self._cache_client.add_code_package(self._deployment_name, self)
+            self._cache_client.add_code_package(self._deployment_name, self._container_uri, self)
         self.query_cache()
 
-        return True, self._code_location, self.container_deployment, container_uri
+        return True, self._code_location, self._container_deployment, self._container_uri
 
     """
         Locates benchmark input generator, inspect how many storage buckets
