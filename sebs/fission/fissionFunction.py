@@ -17,9 +17,7 @@ class FissionFunction(Function):
         logging.info(f"Function {self.name} invoking...")
         response = requests.request("POST", url, data=readyPayload, headers=headers)
         end = datetime.datetime.now()
-        logging.info(
-            f"Function {self.name} returned response with code: {response.status_code}"
-        )
+        logging.info(f"Function {self.name} returned response with code: {response.status_code}")
         fissionResult = ExecutionResult(begin, end)
         if response.status_code != 200:
             logging.error("Invocation of {} failed!".format(self.name))

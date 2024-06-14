@@ -15,8 +15,13 @@ from sebs.fission.fissionFunction import FissionFunction
 from sebs.benchmark import Benchmark
 from sebs.fission.config import FissionConfig
 from sebs.fission.minio import Minio
-from tools.fission_preparation import check_if_minikube_installed, run_minikube, check_if_k8s_installed, \
-    check_if_helm_installed, stop_minikube
+from tools.fission_preparation import (
+    check_if_minikube_installed,
+    run_minikube,
+    check_if_k8s_installed,
+    check_if_helm_installed,
+    stop_minikube,
+)
 
 
 class Fission(System):
@@ -67,15 +72,11 @@ class Fission(System):
     def shutdown(self) -> None:
         if self.config.shouldShutdown:
             if hasattr(self, "httpTriggerName"):
-                subprocess.run(
-                    f"fission httptrigger delete --name {self.httpTriggerName}".split()
-                )
+                subprocess.run(f"fission httptrigger delete --name {self.httpTriggerName}".split())
             if hasattr(self, "functionName"):
                 subprocess.run(f"fission fn delete --name {self.functionName}".split())
             if hasattr(self, "packageName"):
-                subprocess.run(
-                    f"fission package delete --name {self.packageName}".split()
-                )
+                subprocess.run(f"fission package delete --name {self.packageName}".split())
             if hasattr(self, "envName"):
                 subprocess.run(f"fission env delete --name {self.envName}".split())
             stop_minikube()
@@ -140,9 +141,7 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
             "zip -r {}.zip ./".format(benchmark.benchmark).split(),
             stdout=subprocess.DEVNULL,
         )
-        benchmark_archive = "{}.zip".format(
-            os.path.join(directory, benchmark.benchmark)
-        )
+        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark.benchmark))
         logging.info("Created {} archive".format(benchmark_archive))
         bytes_size = os.path.getsize(benchmark_archive)
         return benchmark_archive, bytes_size
@@ -304,12 +303,12 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
                 code_package._cached_config["code"],
             )
             logging.info(
-                "Using cached function {fname} in {loc}".format(
-                    fname=func_name, loc=code_location
-                )
+                "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
             )
             self.create_env_if_needed(
-                language, self.language_image, self.language_builder,
+                language,
+                self.language_image,
+                self.language_builder,
             )
             self.update_function(func_name, code_package.language_name, path)
             return FissionFunction(func_name)
@@ -317,7 +316,9 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
             func_name = code_package.cached_config["name"]
             code_location = code_package.code_location
             self.create_env_if_needed(
-                language, self.language_image, self.language_builder,
+                language,
+                self.language_image,
+                self.language_builder,
             )
             self.update_function(func_name, code_package.language_name, path)
             cached_cfg = code_package.cached_config
@@ -343,7 +344,9 @@ ${SRC_PKG} && cp -r ${SRC_PKG} ${DEPLOY_PKG}"
             code_location = code_package.benchmark_path
             func_name = "{}-{}-{}".format(benchmark, language, memory)
             self.create_env_if_needed(
-                language, self.language_image, self.language_builder,
+                language,
+                self.language_image,
+                self.language_builder,
             )
             self.create_function(func_name, language, path)
             self.cache_client.add_function(
