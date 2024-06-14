@@ -15,7 +15,7 @@ from sebs.utils import LoggingHandlers
 
     The order of credentials initialization:
     1. Load credentials from cache.
-    2. If any new vaues are provided in the config, they override cache values.
+    2. If any new values are provided in the config, they override cache values.
     3. If nothing is provided, initialize using environmental variables.
     4. If no information is provided, then failure is reported.
 """
@@ -107,35 +107,45 @@ class GCPCredentials(Credentials):
 
 class GCPResources(Resources):
     def __init__(self):
-        super().__init__()
+        super().__init__(name="gcp")
 
     @staticmethod
-    def initialize(dct: dict) -> Resources:
-        return GCPResources()
+    def initialize(res: Resources, dct: dict):
+        ret = cast(GCPResources, res)
+        super(GCPResources, GCPResources).initialize(ret, dct)
+        return ret
 
     """
         Serialize to JSON for storage in cache.
     """
 
     def serialize(self) -> dict:
-        return {}
+        return super().serialize()
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
+
         cached_config = cache.get_config("gcp")
-        ret: GCPResources
+        ret = GCPResources()
         if cached_config and "resources" in cached_config:
-            ret = cast(GCPResources, GCPResources.initialize(cached_config["resources"]))
+            GCPResources.initialize(ret, cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for GCP")
         else:
-            ret = cast(GCPResources, GCPResources.initialize(config))
-            ret.logging_handlers = handlers
-            ret.logging.info("No cached resources for GCP found, using user configuration.")
+
+            if "resources" in config:
+                GCPResources.initialize(ret, config["resources"])
+                ret.logging_handlers = handlers
+                ret.logging.info("No cached resources for GCP found, using user configuration.")
+            else:
+                GCPResources.initialize(ret, {})
+                ret.logging_handlers = handlers
+                ret.logging.info("No resources for GCP found, initialize!")
+
         return ret
 
     def update_cache(self, cache: Cache):
-        pass
+        super().update_cache(cache)
 
 
 """
@@ -149,7 +159,7 @@ class GCPConfig(Config):
     _project_name: str
 
     def __init__(self, credentials: GCPCredentials, resources: GCPResources):
-        super().__init__()
+        super().__init__(name="gcp")
         self._credentials = credentials
         self._resources = resources
 

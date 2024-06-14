@@ -1,7 +1,9 @@
+import copy
 import json
 import os
 import secrets
 import uuid
+import platform
 from typing import List, Optional, Type, TypeVar
 
 import docker
@@ -9,6 +11,7 @@ import minio
 
 from sebs.cache import Cache
 from sebs.types import Storage as StorageTypes
+from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
 
@@ -25,8 +28,14 @@ class Minio(PersistentStorage):
     # the location does not matter
     MINIO_REGION = "us-east-1"
 
-    def __init__(self, docker_client: docker.client, cache_client: Cache, replace_existing: bool):
-        super().__init__(self.MINIO_REGION, cache_client, replace_existing)
+    def __init__(
+        self,
+        docker_client: docker.client,
+        cache_client: Cache,
+        resources: Resources,
+        replace_existing: bool,
+    ):
+        super().__init__(self.MINIO_REGION, cache_client, resources, replace_existing)
         self._docker_client = docker_client
         self._storage_container: Optional[docker.container] = None
         self._cfg = MinioConfig()
@@ -97,10 +106,17 @@ class Minio(PersistentStorage):
                 )
 
             self._storage_container.reload()
-            networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
-            self._cfg.address = "{IPAddress}:{Port}".format(
-                IPAddress=networks["bridge"]["IPAddress"], Port=9000
-            )
+
+            # Check if the system is Linux and that it's not WSL
+            if platform.system() == "Linux" and "microsoft" not in platform.release().lower():
+                networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
+                self._cfg.address = "{IPAddress}:{Port}".format(
+                    IPAddress=networks["bridge"]["IPAddress"], Port=9000
+                )
+            else:
+                # System is either WSL, Windows, or Mac
+                self._cfg.address = f"localhost:{self._cfg.mapped_port}"
+
             if not self._cfg.address:
                 self.logging.error(
                     f"Couldn't read the IP address of container from attributes "
@@ -129,7 +145,7 @@ class Minio(PersistentStorage):
             http_client=Minio._define_http_client(),
         )
 
-    def _create_bucket(self, name: str, buckets: List[str] = []):
+    def _create_bucket(self, name: str, buckets: List[str] = [], randomize_name: bool = False):
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
@@ -137,7 +153,10 @@ class Minio(PersistentStorage):
                 )
                 return bucket_name
         # minio has limit of bucket name to 16 characters
-        bucket_name = "{}-{}".format(name, str(uuid.uuid4())[0:16])
+        if randomize_name:
+            bucket_name = "{}-{}".format(name, str(uuid.uuid4())[0:16])
+        else:
+            bucket_name = name
         try:
             self.connection.make_bucket(bucket_name, location=self.MINIO_REGION)
             self.logging.info("Created bucket {}".format(bucket_name))
@@ -151,9 +170,11 @@ class Minio(PersistentStorage):
             # rethrow
             raise err
 
-    def uploader_func(self, bucket_idx, file, filepath):
+    def uploader_func(self, path_idx, file, filepath):
         try:
-            self.connection.fput_object(self.input_buckets[bucket_idx], file, filepath)
+            key = os.path.join(self.input_prefixes[path_idx], file)
+            bucket_name = self.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+            self.connection.fput_object(bucket_name, key, filepath)
         except minio.error.ResponseError as err:
             self.logging.error("Upload failed!")
             raise (err)
@@ -182,6 +203,9 @@ class Minio(PersistentStorage):
         for error in errors:
             self.logging.error(f"Error when deleting object from bucket {bucket}: {error}!")
 
+    def remove_bucket(self, bucket: str):
+        self.connection.remove_bucket(Bucket=bucket)
+
     def correct_name(self, name: str) -> str:
         return name
 
@@ -191,17 +215,20 @@ class Minio(PersistentStorage):
     def exists_bucket(self, bucket_name: str) -> bool:
         return self.connection.bucket_exists(bucket_name)
 
-    def list_bucket(self, bucket_name: str) -> List[str]:
+    def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         try:
             objects_list = self.connection.list_objects(bucket_name)
             objects: List[str]
-            return [obj.object_name for obj in objects_list]
+            return [obj.object_name for obj in objects_list if prefix in obj.object_name]
         except minio.error.NoSuchBucket:
             raise RuntimeError(f"Attempting to access a non-existing bucket {bucket_name}!")
 
-    def list_buckets(self, bucket_name: str) -> List[str]:
+    def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         buckets = self.connection.list_buckets()
-        return [bucket.name for bucket in buckets if bucket_name in bucket.name]
+        if bucket_name is not None:
+            return [bucket.name for bucket in buckets if bucket_name in bucket.name]
+        else:
+            return [bucket.name for bucket in buckets]
 
     def upload(self, bucket_name: str, filepath: str, key: str):
         raise NotImplementedError()
@@ -215,9 +242,11 @@ class Minio(PersistentStorage):
     T = TypeVar("T", bound="Minio")
 
     @staticmethod
-    def _deserialize(cached_config: MinioConfig, cache_client: Cache, obj_type: Type[T]) -> T:
+    def _deserialize(
+        cached_config: MinioConfig, cache_client: Cache, res: Resources, obj_type: Type[T]
+    ) -> T:
         docker_client = docker.from_env()
-        obj = obj_type(docker_client, cache_client, False)
+        obj = obj_type(docker_client, cache_client, res, False)
         obj._cfg = cached_config
         if cached_config.instance_id:
             instance_id = cached_config.instance_id
@@ -227,11 +256,11 @@ class Minio(PersistentStorage):
                 raise RuntimeError(f"Storage container {instance_id} does not exist!")
         else:
             obj._storage_container = None
-        obj.input_buckets = cached_config.input_buckets
-        obj.output_buckets = cached_config.output_buckets
+        obj._input_prefixes = copy.copy(cached_config.input_buckets)
+        obj._output_prefixes = copy.copy(cached_config.output_buckets)
         obj.configure_connection()
         return obj
 
     @staticmethod
-    def deserialize(cached_config: MinioConfig, cache_client: Cache) -> "Minio":
-        return Minio._deserialize(cached_config, cache_client, Minio)
+    def deserialize(cached_config: MinioConfig, cache_client: Cache, res: Resources) -> "Minio":
+        return Minio._deserialize(cached_config, cache_client, res, Minio)

@@ -9,7 +9,7 @@ from sebs.cache import Cache
 class Minio(minio.Minio):
     @staticmethod
     def deployment_name() -> str:
-        return "openwhisk"
+        return "local"
 
     def __init__(
         self,

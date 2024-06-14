@@ -18,6 +18,7 @@ from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from ..faas.function import Function, FunctionConfig, Trigger
 from .storage import PersistentStorage
+from sebs.faas.config import Resources
 from ..faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.storage import GCPStorage
@@ -71,9 +72,10 @@ class GCP(System):
         :param config: systems-specific parameters
     """
 
-    def initialize(self, config: Dict[str, str] = {}):
+    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         self.function_client = build("cloudfunctions", "v1", cache_discovery=False)
         self.get_storage()
+        self.initialize_resources(select_prefix=resource_prefix)
 
     def get_function_client(self):
         return self.function_client
@@ -93,7 +95,9 @@ class GCP(System):
         buckets=None,
     ) -> PersistentStorage:
         if not self.storage:
-            self.storage = GCPStorage(self.config.region, self.cache_client, replace_existing)
+            self.storage = GCPStorage(
+                self.config.region, self.cache_client, self.config.resources, replace_existing
+            )
             self.storage.logging_handlers = self.logging_handlers
         else:
             self.storage.replace_existing = replace_existing
@@ -165,9 +169,9 @@ class GCP(System):
         shutil.move(old_path, new_path)
 
         """
-            zip the whole directroy (the zip-file gets uploaded to gcp later)
+            zip the whole directory (the zip-file gets uploaded to gcp later)
 
-            Note that the function GCP.recusive_zip is slower than the use of e.g.
+            Note that the function GCP.recursive_zip is slower than the use of e.g.
             `utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)`
             or `shutil.make_archive(benchmark_archive, direcory, directory)`
             But both of the two alternatives need a chance of directory
@@ -202,8 +206,10 @@ class GCP(System):
         function_cfg = FunctionConfig.from_benchmark(code_package)
 
         code_package_name = cast(str, os.path.basename(package))
-        code_bucket, idx = storage_client.add_input_bucket(benchmark)
-        storage_client.upload(code_bucket, package, code_package_name)
+        code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+        code_prefix = os.path.join(benchmark, code_package_name)
+        storage_client.upload(code_bucket, package, code_prefix)
+
         self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
@@ -228,7 +234,7 @@ class GCP(System):
                         "timeout": str(timeout) + "s",
                         "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
-                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_package_name,
+                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
                     },
                 )
             )
@@ -641,7 +647,7 @@ class GCP(System):
        Helper method for recursive_zip
 
        :param base_directory: path to directory to be zipped
-       :param path: path to file of subdirecotry to be zipped
+       :param path: path to file of subdirectory to be zipped
        :param archive: ZipFile object
     """
 
@@ -663,7 +669,7 @@ class GCP(System):
        If the archive exists only new files are added and updated.
        If the archive does not exist a new one is created.
 
-       :param path: absolute path to the direcotry to be zipped
+       :param path: absolute path to the directory to be zipped
        :param archname: path to the zip file
     """
 
@@ -673,7 +679,7 @@ class GCP(System):
         if os.path.isdir(directory):
             GCP.helper_zip(directory, directory, archive)
         else:
-            # if the passed direcotry is acually a file we just add the file to the zip archive
+            # if the passed directory is actually a file we just add the file to the zip archive
             _, name = os.path.split(directory)
             archive.write(directory, name)
         archive.close()

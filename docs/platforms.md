@@ -9,8 +9,7 @@ are required.
 In the following subsections, we discuss the mandatory and optional customization
 points for each platform.
 
-
-> **Warning**
+> [!WARNING]
 > On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through JSON input configuration, do not commit nor publish these files anywhere.
 
 ### Cloud Account Identifiers
@@ -106,8 +105,11 @@ or in the JSON input configuration:
 }
 ```
 
-> **Warning**
+> [!WARNING]
 > The tool assumes there is only one subscription active on the account. If you want to bind the newly created service principal to a specific subscription, or the created credentials do not work with SeBS and you see errors such as "No subscriptions found for X", then you must specify a subscription when creating the service principal. Check your subscription ID on in the Azure portal, and use the CLI option `tools/create_azure_credentials.py --subscription <SUBSCRIPTION_ID>`.
+
+> [!WARNING]
+> When you log in for the first time on a device, Microsoft might require authenticating your login with Multi-Factor Authentication (MFA). In this case, we will return an error such as: "The following tenants require Multi-Factor Authentication (MFA). Use 'az login --tenant TENANT_ID' to explicitly login to a tenant.". Then, you can pass the tenant ID by using the `--tenant <tenant-id>` flag.
 
 ### Resources
 
@@ -151,14 +153,32 @@ or in the JSON input configuration:
 ## OpenWhisk
 
 SeBS expects users to deploy and configure an OpenWhisk instance.
-In `tools/openwhisk_preparation.py`, we include scripts that help install
-[kind (Kubernetes in Docker)](https://kind.sigs.k8s.io/) and deploy
-OpenWhisk on a `kind` cluster.
+Below, you will find example of instruction for deploying OpenWhisk instance.
 The configuration parameters of OpenWhisk for SeBS can be found
 in `config/example.json` under the key `['deployment']['openwhisk']`.
 In the subsections below, we discuss the meaning and use of each parameter.
 To correctly deploy SeBS functions to OpenWhisk, following the
 subsections on *Toolchain* and *Docker* configuration is particularly important.
+
+> [!WARNING]
+> Some benchmarks might require larger memory allocations, e.g., 2048 MB. Not all OpenWhisk deployments support this out-of-the-box.
+> The deployment section below shows an example of changing the default function memory limit from 512 MB to a higher value.
+
+### Deployment
+
+In `tools/openwhisk_preparation.py`, we include scripts that help install
+[kind (Kubernetes in Docker)](https://kind.sigs.k8s.io/) and deploy
+OpenWhisk on a `kind` cluster. Alternatively, you can deploy to an existing
+cluster by [using offical deployment instructions](https://github.com/apache/openwhisk-deploy-kube/blob/master/docs/k8s-kind.md):
+
+```shell
+./deploy/kind/start-kind.sh
+helm install owdev ./helm/openwhisk -n openwhisk --create-namespace -f deploy/kind/mycluster.yaml
+kubectl get pods -n openwhisk --watch
+```
+
+To change the maximum memory allocation per function, edit the `max` value under `memory` in file `helm/openwhisk/values.yaml`.
+To run all benchmarks, we recommend of at least "2048m".
 
 ### Toolchain
 
