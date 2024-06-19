@@ -163,7 +163,7 @@ class AWS(System):
         }
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)system.py
+        os.makedirs(function_dir)
         # move all files to 'function' except handler.py
         for file in os.listdir(directory):
             if file not in package_config:
