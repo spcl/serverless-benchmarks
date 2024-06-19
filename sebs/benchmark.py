@@ -528,7 +528,7 @@ class Benchmark(LoggingBase):
         self.add_deployment_files(self._output_dir)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
-        # here in the deployment_build_step is the package_code function in the aws.py 
+
         self._code_location, self._code_size, self._container_uri = deployment_build_step(
             os.path.abspath(self._output_dir),
             self.language_name,

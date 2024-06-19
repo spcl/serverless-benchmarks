@@ -212,6 +212,7 @@ class OpenWhisk(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        container_deployment: bool,
     ) -> Tuple[str, int]:
 
         # Regardless of Docker image status, we need to create .zip file

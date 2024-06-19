@@ -161,7 +161,11 @@ class Azure(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        container_deployment: bool,
     ) -> Tuple[str, int]:
+
+        if container_deployment:
+         raise NotImplementedError("Container Deployment is not supported in Azure")      
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure

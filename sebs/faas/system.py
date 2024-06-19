@@ -187,6 +187,10 @@ class System(ABC, LoggingBase):
         pass 
 
     @abstractmethod 
+    def repository_authorization(self, repository_client, repository_uri, image_tag):
+        pass
+
+    @abstractmethod 
     def push_image_to_repository(self, repository_client, repository_uri, image_tag):
         pass
     

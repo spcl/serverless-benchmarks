@@ -62,7 +62,20 @@ class AWS(System):
         super().__init__(sebs_config, cache_client, docker_client)
         self.logging_handlers = logger_handlers
         self._config = config
-        self.storage: Optional[S3] = None
+        self.storage: Optional[S3] = None 
+
+        if self.config.resources.docker_username:
+            if self.config.resources.docker_registry:
+                docker_client.login(
+                    username=self.config.resources.docker_username,
+                    password=self.config.resources.docker_password,
+                    registry=self.config.resources.docker_registry,
+                )
+            else:
+                docker_client.login(
+                    username=self.config.resources.docker_username,
+                    password=self.config.resources.docker_password,
+                )
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         # thread-safe
@@ -150,7 +163,7 @@ class AWS(System):
         }
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)
+        os.makedirs(function_dir)system.py
         # move all files to 'function' except handler.py
         for file in os.listdir(directory):
             if file not in package_config:
@@ -184,19 +197,25 @@ class AWS(System):
             if response['imageDetails']:
                 return True
         except ClientError as e:
-            return False
+            return False 
 
-    def push_image_to_repository(self, repository_client, repository_uri, image_tag):
+    def repository_authorization(self, repository_client):
         auth = repository_client.get_authorization_token()
         auth_data = auth['authorizationData'][0]
         token = base64.b64decode(auth_data['authorizationToken']).decode('utf-8')
         username, password = token.split(':')
         registry_url = auth_data['proxyEndpoint']
+        return username, password, registry_url
 
-        self.docker_client.login(username=username, password=password, registry=registry_url)
-        ret = self.docker_client.images.push(
-            repository=repository_uri, tag=image_tag, stream=True, decode=True
-        )
+    def push_image_to_repository(self, repository_client, repository_uri, image_tag):
+        try:
+            ret = self.docker_client.images.push(
+                repository=repository_uri, tag=image_tag, stream=True, decode=True
+            )
+        except:
+            username, password, registry_url = self.repository_authorization(repository_client)
+            self.docker_client.login(username=username, password=password, registry=registry_url)
+
         for val in ret:
             if "error" in val:
                 self.logging.error(f"Failed to push the image to registry {repository_uri}")
