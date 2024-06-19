@@ -114,8 +114,15 @@ class AWSResources(Resources):
             out = {"arn": self.arn, "endpoint": self.endpoint}
             return out
 
-    def __init__(self):
+    def __init__(self,
+        registry: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+    ):
         super().__init__(name="aws")
+        self._docker_registry = registry if registry != "" else None
+        self._docker_username = username if username != "" else None
+        self._docker_password = password if password != "" else None
         self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
         self._region: Optional[str] = None
@@ -123,6 +130,18 @@ class AWSResources(Resources):
     @staticmethod
     def typename() -> str:
         return "AWS.Resources"
+
+    @property
+    def docker_registry(self) -> Optional[str]:
+        return self._docker_registry
+
+    @property
+    def docker_username(self) -> Optional[str]:
+        return self._docker_username
+
+    @property
+    def docker_password(self) -> Optional[str]:
+        return self._docker_password
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         if not self._lambda_role:
@@ -215,13 +234,40 @@ class AWSResources(Resources):
             self._http_apis[api_name] = http_api
         else:
             self.logging.info(f"Using cached HTTP API {api_name}")
-        return http_api
+        return http_api 
+
+    def repository_exists(self, ecr_client, repository_name):
+        try:
+            ecr_client.describe_repositories(repositoryNames=[repository_name])
+            return True
+        except ecr_client.exceptions.RepositoryNotFoundException:
+            return False
+        except Exception as e:
+            self.logging.error(f"Error checking repository: {e}")
+            raise e
+
+    def ecr_repository(self, boto3_session: boto3.session.Session):
+        ecr_client = boto3_session.client(service_name = 'ecr', region_name=cast(str, self._region))
+        repository_name = "test_repo"
+
+        if not self.repository_exists(ecr_client, repository_name):
+            try:
+                ecr_client.create_repository(repositoryName=repository_name)
+                self.logging.info(f"Created ECR repository: {repository_name}")
+            except ClientError as e:
+                if e.response['Error']['Code'] != 'RepositoryAlreadyExistsException':
+                    self.logging.error(f"Failed to create ECR repository: {e}")
+                    raise e
+        return ecr_client, repository_name
 
     # FIXME: python3.7+ future annotations
     @staticmethod
     def initialize(res: Resources, dct: dict):
 
         ret = cast(AWSResources, res)
+        ret._docker_registry = dct["registry"]
+        ret._docker_username = dct["username"]
+        ret._docker_password = dct["password"]
         super(AWSResources, AWSResources).initialize(ret, dct)
         ret._lambda_role = dct["lambda-role"] if "lambda-role" in dct else ""
         if "http-apis" in dct:
@@ -235,25 +281,46 @@ class AWSResources(Resources):
             **super().serialize(),
             "lambda-role": self._lambda_role,
             "http-apis": {key: value.serialize() for (key, value) in self._http_apis.items()},
+            "docker_registry": self.docker_registry,
+            "docker_username": self.docker_username,
+            "docker_password": self.docker_password,
         }
         return out
 
     def update_cache(self, cache: Cache):
         super().update_cache(cache)
+        cache.update_config(
+            val=self.docker_registry, keys=["aws", "resources", "docker", "registry"]
+        )
+        cache.update_config(
+            val=self.docker_username, keys=["aws", "resources", "docker", "username"]
+        )
+        cache.update_config(
+            val=self.docker_password, keys=["aws", "resources", "docker", "password"]
+        )
         cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
         for name, api in self._http_apis.items():
             cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
-
         ret = AWSResources()
         cached_config = cache.get_config("aws")
-        # Load cached values
-        if cached_config and "resources" in cached_config:
-            AWSResources.initialize(ret, cached_config["resources"])
+
+        if "docker_registry" in config:
+            AWSResources.initialize(ret, config["docker_registry"])
+            ret.logging.info("Using user-provided Docker registry for AWS.")
             ret.logging_handlers = handlers
-            ret.logging.info("Using cached resources for AWS")
+
+        # Load cached values
+        elif ( cached_config 
+              and "resources" in cached_config
+              and "docker" in cached_config["resources"]
+            ):
+
+            AWSResources.initialize(ret, cached_config["resources"]['docker'])
+            ret.logging_handlers = handlers
+            ret.logging.info("Using cached Docker registry for AWS")
         else:
             # Check for new config
             if "resources" in config:
@@ -264,7 +331,7 @@ class AWSResources(Resources):
                 AWSResources.initialize(ret, {})
                 ret.logging_handlers = handlers
                 ret.logging.info("No resources for AWS found, initialize!")
-
+        
         return ret
 
 

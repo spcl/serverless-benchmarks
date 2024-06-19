@@ -208,39 +208,31 @@ class AWS(System):
         return username, password, registry_url
 
     def push_image_to_repository(self, repository_client, repository_uri, image_tag):
-        try:
-            ret = self.docker_client.images.push(
-                repository=repository_uri, tag=image_tag, stream=True, decode=True
-            )
-        except:
-            username, password, registry_url = self.repository_authorization(repository_client)
-            self.docker_client.login(username=username, password=password, registry=registry_url)
-
-        for val in ret:
-            if "error" in val:
-                self.logging.error(f"Failed to push the image to registry {repository_uri}")
-                raise RuntimeError(val)
-
-    def repository_exists(self, repository_client, repository_name):
-        try:
-            repository_client.describe_repositories(repositoryNames=[repository_name])
-            return True
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'RepositoryNotFoundException':
-                return False
-            else:
-                self.logging.error(f"Error checking repository: {e}")
+        def push_image(repository_uri, image_tag):
+            try:
+                ret = self.docker_client.images.push(
+                    repository=repository_uri, tag=image_tag, stream=True, decode=True
+                )
+                for val in ret:
+                    if "error" in val:
+                        self.logging.error(f"Failed to push the image to registry {repository_uri} with user provided credentials: {val['error']}")
+                        raise docker.errors.APIError(f"Push failed: {val['error']}")
+            except docker.errors.APIError as e:
+                self.logging.error(f"Failed to push the image to registry {repository_uri}. Error: {str(e)}")
                 raise e 
 
-    def create_repository(self, repository_client, repository_name):
-        if not self.repository_exists(repository_client, repository_name):
+        try:
+            push_image(repository_uri, image_tag)
+            self.logging.info(f"Successfully pushed the image to registry {repository_uri} with user provided credentials")
+        except docker.errors.APIError as e:
+            self.logging.info("Retrying to push the Image to the ECR repository .....")
+            username, password, registry_url = self.repository_authorization(repository_client)
             try:
-                repository_client.create_repository(repositoryName=repository_name)
-                self.logging.info(f"Created ECR repository: {repository_name}")
-            except ClientError as e:
-                if e.response['Error']['Code'] != 'RepositoryAlreadyExistsException':
-                    self.logging.error(f"Failed to create ECR repository: {e}")
-                    raise e
+                self.docker_client.login(username=username, password=password, registry=registry_url)
+                push_image(repository_uri, image_tag)
+                self.logging.info(f"Successfully pushed the image to registry {repository_uri} after retry")
+            except docker.errors.APIError as e:
+                self.logging.error(f"Failed to push the image to registry {repository_uri} after retry. Error: {str(e)}")
 
     def build_base_image(
         self,
@@ -271,10 +263,7 @@ class AWS(System):
         )
         repository_uri = f"{registry_name}/{repository_name}:{image_tag}"
 
-        ecr_client = boto3.client('ecr', region_name=region)
-
-        # Create repository if it does not exist
-        self.create_repository(ecr_client, repository_name)
+        ecr_client, repository_name = self.config.resources.ecr_repository(self.session)
 
         # cached package, rebuild not enforced -> check for new one
         # if cached is true, no need to build and push the image.

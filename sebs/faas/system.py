@@ -193,15 +193,7 @@ class System(ABC, LoggingBase):
     @abstractmethod 
     def push_image_to_repository(self, repository_client, repository_uri, image_tag):
         pass
-    
-    @abstractmethod
-    def repository_exists(self, repository_client, repository_name):
-        pass
-    
-    @abstractmethod
-    def create_repository(self, repository_client, repository_name):
-        pass
-
+     
     @abstractmethod
     def create_function(self, code_package: Benchmark, func_name: str, container_deployment: bool, container_uri: str) -> Function:
         pass

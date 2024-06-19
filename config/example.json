@@ -1,16 +1,11 @@
 {
   "experiments": {
-    "deployment": "openwhisk",
+    "deployment": "aws",
     "update_code": false,
     "update_storage": false,
     "download_results": false,
     "architecture": "arm64", 
     "container_deployment": true,
-    "docker_registry": {
-        "registry": "",
-        "username": "",
-        "password": ""
-      },
     "runtime": {
       "language": "python",
       "version": "3.8"
@@ -51,7 +46,12 @@
     "name": "aws",
     "aws": {
       "region": "us-east-1",
-      "lambda-role": ""
+      "lambda-role": "",
+      "docker_registry": {
+      "registry": "",
+      "username": "AWS",
+      "password": ""
+      }
     },
     "azure": {
       "region": "westeurope"
