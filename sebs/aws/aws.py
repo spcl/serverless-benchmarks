@@ -215,7 +215,6 @@ class AWS(System):
                 )
                 for val in ret:
                     if "error" in val:
-                        self.logging.error(f"Failed to push the image to registry {repository_uri} with user provided credentials: {val['error']}")
                         raise docker.errors.APIError(f"Push failed: {val['error']}")
             except docker.errors.APIError as e:
                 self.logging.error(f"Failed to push the image to registry {repository_uri}. Error: {str(e)}")
