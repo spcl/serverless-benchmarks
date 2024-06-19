@@ -494,10 +494,6 @@ class Benchmark(LoggingBase):
             shutil.rmtree(self._output_dir)
         os.makedirs(self._output_dir)
 
-        benchmark = self.benchmark
-        if self._deployment_name == "azure":
-            benchmark = "{}-{}".format(benchmark, self._experiment_config.trigger)
-
         self.copy_code(self._output_dir)
         self.add_benchmark_data(self._output_dir)
         self.add_deployment_files(self._output_dir)
@@ -507,8 +503,9 @@ class Benchmark(LoggingBase):
             os.path.abspath(self._output_dir),
             self.language_name,
             self.language_version,
-            benchmark,
+            self.benchmark,
             self.is_cached_valid,
+            self._experiment_config.trigger
         )
         self.logging.info(
             (
@@ -524,9 +521,9 @@ class Benchmark(LoggingBase):
 
         # package already exists
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self.language_name, self, self._experiment_config.trigger)
+            self._cache_client.update_code_package(self._deployment_name, self.language_name, self)
         else:
-            self._cache_client.add_code_package(self._deployment_name, self.language_name, self, self._experiment_config.trigger)
+            self._cache_client.add_code_package(self._deployment_name, self.language_name, self)
         self.query_cache()
 
         return True, self._code_location

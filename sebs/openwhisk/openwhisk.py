@@ -208,6 +208,7 @@ class OpenWhisk(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        trigger: Optional[Trigger.TriggerType],
     ) -> Tuple[str, int]:
 
         # Regardless of Docker image status, we need to create .zip file

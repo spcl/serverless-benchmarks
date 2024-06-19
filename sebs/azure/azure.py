@@ -218,6 +218,7 @@ class Azure(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        trigger: Optional[Trigger.TriggerType],
     ) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
@@ -237,11 +238,9 @@ class Azure(System):
                 source_file = os.path.join(directory, f)
                 shutil.move(source_file, handler_dir)
 
-        benchmark_stripped = '-'.join(benchmark.split("-")[:-1])
-        trigger = benchmark.split("-")[-1]
         func_name = (
             "{}-{}-{}-{}-{}".format(
-                benchmark_stripped,
+                benchmark,
                 language_name,
                 language_version,
                 self.config.resources.resources_id,
@@ -269,7 +268,7 @@ class Azure(System):
         json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
-        execute("zip -qu -r9 {}.zip * .".format(benchmark_stripped), shell=True, cwd=directory)
+        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
         return directory, code_size
 
     def publish_function(

@@ -132,6 +132,7 @@ class Local(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        trigger: Optional[Trigger.TriggerType],
     ) -> Tuple[str, int]:
 
         CONFIG_FILES = {

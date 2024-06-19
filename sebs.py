@@ -225,7 +225,6 @@ def invoke(
         sebs_client.config.image_tag_prefix = image_tag_prefix
 
     # Insert trigger into (experiment) config. Required by Azure when packaging.
-    # TODO(oana) is this still needed
     trigger = trigger if trigger is not None else "http"
     update_nested_dict(config, ["experiments", "trigger"], trigger)
 

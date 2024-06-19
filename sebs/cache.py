@@ -163,20 +163,15 @@ class Cache(LoggingBase):
                 json.dump(cached_config, fp, indent=2)
 
     def add_code_package(
-        self, deployment_name: str, language_name: str, code_package: "Benchmark",
-        trigger: Optional[str]
+        self, deployment_name: str, language_name: str, code_package: "Benchmark"
     ):
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
-
-            if (deployment_name == "azure"):
-                cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version, trigger)
-            else:
-                # Check if cache directory for this deployment exist
-                cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
+            # Check if cache directory for this deployment exist
+            cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
             if not os.path.exists(cached_dir):
                 os.makedirs(cached_dir, exist_ok=True)
 
@@ -238,20 +233,14 @@ class Cache(LoggingBase):
                 )
 
     def update_code_package(
-        self, deployment_name: str, language_name: str, code_package: "Benchmark",
-        trigger: Optional[str]
+        self, deployment_name: str, language_name: str, code_package: "Benchmark"
     ):
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
-
-            cached_dir = ""
-            if (deployment_name == "azure"):
-                cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version, trigger)
-            else:
-                # Check if cache directory for this deployment exist
-                cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
+            # Check if cache directory for this deployment exist
+            cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
             if os.path.exists(cached_dir):
 
                 # copy code
