@@ -70,7 +70,8 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "setup.py"
           ],
           "packages": []
         }

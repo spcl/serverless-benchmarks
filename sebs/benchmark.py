@@ -125,6 +125,11 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     @property
+    def container_uri(self):
+        if self.code_package:
+            return self.code_package['container_uri']
+
+    @property
     def language(self) -> "Language":
         return self._language
 
@@ -135,6 +140,10 @@ class Benchmark(LoggingBase):
     @property
     def language_version(self):
         return self._language_version
+
+    @property
+    def container_deployment(self):
+        return self._container_deployment
 
     @property  # noqa: A003
     def hash(self):
@@ -165,6 +174,7 @@ class Benchmark(LoggingBase):
         self._experiment_config = config
         self._language = config.runtime.language
         self._language_version = config.runtime.version
+        self._container_deployment = config.container_deployment
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not self._benchmark_path:
             raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
@@ -470,15 +480,18 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str, str, bool], Tuple[str, int]]
-    ) -> Tuple[bool, str]:
+        self, deployment_build_step: Callable[[str, str, str, str, bool, bool], Tuple[str, int]]
+    ) -> Tuple[bool, str, str, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info(
                 "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
             )
-            return False, self.code_location
+            if self.container_deployment:
+                return False, self.code_location, self.container_deployment,  self.container_uri
+
+            return False, self.code_location, self.container_deployment,  ""
 
         msg = (
             "no cached code package."
@@ -488,6 +501,7 @@ class Benchmark(LoggingBase):
         self.logging.info("Building benchmark {}. Reason: {}".format(self.benchmark, msg))
         # clear existing cache information
         self._code_package = None
+
 
         # create directory to be deployed
         if os.path.exists(self._output_dir):
@@ -499,12 +513,14 @@ class Benchmark(LoggingBase):
         self.add_deployment_files(self._output_dir)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
-        self._code_location, self._code_size = deployment_build_step(
+
+        self._code_location, self._code_size, self._container_uri = deployment_build_step(
             os.path.abspath(self._output_dir),
             self.language_name,
             self.language_version,
             self.benchmark,
             self.is_cached_valid,
+            self.container_deployment,
         )
         self.logging.info(
             (
@@ -518,14 +534,13 @@ class Benchmark(LoggingBase):
             )
         )
 
-        # package already exists
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.update_code_package(self._deployment_name, self.language_name, self._container_uri, self)
         else:
-            self._cache_client.add_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.add_code_package(self._deployment_name, self.language_name, self._container_uri, self)
         self.query_cache()
 
-        return True, self._code_location
+        return True, self._code_location, self._container_deployment, self._container_uri
 
     """
         Locates benchmark input generator, inspect how many storage buckets

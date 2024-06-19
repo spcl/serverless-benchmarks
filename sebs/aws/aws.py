@@ -7,6 +7,8 @@ from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
 import docker
+import base64
+from botocore.exceptions import ClientError
 
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
@@ -16,7 +18,7 @@ from sebs.utils import execute
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingHandlers
+from sebs.utils import LoggingHandlers, DOCKER_DIR
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
@@ -60,7 +62,20 @@ class AWS(System):
         super().__init__(sebs_config, cache_client, docker_client)
         self.logging_handlers = logger_handlers
         self._config = config
-        self.storage: Optional[S3] = None
+        self.storage: Optional[S3] = None 
+
+        if self.config.resources.docker_username:
+            if self.config.resources.docker_registry:
+                docker_client.login(
+                    username=self.config.resources.docker_username,
+                    password=self.config.resources.docker_password,
+                    registry=self.config.resources.docker_registry,
+                )
+            else:
+                docker_client.login(
+                    username=self.config.resources.docker_username,
+                    password=self.config.resources.docker_password,
+                )
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         # thread-safe
@@ -132,7 +147,15 @@ class AWS(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        container_deployment: bool,
     ) -> Tuple[str, int]:
+
+        container_uri = None
+
+        # if the containerzied deployment is set to True
+        if container_deployment:
+            # build base image and upload to ECR 
+            _, container_uri = self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -140,13 +163,12 @@ class AWS(System):
         }
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)
+        os.makedirs(function_dir)system.py
         # move all files to 'function' except handler.py
         for file in os.listdir(directory):
             if file not in package_config:
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
-
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
@@ -157,7 +179,151 @@ class AWS(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size, container_uri
+
+    # PK: To Do: Test
+    def find_image(self, repository_client, repository_name, image_tag) -> bool:
+        try:
+            response = repository_client.describe_images(
+                repositoryName=repository_name,
+                imageIds=[{'imageTag': image_tag}]
+            )
+            if response['imageDetails']:
+                return True
+        except ClientError as e:
+            return False 
+
+    def repository_authorization(self, repository_client):
+        auth = repository_client.get_authorization_token()
+        auth_data = auth['authorizationData'][0]
+        token = base64.b64decode(auth_data['authorizationToken']).decode('utf-8')
+        username, password = token.split(':')
+        registry_url = auth_data['proxyEndpoint']
+        return username, password, registry_url
+
+    def push_image_to_repository(self, repository_client, repository_uri, image_tag):
+        try:
+            ret = self.docker_client.images.push(
+                repository=repository_uri, tag=image_tag, stream=True, decode=True
+            )
+        except:
+            username, password, registry_url = self.repository_authorization(repository_client)
+            self.docker_client.login(username=username, password=password, registry=registry_url)
+
+        for val in ret:
+            if "error" in val:
+                self.logging.error(f"Failed to push the image to registry {repository_uri}")
+                raise RuntimeError(val)
+
+    def repository_exists(self, repository_client, repository_name):
+        try:
+            repository_client.describe_repositories(repositoryNames=[repository_name])
+            return True
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'RepositoryNotFoundException':
+                return False
+            else:
+                self.logging.error(f"Error checking repository: {e}")
+                raise e 
+
+    def create_repository(self, repository_client, repository_name):
+        if not self.repository_exists(repository_client, repository_name):
+            try:
+                repository_client.create_repository(repositoryName=repository_name)
+                self.logging.info(f"Created ECR repository: {repository_name}")
+            except ClientError as e:
+                if e.response['Error']['Code'] != 'RepositoryAlreadyExistsException':
+                    self.logging.error(f"Failed to create ECR repository: {e}")
+                    raise e
+
+
+    def build_base_image(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> bool:
+        """
+        When building function for the first time (according to SeBS cache),
+        check if Docker image is available in the registry.
+        If yes, then skip building.
+        If no, then continue building.
+
+        For every subsequent build, we rebuild image and push it to the
+        registry. These are triggered by users modifying code and enforcing
+        a build.
+        """
+
+        account_id = self.config.credentials.account_id
+        region = self.config.region
+        registry_name = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
+        # PK: To Do: Get repository name from the config.
+        repository_name = "test_repo"
+        image_tag = self.system_config.benchmark_image_tag(
+            self.name(), benchmark, language_name, language_version
+        )
+        repository_uri = f"{registry_name}/{repository_name}:{image_tag}"
+
+        ecr_client = boto3.client('ecr', region_name=region)
+
+        # Create repository if it does not exist
+        self.create_repository(ecr_client, repository_name)
+
+        # cached package, rebuild not enforced -> check for new one
+        # if cached is true, no need to build and push the image.
+        if is_cached:
+            repository_name, image_tag = repository_uri.split(':')[-2], repository_uri.split(':')[-1]
+            if self.find_image(self.docker_client, repository_name, image_tag):
+                self.logging.info(
+                    f"Skipping building AWS Docker package for {benchmark}, using "
+                    f"Docker image {repository_name}:{image_tag} from registry: "
+                    f"{registry_name}."
+                )
+                return False
+            else:
+                # image doesn't exist, let's continue
+                self.logging.info(
+                    f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
+                    f"building the image for {benchmark}."
+                )
+
+        build_dir = os.path.join(directory, "docker")
+        os.makedirs(build_dir, exist_ok=True)
+
+        shutil.copy(
+            os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
+            os.path.join(build_dir, "Dockerfile"),
+        )
+        for fn in os.listdir(directory):
+            if fn not in ("index.js", "__main__.py"):
+                file = os.path.join(directory, fn)
+                shutil.move(file, build_dir)
+
+        with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
+            f.write("Dockerfile")
+
+        builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
+            language_version
+        ]
+        self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
+
+        buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
+        image, _ = self.docker_client.images.build(
+            tag=repository_uri, path=build_dir, buildargs=buildargs
+        )
+
+        # Now push the image to the registry
+        # image will be located in a private repository // for AWS Image should be in the ECR
+        self.logging.info(
+            f"Push the benchmark base image {repository_name}:{image_tag} "
+            f"to registry: {registry_name}."
+        )
+
+        self.push_image_to_repository(ecr_client, repository_uri, image_tag)
+
+        return True, repository_uri
 
     def _map_language_runtime(self, language: str, runtime: str):
 
@@ -167,7 +333,7 @@ class AWS(System):
             return f"{runtime}.x"
         return runtime
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LambdaFunction":
+    def create_function(self, code_package: Benchmark, func_name: str, container_deployment: bool, container_uri: str) -> "LambdaFunction":
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -198,11 +364,16 @@ class AWS(System):
                 self.config.resources.lambda_role(self.session),
                 function_cfg,
             )
+            if container_deployment:
+                code_package = container_uri
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
+            # PK: TO DO: Not sure if update function needs to be handled when performing container_deployment 
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
             self.logging.info("Creating function {} from {}".format(func_name, package))
+
+            package_type = "Zip"
 
             # AWS Lambda limit on zip deployment size
             # Limit to 50 MB
@@ -221,18 +392,28 @@ class AWS(System):
                 storage_client.upload(code_bucket, package, code_prefix)
 
                 self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
-                code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix}
-            ret = self.client.create_function(
-                FunctionName=func_name,
-                Runtime="{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
-                ),
-                Handler="handler.handler",
-                Role=self.config.resources.lambda_role(self.session),
-                MemorySize=memory,
-                Timeout=timeout,
-                Code=code_config,
-            )
+                code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix} 
+
+            if container_deployment:
+                package_type = "Image"
+                code_config = {"ImageUri": container_uri}
+
+            create_function_params = {
+                "FunctionName": func_name,
+                "Role": self.config.resources.lambda_role(self.session),
+                "MemorySize": memory,
+                "Timeout": timeout,
+                "PackageType": package_type,
+                "Code": code_config, 
+            }
+
+            if not container_deployment:
+                create_function_params["Runtime"] = "{}{}".format(
+                language, self._map_language_runtime(language, language_runtime) )
+                create_function_params["Handler"] = "handler.handler"
+
+            create_function_params = {k: v for k, v in create_function_params.items() if v is not None}
+            ret = self.client.create_function(**create_function_params)
 
             lambda_function = LambdaFunction(
                 func_name,
@@ -278,25 +459,28 @@ class AWS(System):
     """
 
     def update_function(self, function: Function, code_package: Benchmark):
-
-        function = cast(LambdaFunction, function)
         name = function.name
-        code_size = code_package.code_size
-        package = code_package.code_location
-        # Run AWS update
-        # AWS Lambda limit on zip deployment
-        if code_size < 50 * 1024 * 1024:
-            with open(package, "rb") as code_body:
-                self.client.update_function_code(FunctionName=name, ZipFile=code_body.read())
-        # Upload code package to S3, then update
+        function = cast(LambdaFunction, function)
+
+        if isinstance(code_package, str):
+            self.client.update_function_code(FunctionName=name, ImageUri = code_package)
         else:
-            code_package_name = os.path.basename(package)
-            storage = cast(S3, self.get_storage())
-            bucket = function.code_bucket(code_package.benchmark, storage)
-            storage.upload(bucket, package, code_package_name)
-            self.client.update_function_code(
-                FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
-            )
+            code_size = code_package.code_size
+            package = code_package.code_location
+            # Run AWS update
+            # AWS Lambda limit on zip deployment
+            if code_size < 50 * 1024 * 1024:
+                with open(package, "rb") as code_body:
+                    self.client.update_function_code(FunctionName=name, ZipFile=code_body.read())
+            # Upload code package to S3, then update
+            else:
+                code_package_name = os.path.basename(package)
+                storage = cast(S3, self.get_storage())
+                bucket = function.code_bucket(code_package.benchmark, storage)
+                storage.upload(bucket, package, code_package_name)
+                self.client.update_function_code(
+                    FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
+                )
         self.wait_function_updated(function)
         self.logging.info(f"Updated code of {name} function. ")
         # and update config

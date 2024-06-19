@@ -226,6 +226,7 @@ def invoke(
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
+
     if image_tag_prefix is not None:
         sebs_client.config.image_tag_prefix = image_tag_prefix
 
@@ -237,6 +238,7 @@ def invoke(
         experiment_config,
         logging_filename=logging_filename,
     )
+
     if memory is not None:
         benchmark_obj.benchmark_config.memory = memory
     if timeout is not None:
@@ -246,6 +248,7 @@ def invoke(
         benchmark_obj,
         function_name if function_name else deployment_client.default_function_name(benchmark_obj),
     )
+
     storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
     input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
 

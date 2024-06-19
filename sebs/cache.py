@@ -162,7 +162,7 @@ class Cache(LoggingBase):
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
-    def add_code_package(self, deployment_name: str, language_name: str, code_package: "Benchmark"):
+    def add_code_package(self, deployment_name: str, language_name: str, container_uri: str, code_package: "Benchmark"):
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
@@ -186,6 +186,7 @@ class Cache(LoggingBase):
                 # don't store absolute path to avoid problems with moving cache dir
                 relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
                 language_config["location"] = relative_cached_loc
+                language_config["container_uri"] = container_uri 
                 date = str(datetime.datetime.now())
                 language_config["date"] = {
                     "created": date,
@@ -196,7 +197,7 @@ class Cache(LoggingBase):
                     deployment_name: {
                         language: {
                             "code_package": {language_version: language_config},
-                            "functions": {},
+                            "functions": {}
                         }
                     }
                 }
@@ -231,7 +232,7 @@ class Cache(LoggingBase):
                 )
 
     def update_code_package(
-        self, deployment_name: str, language_name: str, code_package: "Benchmark"
+            self, deployment_name: str, language_name: str, container_uri: str, code_package: "Benchmark"
     ):
         with self._lock:
             language = code_package.language_name
@@ -267,7 +268,7 @@ class Cache(LoggingBase):
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
             else:
-                self.add_code_package(deployment_name, language_name, code_package)
+                self.add_code_package(deployment_name, language_name, container_uri, code_package)
 
     """
         Add new function to cache.
