@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 import time
 from typing import cast, Dict, Optional
 
@@ -253,7 +254,12 @@ class AWSResources(Resources):
 
     def create_ecr_repository(self, boto3_session: boto3.session.Session):
         ecr_client = boto3_session.client(service_name = 'ecr', region_name=cast(str, self._region))
-        repository_name = self._container_repository
+
+        if not self._container_repository:
+            random_name = str(uuid.uuid4())[0:16]
+            repository_name = "sebs-benchmark-{}".format(random_name)
+        else:
+            repository_name = self._container_repository
 
         if not self.check_ecr_repository_exists(ecr_client, repository_name):
             try:

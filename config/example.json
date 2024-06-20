@@ -51,7 +51,7 @@
       "registry": "",
       "username": "AWS",
       "password": "",
-      "container_repository": "test_repo_new"
+      "container_repository": "test_repo"
       }
     },
     "azure": {
