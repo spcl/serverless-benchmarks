@@ -120,9 +120,10 @@ class AWSResources(Resources):
         password: Optional[str] = None,
     ):
         super().__init__(name="aws")
-        self._docker_registry = registry if registry != "" else None
-        self._docker_username = username if username != "" else None
-        self._docker_password = password if password != "" else None
+        self._docker_registry: Optional[str] = registry if registry != "" else None
+        self._docker_username: Optional[str] = username if username != "" else None
+        self._docker_password: Optional[str] = password if password != "" else None
+        self._container_repository: Optional[str] = None
         self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
         self._region: Optional[str] = None
@@ -142,6 +143,10 @@ class AWSResources(Resources):
     @property
     def docker_password(self) -> Optional[str]:
         return self._docker_password
+
+    @property
+    def container_repository(self) -> Optional[str]:
+        return self._container_repository
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         if not self._lambda_role:
@@ -236,7 +241,7 @@ class AWSResources(Resources):
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api 
 
-    def repository_exists(self, ecr_client, repository_name):
+    def check_ecr_repository_exists(self, ecr_client, repository_name):
         try:
             ecr_client.describe_repositories(repositoryNames=[repository_name])
             return True
@@ -246,11 +251,11 @@ class AWSResources(Resources):
             self.logging.error(f"Error checking repository: {e}")
             raise e
 
-    def ecr_repository(self, boto3_session: boto3.session.Session):
+    def create_ecr_repository(self, boto3_session: boto3.session.Session):
         ecr_client = boto3_session.client(service_name = 'ecr', region_name=cast(str, self._region))
-        repository_name = "test_repo"
+        repository_name = self._container_repository
 
-        if not self.repository_exists(ecr_client, repository_name):
+        if not self.check_ecr_repository_exists(ecr_client, repository_name):
             try:
                 ecr_client.create_repository(repositoryName=repository_name)
                 self.logging.info(f"Created ECR repository: {repository_name}")
@@ -268,6 +273,7 @@ class AWSResources(Resources):
         ret._docker_registry = dct["registry"]
         ret._docker_username = dct["username"]
         ret._docker_password = dct["password"]
+        ret._container_repository = dct["container_repository"]
         super(AWSResources, AWSResources).initialize(ret, dct)
         ret._lambda_role = dct["lambda-role"] if "lambda-role" in dct else ""
         if "http-apis" in dct:
@@ -284,6 +290,7 @@ class AWSResources(Resources):
             "docker_registry": self.docker_registry,
             "docker_username": self.docker_username,
             "docker_password": self.docker_password,
+            "container_repository": self.container_repository,
         }
         return out
 
@@ -297,6 +304,9 @@ class AWSResources(Resources):
         )
         cache.update_config(
             val=self.docker_password, keys=["aws", "resources", "docker", "password"]
+        )
+        cache.update_config(
+            val=self.container_repository, keys=["aws", "resources", "container_repository"]
         )
         cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
         for name, api in self._http_apis.items():

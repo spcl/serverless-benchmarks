@@ -256,13 +256,12 @@ class AWS(System):
         region = self.config.region
         registry_name = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
         # PK: To Do: Get repository name from the config.
-        repository_name = "test_repo"
+        ecr_client, repository_name = self.config.resources.create_ecr_repository(self.session)
+
         image_tag = self.system_config.benchmark_image_tag(
             self.name(), benchmark, language_name, language_version
         )
         repository_uri = f"{registry_name}/{repository_name}:{image_tag}"
-
-        ecr_client, repository_name = self.config.resources.ecr_repository(self.session)
 
         # cached package, rebuild not enforced -> check for new one
         # if cached is true, no need to build and push the image.
