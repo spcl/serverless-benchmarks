@@ -255,7 +255,7 @@ class AWS(System):
         account_id = self.config.credentials.account_id
         region = self.config.region
         registry_name = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
-        # PK: To Do: Get repository name from the config.
+
         ecr_client, repository_name = self.config.resources.create_ecr_repository(self.session)
 
         image_tag = self.system_config.benchmark_image_tag(
