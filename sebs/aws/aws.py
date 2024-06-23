@@ -62,7 +62,7 @@ class AWS(System):
         super().__init__(sebs_config, cache_client, docker_client)
         self.logging_handlers = logger_handlers
         self._config = config
-        self.storage: Optional[S3] = None 
+        self.storage: Optional[S3] = None
 
         if self.config.resources.docker_username:
             if self.config.resources.docker_registry:
@@ -154,8 +154,10 @@ class AWS(System):
 
         # if the containerzied deployment is set to True
         if container_deployment:
-            # build base image and upload to ECR 
-            _, container_uri = self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
+            # build base image and upload to ECR
+            _, container_uri = self.build_base_image(
+                directory, language_name, language_version, benchmark, is_cached
+            )
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -191,20 +193,19 @@ class AWS(System):
     def find_image(self, repository_client, repository_name, image_tag) -> bool:
         try:
             response = repository_client.describe_images(
-                repositoryName=repository_name,
-                imageIds=[{'imageTag': image_tag}]
+                repositoryName=repository_name, imageIds=[{"imageTag": image_tag}]
             )
-            if response['imageDetails']:
+            if response["imageDetails"]:
                 return True
         except ClientError as e:
-            return False 
+            return False
 
     def repository_authorization(self, repository_client):
         auth = repository_client.get_authorization_token()
-        auth_data = auth['authorizationData'][0]
-        token = base64.b64decode(auth_data['authorizationToken']).decode('utf-8')
-        username, password = token.split(':')
-        registry_url = auth_data['proxyEndpoint']
+        auth_data = auth["authorizationData"][0]
+        token = base64.b64decode(auth_data["authorizationToken"]).decode("utf-8")
+        username, password = token.split(":")
+        registry_url = auth_data["proxyEndpoint"]
         return username, password, registry_url
 
     def push_image_to_repository(self, repository_client, repository_uri, image_tag):
@@ -217,21 +218,31 @@ class AWS(System):
                     if "error" in val:
                         raise docker.errors.APIError(f"Push failed: {val['error']}")
             except docker.errors.APIError as e:
-                self.logging.error(f"Failed to push the image to registry {repository_uri}. Error: {str(e)}")
-                raise e 
+                self.logging.error(
+                    f"Failed to push the image to registry {repository_uri}. Error: {str(e)}"
+                )
+                raise e
 
         try:
             push_image(repository_uri, image_tag)
-            self.logging.info(f"Successfully pushed the image to registry {repository_uri} with user provided credentials")
+            self.logging.info(
+                f"Successfully pushed the image to registry {repository_uri} with user provided credentials"
+            )
         except docker.errors.APIError as e:
             self.logging.info("Retrying to push the Image to the ECR repository .....")
             username, password, registry_url = self.repository_authorization(repository_client)
             try:
-                self.docker_client.login(username=username, password=password, registry=registry_url)
+                self.docker_client.login(
+                    username=username, password=password, registry=registry_url
+                )
                 push_image(repository_uri, image_tag)
-                self.logging.info(f"Successfully pushed the image to registry {repository_uri} after retry")
+                self.logging.info(
+                    f"Successfully pushed the image to registry {repository_uri} after retry"
+                )
             except docker.errors.APIError as e:
-                self.logging.error(f"Failed to push the image to registry {repository_uri} after retry. Error: {str(e)}")
+                self.logging.error(
+                    f"Failed to push the image to registry {repository_uri} after retry. Error: {str(e)}"
+                )
 
     def build_base_image(
         self,
@@ -266,7 +277,10 @@ class AWS(System):
         # cached package, rebuild not enforced -> check for new one
         # if cached is true, no need to build and push the image.
         if is_cached:
-            repository_name, image_tag = repository_uri.split(':')[-2], repository_uri.split(':')[-1]
+            repository_name, image_tag = (
+                repository_uri.split(":")[-2],
+                repository_uri.split(":")[-1],
+            )
             if self.find_image(self.docker_client, repository_name, image_tag):
                 self.logging.info(
                     f"Skipping building AWS Docker package for {benchmark}, using "
@@ -323,7 +337,13 @@ class AWS(System):
             return f"{runtime}.x"
         return runtime
 
-    def create_function(self, code_package: Benchmark, func_name: str, container_deployment: bool, container_uri: str) -> "LambdaFunction":
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> "LambdaFunction":
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -358,51 +378,50 @@ class AWS(System):
                 code_package = container_uri
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
-            # PK: TO DO: Not sure if update function needs to be handled when performing container_deployment 
+            # PK: TO DO: Not sure if update function needs to be handled when performing container_deployment
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
             self.logging.info("Creating function {} from {}".format(func_name, package))
-
-            package_type = "Zip"
-
-            # AWS Lambda limit on zip deployment size
-            # Limit to 50 MB
-            # mypy doesn't recognize correctly the case when the same
-            # variable has different types across the path
-            code_config: Dict[str, Union[str, bytes]]
-            if code_size < 50 * 1024 * 1024:
-                package_body = open(package, "rb").read()
-                code_config = {"ZipFile": package_body}
-            # Upload code package to S3, then use it
-            else:
-                code_package_name = cast(str, os.path.basename(package))
-
-                code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
-                code_prefix = os.path.join(benchmark, architecture, code_package_name)
-                storage_client.upload(code_bucket, package, code_prefix)
-
-                self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
-                code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix} 
-
-            if container_deployment:
-                package_type = "Image"
-                code_config = {"ImageUri": container_uri}
 
             create_function_params = {
                 "FunctionName": func_name,
                 "Role": self.config.resources.lambda_role(self.session),
                 "MemorySize": memory,
                 "Timeout": timeout,
-                "PackageType": package_type,
-                "Code": code_config, 
                 "Architectures": [self._map_architecture(architecture)],
             }
 
             if not container_deployment:
                 create_function_params["Runtime"] = "{}{}".format(language, self._map_language_runtime(language, language_runtime) )
+
+            if container_deployment:
+                create_function_params["PackageType"] = "Image"
+                create_function_params["Code"] = {"ImageUri": container_uri}
+            else:
+                create_function_params["PackageType"] = "Zip"
+                if code_size < 50 * 1024 * 1024:
+                    package_body = open(package, "rb").read()
+                    create_function_params["Code"] = {"ZipFile": package_body}
+                else:
+                    code_package_name = cast(str, os.path.basename(package))
+
+                    code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+                    code_prefix = os.path.join(benchmark, architecture, code_package_name)
+                    storage_client.upload(code_bucket, package, code_prefix)
+
+                    self.logging.info(
+                        "Uploading function {} code to {}".format(func_name, code_bucket)
+                    )
+                    create_function_params["Code"] = {"S3Bucket": code_bucket, "S3Key": code_prefix}
+
+                create_function_params["Runtime"] = "{}{}".format(
+                    language, self._map_language_runtime(language, language_runtime)
+                )
                 create_function_params["Handler"] = "handler.handler"
 
-            create_function_params = {k: v for k, v in create_function_params.items() if v is not None}
+            create_function_params = {
+                k: v for k, v in create_function_params.items() if v is not None
+            }
             ret = self.client.create_function(**create_function_params)
 
             lambda_function = LambdaFunction(
@@ -453,7 +472,7 @@ class AWS(System):
         function = cast(LambdaFunction, function)
 
         if isinstance(code_package, str):
-            self.client.update_function_code(FunctionName=name, ImageUri = code_package)
+            self.client.update_function_code(FunctionName=name, ImageUri=code_package)
         else:
             code_size = code_package.code_size
             package = code_package.code_location
