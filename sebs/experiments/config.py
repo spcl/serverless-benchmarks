@@ -7,6 +7,7 @@ class Config:
     def __init__(self):
         self._update_code: bool = False
         self._update_storage: bool = False
+        self._container_deployment: bool = False
         self._download_results: bool = False
         self._architecture: str = "x64"
         self._flags: Dict[str, bool] = {}
@@ -52,6 +53,7 @@ class Config:
             "flags": self._flags,
             "experiments": self._experiment_configs,
             "architecture": self._architecture,
+            "container_deployment": self._container_deployment,
         }
         return out
 

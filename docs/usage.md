@@ -4,8 +4,7 @@ For each command you can pass `--verbose` flag to increase the verbosity of the 
 By default, all scripts will create a cache in the directory `cache` to store code with
 dependencies and information on allocated cloud resources.
 Benchmarks will be rebuilt after a change in source code is detected.
-To enforce redeployment of code and benchmark inputs please use flags `--update-code`
-and `--update-storage`, respectively.
+To enforce redeployment of code, benchmark inputs, container deployment( supported in AWS ) please use flags `--update-code`, `--update-storage` and `--container-deployment` respectively.
 
 **Note:** The cache does not support updating the cloud region. If you want to deploy benchmarks
 to a new cloud region, then use a new cache directory.
