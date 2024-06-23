@@ -57,9 +57,9 @@ class SeBSConfig:
         tag = self.benchmark_image_tag(system, benchmark, language_name, language_version)
         repo_name = self.docker_repository()
         if registry is not None:
-            return f"{registry}/{repo_name}:{tag}"
+            return f"{registry}/{repo_name}: {tag}"
         else:
-            return f"{repo_name}:{tag}"
+            return f"{repo_name}: {tag}"
 
     def benchmark_image_tag(
         self, system: str, benchmark: str, language_name: str, language_version: str

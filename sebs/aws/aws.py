@@ -181,7 +181,11 @@ class AWS(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size, container_uri
+        return (
+            os.path.join(directory, "{}.zip".format(benchmark)),
+            bytes_size,
+            container_uri,
+        )
 
     def _map_architecture(self, architecture: str) -> str:
 
@@ -408,7 +412,10 @@ class AWS(System):
                     self.logging.info(
                         "Uploading function {} code to {}".format(func_name, code_bucket)
                     )
-                    create_function_params["Code"] = {"S3Bucket": code_bucket, "S3Key": code_prefix}
+                    create_function_params["Code"] = {
+                        "S3Bucket": code_bucket,
+                        "S3Key": code_prefix,
+                    }
 
                 create_function_params["Runtime"] = "{}{}".format(
                     language, self._map_language_runtime(language, language_runtime)
