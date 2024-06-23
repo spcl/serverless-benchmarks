@@ -240,8 +240,6 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
-        print("after herhe")
-        print("after herhe the code package_code", code_package)
         rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
 
         """
