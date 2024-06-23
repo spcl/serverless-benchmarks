@@ -232,8 +232,8 @@ class AWS(System):
         try:
             push_image(repository_uri, image_tag)
             self.logging.info(
-                f"Successfully pushed the image to registry {repository_uri} 
-                  with user provided credentials"
+                f"Successfully pushed the image to registry {repository_uri} \
+                        with user provided credentials"
             )
         except docker.errors.APIError:
             self.logging.info("Retrying to push the Image to the ECR repository .....")
@@ -248,8 +248,8 @@ class AWS(System):
                 )
             except docker.errors.APIError as e:
                 self.logging.error(
-                    f"Failed to push the image to registry {repository_uri} after retry. 
-                     Error: {str(e)}"
+                    f"Failed to push the image to registry {repository_uri} after retry. \
+                            Error: {str(e)}"
                 )
 
     def build_base_image(
