@@ -357,7 +357,6 @@ class AWS(System):
                 code_package = container_uri
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
-            # PK: TO DO: Not sure if update function needs to be handled when performing container_deployment 
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
             self.logging.info("Creating function {} from {}".format(func_name, package))
