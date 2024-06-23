@@ -88,12 +88,8 @@ class Cache(LoggingBase):
         if self.config_updated:
             for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
                 if cloud in self.cached_config:
-                    cloud_config_file = os.path.join(
-                        self.cache_dir, "{}.json".format(cloud)
-                    )
-                    self.logging.info(
-                        "Update cached config {}".format(cloud_config_file)
-                    )
+                    cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
+                    self.logging.info("Update cached config {}".format(cloud_config_file))
                     with open(cloud_config_file, "w") as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 
@@ -156,11 +152,7 @@ class Cache(LoggingBase):
 
     def get_storage_config(self, deployment: str, benchmark: str):
         cfg = self.get_benchmark_config(deployment, benchmark)
-        return (
-            cfg["storage"]
-            if cfg and "storage" in cfg and not self.ignore_storage
-            else None
-        )
+        return cfg["storage"] if cfg and "storage" in cfg and not self.ignore_storage else None
 
     def update_storage(self, deployment: str, benchmark: str, config: dict):
         if self.ignore_storage:
@@ -236,9 +228,9 @@ class Cache(LoggingBase):
                                 ] = language_config
                             # language unknown, platform known - add new dictionary
                             else:
-                                cached_config[deployment_name][language] = config[
-                                    deployment_name
-                                ][language]
+                                cached_config[deployment_name][language] = config[deployment_name][
+                                    language
+                                ]
                         else:
                             # language unknown, platform unknown - add new dictionary
                             cached_config[deployment_name] = config[deployment_name]
@@ -328,16 +320,12 @@ class Cache(LoggingBase):
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
-                functions_config: Dict[str, Any] = {
-                    function.name: {**function.serialize()}
-                }
+                functions_config: Dict[str, Any] = {function.name: {**function.serialize()}}
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
                     if "functions" not in cached_config[deployment_name][language]:
-                        cached_config[deployment_name][language][
-                            "functions"
-                        ] = functions_config
+                        cached_config[deployment_name][language]["functions"] = functions_config
                     else:
                         cached_config[deployment_name][language]["functions"].update(
                             functions_config
@@ -347,9 +335,7 @@ class Cache(LoggingBase):
                     fp.write(serialize(config))
             else:
                 raise RuntimeError(
-                    "Can't cache function {} for a non-existing code package!".format(
-                        function.name
-                    )
+                    "Can't cache function {} for a non-existing code package!".format(function.name)
                 )
 
     def update_function(self, function: "Function"):
@@ -376,7 +362,5 @@ class Cache(LoggingBase):
                     fp.write(serialize(cached_config))
             else:
                 raise RuntimeError(
-                    "Can't cache function {} for a non-existing code package!".format(
-                        function.name
-                    )
+                    "Can't cache function {} for a non-existing code package!".format(function.name)
                 )
