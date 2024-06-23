@@ -118,7 +118,7 @@ class OpenWhisk(System):
         # doesn't raise an exception for some reason
         for val in ret:
             if "error" in val:
-                self.logging.error(f"Failed to push the image to registry {registry_name}")
+                self.logging.error(f"Failed to push the image to registry {repository_uri}")
                 raise RuntimeError(val)
 
     def build_base_image(
