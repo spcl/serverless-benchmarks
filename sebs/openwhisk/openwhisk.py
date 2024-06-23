@@ -334,7 +334,13 @@ class OpenWhisk(System):
 
         return res
 
-    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
         self.logging.info(f"Update an existing OpenWhisk action {function.name}.")
         function = cast(OpenWhiskFunction, function)
         docker_image = self.system_config.benchmark_image_name(

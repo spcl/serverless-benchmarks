@@ -463,7 +463,13 @@ class AWS(System):
         :param memory: memory limit for function
     """
 
-    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
         name = function.name
         function = cast(LambdaFunction, function)
 

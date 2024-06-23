@@ -291,7 +291,13 @@ class Azure(System):
         :return: URL to reach HTTP-triggered function
     """
 
-    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
 
         # Mount code package in Docker instance
         container_dest = self._mount_function_code(code_package)

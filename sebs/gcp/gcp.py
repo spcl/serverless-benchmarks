@@ -338,7 +338,13 @@ class GCP(System):
             gcp_trigger.logging_handlers = self.logging_handlers
             gcp_trigger.deployment_client = self
 
-    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
 
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version

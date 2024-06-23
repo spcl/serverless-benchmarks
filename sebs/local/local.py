@@ -289,7 +289,13 @@ class Local(System):
         FIXME: restart Docker?
     """
 
-    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
         pass
 
     """
