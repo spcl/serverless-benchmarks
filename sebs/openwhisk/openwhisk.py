@@ -128,7 +128,7 @@ class OpenWhisk(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
-    ) -> bool:
+    ) -> Tuple[bool, str]:
         """
         When building function for the first time (according to SeBS cache),
         check if Docker image is available in the registry.
@@ -155,13 +155,13 @@ class OpenWhisk(System):
         # Check if the image is already in the registry.
         # cached package, rebuild not enforced -> check for new one
         if is_cached:
-            if self.find_image(repository_name, image_tag):
+            if self.find_image(self.docker_client, repository_name, image_tag):
                 self.logging.info(
                     f"Skipping building OpenWhisk Docker package for {benchmark}, using "
                     f"Docker image {repository_name}:{image_tag} from registry: "
                     f"{registry_name}."
                 )
-                return False
+                return False, repository_name
             else:
                 # image doesn't exist, let's continue
                 self.logging.info(
@@ -203,7 +203,7 @@ class OpenWhisk(System):
 
         self.push_image_to_repository(self.docker_client, repository_name, image_tag)
 
-        return True
+        return True, repository_name
 
     def package_code(
         self,
@@ -213,7 +213,9 @@ class OpenWhisk(System):
         benchmark: str,
         is_cached: bool,
         container_deployment: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, str]:
+
+        container_uri = ""
 
         # Regardless of Docker image status, we need to create .zip file
         # to allow registration of function with OpenWhisk
@@ -234,7 +236,7 @@ class OpenWhisk(System):
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
         self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
-        return benchmark_archive, bytes_size
+        return benchmark_archive, bytes_size, container_uri
 
     def storage_arguments(self) -> List[str]:
         storage = cast(Minio, self.get_storage())
@@ -250,7 +252,13 @@ class OpenWhisk(System):
             storage.config.address,
         ]
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "OpenWhiskFunction":
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> "OpenWhiskFunction":
         self.logging.info("Creating function as an action in OpenWhisk.")
         try:
             actions = subprocess.run(
@@ -275,7 +283,7 @@ class OpenWhisk(System):
                 )
                 # Update function - we don't know what version is stored
                 self.logging.info(f"Retrieved existing OpenWhisk action {func_name}.")
-                self.update_function(res, code_package)
+                self.update_function(res, code_package, container_deployment, container_uri)
             else:
                 try:
                     self.logging.info(f"Creating new OpenWhisk action {func_name}")
@@ -326,7 +334,7 @@ class OpenWhisk(System):
 
         return res
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
         self.logging.info(f"Update an existing OpenWhisk action {function.name}.")
         function = cast(OpenWhiskFunction, function)
         docker_image = self.system_config.benchmark_image_name(

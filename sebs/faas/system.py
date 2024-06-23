@@ -168,7 +168,7 @@ class System(ABC, LoggingBase):
         benchmark: str,
         is_cached: bool,
         container_deployment: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, str]:
         pass
 
     @abstractmethod
@@ -179,7 +179,7 @@ class System(ABC, LoggingBase):
         language_version: str,
         benchmark: str,
         is_cached: bool,
-    ) -> bool:
+    ) -> Tuple[bool, str]:
         pass
 
     @abstractmethod
@@ -209,7 +209,7 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
         pass
 
     """
@@ -240,6 +240,8 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
+        print("after herhe")
+        print("after herhe the code package_code", code_package)
         rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
 
         """
@@ -291,10 +293,7 @@ class System(ABC, LoggingBase):
                         f"Enforcing rebuild and update of of cached function "
                         f"{func_name} with hash {function.code_package_hash}."
                     )
-                if container_deployment:
-                    self.update_function(function, container_uri)
-                else:
-                    self.update_function(function, code_package)
+                self.update_function(function, code_package, container_deployment, container_uri)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
                 self.cache_client.add_function(

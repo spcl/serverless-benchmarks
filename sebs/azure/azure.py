@@ -162,7 +162,9 @@ class Azure(System):
         benchmark: str,
         is_cached: bool,
         container_deployment: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, str]:
+
+        container_uri = ""
 
         if container_deployment:
             raise NotImplementedError("Container Deployment is not supported in Azure")
@@ -214,7 +216,7 @@ class Azure(System):
 
         code_size = Benchmark.directory_size(directory)
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
-        return directory, code_size
+        return directory, code_size, container_uri
 
     def publish_function(
         self,
@@ -289,7 +291,7 @@ class Azure(System):
         :return: URL to reach HTTP-triggered function
     """
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
 
         # Mount code package in Docker instance
         container_dest = self._mount_function_code(code_package)
@@ -326,7 +328,13 @@ class Azure(System):
         )
         return func_name
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> AzureFunction:
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> AzureFunction:
 
         language = code_package.language_name
         language_runtime = code_package.language_version
@@ -397,7 +405,7 @@ class Azure(System):
         )
 
         # update existing function app
-        self.update_function(function, code_package)
+        self.update_function(function, code_package, container_deployment, container_uri)
 
         self.cache_client.add_function(
             deployment_name=self.name(),
@@ -506,7 +514,7 @@ class Azure(System):
             f" --settings ForceColdStart={self.cold_start_counter}"
         )
 
-        self.update_function(function, code_package)
+        self.update_function(function, code_package, False, "")
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         self.cold_start_counter += 1

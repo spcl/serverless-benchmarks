@@ -141,7 +141,9 @@ class GCP(System):
         benchmark: str,
         is_cached: bool,
         container_deployment: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, str]:
+
+        container_uri = ""
 
         if container_deployment:
             raise NotImplementedError("Container Deployment is not supported in GCP")
@@ -194,9 +196,15 @@ class GCP(System):
         # rename the main.py back to handler.py
         shutil.move(new_path, old_path)
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size, container_uri
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "GCPFunction":
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> "GCPFunction":
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -278,7 +286,7 @@ class GCP(System):
                 cfg=function_cfg,
                 bucket=code_bucket,
             )
-            self.update_function(function, code_package)
+            self.update_function(function, code_package, container_deployment, container_uri)
 
         # Add LibraryTrigger to a new function
         from sebs.gcp.triggers import LibraryTrigger
@@ -330,7 +338,7 @@ class GCP(System):
             gcp_trigger.logging_handlers = self.logging_handlers
             gcp_trigger.deployment_client = self
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
 
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version

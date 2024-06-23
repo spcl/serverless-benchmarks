@@ -132,12 +132,13 @@ class Local(System):
         benchmark: str,
         is_cached: bool,
         container_deployment: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, str]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
+        container_uri = ""
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
@@ -151,9 +152,15 @@ class Local(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Function size {:2f} MB".format(mbytes))
 
-        return directory, bytes_size
+        return directory, bytes_size, container_uri
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> "LocalFunction":
 
         container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),
@@ -282,7 +289,7 @@ class Local(System):
         FIXME: restart Docker?
     """
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
         pass
 
     """

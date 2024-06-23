@@ -5,6 +5,7 @@ import time
 from typing import cast, Dict, Optional
 
 import boto3
+from botocore.exceptions import ClientError
 
 
 from sebs.cache import Cache

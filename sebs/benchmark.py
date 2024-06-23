@@ -495,8 +495,9 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str, str, bool, bool], Tuple[str, int]]
-    ) -> Tuple[bool, str, str, str]:
+        self,
+        deployment_build_step: Callable[[str, str, str, str, bool, bool], Tuple[str, int, str]],
+    ) -> Tuple[bool, str, bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
