@@ -180,22 +180,28 @@ class System(ABC, LoggingBase):
         benchmark: str,
         is_cached: bool,
     ) -> bool:
-        pass 
+        pass
 
     @abstractmethod
     def find_image(self, repository_client, repository_name, image_tag) -> bool:
-        pass 
+        pass
 
-    @abstractmethod 
+    @abstractmethod
     def repository_authorization(self, repository_client, repository_uri, image_tag):
         pass
 
-    @abstractmethod 
+    @abstractmethod
     def push_image_to_repository(self, repository_client, repository_uri, image_tag):
         pass
-     
+
     @abstractmethod
-    def create_function(self, code_package: Benchmark, func_name: str, container_deployment: bool, container_uri: str) -> Function:
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> Function:
         pass
 
     @abstractmethod
@@ -233,7 +239,7 @@ class System(ABC, LoggingBase):
             )
 
         if not func_name:
-            func_name = self.default_function_name(code_package) 
+            func_name = self.default_function_name(code_package)
         rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
 
         """
@@ -251,7 +257,9 @@ class System(ABC, LoggingBase):
                 else "function {} not found in cache.".format(func_name)
             )
             self.logging.info("Creating new function! Reason: " + msg)
-            function = self.create_function(code_package, func_name, container_deployment, container_uri)
+            function = self.create_function(
+                code_package, func_name, container_deployment, container_uri
+            )
             self.cache_client.add_function(
                 deployment_name=self.name(),
                 language_name=code_package.language_name,

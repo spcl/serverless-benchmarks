@@ -127,7 +127,7 @@ class Benchmark(LoggingBase):
     @property
     def container_uri(self):
         if self.code_package:
-            return self.code_package['container_uri']
+            return self.code_package["container_uri"]
 
     @property
     def language(self) -> "Language":
@@ -504,9 +504,9 @@ class Benchmark(LoggingBase):
                 "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
             )
             if self.container_deployment:
-                return False, self.code_location, self.container_deployment,  self.container_uri
+                return False, self.code_location, self.container_deployment, self.container_uri
 
-            return False, self.code_location, self.container_deployment,  ""
+            return False, self.code_location, self.container_deployment, ""
 
         msg = (
             "no cached code package."
@@ -516,7 +516,6 @@ class Benchmark(LoggingBase):
         self.logging.info("Building benchmark {}. Reason: {}".format(self.benchmark, msg))
         # clear existing cache information
         self._code_package = None
-
 
         # create directory to be deployed
         if os.path.exists(self._output_dir):
@@ -550,9 +549,13 @@ class Benchmark(LoggingBase):
         )
 
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self._container_uri, self)
+            self._cache_client.update_code_package(
+                self._deployment_name, self._container_uri, self
+            )
         else:
-            self._cache_client.add_code_package(self._deployment_name, self._container_uri, self)
+            self._cache_client.add_code_package(
+                self._deployment_name, self._container_uri, self
+            )
         self.query_cache()
 
         return True, self._code_location, self._container_deployment, self._container_uri

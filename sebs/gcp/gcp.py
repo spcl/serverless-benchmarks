@@ -144,7 +144,7 @@ class GCP(System):
     ) -> Tuple[str, int]:
 
         if container_deployment:
-         raise NotImplementedError("Container Deployment is not supported in GCP")      
+            raise NotImplementedError("Container Deployment is not supported in GCP")
 
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],

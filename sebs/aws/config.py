@@ -115,7 +115,8 @@ class AWSResources(Resources):
             out = {"arn": self.arn, "endpoint": self.endpoint}
             return out
 
-    def __init__(self,
+    def __init__(
+        self,
         registry: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
@@ -240,7 +241,7 @@ class AWSResources(Resources):
             self._http_apis[api_name] = http_api
         else:
             self.logging.info(f"Using cached HTTP API {api_name}")
-        return http_api 
+        return http_api
 
     def check_ecr_repository_exists(self, ecr_client, repository_name):
         try:
@@ -253,7 +254,7 @@ class AWSResources(Resources):
             raise e
 
     def create_ecr_repository(self, boto3_session: boto3.session.Session):
-        ecr_client = boto3_session.client(service_name = 'ecr', region_name=cast(str, self._region))
+        ecr_client = boto3_session.client(service_name="ecr", region_name=cast(str, self._region))
 
         if not self._container_repository:
             random_name = str(uuid.uuid4())[0:16]
@@ -266,7 +267,7 @@ class AWSResources(Resources):
                 ecr_client.create_repository(repositoryName=repository_name)
                 self.logging.info(f"Created ECR repository: {repository_name}")
             except ClientError as e:
-                if e.response['Error']['Code'] != 'RepositoryAlreadyExistsException':
+                if e.response["Error"]["Code"] != "RepositoryAlreadyExistsException":
                     self.logging.error(f"Failed to create ECR repository: {e}")
                     raise e
         return ecr_client, repository_name
@@ -329,12 +330,13 @@ class AWSResources(Resources):
             ret.logging_handlers = handlers
 
         # Load cached values
-        elif ( cached_config 
-              and "resources" in cached_config
-              and "docker" in cached_config["resources"]
-            ):
+        elif (
+            cached_config
+            and "resources" in cached_config
+            and "docker" in cached_config["resources"]
+        ):
 
-            AWSResources.initialize(ret, cached_config["resources"]['docker'])
+            AWSResources.initialize(ret, cached_config["resources"]["docker"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached Docker registry for AWS")
         else:
@@ -347,7 +349,7 @@ class AWSResources(Resources):
                 AWSResources.initialize(ret, {})
                 ret.logging_handlers = handlers
                 ret.logging.info("No resources for AWS found, initialize!")
-        
+
         return ret
 
 
