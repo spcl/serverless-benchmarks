@@ -292,8 +292,9 @@ class System(ABC, LoggingBase):
                         f"{func_name} with hash {function.code_package_hash}."
                     )
                 if container_deployment:
-                    code_package = container_uri
-                self.update_function(function, code_package)
+                    self.update_function(function, container_uri)
+                else:
+                    self.update_function(function, code_package)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
                 self.cache_client.add_function(
