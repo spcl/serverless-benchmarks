@@ -266,7 +266,6 @@ class AWS(System):
         # cached package, rebuild not enforced -> check for new one
         # if cached is true, no need to build and push the image.
         if is_cached:
-            repository_name, image_tag = repository_uri.split(':')[-2], repository_uri.split(':')[-1]
             if self.find_image(self.docker_client, repository_name, image_tag):
                 self.logging.info(
                     f"Skipping building AWS Docker package for {benchmark}, using "
