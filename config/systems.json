@@ -1,6 +1,7 @@
 {
   "general": {
-    "docker_repository": "spcleth/serverless-benchmarks"
+    "docker_repository": "spcleth/serverless-benchmarks",
+    "container_deployment": ["aws"]
   },
   "local": {
     "experiments": {

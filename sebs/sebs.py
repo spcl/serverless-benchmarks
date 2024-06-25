@@ -107,7 +107,7 @@ class SeBS(LoggingBase):
             implementations["openwhisk"] = OpenWhisk
 
         if name not in implementations:
-            raise RuntimeError("Deployment {name} not supported!".format(name=name))
+            raise RuntimeError("Deployment {name} not supported!".format(name=name)) 
 
         if config["experiments"]["architecture"] not in self._config.supported_architecture(name):
             raise RuntimeError(
@@ -115,6 +115,12 @@ class SeBS(LoggingBase):
                     architecture=config["experiments"]["architecture"], name=name
                 )
             )
+
+        if (
+            (config['experiments']['container_deployment']) and 
+            (name not in self._config.supported_container_deployment())
+            ):
+            raise RuntimeError("Container deployment is not supported in {name}.".format(name=name)) 
 
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.generate_logging_handlers(logging_filename)

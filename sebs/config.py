@@ -42,6 +42,9 @@ class SeBSConfig:
     def supported_architecture(self, deployment_name: str) -> List[str]:
         return self._system_config[deployment_name]["architecture"]
 
+    def supported_container_deployment(self) -> List[str]:
+        return self._system_config["general"]["container_deployment"]
+
     def benchmark_base_images(self, deployment_name: str, language_name: str) -> Dict[str, str]:
         return self._system_config[deployment_name]["languages"][language_name]["base_images"]
 
