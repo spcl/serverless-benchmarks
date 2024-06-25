@@ -91,6 +91,13 @@ def common_params(func):
         type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
         help="Cloud deployment to use.",
     )
+    @click.option(
+        "--architecture",
+        default=None,
+        type=click.Choice(["x86_64", "arm64"]),
+        help="Target architecture",
+    )
+
     @simplified_common_params
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -111,6 +118,7 @@ def parse_common_params(
     deployment,
     language,
     language_version,
+    architecture,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
 ):
@@ -131,10 +139,11 @@ def parse_common_params(
     update_nested_dict(config_obj, ["deployment", "name"], deployment)
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
+    update_nested_dict(config_obj, ["experiments", "architecture"], architecture)
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
-            config_obj["deployment"], logging_filename=logging_filename
+            config_obj, logging_filename=logging_filename
         )
         deployment_client.initialize()
     else:

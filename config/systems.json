@@ -49,7 +49,8 @@
           "packages": []
         }
       }
-    }
+    },
+    "architecture": ["x86_64"]
   },
   "aws": {
     "languages": {
@@ -96,7 +97,8 @@
           }
         }
       }
-    }
+    },
+    "architecture": ["x86_64", "arm64"]
   },
   "azure": {
     "languages": {
@@ -144,7 +146,8 @@
       "manage": {
         "username": "docker_user"
       }
-    }
+    },
+    "architecture": ["x86_64"]
   },
   "gcp": {
     "languages": {
@@ -190,7 +193,8 @@
           }
         }
       }
-    }
+    },
+    "architecture": ["x86_64"]
   },
   "openwhisk": {
     "languages": {
@@ -233,6 +237,7 @@
           }
         }
       }
-    }
+    },
+    "architecture": ["x86_64"]
   }
 }
