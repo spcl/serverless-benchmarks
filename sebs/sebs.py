@@ -129,7 +129,7 @@ class SeBS(LoggingBase):
 
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.generate_logging_handlers(logging_filename)
-        if not deployment_config:
+        if not dep_config:
             deployment_config = Config.deserialize(dep_config, self.cache_client, handlers)
         deployment_client = implementations[name](
             self._config,
