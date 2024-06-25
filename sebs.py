@@ -97,6 +97,13 @@ def common_params(func):
         type=str,
         help="Resource prefix to look for.",
     )
+    @click.option(
+        "--architecture",
+        default=None,
+        type=click.Choice(["x86_64", "arm64"]),
+        help="Target architecture",
+    )
+
     @simplified_common_params
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -118,6 +125,7 @@ def parse_common_params(
     language,
     language_version,
     resource_prefix: Optional[str] = None,
+    architecture,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
     storage_configuration: Optional[str] = None
@@ -139,6 +147,7 @@ def parse_common_params(
     update_nested_dict(config_obj, ["deployment", "name"], deployment)
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
+    update_nested_dict(config_obj, ["experiments", "architecture"], architecture)
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)
@@ -149,7 +158,7 @@ def parse_common_params(
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
-            config_obj["deployment"], logging_filename=logging_filename
+            config_obj, logging_filename=logging_filename
         )
         deployment_client.initialize(resource_prefix=resource_prefix)
     else:
