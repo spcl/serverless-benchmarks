@@ -336,7 +336,7 @@ def regression(benchmark_input_size, benchmark_name, **kwargs):
         sebs_client,
         config["experiments"],
         set((config["deployment"]["name"],)),
-        config["deployment"],
+        config,
         benchmark_name,
     )
 
