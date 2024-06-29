@@ -130,7 +130,7 @@ def parse_common_params(
 
     sebs_client = sebs.SeBS(cache, output_dir, verbose, logging_filename)
     output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
-    
+
     sebs_client.logging.info("Created experiment output at {}".format(output_dir))
 
     # CLI overrides JSON options
@@ -139,6 +139,9 @@ def parse_common_params(
     update_nested_dict(config_obj, ["deployment", "name"], deployment)
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
+
+    # set the path the configuration was loaded from
+    update_nested_dict(config_obj, ["deployment", "local", "path"], config)
 
     if storage_configuration:
         cfg = json.load(open(storage_configuration, 'r'))
@@ -453,6 +456,9 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
     # Disable shutdown of storage only after we succed
     # Otherwise we want to clean up as much as possible
     deployment_client.shutdown_storage = False
+
+    deployment_client.config.serialize()
+
     result.serialize(output)
     sebs_client.logging.info(f"Save results to {os.path.abspath(output)}")
 

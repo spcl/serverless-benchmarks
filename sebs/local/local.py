@@ -2,12 +2,13 @@ import os
 import shutil
 from typing import cast, Dict, List, Optional, Type, Tuple  # noqa
 import subprocess
+import socket
 
 import docker
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingHandlers
+from sebs.utils import LoggingHandlers, is_linux
 from sebs.local.config import LocalConfig
 from sebs.local.storage import Minio
 from sebs.local.function import LocalFunction
@@ -172,27 +173,60 @@ class Local(System):
                     self.name(), code_package.language_name
                 ),
             }
-        container = self._docker_client.containers.run(
-            image=container_name,
-            command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
-            volumes={code_package.code_location: {"bind": "/function", "mode": "ro"}},
-            environment=environment,
-            # FIXME: make CPUs configurable
-            # FIXME: configure memory
-            # FIXME: configure timeout
-            # cpuset_cpus=cpuset,
-            # required to access perf counters
-            # alternative: use custom seccomp profile
-            privileged=True,
-            security_opt=["seccomp:unconfined"],
-            network_mode="bridge",
-            # somehow removal of containers prevents checkpointing from working?
-            remove=self.remove_containers,
-            stdout=True,
-            stderr=True,
-            detach=True,
-            # tty=True,
-        )
+
+        # FIXME: make CPUs configurable
+        # FIXME: configure memory
+        # FIXME: configure timeout
+        # cpuset_cpus=cpuset,
+        # required to access perf counters
+        # alternative: use custom seccomp profile
+        container_kwargs = {
+            "image": container_name,
+            "command": f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
+            "volumes": {code_package.code_location: {"bind": "/function", "mode": "ro"}},
+            "environment": environment,
+            "privileged": True,
+            "security_opt": ["seccomp:unconfined"],
+            "network_mode": "bridge",
+            "remove": self.remove_containers,
+            "stdout": True,
+            "stderr": True,
+            "detach": True,
+            # "tty": True,
+        }
+
+        # If SeBS is running on non-linux platforms, container port must be mapped to host port to make it reachable
+        # Check if the system is NOT Linux or that it is WSL
+        port = self.DEFAULT_PORT
+        if not is_linux():
+            port_found = False
+            for p in range(self.DEFAULT_PORT, self.DEFAULT_PORT + 1000):
+                # check no container has been deployed on docker's port p
+                if p not in self.config.resources.allocated_ports:
+                    # check if port p on the host is free
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        try:
+                            s.bind(("127.0.0.1", p))
+                            # The port is available
+                            port = p
+                            port_found = True
+                            self.config.resources.allocated_ports.add(p)
+                            break
+                        except socket.error as e:
+                            # The port is already in use
+                            continue
+
+            if not port_found:
+                raise RuntimeError(
+                    f"Failed to allocate port for container: No ports available between "
+                    f"{self.DEFAULT_PORT} and {self.DEFAULT_PORT + 999}"
+                )
+
+            container_kwargs["command"] = f"/bin/bash /sebs/run_server.sh {port}"
+            container_kwargs["ports"] = {f'{port}/tcp': port}
+
+        container = self._docker_client.containers.run(**container_kwargs)
 
         pid: Optional[int] = None
         if self.measurements_enabled and self._memory_measurement_path is not None:
@@ -214,7 +248,7 @@ class Local(System):
         function_cfg = FunctionConfig.from_benchmark(code_package)
         func = LocalFunction(
             container,
-            self.DEFAULT_PORT,
+            port,
             func_name,
             code_package.benchmark,
             code_package.hash,
