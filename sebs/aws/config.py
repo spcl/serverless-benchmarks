@@ -258,8 +258,7 @@ class AWSResources(Resources):
         ecr_client = boto3_session.client(service_name="ecr", region_name=cast(str, self._region))
 
         if not self._container_repository:
-            random_name = str(uuid.uuid4())[0:16]
-            repository_name = "sebs-benchmark-{}".format(random_name)
+            repository_name = "sebs-benchmark-{}".format(self._resources_id)
         else:
             repository_name = self._container_repository
 
