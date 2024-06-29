@@ -353,25 +353,25 @@ def regression_suite(
     language_version = experiment_config["runtime"]["version"]
 
     if "aws" in providers:
-        assert "aws" in cloud_config
+        assert "aws" in cloud_config['deployment']
         if language == "python":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequencePython))
         elif language == "nodejs":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceNodejs))
     if "gcp" in providers:
-        assert "gcp" in cloud_config
+        assert "gcp" in cloud_config['deployment']
         if language == "python":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequencePython))
         elif language == "nodejs":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceNodejs))
     if "azure" in providers:
-        assert "azure" in cloud_config
+        assert "azure" in cloud_config['deployment']
         if language == "python":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequencePython))
         elif language == "nodejs":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceNodejs))
     if "openwhisk" in providers:
-        assert "openwhisk" in cloud_config
+        assert "openwhisk" in cloud_config['deployment']
         if language == "python":
             suite.addTest(
                 unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequencePython)

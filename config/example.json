@@ -4,10 +4,10 @@
     "update_code": false,
     "update_storage": false,
     "download_results": false, 
-    "architecture": "x86_64", 
+    "architecture": "arm64", 
     "runtime": {
-      "language": "python",
-      "version": "3.7"
+      "language": "nodejs",
+      "version": "16"
     },
     "type": "invocation-overhead",
     "perf-cost": {
