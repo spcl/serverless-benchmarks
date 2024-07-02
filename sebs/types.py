@@ -7,6 +7,7 @@ class Platforms(str, Enum):
     GCP = "gcp"
     LOCAL = "local"
     OPENWHISK = "openwhisk"
+    KNATIVE = "knative"
 
 
 class Storage(str, Enum):
