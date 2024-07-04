@@ -38,12 +38,6 @@ def install_cosign():
         run_command('sudo mv cosign-linux-amd64 /usr/local/bin/cosign')
         run_command('sudo chmod +x /usr/local/bin/cosign')
 
-def install_jq():
-    if is_installed("jq"):
-        print("jq is already installed.")
-    else:
-        print("Installing jq...")
-        run_command('sudo apt-get update && sudo apt-get install -y jq')
 
 def install_knative():
     print("Extracting images from the manifest and verifying signatures...")
@@ -76,7 +70,6 @@ def main():
     install_minikube()
     install_kubectl()
     install_cosign()
-    install_jq()
     install_knative()
 
 if __name__ == "__main__":

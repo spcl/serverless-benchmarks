@@ -249,7 +249,7 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "handler.py",
+            "func.py",
             "storage.py"
           ],
           "packages": {
@@ -269,7 +269,7 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "handler.js",
+            "index.js",
             "storage.js"
           ],
           "packages": []

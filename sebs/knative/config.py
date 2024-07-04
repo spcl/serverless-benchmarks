@@ -1,5 +1,5 @@
 from sebs.cache import Cache
-from sebs.faas.config import Credentials, Resources, Config
+from sebs.faas.config import Resources, Config
 from sebs.utils import LoggingHandlers
 from sebs.storage.config import MinioConfig
 
@@ -53,9 +53,9 @@ class KnativeResources(Resources):
     @staticmethod
     def initialize(res: Resources, dct: dict):
         ret = cast(KnativeResources, res)
-        ret._docker_registry = dct["registry"]
-        ret._docker_username = dct["username"]
-        ret._docker_password = dct["password"]
+        ret._docker_registry = dct.get("registry")
+        ret._docker_username = dct.get("username")
+        ret._docker_password = dct.get("password")
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
@@ -101,7 +101,9 @@ class KnativeResources(Resources):
         # Check for new config
         if "storage" in config:
             ret._storage = MinioConfig.deserialize(config["storage"])
-            ret.logging.info("Using user-provided configuration of storage for Knative.")
+            ret.logging.info(
+                "Using user-provided configuration of storage for Knative."
+            )
 
             # check if there has been an update
             if not (
@@ -122,7 +124,9 @@ class KnativeResources(Resources):
             and "resources" in cached_config
             and "storage" in cached_config["resources"]
         ):
-            ret._storage = MinioConfig.deserialize(cached_config["resources"]["storage"])
+            ret._storage = MinioConfig.deserialize(
+                cached_config["resources"]["storage"]
+            )
             ret.logging.info("Using cached configuration of storage for Knative.")
 
         return ret
@@ -130,13 +134,16 @@ class KnativeResources(Resources):
     def update_cache(self, cache: Cache):
         super().update_cache(cache)
         cache.update_config(
-            val=self.docker_registry, keys=["knative", "resources", "docker", "registry"]
+            val=self.docker_registry,
+            keys=["knative", "resources", "docker", "registry"],
         )
         cache.update_config(
-            val=self.docker_username, keys=["knative", "resources", "docker", "username"]
+            val=self.docker_username,
+            keys=["knative", "resources", "docker", "username"],
         )
         cache.update_config(
-            val=self.docker_password, keys=["knative", "resources", "docker", "password"]
+            val=self.docker_password,
+            keys=["knative", "resources", "docker", "password"],
         )
         if self._storage:
             self._storage.update_cache(["knative", "resources", "storage"], cache)
@@ -186,7 +193,7 @@ class KnativeConfig(Config):
             KnativeResources, KnativeResources.deserialize(config, cache, handlers)
         )
 
-        res = KnativeConfig(config, cached_config)
+        res = KnativeConfig(config, cache)
         res.logging_handlers = handlers
         res._resources = resources
         return res

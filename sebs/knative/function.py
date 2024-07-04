@@ -7,6 +7,7 @@ from sebs.benchmark import Benchmark
 from sebs.faas.function import Function, FunctionConfig, Runtime
 from sebs.storage.config import MinioConfig
 
+
 @dataclass
 class KnativeFunctionConfig(FunctionConfig):
     docker_image: str = ""
@@ -31,9 +32,14 @@ class KnativeFunctionConfig(FunctionConfig):
             benchmark, KnativeFunctionConfig
         )
 
+
 class KnativeFunction(Function):
     def __init__(
-        self, name: str, benchmark: str, code_package_hash: str, cfg: KnativeFunctionConfig
+        self,
+        name: str,
+        benchmark: str,
+        code_package_hash: str,
+        cfg: KnativeFunctionConfig,
     ):
         super().__init__(benchmark, name, code_package_hash, cfg)
 
@@ -55,12 +61,17 @@ class KnativeFunction(Function):
 
         cfg = KnativeFunctionConfig.deserialize(cached_config["config"])
         ret = KnativeFunction(
-            cached_config["name"], cached_config["benchmark"], cached_config["hash"], cfg
+            cached_config["name"],
+            cached_config["benchmark"],
+            cached_config["hash"],
+            cfg,
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
                 Trigger,
-                {"Library": KnativeLibraryTrigger, "HTTP": KnativeHTTPTrigger}.get(trigger["type"]),
+                {"Library": KnativeLibraryTrigger, "HTTP": KnativeHTTPTrigger}.get(
+                    trigger["type"]
+                ),
             )
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))

@@ -1,8 +1,9 @@
-from os import devnull
+from datetime import datetime
+import os
 import subprocess
-from flask import config
+import yaml
 from sebs.faas.system import System
-from sebs.faas.function import Function, Trigger, ExecutionResult
+from sebs.faas.function import Function, Trigger
 from sebs.faas.storage import PersistentStorage
 from sebs.benchmark import Benchmark
 from sebs.config import SeBSConfig
@@ -10,24 +11,30 @@ from sebs.cache import Cache
 from sebs.utils import LoggingHandlers
 from sebs.knative.storage import KnativeMinio
 from sebs.knative.triggers import KnativeLibraryTrigger, KnativeHTTPTrigger
-from sebs.faas.config import Resources
 from typing import Dict, Tuple, Type, List, Optional
 import docker
 from .function import KnativeFunction, KnativeFunctionConfig
-import uuid
 from typing import cast
+from sebs.knative.storage import KnativeMinio
 
 from .config import KnativeConfig
+
 
 class KnativeSystem(System):
     _config: KnativeConfig
 
-    def __init__(self, system_config: SeBSConfig, config: KnativeConfig, cache_client: Cache, docker_client: docker.client, logger_handlers: LoggingHandlers):
+    def __init__(
+        self,
+        system_config: SeBSConfig,
+        config: KnativeConfig,
+        cache_client: Cache,
+        docker_client: docker.client,
+        logger_handlers: LoggingHandlers,
+    ):
         super().__init__(system_config, cache_client, docker_client)
-        # Initialize any additional Knative-specific attributes here
         self._config = config
         self._logger_handlers = logger_handlers
-     
+
         if self.config.resources.docker_username:
             if self.config.resources.docker_registry:
                 docker_client.login(
@@ -40,26 +47,132 @@ class KnativeSystem(System):
                     username=self.config.resources.docker_username,
                     password=self.config.resources.docker_password,
                 )
-         
-     
+
     @property
     def config(self) -> KnativeConfig:
         # Return the configuration specific to Knative
         return self._config
-    
+
     def get_knative_func_cmd(self) -> List[str]:
         cmd = [self.config.knative_exec]
         return cmd
-    
+
     @staticmethod
     def function_type() -> Type[Function]:
         # Return the specific function type for Knative
         return Function
 
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        # Implementation of persistent storage retrieval for Knative
-        # This might involve creating a persistent volume or bucket in Knative's ecosystem
-        pass
+        if not hasattr(self, "storage"):
+
+            if not self.config.resources.storage_config:
+                raise RuntimeError(
+                    "Knative is missing the configuration of pre-allocated storage!"
+                )
+            self.storage = KnativeMinio.deserialize(
+                self.config.resources.storage_config,
+                self.cache_client,
+                self.config.resources,
+            )
+            self.storage.logging_handlers = self.logging_handlers
+        else:
+            self.storage.replace_existing = replace_existing
+        return self.storage
+
+    def find_image(self, repository_name: str, image_tag: str) -> bool:
+        """
+        Check if a Docker image exists in the repository.
+
+        Args:
+        - repository_name: Name of the Docker repository.
+        - image_tag: Tag of the Docker image.
+
+        Returns:
+        - Boolean indicating if the image exists.
+        """
+        try:
+            self._docker_client.images.pull(repository=repository_name, tag=image_tag)
+            return True
+        except docker.errors.NotFound:
+            return False
+
+    def build_base_image(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> bool:
+        """
+        Build the base image for the function using the 'func build' command.
+
+        Args:
+        - directory: Directory where the function code resides.
+        - language_name: Name of the programming language (e.g., Python).
+        - language_version: Version of the programming language.
+        - benchmark: Identifier for the benchmark or function.
+        - is_cached: Flag indicating if the code is cached.
+
+        Returns:
+        - Boolean indicating if the image was built.
+        """
+
+        # Define the registry name
+        registry_name = self.config.resources.docker_registry
+        repository_name = self.system_config.docker_repository()
+        image_tag = self.system_config.benchmark_image_tag(
+            self.name(), benchmark, language_name, language_version
+        )
+
+        if registry_name:
+            repository_name = f"{registry_name}/{repository_name}"
+        else:
+            registry_name = "Docker Hub"
+
+        if is_cached and self.find_image(repository_name, image_tag):
+            self.logging.info(
+                f"Skipping building Docker package for {benchmark}, using "
+                f"Docker image {repository_name}:{image_tag} from registry: "
+                f"{registry_name}."
+            )
+            return False
+        else:
+            self.logging.info(
+                f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
+                f"building Docker package for {benchmark}."
+            )
+
+        # Construct the build command
+        build_command = [
+            "func",
+            "build",
+            "--registry",
+            repository_name,
+            "--path",
+            directory,
+            "--push",
+        ]
+
+        self.logging.info(f"Running build command: {' '.join(build_command)}")
+
+        try:
+            result = subprocess.run(
+                build_command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
+            self.logging.info(f"Build output: {result.stdout.decode()}")
+        except subprocess.CalledProcessError as e:
+            self.logging.error(f"Error building the function: {e.stderr.decode()}")
+            raise RuntimeError(e) from e
+
+        self.logging.info(
+            f"Successfully built and pushed Docker image {repository_name}:{image_tag} "
+            f"to registry: {registry_name}."
+        )
+        return True
 
     def package_code(
         self,
@@ -82,22 +195,48 @@ class KnativeSystem(System):
         Returns:
         - Tuple containing the Docker image name (tag) and its size.
         """
+        self.build_base_image(
+            directory, language_name, language_version, benchmark, is_cached
+        )
 
-        # Generate a unique Docker image name/tag for this function
-        docker_image_name = f"{benchmark}:{language_version}"
+        CONFIG_FILES = {
+            "python": ["func.py"],
+            "nodejs": ["index.js"],
+        }
+        package_config = CONFIG_FILES[language_name]
 
-        # Build Docker image from the specified directory
-        image, _ = self._docker_client.images.build(path=directory, tag=docker_image_name)
+        # Generate func.yaml
+        func_yaml_content = {
+            "specVersion": "0.36.0",
+            "name": directory,
+            "runtime": language_name,
+            "created": datetime.now().astimezone().isoformat(),
+        }
+        yaml_out = os.path.join(directory, "func.yaml")
+        with open(yaml_out, "w") as yaml_file:
+            yaml.dump(func_yaml_content, yaml_file, default_flow_style=False)
 
-        # Retrieve size of the Docker image
-        image_size = image.attrs['Size']
+        code_size = Benchmark.directory_size(directory)
+        return directory, code_size
 
-        # Return the Docker image name (tag) and its size
-        return docker_image_name, image_size
+    def storage_arguments(self) -> List[str]:
+        storage = cast(KnativeMinio, self.get_storage())
+        return [
+            "-p",
+            "MINIO_STORAGE_SECRET_KEY",
+            storage.config.secret_key,
+            "-p",
+            "MINIO_STORAGE_ACCESS_KEY",
+            storage.config.access_key,
+            "-p",
+            "MINIO_STORAGE_CONNECTION_URL",
+            storage.config.address,
+        ]
 
-
-    def create_function(self, code_package: Benchmark, func_name: str) -> "KnativeFunction":
-        self.logging.info("Creating Knative function.")
+    def create_function(
+        self, code_package: Benchmark, func_name: str
+    ) -> "KnativeFunction":
+        self.logging.info("Building Knative function")
         try:
             # Check if the function already exists
             knative_func_command = subprocess.run(
@@ -113,36 +252,34 @@ class KnativeSystem(System):
 
             if function_found:
                 self.logging.info(f"Function {func_name} already exists.")
-                # Logic for updating or handling existing function
-                # For now, just pass
-                pass
+                res = KnativeFunction(
+                    func_name, code_package.benchmark, code_package.hash, function_cfg
+                )
+                self.update_function(res, code_package)
+
             else:
                 try:
-                    self.logging.info(f"Creating new Knative function {func_name}")
+                    self.logging.info(f"Deploying new Knative function {func_name}")
                     language = code_package.language_name
-
-                    # Create the function
-                    subprocess.run(
-                        ["func", "create", "-l", language, func_name],
-                        stderr=subprocess.PIPE,
-                        stdout=subprocess.PIPE,
-                        check=True,
-                    )
 
                     # Deploy the function
                     subprocess.run(
                         ["func", "deploy", "--path", func_name],
-                        stderr=subprocess.PIPE,
-                        stdout=subprocess.PIPE,
+                        capture_output=True,
                         check=True,
                     )
 
                     # Retrieve the function URL
-                    describe_command = [*self.get_knative_func_cmd(), "describe", func_name, "-o", "url"]
+                    describe_command = [
+                        *self.get_knative_func_cmd(),
+                        "describe",
+                        func_name,
+                        "-o",
+                        "url",
+                    ]
                     result = subprocess.run(
                         describe_command,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        capture_output=True,
                         check=True,
                     )
                     function_url = result.stdout.decode().strip()
@@ -154,7 +291,10 @@ class KnativeSystem(System):
 
                     # Create the function object
                     res = KnativeFunction(
-                        func_name, code_package.benchmark, code_package.hash, function_cfg
+                        func_name,
+                        code_package.benchmark,
+                        code_package.hash,
+                        function_cfg,
                     )
 
                     # Add HTTP trigger with the function URL
@@ -165,14 +305,15 @@ class KnativeSystem(System):
                     return res
 
                 except subprocess.CalledProcessError as e:
-                    self.logging.error(f"Error creating Knative function {func_name}.")
+                    self.logging.error(f"Error deploying Knative function {func_name}.")
                     self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
-                    raise RuntimeError(e)
+                    raise RuntimeError(e) from e
 
         except FileNotFoundError:
-            self.logging.error("Could not retrieve Knative functions - is path to func correct?")
+            self.logging.error(
+                "Could not retrieve Knative functions - is path to func correct?"
+            )
             raise RuntimeError("Failed to access func binary")
-
 
     def update_function(self, function: Function, code_package: Benchmark):
         self.logging.info(f"Updating an existing Knative function {function.name}.")
@@ -187,36 +328,43 @@ class KnativeSystem(System):
         try:
             subprocess.run(
                 [
-                    "func", "deploy",
-                    "--path", code_package.code_location,
-                    "--image", docker_image,
-                    "--name", function.name,
+                    "func",
+                    "deploy",
+                    "--path",
+                    code_package.code_location,
+                    "--image",
+                    docker_image,
+                    "--name",
+                    function.name,
                 ],
-                stderr=subprocess.PIPE,
-                stdout=subprocess.PIPE,
+                capture_output=True,
                 check=True,
             )
             function.config.docker_image = docker_image
 
         except FileNotFoundError as e:
-            self.logging.error("Could not update Knative function - is the 'func' CLI installed and configured correctly?")
-            raise RuntimeError(e)
+            self.logging.error(
+                "Could not update Knative function - is the 'func' CLI installed and configured correctly?"
+            )
+            raise RuntimeError(e) from e
         except subprocess.CalledProcessError as e:
             self.logging.error(f"Unknown error when running function update: {e}!")
-            self.logging.error("Ensure the SeBS cache is cleared if there are issues with Knative!")
+            self.logging.error(
+                "Ensure the SeBS cache is cleared if there are issues with Knative!"
+            )
             self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
             raise RuntimeError(e)
 
-
-    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(
+        self, function: Function, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
         if trigger_type == Trigger.TriggerType.LIBRARY:
             return function.triggers(Trigger.TriggerType.LIBRARY)[0]
         elif trigger_type == Trigger.TriggerType.HTTP:
             try:
                 response = subprocess.run(
                     ["func", "describe", function.name, "--output", "url"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
+                    capture_output=True,
                     check=True,
                 )
             except FileNotFoundError as e:
@@ -233,7 +381,6 @@ class KnativeSystem(System):
             return trigger
         else:
             raise RuntimeError("Not supported!")
-
 
     @staticmethod
     def name() -> str:

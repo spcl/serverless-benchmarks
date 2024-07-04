@@ -4,6 +4,7 @@ from sebs.storage import minio
 from sebs.storage.config import MinioConfig
 from sebs.cache import Cache
 
+
 class KnativeMinio(minio.Minio):
     @staticmethod
     def deployment_name() -> str:
@@ -22,4 +23,6 @@ class KnativeMinio(minio.Minio):
     def deserialize(
         cached_config: MinioConfig, cache_client: Cache, resources: Resources
     ) -> "KnativeMinio":
-        return super(KnativeMinio, KnativeMinio)._deserialize(cached_config, cache_client, resources, KnativeMinio)
+        return super(KnativeMinio, KnativeMinio)._deserialize(
+            cached_config, cache_client, resources, KnativeMinio
+        )

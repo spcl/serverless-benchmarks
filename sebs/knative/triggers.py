@@ -2,16 +2,16 @@ import concurrent.futures
 import datetime
 import json
 import subprocess
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from sebs.faas.function import ExecutionResult, Trigger
+
 
 class KnativeLibraryTrigger(Trigger):
     def __init__(self, fname: str, func_cmd: Optional[List[str]] = None):
         super().__init__()
         self.fname = fname
-        if func_cmd:
-            self._func_cmd = [*func_cmd, "invoke", "--target", "remote"]
+        self._func_cmd = func_cmd or []
 
     @staticmethod
     def trigger_type() -> "Trigger.TriggerType":
@@ -24,22 +24,22 @@ class KnativeLibraryTrigger(Trigger):
 
     @func_cmd.setter
     def func_cmd(self, func_cmd: List[str]):
-        self._func_cmd = [*func_cmd, "invoke", "--target", "remote"]
-
-    @staticmethod
-    def get_command(payload: dict) -> List[str]:
-        params = ["--data", json.dumps(payload)]
-        return params
+        self._func_cmd = func_cmd
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
-        command = self.func_cmd + self.get_command(payload)
+        command = self.func_cmd + [
+            "invoke",
+            "--target",
+            "remote",
+            "--data",
+            json.dumps(payload),
+        ]
         error = None
         try:
             begin = datetime.datetime.now()
             response = subprocess.run(
                 command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 check=True,
             )
             end = datetime.datetime.now()
@@ -50,7 +50,7 @@ class KnativeLibraryTrigger(Trigger):
 
         knative_result = ExecutionResult.from_times(begin, end)
         if error is not None:
-            self.logging.error("Invocation of {} failed!".format(self.fname))
+            self.logging.error(f"Invocation of {self.fname} failed!")
             knative_result.stats.failure = True
             return knative_result
 
