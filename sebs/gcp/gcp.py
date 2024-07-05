@@ -106,22 +106,21 @@ class GCP(System):
     """
         Provide the fully qualified name of a trigger resource (queue or storage).
     """
+
     def get_trigger_resource_name(self, func_name: str) -> str:
         trigger = func_name.split("-")[-1]
 
         assert trigger == "queue" or trigger == "storage"
 
-        if (trigger == "queue"):
-            return 'projects/{project_name}/topics/{topic}'.format(
-                project_name=self.config.project_name,
-                topic=func_name
+        if trigger == "queue":
+            return "projects/{project_name}/topics/{topic}".format(
+                project_name=self.config.project_name, topic=func_name
             )
         else:
-            return 'projects/{project_name}/buckets/{bucket}'.format(
-                project_name=self.config.project_name,
-                bucket=func_name
+            return "projects/{project_name}/buckets/{bucket}".format(
+                project_name=self.config.project_name, bucket=func_name
             )
-    
+
     """
         Trigger resources (queue, bucket) must exist on GCP before the
         corresponding function is first deployed.
@@ -133,23 +132,30 @@ class GCP(System):
         :param func_name: the name of the function to be deployed,
         including its trigger
 
+        :param cached: when True, skip the creation of the actual resource
+        - merely create the configuration required to deploy the function.
+        This option is used in update_function() only.
+
         :return: JSON/dict with the trigger configuration required by GCP
         on function creation/update
     """
-    def create_trigger_resource(self, func_name: str) -> Dict:
+
+    def create_trigger_resource(self, func_name: str, cached=False) -> Dict:
         trigger = func_name.split("-")[-1]
 
-        if (trigger == "queue"):
-            pub_sub = build("pubsub", "v1", cache_discovery=False)
+        if trigger == "queue":
             topic_name = self.get_trigger_resource_name(func_name)
-            
-            self.logging.info(f"Creating queue '{topic_name}'")
-            try:
-                pub_sub.projects().topics().create(name=topic_name).execute()
-                self.logging.info("Created queue")
-            except HttpError as http_error:
-                if (http_error.resp.status == 409):
-                    self.logging.info("Queue already exists, reusing...")
+
+            if not cached:
+                pub_sub = build("pubsub", "v1", cache_discovery=False)
+
+                self.logging.info(f"Creating queue '{topic_name}'")
+                try:
+                    pub_sub.projects().topics().create(name=topic_name).execute()
+                    self.logging.info("Created queue")
+                except HttpError as http_error:
+                    if http_error.resp.status == 409:
+                        self.logging.info("Queue already exists, reusing...")
 
             return {
                 "eventTrigger": {
@@ -158,21 +164,23 @@ class GCP(System):
                 },
                 "entryPoint": "handler_queue",
             }
-        elif (trigger == "storage"):
-            storage = build("storage", "v1", cache_discovery=False)
+        elif trigger == "storage":
             bucket_name = self.get_trigger_resource_name(func_name)
 
-            self.logging.info(f"Creating storage bucket '{bucket_name}'")
-            try:
-                storage.buckets().insert(
-                    project=self.config.project_name,
-                    body={ "name": func_name },
-                ).execute()
-                self.logging.info("Created storage bucket")
-            except HttpError as http_error:
-                if (http_error.resp.status == 409):
-                    self.logging.info("Storage bucket already exists, reusing...")
-            
+            if not cached:
+                storage = build("storage", "v1", cache_discovery=False)
+
+                self.logging.info(f"Creating storage bucket '{bucket_name}'")
+                try:
+                    storage.buckets().insert(
+                        project=self.config.project_name,
+                        body={"name": func_name},
+                    ).execute()
+                    self.logging.info("Created storage bucket")
+                except HttpError as http_error:
+                    if http_error.resp.status == 409:
+                        self.logging.info("Storage bucket already exists, reusing...")
+
             return {
                 "eventTrigger": {
                     "eventType": "google.storage.object.finalize",
@@ -181,7 +189,7 @@ class GCP(System):
                 "entryPoint": "handler_storage",
             }
         # HTTP triggers do not require resource creation
-        return { "httpsTrigger": {}, "entryPoint": "handler_http" }
+        return {"httpsTrigger": {}, "entryPoint": "handler_http"}
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -318,7 +326,8 @@ class GCP(System):
                         "timeout": str(timeout) + "s",
                         "ingressSettings": "ALLOW_ALL",
                         "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
-                    } | trigger_info,
+                    }
+                    | trigger_info,
                 )
             )
             create_req.execute()
@@ -390,10 +399,12 @@ class GCP(System):
             trigger = HTTPTrigger(invoke_url)
             self.logging.info(f"Created HTTP trigger for {function.name} function")
         elif trigger_type == Trigger.TriggerType.QUEUE:
-            trigger = QueueTrigger(function.name, self)
+            trigger = QueueTrigger(
+                function.name, self.get_trigger_resource_name(function.name), self
+            )
             self.logging.info(f"Created Queue trigger for {function.name} function")
         elif trigger_type == Trigger.TriggerType.STORAGE:
-            trigger = StorageTrigger(function.name)
+            trigger = StorageTrigger(function.name, self.get_trigger_resource_name(function.name))
             self.logging.info(f"Created Storage trigger for {function.name} function")
         else:
             raise RuntimeError("Not supported!")
@@ -437,7 +448,7 @@ class GCP(System):
 
         # Before creating the function, ensure all trigger resources (queue,
         # bucket) exist on GCP.
-        trigger_info = self.create_trigger_resource(function.name)
+        trigger_info = self.create_trigger_resource(function.name, cached=True)
 
         req = (
             self.function_client.projects()
@@ -451,7 +462,8 @@ class GCP(System):
                     "availableMemoryMb": function.config.memory,
                     "timeout": str(function.config.timeout) + "s",
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-                } | trigger_info,
+                }
+                | trigger_info,
             )
         )
         res = req.execute()

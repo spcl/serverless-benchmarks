@@ -120,14 +120,20 @@ class HTTPTrigger(Trigger):
 
 
 class QueueTrigger(Trigger):
-    def __init__(self, fname: str, deployment_client: Optional[GCP] = None):
+    def __init__(self, fname: str, queue_name: str, deployment_client: Optional[GCP] = None):
         super().__init__()
         self.name = fname
         self._deployment_client = deployment_client
+        self._queue_name = queue_name
 
     @staticmethod
     def typename() -> str:
         return "GCP.QueueTrigger"
+
+    @property
+    def queue_name(self) -> GCP:
+        assert self._queue_name
+        return self._queue_name
 
     @property
     def deployment_client(self) -> GCP:
@@ -149,13 +155,13 @@ class QueueTrigger(Trigger):
         # Init client
         pub_sub = build("pubsub", "v1", cache_discovery=False)
 
-        # Prep
+        # Prepare payload
         # GCP is very particular with data encoding...
         serialized_payload = base64.b64encode(json.dumps(payload).encode("utf-8"))
 
         # Publish payload to queue
         pub_sub.projects().topics().publish(
-                topic=self.deployment_client.get_trigger_resource_name(self.name),
+                topic=self.queue_name,
                 body={
                     "messages": [{
                         "data": serialized_payload.decode("utf-8")
@@ -172,17 +178,18 @@ class QueueTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "Queue", "name": self.name}
+        return {"type": "Queue", "name": self.name, "queue_name": self.queue_name}
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return QueueTrigger(obj["name"])
+        return QueueTrigger(obj["name"], obj["queue_name"])
 
 
 class StorageTrigger(Trigger):
-    def __init__(self, fname: str):
+    def __init__(self, fname: str, bucket_name: str):
         super().__init__()
         self.name = fname
+        self._bucket_name = bucket_name
 
     @staticmethod
     def typename() -> str:
@@ -192,16 +199,20 @@ class StorageTrigger(Trigger):
     def trigger_type() -> Trigger.TriggerType:
         return Trigger.TriggerType.STORAGE
 
+    @property
+    def bucket_name(self) -> GCP:
+        assert self._bucket_name
+        return self._bucket_name
+
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
         self.logging.info(f"Invoke function {self.name}")
 
         # Init clients
-        bucket_name = self.name
         client = gcp_storage.Client();
-        bucket_instance = client.bucket(bucket_name)
+        bucket_instance = client.bucket(self.bucket_name)
 
-        # Prep
+        # Prepare payload
         file_name = "payload.json"
         with open(file_name, "w") as fp:
             json.dump(payload, fp)
@@ -211,7 +222,7 @@ class StorageTrigger(Trigger):
         blob = bucket_instance.blob(blob_name=file_name, chunk_size=4 * 1024 * 1024)
         blob.upload_from_filename(file_name)
 
-        self.logging.info(f"Uploaded payload to bucket {bucket_name}")
+        self.logging.info(f"Uploaded payload to bucket {self.bucket_name}")
 
         # TODO(oana): gather metrics
 
@@ -222,8 +233,8 @@ class StorageTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "Storage", "name": self.name}
+        return {"type": "Storage", "name": self.name, "bucket_name": self.bucket_name}
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return StorageTrigger(obj["name"])
+        return StorageTrigger(obj["name"], obj["bucket_name"])
