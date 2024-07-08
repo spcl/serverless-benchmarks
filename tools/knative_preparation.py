@@ -1,5 +1,9 @@
+# This Script can be used to spinup a knative enabled kubernetes cluster (We are using Minikube here, you can also use k3s).
+
 import subprocess
 import shutil
+import os
+import stat
 
 def run_command(command, check=True):
     try:
@@ -17,7 +21,7 @@ def install_minikube():
     else:
         print("Installing Minikube...")
         run_command("curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64")
-        run_command("sudo install minikube-linux-amd64 /usr/local/bin/minikube && rm minikube-linux-amd64")
+        run_command("install minikube-linux-amd64 ~/.local/bin/minikube && rm minikube-linux-amd64")
 
 def install_kubectl():
     if is_installed("kubectl"):
@@ -27,7 +31,7 @@ def install_kubectl():
         run_command('curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"')
         run_command('curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"')
         run_command('echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check')
-        run_command("sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl")
+        run_command("install kubectl ~/.local/bin/kubectl")
 
 def install_cosign():
     if is_installed("cosign"):
@@ -35,9 +39,8 @@ def install_cosign():
     else:
         print("Installing Cosign...")
         run_command('curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"')
-        run_command('sudo mv cosign-linux-amd64 /usr/local/bin/cosign')
-        run_command('sudo chmod +x /usr/local/bin/cosign')
-
+        run_command('install cosign-linux-amd64 ~/.local/bin/cosign')
+        os.chmod(os.path.expanduser('~/.local/bin/cosign'), stat.S_IXUSR | stat.S_IRUSR | stat.S_IWUSR)
 
 def install_knative():
     print("Extracting images from the manifest and verifying signatures...")
