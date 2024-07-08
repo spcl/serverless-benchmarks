@@ -397,7 +397,6 @@ def package(
         benchmark_obj,
         function_name if function_name else deployment_client.default_function_name(benchmark_obj)
     )
->>>>>>> a81cd27 ([system] Add CLI option to just build code package)
 
 @benchmark.command()
 @click.argument(
