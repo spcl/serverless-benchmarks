@@ -382,6 +382,11 @@ class KnativeSystem(System):
         else:
             raise RuntimeError("Not supported!")
 
+    def cached_function(self, function: Function):
+        for trigger in function.triggers(Trigger.TriggerType.HTTP):
+            trigger.logging_handlers = self.logging_handlers
+
+
     @staticmethod
     def name() -> str:
         return "Knative"
