@@ -307,6 +307,51 @@ def process(**kwargs):
         out_f.write(sebs.utils.serialize(experiments))
     sebs_client.logging.info("Save results to {}".format(output_file))
 
+@benchmark.command()
+@click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
+@click.option(
+    "--function-name",
+    default=None,
+    type=str,
+    help="Override function name for random generation.",
+)
+@click.option(
+    "--image-tag-prefix",
+    default=None,
+    type=str,
+    help="Attach prefix to generated Docker image tag.",
+)
+@common_params
+def package(
+    benchmark,
+    function_name,
+    image_tag_prefix,
+    **kwargs,
+):
+
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    if image_tag_prefix is not None:
+        sebs_client.config.image_tag_prefix = image_tag_prefix
+
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    update_nested_dict(config, ["experiments", "benchmark"], benchmark)
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+
+    func = deployment_client.build_function(
+        benchmark_obj,
+        function_name if function_name else deployment_client.default_function_name(benchmark_obj)
+    )
 
 @benchmark.command()
 @click.argument(
