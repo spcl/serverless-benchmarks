@@ -369,6 +369,23 @@ class System(ABC, LoggingBase):
         """
         pass
 
+    def build_function(self, code_package: Benchmark, func_name: Optional[str] = None):
+
+        if code_package.language_version not in self.system_config.supported_language_versions(
+            self.name(), code_package.language_name
+        ):
+            raise Exception(
+                "Unsupported {language} version {version} in {system}!".format(
+                    language=code_package.language_name,
+                    version=code_package.language_version,
+                    system=self.name(),
+                )
+            )
+
+        if not func_name:
+            func_name = self.default_function_name(code_package)
+        code_package.build(self.package_code)
+
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
         """
         Get or create a function for a benchmark.
