@@ -10,12 +10,11 @@ from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.utils import LoggingHandlers
 from sebs.knative.storage import KnativeMinio
-from sebs.knative.triggers import KnativeLibraryTrigger, KnativeHTTPTrigger
+from sebs.knative.triggers import KnativeHTTPTrigger
 from typing import Dict, Tuple, Type, List, Optional
 import docker
 from .function import KnativeFunction, KnativeFunctionConfig
 from typing import cast
-from sebs.knative.storage import KnativeMinio
 
 from .config import KnativeConfig
 
@@ -159,8 +158,7 @@ class KnativeSystem(System):
         try:
             result = subprocess.run(
                 build_command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 check=True,
             )
             self.logging.info(f"Build output: {result.stdout.decode()}")
@@ -386,6 +384,24 @@ class KnativeSystem(System):
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
 
+    def default_function_name(self, code_package: Benchmark) -> str:
+        return (
+            f"{code_package.benchmark}-{code_package.language_name}-"
+            f"{code_package.language_version}"
+        )
+
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
+        raise NotImplementedError()
+
+    def download_metrics(
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict[str, ExecutionResult],
+        metrics: dict,
+    ):
+        pass
 
     @staticmethod
     def name() -> str:

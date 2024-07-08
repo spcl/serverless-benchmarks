@@ -1,5 +1,6 @@
 # This Script can be used to spinup a knative enabled kubernetes cluster (We are using Minikube here, you can also use k3s).
 
+import logging
 import subprocess
 import shutil
 import os
@@ -7,9 +8,9 @@ import stat
 
 def run_command(command, check=True):
     try:
-        subprocess.run(command, shell=True, check=check)
+        subprocess.run(command, check=check)
     except subprocess.CalledProcessError as e:
-        print(f"Error occurred: {e}")
+        logging.error(f"Error occurred: {e}")
         exit(1)
 
 def is_installed(command):
@@ -43,7 +44,7 @@ def install_cosign():
         os.chmod(os.path.expanduser('~/.local/bin/cosign'), stat.S_IXUSR | stat.S_IRUSR | stat.S_IWUSR)
 
 def install_knative():
-    print("Extracting images from the manifest and verifying signatures...")
+    logging.info("Extracting images from the manifest and verifying signatures...")
     run_command(
         'curl -sSL https://github.com/knative/serving/releases/download/knative-v1.14.1/serving-core.yaml '
         '| grep "gcr.io/" | awk \'{print $2}\' | sort | uniq '
@@ -52,21 +53,21 @@ def install_knative():
         '--certificate-oidc-issuer=https://accounts.google.com'
     )
 
-    print("Installing Knative Serving component...")
+    logging.info("Installing Knative Serving component...")
     run_command('kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.14.1/serving-crds.yaml')
     run_command('kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.14.1/serving-core.yaml')
 
-    print("Installing Knative Kourier networking layer...")
+    logging.info("Installing Knative Kourier networking layer...")
     run_command('kubectl apply -f https://github.com/knative/net-kourier/releases/download/knative-v1.14.0/kourier.yaml')
     run_command('kubectl patch configmap/config-network '
                 '--namespace knative-serving '
                 '--type merge '
                 '--patch \'{"data":{"ingress-class":"kourier.ingress.networking.knative.dev"}}\'')
 
-    print("Fetching External IP address or CNAME...")
+    logging.info("Fetching External IP address or CNAME...")
     run_command('kubectl --namespace kourier-system get service kourier')
 
-    print("Verifying Knative Serving installation...")
+    logging.info("Verifying Knative Serving installation...")
     run_command('kubectl get pods -n knative-serving')
 
 def main():
