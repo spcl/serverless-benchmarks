@@ -230,7 +230,8 @@ class GCPTestSequencePython(
             cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
-        deployment_client.initialize()
+        with GCPTestSequencePython.lock:
+            deployment_client.initialize(resource_prefix="regression")
         return deployment_client
 
 
@@ -248,7 +249,8 @@ class GCPTestSequenceNodejs(
             cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
-        deployment_client.initialize()
+        with GCPTestSequenceNodejs.lock:
+            deployment_client.initialize(resource_prefix="regression")
         return deployment_client
 
 
