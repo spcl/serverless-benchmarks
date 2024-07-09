@@ -4,6 +4,7 @@ import re
 import os
 import shutil
 import time
+import uuid
 from typing import cast, Dict, List, Optional, Set, Tuple, Type  # noqa
 
 import docker
@@ -215,6 +216,7 @@ class Azure(System):
         self,
         function: Function,
         code_package: Benchmark,
+        container_dest: str,
         repeat_on_failure: bool = False,
     ) -> str:
         success = False
@@ -223,7 +225,7 @@ class Azure(System):
         while not success:
             try:
                 ret = self.cli_instance.execute(
-                    "bash -c 'cd /mnt/function "
+                    f"bash -c 'cd {container_dest} "
                     "&& func azure functionapp publish {} --{} --no-build'".format(
                         function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
@@ -286,8 +288,8 @@ class Azure(System):
     def update_function(self, function: Function, code_package: Benchmark):
 
         # Mount code package in Docker instance
-        self._mount_function_code(code_package)
-        url = self.publish_function(function, code_package, True)
+        container_dest = self._mount_function_code(code_package)
+        url = self.publish_function(function, code_package, container_dest, True)
 
         trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
         trigger.logging_handlers = self.logging_handlers
@@ -299,8 +301,10 @@ class Azure(System):
             "Updating function's memory and timeout configuration is not supported."
         )
 
-    def _mount_function_code(self, code_package: Benchmark):
-        self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
+    def _mount_function_code(self, code_package: Benchmark) -> str:
+        dest = os.path.join("/mnt", "function", uuid.uuid4().hex)
+        self.cli_instance.upload_package(code_package.code_location, dest)
+        return dest
 
     def default_function_name(self, code_package: Benchmark) -> str:
         """
