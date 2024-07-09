@@ -126,6 +126,7 @@ class AWSTestSequencePython(
                 self.client.output_dir, f"regression_{deployment_name}_{benchmark_name}.log"
             ),
         )
+
         with AWSTestSequencePython.lock:
             deployment_client.initialize(resource_prefix="regression")
         return deployment_client
@@ -322,7 +323,7 @@ def filter_out_benchmarks(
     benchmark: str, deployment_name: str, language: str, language_version: str
 ) -> bool:
 
-    if deployment_name == "aws" and language == "python" and language_version == "3.9":
+    if deployment_name == "aws" and language == "python" and language_version in ["3.9", "3.10", "3.11"]:
         return "411.image-recognition" not in benchmark
 
     return True
