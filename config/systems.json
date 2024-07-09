@@ -55,13 +55,16 @@
     "languages": {
       "python": {
         "base_images": {
+          "3.11": "amazon/aws-lambda-python:3.11",
           "3.10": "amazon/aws-lambda-python:3.10",
           "3.9": "amazon/aws-lambda-python:3.9",
           "3.8": "amazon/aws-lambda-python:3.8"
         },
         "versions": [
           "3.8",
-          "3.9"
+          "3.9",
+          "3.10",
+          "3.12"
         ],
         "images": [
           "build"
@@ -80,7 +83,8 @@
           "16": "amazon/aws-lambda-nodejs:16"
         },
         "versions": [
-          "14", "16"
+          "14",
+          "16"
         ],
         "images": [
           "build"
