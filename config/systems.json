@@ -146,6 +146,7 @@
     "languages": {
       "python": {
         "base_images": {
+          "3.8": "ubuntu:22.04",
           "3.9": "ubuntu:22.04",
           "3.10": "ubuntu:22.04",
           "3.11": "ubuntu:22.04",
@@ -167,12 +168,12 @@
       },
       "nodejs": {
         "base_images": {
-          "10": "gcr.io/google-appengine/nodejs",
-          "12": "gcr.io/google-appengine/nodejs",
-          "14": "gcr.io/google-appengine/nodejs",
-          "16": "gcr.io/google-appengine/nodejs",
-          "18": "gcr.io/google-appengine/nodejs",
-          "20": "gcr.io/google-appengine/nodejs"
+          "10": "ubuntu:18.04",
+          "12": "ubuntu:18.04",
+          "14": "ubuntu:18.04",
+          "16": "ubuntu:18.04",
+          "18": "ubuntu:22.04",
+          "20": "ubuntu:22.04"
         },
         "images": [
           "build"
