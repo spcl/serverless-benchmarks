@@ -79,11 +79,9 @@
       },
       "nodejs": {
         "base_images": {
-          "14": "amazon/aws-lambda-nodejs:14",
           "16": "amazon/aws-lambda-nodejs:16"
         },
         "versions": [
-          "14",
           "16"
         ],
         "images": [
