@@ -88,7 +88,8 @@ Requirements:
 - `libcurl` and its headers must be available on your system to install `pycurl`
 - Standard Linux tools and `zip` installed
 
-... and that should be all.
+... and that should be all. We currently support Linux and other POSIX systems with Bash available.
+On Windows, we recommend using WSL.
 
 To install the benchmarks with a support for all platforms, use:
 
@@ -112,19 +113,21 @@ local environment.
 
 To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
 
-> **Warning**
+> [!WARNING]
 > We use libcurl to make HTTP requests. `pycurl` will attempt to build its bindings and needs headers for that - make sure you have all development packages installed. If you see an error like this one: `src/pycurl.h:206:13: fatal error: gnutls/gnutls.h: No such file or directory`, it means that you are missing some of the dependencies.
 
-> **Warning**
+> [!WARNING]
 > **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise, you might see many "Connection refused" and "Permission denied" errors when using SeBS.
 
 ## Authors
 
 * [Marcin Copik (ETH Zurich)](https://github.com/mcopik/) - main author.
 * [Michał Podstawski (Future Processing SA)](https://github.com/micpod/) - contributed graph and DNA benchmarks, and worked on Google Cloud support.
-* [Nico Graf (ETH Zurich)](https://github.com/ncograf/) - contributed implementation of regression tests, bugfixes, and helped with testing and documentation.
+* [Laurin Brandner (ETH Zurich)](https://github.com/lbrndnr) - contributed serverless workflows.
+* [Nico Graf (ETH Zurich)](https://github.com/ncograf/) - contributed to the implementation of regression tests and bugfixes and helped with testing and documentation.
 * [Kacper Janda](https://github.com/Kacpro), [Mateusz Knapik](https://github.com/maknapik), [JmmCz](https://github.com/JmmCz), AGH University of Science and Technology - contributed together Google Cloud support.
 * [Grzegorz Kwaśniewski (ETH Zurich)](https://github.com/gkwasniewski) - worked on the modeling experiments.
 * [Paweł Żuk (University of Warsaw)](https://github.com/pmzuk) - contributed OpenWhisk support.
 * [Sascha Kehrli (ETH Zurich)](https://github.com/skehrli) - contributed local measurement of Docker containers.
-
+* [Kaleab](https://github.com/Kaleab-git) - contributed to SeBS local backend to make it portable between platforms and more robust on non-Linux systems.
+* [lawrence910426](https://github.com/lawrence910426) - contributed color-coded output to SeBS CLI.

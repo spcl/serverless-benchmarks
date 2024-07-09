@@ -9,7 +9,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
-from sebs.storage.minio import Minio
+from sebs.local.storage import Minio
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
@@ -73,6 +73,8 @@ class Local(System):
         # disable external measurements
         self._measure_interval = -1
 
+        self.initialize_resources(select_prefix="local")
+
     """
         Create wrapper object for minio storage and fill buckets.
         Starts minio as a Docker instance, using always fresh buckets.
@@ -91,7 +93,7 @@ class Local(System):
                     "The local deployment is missing the configuration of pre-allocated storage!"
                 )
             self.storage = Minio.deserialize(
-                self.config.resources.storage_config, self.cache_client
+                self.config.resources.storage_config, self.cache_client, self.config.resources
             )
             self.storage.logging_handlers = self.logging_handlers
         else:
