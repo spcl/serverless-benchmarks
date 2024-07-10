@@ -150,13 +150,11 @@ class AWS(System):
 
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
-        execute("zip -qu -r9 {}.zip * .".format(benchmark),
-                shell=True, cwd=directory)
+        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
         self.logging.info("Created {} archive".format(benchmark_archive))
 
-        bytes_size = os.path.getsize(
-            os.path.join(directory, benchmark_archive))
+        bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
@@ -189,8 +187,7 @@ class AWS(System):
         try:
             ret = self.client.get_function(FunctionName=func_name)
             self.logging.info(
-                "Function {} exists on AWS, retrieve configuration.".format(
-                    func_name)
+                "Function {} exists on AWS, retrieve configuration.".format(func_name)
             )
             # Here we assume a single Lambda role
             lambda_function = LambdaFunction(
@@ -206,8 +203,7 @@ class AWS(System):
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
-            self.logging.info(
-                "Creating function {} from {}".format(func_name, package))
+            self.logging.info("Creating function {} from {}".format(func_name, package))
 
             # AWS Lambda limit on zip deployment size
             # Limit to 50 MB
@@ -221,19 +217,16 @@ class AWS(System):
             else:
                 code_package_name = cast(str, os.path.basename(package))
 
-                code_bucket = storage_client.get_bucket(
-                    Resources.StorageBucketType.DEPLOYMENT)
+                code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
                 code_prefix = os.path.join(benchmark, code_package_name)
                 storage_client.upload(code_bucket, package, code_prefix)
 
-                self.logging.info(
-                    "Uploading function {} code to {}".format(func_name, code_bucket))
+                self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix}
             ret = self.client.create_function(
                 FunctionName=func_name,
                 Runtime="{}{}".format(
-                    language, self._map_language_runtime(
-                        language, language_runtime)
+                    language, self._map_language_runtime(language, language_runtime)
                 ),
                 Handler="handler.handler",
                 Role=self.config.resources.lambda_role(self.session),
@@ -301,8 +294,7 @@ class AWS(System):
         # AWS Lambda limit on zip deployment
         if code_size < 50 * 1024 * 1024:
             with open(package, "rb") as code_body:
-                self.client.update_function_code(
-                    FunctionName=name, ZipFile=code_body.read())
+                self.client.update_function_code(FunctionName=name, ZipFile=code_body.read())
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(package)
@@ -331,8 +323,7 @@ class AWS(System):
             MemorySize=function.config.memory,
         )
         self.wait_function_updated(function)
-        self.logging.info(
-            f"Updated configuration of {function.name} function. ")
+        self.logging.info(f"Updated configuration of {function.name} function. ")
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -401,12 +392,10 @@ class AWS(System):
                 return request_id
             output = requests[request_id]
         output.request_id = request_id
-        output.provider_times.execution = int(
-            float(aws_vals["Duration"]) * 1000)
+        output.provider_times.execution = int(float(aws_vals["Duration"]) * 1000)
         output.stats.memory_used = float(aws_vals["Max Memory Used"])
         if "Init Duration" in aws_vals:
-            output.provider_times.initialization = int(
-                float(aws_vals["Init Duration"]) * 1000)
+            output.provider_times.initialization = int(float(aws_vals["Init Duration"]) * 1000)
         output.billing.billed_time = int(aws_vals["Billed Duration"])
         output.billing.memory = int(aws_vals["Memory Size"])
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
@@ -440,14 +429,12 @@ class AWS(System):
                 time.sleep(5)
                 response = self.logs_client.get_query_results(queryId=query_id)
             if len(response["results"]) == 0:
-                self.logging.info(
-                    "AWS logs are not yet available, repeat after 15s...")
+                self.logging.info("AWS logs are not yet available, repeat after 15s...")
                 time.sleep(15)
                 response = None
             else:
                 break
-        self.logging.error(
-            f"Invocation error for AWS Lambda function {function_name}")
+        self.logging.error(f"Invocation error for AWS Lambda function {function_name}")
         for message in response["results"]:
             for value in message:
                 if value["field"] == "@message":
@@ -494,8 +481,7 @@ class AWS(System):
         for val in results:
             for result_part in val:
                 if result_part["field"] == "@message":
-                    request_id = AWS.parse_aws_report(
-                        result_part["value"], requests)
+                    request_id = AWS.parse_aws_report(result_part["value"], requests)
                     if request_id in requests:
                         results_processed += 1
                         requests_ids.remove(request_id)
@@ -509,11 +495,11 @@ class AWS(System):
 
         function = cast(LambdaFunction, func)
 
+        trigger: Trigger
         if trigger_type == Trigger.TriggerType.HTTP:
 
             api_name = "{}-http-api".format(function.name)
-            http_api = self.config.resources.http_api(
-                api_name, function, self.session)
+            http_api = self.config.resources.http_api(api_name, function, self.session)
             # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
             # but this is wrong - source arn must be {api-arn}/*/*
             self.get_lambda_client().add_permission(
@@ -536,13 +522,11 @@ class AWS(System):
         elif trigger_type == Trigger.TriggerType.QUEUE:
             trigger = QueueTrigger(func.name, self)
             trigger.logging_handlers = self.logging_handlers
-            self.logging.info(
-                f"Created Queue trigger for {func.name} function.")
+            self.logging.info(f"Created Queue trigger for {func.name} function.")
         elif trigger_type == Trigger.TriggerType.STORAGE:
             trigger = StorageTrigger(func.name, self)
             trigger.logging_handlers = self.logging_handlers
-            self.logging.info(
-                f"Created Storage trigger for {func.name} function.")
+            self.logging.info(f"Created Storage trigger for {func.name} function.")
         else:
             raise RuntimeError("Not supported!")
 
@@ -556,8 +540,7 @@ class AWS(System):
             FunctionName=func.name,
             Timeout=func.config.timeout,
             MemorySize=func.config.memory,
-            Environment={"Variables": {
-                "ForceColdStart": str(self.cold_start_counter)}},
+            Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
         )
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):

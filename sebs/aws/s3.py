@@ -54,8 +54,7 @@ class S3(PersistentStorage):
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
-                    "Bucket {} for {} already exists, skipping.".format(
-                        bucket_name, name)
+                    "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
                 )
                 return bucket_name
 
@@ -71,8 +70,7 @@ class S3(PersistentStorage):
             if self.region != "us-east-1":
                 self.client.create_bucket(
                     Bucket=bucket_name,
-                    CreateBucketConfiguration={
-                        "LocationConstraint": self.region},
+                    CreateBucketConfiguration={"LocationConstraint": self.region},
                 )
             else:
                 # This is incredible x2 - boto3 will not throw exception if you recreate
@@ -88,8 +86,7 @@ class S3(PersistentStorage):
 
             self.logging.info("Created bucket {}".format(bucket_name))
         except self.client.exceptions.BucketAlreadyExists as e:
-            self.logging.error(
-                f"The bucket {bucket_name} exists already in region {self.region}!")
+            self.logging.error(f"The bucket {bucket_name} exists already in region {self.region}!")
             raise e
         except self.client.exceptions.ClientError as e:
             self.logging.error(
@@ -113,8 +110,7 @@ class S3(PersistentStorage):
             for f in self.input_prefixes_files[path_idx]:
                 f_name = f
                 if key == f_name:
-                    self.logging.info(
-                        "Skipping upload of {} to {}".format(filepath, bucket_name))
+                    self.logging.info("Skipping upload of {} to {}".format(filepath, bucket_name))
                     return
 
         self.upload(bucket_name, filepath, key)
@@ -124,10 +120,8 @@ class S3(PersistentStorage):
         self.client.upload_file(Filename=filepath, Bucket=bucket_name, Key=key)
 
     def download(self, bucket_name: str, key: str, filepath: str):
-        self.logging.info("Download {}:{} to {}".format(
-            bucket_name, key, filepath))
-        self.client.download_file(
-            Bucket=bucket_name, Key=key, Filename=filepath)
+        self.logging.info("Download {}:{} to {}".format(bucket_name, key, filepath))
+        self.client.download_file(Bucket=bucket_name, Key=key, Filename=filepath)
 
     def exists_bucket(self, bucket_name: str) -> bool:
         try:
@@ -137,8 +131,7 @@ class S3(PersistentStorage):
             return False
 
     def list_bucket(self, bucket_name: str, prefix: str = ""):
-        objects_list = self.client.list_objects_v2(
-            Bucket=bucket_name, Prefix=prefix)
+        objects_list = self.client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
         objects: List[str]
         if "Contents" in objects_list:
             objects = [obj["Key"] for obj in objects_list["Contents"]]
@@ -156,10 +149,8 @@ class S3(PersistentStorage):
     def clean_bucket(self, bucket: str):
         objects = self.client.list_objects_v2(Bucket=bucket)
         if "Contents" in objects:
-            objects = [{"Key": obj["Key"]}
-                       for obj in objects["Contents"]]  # type: ignore
-            self.client.delete_objects(Bucket=bucket, Delete={
-                                       "Objects": objects})  # type: ignore
+            objects = [{"Key": obj["Key"]} for obj in objects["Contents"]]  # type: ignore
+            self.client.delete_objects(Bucket=bucket, Delete={"Objects": objects})  # type: ignore
 
     def remove_bucket(self, bucket: str):
         self.client.delete_bucket(Bucket=bucket)

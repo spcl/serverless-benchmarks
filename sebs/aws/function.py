@@ -55,18 +55,17 @@ class LambdaFunction(Function):
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
                 Trigger,
-                {"Library": LibraryTrigger,
-                 "HTTP": HTTPTrigger,
-                 "Queue": QueueTrigger,
-                 "Storage": StorageTrigger
-                 }.get(trigger["type"]),
+                {
+                    "Library": LibraryTrigger,
+                    "HTTP": HTTPTrigger,
+                    "Queue": QueueTrigger,
+                    "Storage": StorageTrigger,
+                }.get(trigger["type"]),
             )
-            assert trigger_type, "Unknown trigger type {}".format(
-                trigger["type"])
+            assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret
 
     def code_bucket(self, benchmark: str, storage_client: S3):
-        self.bucket = storage_client.get_bucket(
-            Resources.StorageBucketType.DEPLOYMENT)
+        self.bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
         return self.bucket

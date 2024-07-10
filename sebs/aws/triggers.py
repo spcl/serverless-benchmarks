@@ -41,22 +41,19 @@ class LibraryTrigger(Trigger):
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
         begin = datetime.datetime.now()
-        ret = client.invoke(FunctionName=self.name,
-                            Payload=serialized_payload, LogType="Tail")
+        ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
         end = datetime.datetime.now()
 
         aws_result = ExecutionResult.from_times(begin, end)
         aws_result.request_id = ret["ResponseMetadata"]["RequestId"]
         if ret["StatusCode"] != 200:
             self.logging.error("Invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(
-                serialized_payload.decode("utf-8")))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             aws_result.stats.failure = True
             return aws_result
         if "FunctionError" in ret:
             self.logging.error("Invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(
-                serialized_payload.decode("utf-8")))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             aws_result.stats.failure = True
             return aws_result
         self.logging.debug(f"Invoke of function {self.name} was successful")
@@ -70,8 +67,7 @@ class LibraryTrigger(Trigger):
         if isinstance(function_output["body"], dict):
             aws_result.parse_benchmark_output(function_output["body"])
         else:
-            aws_result.parse_benchmark_output(
-                json.loads(function_output["body"]))
+            aws_result.parse_benchmark_output(json.loads(function_output["body"]))
         return aws_result
 
     def async_invoke(self, payload: dict):
@@ -86,10 +82,8 @@ class LibraryTrigger(Trigger):
             LogType="Tail",
         )
         if ret["StatusCode"] != 202:
-            self.logging.error(
-                "Async invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(
-                serialized_payload.decode("utf-8")))
+            self.logging.error("Async invocation of {} failed!".format(self.name))
+            self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             raise RuntimeError()
         return ret
 
@@ -135,7 +129,13 @@ class HTTPTrigger(Trigger):
 
 
 class QueueTrigger(Trigger):
-    def __init__(self, fname: str, deployment_client: Optional[AWS] = None, queue_arn: Optional[str] = None, queue_url: Optional[str] = None):
+    def __init__(
+        self,
+        fname: str,
+        deployment_client: Optional[AWS] = None,
+        queue_arn: Optional[str] = None,
+        queue_url: Optional[str] = None,
+    ):
         super().__init__()
         self.name = fname
 
@@ -143,40 +143,40 @@ class QueueTrigger(Trigger):
         self._queue_arn = None
         self._queue_url = None
 
-        if (deployment_client):
+        if deployment_client:
             self._deployment_client = deployment_client
-        if (queue_arn):
+        if queue_arn:
             self._queue_arn = queue_arn
-        if (queue_url):
+        if queue_url:
             self._queue_url = queue_url
 
         # When creating the trigger for the first time, also create and store
         # queue information.
-        if (not self.queue_arn and not self.queue_url):
+        if not self.queue_arn and not self.queue_url:
             # Init clients
             lambda_client = self.deployment_client.get_lambda_client()
-            sqs_client = boto3.client(
-                'sqs', region_name=self.deployment_client.config.region)
-                
+            sqs_client = boto3.client("sqs", region_name=self.deployment_client.config.region)
+
             # Create queue
             self.logging.debug(f"Creating queue {self.name}")
 
             self._queue_url = sqs_client.create_queue(QueueName=self.name)["QueueUrl"]
             self._queue_arn = sqs_client.get_queue_attributes(
-                QueueUrl=self.queue_url,
-                AttributeNames=["QueueArn"]
+                QueueUrl=self.queue_url, AttributeNames=["QueueArn"]
             )["Attributes"]["QueueArn"]
 
             self.logging.debug("Created queue")
 
             # Add queue trigger
-            if (not len(lambda_client.list_event_source_mappings(EventSourceArn=self.queue_arn,
-                                                                FunctionName=self.name)
-                        ["EventSourceMappings"])):
+            if not len(
+                lambda_client.list_event_source_mappings(
+                    EventSourceArn=self.queue_arn, FunctionName=self.name
+                )["EventSourceMappings"]
+            ):
                 lambda_client.create_event_source_mapping(
                     EventSourceArn=self.queue_arn,
                     FunctionName=self.name,
-                    MaximumBatchingWindowInSeconds=1
+                    MaximumBatchingWindowInSeconds=1,
                 )
 
     @staticmethod
@@ -210,13 +210,11 @@ class QueueTrigger(Trigger):
 
         self.logging.debug(f"Invoke function {self.name}")
 
-        sqs_client = boto3.client(
-            'sqs', region_name=self.deployment_client.config.region)
+        sqs_client = boto3.client("sqs", region_name=self.deployment_client.config.region)
 
         # Publish payload to queue
         serialized_payload = json.dumps(payload)
-        sqs_client.send_message(
-            QueueUrl=self.queue_url, MessageBody=serialized_payload)
+        sqs_client.send_message(QueueUrl=self.queue_url, MessageBody=serialized_payload)
         self.logging.info(f"Sent message to queue {self.name}")
 
         # TODO(oana): gather metrics
@@ -232,7 +230,7 @@ class QueueTrigger(Trigger):
             "type": "Queue",
             "name": self.name,
             "queue_arn": self.queue_arn,
-            "queue_url": self.queue_url
+            "queue_url": self.queue_url,
         }
 
     @staticmethod
@@ -241,42 +239,43 @@ class QueueTrigger(Trigger):
 
 
 class StorageTrigger(Trigger):
-    def __init__(self, fname: str, deployment_client: Optional[AWS] = None, bucket_name: Optional[str] = None):
+    def __init__(
+        self, fname: str, deployment_client: Optional[AWS] = None, bucket_name: Optional[str] = None
+    ):
         super().__init__()
         self.name = fname
 
         self._deployment_client = None
         self._bucket_name = None
 
-        if (deployment_client):
+        if deployment_client:
             self._deployment_client = deployment_client
-        if (bucket_name):
+        if bucket_name:
             self._bucket_name = bucket_name
 
         # When creating the trigger for the first time, also create and store
         # storage bucket information.
-        if (not self.bucket_name):
+        if not self.bucket_name:
             # Init clients
-            s3 = boto3.resource('s3')
+            s3 = boto3.resource("s3")
             lambda_client = self.deployment_client.get_lambda_client()
 
             # AWS disallows underscores in bucket names
-            self._bucket_name = self.name.replace('_', '-')
-            function_arn = lambda_client.get_function(FunctionName=self.name)[
-                "Configuration"]["FunctionArn"]
+            self._bucket_name = self.name.replace("_", "-")
+            function_arn = lambda_client.get_function(FunctionName=self.name)["Configuration"][
+                "FunctionArn"
+            ]
 
             # Create bucket
             self.logging.info(f"Creating bucket {self.bucket_name}")
 
             region = self.deployment_client.config.region
-            if (region == "us-east-1"):
+            if region == "us-east-1":
                 s3.create_bucket(Bucket=self.bucket_name)
             else:
                 s3.create_bucket(
                     Bucket=self.bucket_name,
-                    CreateBucketConfiguration={
-                        "LocationConstraint": region
-                    }
+                    CreateBucketConfiguration={"LocationConstraint": region},
                 )
 
             self.logging.info("Created bucket")
@@ -292,15 +291,15 @@ class StorageTrigger(Trigger):
             # Add bucket trigger
             bucket_notification = s3.BucketNotification(self.bucket_name)
             bucket_notification.put(
-                NotificationConfiguration={'LambdaFunctionConfigurations': [
-                    {
-                        'LambdaFunctionArn': function_arn,
-                        'Events': [
-                            's3:ObjectCreated:*'
-                        ],
-
-                    },
-                ]})
+                NotificationConfiguration={
+                    "LambdaFunctionConfigurations": [
+                        {
+                            "LambdaFunctionArn": function_arn,
+                            "Events": ["s3:ObjectCreated:*"],
+                        },
+                    ]
+                }
+            )
 
     @staticmethod
     def typename() -> str:
@@ -331,8 +330,8 @@ class StorageTrigger(Trigger):
         serialized_payload = json.dumps(payload)
 
         # Put object
-        s3 = boto3.resource('s3')
-        s3.Object(self.bucket_name, 'payload.json').put(Body=serialized_payload)
+        s3 = boto3.resource("s3")
+        s3.Object(self.bucket_name, "payload.json").put(Body=serialized_payload)
         self.logging.info(f"Uploaded payload to bucket {self.bucket_name}")
 
         # TODO(oana): gather metrics

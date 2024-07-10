@@ -85,8 +85,7 @@ class AWSCredentials(Credentials):
         return ret
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.account_id, keys=[
-                            "aws", "credentials", "account_id"])
+        cache.update_config(val=self.account_id, keys=["aws", "credentials", "account_id"])
 
     def serialize(self) -> dict:
         out = {"account_id": self._account_id}
@@ -146,8 +145,7 @@ class AWSResources(Resources):
             try:
                 out = iam_client.get_role(RoleName=role_name)
                 self._lambda_role = out["Role"]["Arn"]
-                self.logging.info(
-                    f"AWS: Selected {self._lambda_role} IAM role")
+                self.logging.info(f"AWS: Selected {self._lambda_role} IAM role")
             except iam_client.exceptions.NoSuchEntityException:
                 out = iam_client.create_role(
                     RoleName=role_name,
@@ -161,8 +159,7 @@ class AWSResources(Resources):
                 time.sleep(10)
             # Attach basic AWS Lambda and S3 policies.
             for policy in attached_policies:
-                iam_client.attach_role_policy(
-                    RoleName=role_name, PolicyArn=policy)
+                iam_client.attach_role_policy(RoleName=role_name, PolicyArn=policy)
         return self._lambda_role
 
     def http_api(
@@ -224,11 +221,9 @@ class AWSResources(Resources):
 
     def update_cache(self, cache: Cache):
         super().update_cache(cache)
-        cache.update_config(val=self._lambda_role, keys=[
-                            "aws", "resources", "lambda-role"])
+        cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
         for name, api in self._http_apis.items():
-            cache.update_config(val=api.serialize(), keys=[
-                                "aws", "resources", "http-apis", name])
+            cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
@@ -245,8 +240,7 @@ class AWSResources(Resources):
             if "resources" in config:
                 AWSResources.initialize(ret, config["resources"])
                 ret.logging_handlers = handlers
-                ret.logging.info(
-                    "No cached resources for AWS found, using user configuration.")
+                ret.logging.info("No cached resources for AWS found, using user configuration.")
             else:
                 AWSResources.initialize(ret, {})
                 ret.logging_handlers = handlers
@@ -284,10 +278,8 @@ class AWSConfig(Config):
 
         cached_config = cache.get_config("aws")
         # FIXME: use future annotations (see sebs/faas/system)
-        credentials = cast(
-            AWSCredentials, AWSCredentials.deserialize(config, cache, handlers))
-        resources = cast(AWSResources, AWSResources.deserialize(
-            config, cache, handlers))
+        credentials = cast(AWSCredentials, AWSCredentials.deserialize(config, cache, handlers))
+        resources = cast(AWSResources, AWSResources.deserialize(config, cache, handlers))
         config_obj = AWSConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         # Load cached values
