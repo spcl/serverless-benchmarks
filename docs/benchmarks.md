@@ -26,7 +26,7 @@ Below, we discuss the most important implementation details of each benchmark. F
 > Benchmark `411.image-recognition` does not work on AWS with Python 3.9 due to excessive code size. While it is possible to ship the benchmark by zipping `torchvision` and `numpy` (see `benchmarks/400.inference/411.image-recognition/python/package.sh`), this significantly affects cold startup. On the lowest supported memory configuration of 512 MB, the cold startup can reach 30 seconds, making HTTP trigger unusable due to 30 second timeout of API gateway. In future, we might support Docker-based deployment on AWS that are not affected by code size limitations.
 
 > [!WARNING] 
-> Benchmark `411.image-recognition` does not work on GCP with Python 3.8 and 3.9 due to excessive code size. To the best of our knowledge, there is no way of circumventing that limit, as Google Cloud offers neither layers nor custom Docker images.
+> Benchmark `411.image-recognition` does not work on GCP with Python 3.8+ due to excessive code size. To the best of our knowledge, there is no way of circumventing that limit, as Google Cloud offers neither layers nor custom Docker images.
 
 ## Webapps
 

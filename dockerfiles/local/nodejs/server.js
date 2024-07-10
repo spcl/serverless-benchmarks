@@ -9,6 +9,12 @@ const { v4: uuidv4 } = require('uuid');
 var app = express();
 app.use(express.json());
 
+app.post('/alive', function (req, res) {
+  res.send(JSON.stringify({
+    status: "ok"
+  }));
+});
+
 app.post('/', function (req, res) {
 
   let begin = Date.now();

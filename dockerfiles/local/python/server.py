@@ -8,8 +8,14 @@ from bottle import route, run, template, request
 
 CODE_LOCATION='/function'
 
+@route('/alive', method='GET')
+def alive():
+    return {
+        "result:" "ok"
+    }
+
 @route('/', method='POST')
-def flush_log():
+def process_request():
     begin = datetime.datetime.now()
     from function import function
     end = datetime.datetime.now()
