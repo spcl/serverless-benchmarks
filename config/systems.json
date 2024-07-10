@@ -17,8 +17,11 @@
     "languages": {
       "python": {
         "base_images": {
+          "3.7": "python:3.7-slim",
           "3.8": "python:3.8-slim",
-          "3.9": "python:3.9-slim"
+          "3.9": "python:3.9-slim",
+          "3.10": "python:3.10-slim",
+          "3.11": "python:3.11-slim"
         },
         "images": [
           "run",
@@ -34,6 +37,8 @@
       },
       "nodejs": {
         "base_images": {
+          "14": "node:14-slim",
+          "16": "node:16-slim",
           "18": "node:18-slim",
           "20": "node:20-slim"
         },
