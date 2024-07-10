@@ -59,9 +59,9 @@ class QueueTrigger(Trigger):
         super().__init__()
         self.name = fname
         self._storage_account = storage_account
-        self._queue_name = None        
+        self._queue_name = None
 
-        if (queue_name):
+        if queue_name:
             self._queue_name = queue_name
         else:
             # Having a queue name field is currently a bit contrived - it is mostly a
@@ -69,12 +69,12 @@ class QueueTrigger(Trigger):
             # future, we may adopt a different convention for naming trigger resources,
             # at which point this will become truly useful.
             self._queue_name = self.name
-    
+
             # Init client
             default_credential = DefaultAzureCredential()
-            queue_client = QueueClient(self.account_url,
-                                    queue_name=self.queue_name,
-                                    credential=default_credential)
+            queue_client = QueueClient(
+                self.account_url, queue_name=self.queue_name, credential=default_credential
+            )
 
             # Create queue
             self.logging.info(f"Creating queue {self.queue_name}")
@@ -97,7 +97,7 @@ class QueueTrigger(Trigger):
     def storage_account(self) -> str:
         assert self._storage_account
         return self._storage_account
-    
+
     @property
     def account_url(self) -> str:
         return f"https://{self.storage_account}.queue.core.windows.net"
@@ -113,12 +113,12 @@ class QueueTrigger(Trigger):
 
         # Prepare queue client
         default_credential = DefaultAzureCredential()
-        queue_client = QueueClient(self.account_url,
-                                   queue_name=self.queue_name,
-                                   credential=default_credential)
+        queue_client = QueueClient(
+            self.account_url, queue_name=self.queue_name, credential=default_credential
+        )
 
         # Publish payload to queue
-        serialized_payload = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
+        serialized_payload = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
         queue_client.send_message(serialized_payload)
         self.logging.info(f"Sent message to queue {self.queue_name}")
 
@@ -131,7 +131,12 @@ class QueueTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "Queue", "name": self.name, "storage_account": self.storage_account, "queue_name": self.queue_name}
+        return {
+            "type": "Queue",
+            "name": self.name,
+            "storage_account": self.storage_account,
+            "queue_name": self.queue_name,
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
@@ -144,7 +149,7 @@ class StorageTrigger(Trigger):
         self.name = fname
         self._storage_account = storage_account
 
-        if (container_name):
+        if container_name:
             self._container_name = container_name
         else:
             # Having a container name field is currently a bit contrived - it is mostly
@@ -193,7 +198,7 @@ class StorageTrigger(Trigger):
 
         # Prepare blob
         file_name = "payload.json"
-        with open(file_name, 'w') as fp:
+        with open(file_name, "w") as fp:
             json.dump(payload, fp)
 
         # Init client
@@ -201,8 +206,9 @@ class StorageTrigger(Trigger):
         blob_service_client = BlobServiceClient(self.account_url, credential=default_credential)
 
         # Upload blob
-        blob_client = blob_service_client.get_blob_client(container=self.container_name,
-                                                          blob=file_name)
+        blob_client = blob_service_client.get_blob_client(
+            container=self.container_name, blob=file_name
+        )
         with open(file=file_name, mode="rb") as payload:
             blob_client.upload_blob(payload, overwrite=True)
         self.logging.info(f"Uploaded payload to container {self.container_name}")
@@ -216,7 +222,12 @@ class StorageTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "Storage", "name": self.name, "storage_account": self.storage_account, "container_name": self.container_name}
+        return {
+            "type": "Storage",
+            "name": self.name,
+            "storage_account": self.storage_account,
+            "container_name": self.container_name,
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:

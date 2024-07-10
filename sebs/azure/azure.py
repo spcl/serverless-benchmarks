@@ -157,10 +157,11 @@ class Azure(System):
         :param exec_files: the files which define and implement the function to be executed
         :return: JSON dictionary containing the function configuration
     """
+
     def create_function_json(self, benchmark, exec_files) -> Dict:
         trigger = benchmark.split("-")[-1]
 
-        if (trigger == "queue"):
+        if trigger == "queue":
             return {
                 "scriptFile": exec_files,
                 "entryPoint": "handler_queue",
@@ -170,11 +171,11 @@ class Azure(System):
                         "type": "queueTrigger",
                         "direction": "in",
                         "queueName": benchmark,
-                        "connection": "AzureWebJobsStorage"
+                        "connection": "AzureWebJobsStorage",
                     }
-                ]
+                ],
             }
-        elif (trigger == "storage"):
+        elif trigger == "storage":
             return {
                 "scriptFile": exec_files,
                 "entryPoint": "handler_storage",
@@ -184,9 +185,9 @@ class Azure(System):
                         "type": "blobTrigger",
                         "direction": "in",
                         "path": benchmark,
-                        "connection": "AzureWebJobsStorage"
+                        "connection": "AzureWebJobsStorage",
                     }
-                ]
+                ],
             }
         return {  # HTTP
             "scriptFile": exec_files,
@@ -202,7 +203,7 @@ class Azure(System):
                 {"type": "http", "direction": "out", "name": "$return"},
             ],
         }
-    
+
     # Directory structure
     # handler
     # - source files
@@ -244,7 +245,7 @@ class Azure(System):
                 language_name,
                 language_version,
                 self.config.resources.resources_id,
-                trigger
+                trigger,
             )
             .replace(".", "-")
             .replace("_", "-")
@@ -254,7 +255,8 @@ class Azure(System):
         json_out = os.path.join(directory, "handler", "function.json")
         json.dump(
             self.create_function_json(func_name, EXEC_FILES[language_name]),
-            open(json_out, "w"), indent=2
+            open(json_out, "w"),
+            indent=2,
         )
 
         # generate host.json
@@ -350,8 +352,10 @@ class Azure(System):
         url = self.publish_function(function, code_package, True)
 
         # TODO(oana): this might need refactoring
-        if (function.name.endswith("http")):
-            trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
+        if function.name.endswith("http"):
+            trigger = HTTPTrigger(
+                url, self.config.resources.data_storage_account(self.cli_instance)
+            )
             trigger.logging_handlers = self.logging_handlers
             function.add_trigger(trigger)
 
@@ -580,21 +584,23 @@ class Azure(System):
         resource_group = self.config.resources.resource_group(self.cli_instance)
         storage_account = azure_function.function_storage.account_name
 
-        user_principal_name = self.cli_instance.execute('az ad user list')
+        user_principal_name = self.cli_instance.execute("az ad user list")
 
         storage_account_scope = self.cli_instance.execute(
-            ('az storage account show --resource-group {} --name {} --query id')
-            .format(resource_group, storage_account)
+            ("az storage account show --resource-group {} --name {} --query id").format(
+                resource_group, storage_account
+            )
         )
 
         self.cli_instance.execute(
-            ('az role assignment create --assignee "{}" \
+            (
+                'az role assignment create --assignee "{}" \
               --role "Storage {} Data Contributor" \
-              --scope {}')
-            .format(
+              --scope {}'
+            ).format(
                 json.loads(user_principal_name.decode("utf-8"))[0]["userPrincipalName"],
                 "Queue" if trigger_type == Trigger.TriggerType.QUEUE else "Blob",
-                storage_account_scope.decode("utf-8")
+                storage_account_scope.decode("utf-8"),
             )
         )
 
@@ -611,6 +617,7 @@ class Azure(System):
         function.add_trigger(trigger)
         self.cache_client.update_function(function)
         return trigger
+
 
 #
 #    def create_azure_function(self, fname, config):
