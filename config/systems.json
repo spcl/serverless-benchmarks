@@ -196,6 +196,7 @@
     "languages": {
       "python": {
         "base_images": {
+          "3.7": "openwhisk/action-python-v3.7",
           "3.9": "openwhisk/action-python-v3.9",
           "3.10": "openwhisk/action-python-v3.10",
           "3.11": "openwhisk/action-python-v3.11"
