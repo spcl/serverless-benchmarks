@@ -1,6 +1,7 @@
 testtools>=2.4.0
 docker>=4.2.0
 tzlocal>=2.1
+requests
 #linting
 flake8
 black==22.8.0

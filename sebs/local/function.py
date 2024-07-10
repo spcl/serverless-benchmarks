@@ -68,6 +68,10 @@ class LocalFunction(Function):
         self._measurement_pid = measurement_pid
 
     @property
+    def url(self) -> str:
+        return self._url
+
+    @property
     def memory_measurement_pid(self) -> Optional[int]:
         return self._measurement_pid
 
