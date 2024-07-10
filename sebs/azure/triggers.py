@@ -209,8 +209,8 @@ class StorageTrigger(Trigger):
         blob_client = blob_service_client.get_blob_client(
             container=self.container_name, blob=file_name
         )
-        with open(file=file_name, mode="rb") as payload:
-            blob_client.upload_blob(payload, overwrite=True)
+        with open(file=file_name, mode="rb") as payload_data:
+            blob_client.upload_blob(payload_data, overwrite=True)
         self.logging.info(f"Uploaded payload to container {self.container_name}")
 
         # TODO(oana): gather metrics
