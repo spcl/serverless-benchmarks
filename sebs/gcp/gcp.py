@@ -394,6 +394,7 @@ class GCP(System):
                 time.sleep(3)
         self.logging.info(f"Function {function.name} - deployed!")
 
+        trigger: Trigger
         if trigger_type == Trigger.TriggerType.HTTP:
             invoke_url = status_res["httpsTrigger"]["url"]
             trigger = HTTPTrigger(invoke_url)
