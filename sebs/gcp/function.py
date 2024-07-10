@@ -30,8 +30,7 @@ class GCPFunction(Function):
     @staticmethod
     def deserialize(cached_config: dict) -> "GCPFunction":
         from sebs.faas.function import Trigger
-        from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger, \
-                                        QueueTrigger, StorageTrigger
+        from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger, QueueTrigger, StorageTrigger
 
         cfg = FunctionConfig.deserialize(cached_config["config"])
         ret = GCPFunction(
@@ -44,10 +43,11 @@ class GCPFunction(Function):
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
                 Trigger,
-                {"Library": LibraryTrigger,
-                 "HTTP": HTTPTrigger,
-                 "Queue": QueueTrigger,
-                 "Storage": StorageTrigger
+                {
+                    "Library": LibraryTrigger,
+                    "HTTP": HTTPTrigger,
+                    "Queue": QueueTrigger,
+                    "Storage": StorageTrigger,
                 }.get(trigger["type"]),
             )
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])

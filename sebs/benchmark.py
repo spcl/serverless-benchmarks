@@ -505,7 +505,7 @@ class Benchmark(LoggingBase):
             self.language_version,
             self.benchmark,
             self.is_cached_valid,
-            self._experiment_config.trigger
+            self._experiment_config.trigger,
         )
         self.logging.info(
             (

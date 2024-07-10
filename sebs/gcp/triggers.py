@@ -161,13 +161,11 @@ class QueueTrigger(Trigger):
 
         # Publish payload to queue
         pub_sub.projects().topics().publish(
-                topic=self.queue_name,
-                body={
-                    "messages": [{
-                        "data": serialized_payload.decode("utf-8")
-                    }],
-                }
-            ).execute()
+            topic=self.queue_name,
+            body={
+                "messages": [{"data": serialized_payload.decode("utf-8")}],
+            },
+        ).execute()
 
         # TODO(oana): gather metrics
 
@@ -209,7 +207,7 @@ class StorageTrigger(Trigger):
         self.logging.info(f"Invoke function {self.name}")
 
         # Init clients
-        client = gcp_storage.Client();
+        client = gcp_storage.Client()
         bucket_instance = client.bucket(self.bucket_name)
 
         # Prepare payload
