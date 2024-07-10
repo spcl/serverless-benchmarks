@@ -146,6 +146,7 @@
     "languages": {
       "python": {
         "base_images": {
+          "3.7": "ubuntu:22.04",
           "3.8": "ubuntu:22.04",
           "3.9": "ubuntu:22.04",
           "3.10": "ubuntu:22.04",
