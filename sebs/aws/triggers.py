@@ -306,7 +306,7 @@ class StorageTrigger(Trigger):
         return "AWS.StorageTrigger"
 
     @property
-    def bucket_name(self) -> AWS:
+    def bucket_name(self) -> str:
         assert self._bucket_name
         return self._bucket_name
 
