@@ -325,6 +325,7 @@ def filter_out_benchmarks(
     benchmark: str, deployment_name: str, language: str, language_version: str
 ) -> bool:
 
+    # fmt: off
     if (deployment_name == "aws" and language == "python"
             and language_version in ["3.9", "3.10", "3.11"]):
         return "411.image-recognition" not in benchmark
@@ -332,6 +333,7 @@ def filter_out_benchmarks(
     if (deployment_name == "gcp" and language == "python"
             and language_version in ["3.8", "3.9", "3.10", "3.11", "3.12"]):
         return "411.image-recognition" not in benchmark
+    # fmt: on
 
     return True
 
