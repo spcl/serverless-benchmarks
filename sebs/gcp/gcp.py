@@ -420,6 +420,7 @@ class GCP(System):
         from sebs.faas.function import Trigger
         from sebs.gcp.triggers import LibraryTrigger, QueueTrigger, StorageTrigger
 
+        gcp_trigger: Trigger
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             gcp_trigger = cast(LibraryTrigger, trigger)
             gcp_trigger.logging_handlers = self.logging_handlers
@@ -431,7 +432,6 @@ class GCP(System):
         for trigger in function.triggers(Trigger.TriggerType.STORAGE):
             gcp_trigger = cast(StorageTrigger, trigger)
             gcp_trigger.logging_handlers = self.logging_handlers
-            gcp_trigger.deployment_client = self
 
     def update_function(self, function: Function, code_package: Benchmark):
 

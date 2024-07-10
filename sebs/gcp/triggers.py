@@ -131,7 +131,7 @@ class QueueTrigger(Trigger):
         return "GCP.QueueTrigger"
 
     @property
-    def queue_name(self) -> GCP:
+    def queue_name(self) -> str:
         assert self._queue_name
         return self._queue_name
 
@@ -198,7 +198,7 @@ class StorageTrigger(Trigger):
         return Trigger.TriggerType.STORAGE
 
     @property
-    def bucket_name(self) -> GCP:
+    def bucket_name(self) -> str:
         assert self._bucket_name
         return self._bucket_name
 

@@ -604,6 +604,7 @@ class Azure(System):
             )
         )
 
+        trigger: Trigger
         if trigger_type == Trigger.TriggerType.QUEUE:
             trigger = QueueTrigger(function.name, storage_account)
             self.logging.info(f"Created Queue trigger for {function.name} function")
