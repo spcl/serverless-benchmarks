@@ -1,9 +1,30 @@
 from sebs.cache import Cache
-from sebs.faas.config import Resources, Config
+from sebs.faas.config import Resources, Config, Credentials
 from sebs.utils import LoggingHandlers
 from sebs.storage.config import MinioConfig
 
 from typing import cast, Optional
+
+
+class KnativeCredentials(Credentials):
+    def __init__(self, config: dict):
+        super().__init__()
+        self._docker_username = config.get("docker_username")
+        self._docker_password = config.get("docker_password")
+
+    @staticmethod
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "KnativeCredentials":
+        cached_config = cache.get_config("knative")
+        if cached_config and "credentials" in cached_config:
+            return KnativeCredentials(cached_config["credentials"])
+        else:
+            return KnativeCredentials(config)
+
+    def serialize(self) -> dict:
+        return {
+            "docker_username": self._docker_username,
+            "docker_password": self._docker_password
+        }
 
 
 class KnativeResources(Resources):
@@ -59,7 +80,6 @@ class KnativeResources(Resources):
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
-
         cached_config = cache.get_config("knative")
         ret = KnativeResources()
         if cached_config:
@@ -67,14 +87,11 @@ class KnativeResources(Resources):
                 ret, cached_config["resources"]
             )
 
-        # Check for new config - overrides but check if it's different
         if "docker_registry" in config:
-
             KnativeResources.initialize(ret, config["docker_registry"])
             ret.logging.info("Using user-provided Docker registry for Knative.")
             ret.logging_handlers = handlers
 
-            # check if there has been an update
             if not (
                 cached_config
                 and "resources" in cached_config
@@ -83,7 +100,6 @@ class KnativeResources(Resources):
             ):
                 ret._registry_updated = True
 
-        # Load cached values
         elif (
             cached_config
             and "resources" in cached_config
@@ -98,14 +114,12 @@ class KnativeResources(Resources):
             ret.logging_handlers = handlers
             ret._registry_updated = True
 
-        # Check for new config
         if "storage" in config:
             ret._storage = MinioConfig.deserialize(config["storage"])
             ret.logging.info(
                 "Using user-provided configuration of storage for Knative."
             )
 
-            # check if there has been an update
             if not (
                 cached_config
                 and "resources" in cached_config
@@ -114,11 +128,10 @@ class KnativeResources(Resources):
             ):
                 ret.logging.info(
                     "User-provided configuration is different from cached storage, "
-                    "we will update existing Knative actions."
+                    "we will update existing Knative function."
                 )
                 ret._storage_updated = True
 
-        # Load cached values
         elif (
             cached_config
             and "resources" in cached_config
@@ -167,23 +180,32 @@ class KnativeConfig(Config):
     def __init__(self, config: dict, cache: Cache):
         super().__init__(name="knative")
         self._resources = KnativeResources()
+        self._credentials = KnativeCredentials(config)
         self.knative_exec = config["knativeExec"]
+        self.shutdownStorage = config["shutdownStorage"]
+        self.removeCluster = config["removeCluster"]
         self.cache = cache
 
     @property
     def resources(self) -> KnativeResources:
         return self._resources
 
+    @property
+    def credentials(self) -> KnativeCredentials:
+        return self._credentials
+
     @staticmethod
     def initialize(cfg: Config, dct: dict):
-        cfg._region = dct["region"]
+        pass
 
     def serialize(self) -> dict:
         return {
-            "name": self._name,
-            "region": self._region,
+            "name": "knative",
+            "shutdownStorage": self.shutdownStorage,
+            "removeCluster": self.removeCluster,
             "knativeExec": self.knative_exec,
             "resources": self._resources.serialize(),
+            "credentials": self._credentials.serialize()
         }
 
     @staticmethod
@@ -196,8 +218,10 @@ class KnativeConfig(Config):
         res = KnativeConfig(config, cache)
         res.logging_handlers = handlers
         res._resources = resources
+        res._credentials = KnativeCredentials.deserialize(config, cache, handlers)
         return res
 
     def update_cache(self, cache: Cache):
         cache.update_config(val=self.knative_exec, keys=["knative", "knativeExec"])
         self.resources.update_cache(cache)
+        cache.update_config(val=self.credentials.serialize(), keys=["knative", "credentials"])

@@ -70,6 +70,14 @@ def install_knative():
     logging.info("Verifying Knative Serving installation...")
     run_command('kubectl get pods -n knative-serving')
 
+def delete_cluster():
+    try:
+        logging.info("Deleting Minikube cluster...")
+        run_command("minikube delete")
+        logging.info("minikube cluster deleted...")
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        logging.error("Cannot delete cluster, reason: {}".format(e))
+
 def main():
     install_minikube()
     install_kubectl()

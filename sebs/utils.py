@@ -6,6 +6,7 @@ import subprocess
 import uuid
 import click
 import datetime
+import re
 
 from typing import List, Optional
 
@@ -86,6 +87,16 @@ def configure_logging():
         for logger in loggers:
             if name.startswith(logger):
                 logging.getLogger(name).setLevel(logging.ERROR)
+                
+
+def sanitize_benchmark_name_for_knative(name: str) -> str:
+    # Replace invalid characters with hyphens
+    sanitized_name = re.sub(r'[^a-z0-9\-]+', '-', name.lower())
+    # Ensure it starts with an alphabet
+    sanitized_name_starts_with_alphabet = re.sub(r'^[^a-z]+', '', sanitized_name)
+    # Ensure it ends with an alphanumeric character
+    sanitized_benchmark_name = re.sub(r'[^a-z0-9]+$', '', sanitized_name_starts_with_alphabet)
+    return sanitized_benchmark_name
 
 
 # def configure_logging(verbose: bool = False, output_dir: Optional[str] = None):

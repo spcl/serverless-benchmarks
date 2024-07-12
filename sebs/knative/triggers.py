@@ -7,11 +7,12 @@ from typing import List, Optional
 from sebs.faas.function import ExecutionResult, Trigger
 
 
-class KnativeLibraryTrigger(Trigger):
+class LibraryTrigger(Trigger):
     def __init__(self, fname: str, func_cmd: Optional[List[str]] = None):
         super().__init__()
         self.fname = fname
-        self._func_cmd = func_cmd or []
+        if func_cmd:
+            self._func_cmd = [*func_cmd, ""]
 
     @staticmethod
     def trigger_type() -> "Trigger.TriggerType":
@@ -29,8 +30,7 @@ class KnativeLibraryTrigger(Trigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         command = self.func_cmd + [
             "invoke",
-            "--target",
-            "remote",
+            self.fname,
             "--data",
             json.dumps(payload),
         ]
@@ -68,14 +68,14 @@ class KnativeLibraryTrigger(Trigger):
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return KnativeLibraryTrigger(obj["name"])
+        return LibraryTrigger(obj["name"])
 
     @staticmethod
     def typename() -> str:
         return "Knative.LibraryTrigger"
 
 
-class KnativeHTTPTrigger(Trigger):
+class HTTPTrigger(Trigger):
     def __init__(self, fname: str, url: str):
         super().__init__()
         self.fname = fname
@@ -103,4 +103,5 @@ class KnativeHTTPTrigger(Trigger):
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return KnativeHTTPTrigger(obj["fname"], obj["url"])
+        return HTTPTrigger(obj["fname"], obj["url"])
+

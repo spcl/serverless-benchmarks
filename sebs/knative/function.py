@@ -57,7 +57,7 @@ class KnativeFunction(Function):
     @staticmethod
     def deserialize(cached_config: dict) -> KnativeFunction:
         from sebs.faas.function import Trigger
-        from sebs.knative.triggers import KnativeLibraryTrigger, KnativeHTTPTrigger
+        from sebs.knative.triggers import LibraryTrigger, HTTPTrigger
 
         cfg = KnativeFunctionConfig.deserialize(cached_config["config"])
         ret = KnativeFunction(
@@ -69,7 +69,7 @@ class KnativeFunction(Function):
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
                 Trigger,
-                {"Library": KnativeLibraryTrigger, "HTTP": KnativeHTTPTrigger}.get(
+                {"Library": LibraryTrigger, "HTTP": HTTPTrigger}.get(
                     trigger["type"]
                 ),
             )

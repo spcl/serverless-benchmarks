@@ -4,14 +4,15 @@ from flask import jsonify
 from parliament import Context
 from function import handler
 
-
 def main(context: Context):
     logging.getLogger().setLevel(logging.INFO)
-
+    begin = datetime.datetime.now()  # Initialize begin outside the try block
+    
     try:
         # Extract JSON data from the request
         event = context.request.json
 
+        # Update the timestamp after extracting JSON data
         begin = datetime.datetime.now()
         # Pass the extracted JSON data to the handler function
         ret = handler(event)

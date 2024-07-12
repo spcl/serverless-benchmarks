@@ -104,7 +104,12 @@ class SeBS(LoggingBase):
             from sebs.openwhisk import OpenWhisk
 
             implementations["openwhisk"] = OpenWhisk
-
+            
+        if has_platform("knative"):
+            from sebs.knative import Knative
+            
+            implementations["knative"] = Knative
+        
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
