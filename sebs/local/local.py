@@ -1,5 +1,7 @@
 import os
+import requests
 import shutil
+import time
 from typing import cast, Dict, List, Optional, Type, Tuple  # noqa
 import subprocess
 
@@ -221,6 +223,24 @@ class Local(System):
             function_cfg,
             pid,
         )
+
+        # Wait until server starts
+        max_attempts = 10
+        attempts = 0
+        while attempts < max_attempts:
+            try:
+                requests.get(f"http://{func.url}/alive")
+                break
+            except requests.exceptions.ConnectionError:
+                time.sleep(0.25)
+                attempts += 1
+
+        if attempts == max_attempts:
+            raise RuntimeError(
+                f"Couldn't start {func_name} function at container "
+                f"{container.id} , running on {func._url}"
+            )
+
         self.logging.info(
             f"Started {func_name} function at container {container.id} , running on {func._url}"
         )

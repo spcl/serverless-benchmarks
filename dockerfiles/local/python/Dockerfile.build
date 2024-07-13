@@ -4,7 +4,7 @@ ARG VERSION
 ENV PYTHON_VERSION=${VERSION}
 
 RUN apt-get update\
-  && apt-get install -y --no-install-recommends gcc build-essential python-dev libxml2 libxml2-dev zlib1g-dev gosu\
+  && apt-get install -y --no-install-recommends gcc build-essential python3-dev libxml2 libxml2-dev zlib1g-dev gosu\
   && apt-get purge -y --auto-remove
 
 RUN mkdir -p /sebs/

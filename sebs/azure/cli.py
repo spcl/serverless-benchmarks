@@ -85,10 +85,24 @@ class AzureCLI(LoggingBase):
         return result
 
     def upload_package(self, directory: str, dest: str):
+
+        """
+        This is not an efficient and memory-intensive implementation.
+        So far, we didn't have very large functions that require many gigabytes.
+
+        Since docker-py does not support a straightforward copy, and we can't
+        put_archive in chunks.
+
+        If we end up having problems because of the archive size, there are two
+        potential solutions:
+        (1) manually call docker cp and decompress
+        (2) commit the docker container and restart with a new mount volume.
+        """
         handle = io.BytesIO()
         with tarfile.open(fileobj=handle, mode="w:gz") as tar:
             for f in os.listdir(directory):
                 tar.add(os.path.join(directory, f), arcname=f)
+        # shutil.make_archive(, 'zip', directory)
         # move to the beginning of memory before writing
         handle.seek(0)
         self.execute("mkdir -p {}".format(dest))
