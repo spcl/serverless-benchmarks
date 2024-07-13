@@ -85,7 +85,7 @@ instance. The `.deployment.local` object in the configuration JSON must contain 
 this automatically with a single command by using `jq`:
 
 ```
-jq --argfile file1 out_storage.json '.deployment.local.storage = $file1 ' config/example.json > config/local_deployment.json
+jq '.deployment.local.storage = input' config/example.json out_storage.json > config/local_deployment.json
 ```
 
 The output file will contain a JSON object that should look similar to this one:
