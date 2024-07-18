@@ -204,7 +204,15 @@ class Config(ABC, LoggingBase):
             from sebs.openwhisk.config import OpenWhiskConfig
 
             implementations["openwhisk"] = OpenWhiskConfig.deserialize
+
+        if has_platform("fission"):
+            from sebs.fission.config import FissionConfig
+
+            implementations["fission"] = FissionConfig.deserialize
+        
+        print("THe implementations are", implementations)
         func = implementations.get(name)
+        print("The func is", func)
         assert func, "Unknown config type!"
         return func(config[name] if name in config else config, cache, handlers)
 

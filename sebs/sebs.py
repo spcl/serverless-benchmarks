@@ -114,8 +114,15 @@ class SeBS(LoggingBase):
 
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.generate_logging_handlers(logging_filename)
+        print(deployment_config)
+        print(config)
+        print(handlers)
+
         if not deployment_config:
             deployment_config = Config.deserialize(config, self.cache_client, handlers)
+
+        print("Pritnign implementations of the name")
+        print(implementations[name])
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore

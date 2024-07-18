@@ -10,7 +10,7 @@ DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
 
 parser = argparse.ArgumentParser(description="Run local app experiments.")
 parser.add_argument(
-    "--deployment", default=None, choices=["local", "aws", "azure", "gcp"], action="store"
+    "--deployment", default=None, choices=["local", "aws", "azure", "gcp", "fission"], action="store"
 )
 parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
 parser.add_argument("--language", default=None, choices=["python", "nodejs"], action="store")
@@ -50,6 +50,7 @@ def build(image_type, system, language=None, version=None, version_name=None):
         )
     )
     try:
+        print("what wer are buildiong", target)
         client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
     except docker.errors.BuildError as exc:
         print("Error! Build failed!")

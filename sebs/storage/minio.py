@@ -72,6 +72,7 @@ class Minio(PersistentStorage):
         self.logging.info("Minio storage ACCESS_KEY={}".format(self._cfg.access_key))
         self.logging.info("Minio storage SECRET_KEY={}".format(self._cfg.secret_key))
         try:
+            print("FROM HERE trying for MInio connectioo")
             self._storage_container = self._docker_client.containers.run(
                 "minio/minio:latest",
                 command="server /data",

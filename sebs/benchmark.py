@@ -342,12 +342,19 @@ class Benchmark(LoggingBase):
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
+            print("are we in the else Block")
             repo_name = self._system_config.docker_repository()
+            print("THE REPO NAME IS", repo_name)
+            print("The deployment name we get here is", self._deployment_name)
             image_name = "build.{deployment}.{language}.{runtime}".format(
                 deployment=self._deployment_name,
                 language=self.language_name,
                 runtime=self.language_version,
             )
+            # PK: To do: Marcin Need to add this docker image with fission to the dockerhub
+            # image_name = image_name.replace('fission', 'aws')
+            print("THE Iage NAME IS", image_name)
+            print("THE repo name ", repo_name)
             try:
                 self._docker_client.images.get(repo_name + ":" + image_name)
             except docker.errors.ImageNotFound:

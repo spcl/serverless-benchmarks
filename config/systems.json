@@ -239,27 +239,30 @@
     "languages": {
       "python": {
         "base_images": {
-          "env":"fission/python-env:latest",
-          "builder":"fission/python-builder:latest"
+          "3.7":"fission/python-builder-3.7",
+          "3.8":"fission/python-builder-3.8",
+          "3.9":"fission/python-builder-3.9",
+          "3.10":"fission/python-builder-3.10"
         },
-        "versions": ["3.6"],
-        "images": [],
+        "versions": ["3.7", "3.8", "3.9", "3.10"],
+        "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": ["handler.py", "storage.py"],
+          "files": ["handler.py", "storage.py", "setup.py", "__main__.py", "build.sh"],
           "packages": {"minio" : "^5.0.10"}
         }
       },
       "nodejs": {
         "base_images": {
-          "env":"fission/node-env:latest",
-          "builder":"fission/node-builder:latest"
+          "12":"fission/node-builder-12",
+          "14":"fission/node-builder-14",
+          "16":"fission/node-builder-16"
         },
-        "versions": ["10.x", "12.x"],
-        "images": [],
+        "versions": ["12", "14", "16"],
+        "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": ["handler.js"],
+          "files": ["index.js", "storage.js"],
           "packages": {"minio" : "^7.0.16"}
         }
       }

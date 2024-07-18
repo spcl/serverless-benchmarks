@@ -156,7 +156,7 @@ class AWS(System):
         bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
-
+        exit(0)
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
     def _map_language_runtime(self, language: str, runtime: str):
