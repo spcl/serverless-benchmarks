@@ -1,42 +1,58 @@
 import logging
 import datetime
+import os
+import uuid
 from flask import jsonify
 from parliament import Context
-from function import handler
+import minio
+
 
 def main(context: Context):
     logging.getLogger().setLevel(logging.INFO)
     begin = datetime.datetime.now()  # Initialize begin outside the try block
-    
+
+    event = context.request.json
+    logging.info(f"Received event: {event}")
+
+    request_id = str(uuid.uuid4())  # Generate a unique request ID
+
     try:
-        # Extract JSON data from the request
-        event = context.request.json
+        from function import function
 
         # Update the timestamp after extracting JSON data
         begin = datetime.datetime.now()
         # Pass the extracted JSON data to the handler function
-        ret = handler(event)
+        ret = function.handler(event)
         end = datetime.datetime.now()
-        logging.info(f"Function result: {ret}")
+        logging.info("Function result: {}".format(ret))
+        log_data = {"result": ret["result"]}
+        if "measurement" in ret:
+            log_data["measurement"] = ret["measurement"]
         results_time = (end - begin) / datetime.timedelta(microseconds=1)
 
-        response = {
+        is_cold = False
+        fname = "cold_run"
+        if not os.path.exists(fname):
+            is_cold = True
+            open(fname, "a").close()
+
+        return {
+            "request_id": request_id,
             "begin": begin.strftime("%s.%f"),
             "end": end.strftime("%s.%f"),
             "results_time": results_time,
-            "result": ret,
+            "is_cold": is_cold,
+            "result": log_data,
         }
-
-        return jsonify(response), 200
 
     except Exception as e:
         end = datetime.datetime.now()
         results_time = (end - begin) / datetime.timedelta(microseconds=1)
         logging.error(f"Error - invocation failed! Reason: {e}")
-        response = {
+        return {
+            "request_id": request_id,
             "begin": begin.strftime("%s.%f"),
             "end": end.strftime("%s.%f"),
             "results_time": results_time,
             "result": f"Error - invocation failed! Reason: {e}",
         }
-        return jsonify(response), 500

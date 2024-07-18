@@ -25,14 +25,14 @@ class storage:
                 maxsize=10,
                 retries=urllib3.Retry(
                     total=5, backoff_factor=0.2, status_forcelist=[500, 502, 503, 504]
-                )
+                ),
             )
             self.client = minio.Minio(
                 os.getenv("MINIO_STORAGE_CONNECTION_URL"),
                 access_key=os.getenv("MINIO_STORAGE_ACCESS_KEY"),
                 secret_key=os.getenv("MINIO_STORAGE_SECRET_KEY"),
                 secure=False,
-                http_client=mgr
+                http_client=mgr,
             )
         except Exception as e:
             logging.info(e)
@@ -41,12 +41,9 @@ class storage:
     @staticmethod
     def unique_name(name):
         name, extension = os.path.splitext(name)
-        return '{name}.{random}{extension}'.format(
-                    name=name,
-                    extension=extension,
-                    random=str(uuid.uuid4()).split('-')[0]
-                )
-
+        return "{name}.{random}{extension}".format(
+            name=name, extension=extension, random=str(uuid.uuid4()).split("-")[0]
+        )
 
     def upload(self, bucket, file, filepath):
         key_name = storage.unique_name(file)

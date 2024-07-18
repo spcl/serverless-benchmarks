@@ -1,5 +1,7 @@
 from datetime import datetime
+import json
 import os
+import shutil
 import subprocess
 import yaml
 from sebs.faas.system import System
@@ -46,7 +48,9 @@ class Knative(System):
                     password=self.config.resources.docker_password,
                 )
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+    def initialize(
+        self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None
+    ):
         self.initialize_resources(select_prefix=resource_prefix)
 
     @property
@@ -78,7 +82,7 @@ class Knative(System):
 
             delete_cluster()
         super().shutdown()
-        
+
     @staticmethod
     def name() -> str:
         return "knative"
@@ -211,11 +215,10 @@ class Knative(System):
         """
 
         CONFIG_FILES = {
-            "python": ["func.py"],
-            "nodejs": ["index.js"],
+            "python": ["func.py", "func.yaml", "Procfile", "requirements.txt"],
+            "nodejs": ["index.js", "func.yaml", "package.json"],
         }
-        # package_config = CONFIG_FILES[language_name]
-        
+
         # Sanitize the benchmark name for the image tag
         sanitized_benchmark_name = sanitize_benchmark_name_for_knative(benchmark)
 
@@ -223,20 +226,62 @@ class Knative(System):
         func_yaml_content = {
             "specVersion": "0.36.0",
             "name": sanitized_benchmark_name,
-            "runtime": language_name,
+            "runtime": "node" if language_name == "nodejs" else language_name,
             "created": datetime.now().astimezone().isoformat(),
+            "run": {
+                "envs": [
+                    {
+                        "name": "MINIO_STORAGE_CONNECTION_URL",
+                        "value": "{{ env:MINIO_STORAGE_CONNECTION_URL }}",
+                    },
+                    {
+                        "name": "MINIO_STORAGE_ACCESS_KEY",
+                        "value": "{{ env:MINIO_STORAGE_ACCESS_KEY }}",
+                    },
+                    {
+                        "name": "MINIO_STORAGE_SECRET_KEY",
+                        "value": "{{ env:MINIO_STORAGE_SECRET_KEY }}",
+                    },
+                ]
+            },
         }
         yaml_out = os.path.join(directory, "func.yaml")
         with open(yaml_out, "w") as yaml_file:
             yaml.dump(func_yaml_content, yaml_file, default_flow_style=False)
-            
+
         # Create Procfile for Python runtime
         if language_name == "python":
-            procfile_content = "web: python -m parliament ."
+            procfile_content = "web: python3 -m parliament ."
             procfile_out = os.path.join(directory, "Procfile")
             with open(procfile_out, "w") as procfile_file:
                 procfile_file.write(procfile_content)
+
+            # Create an empty __init__.py file
+            init_file_out = os.path.join(directory, "__init__.py")
+            open(init_file_out, "a").close()
         
+        # Modify package.json for Node.js runtime to add the faas-js-runtime.
+        if language_name == "nodejs":
+            package_json_path = os.path.join(directory, "package.json")
+            if os.path.exists(package_json_path):
+                with open(package_json_path, "r+") as package_file:
+                    package_data = json.load(package_file)
+                    if "scripts" not in package_data:
+                        package_data["scripts"] = {}
+                    package_data["scripts"]["start"] = "faas-js-runtime ./index.js"
+                    package_file.seek(0)
+                    package_file.write(json.dumps(package_data, indent=2))
+                    package_file.truncate()
+
+        package_config = CONFIG_FILES[language_name]
+        function_dir = os.path.join(directory, "function")
+        os.makedirs(function_dir)
+        # move all files to 'function' except func.py, func.yaml, Procfile
+        for file in os.listdir(directory):
+            if file not in package_config:
+                file = os.path.join(directory, file)
+                shutil.move(file, function_dir)
+
         self.build_base_image(
             directory, language_name, language_version, benchmark, is_cached
         )
@@ -269,7 +314,9 @@ class Knative(System):
                 stderr=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
             )
-            sanitize_benchmark_name = sanitize_benchmark_name_for_knative(code_package.benchmark)
+            sanitize_benchmark_name = sanitize_benchmark_name_for_knative(
+                code_package.benchmark
+            )
 
             function_found = False
             docker_image = ""
@@ -277,20 +324,27 @@ class Knative(System):
                 if line and sanitize_benchmark_name in line.split()[0]:
                     function_found = True
                     break
-            
+
             function_cfg = KnativeFunctionConfig.from_benchmark(code_package)
             function_cfg.storage = cast(KnativeMinio, self.get_storage()).config
-            
+
             if function_found:
-                self.logging.info(f"Benchmark function of {sanitize_benchmark_name} already exists.")
+                self.logging.info(
+                    f"Benchmark function of {sanitize_benchmark_name} already exists."
+                )
                 res = KnativeFunction(
-                    sanitize_benchmark_name, code_package.benchmark, code_package.hash, function_cfg
+                    sanitize_benchmark_name,
+                    code_package.benchmark,
+                    code_package.hash,
+                    function_cfg,
                 )
                 self.update_function(res, code_package)
 
             else:
                 try:
-                    self.logging.info(f"Deploying new Knative function {sanitize_benchmark_name}")
+                    self.logging.info(
+                        f"Deploying new Knative function {sanitize_benchmark_name}"
+                    )
                     language = code_package.language_name
                     try:
                         docker_image = self.system_config.benchmark_image_name(
@@ -301,17 +355,24 @@ class Knative(System):
                         )
                         # Deploy the function
                         result = subprocess.run(
-                        ["func", "deploy", "--path", code_package.code_location,],
-                        capture_output=True,
-                        check=True,
+                            [
+                                "func",
+                                "deploy",
+                                "--path",
+                                code_package.code_location,
+                            ],
+                            capture_output=True,
+                            check=True,
                         )
                         # Log the standard output
                         self.logging.info("Deployment succeeded:")
-                        self.logging.info(result.stdout.decode())  # Print the captured output
+                        self.logging.info(
+                            result.stdout.decode()
+                        )  # Print the captured output
                     except subprocess.CalledProcessError as e:
                         # Log the standard error
                         self.logging.error("Deployment failed:")
-                        self.logging.error(e.stderr.decode()) 
+                        self.logging.error(e.stderr.decode())
 
                     # Retrieve the function URL
                     describe_command = [
@@ -341,14 +402,18 @@ class Knative(System):
                     )
 
                     # Add HTTP trigger with the function URL
-                    trigger = LibraryTrigger(sanitize_benchmark_name, self.get_knative_func_cmd())
+                    trigger = LibraryTrigger(
+                        sanitize_benchmark_name, self.get_knative_func_cmd()
+                    )
                     trigger.logging_handlers = self.logging_handlers
                     res.add_trigger(trigger)
 
                     return res
 
                 except subprocess.CalledProcessError as e:
-                    self.logging.error(f"Error deploying Knative function {sanitize_benchmark_name}.")
+                    self.logging.error(
+                        f"Error deploying Knative function {sanitize_benchmark_name}."
+                    )
                     self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
                     raise RuntimeError(e) from e
 
@@ -394,7 +459,9 @@ class Knative(System):
             self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
             raise RuntimeError(e)
 
-    def update_function_configuration(self, function: Function, code_package: Benchmark):
+    def update_function_configuration(
+        self, function: Function, code_package: Benchmark
+    ):
         self.logging.info(f"Updating an existing Knative function {function.name}.")
         docker_image = self.system_config.benchmark_image_name(
             self.name(),
@@ -415,14 +482,17 @@ class Knative(System):
             )
 
         except FileNotFoundError as e:
-            self.logging.error("Could not update Knative function - is path to func correct?")
+            self.logging.error(
+                "Could not update Knative function - is path to func correct?"
+            )
             raise RuntimeError(e)
         except subprocess.CalledProcessError as e:
             self.logging.error(f"Unknown error when running function update: {e}!")
-            self.logging.error("Make sure to remove SeBS cache after restarting Knative!")
+            self.logging.error(
+                "Make sure to remove SeBS cache after restarting Knative!"
+            )
             self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
             raise RuntimeError(e)
-
 
     def create_trigger(
         self, function: Function, trigger_type: Trigger.TriggerType
@@ -432,7 +502,13 @@ class Knative(System):
         elif trigger_type == Trigger.TriggerType.HTTP:
             try:
                 response = subprocess.run(
-                    [*self.get_knative_func_cmd(), "describe", function.name, "--output", "url"],
+                    [
+                        *self.get_knative_func_cmd(),
+                        "describe",
+                        function.name,
+                        "--output",
+                        "url",
+                    ],
                     capture_output=True,
                     check=True,
                 )

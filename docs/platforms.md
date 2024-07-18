@@ -330,3 +330,59 @@ will automatically detect an existing Minio instance.
 Reusing the Minio instance helps run experiments faster and smoothly since
 SeBS does not have to re-upload function's data on each experiment.
 
+## Knative
+
+SeBS expects users to deploy and configure a Knative instance. Below, you will find example instructions for deploying a Knative-enabled cluster instance. The configuration parameters of Knative for SeBS can be found in the `config/example.json` file under the key `[deployment]` `[knative]`.
+
+### Pre-requisites
+
+There are a few installations we expect users to have before proceeding further. Please install the following tools beforehand:
+- `kubectl`
+- `kind`
+- `helm`
+- `jq`
+- `func` (It's a [Knative function CLI](https://knative.dev/docs/functions/install-func/#installing-the-func-cli) that is used to interact with your Knative functions directly from your command line. SeBS also makes use of this tool to `build` and `deploy` the benchmarks as Knative functions.)
+- `minio`
+
+### Deployment
+
+In `tools/knative_setup.sh`, we included a script that helps you install a configured Knative kind cluster (Kubernetes in Docker). You can run it using `./tools/knative_setup.sh`.
+
+After running the script, make sure to export the path of the `KUBECONFIG` file. This file will automatically get created by the script you ran before and can be found in the `bin` folder. You can export it like this:
+
+```sh
+export KUBECONFIG=path/to/bin/folder/kubeconfig.yaml
+```
+
+This step is necessary to interact with the Knative-enabled kind cluster that was configured by the script above.
+
+We use Knative's CLI tool [func](https://knative.dev/docs/functions/install-func/#installing-the-func-cli) to manage the deployment of functions to serve as Knative services. Please install `func` and configure it to point to your Knative installation.
+
+#### Storage Configuration
+
+SeBS requires a storage provider to store the function's data. We use Minio as the storage. 
+
+Configure the Minio storage and export these variables in your current environment session, as these variables will be used by the Knative function configuration:
+
+```sh
+export MINIO_STORAGE_CONNECTION_URL="localhost:9001"
+export MINIO_STORAGE_SECRET_KEY="yoursecretkey"
+export MINIO_STORAGE_ACCESS_KEY="youraccesskey"
+```
+
+The command below will help you start a Minio container in a detached mode:
+
+```sh
+docker run -d -p 9000:9000 -p 9001:9001 --name minio \
+  -e "MINIO_ROOT_USER=youraccesskey" \
+  -e "MINIO_ROOT_PASSWORD=yoursecretkey" \
+  minio/minio server /data --console-address ":9001"
+```
+
+### Benchmark Deployment Example
+
+The following example shows how to deploy a benchmark to the Knative-enabled cluster:
+
+```sh
+./sebs.py benchmark invoke 311.compression test --config config/example.json --deployment knative --language python --language-version 3.9
+```

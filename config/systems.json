@@ -250,7 +250,11 @@
             "storage.py"
           ],
           "packages": {
-            "parliament-functions": "0.1.0"
+            "parliament-functions": "0.1.0",
+            "minio": "5.0.10",
+            "Pillow": "9.0.0",
+            "python-igraph": "0.8.0",
+            "squiggle": "0.3.1"
           }
         }
       },
@@ -266,7 +270,12 @@
             "index.js",
             "storage.js"
           ],
-          "packages": []
+          "packages": {
+            "faas-js-runtime": "^2.2.2",
+            "minio": "7.0.16",
+            "mustache": "^3.2.1",
+            "sharp": "^0.25"
+          }
         }
       }
     }

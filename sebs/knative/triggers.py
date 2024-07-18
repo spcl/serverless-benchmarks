@@ -104,4 +104,3 @@ class HTTPTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return HTTPTrigger(obj["fname"], obj["url"])
-

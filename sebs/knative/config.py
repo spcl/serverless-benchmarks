@@ -13,7 +13,9 @@ class KnativeCredentials(Credentials):
         self._docker_password = config.get("docker_password")
 
     @staticmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "KnativeCredentials":
+    def deserialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> "KnativeCredentials":
         cached_config = cache.get_config("knative")
         if cached_config and "credentials" in cached_config:
             return KnativeCredentials(cached_config["credentials"])
@@ -23,7 +25,7 @@ class KnativeCredentials(Credentials):
     def serialize(self) -> dict:
         return {
             "docker_username": self._docker_username,
-            "docker_password": self._docker_password
+            "docker_password": self._docker_password,
         }
 
 
@@ -205,7 +207,7 @@ class KnativeConfig(Config):
             "removeCluster": self.removeCluster,
             "knativeExec": self.knative_exec,
             "resources": self._resources.serialize(),
-            "credentials": self._credentials.serialize()
+            "credentials": self._credentials.serialize(),
         }
 
     @staticmethod
@@ -224,4 +226,6 @@ class KnativeConfig(Config):
     def update_cache(self, cache: Cache):
         cache.update_config(val=self.knative_exec, keys=["knative", "knativeExec"])
         self.resources.update_cache(cache)
-        cache.update_config(val=self.credentials.serialize(), keys=["knative", "credentials"])
+        cache.update_config(
+            val=self.credentials.serialize(), keys=["knative", "credentials"]
+        )

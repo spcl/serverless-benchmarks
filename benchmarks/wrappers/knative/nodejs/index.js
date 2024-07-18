@@ -1,54 +1,61 @@
-const { CloudEvent, HTTP } = require('cloudevents');
-const handler = require('./function').handler;
+const {
+  CloudEvent,
+  HTTP
+} = require('cloudevents');
+const path = require('path');
+const fs = require('fs');
+const {
+  v4: uuidv4
+} = require('uuid');
 
 async function handle(context, event) {
-  const startTime = new Date();
+  const requestId = uuidv4();
+
+  // Ensure event data is parsed correctly
+  const eventData = event ? event : context.body;
+  context.log.info(`Received event: ${JSON.stringify(eventData)}`);
+
+  const func = require('/function/function.js');
+  const begin = Date.now() / 1000;
+  const start = process.hrtime();
 
   try {
-    // Ensure event data is parsed correctly
-    const eventData = event ? event : context.body;
-    context.log.info(`Received event: ${JSON.stringify(eventData)}`);
+      // Call the handler function with the event data
+      const ret = await func.handler(eventData);
+      const elapsed = process.hrtime(start);
+      const end = Date.now() / 1000;
+      const micro = elapsed[1] / 1e3 + elapsed[0] * 1e6;
 
-    // Call the handler function with the event data
-    const result = await handler(eventData);
-    const endTime = new Date();
+      let is_cold = false;
+      const fname = path.join('/tmp', 'cold_run');
+      if (!fs.existsSync(fname)) {
+          is_cold = true;
+          fs.closeSync(fs.openSync(fname, 'w'));
+      }
 
-    context.log.info(`Function result: ${JSON.stringify(result)}`);
-    const resultTime = (endTime - startTime) / 1000; // Time in seconds
+      context.log.info(`Function result: ${JSON.stringify(ret)}`);
 
-    // Create a response
-    const response = {
-      begin: startTime.toISOString(),
-      end: endTime.toISOString(),
-      results_time: resultTime,
-      result: result
-    };
-
-    // Return the response
-    return {
-      data: response,
-      headers: { 'Content-Type': 'application/json' },
-      statusCode: 200
-    };
+      return {
+          begin: begin,
+          end: end,
+          compute_time: micro,
+          results_time: 0,
+          result: ret,
+          request_id: requestId,
+          is_cold: is_cold,
+      };
   } catch (error) {
-    const endTime = new Date();
-    const resultTime = (endTime - startTime) / 1000; // Time in seconds
-
-    context.log.error(`Error - invocation failed! Reason: ${error.message}`);
-    const response = {
-      begin: startTime.toISOString(),
-      end: endTime.toISOString(),
-      results_time: resultTime,
-      result: `Error - invocation failed! Reason: ${error.message}`
-    };
-
-    // Return the error response
-    return {
-      data: response,
-      headers: { 'Content-Type': 'application/json' },
-      statusCode: 500
-    };
+      context.log.error(`Error - invocation failed! Reason: ${error.message}`);
+      return {
+          begin: begin,
+          end: Date.now() / 1000,
+          compute_time: process.hrtime(start),
+          results_time: 0,
+          result: `Error - invocation failed! Reason: ${error.message}`,
+          request_id: requestId,
+          is_cold: false,
+      };
   }
 }
 
-module.exports = handle;
+exports.handle = handle;
