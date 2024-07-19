@@ -107,8 +107,8 @@ class Local(System):
     """
 
     def shutdown(self):
-        pass
-
+        if hasattr(self, "storage") and self.config.shutdownStorage:
+            self.storage.stop()
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.
         However, to have a compatible function implementation across providers,
@@ -174,8 +174,10 @@ class Local(System):
                     self.name(), code_package.language_name
                 ),
             }
+
         container = self._docker_client.containers.run(
             image=container_name,
+            name=func_name,
             command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
             volumes={code_package.code_location: {"bind": "/function", "mode": "ro"}},
             environment=environment,
@@ -246,12 +248,13 @@ class Local(System):
         )
         return func
 
-    """
-        FIXME: restart Docker?
-    """
-
     def update_function(self, function: Function, code_package: Benchmark):
-        pass
+        # kill existing containers
+        for ctr in self._docker_client.containers.list():
+            if ctr.name in function.name:
+                ctr.kill()
+        # deploy new containers with updated function
+        self.create_function(code_package, function.name)
 
     """
         For local functions, we don't need to do anything for a cached function.
@@ -273,7 +276,8 @@ class Local(System):
         return trigger
 
     def cached_function(self, function: Function):
-        pass
+        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
+            trigger.logging_handlers = self.logging_handlers
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
         self.logging.error("Updating function configuration of local deployment is not supported")
@@ -290,7 +294,10 @@ class Local(System):
         pass
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
-        raise NotImplementedError()
+        fn_names = [fn.name for fn in functions]
+        for ctr in self._docker_client.containers.list():
+                if ctr.name in fn_names:
+                    ctr.kill()
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:

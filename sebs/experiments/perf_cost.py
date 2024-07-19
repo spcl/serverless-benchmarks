@@ -85,7 +85,6 @@ class PerfCost(Experiment):
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
 
     def compute_statistics(self, times: List[float]):
-
         mean, median, std, cv = basic_stats(times)
         self.logging.info(f"Mean {mean} [ms], median {median} [ms], std {std}, CV {cv}")
         for alpha in [0.95, 0.99]:
@@ -156,7 +155,6 @@ class PerfCost(Experiment):
                         self._deployment_client.enforce_cold_start(
                             [self._function], self._benchmark
                         )
-
                     time.sleep(5)
 
                     results = []
@@ -224,7 +222,6 @@ class PerfCost(Experiment):
                 )
 
     def run_configuration(self, settings: dict, repetitions: int, suffix: str = ""):
-
         for experiment_type in settings["experiments"]:
             if experiment_type == "cold":
                 self._run_configuration(
