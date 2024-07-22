@@ -51,7 +51,7 @@ class Local(System):
     def with_papi(self) -> bool:
         return self._with_papi
 
-    @remove_containers.setter
+    @with_papi.setter
     def with_papi(self, val: bool):
         self._with_papi = val
 
@@ -204,7 +204,7 @@ class Local(System):
             stdout=True,
             stderr=True,
             detach=True,
-            **options
+            **options,
         )
 
         pid: Optional[int] = None
