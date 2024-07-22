@@ -184,6 +184,12 @@ class Local(System):
                     self.name(), code_package.language_name
                 ),
             }
+
+        options = {}
+        # Enable PAPI counters
+        if self.with_papi:
+            options["cap_add"] = ["PERFMON"]
+
         container = self._docker_client.containers.run(
             image=container_name,
             command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
@@ -192,18 +198,13 @@ class Local(System):
             # FIXME: make CPUs configurable
             # FIXME: configure memory
             # FIXME: configure timeout
-            # cpuset_cpus=cpuset,
-            # required to access perf counters
-            # alternative: use custom seccomp profile
-            privileged=True,
-            security_opt=["seccomp:unconfined"],
             network_mode="bridge",
             # somehow removal of containers prevents checkpointing from working?
             remove=self.remove_containers,
             stdout=True,
             stderr=True,
             detach=True,
-            # tty=True,
+            **options
         )
 
         pid: Optional[int] = None
