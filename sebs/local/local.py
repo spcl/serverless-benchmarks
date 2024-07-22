@@ -48,6 +48,14 @@ class Local(System):
         self._remove_containers = val
 
     @property
+    def with_papi(self) -> bool:
+        return self._with_papi
+
+    @remove_containers.setter
+    def with_papi(self, val: bool):
+        self._with_papi = val
+
+    @property
     def measure_interval(self) -> int:
         return self._measure_interval
 
@@ -71,6 +79,7 @@ class Local(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
+        self._with_papi = False
         self._memory_measurement_path: Optional[str] = None
         # disable external measurements
         self._measure_interval = -1
@@ -157,8 +166,9 @@ class Local(System):
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
 
-        container_name = "{}:run.local.{}.{}".format(
+        container_name = "{}:{}.local.{}.{}".format(
             self._system_config.docker_repository(),
+            "run-papi" if self._with_papi else "run",
             code_package.language_name,
             code_package.language_version,
         )

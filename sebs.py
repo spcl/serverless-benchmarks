@@ -408,6 +408,11 @@ def local():
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
 @click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
+@click.option(
+    "--with-papi/--no-with-papi",
+    default=True,
+    help="Start container enabled with PAPI counters.",
+)
 @click.option("--storage-configuration", type=str, help="JSON configuration of deployed storage.")
 @click.option("--measure-interval", type=int, default=-1,
               help="Interval duration between memory measurements in ms.")
@@ -417,7 +422,7 @@ def local():
     help="Remove containers after stopping.",
 )
 @simplified_common_params
-def start(benchmark, benchmark_input_size, output, deployments, storage_configuration,
+def start(benchmark, benchmark_input_size, output, deployments, with_papi, storage_configuration,
           measure_interval, remove_containers, **kwargs):
     """
     Start a given number of function instances and a storage instance.
@@ -429,6 +434,7 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers
+    deployment_client.with_papi = with_papi
     result = sebs.local.Deployment()
     result.measurement_file = deployment_client.start_measurements(measure_interval)
 
