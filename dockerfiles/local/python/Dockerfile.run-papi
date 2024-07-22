@@ -4,6 +4,19 @@ FROM ${BASE_IMAGE}
 RUN deps=''\
   && apt-get update\
   # for route and sudo
+  && apt-get install --no-install-recommends -y make gcc libc6-dev\
+  && pip3 install cffi
+
+ADD third-party/pypapi /pypapi
+RUN cd /pypapi && python setup.py build && python pypapi/papi_build.py
+
+FROM ${BASE_IMAGE}
+
+COPY --from=0 /pypapi/ /pypapi/
+
+RUN deps=''\
+  && apt-get update\
+  # for route and sudo
   && apt-get install --no-install-recommends -y curl gosu net-tools sudo ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
   && pip3 install cffi minio bottle
@@ -15,7 +28,7 @@ COPY dockerfiles/local/python/*.py /sebs/
 COPY dockerfiles/local/python/run_server.sh /sebs/
 COPY dockerfiles/local/python/timeit.sh /sebs/
 COPY dockerfiles/local/python/runners.json /sebs/
-ENV PYTHONPATH=/sebs/.python_packages/lib/site-packages:$PYTHONPATH
+ENV PYTHONPATH=/pypapi:/sebs/.python_packages/lib/site-packages:$PYTHONPATH
 
 COPY dockerfiles/local/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/entrypoint.sh
