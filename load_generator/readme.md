@@ -20,8 +20,8 @@ This tool allows the user to specify parameters for entry into a docker containe
 
 ### 3. Run the File
 
-export PAYLOAD_FILE=/payloads/<benchmark_number>_payload.json
+`export PAYLOAD_FILE=/payloads/<benchmark_number>_payload.json`
 
-artillery run load_test_config.yml
+`artillery run load_test_config.yml`
 
 ### 4. Enjoy!
