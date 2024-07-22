@@ -13,9 +13,7 @@ if [ ! -z "$CMD" ]; then
   gosu ${USER} $CMD
 fi
 
-chown -R ${USER}:${USER} /sebs/
 echo "$USER ALL=(ALL:ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/dont-prompt-$USER-for-password
 usermod -aG sudo ${USER}
 
 exec gosu ${USER} "$@"
-
