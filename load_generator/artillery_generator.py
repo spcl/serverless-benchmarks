@@ -1,12 +1,25 @@
 import yaml
 import sys
 import argparse
+import math
 
 def create_yaml_config(max_users, frequency, cycles):
+    """
+    Create a YAML configuration for load testing with a sinusoidal pattern.
+    
+    :param max_users: Maximum number of concurrent users
+    :param frequency: Duration of each cycle in seconds
+    :param cycles: Number of cycles to run
+    :return: Dictionary containing the YAML configuration
+    """
+    # Define the initial configuration dictionary
     config = {
         'config': {
-            'target': 'http://172.17.0.2:9000',
-            'phases': []
+            'target': 'http://localhost:9000',  # Target URL for the load test
+            'phases': [],  # List to store the different phases of the load test
+            'ensure': {
+                'p95': 2000  # Ensure 95% of responses are under 2000ms
+            }
         },
         'scenarios': [
             {
@@ -14,46 +27,52 @@ def create_yaml_config(max_users, frequency, cycles):
                     {
                         'post': {
                             'url': '/post',
-                            'json': '{{ payload }}'
+                            'json': '{{ payload }}'  # JSON payload for the POST request
                         }
                     }
                 ]
             }
         ],
-        'payload': '{{ $processEnvironment.PAYLOAD_FILE }}'
+        'payload': '{{ $processEnvironment.PAYLOAD_FILE }}'  # Reference to the environment variable for payload file
     }
 
+    # Generate phases for each cycle
     for i in range(cycles):
-        config['config']['phases'].extend([
-            {
-                'duration': frequency,
-                'arrivalRate': 1 if i == 0 else 5,
-                'rampTo': max_users,
-                'name': f'Ramp-up phase {i+1}'
-            },
-            {
-                'duration': frequency,
-                'arrivalRate': max_users,
-                'rampTo': 5,
-                'name': f'Ramp down phase {i+1}'
-            }
-        ])
-
-    # Remove the last ramp down phase
-    config['config']['phases'].pop()
+        for j in range(10):  # 10 phases per cycle for a smoother sinusoidal pattern
+            phase_duration = max(1, int(frequency / 10))  # Ensure phase duration is at least 1 second
+            t = j / 10  # Time variable from 0 to 1
+            users = int(max_users * (math.sin(2 * math.pi * t) + 1) / 2)  # Calculate users using sine function
+            
+            # Append the phase configuration to the phases list
+            config['config']['phases'].append({
+                'duration': phase_duration,
+                'arrivalRate': users,
+                'name': f'Cycle {i+1}, Phase {j+1}'
+            })
 
     return config
 
 def main():
+    """
+    Main function to parse command-line arguments and generate the YAML configuration file.
+    """
+    # Set up command-line argument parser
     parser = argparse.ArgumentParser(description='Generate YAML config for load testing')
-    parser.add_argument('max_users', type=int, help='Maximum number of users')
-    parser.add_argument('frequency', type=int, help='Duration of each phase in seconds')
-    parser.add_argument('cycles', type=int, help='Number of cycles')
+    parser.add_argument('max_users', type=int, help='Maximum number of users (1-1000)')
+    parser.add_argument('frequency', type=int, help='Duration of each cycle in seconds (1-50)')
+    parser.add_argument('cycles', type=int, help='Number of cycles (1-50)')
     
     args = parser.parse_args()
 
+    # Apply limits to input parameters
+    args.max_users = max(1, min(1000, args.max_users))  # Ensure max_users is within 1-1000
+    args.frequency = max(1, min(50, args.frequency))  # Ensure frequency is within 1-50 seconds
+    args.cycles = max(1, min(50, args.cycles))  # Ensure cycles is within 1-50
+
+    # Generate YAML configuration using the input parameters
     config = create_yaml_config(args.max_users, args.frequency, args.cycles)
 
+    # Write YAML configuration to file
     with open('load_test_config.yaml', 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
 
