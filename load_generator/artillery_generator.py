@@ -15,7 +15,7 @@ def create_yaml_config(max_users, frequency, cycles):
     # Define the initial configuration dictionary
     config = {
         'config': {
-            'target': 'http://localhost:9000',  # Target URL for the load test
+            'target': 'http://172.17.0.2:9000',  # Target URL for the load test
             'phases': [],  # List to store the different phases of the load test
             'ensure': {
                 'p95': 2000  # Ensure 95% of responses are under 2000ms
