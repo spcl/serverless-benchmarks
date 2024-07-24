@@ -64,11 +64,6 @@ def main():
     
     args = parser.parse_args()
 
-    # Apply limits to input parameters
-    args.max_users = max(1, min(1000, args.max_users))  # Ensure max_users is within 1-1000
-    args.frequency = max(1, min(50, args.frequency))  # Ensure frequency is within 1-50 seconds
-    args.cycles = max(1, min(50, args.cycles))  # Ensure cycles is within 1-50
-
     # Generate YAML configuration using the input parameters
     config = create_yaml_config(args.max_users, args.frequency, args.cycles)
 
