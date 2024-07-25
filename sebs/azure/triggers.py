@@ -35,7 +35,7 @@ class HTTPTrigger(AzureTrigger):
         input = {
             "payload": payload,
             "request_id": request_id,
-            "connection_string": self.data_storage_account.connection_string
+            "connection_string": self.data_storage_account.connection_string,
         }
         return self._http_invoke(input, self.url)
 

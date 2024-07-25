@@ -1,5 +1,6 @@
 
 const minio = require('minio'),
+  path = require('path'),
   uuid = require('uuid'),
   util = require('util'),
   stream = require('stream'),
@@ -24,9 +25,9 @@ class minio_storage {
   }
 
   unique_name(file) {
-    let [name, extension] = file.split('.');
+    let name = path.parse(file);
     let uuid_name = uuid.v4().split('-')[0];
-    return util.format('%s.%s.%s', name, uuid_name, extension);
+    return path.join(name.dir, util.format('%s.%s%s', name.name, uuid_name, name.ext));
   }
 
   upload(bucket, file, filepath) {

@@ -73,9 +73,7 @@ class PerfCost(Experiment):
             trigger_type = Trigger.TriggerType.HTTP
         triggers = self._function.triggers(trigger_type)
         if len(triggers) == 0:
-            self._trigger = deployment_client.create_trigger(
-                self._function, trigger_type
-            )
+            self._trigger = deployment_client.create_trigger(self._function, trigger_type)
         else:
             self._trigger = triggers[0]
 
@@ -98,7 +96,7 @@ class PerfCost(Experiment):
             self._function.config.memory = memory
 
             code_package = self._sebs_client.get_benchmark(
-            settings["benchmark"], self._deployment_client, self.config
+                settings["benchmark"], self._deployment_client, self.config
             )
             platform = self._deployment_client.name()
             if self.is_workflow and platform != "azure":
@@ -162,13 +160,17 @@ class PerfCost(Experiment):
 
         def _download_measurements(request_id):
             try:
-                redis = connect_to_redis_cache(self._deployment_client.config.resources.redis_host, self._deployment_client.config.resources.redis_password)
+                redis = connect_to_redis_cache(
+                    self._deployment_client.config.resources.redis_host,
+                    self._deployment_client.config.resources.redis_password,
+                )
                 print("trying to download for function.name = ", self._function.name)
-                payloads = download_measurements(redis, self._function.name, result.begin_time, request_id)
+                payloads = download_measurements(
+                    redis, self._function.name, result.begin_time, request_id
+                )
                 return payloads
             except:
                 return None
-
 
         self.logging.info(f"Begin {run_type.str()} experiments")
         incorrect_executions = []
@@ -196,9 +198,7 @@ class PerfCost(Experiment):
                     if isinstance(self._function, Workflow) and platform != "azure":
                         funcs = self._function.functions
                     if run_type == PerfCost.RunType.COLD or run_type == PerfCost.RunType.BURST:
-                        self._deployment_client.enforce_cold_start(
-                            funcs, self._benchmark
-                        )
+                        self._deployment_client.enforce_cold_start(funcs, self._benchmark)
 
                     time.sleep(10)
 
@@ -245,20 +245,25 @@ class PerfCost(Experiment):
 
                                 df = pd.DataFrame(payloads)
                                 if df.shape[0] > 0:
-                                    #ensure that first invocation was warm.
+                                    # ensure that first invocation was warm.
                                     df = df.sort_values(["start"]).reset_index(drop=True)
                                     was_cold_start = df.at[0, "is_cold"]
                                 else:
-                                    raise RuntimeError(f"Did not find measurements for {ret.request_id}")
+                                    raise RuntimeError(
+                                        f"Did not find measurements for {ret.request_id}"
+                                    )
 
-                            invalid = (run_type == PerfCost.RunType.COLD and not was_cold_start) or (
-                                run_type == PerfCost.RunType.WARM and was_cold_start)
+                            invalid = (
+                                run_type == PerfCost.RunType.COLD and not was_cold_start
+                            ) or (run_type == PerfCost.RunType.WARM and was_cold_start)
                             if self.is_workflow:
                                 invalid = invalid or (self.num_expected_payloads != len(payloads))
 
                             if invalid:
-                                msg = (f"Invalid invocation {ret.request_id} "
-                                       f"cold: {was_cold_start} ")
+                                msg = (
+                                    f"Invalid invocation {ret.request_id} "
+                                    f"cold: {was_cold_start} "
+                                )
 
                                 if self.is_workflow:
                                     msg += f"measurements: {len(payloads)}/{self.num_expected_payloads} "
@@ -274,7 +279,7 @@ class PerfCost(Experiment):
                                 client_times.append(ret.times.client / 1000.0)
                                 samples_gathered += 1
                                 if self.is_workflow:
-                                    measurements += payloads                                
+                                    measurements += payloads
                         except Exception as e:
                             error_count += 1
                             error_executions.append(str(e))
@@ -306,11 +311,15 @@ class PerfCost(Experiment):
 
                         df = df[df["request_id"].isin(first_iteration_request_ids)]
                         if df.shape[0] == 0:
-                            raise RuntimeError("Did not download any measurements. The workflow is likely to fail everytime.")
+                            raise RuntimeError(
+                                "Did not download any measurements. The workflow is likely to fail everytime."
+                            )
 
                         self.num_expected_payloads = int(df.groupby("request_id").size().mean())
 
-                        self.logging.info(f"Will be expecting {self.num_expected_payloads} measurements")
+                        self.logging.info(
+                            f"Will be expecting {self.num_expected_payloads} measurements"
+                        )
                         file_name = f"{run_type.str()}_{suffix}_first_iteration.csv"
                         csv_path = os.path.join(result_dir, file_name)
                         write_header = not os.path.exists(csv_path)
@@ -382,7 +391,6 @@ class PerfCost(Experiment):
             else:
                 raise RuntimeError(f"Unknown experiment type {experiment_type} for Perf-Cost!")
 
-
     def process_workflow(
         self,
         sebs_client: "SeBS",
@@ -394,25 +402,25 @@ class PerfCost(Experiment):
 
         benchmark_name = self.config._experiment_configs[PerfCost.name()]["benchmark"]
         platform = deployment_client.name()
-        #result_dir = os.path.join(directory, "perf-cost", benchmark_name, platform+"_vpc_*")
+        # result_dir = os.path.join(directory, "perf-cost", benchmark_name, platform+"_vpc_*")
         result_dir = os.path.join(directory, "perf-cost", benchmark_name, platform)
 
         settings = self.config.experiment_settings(self.name())
         code_package = sebs_client.get_benchmark(
             settings["benchmark"], deployment_client, self.config
         )
-        
+
         if isinstance(deployment_client, Azure):
             workflow_name = deployment_client.default_function_name(code_package)
         else:
-            workflow_name = benchmark_name #deployment_client.default_benchmark_name(code_package)
+            workflow_name = benchmark_name  # deployment_client.default_benchmark_name(code_package)
 
         for f in glob.glob(os.path.join(result_dir, "*.csv")):
             filename = os.path.splitext(os.path.basename(f))[0]
 
             print("Filename: ", filename)
 
-            processed_path = os.path.join(result_dir, filename+"_processed.csv")
+            processed_path = os.path.join(result_dir, filename + "_processed.csv")
             processed = "processed" in f or os.path.exists(processed_path)
             if processed:
                 continue
@@ -441,7 +449,7 @@ class PerfCost(Experiment):
             if isinstance(deployment_client, Azure):
                 func_names = [workflow_name]
             else:
-                workflow_name = workflow_name.replace(".", "_") 
+                workflow_name = workflow_name.replace(".", "_")
                 workflow_name = workflow_name.replace("-", "_")
                 runtime_version = self.config.runtime.version
                 runtime_version = runtime_version.replace(".", "_")
@@ -449,7 +457,7 @@ class PerfCost(Experiment):
                     prefix = "function-" + workflow_name + "_python_" + runtime_version + "___"
                 else:
                     prefix = workflow_name + "_python_" + runtime_version + "___"
-                func_names = [prefix+fn for fn in df.func.unique()]
+                func_names = [prefix + fn for fn in df.func.unique()]
                 print("looking for", func_names)
 
             for func_name in func_names:
@@ -476,8 +484,6 @@ class PerfCost(Experiment):
                 df.at[i, "billing.gbs"] = requests[id].billing.gb_seconds
 
             df.to_csv(processed_path, index=False)
-
-
 
     def process(
         self,

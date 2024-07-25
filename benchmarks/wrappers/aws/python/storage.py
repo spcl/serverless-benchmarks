@@ -31,7 +31,7 @@ class storage:
                     random=str(uuid.uuid4()).split('-')[0]
                 )
 
-    def upload(self, bucket, file, filepath, unique_name=True):
+    def upload(self, bucket, file, filepath, unique_name = True):
         incr_io_env_file(filepath, "STORAGE_UPLOAD_BYTES")
 
         key_name = storage.unique_name(file) if unique_name else file

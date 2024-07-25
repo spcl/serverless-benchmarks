@@ -48,6 +48,7 @@ class Switch(State):
 
         return cls(name=name, cases=cases, default=payload["default"])
 
+
 class Parallel(State):
     def __init__(self, name: str, funcs: List, next: Optional[str]):
         self.name = name
@@ -55,12 +56,20 @@ class Parallel(State):
         self.next = next
 
     @classmethod
-    def deserialize(cls, name:str, payload: dict) -> "Parallel":
+    def deserialize(cls, name: str, payload: dict) -> "Parallel":
         return cls(name=name, funcs=payload.get("parallel_functions"), next=payload.get("next"))
 
 
 class Map(State):
-    def __init__(self, name: str, funcs: List, array: str, root: str, next: Optional[str], common_params: Optional[str]):
+    def __init__(
+        self,
+        name: str,
+        funcs: List,
+        array: str,
+        root: str,
+        next: Optional[str],
+        common_params: Optional[str],
+    ):
         self.name = name
         self.funcs = funcs
         self.array = array
@@ -76,7 +85,7 @@ class Map(State):
             array=payload["array"],
             root=payload["root"],
             next=payload.get("next"),
-            common_params=payload.get("common_params")
+            common_params=payload.get("common_params"),
         )
 
 
@@ -89,7 +98,12 @@ class Repeat(State):
 
     @classmethod
     def deserialize(cls, name: str, payload: dict) -> "Repeat":
-        return cls(name=name, func_name=payload["func_name"], count=payload["count"], next=payload.get("next"))
+        return cls(
+            name=name,
+            func_name=payload["func_name"],
+            count=payload["count"],
+            next=payload.get("next"),
+        )
 
 
 class Loop(State):
@@ -109,7 +123,14 @@ class Loop(State):
         )
 
 
-_STATE_TYPES: Dict[str, Type[State]] = {"task": Task, "switch": Switch, "map": Map, "repeat": Repeat, "loop": Loop, "parallel": Parallel}
+_STATE_TYPES: Dict[str, Type[State]] = {
+    "task": Task,
+    "switch": Switch,
+    "map": Map,
+    "repeat": Repeat,
+    "loop": Loop,
+    "parallel": Parallel,
+}
 
 
 class Generator(ABC):

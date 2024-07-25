@@ -13,14 +13,16 @@ from sebs.utils import LoggingHandlers
 
 
 class AWSCredentials(Credentials):
-
-    _access_key: str
-    _secret_key: str
-
     def __init__(self, access_key: str, secret_key: str):
         super().__init__()
+
         self._access_key = access_key
         self._secret_key = secret_key
+
+        client = boto3.client(
+            "sts", aws_access_key_id=self.access_key, aws_secret_access_key=self.secret_key
+        )
+        self._account_id = client.get_caller_identity()["Account"]
 
     @staticmethod
     def typename() -> str:
@@ -34,8 +36,12 @@ class AWSCredentials(Credentials):
     def secret_key(self) -> str:
         return self._secret_key
 
+    @property
+    def account_id(self) -> str:
+        return self._account_id
+
     @staticmethod
-    def initialize(dct: dict) -> Credentials:
+    def initialize(dct: dict) -> "AWSCredentials":
         return AWSCredentials(dct["access_key"], dct["secret_key"])
 
     @staticmethod
@@ -45,35 +51,44 @@ class AWSCredentials(Credentials):
         # needs 3.7+  to support annotations
         cached_config = cache.get_config("aws")
         ret: AWSCredentials
+        account_id: Optional[str] = None
+
         # Load cached values
         if cached_config and "credentials" in cached_config:
-            ret = cast(AWSCredentials, AWSCredentials.initialize(cached_config["credentials"]))
-            ret.logging_handlers = handlers
-            ret.logging.info("Using cached credentials for AWS")
+            account_id = cached_config["credentials"]["account_id"]
+
+        # Check for new config.
+        # Loading old results might result in not having credentials in the JSON - need to check.
+        if "credentials" in config and "access_key" in config["credentials"]:
+            ret = AWSCredentials.initialize(config["credentials"])
+        elif "AWS_ACCESS_KEY_ID" in os.environ:
+            ret = AWSCredentials(
+                os.environ["AWS_ACCESS_KEY_ID"], os.environ["AWS_SECRET_ACCESS_KEY"]
+            )
         else:
-            # Check for new config
-            if "credentials" in config:
-                ret = cast(AWSCredentials, AWSCredentials.initialize(config["credentials"]))
-            elif "AWS_ACCESS_KEY_ID" in os.environ:
-                ret = AWSCredentials(
-                    os.environ["AWS_ACCESS_KEY_ID"], os.environ["AWS_SECRET_ACCESS_KEY"]
-                )
-            else:
-                raise RuntimeError(
-                    "AWS login credentials are missing! Please set "
-                    "up environmental variables AWS_ACCESS_KEY_ID and "
-                    "AWS_SECRET_ACCESS_KEY"
-                )
-            ret.logging.info("No cached credentials for AWS found, initialize!")
-            ret.logging_handlers = handlers
+            raise RuntimeError(
+                "AWS login credentials are missing! Please set "
+                "up environmental variables AWS_ACCESS_KEY_ID and "
+                "AWS_SECRET_ACCESS_KEY"
+            )
+
+        if account_id is not None and account_id != ret.account_id:
+            ret.logging.error(
+                f"The account id {ret.account_id} from provided credentials is different "
+                f"from the account id {account_id} found in the cache! Please change "
+                "your cache directory or create a new one!"
+            )
+            raise RuntimeError(
+                f"AWS login credentials do not match the account {account_id} in cache!"
+            )
+        ret.logging_handlers = handlers
         return ret
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.access_key, keys=["aws", "credentials", "access_key"])
-        cache.update_config(val=self.secret_key, keys=["aws", "credentials", "secret_key"])
+        cache.update_config(val=self.account_id, keys=["aws", "credentials", "account_id"])
 
     def serialize(self) -> dict:
-        out = {"access_key": self.access_key, "secret_key": self.secret_key}
+        out = {"account_id": self._account_id}
         return out
 
 
@@ -99,18 +114,15 @@ class AWSResources(Resources):
             out = {"arn": self.arn, "endpoint": self.endpoint}
             return out
 
-    def __init__(self, lambda_role: str):
-        super().__init__()
-        self._lambda_role = lambda_role
+    def __init__(self):
+        super().__init__(name="aws")
+        self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
         self._region: Optional[str] = None
 
     @staticmethod
     def typename() -> str:
         return "AWS.Resources"
-
-    def set_region(self, region: str):
-        self._region = region
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         if not self._lambda_role:
@@ -191,13 +203,16 @@ class AWSResources(Resources):
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
 
-    # FIXME: python3.7+ future annotatons
     @staticmethod
-    def initialize(dct: dict) -> Resources:
-        ret = AWSResources(dct["lambda-role"] if "lambda-role" in dct else "")
+    def initialize(res: Resources, dct: dict):
+
+        ret = cast(AWSResources, res)
+        super(AWSResources, AWSResources).initialize(ret, dct)
+        ret._lambda_role = dct["lambda-role"] if "lambda-role" in dct else ""
         if "http-apis" in dct:
             for key, value in dct["http-apis"].items():
                 ret._http_apis[key] = AWSResources.HTTPApi.deserialize(value)
+
         return ret
 
     def serialize(self) -> dict:
@@ -210,6 +225,7 @@ class AWSResources(Resources):
 
     def update_cache(self, cache: Cache):
         super().update_cache_redis(keys=["aws", "resources"], cache=cache)
+        super().update_cache(cache)
         cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
         for name, api in self._http_apis.items():
             cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
@@ -217,24 +233,23 @@ class AWSResources(Resources):
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
 
+        ret = AWSResources()
         cached_config = cache.get_config("aws")
-        ret: AWSResources
-
         # Load cached values
         if cached_config and "resources" in cached_config:
-            ret = cast(AWSResources, AWSResources.initialize(cached_config["resources"]))
+            AWSResources.initialize(ret, cached_config["resources"])
             ret.load_redis(cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for AWS")
         else:
             # Check for new config
             if "resources" in config:
-                ret = cast(AWSResources, AWSResources.initialize(config["resources"]))
+                AWSResources.initialize(ret, config["resources"])
                 ret.load_redis(config["resources"])
                 ret.logging_handlers = handlers
                 ret.logging.info("No cached resources for AWS found, using user configuration.")
             else:
-                ret = AWSResources(lambda_role="")
+                AWSResources.initialize(ret, {})
                 ret.logging_handlers = handlers
                 ret.logging.info("No resources for AWS found, initialize!")
 
@@ -243,7 +258,7 @@ class AWSResources(Resources):
 
 class AWSConfig(Config):
     def __init__(self, credentials: AWSCredentials, resources: AWSResources):
-        super().__init__()
+        super().__init__(name="aws")
         self._credentials = credentials
         self._resources = resources
 
@@ -283,7 +298,7 @@ class AWSConfig(Config):
             config_obj.logging.info("Using user-provided config for AWS")
             AWSConfig.initialize(config_obj, config)
 
-        resources.set_region(config_obj.region)
+        resources.region = config_obj.region
         return config_obj
 
     """

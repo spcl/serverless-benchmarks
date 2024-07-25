@@ -2,12 +2,14 @@ from abc import ABC
 from abc import abstractmethod
 from random import randrange
 from typing import Dict, List, Optional, Tuple, Type
+import uuid
 
 import docker
 
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.faas.config import Resources
 from sebs.faas.function import CloudBenchmark, Function, Trigger, ExecutionResult, Workflow
 from sebs.faas.storage import PersistentStorage
 from sebs.utils import LoggingBase
@@ -70,15 +72,69 @@ class System(ABC, LoggingBase):
     def workflow_type() -> "Type[Workflow]":
         pass
 
+    def find_deployments(self) -> List[str]:
+
+        """
+        Default implementation that uses storage buckets.
+        data storage accounts.
+        This can be overriden, e.g., in Azure that looks for unique
+        """
+
+        return self.get_storage().find_deployments()
+
+    def initialize_resources(self, select_prefix: Optional[str]):
+
+        # User provided resources or found in cache
+        if self.config.resources.has_resources_id:
+            self.logging.info(
+                f"Using existing resource name: {self.config.resources.resources_id}."
+            )
+            return
+
+        # Now search for existing resources
+        deployments = self.find_deployments()
+
+        # If a prefix is specified, we find the first matching resource ID
+        if select_prefix is not None:
+
+            for dep in deployments:
+                if select_prefix in dep:
+                    self.logging.info(
+                        f"Using existing deployment {dep} that matches prefix {select_prefix}!"
+                    )
+                    self.config.resources.resources_id = dep
+                    return
+
+        # We warn users that we create a new resource ID
+        # They can use them with a new config
+        if len(deployments) > 0:
+            self.logging.warning(
+                f"We found {len(deployments)} existing deployments! "
+                "If you want to use any of them, please abort, and "
+                "provide the resource id in your input config."
+            )
+            self.logging.warning("Deployment resource IDs in the cloud: " f"{deployments}")
+
+        # create
+        res_id = ""
+        if select_prefix is not None:
+            res_id = f"{select_prefix}-{str(uuid.uuid1())[0:8]}"
+        else:
+            res_id = str(uuid.uuid1())[0:8]
+        self.config.resources.resources_id = res_id
+        self.logging.info(f"Generating unique resource name {res_id}")
+        # ensure that the bucket is created - this allocates the new resource
+        self.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
+
     """
-        Initialize the system. After the call the local or remot
+        Initialize the system. After the call the local or remote
         FaaS system should be ready to allocate functions, manage
         storage resources and invoke functions.
 
         :param config: systems-specific parameters
     """
 
-    def initialize(self, config: Dict[str, str] = {}):
+    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         pass
 
     """
@@ -90,7 +146,7 @@ class System(ABC, LoggingBase):
     """
 
     @abstractmethod
-    def get_storage(self, replace_existing: bool) -> PersistentStorage:
+    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         pass
 
     """

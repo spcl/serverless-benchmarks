@@ -18,7 +18,10 @@
       "python": {
         "base_images": {
           "3.7": "python:3.7-slim",
-          "3.8": "python:3.8-slim"
+          "3.8": "python:3.8-slim",
+          "3.9": "python:3.9-slim",
+          "3.10": "python:3.10-slim",
+          "3.11": "python:3.11-slim"
         },
         "images": [
           "run",
@@ -34,8 +37,10 @@
       },
       "nodejs": {
         "base_images": {
-          "12": "node:12-slim",
-          "14": "node:14-slim"
+          "14": "node:14-slim",
+          "16": "node:16-slim",
+          "18": "node:18-slim",
+          "20": "node:20-slim"
         },
         "images": [
           "run",
@@ -55,15 +60,11 @@
     "languages": {
       "python": {
         "base_images": {
+          "3.11": "amazon/aws-lambda-python:3.11",
+          "3.10": "amazon/aws-lambda-python:3.10",
           "3.9": "amazon/aws-lambda-python:3.9",
-          "3.8": "amazon/aws-lambda-python:3.8",
-          "3.7": "amazon/aws-lambda-python:3.7"
+          "3.8": "amazon/aws-lambda-python:3.8"
         },
-        "versions": [
-          "3.7",
-          "3.8",
-          "3.9"
-        ],
         "images": [
           "build"
         ],
@@ -80,13 +81,8 @@
       },
       "nodejs": {
         "base_images": {
-          "14": "amazon/aws-lambda-nodejs:14",
           "16": "amazon/aws-lambda-nodejs:16"
         },
-        "versions": [
-          "14",
-          "16"
-        ],
         "images": [
           "build"
         ],
@@ -108,7 +104,9 @@
         "base_images": {
           "3.7": "mcr.microsoft.com/azure-functions/python:3.0-python3.7",
           "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8",
-          "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9"
+          "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9",
+          "3.10": "mcr.microsoft.com/azure-functions/python:4-python3.10",
+          "3.11": "mcr.microsoft.com/azure-functions/python:4-python3.11"
         },
         "images": [
           "build"
@@ -134,7 +132,9 @@
       },
       "nodejs": {
         "base_images": {
-          "14": "mcr.microsoft.com/azure-functions/node:3.0-node14"
+          "16": "mcr.microsoft.com/azure-functions/node:4-node16",
+          "18": "mcr.microsoft.com/azure-functions/node:4-node18",
+          "20": "mcr.microsoft.com/azure-functions/node:4-node20"
         },
         "images": [
           "build"
@@ -164,7 +164,10 @@
         "base_images": {
           "3.7": "ubuntu:22.04",
           "3.8": "ubuntu:22.04",
-          "3.9": "ubuntu:22.04"
+          "3.9": "ubuntu:22.04",
+          "3.10": "ubuntu:22.04",
+          "3.11": "ubuntu:22.04",
+          "3.12": "ubuntu:22.04"
         },
         "images": [
           "build"
@@ -184,10 +187,12 @@
       },
       "nodejs": {
         "base_images": {
-          "10": "gcr.io/google-appengine/nodejs",
-          "12": "gcr.io/google-appengine/nodejs",
-          "14": "gcr.io/google-appengine/nodejs",
-          "16": "gcr.io/google-appengine/nodejs"
+          "10": "ubuntu:18.04",
+          "12": "ubuntu:18.04",
+          "14": "ubuntu:18.04",
+          "16": "ubuntu:18.04",
+          "18": "ubuntu:22.04",
+          "20": "ubuntu:22.04"
         },
         "images": [
           "build"
@@ -211,7 +216,9 @@
       "python": {
         "base_images": {
           "3.7": "openwhisk/action-python-v3.7",
-          "3.9": "openwhisk/action-python-v3.9"
+          "3.9": "openwhisk/action-python-v3.9",
+          "3.10": "openwhisk/action-python-v3.10",
+          "3.11": "openwhisk/action-python-v3.11"
         },
         "images": [
           "function"
@@ -231,7 +238,10 @@
       "nodejs": {
         "base_images": {
           "10": "openwhisk/action-nodejs-v10",
-          "12": "openwhisk/action-nodejs-v12"
+          "12": "openwhisk/action-nodejs-v12",
+          "14": "openwhisk/action-nodejs-v14",
+          "18": "openwhisk/action-nodejs-v18",
+          "20": "openwhisk/action-nodejs-v20"
         },
         "images": [
           "function"
@@ -243,7 +253,7 @@
             "storage.js"
           ],
           "packages": {
-            "minio": "^7.0.16"
+            "minio": "7.0.16"
           }
         }
       }

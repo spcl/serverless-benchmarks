@@ -1,9 +1,10 @@
 import datetime
 import json
-import glob
+import re
 import os
 import shutil
 import time
+import uuid
 from typing import cast, Dict, List, Optional, Set, Tuple, Type, TypeVar  # noqa
 
 import docker
@@ -66,26 +67,63 @@ class Azure(System):
         self.logging_handlers = logger_handlers
         self._config = config
 
+    def initialize_cli(self, cli: AzureCLI):
+        self.cli_instance = cli
+        self.cli_instance_stop = False
+
     """
         Start the Docker container running Azure CLI tools.
     """
 
-    def initialize(self, config: Dict[str, str] = {}):
-        self.cli_instance = AzureCLI(self.system_config, self.docker_client)
-        self.cli_instance.login(
+    def initialize(
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+    ):
+        if not hasattr(self, "cli_instance"):
+            self.cli_instance = AzureCLI(self.system_config, self.docker_client)
+            self.cli_instance_stop = True
+
+        output = self.cli_instance.login(
             appId=self.config.credentials.appId,
             tenant=self.config.credentials.tenant,
             password=self.config.credentials.password,
         )
 
+        subscriptions = json.loads(output)
+        if len(subscriptions) == 0:
+            raise RuntimeError("Didn't find any valid subscription on Azure!")
+        if len(subscriptions) > 1:
+            raise RuntimeError("Found more than one valid subscription on Azure - not supported!")
+
+        self.config.credentials.subscription_id = subscriptions[0]["id"]
+
+        self.initialize_resources(select_prefix=resource_prefix)
+        self.allocate_shared_resource()
+
     def shutdown(self):
-        if self.cli_instance:
+        if self.cli_instance and self.cli_instance_stop:
             self.cli_instance.shutdown()
         super().shutdown()
 
+    def find_deployments(self) -> List[str]:
+
+        """
+        Look for duplicated resource groups.
+        """
+        resource_groups = self.config.resources.list_resource_groups(self.cli_instance)
+        deployments = []
+        for group in resource_groups:
+            # The benchmarks bucket must exist in every deployment.
+            deployment_search = re.match("sebs_resource_group_(.*)", group)
+            if deployment_search:
+                deployments.append(deployment_search.group(1))
+
+        return deployments
+
     """
         Allow multiple deployment clients share the same settings.
-        Not an ideal situation,
+        Not an ideal situation, but makes regression testing much simpler.
     """
 
     def allocate_shared_resource(self):
@@ -109,6 +147,7 @@ class Azure(System):
             self.storage = BlobStorage(
                 self.config.region,
                 self.cache_client,
+                self.config.resources,
                 self.config.resources.data_storage_account(self.cli_instance).connection_string,
                 replace_existing=replace_existing,
             )
@@ -164,7 +203,13 @@ class Azure(System):
             os.mkdir(os.path.join(directory, "function"))
             for path in os.listdir(directory):
 
-                if path in ["main_workflow.py", "run_workflow.py", "run_subworkflow", "fsm.py", ".python_packages"]:
+                if path in [
+                    "main_workflow.py",
+                    "run_workflow.py",
+                    "run_subworkflow",
+                    "fsm.py",
+                    ".python_packages",
+                ]:
                     continue
 
                 shutil.move(os.path.join(directory, path), os.path.join(directory, "function"))
@@ -192,7 +237,11 @@ class Azure(System):
         ]
 
         if is_workflow:
-            bindings = {"main": main_bindings, "run_workflow": orchestrator_bindings, "run_subworkflow": orchestrator_bindings}
+            bindings = {
+                "main": main_bindings,
+                "run_workflow": orchestrator_bindings,
+                "run_subworkflow": orchestrator_bindings,
+            }
         else:
             bindings = {"function": main_bindings}
 
@@ -233,7 +282,7 @@ class Azure(System):
                     shutil.copyfile(src_path, dst_path)
                 os.remove(src_path)
 
-            for func_dir in func_dirs: 
+            for func_dir in func_dirs:
                 handler_path = os.path.join(func_dir, WRAPPER_FILES[code_package.language_name][0])
                 if self.config.resources.redis_host is not None:
                     replace_string_in_file(
@@ -241,18 +290,23 @@ class Azure(System):
                     )
                 if self.config.resources.redis_password is not None:
                     replace_string_in_file(
-                        handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.resources.redis_password}"'
+                        handler_path,
+                        "{{REDIS_PASSWORD}}",
+                        f'"{self.config.resources.redis_password}"',
                     )
-            run_workflow_path = os.path.join(os.path.join(directory, "run_workflow", "run_workflow.py"))
+            run_workflow_path = os.path.join(
+                os.path.join(directory, "run_workflow", "run_workflow.py")
+            )
             if self.config.resources.redis_host is not None:
                 replace_string_in_file(
                     run_workflow_path, "{{REDIS_HOST}}", f'"{self.config.resources.redis_host}"'
                 )
             if self.config.resources.redis_password is not None:
                 replace_string_in_file(
-                    run_workflow_path, "{{REDIS_PASSWORD}}", f'"{self.config.resources.redis_password}"'
+                    run_workflow_path,
+                    "{{REDIS_PASSWORD}}",
+                    f'"{self.config.resources.redis_password}"',
                 )
-
 
         else:
             # generate function.json
@@ -263,11 +317,9 @@ class Azure(System):
                 "disabled": False,
             }
             dst_json = os.path.join(directory, "function", "function.json")
-            #dst_json = os.path.join(directory, "function.json")
+            # dst_json = os.path.join(directory, "function.json")
             json.dump(payload, open(dst_json, "w"), indent=2)
 
-
-        
         # generate host.json
         host_json = {
             "version": "2.0",
@@ -275,11 +327,11 @@ class Azure(System):
                 "id": "Microsoft.Azure.Functions.ExtensionBundle",
                 "version": "[2.*, 3.0.0)",
             },
-            #"extensions": {
+            # "extensions": {
             #    "durableTask": {
             #        "maxConcurrentActivityFunctions": 1,
             #    }
-            #}
+            # }
         }
         json.dump(host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
@@ -295,6 +347,7 @@ class Azure(System):
         self,
         function: CloudBenchmark,
         code_package: Benchmark,
+        container_dest: str,
         repeat_on_failure: bool = False,
     ) -> str:
         success = False
@@ -303,7 +356,7 @@ class Azure(System):
         while not success:
             try:
                 ret = self.cli_instance.execute(
-                    "bash -c 'cd /mnt/function "
+                    f"bash -c 'cd {container_dest} "
                     "&& func azure functionapp publish {} --{} --no-build'".format(
                         function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
@@ -369,18 +422,17 @@ class Azure(System):
     def update_benchmark(self, function: CloudBenchmark, code_package: Benchmark):
 
         # Mount code package in Docker instance
-        self._mount_function_code(code_package)
-        url = self.publish_function(function, code_package, True)
+        container_dest = self._mount_function_code(code_package)
+        url = self.publish_function(function, code_package, container_dest, True)
 
         storage_account = self.config.resources.data_storage_account(self.cli_instance)
         resource_group = self.config.resources.resource_group(self.cli_instance)
-        
+
         self.cli_instance.execute(
             f"az functionapp config appsettings set --name {function.name} "
             f" --resource-group {resource_group} "
             f" --settings STORAGE_CONNECTION_STRING={storage_account.connection_string}"
         )
-
 
         trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
         trigger.logging_handlers = self.logging_handlers
@@ -392,8 +444,10 @@ class Azure(System):
             "Updating function's memory and timeout configuration is not supported."
         )
 
-    def _mount_function_code(self, code_package: Benchmark):
-        self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
+    def _mount_function_code(self, code_package: Benchmark) -> str:
+        dest = os.path.join("/mnt", "function", uuid.uuid4().hex)
+        self.cli_instance.upload_package(code_package.code_location, dest)
+        return dest
 
     def default_function_name(self, code_package: Benchmark) -> str:
         """
@@ -404,7 +458,7 @@ class Azure(System):
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
-                self.config.resources_id,
+                self.config.resources.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")
@@ -415,7 +469,9 @@ class Azure(System):
 
     B = TypeVar("B", bound=azure.function.Function)
 
-    def create_benchmark(self, code_package: Benchmark, name: str, benchmark_cls: Type[B]) -> B:
+    def create_benchmark(
+        self, code_package: Benchmark, func_name: str, benchmark_cls: Type[B]
+    ) -> B:
         language = code_package.language_name
         language_runtime = code_package.language_version
         resource_group = self.config.resources.resource_group(self.cli_instance)
@@ -424,7 +480,7 @@ class Azure(System):
 
         config = {
             "resource_group": resource_group,
-            "name": name,
+            "func_name": func_name,
             "region": region,
             "runtime": self.AZURE_RUNTIMES[language],
             "runtime_version": language_runtime,
@@ -437,7 +493,7 @@ class Azure(System):
                 (
                     " az functionapp config appsettings list "
                     " --resource-group {resource_group} "
-                    " --name {name} "
+                    " --name {func_name} "
                 ).format(**config)
             )
             for setting in json.loads(ret.decode()):
@@ -448,7 +504,7 @@ class Azure(System):
                     function_storage_account = AzureResources.Storage.from_cache(
                         account_name, connection_string
                     )
-            self.logging.info("Azure: Selected {} function app".format(name))
+            self.logging.info("Azure: Selected {} function app".format(func_name))
         except RuntimeError:
             function_storage_account = self.config.resources.add_storage_account(self.cli_instance)
             config["storage_account"] = function_storage_account.account_name
@@ -462,20 +518,22 @@ class Azure(System):
                             " --resource-group {resource_group} --os-type Linux"
                             " --consumption-plan-location {region} "
                             " --runtime {runtime} --runtime-version {runtime_version} "
-                            " --name {name} --storage-account {storage_account}"
+                            " --name {func_name} --storage-account {storage_account}"
                         ).format(**config)
                     )
-                    self.logging.info("Azure: Created function app {}".format(name))
+                    self.logging.info("Azure: Created function app {}".format(func_name))
                     break
                 except RuntimeError as e:
                     # Azure does not allow some concurrent operations
                     if "another operation is in progress" in str(e):
-                        self.logging.info(f"Repeat {name} creation, another operation in progress")
+                        self.logging.info(
+                            f"Repeat {func_name} creation, another operation in progress"
+                        )
                     # Rethrow -> another error
                     else:
                         raise
         function = benchmark_cls(
-            name=name,
+            name=func_name,
             benchmark=code_package.benchmark,
             code_hash=code_package.hash,
             function_storage=function_storage_account,

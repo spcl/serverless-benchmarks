@@ -1,5 +1,6 @@
 from typing import cast, Optional
 
+from sebs.faas.config import Resources
 from sebs.faas.function import Function, FunctionConfig
 from sebs.gcp.storage import GCPStorage
 
@@ -50,5 +51,5 @@ class GCPFunction(Function):
 
     def code_bucket(self, benchmark: str, storage_client: GCPStorage):
         if not self.bucket:
-            self.bucket, idx = storage_client.add_input_bucket(benchmark)
+            self.bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
         return self.bucket

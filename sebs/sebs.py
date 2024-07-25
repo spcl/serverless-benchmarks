@@ -133,7 +133,11 @@ class SeBS(LoggingBase):
         return ExperimentConfig.deserialize(config)
 
     def get_experiment(
-        self, experiment_type: str, config: dict,  is_workflow: bool, logging_filename: Optional[str] = None
+        self,
+        experiment_type: str,
+        config: dict,
+        is_workflow: bool,
+        logging_filename: Optional[str] = None,
     ) -> Experiment:
         from sebs.experiments import (
             Experiment,
@@ -151,7 +155,9 @@ class SeBS(LoggingBase):
         }
         if experiment_type not in implementations:
             raise RuntimeError(f"Experiment {experiment_type} not supported!")
-        experiment = implementations[experiment_type](self.get_experiment_config(config), is_workflow)
+        experiment = implementations[experiment_type](
+            self.get_experiment_config(config), is_workflow
+        )
         experiment.logging_handlers = self.generate_logging_handlers(
             logging_filename=logging_filename
         )
@@ -187,7 +193,12 @@ class SeBS(LoggingBase):
 
     @staticmethod
     def get_storage_config_implementation(storage_type: types.Storage):
-        _storage_implementations = {types.Storage.MINIO: sebs.storage.config.MinioConfig}
+        _storage_implementations = {
+            types.Storage.MINIO: (
+                sebs.storage.config.MinioConfig,
+                sebs.storage.config.MinioResources,
+            )
+        }
         impl = _storage_implementations.get(storage_type)
         assert impl
         return impl

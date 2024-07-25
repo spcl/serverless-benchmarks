@@ -12,7 +12,8 @@ from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 from google.cloud.workflows import executions_v1
 from google.cloud.workflows.executions_v1 import Execution
 from google.cloud.workflows.executions_v1.types import executions
-#from google.cloud.workflows.executions_v1beta.types import Execution
+
+# from google.cloud.workflows.executions_v1beta.types import Execution
 from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 
@@ -213,10 +214,10 @@ class Trigger(ABC, LoggingBase):
         c.setopt(pycurl.WRITEFUNCTION, data.write)
 
         c.setopt(pycurl.POSTFIELDS, json.dumps(payload))
-        
+
         begin = datetime.now()
         c.perform()
-        
+
         status_code = c.getinfo(pycurl.RESPONSE_CODE)
         conn_time = c.getinfo(pycurl.PRETRANSFER_TIME)
         receive_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
@@ -224,8 +225,8 @@ class Trigger(ABC, LoggingBase):
         try:
             output = json.loads(data.getvalue())
 
-            #FIXME this only works for Azure. 
-            
+            # FIXME this only works for Azure.
+
             statusQuery = output["statusQueryGetUri"]
             print("status query: ", statusQuery)
             myQuery = pycurl.Curl()
@@ -234,17 +235,17 @@ class Trigger(ABC, LoggingBase):
                 myQuery.setopt(pycurl.SSL_VERIFYHOST, 0)
                 myQuery.setopt(pycurl.SSL_VERIFYPEER, 0)
 
-            #poll for result here. 
-            #should be runtimeStatus Completed when finished. 
+            # poll for result here.
+            # should be runtimeStatus Completed when finished.
             finished = False
             while not finished:
                 data2 = BytesIO()
                 myQuery.setopt(pycurl.WRITEFUNCTION, data2.write)
                 myQuery.perform()
                 response = json.loads(data2.getvalue())
-                if response['runtimeStatus'] == "Running" or response['runtimeStatus'] == "Pending":
+                if response["runtimeStatus"] == "Running" or response["runtimeStatus"] == "Pending":
                     time.sleep(4)
-                elif response['runtimeStatus'] == 'Completed':
+                elif response["runtimeStatus"] == "Completed":
                     status_code = myQuery.getinfo(pycurl.RESPONSE_CODE)
                     finished = True
                 else:

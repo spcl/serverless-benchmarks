@@ -1,5 +1,6 @@
+import json
 import os
-from typing import cast, List, Tuple
+from typing import cast, List, Optional, Tuple
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -14,70 +15,73 @@ from sebs.utils import LoggingHandlers
 
     The order of credentials initialization:
     1. Load credentials from cache.
-    2. If any new vaues are provided in the config, they override cache values.
+    2. If any new values are provided in the config, they override cache values.
     3. If nothing is provided, initialize using environmental variables.
     4. If no information is provided, then failure is reported.
 """
 
 
 class GCPCredentials(Credentials):
-    _gcp_credentials: str
-
     def __init__(self, gcp_credentials: str):
         super().__init__()
+
         self._gcp_credentials = gcp_credentials
+
+        gcp_data = json.load(open(self._gcp_credentials, "r"))
+        self._project_id = gcp_data["project_id"]
 
     @property
     def gcp_credentials(self) -> str:
         return self._gcp_credentials
 
+    @property
+    def project_name(self) -> str:
+        return self._project_id
+
     @staticmethod
-    def initialize(gcp_credentials: str) -> Credentials:
+    def initialize(gcp_credentials: str) -> "GCPCredentials":
         return GCPCredentials(gcp_credentials)
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
+
         cached_config = cache.get_config("gcp")
         ret: GCPCredentials
-        # Load cached values but only if they are non-empty
-        if (
-            cached_config
-            and "credentials" in cached_config
-            and cached_config["credentials"]["keys_json"]
-        ):
-            ret = cast(
-                GCPCredentials,
-                GCPCredentials.initialize(cached_config["credentials"]["keys_json"]),
-            )
+        project_id: Optional[str] = None
+
+        # Load cached values
+        if cached_config and "credentials" in cached_config:
+            project_id = cached_config["credentials"]["project_id"]
+
+        # Check for new config
+        if "credentials" in config and "credentials-json" in config["credentials"]:
+            ret = GCPCredentials.initialize(config["credentials"]["credentials-json"])
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
-            ret.logging_handlers = handlers
-            ret.logging.info("Using cached credentials for GCP")
+        # Look for default GCP credentials
+        elif "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
+            ret = GCPCredentials(os.environ["GOOGLE_APPLICATION_CREDENTIALS"])
+        # Look for our environment variables
+        elif "GCP_SECRET_APPLICATION_CREDENTIALS" in os.environ:
+            ret = GCPCredentials(os.environ["GCP_SECRET_APPLICATION_CREDENTIALS"])
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
         else:
-            # Check for new config
-            if "credentials" in config and config["credentials"]:
-                ret = cast(GCPCredentials, GCPCredentials.initialize(config["credentials"]))
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
-            # Look for default GCP credentials
-            elif "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
-                ret = GCPCredentials(os.environ["GOOGLE_APPLICATION_CREDENTIALS"])
-                cache.update_config(
-                    val=ret.gcp_credentials, keys=["gcp", "credentials", "keys_json"]
-                )
-            # Look for our environment variables
-            elif "GCP_SECRET_APPLICATION_CREDENTIALS" in os.environ:
-                ret = GCPCredentials(os.environ["GCP_SECRET_APPLICATION_CREDENTIALS"])
-                cache.update_config(
-                    val=ret.gcp_credentials, keys=["gcp", "credentials", "keys_json"]
-                )
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ret.gcp_credentials
-            else:
-                raise RuntimeError(
-                    "GCP login credentials are missing! Please set the path to .json "
-                    "with cloud credentials in config or in the GCP_SECRET_APPLICATION_CREDENTIALS "
-                    "environmental variable"
-                )
-            ret.logging_handlers = handlers
-            ret.logging.info("No cached credentials for GCP found, initialize!")
+            raise RuntimeError(
+                "GCP login credentials are missing! Please set the path to .json "
+                "with cloud credentials in config or in the GCP_SECRET_APPLICATION_CREDENTIALS "
+                "environmental variable"
+            )
+        ret.logging_handlers = handlers
+
+        if project_id is not None and project_id != ret._project_id:
+            ret.logging.error(
+                f"The project id {ret._project_id} from provided "
+                f"credentials is different from the ID {project_id} in the cache! "
+                "Please change your cache directory or create a new one!"
+            )
+            raise RuntimeError(
+                f"GCP login credentials do not match the project {project_id} in cache!"
+            )
+
         return ret
 
     """
@@ -85,11 +89,11 @@ class GCPCredentials(Credentials):
     """
 
     def serialize(self) -> dict:
-        out = {"keys_json": self.gcp_credentials}
+        out = {"project_id": self._project_id}
         return out
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.gcp_credentials, keys=["gcp", "credentials", "keys_json"])
+        cache.update_config(val=self._project_id, keys=["gcp", "credentials", "project_id"])
 
 
 """
@@ -103,37 +107,50 @@ class GCPCredentials(Credentials):
 
 class GCPResources(Resources):
     def __init__(self):
-        super().__init__()
+        super().__init__(name="gcp")
 
     @staticmethod
-    def initialize(dct: dict) -> Resources:
-        return GCPResources()
+    def initialize(res: Resources, dct: dict):
+        ret = cast(GCPResources, res)
+        super(GCPResources, GCPResources).initialize(ret, dct)
+        return ret
 
     """
         Serialize to JSON for storage in cache.
     """
 
     def serialize(self) -> dict:
-        return {**super().serialize()}
+        return super().serialize()
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
+
         cached_config = cache.get_config("gcp")
-        ret: GCPResources
+        ret = GCPResources()
         if cached_config and "resources" in cached_config:
-            ret = cast(GCPResources, GCPResources.initialize(cached_config["resources"]))
+            GCPResources.initialize(ret, cached_config["resources"])
             ret.load_redis(cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for GCP")
         else:
-            ret = cast(GCPResources, GCPResources.initialize(config))
-            ret.load_redis(config["resources"])
-            ret.logging_handlers = handlers
-            ret.logging.info("No cached resources for GCP found, using user configuration.")
+
+            if "resources" in config:
+                GCPResources.initialize(ret, config["resources"])
+                ret.load_redis(config["resources"])
+                ret.logging_handlers = handlers
+                ret.logging.info("No cached resources for GCP found, using user configuration.")
+            else:
+                GCPResources.initialize(ret, {})
+                ret.logging_handlers = handlers
+                ret.logging.info("No resources for GCP found, initialize!")
+
         return ret
 
     def update_cache(self, cache: Cache):
         super().update_cache_redis(keys=["gcp", "resources"], cache=cache)
+
+    def update_cache(self, cache: Cache):
+        super().update_cache(cache)
 
 
 """
@@ -147,7 +164,7 @@ class GCPConfig(Config):
     _project_name: str
 
     def __init__(self, credentials: GCPCredentials, resources: GCPResources):
-        super().__init__()
+        super().__init__(name="gcp")
         self._credentials = credentials
         self._resources = resources
 
@@ -157,7 +174,7 @@ class GCPConfig(Config):
 
     @property
     def project_name(self) -> str:
-        return self._project_name
+        return self.credentials.project_name
 
     @property
     def credentials(self) -> GCPCredentials:
@@ -174,32 +191,16 @@ class GCPConfig(Config):
         resources = cast(GCPResources, GCPResources.deserialize(config, cache, handlers))
         config_obj = GCPConfig(credentials, resources)
         config_obj.logging_handlers = handlers
+
         if cached_config:
             config_obj.logging.info("Loading cached config for GCP")
             GCPConfig.initialize(config_obj, cached_config)
         else:
             config_obj.logging.info("Using user-provided config for GCP")
-
-            # User didn't provide the project name
-            if "project_name" not in config or not config["project_name"]:
-                if "GCP_PROJECT_NAME" in os.environ:
-                    GCPConfig.initialize(
-                        config_obj, {**config, "project_name": os.environ["GCP_PROJECT_NAME"]}
-                    )
-                else:
-                    raise RuntimeError(
-                        "Google Cloud Platform: project name is missing! "
-                        "Please provide it in configuration or through the "
-                        "GCP_PROJECT_NAME environment variable!"
-                    )
-            else:
-                GCPConfig.initialize(config_obj, config)
+            GCPConfig.initialize(config_obj, config)
 
         # mypy makes a mistake here
-        updated_keys: List[Tuple[str, Tuple[str]]] = [
-            ["region", ["gcp", "region"]],  # type: ignore
-            ["project_name", ["gcp", "project_name"]],  # type: ignore
-        ]
+        updated_keys: List[Tuple[str, Tuple[str]]] = [["region", ["gcp", "region"]]]  # type: ignore
         # for each attribute here, check if its version is different than the one provided by
         # user; if yes, then update the value
         for config_key, keys in updated_keys:
@@ -219,13 +220,11 @@ class GCPConfig(Config):
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(GCPConfig, cfg)
-        config._project_name = dct["project_name"]
         config._region = dct["region"]
 
     def serialize(self) -> dict:
         out = {
             "name": "gcp",
-            "project_name": self._project_name,
             "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
@@ -233,7 +232,6 @@ class GCPConfig(Config):
         return out
 
     def update_cache(self, cache: Cache):
-        cache.update_config(val=self.project_name, keys=["gcp", "project_name"])
         cache.update_config(val=self.region, keys=["gcp", "region"])
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)

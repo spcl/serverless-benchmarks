@@ -11,6 +11,7 @@ import docker
 
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
+from sebs.faas.config import Resources
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
 from typing import TYPE_CHECKING
@@ -524,7 +525,7 @@ class Benchmark(LoggingBase):
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         self._code_location, self._code_size = deployment_build_step(
-            self, os.path.abspath(self._output_dir), is_workflow, self.is_cached
+            self, os.path.abspath(self._output_dir), is_workflow, self.is_cached_valid
         )
         self.logging.info(
             (
@@ -560,16 +561,34 @@ class Benchmark(LoggingBase):
     def prepare_input(self, storage: PersistentStorage, size: str):
         benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
         mod = load_benchmark_input(self._benchmark_path)
+
         buckets = mod.buckets_count()
-        storage.allocate_buckets(self.benchmark, buckets)
+        input, output = storage.benchmark_data(self.benchmark, buckets)
+
+        # buckets = mod.buckets_count()
+        # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = mod.generate_input(
             benchmark_data_path,
             size,
-            storage.input,
-            storage.output,
+            storage.get_bucket(Resources.StorageBucketType.BENCHMARKS),
+            input,
+            output,
             storage.uploader_func,
         )
+
+        self._cache_client.update_storage(
+            storage.deployment_name(),
+            self._benchmark,
+            {
+                "buckets": {
+                    "input": storage.input_prefixes,
+                    "output": storage.output_prefixes,
+                    "input_uploaded": True,
+                }
+            },
+        )
+
         return input_config
 
     """
@@ -646,8 +665,9 @@ class BenchmarkModuleInterface:
     def generate_input(
         data_dir: str,
         size: str,
-        input_buckets: List[str],
-        output_buckets: List[str],
+        benchmarks_bucket: str,
+        input_paths: List[str],
+        output_paths: List[str],
         upload_func: Callable[[int, str, str], None],
     ) -> Dict[str, str]:
         pass

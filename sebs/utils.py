@@ -100,14 +100,18 @@ def replace_string_in_file(path: str, from_str: str, to_str: str):
         f.write(data)
 
 
-def connect_to_redis_cache(host: str, password : str):
-    redis = Redis(host=host, port=6379, decode_responses=True, socket_connect_timeout=10, password=password)
+def connect_to_redis_cache(host: str, password: str):
+    redis = Redis(
+        host=host, port=6379, decode_responses=True, socket_connect_timeout=10, password=password
+    )
     redis.ping()
 
     return redis
 
 
-def download_measurements(redis: Redis, workflow_name: str, after: float, request_id: Optional[str], **static_args):
+def download_measurements(
+    redis: Redis, workflow_name: str, after: float, request_id: Optional[str], **static_args
+):
     payloads = []
     pattern = f"{workflow_name}/*/{request_id}/*" if request_id else f"{workflow_name}/*"
 
@@ -129,7 +133,7 @@ def download_measurements(redis: Redis, workflow_name: str, after: float, reques
                         if isinstance(res, dict):
                             del payload["result"]
                             for key, val in res.items():
-                                payload["result."+key] = val                    
+                                payload["result." + key] = val
 
                     payload["request_id"] = request_id
                     payload = {**payload, **static_args}

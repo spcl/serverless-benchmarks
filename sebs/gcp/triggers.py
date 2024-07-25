@@ -108,10 +108,7 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         )
 
         request_id = str(uuid.uuid4())[0:8]
-        input = {
-            "payload": payload,
-            "request_id": request_id
-        }
+        input = {"payload": payload, "request_id": request_id}
 
         execution_client = ExecutionsClient()
         execution = Execution(argument=json.dumps(input))

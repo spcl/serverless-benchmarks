@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser(description="Install SeBS and dependencies.")
 parser.add_argument('--venv', metavar='DIR', type=str, default="python-venv", help='destination of local Python virtual environment')
 parser.add_argument('--python-path', metavar='DIR', type=str, default="python3", help='Path to local Python installation.')
 for deployment in ["aws", "azure", "gcp", "openwhisk"]:
-    parser.add_argument(f"--{deployment}", action="store_const", const=True, dest=deployment)
+    parser.add_argument(f"--{deployment}", action="store_const", const=True, default=True, dest=deployment)
     parser.add_argument(f"--no-{deployment}", action="store_const", const=False, default=True, dest=deployment)
 for deployment in ["local"]:
     parser.add_argument(f"--{deployment}", action="store_const", default=True, const=True, dest=deployment)
