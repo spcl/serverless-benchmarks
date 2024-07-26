@@ -12,6 +12,7 @@ from sebs.config import SeBSConfig
 from sebs.faas.config import Resources
 from sebs.faas.function import Function, Trigger, ExecutionResult
 from sebs.faas.storage import PersistentStorage
+from sebs.faas.nosql import NoSQLStorage
 from sebs.utils import LoggingBase
 from .config import Config
 
@@ -142,6 +143,18 @@ class System(ABC, LoggingBase):
 
     @abstractmethod
     def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
+        pass
+
+    """
+        Access persistent storage instance.
+        It might be a remote and truly persistent service (AWS S3, Azure Blob..),
+        or a dynamically allocated local instance.
+
+        :param replace_existing: replace benchmark input data if exists already
+    """
+
+    @abstractmethod
+    def get_nosql_storage(self, replace_existing: bool = False) -> NoSQLStorage:
         pass
 
     """
