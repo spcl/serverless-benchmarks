@@ -8,6 +8,7 @@ from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 import boto3
 import docker
 
+from sebs.aws.dynamodb import DynamoDB
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
 from sebs.aws.config import AWSConfig
@@ -19,6 +20,7 @@ from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.storage import PersistentStorage
+from sebs.faas.nosql import NoSQLStorage
 from sebs.faas.system import System
 
 
@@ -61,6 +63,7 @@ class AWS(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self.storage: Optional[S3] = None
+        self.nosql_storage: Optional[DynamoDB] = None
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         # thread-safe
@@ -106,6 +109,18 @@ class AWS(System):
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
+
+    def get_nosql_storage(self) -> NoSQLStorage:
+        if not self.nosql_storage:
+            self.nosql_storage = DynamoDB(
+                self.session,
+                self.cache_client,
+                self.config.resources,
+                self.config.region,
+                access_key=self.config.credentials.access_key,
+                secret_key=self.config.credentials.secret_key,
+            )
+        return self.nosql_storage
 
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.

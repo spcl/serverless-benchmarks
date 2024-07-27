@@ -154,7 +154,7 @@ class System(ABC, LoggingBase):
     """
 
     @abstractmethod
-    def get_nosql_storage(self, replace_existing: bool = False) -> NoSQLStorage:
+    def get_nosql_storage(self) -> NoSQLStorage:
         pass
 
     """
