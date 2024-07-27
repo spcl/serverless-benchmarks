@@ -42,7 +42,6 @@ class NoSQLStorage(ABC, LoggingBase):
 
         cached_storage = self.cache_client.get_nosql_config(self.deployment_name(), benchmark)
         if cached_storage is not None:
-            print(cached_storage["tables"])
             self._tables[benchmark] = cached_storage["tables"]
             return True
 
@@ -83,8 +82,6 @@ class NoSQLStorage(ABC, LoggingBase):
                 return
 
         self.create_table(benchmark, table_name, primary_key)
-        print(type(self._tables))
-        print(self._tables[benchmark])
         self._tables[benchmark][name] = table_name
 
         self.update_cache(benchmark)
