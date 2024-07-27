@@ -115,7 +115,8 @@
             "storage.py"
           ],
           "packages": [
-            "azure-storage-blob"
+            "azure-storage-blob",
+            "azure-cosmos"
           ]
         }
       },
@@ -168,7 +169,8 @@
             "storage.py"
           ],
           "packages": [
-            "google-cloud-storage"
+            "google-cloud-storage",
+            "google-cloud-datastore"
           ]
         }
       },
