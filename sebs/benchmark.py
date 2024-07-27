@@ -12,6 +12,7 @@ import docker
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.faas.config import Resources
+from sebs.faas.nosql import NoSQLStorage
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
 from typing import TYPE_CHECKING
@@ -188,6 +189,11 @@ class Benchmark(LoggingBase):
         self.query_cache()
         if config.update_code:
             self._is_cached_valid = False
+
+        # Load input module
+
+        self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
+        self._benchmark_input_module = load_benchmark_input(self._benchmark_path)
 
     """
         Compute MD5 hash of an entire directory.
@@ -537,24 +543,14 @@ class Benchmark(LoggingBase):
         :param size: Benchmark workload size
     """
 
-    def prepare_input(self, storage: PersistentStorage, size: str):
-        benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
-        mod = load_benchmark_input(self._benchmark_path)
+    def prepare_input(self, storage: PersistentStorage, nosql_storage: NoSQLStorage, size: str):
 
-        buckets = mod.buckets_count()
+        """
+        Handle object storage buckets.
+        """
+
+        buckets = self._benchmark_input_module.buckets_count()
         input, output = storage.benchmark_data(self.benchmark, buckets)
-
-        # buckets = mod.buckets_count()
-        # storage.allocate_buckets(self.benchmark, buckets)
-        # Get JSON and upload data as required by benchmark
-        input_config = mod.generate_input(
-            benchmark_data_path,
-            size,
-            storage.get_bucket(Resources.StorageBucketType.BENCHMARKS),
-            input,
-            output,
-            storage.uploader_func,
-        )
 
         self._cache_client.update_storage(
             storage.deployment_name(),
@@ -566,6 +562,30 @@ class Benchmark(LoggingBase):
                     "input_uploaded": True,
                 }
             },
+        )
+
+        """
+            Handle key-value storage.
+            This part is optional - only selected benchmarks implement this.
+        """
+        if hasattr(self._benchmark_input_module, "allocate_nosql"):
+
+            for name, table_properties in self._benchmark_input_module.allocate_nosql().items():
+                nosql_storage.create_benchmark_tables(
+                    self._benchmark, name, table_properties["primary_key"]
+                )
+
+        # buckets = mod.buckets_count()
+        # storage.allocate_buckets(self.benchmark, buckets)
+        # Get JSON and upload data as required by benchmark
+        input_config = self._benchmark_input_module.generate_input(
+            data_dir=self._benchmark_data_path,
+            size=size,
+            benchmarks_bucket=storage.get_bucket(Resources.StorageBucketType.BENCHMARKS),
+            input_paths=input,
+            output_paths=output,
+            upload_func=storage.uploader_func,
+            nosql_tables=nosql_storage.get_tables(self.benchmark),
         )
 
         return input_config
@@ -641,6 +661,11 @@ class BenchmarkModuleInterface:
 
     @staticmethod
     @abstractmethod
+    def allocate_nosql() -> dict:
+        pass
+
+    @staticmethod
+    @abstractmethod
     def generate_input(
         data_dir: str,
         size: str,
@@ -648,6 +673,7 @@ class BenchmarkModuleInterface:
         input_paths: List[str],
         output_paths: List[str],
         upload_func: Callable[[int, str, str], None],
+        nosql_tables: Dict[str, str],
     ) -> Dict[str, str]:
         pass
 

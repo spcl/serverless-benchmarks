@@ -247,7 +247,7 @@ def invoke(
         function_name if function_name else deployment_client.default_function_name(benchmark_obj),
     )
     storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
-    input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
+    input_config = benchmark_obj.prepare_input(storage=storage, nosql_storage=deployment_client.get_nosql_storage(), size=benchmark_input_size)
 
     result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
     result.begin()
@@ -441,7 +441,11 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
     )
     storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
     result.set_storage(storage)
-    input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
+    input_config = benchmark_obj.prepare_input(
+        storage=storage,
+        nosql_storage=storage.get_nosql_storage(),
+        size=benchmark_input_size
+    )
     result.add_input(input_config)
 
     for i in range(deployments):
