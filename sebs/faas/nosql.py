@@ -59,15 +59,17 @@ class NoSQLStorage(ABC, LoggingBase):
 
         table_name = f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}-{name}"
 
-        self.logging.info(
-            f"Preparing to create a NoSQL table {table_name} for benchmark {benchmark}"
-        )
-
         if self.retrieve_cache(benchmark):
 
             if table_name in self._tables[benchmark]:
-                self.logging.info("Table {table_name} already exists in cache")
+                self.logging.info(
+                    f"Using cached NoSQL table {table_name} for benchmark {benchmark}"
+                )
                 return
+
+        self.logging.info(
+            f"Preparing to create a NoSQL table {table_name} for benchmark {benchmark}"
+        )
 
         self.create_table(benchmark, table_name, primary_key, secondary_key)
         self._tables[benchmark][name] = table_name
