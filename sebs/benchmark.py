@@ -15,6 +15,7 @@ from sebs.faas.config import Resources
 from sebs.faas.nosql import NoSQLStorage
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
+from sebs.types import BenchmarkModule
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -23,10 +24,13 @@ if TYPE_CHECKING:
 
 
 class BenchmarkConfig:
-    def __init__(self, timeout: int, memory: int, languages: List["Language"]):
+    def __init__(
+        self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
+    ):
         self._timeout = timeout
         self._memory = memory
         self._languages = languages
+        self._modules = modules
 
     @property
     def timeout(self) -> int:
@@ -48,6 +52,10 @@ class BenchmarkConfig:
     def languages(self) -> List["Language"]:
         return self._languages
 
+    @property
+    def modules(self) -> List[BenchmarkModule]:
+        return self._modules
+
     # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
@@ -57,6 +65,7 @@ class BenchmarkConfig:
             json_object["timeout"],
             json_object["memory"],
             [Language.deserialize(x) for x in json_object["languages"]],
+            [BenchmarkModule(x) for x in json_object["modules"]],
         )
 
 
@@ -295,14 +304,23 @@ class Benchmark(LoggingBase):
             shutil.copy2(file, os.path.join(output_dir))
 
     def add_deployment_package_python(self, output_dir):
+
         # append to the end of requirements file
-        packages = self._system_config.deployment_packages(
-            self._deployment_name, self.language_name
-        )
-        if len(packages):
-            with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
-                for package in packages:
-                    out.write(package)
+        with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
+
+            packages = self._system_config.deployment_packages(
+                self._deployment_name, self.language_name
+            )
+            for package in packages:
+                out.write(package)
+
+            module_packages = self._system_config.deployment_module_packages(
+                self._deployment_name, self.language_name
+            )
+            for bench_module in self._benchmark_config.modules:
+                if bench_module.value in module_packages:
+                    for package in packages[bench_module.value]:
+                        out.write(package)
 
     def add_deployment_package_nodejs(self, output_dir):
         # modify package.json
@@ -572,7 +590,10 @@ class Benchmark(LoggingBase):
 
             for name, table_properties in self._benchmark_input_module.allocate_nosql().items():
                 nosql_storage.create_benchmark_tables(
-                    self._benchmark, name, table_properties["primary_key"]
+                    self._benchmark,
+                    name,
+                    table_properties["primary_key"],
+                    table_properties.get("secondary_key"),
                 )
 
         # buckets = mod.buckets_count()

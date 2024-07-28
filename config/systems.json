@@ -71,9 +71,11 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
-          "packages": []
+          "packages": [],
+          "module_packages": {}
         }
       },
       "nodejs": {
@@ -114,10 +116,15 @@
             "handler.py",
             "storage.py"
           ],
-          "packages": [
-            "azure-storage-blob",
-            "azure-cosmos"
-          ]
+          "packages": [],
+          "module-packages": {
+            "storage": [
+              "azure-storage-blob"
+            ],
+            "nosql": [
+              "azure-cosmos"
+            ]
+          }
         }
       },
       "nodejs": {
@@ -168,10 +175,15 @@
             "handler.py",
             "storage.py"
           ],
-          "packages": [
-            "google-cloud-storage",
-            "google-cloud-datastore"
-          ]
+          "packages": [],
+          "module-packages": {
+            "storage": [
+              "google-cloud-storage"
+            ],
+            "nosql": [
+              "google-cloud-datastore"
+            ]
+          }
         }
       },
       "nodejs": {
@@ -219,8 +231,12 @@
             "storage.py",
             "setup.py"
           ],
-          "packages": {
-            "minio": "^5.0.10"
+          "packages": [],
+          "module-packages": {
+            "storage": {
+              "minio": "^5.0.10"
+            },
+            "nosql": []
           }
         }
       },
