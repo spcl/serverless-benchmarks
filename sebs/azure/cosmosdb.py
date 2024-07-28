@@ -7,8 +7,8 @@ from sebs.cache import Cache
 from sebs.azure.config import AzureResources
 from sebs.faas.nosql import NoSQLStorage
 
-from azure.cosmos import CosmosClient, DatabaseProxy
-from azure.cosmos import PartitionKey
+from azure.cosmos import CosmosClient, DatabaseProxy, PartitionKey
+from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
 
 @dataclass
@@ -94,20 +94,38 @@ class CosmosDB(NoSQLStorage):
 
         benchmark_resources = self._benchmark_resources.get(benchmark, None)
 
+        if benchmark_resources is not None and name in benchmark_resources.containers:
+            self.logging.info(f"Using existing CosmosDB container {name}")
+
         # Each benchmark receives its own CosmosDB database
         if benchmark_resources is None:
-            db_client = self.cosmos_client().create_database(benchmark)
+
+            # Get or allocate database
+            try:
+                db_client = self.cosmos_client().get_database_client(benchmark)
+            except CosmosResourceNotFoundError:
+                db_client = self.cosmos_client().create_database(benchmark)
+
             benchmark_resources = BenchmarkResources(
                 database=benchmark, database_client=db_client, containers=[]
             )
             self._benchmark_resources[benchmark] = benchmark_resources
+        elif benchmark_resources.database_client is None:
+            # Data loaded from cache will miss database client
+            benchmark_resources.database_client = self.cosmos_client().get_database_client(
+                benchmark
+            )
 
-        if benchmark_resources.database_client is None:
-            benchmark_resources.database_client = self.cosmos_client().create_database(benchmark)
+        try:
 
-        benchmark_resources.database_client.create_container(
-            id=name, partition_key=PartitionKey(path=f"/{primary_key}")
-        )
+            # verify it exists
+            benchmark_resources.database_client.get_container_client(name)
+
+        except CosmosResourceNotFoundError:
+            # no container with such name -> allocate
+            benchmark_resources.database_client.create_container(
+                id=name, partition_key=PartitionKey(path=f"/{primary_key}")
+            )
 
         benchmark_resources.containers.append(name)
 
