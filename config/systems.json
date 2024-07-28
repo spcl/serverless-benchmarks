@@ -114,10 +114,11 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
           "packages": [],
-          "module-packages": {
+          "module_packages": {
             "storage": [
               "azure-storage-blob"
             ],
