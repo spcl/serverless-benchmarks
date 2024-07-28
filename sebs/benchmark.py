@@ -319,7 +319,7 @@ class Benchmark(LoggingBase):
             )
             for bench_module in self._benchmark_config.modules:
                 if bench_module.value in module_packages:
-                    for package in packages[bench_module.value]:
+                    for package in module_packages[bench_module.value]:
                         out.write(package)
 
     def add_deployment_package_nodejs(self, output_dir):
