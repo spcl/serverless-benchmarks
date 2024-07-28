@@ -110,7 +110,8 @@ class CosmosDB(NoSQLStorage):
                 database=benchmark, database_client=db_client, containers=[]
             )
             self._benchmark_resources[benchmark] = benchmark_resources
-        elif benchmark_resources.database_client is None:
+
+        if benchmark_resources.database_client is None:
             # Data loaded from cache will miss database client
             benchmark_resources.database_client = self.cosmos_client().get_database_client(
                 benchmark
