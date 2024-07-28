@@ -33,6 +33,28 @@ class DynamoDB(NoSQLStorage):
             aws_secret_access_key=secret_key,
         )
 
+    def retrieve_cache(self, benchmark: str) -> bool:
+
+        if benchmark in self._tables:
+            return True
+
+        cached_storage = self.cache_client.get_nosql_config(self.deployment_name(), benchmark)
+        if cached_storage is not None:
+            self._tables[benchmark] = cached_storage["tables"]
+            return True
+
+        return False
+
+    def update_cache(self, benchmark: str):
+
+        self._cache_client.update_nosql(
+            self.deployment_name(),
+            benchmark,
+            {
+                "tables": self._tables[benchmark],
+            },
+        )
+
     """
         AWS: create a DynamoDB Table
     """

@@ -35,27 +35,13 @@ class NoSQLStorage(ABC, LoggingBase):
     def get_tables(self, benchmark: str) -> Dict[str, str]:
         return self._tables[benchmark]
 
+    @abstractmethod
     def retrieve_cache(self, benchmark: str) -> bool:
+        pass
 
-        if benchmark in self._tables:
-            return True
-
-        cached_storage = self.cache_client.get_nosql_config(self.deployment_name(), benchmark)
-        if cached_storage is not None:
-            self._tables[benchmark] = cached_storage["tables"]
-            return True
-
-        return False
-
+    @abstractmethod
     def update_cache(self, benchmark: str):
-
-        self._cache_client.update_nosql(
-            self.deployment_name(),
-            benchmark,
-            {
-                "tables": self._tables[benchmark],
-            },
-        )
+        pass
 
     """
         Each table name follow this pattern:
