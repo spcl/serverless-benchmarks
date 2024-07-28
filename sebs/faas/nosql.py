@@ -1,7 +1,7 @@
 from abc import ABC
 from abc import abstractmethod
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, Optional
 
 from sebs.faas.config import Resources
 from sebs.cache import Cache
@@ -67,7 +67,9 @@ class NoSQLStorage(ABC, LoggingBase):
         (3) Update cached data if anything new was created
     """
 
-    def create_benchmark_tables(self, benchmark: str, name: str, primary_key: str):
+    def create_benchmark_tables(
+        self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
+    ):
 
         table_name = f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}-{name}"
 
@@ -81,7 +83,7 @@ class NoSQLStorage(ABC, LoggingBase):
                 self.logging.info("Table {table_name} already exists in cache")
                 return
 
-        self.create_table(benchmark, table_name, primary_key)
+        self.create_table(benchmark, table_name, primary_key, secondary_key)
         self._tables[benchmark][name] = table_name
 
         self.update_cache(benchmark)
@@ -94,7 +96,9 @@ class NoSQLStorage(ABC, LoggingBase):
     """
 
     @abstractmethod
-    def create_table(self, benchmark: str, name: str, primary_key: str) -> str:
+    def create_table(
+        self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
+    ) -> str:
         pass
 
     """
