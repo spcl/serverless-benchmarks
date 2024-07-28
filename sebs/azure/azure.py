@@ -11,10 +11,12 @@ import docker
 
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
+from sebs.azure.cosmosdb import CosmosDB
 from sebs.azure.function import AzureFunction
 from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.faas.function import Trigger
+from sebs.faas.nosql import NoSQLStorage
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -56,6 +58,8 @@ class Azure(System):
         super().__init__(sebs_config, cache_client, docker_client)
         self.logging_handlers = logger_handlers
         self._config = config
+
+        self.nosql_storage: Optional[CosmosDB] = None
 
     def initialize_cli(self, cli: AzureCLI):
         self.cli_instance = cli
@@ -145,6 +149,13 @@ class Azure(System):
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
+
+    def get_nosql_storage(self) -> NoSQLStorage:
+        if not self.nosql_storage:
+            self.nosql_storage = CosmosDB(
+                self.cli_instance, self.cache_client, self.config.resources, self.config.region
+            )
+        return self.nosql_storage
 
     # Directory structure
     # handler
@@ -287,9 +298,35 @@ class Azure(System):
 
     def update_function(self, function: Function, code_package: Benchmark):
 
+        assert code_package.has_input_processed
+
         # Mount code package in Docker instance
         container_dest = self._mount_function_code(code_package)
         url = self.publish_function(function, code_package, container_dest, True)
+
+        if code_package.uses_nosql:
+
+            # If we use NoSQL, then the handle must be allocated
+            assert self.nosql_storage is not None
+            envs = {}
+            db, url, creds = self.nosql_storage.credentials()
+            envs = ""
+            envs += f" NOSQL_STORAGE_DATABASE={db}"
+            envs += f" NOSQL_STORAGE_URL={url}"
+            envs += f" NOSQL_STORAGE_CREDS={creds}"
+
+            resource_group = self.config.resources.resource_group(self.cli_instance)
+            try:
+                self.logging.info(f"Exporting environment variables for function {function.name}")
+                self.cli_instance.execute(
+                    f"az functionapp config appsettings set --name {function.name} "
+                    f" --resource-group {resource_group} "
+                    f" --settings {envs} "
+                )
+            except RuntimeError as e:
+                self.logging.error("Failed to set environment variable!")
+                self.logging.error(e)
+                raise e
 
         trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
         trigger.logging_handlers = self.logging_handlers

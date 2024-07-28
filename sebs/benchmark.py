@@ -146,6 +146,18 @@ class Benchmark(LoggingBase):
     def language_version(self):
         return self._language_version
 
+    @property
+    def has_input_processed(self) -> bool:
+        return self._input_processed
+
+    @property
+    def uses_storage(self) -> bool:
+        return self._uses_storage
+
+    @property
+    def uses_nosql(self) -> bool:
+        return self._uses_nosql
+
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
@@ -203,6 +215,11 @@ class Benchmark(LoggingBase):
 
         self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
         self._benchmark_input_module = load_benchmark_input(self._benchmark_path)
+
+        # Check if input has been processed
+        self._input_processed: bool = False
+        self._uses_storage: bool = False
+        self._uses_nosql: bool = False
 
     """
         Compute MD5 hash of an entire directory.
@@ -570,6 +587,8 @@ class Benchmark(LoggingBase):
         buckets = self._benchmark_input_module.buckets_count()
         input, output = storage.benchmark_data(self.benchmark, buckets)
 
+        self._uses_storage = len(input) > 0 or len(output) > 0
+
         self._cache_client.update_storage(
             storage.deployment_name(),
             self._benchmark,
@@ -596,6 +615,8 @@ class Benchmark(LoggingBase):
                     table_properties.get("secondary_key"),
                 )
 
+            self._uses_nosql = True
+
         # buckets = mod.buckets_count()
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
@@ -608,6 +629,8 @@ class Benchmark(LoggingBase):
             upload_func=storage.uploader_func,
             nosql_tables=nosql_storage.get_tables(self.benchmark),
         )
+
+        self._input_processed = True
 
         return input_config
 
