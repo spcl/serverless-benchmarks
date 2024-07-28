@@ -1,18 +1,16 @@
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from azure.cosmos import CosmosClient
+from azure.cosmos import CosmosClient, ContainerProxy
+
 
 class nosql:
     instance = None
     client = None
 
     def __init__(self, url: str, credential: str, database: str):
-        self._client = CosmosClient(
-            url=url,
-            credential=credential
-        )
+        self._client = CosmosClient(url=url, credential=credential)
         self._db_client = self._client.get_database_client(database)
-        self._containers = {}
+        self._containers: Dict[str, ContainerProxy] = {}
 
     def get_table(self, table_name: str):
 
@@ -26,7 +24,7 @@ class nosql:
         table_name: str,
         primary_key: Tuple[str, str],
         secondary_key: Tuple[str, str],
-        data: dict
+        data: dict,
     ):
 
         for key in (primary_key, secondary_key):
@@ -35,14 +33,10 @@ class nosql:
         self.get_table(table_name).create_item(data)
 
     def get(
-        self,
-        table_name: str,
-        primary_key: Tuple[str, str],
-        secondary_key: Tuple[str, str]
+        self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
     ) -> dict:
         return self.get_table(table_name).read_item(
-            item=secondary_key[1],
-            partition_key=primary_key[1]
+            item=secondary_key[1], partition_key=primary_key[1]
         )
 
     """
@@ -51,25 +45,22 @@ class nosql:
 
     def query(self, table_name: str, primary_key: Tuple[str, str]) -> List[dict]:
 
-        return list(self.get_table(table_name).query_items(
-            f"SELECT * FROM c WHERE c.{primary_key[0]} = '{primary_key[1]}'",
-            enable_cross_partition_query=False
-        ))
-
-    def delete(
-        self,
-        table_name: str,
-        primary_key: Tuple[str, str],
-        secondary_key: Tuple[str, str]
-    ):
-
-        self.get_table(table_name).delete_item(
-            item=secondary_key[1],
-            partition_key=primary_key[1]
+        return list(
+            self.get_table(table_name).query_items(
+                f"SELECT * FROM c WHERE c.{primary_key[0]} = '{primary_key[1]}'",
+                enable_cross_partition_query=False,
+            )
         )
 
+    def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
+
+        self.get_table(table_name).delete_item(item=secondary_key[1], partition_key=primary_key[1])
+
     @staticmethod
-    def get_instance(url: str = None, credential: str = None, database: str = None):
+    def get_instance(
+        database: Optional[str] = None, url: Optional[str] = None, credential: Optional[str] = None
+    ):
         if nosql.instance is None:
+            assert database is not None and url is not None and credential is not None
             nosql.instance = nosql(url, credential, database)
         return nosql.instance
