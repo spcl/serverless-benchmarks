@@ -309,7 +309,8 @@ class Azure(System):
             # If we use NoSQL, then the handle must be allocated
             assert self.nosql_storage is not None
             envs = {}
-            db, url, creds = self.nosql_storage.credentials()
+            _, url, creds = self.nosql_storage.credentials()
+            db = self.nosql_storage.benchmark_database(code_package.benchmark)
             envs = ""
             envs += f" NOSQL_STORAGE_DATABASE={db}"
             envs += f" NOSQL_STORAGE_URL={url}"

@@ -80,6 +80,9 @@ class CosmosDB(NoSQLStorage):
     def has_tables(self, benchmark: str) -> bool:
         return benchmark in self._benchmark_resources
 
+    def benchmark_database(self, benchmark: str) -> str:
+        return self._benchmark_resources[benchmark].database
+
     def credentials(self) -> Tuple[str, str, str]:
         assert self._cosmosdb_account is not None
         return (
