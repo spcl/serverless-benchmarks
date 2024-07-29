@@ -315,21 +315,48 @@ class AWS(System):
         self.wait_function_updated(function)
         self.logging.info(f"Updated code of {name} function. ")
         # and update config
-        self.client.update_function_configuration(
-            FunctionName=name, Timeout=function.config.timeout, MemorySize=function.config.memory
-        )
-        self.wait_function_updated(function)
-        self.logging.info(f"Updated configuration of {name} function. ")
-        self.wait_function_updated(function)
+        self.update_function_configuration(function, code_package)
+
         self.logging.info("Published new function code")
 
-    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+
+        # We can only update storage configuration once it has been processed for this benchmark
+        assert code_package.has_input_processed
+
+        envs = {}
+        if code_package.uses_nosql:
+
+            for original_name, actual_name in (
+                self.get_nosql_storage().get_tables(code_package.benchmark).items()
+            ):
+                envs[f"NOSQL_STORAGE_TABLE_{original_name}"] = actual_name
+
+        # AWS Lambda will overwrite existing variables
+        # If we modify them, we need to first read existing ones and append.
+        if len(envs) > 0:
+
+            response = self.client.get_function_configuration(FunctionName=function.name)
+            # preserve old variables while adding new ones.
+            # but for conflict, we select the new one
+            if "Environment" in response:
+                envs = {**response["Environment"]["Variables"], **envs}
+
         function = cast(LambdaFunction, function)
-        self.client.update_function_configuration(
-            FunctionName=function.name,
-            Timeout=function.config.timeout,
-            MemorySize=function.config.memory,
-        )
+        # We only update envs if anything new was added
+        if len(envs) > 0:
+            self.client.update_function_configuration(
+                FunctionName=function.name,
+                Timeout=function.config.timeout,
+                MemorySize=function.config.memory,
+                Environment={"Variables": envs},
+            )
+        else:
+            self.client.update_function_configuration(
+                FunctionName=function.name,
+                Timeout=function.config.timeout,
+                MemorySize=function.config.memory,
+            )
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {function.name} function. ")
 
