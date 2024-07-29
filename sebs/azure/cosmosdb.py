@@ -45,6 +45,23 @@ class CosmosDB(NoSQLStorage):
         self._cosmos_client: Optional[CosmosClient] = None
         self._cosmosdb_account: Optional[CosmosDBAccount] = None
 
+    """
+        Azure requires no table mappings: the name of container is the same as benchmark name.
+    """
+
+    def get_tables(self, benchmark: str) -> Dict[str, str]:
+        return {}
+
+    def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
+
+        if benchmark not in self._benchmark_resources:
+            return None
+
+        if table not in self._benchmark_resources[benchmark].containers:
+            return None
+
+        return table
+
     def retrieve_cache(self, benchmark: str) -> bool:
 
         if benchmark in self._benchmark_resources:
@@ -98,15 +115,22 @@ class CosmosDB(NoSQLStorage):
         benchmark_resources = self._benchmark_resources.get(benchmark, None)
 
         if benchmark_resources is not None and name in benchmark_resources.containers:
-            self.logging.info(f"Using existing CosmosDB container {name}")
+            self.logging.info(f"Using cached CosmosDB container {name}")
 
+        """
+            For some reason, creating the client is enough to verify existence of db/container.
+            We need to force the client to make some actions; that's why we call read.
+        """
         # Each benchmark receives its own CosmosDB database
         if benchmark_resources is None:
 
             # Get or allocate database
             try:
                 db_client = self.cosmos_client().get_database_client(benchmark)
+                db_client.read()
+
             except CosmosResourceNotFoundError:
+                self.logging.info(f"Creating CosmosDB database {benchmark}")
                 db_client = self.cosmos_client().create_database(benchmark)
 
             benchmark_resources = BenchmarkResources(
@@ -123,15 +147,17 @@ class CosmosDB(NoSQLStorage):
         try:
 
             # verify it exists
-            benchmark_resources.database_client.get_container_client(name)
+            benchmark_resources.database_client.get_container_client(name).read()
+            self.logging.info(f"Using existing CosmosDB container {name}")
 
         except CosmosResourceNotFoundError:
+            self.logging.info(f"Creating CosmosDB container {name}")
             # no container with such name -> allocate
             benchmark_resources.database_client.create_container(
                 id=name, partition_key=PartitionKey(path=f"/{primary_key}")
             )
 
-            benchmark_resources.containers.append(name)
+        benchmark_resources.containers.append(name)
 
         return name
 

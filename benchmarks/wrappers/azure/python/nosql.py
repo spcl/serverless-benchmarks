@@ -16,16 +16,7 @@ class nosql:
     def _get_table(self, table_name: str):
 
         if table_name not in self._containers:
-
-            env_name = f"NOSQL_STORAGE_TABLE_{table_name}"
-
-            if env_name in environ:
-                azure_name = environ[env_name]
-                self._containers[table_name] = self._db_client.get_container_client(azure_name)
-            else:
-                raise RuntimeError(
-                    f"Couldn't find an environment variable {env_name} for table {table_name}"
-                )
+            self._containers[table_name] = self._db_client.get_container_client(table_name)
 
         return self._containers[table_name]
 
