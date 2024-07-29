@@ -172,9 +172,17 @@ class Cache(LoggingBase):
             return
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
         with self._lock:
+
             with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                 cached_config = json.load(fp)
-            cached_config[deployment][resource] = config
+
+            if deployment in cached_config:
+                cached_config[deployment][resource] = config
+            else:
+                cached_config[deployment] = {
+                    resource: config
+                }
+
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
