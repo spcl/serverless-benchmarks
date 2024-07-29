@@ -46,12 +46,16 @@ class PerfCost(Experiment):
         self._benchmark = sebs_client.get_benchmark(
             settings["benchmark"], deployment_client, self.config
         )
-        self._function = deployment_client.get_function(self._benchmark)
+
         # prepare benchmark input
         self._storage = deployment_client.get_storage(replace_existing=self.config.update_storage)
         self._benchmark_input = self._benchmark.prepare_input(
-            storage=self._storage, size=settings["input-size"]
+            storage=self._storage,
+            nosql_storage=deployment_client.get_nosql_storage(),
+            size=settings["input-size"],
         )
+
+        self._function = deployment_client.get_function(self._benchmark)
 
         # add HTTP trigger
         triggers = self._function.triggers(Trigger.TriggerType.HTTP)
