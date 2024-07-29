@@ -304,30 +304,68 @@ class Azure(System):
         container_dest = self._mount_function_code(code_package)
         function_url = self.publish_function(function, code_package, container_dest, True)
 
-        envs = ""
+        envs = {}
         if code_package.uses_nosql:
 
             # If we use NoSQL, then the handle must be allocated
             assert self.nosql_storage is not None
             _, url, creds = self.nosql_storage.credentials()
             db = self.nosql_storage.benchmark_database(code_package.benchmark)
-            envs += f" NOSQL_STORAGE_DATABASE={db}"
-            envs += f" NOSQL_STORAGE_URL={url}"
-            envs += f" NOSQL_STORAGE_CREDS={creds}"
+            envs["NOSQL_STORAGE_DATABASE"] = db
+            envs["NOSQL_STORAGE_URL"] = url
+            envs["NOSQL_STORAGE_CREDS"] = creds
 
             for original_name, actual_name in self.nosql_storage.get_tables(
                 code_package.benchmark
             ).items():
-                envs += f" NOSQL_STORAGE_TABLE_{original_name}={actual_name}"
+                envs[f"NOSQL_STORAGE_TABLE_{original_name}"] = actual_name
+
+        resource_group = self.config.resources.resource_group(self.cli_instance)
+        # Retrieve existing environment variables to prevent accidental overwrite
+        if len(envs) > 0:
+
+            try:
+                self.logging.info(
+                    f"Retrieving existing environment variables for function {function.name}"
+                )
+
+                # First read existing properties
+                response = self.cli_instance.execute(
+                    f"az functionapp config appsettings list --name {function.name} "
+                    f" --resource-group {resource_group} "
+                )
+                old_envs = json.loads(response.decode())
+
+                # Find custom envs and copy them - unless they are overwritten now
+                for env in old_envs:
+
+                    # Ignore vars set automatically by Azure
+                    found = False
+                    for prefix in ["FUNCTIONS_", "WEBSITE_", "APPINSIGHTS_", "Azure"]:
+                        if env["name"].startswith(prefix):
+                            found = True
+                            break
+
+                    # do not overwrite new value
+                    if not found and env["name"] not in envs:
+                        envs[env["name"]] = env["value"]
+
+            except RuntimeError as e:
+                self.logging.error("Failed to retrieve environment variables!")
+                self.logging.error(e)
+                raise e
 
         if len(envs) > 0:
-            resource_group = self.config.resources.resource_group(self.cli_instance)
             try:
+                env_string = ""
+                for k, v in envs.items():
+                    env_string += f" {k}={v}"
+
                 self.logging.info(f"Exporting environment variables for function {function.name}")
                 self.cli_instance.execute(
                     f"az functionapp config appsettings set --name {function.name} "
                     f" --resource-group {resource_group} "
-                    f" --settings {envs} "
+                    f" --settings {env_string} "
                 )
             except RuntimeError as e:
                 self.logging.error("Failed to set environment variable!")
