@@ -139,6 +139,20 @@ class Cache(LoggingBase):
             return None
 
     """
+        Access cached resource config of a benchmark and specified resource.
+
+        :param deployment: allowed deployment clouds or local
+        :param benchmark: benchmark name
+        :param resource: storage, nosql
+
+        :return: a JSON config or None
+    """
+
+    def get_resource_config(self, deployment: str, benchmark: str, resource: str):
+        cfg = self.get_benchmark_config(deployment, benchmark)
+        return cfg[resource] if cfg and resource in cfg and not self.ignore_storage else None
+
+    """
         Access cached storage config of a benchmark.
 
         :param deployment: allowed deployment clouds or local
@@ -148,19 +162,37 @@ class Cache(LoggingBase):
     """
 
     def get_storage_config(self, deployment: str, benchmark: str):
-        cfg = self.get_benchmark_config(deployment, benchmark)
-        return cfg["storage"] if cfg and "storage" in cfg and not self.ignore_storage else None
+        return self.get_resource_config(deployment, benchmark, "storage")
 
-    def update_storage(self, deployment: str, benchmark: str, config: dict):
+    """
+        Access cached NoSQL config of a benchmark.
+
+        :param deployment: allowed deployment clouds or local
+        :param benchmark:
+
+        :return: a JSON config or None
+    """
+    # I guess we could do with just get_resource_config, but this is more
+    # backwards compatible.
+    def get_nosql_config(self, deployment: str, benchmark: str):
+        return self.get_resource_config(deployment, benchmark, "nosql")
+
+    def update_resource(self, deployment: str, benchmark: str, config: dict, resource: str):
         if self.ignore_storage:
             return
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
         with self._lock:
             with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                 cached_config = json.load(fp)
-            cached_config[deployment]["storage"] = config
+            cached_config[deployment][resource] = config
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
+
+    def update_storage(self, deployment: str, benchmark: str, config: dict):
+        return self.update_resource(deployment, benchmark, config, "storage")
+
+    def update_nosql(self, deployment: str, benchmark: str, config: dict):
+        return self.update_resource(deployment, benchmark, config, "nosql")
 
     def add_code_package(self, deployment_name: str, language_name: str, code_package: "Benchmark"):
         with self._lock:
