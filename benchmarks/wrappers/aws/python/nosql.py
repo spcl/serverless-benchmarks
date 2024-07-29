@@ -1,4 +1,6 @@
-from typing import List, Optional, Tuple
+from decimal import Decimal
+from os import environ
+from typing import List, Optional, Union, Tuple
 
 import boto3
 
@@ -11,10 +13,35 @@ class nosql:
         self.client = boto3.resource("dynamodb")
         self._tables = {}
 
-    def get_table(self, table_name: str):
+
+    # Based on: https://github.com/boto/boto3/issues/369#issuecomment-157205696
+    def _remove_decimals(self, data: dict) -> Union[dict, list, int, float]:
+
+        if isinstance(data, list):
+            return [self._remove_decimals(x) for x in data]
+        elif isinstance(data, dict):
+            return {k: self._remove_decimals(v) for k, v in data.items()}
+        elif isinstance(data, Decimal):
+            if data.as_integer_ratio()[1] == 1:
+                return int(data)
+            else:
+                return float(data)
+        else:
+            return data
+
+    def _get_table(self, table_name: str):
 
         if table_name not in self._tables:
-            self._tables[table_name] = self.client.Table(table_name)
+
+            env_name = f"NOSQL_STORAGE_TABLE_{table_name}"
+
+            if env_name in environ:
+                aws_name = environ[env_name]
+                self._tables[table_name] = self.client.Table(aws_name)
+            else:
+                raise RuntimeError(
+                    f"Couldn't find an environment variable {env_name} for table {table_name}"
+                )
 
         return self._tables[table_name]
 
@@ -28,7 +55,7 @@ class nosql:
         for key in (primary_key, secondary_key):
             data[key[0]] = key[1]
 
-        self.get_table(table_name).put_item(Item=data)
+        self._get_table(table_name).put_item(Item=data)
 
     def get(
         self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
@@ -38,22 +65,24 @@ class nosql:
         for key in (primary_key, secondary_key):
             data[key[0]] = key[1]
 
-        res = self.get_table(table_name).get_item(Key=data)
-        return res["Item"]
+        res = self._get_table(table_name).get_item(Key=data)
+        return self._remove_decimals(res["Item"])
 
     def query(self, table_name: str, primary_key: Tuple[str, str], _: str) -> List[dict]:
 
-        return self.get_table(table_name).query(
+        res = self._get_table(table_name).query(
             KeyConditionExpression=f"{primary_key[0]} = :keyvalue",
             ExpressionAttributeValues={":keyvalue": primary_key[1]},
         )["Items"]
+        return self._remove_decimals(res)
+
 
     def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
         data = {}
         for key in (primary_key, secondary_key):
             data[key[0]] = key[1]
 
-        self.get_table(table_name).delete_item(Key=data)
+        self._get_table(table_name).delete_item(Key=data)
 
     @staticmethod
     def get_instance():
