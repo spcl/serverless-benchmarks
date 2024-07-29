@@ -3,9 +3,11 @@ import datetime, io, json, os, uuid
 
 import azure.functions as func
 
-from . import nosql
 
 if 'NOSQL_STORAGE_DATABASE' in os.environ:
+
+    from . import nosql
+
     nosql.nosql.get_instance(
         os.environ['NOSQL_STORAGE_DATABASE'],
         os.environ['NOSQL_STORAGE_URL'],
