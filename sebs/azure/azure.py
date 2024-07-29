@@ -302,7 +302,7 @@ class Azure(System):
 
         # Mount code package in Docker instance
         container_dest = self._mount_function_code(code_package)
-        url = self.publish_function(function, code_package, container_dest, True)
+        function_url = self.publish_function(function, code_package, container_dest, True)
 
         envs = ""
         if code_package.uses_nosql:
@@ -334,9 +334,21 @@ class Azure(System):
                 self.logging.error(e)
                 raise e
 
-        trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
-        trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(trigger)
+        # Avoid duplication of HTTP trigger
+        found_trigger = False
+        for trigger in function.triggers_all():
+
+            if isinstance(trigger, HTTPTrigger):
+                found_trigger = True
+                trigger.url = function_url
+                break
+
+        if not found_trigger:
+            trigger = HTTPTrigger(
+                function_url, self.config.resources.data_storage_account(self.cli_instance)
+            )
+            trigger.logging_handlers = self.logging_handlers
+            function.add_trigger(trigger)
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout
