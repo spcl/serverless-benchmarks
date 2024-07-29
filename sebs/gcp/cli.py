@@ -33,7 +33,10 @@ class GCloudCLI(LoggingBase):
                 raise RuntimeError("Docker pull of image {} failed!".format(image_name))
 
         volumes = {
-            os.path.abspath(credentials.gcp_credentials): {"bind": "/credentials.json", "mode": "ro"}
+            os.path.abspath(credentials.gcp_credentials): {
+                "bind": "/credentials.json",
+                "mode": "ro",
+            }
         }
         self.docker_instance = docker_client.containers.run(
             image=repo_name + ":" + image_name,
