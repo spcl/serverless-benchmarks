@@ -1,3 +1,4 @@
+from os import environ
 from typing import Dict, List, Optional, Tuple
 
 from azure.cosmos import CosmosClient, ContainerProxy
@@ -12,10 +13,19 @@ class nosql:
         self._db_client = self._client.get_database_client(database)
         self._containers: Dict[str, ContainerProxy] = {}
 
-    def get_table(self, table_name: str):
+    def _get_table(self, table_name: str):
 
         if table_name not in self._containers:
-            self._containers[table_name] = self._db_client.get_container_client(table_name)
+
+            env_name = f"NOSQL_STORAGE_TABLE_{table_name}"
+
+            if env_name in environ:
+                azure_name = environ[env_name]
+                self._containers[table_name] = self._db_client.get_container_client(azure_name)
+            else:
+                raise RuntimeError(
+                    f"Couldn't find an environment variable {env_name} for table {table_name}"
+                )
 
         return self._containers[table_name]
 
@@ -27,34 +37,46 @@ class nosql:
         data: dict,
     ):
 
-        for key in (primary_key, secondary_key):
-            data[key[0]] = key[1]
+        data[primary_key[0]] = primary_key[1]
+        # secondary key must have that name in CosmosDB
+        data["id"] = secondary_key[1]
 
-        self.get_table(table_name).create_item(data)
+        self._get_table(table_name).create_item(data)
 
     def get(
         self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
     ) -> dict:
-        return self.get_table(table_name).read_item(
+        res = self._get_table(table_name).read_item(
             item=secondary_key[1], partition_key=primary_key[1]
         )
+        res[secondary_key[0]] = secondary_key[1]
+
+        return res
 
     """
         This query must involve partition key - it does not scan across partitions.
     """
 
-    def query(self, table_name: str, primary_key: Tuple[str, str]) -> List[dict]:
+    def query(
+        self, table_name: str, primary_key: Tuple[str, str], secondary_key_name: str
+    ) -> List[dict]:
 
-        return list(
-            self.get_table(table_name).query_items(
+        res = list(
+            self._get_table(table_name).query_items(
                 f"SELECT * FROM c WHERE c.{primary_key[0]} = '{primary_key[1]}'",
                 enable_cross_partition_query=False,
             )
         )
 
+        # Emulate the kind key
+        for item in res:
+            item[secondary_key_name] = item["id"]
+
+        return res
+
     def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
 
-        self.get_table(table_name).delete_item(item=secondary_key[1], partition_key=primary_key[1])
+        self._get_table(table_name).delete_item(item=secondary_key[1], partition_key=primary_key[1])
 
     @staticmethod
     def get_instance(

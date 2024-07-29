@@ -304,18 +304,23 @@ class Azure(System):
         container_dest = self._mount_function_code(code_package)
         url = self.publish_function(function, code_package, container_dest, True)
 
+        envs = ""
         if code_package.uses_nosql:
 
             # If we use NoSQL, then the handle must be allocated
             assert self.nosql_storage is not None
-            envs = {}
             _, url, creds = self.nosql_storage.credentials()
             db = self.nosql_storage.benchmark_database(code_package.benchmark)
-            envs = ""
             envs += f" NOSQL_STORAGE_DATABASE={db}"
             envs += f" NOSQL_STORAGE_URL={url}"
             envs += f" NOSQL_STORAGE_CREDS={creds}"
 
+            for original_name, actual_name in self.nosql_storage.get_tables(
+                code_package.benchmark
+            ).items():
+                envs += f" NOSQL_STORAGE_TABLE_{original_name}={actual_name}"
+
+        if len(envs) > 0:
             resource_group = self.config.resources.resource_group(self.cli_instance)
             try:
                 self.logging.info(f"Exporting environment variables for function {function.name}")
