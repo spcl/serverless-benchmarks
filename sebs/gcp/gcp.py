@@ -250,6 +250,9 @@ class GCP(System):
         try:
             get_req.execute()
         except HttpError:
+
+            envs = self._generate_function_envs(code_package)
+
             create_req = (
                 self.function_client.projects()
                 .locations()
@@ -267,6 +270,7 @@ class GCP(System):
                         "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
                         "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
+                        "environmentVariables": envs,
                     },
                 )
             )
@@ -365,6 +369,9 @@ class GCP(System):
 
         bucket = function.code_bucket(code_package.benchmark, storage)
         storage.upload(bucket, code_package.code_location, code_package_name)
+
+        envs = self._generate_function_envs(code_package)
+
         self.logging.info(f"Uploaded new code package to {bucket}/{code_package_name}")
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
@@ -383,6 +390,7 @@ class GCP(System):
                     "timeout": str(function.config.timeout) + "s",
                     "httpsTrigger": {},
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+                    "environmentVariables": envs,
                 },
             )
         )
@@ -406,24 +414,79 @@ class GCP(System):
             )
         self.logging.info("Published new function code and configuration.")
 
-    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+    def _update_envs(self, full_function_name: str, envs: dict) -> dict:
+
+        get_req = (
+            self.function_client.projects().locations().functions().get(name=full_function_name)
+        )
+        response = get_req.execute()
+
+        # preserve old variables while adding new ones.
+        # but for conflict, we select the new one
+        if "environmentVariables" in response:
+            envs = {**response["environmentVariables"], **envs}
+
+        return envs
+
+    def _generate_function_envs(self, code_package: Benchmark) -> dict:
+
+        envs = {}
+        if code_package.uses_nosql:
+
+            assert self.nosql_storage is not None
+            db = self.nosql_storage.benchmark_database(code_package.benchmark)
+            envs["NOSQL_STORAGE_DATABASE"] = db
+
+        return envs
+
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+
+        assert code_package.has_input_processed
+
         function = cast(GCPFunction, function)
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
-        req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .patch(
-                name=full_func_name,
-                updateMask="availableMemoryMb,timeout",
-                body={
-                    "availableMemoryMb": function.config.memory,
-                    "timeout": str(function.config.timeout) + "s",
-                },
+
+        envs = self._generate_function_envs(code_package)
+        # GCP might overwrite existing variables
+        # If we modify them, we need to first read existing ones and append.
+        if len(envs) > 0:
+            envs = self._update_envs(full_func_name, envs)
+
+        if len(envs) > 0:
+
+            req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .patch(
+                    name=full_func_name,
+                    updateMask="availableMemoryMb,timeout,environmentVariables",
+                    body={
+                        "availableMemoryMb": function.config.memory,
+                        "timeout": str(function.config.timeout) + "s",
+                        "environmentVariables": envs,
+                    },
+                )
             )
-        )
+
+        else:
+
+            req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .patch(
+                    name=full_func_name,
+                    updateMask="availableMemoryMb,timeout",
+                    body={
+                        "availableMemoryMb": function.config.memory,
+                        "timeout": str(function.config.timeout) + "s",
+                    },
+                )
+            )
+
         res = req.execute()
         versionId = res["metadata"]["versionId"]
         retries = 0
@@ -580,7 +643,11 @@ class GCP(System):
         name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
+
         self.cold_start_counter += 1
+        envs = self._update_envs(name, {})
+        envs["cold_start"] = str(self.cold_start_counter)
+
         req = (
             self.function_client.projects()
             .locations()
@@ -588,7 +655,7 @@ class GCP(System):
             .patch(
                 name=name,
                 updateMask="environmentVariables",
-                body={"environmentVariables": {"cold_start": str(self.cold_start_counter)}},
+                body={"environmentVariables": envs},
             )
         )
         res = req.execute()
