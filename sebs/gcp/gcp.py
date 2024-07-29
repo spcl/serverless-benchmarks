@@ -11,7 +11,7 @@ from typing import cast, Dict, Optional, Tuple, List, Type
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google.cloud import monitoring_v3
+import google.cloud.monitoring_v3 as monitoring_v3
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -543,7 +543,7 @@ class GCP(System):
             There shouldn't be problem of waiting for complete results,
             since logs appear very quickly here.
         """
-        from google.cloud import logging as gcp_logging
+        import google.cloud.logging as gcp_logging
 
         logging_client = gcp_logging.Client()
         logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")
