@@ -131,7 +131,7 @@ class CosmosDB(NoSQLStorage):
                 id=name, partition_key=PartitionKey(path=f"/{primary_key}")
             )
 
-        benchmark_resources.containers.append(name)
+            benchmark_resources.containers.append(name)
 
         return name
 
