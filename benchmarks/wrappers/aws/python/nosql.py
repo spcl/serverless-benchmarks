@@ -13,7 +13,6 @@ class nosql:
         self.client = boto3.resource("dynamodb")
         self._tables = {}
 
-
     # Based on: https://github.com/boto/boto3/issues/369#issuecomment-157205696
     def _remove_decimals(self, data: dict) -> Union[dict, list, int, float]:
 
@@ -75,7 +74,6 @@ class nosql:
             ExpressionAttributeValues={":keyvalue": primary_key[1]},
         )["Items"]
         return self._remove_decimals(res)
-
 
     def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
         data = {}
