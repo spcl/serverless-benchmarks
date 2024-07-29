@@ -621,13 +621,12 @@ class Benchmark(LoggingBase):
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = self._benchmark_input_module.generate_input(
-            data_dir=self._benchmark_data_path,
-            size=size,
-            benchmarks_bucket=storage.get_bucket(Resources.StorageBucketType.BENCHMARKS),
-            input_paths=input,
-            output_paths=output,
-            upload_func=storage.uploader_func,
-            nosql_tables=nosql_storage.get_tables(self.benchmark),
+            self._benchmark_data_path,
+            size,
+            storage.get_bucket(Resources.StorageBucketType.BENCHMARKS),
+            input,
+            output,
+            storage.uploader_func,
         )
 
         self._input_processed = True
@@ -717,7 +716,6 @@ class BenchmarkModuleInterface:
         input_paths: List[str],
         output_paths: List[str],
         upload_func: Callable[[int, str, str], None],
-        nosql_tables: Dict[str, str],
     ) -> Dict[str, str]:
         pass
 
