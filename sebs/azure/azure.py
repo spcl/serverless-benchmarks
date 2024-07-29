@@ -367,6 +367,13 @@ class Azure(System):
                     f" --resource-group {resource_group} "
                     f" --settings {env_string} "
                 )
+
+                # if we don't do that, next invocation might still see old values
+                self.logging.info(
+                    "Sleeping for 5 seconds - Azure needs more time to propagate changes"
+                )
+                time.sleep(5)
+
             except RuntimeError as e:
                 self.logging.error("Failed to set environment variable!")
                 self.logging.error(e)
