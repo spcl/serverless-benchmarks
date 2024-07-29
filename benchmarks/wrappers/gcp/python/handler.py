@@ -2,6 +2,13 @@ import datetime, io, json, os, uuid, sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
 
+from function import nosql
+
+if 'NOSQL_STORAGE_DATABASE' in os.environ:
+    nosql.nosql.get_instance(
+        os.environ['NOSQL_STORAGE_DATABASE']
+    )
+
 
 def handler(req):
     income_timestamp = datetime.datetime.now().timestamp()
