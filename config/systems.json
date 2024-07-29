@@ -174,10 +174,11 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
           "packages": [],
-          "module-packages": {
+          "module_packages": {
             "storage": [
               "google-cloud-storage"
             ],
@@ -210,6 +211,11 @@
             "uuid": "3.4.0"
           }
         }
+      }
+    },
+    "images": {
+      "manage": {
+        "username": "docker_user"
       }
     }
   },
