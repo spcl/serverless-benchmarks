@@ -16,11 +16,14 @@ from google.cloud import monitoring_v3
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
-from ..faas.function import Function, FunctionConfig, Trigger
-from .storage import PersistentStorage
+from sebs.faas.nosql import NoSQLStorage
+from sebs.faas.function import Function, FunctionConfig, Trigger
+from sebs.gcp.storage import PersistentStorage
 from sebs.faas.config import Resources
-from ..faas.system import System
+from sebs.faas.system import System
+from sebs.gcp.cli import GCloudCLI
 from sebs.gcp.config import GCPConfig
+from sebs.gcp.datastore import Datastore
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
 from sebs.utils import LoggingHandlers
@@ -48,6 +51,9 @@ class GCP(System):
         self.storage: Optional[GCPStorage] = None
         self.logging_handlers = logging_handlers
 
+        self._cli_instance: Optional[GCloudCLI] = None
+        self.cli_instance_stop = False
+
     @property
     def config(self) -> GCPConfig:
         return self._config
@@ -64,6 +70,11 @@ class GCP(System):
     def function_type() -> "Type[Function]":
         return GCPFunction
 
+    @property
+    def cli_instance(self) -> GCloudCLI:
+        assert self._cli_instance
+        return self._cli_instance
+
     """
         Initialize the system. After the call the local or remote
         FaaS system should be ready to allocate functions, manage
@@ -76,6 +87,20 @@ class GCP(System):
         self.function_client = build("cloudfunctions", "v1", cache_discovery=False)
         self.get_storage()
         self.initialize_resources(select_prefix=resource_prefix)
+
+        if self._cli_instance is None:
+            self._cli_instance = GCloudCLI(
+                self.config.credentials, self.system_config, self.docker_client
+            )
+            self._cli_instance_stop = True
+
+            self._cli_instance.login(self.config.credentials.project_name)
+
+        self.nosql_storage: Optional[Datastore] = None
+
+    def initialize_cli(self, cli: GCloudCLI):
+        self._cli_instance = cli
+        self._cli_instance_stop = False
 
     def get_function_client(self):
         return self.function_client
@@ -102,6 +127,13 @@ class GCP(System):
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
+
+    def get_nosql_storage(self) -> NoSQLStorage:
+        if not self.nosql_storage:
+            self.nosql_storage = Datastore(
+                self.cli_instance, self.cache_client, self.config.resources, self.config.region
+            )
+        return self.nosql_storage
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -421,6 +453,8 @@ class GCP(System):
         return logs_bucket
 
     def shutdown(self) -> None:
+        if self._cli_instance and self._cli_instance_stop:
+            self._cli_instance.shutdown()
         super().shutdown()
 
     def download_metrics(
