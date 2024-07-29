@@ -1,4 +1,5 @@
-from typing import Optional
+from collections import defaultdict
+from typing import Dict, Optional
 
 from sebs.cache import Cache
 from sebs.faas.config import Resources
@@ -33,6 +34,9 @@ class DynamoDB(NoSQLStorage):
             aws_secret_access_key=secret_key,
         )
 
+        # Map benchmark -> orig_name -> table_name
+        self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
+
     def retrieve_cache(self, benchmark: str) -> bool:
 
         if benchmark in self._tables:
@@ -55,13 +59,31 @@ class DynamoDB(NoSQLStorage):
             },
         )
 
+    def get_tables(self, benchmark: str) -> Dict[str, str]:
+        return self._tables[benchmark]
+
+    def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
+
+        if benchmark not in self._tables:
+            return None
+
+        if table not in self._tables[benchmark]:
+            return None
+
+        return self._tables[benchmark][table]
+
     """
         AWS: create a DynamoDB Table
+
+        In contrast to the hierarchy of database objects in Azure (account -> database -> container)
+        and GCP (database per benchmark), we need to create unique table names here.
     """
 
     def create_table(
         self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
     ) -> str:
+
+        table_name = f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}-{name}"
 
         try:
 
@@ -73,7 +95,7 @@ class DynamoDB(NoSQLStorage):
                 key_schema.append({"AttributeName": secondary_key, "KeyType": "RANGE"})
 
             ret = self.client.create_table(
-                TableName=name,
+                TableName=table_name,
                 BillingMode="PAY_PER_REQUEST",
                 AttributeDefinitions=definitions,
                 KeySchema=key_schema,
@@ -86,13 +108,17 @@ class DynamoDB(NoSQLStorage):
                 waiter.wait(TableName=name)
 
             self.logging.info(f"Created DynamoDB table {name} for benchmark {benchmark}")
+            self._tables[benchmark][name] = table_name
 
             return ret["TableDescription"]["TableName"]
 
         except self.client.exceptions.ResourceInUseException as e:
 
             if "already exists" in e.response["Error"]["Message"]:
-                self.logging.info(f"Using existing DynamoDB table {name} for benchmark {benchmark}")
+                self.logging.info(
+                    f"Using existing DynamoDB table {table_name} for benchmark {benchmark}"
+                )
+                self._tables[benchmark][name] = table_name
                 return name
 
             raise RuntimeError(f"Creating DynamoDB failed, unknown reason! Error: {e}")

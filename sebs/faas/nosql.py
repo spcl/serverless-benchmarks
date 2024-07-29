@@ -1,6 +1,5 @@
 from abc import ABC
 from abc import abstractmethod
-from collections import defaultdict
 from typing import Dict, Optional
 
 from sebs.faas.config import Resources
@@ -30,10 +29,15 @@ class NoSQLStorage(ABC, LoggingBase):
         self._cloud_resources = resources
 
         # Map benchmark -> orig_name -> table_name
-        self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
+        # self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
 
+    @abstractmethod
     def get_tables(self, benchmark: str) -> Dict[str, str]:
-        return self._tables[benchmark]
+        pass
+
+    @abstractmethod
+    def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
+        pass
 
     @abstractmethod
     def retrieve_cache(self, benchmark: str) -> bool:
@@ -57,22 +61,18 @@ class NoSQLStorage(ABC, LoggingBase):
         self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
     ):
 
-        table_name = f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}-{name}"
-
         if self.retrieve_cache(benchmark):
 
-            if table_name in self._tables[benchmark]:
+            table_name = self._get_table_name(benchmark, name)
+            if table_name is not None:
                 self.logging.info(
                     f"Using cached NoSQL table {table_name} for benchmark {benchmark}"
                 )
                 return
 
-        self.logging.info(
-            f"Preparing to create a NoSQL table {table_name} for benchmark {benchmark}"
-        )
+        self.logging.info(f"Preparing to create a NoSQL table {name} for benchmark {benchmark}")
 
-        self.create_table(benchmark, table_name, primary_key, secondary_key)
-        self._tables[benchmark][name] = table_name
+        self.create_table(benchmark, name, primary_key, secondary_key)
 
         self.update_cache(benchmark)
 
