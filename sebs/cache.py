@@ -179,9 +179,7 @@ class Cache(LoggingBase):
             if deployment in cached_config:
                 cached_config[deployment][resource] = config
             else:
-                cached_config[deployment] = {
-                    resource: config
-                }
+                cached_config[deployment] = {resource: config}
 
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
