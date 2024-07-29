@@ -262,6 +262,9 @@ class AWS(System):
 
             self.wait_function_active(lambda_function)
 
+            # Update environment variables
+            self.update_function_configuration(lambda_function, code_package)
+
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import LibraryTrigger
 
