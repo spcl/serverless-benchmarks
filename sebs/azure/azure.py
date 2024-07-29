@@ -320,6 +320,12 @@ class Azure(System):
             ).items():
                 envs[f"NOSQL_STORAGE_TABLE_{original_name}"] = actual_name
 
+        if code_package.uses_storage:
+
+            envs["STORAGE_CONNECTION_STRING"] = self.config.resources.data_storage_account(
+                self.cli_instance
+            ).connection_string
+
         resource_group = self.config.resources.resource_group(self.cli_instance)
         # Retrieve existing environment variables to prevent accidental overwrite
         if len(envs) > 0:
