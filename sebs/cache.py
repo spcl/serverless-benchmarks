@@ -170,11 +170,22 @@ class Cache(LoggingBase):
     def _update_resources(self, deployment: str, benchmark: str, resource: str, config: dict):
         if self.ignore_storage:
             return
+
+        """
+            We are now preparing benchmark data before caching function.
+            Thus, we have to take over a situation where the cache directory does not exist.
+        """
+
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
+        os.makedirs(benchmark_dir, exist_ok=True)
+
         with self._lock:
 
-            with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
-                cached_config = json.load(fp)
+            if os.path.exists(os.path.join(benchmark_dir, "config.json")):
+                with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
+                    cached_config = json.load(fp)
+            else:
+                cached_config = {}
 
             if deployment in cached_config:
                 cached_config[deployment][resource] = config
