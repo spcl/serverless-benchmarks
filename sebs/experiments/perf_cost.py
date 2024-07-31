@@ -48,11 +48,10 @@ class PerfCost(Experiment):
         )
 
         # prepare benchmark input
-        self._storage = deployment_client.get_storage(replace_existing=self.config.update_storage)
         self._benchmark_input = self._benchmark.prepare_input(
-            storage=self._storage,
-            nosql_storage=deployment_client.get_nosql_storage(),
+            deployment_client.system_resources,
             size=settings["input-size"],
+            replace_existing=self.config.update_storage,
         )
 
         self._function = deployment_client.get_function(self._benchmark)

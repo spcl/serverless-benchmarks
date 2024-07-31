@@ -13,6 +13,7 @@ from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.nosql import NoSQLStorage
+from sebs.faas.resources import SystemResources
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
 from sebs.types import BenchmarkModule
@@ -578,13 +579,16 @@ class Benchmark(LoggingBase):
         :param size: Benchmark workload size
     """
 
-    def prepare_input(self, storage: PersistentStorage, nosql_storage: NoSQLStorage, size: str):
+    def prepare_input(
+        self, system_resources: SystemResources, size: str, replace_existing: bool = False
+    ):
 
         """
         Handle object storage buckets.
         """
 
         buckets = self._benchmark_input_module.buckets_count()
+        storage = system_resources.get_storage(replace_existing)
         input, output = storage.benchmark_data(self.benchmark, buckets)
 
         self._uses_storage = len(input) > 0 or len(output) > 0
@@ -608,7 +612,7 @@ class Benchmark(LoggingBase):
         if hasattr(self._benchmark_input_module, "allocate_nosql"):
 
             for name, table_properties in self._benchmark_input_module.allocate_nosql().items():
-                nosql_storage.create_benchmark_tables(
+                system_resources.get_nosql_storage().create_benchmark_tables(
                     self._benchmark,
                     name,
                     table_properties["primary_key"],

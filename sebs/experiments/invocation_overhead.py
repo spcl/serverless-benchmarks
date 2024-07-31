@@ -79,10 +79,10 @@ class InvocationOverhead(Experiment):
             "030.clock-synchronization", deployment_client, self.config
         )
 
-        self._storage = deployment_client.get_storage(replace_existing=True)
         self.benchmark_input = self._benchmark.prepare_input(
-            storage=self._storage, nosql_storage=deployment_client.get_nosql_storage(), size="test"
+            deployment_client.system_resources, size="test", replace_existing=True
         )
+        self._storage = deployment_client.system_resources.get_storage(replace_existing=True)
 
         self._function = deployment_client.get_function(self._benchmark)
 

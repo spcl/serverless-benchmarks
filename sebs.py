@@ -206,6 +206,7 @@ def benchmark():
     type=str,
     help="Attach prefix to generated Docker image tag.",
 )
+@click.option("--storage-configuration", type=str, help="JSON configuration of deployed storage.")
 @common_params
 def invoke(
     benchmark,
@@ -242,8 +243,7 @@ def invoke(
     if timeout is not None:
         benchmark_obj.benchmark_config.timeout = timeout
 
-    storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
-    input_config = benchmark_obj.prepare_input(storage=storage, nosql_storage=deployment_client.get_nosql_storage(), size=benchmark_input_size)
+    input_config = benchmark_obj.prepare_input(deployment_client.system_resources, size=benchmark_input_size, replace_existing=experiment_config.update_storage)
 
     func = deployment_client.get_function(
         benchmark_obj,
@@ -379,9 +379,9 @@ def storage_start(storage, config, output_json):
         storage_type = sebs.SeBS.get_storage_implementation(storage_type_enum)
         storage_config, storage_resources = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
-    resources = storage_resources()
+        resources = storage_resources()
 
-    storage_instance = storage_type(docker.from_env(), None, resources, True)
+        storage_instance = storage_type(docker.from_env(), None, resources, True)
         storage_instance.config = config
 
         storage_instance.start()
@@ -461,13 +461,12 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
         experiment_config,
         logging_filename=logging_filename,
     )
-    storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
-    result.set_storage(storage)
     input_config = benchmark_obj.prepare_input(
-        storage=storage,
-        nosql_storage=deployment_client.get_nosql_storage(),
-        size=benchmark_input_size
+        deployment_client.system_resources,
+        size=benchmark_input_size,
+        replace_existing=experiment_config.update_storage
     )
+    result.set_storage(deployment_client.system_resources.get_storage())
     result.add_input(input_config)
 
     for i in range(deployments):
