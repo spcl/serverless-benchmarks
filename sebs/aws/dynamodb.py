@@ -1,11 +1,12 @@
 from collections import defaultdict
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.nosql import NoSQLStorage
 
 import boto3
+from boto3.dynamodb.types import TypeSerializer
 
 
 class DynamoDB(NoSQLStorage):
@@ -36,6 +37,8 @@ class DynamoDB(NoSQLStorage):
 
         # Map benchmark -> orig_name -> table_name
         self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
+
+        self._serializer = TypeSerializer()
 
     def retrieve_cache(self, benchmark: str) -> bool:
 
@@ -71,6 +74,24 @@ class DynamoDB(NoSQLStorage):
             return None
 
         return self._tables[benchmark][table]
+
+    def writer_func(
+        self,
+        benchmark: str,
+        table: str,
+        data: dict,
+        primary_key: Tuple[str, str],
+        secondary_key: Optional[Tuple[str, str]] = None,
+    ):
+
+        table_name = self._get_table_name(benchmark, table)
+
+        for key in (primary_key, secondary_key):
+            if key is not None:
+                data[key[0]] = key[1]
+
+        serialized_data = {k: self._serializer.serialize(v) for k, v in data.items()}
+        self.client.put_item(TableName=table_name, Item=serialized_data)
 
     """
         AWS: create a DynamoDB Table

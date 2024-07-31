@@ -20,8 +20,6 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
-from sebs.faas.storage import PersistentStorage
-from sebs.faas.nosql import NoSQLStorage
 from sebs.faas.system import System
 
 
