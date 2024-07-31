@@ -32,7 +32,8 @@
           "files": [
             "storage.py"
           ],
-          "packages": []
+          "packages": [],
+          "module_packages": {}
         }
       },
       "nodejs": {
@@ -239,7 +240,7 @@
             "setup.py"
           ],
           "packages": [],
-          "module-packages": {
+          "module_packages": {
             "storage": {
               "minio": "^5.0.10"
             },
