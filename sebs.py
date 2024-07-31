@@ -143,6 +143,7 @@ def parse_common_params(
     if storage_configuration:
         cfg = json.load(open(storage_configuration, 'r'))
         update_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
+        print(json.dumps(config_obj, indent=2))
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
@@ -386,7 +387,7 @@ def storage_start(storage, config, output_json):
 
         storage_instance.start()
 
-        user_storage_config["object"] = storage_instance.serialize()
+        user_storage_config["object"][storage_type_name] = storage_instance.serialize()
 
     if output_json:
         logging.info(f"Writing storage configuration to {output_json}.")
@@ -404,10 +405,10 @@ def storage_stop(input_json):
     sebs.utils.global_logging()
     with open(input_json, "r") as f:
         cfg = json.load(f)
-        storage_type = cfg["type"]
+        storage_type = cfg["object"]["type"]
 
         storage_cfg, storage_resources = sebs.SeBS.get_storage_config_implementation(storage_type)
-        config = storage_cfg.deserialize(cfg)
+        config = storage_cfg.deserialize(cfg["object"][storage_type])
 
         if "resources" in cfg:
             resources = storage_resources.deserialize(cfg["resources"])
