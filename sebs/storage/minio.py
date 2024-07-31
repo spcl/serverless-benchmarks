@@ -44,6 +44,10 @@ class Minio(PersistentStorage):
     def config(self) -> MinioConfig:
         return self._cfg
 
+    @config.setter
+    def config(self, config: MinioConfig) -> MinioConfig:
+        self._cfg = config
+
     @staticmethod
     def _define_http_client():
         """
@@ -63,15 +67,15 @@ class Minio(PersistentStorage):
             ),
         )
 
-    def start(self, port: int = 9000):
+    def start(self):
 
-        self._cfg.mapped_port = port
         self._cfg.access_key = secrets.token_urlsafe(32)
         self._cfg.secret_key = secrets.token_hex(32)
         self._cfg.address = ""
         self.logging.info("Minio storage ACCESS_KEY={}".format(self._cfg.access_key))
         self.logging.info("Minio storage SECRET_KEY={}".format(self._cfg.secret_key))
         try:
+            self.logging.info(f"Starting storage Minio on port {self._cfg.mapped_port}")
             self._storage_container = self._docker_client.containers.run(
                 "minio/minio:latest",
                 command="server /data",

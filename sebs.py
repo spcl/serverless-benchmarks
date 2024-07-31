@@ -345,35 +345,56 @@ def regression(benchmark_input_size, benchmark_name, **kwargs):
     )
 
 
+"""
+    Storage operations have the following characteristics:
+    - Two operations, start and stop.
+    - Three options, object storage, NoSQL storage, and all.
+    - Port and additional settings.
+
+    Configuration is read from a JSON.
+"""
+
+
 @cli.group()
 def storage():
     pass
 
 
 @storage.command("start")
-@click.argument("storage", type=click.Choice([StorageTypes.MINIO]))
+@click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
+@click.argument("config", type=click.Path(dir_okay=False, readable=True))
 @click.option("--output-json", type=click.Path(dir_okay=False, writable=True), default=None)
-@click.option("--port", type=int, default=9000)
-def storage_start(storage, output_json, port):
+def storage_start(storage, config, output_json):
 
     import docker
 
     sebs.utils.global_logging()
-    storage_type = sebs.SeBS.get_storage_implementation(StorageTypes(storage))
-    storage_config, storage_resources = sebs.SeBS.get_storage_config_implementation(StorageTypes(storage))
-    config = storage_config()
+    user_storage_config = json.load(open(config, 'r'))
+
+    if storage in ["object", "all"]:
+
+        storage_type_name = user_storage_config["object"]["type"]
+        storage_type_enum = StorageTypes(storage_type_name)
+
+        storage_type = sebs.SeBS.get_storage_implementation(storage_type_enum)
+        storage_config, storage_resources = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
+        config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
     resources = storage_resources()
 
     storage_instance = storage_type(docker.from_env(), None, resources, True)
-    logging.info(f"Starting storage {str(storage)} on port {port}.")
-    storage_instance.start(port)
+        storage_instance.config = config
+
+        storage_instance.start()
+
+        user_storage_config["object"] = storage_instance.serialize()
+
     if output_json:
         logging.info(f"Writing storage configuration to {output_json}.")
         with open(output_json, "w") as f:
-            json.dump(storage_instance.serialize(), fp=f, indent=2)
+            json.dump(user_storage_config, fp=f, indent=2)
     else:
         logging.info("Writing storage configuration to stdout.")
-        logging.info(json.dumps(storage_instance.serialize(), indent=2))
+        logging.info(json.dumps(user_storage_config, indent=2))
 
 
 @storage.command("stop")
@@ -444,7 +465,7 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
     result.set_storage(storage)
     input_config = benchmark_obj.prepare_input(
         storage=storage,
-        nosql_storage=storage.get_nosql_storage(),
+        nosql_storage=deployment_client.get_nosql_storage(),
         size=benchmark_input_size
     )
     result.add_input(input_config)

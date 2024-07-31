@@ -42,7 +42,7 @@ class LocalResources(Resources):
         ret = LocalResources()
         # Check for new config
         if "storage" in config:
-            ret._storage = MinioConfig.deserialize(config["storage"])
+            ret._storage = MinioConfig.deserialize(config["storage"]["object"])
             ret.logging.info("Using user-provided configuration of storage for local containers.")
         return ret
 
