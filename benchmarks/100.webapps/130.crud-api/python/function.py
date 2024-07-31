@@ -1,51 +1,65 @@
-import os
-
 from . import nosql
 
 nosql_client = nosql.nosql.get_instance()
 
 nosql_table_name = "shopping_cart"
 
-def add_product(card_id: str, product_id: str, product_name: str, price: float, quantity: int):
+
+def add_product(cart_id: str, product_id: str, product_name: str, price: float, quantity: int):
 
     nosql_client.insert(
-        table,
-        ("cart_id", card_id),
+        nosql_table_name,
+        ("cart_id", cart_id),
         ("product_id", product_id),
-        {"price": 10, "quantity": 1}
+        {"price": price, "quantity": quantity, "name": product_name},
     )
 
-def get_products():
-    pass
 
-def query_items():
-    pass
-
-def handler(event):
+def get_products(cart_id: str, product_id: str):
+    return nosql_client.get(nosql_table_name, ("cart_id", cart_id), ("product_id", product_id))
 
 
-    for request in event:
-
-        route = request['route']
-
-        if route == "PUT /cart":
-            add_product()
-
-    nosql_client.insert(
-        table,
-        ("cart_id", "new_tmp_cart"),
-        ("product_id", event['request-id']),
-        {"price": 10, "quantity": 1}
-    )
+def query_products():
 
     res = nosql_client.query(
-        table,
+        nosql_table_name,
         ("cart_id", "new_tmp_cart"),
         "product_id",
     )
 
-    return {
-        "result": {
-            "queries": res
-        }
-    }
+    products = []
+    price_sum = 0
+    quantity_sum = 0
+    for product in res:
+
+        products.append(product["name"])
+        price_sum += product["price"]
+        quantity_sum += product["quantity"]
+
+    return {"products": products, "total_cost": price_sum, "avg_price": price_sum / quantity_sum}
+
+
+def handler(event):
+
+    results = []
+
+    for request in event["requests"]:
+
+        route = request["route"]
+        body = request["body"]
+
+        if route == "PUT /cart":
+            add_product(
+                body["cart"], body["product"], body["name"], body["price"], body["quantity"]
+            )
+            res = {}
+        elif route == "GET /cart/{id}":
+            res = get_products(body["cart"], request["path"]["id"])
+        elif route == "GET /cart":
+            res = query_products()
+        else:
+            raise RuntimeError(f"Unknown request route: {route}")
+
+        results.append(res)
+
+    return {"result": results}
