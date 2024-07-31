@@ -13,6 +13,7 @@ import click
 import sebs
 from sebs import SeBS
 from sebs.types import Storage as StorageTypes
+from sebs.types import NoSQLStorage as NoSQLStorageTypes
 from sebs.regression import regression_suite
 from sebs.utils import update_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
@@ -388,6 +389,22 @@ def storage_start(storage, config, output_json):
 
         user_storage_config["object"][storage_type_name] = storage_instance.serialize()
 
+    if storage in ["nosql", "all"]:
+
+        storage_type_name = user_storage_config["nosql"]["type"]
+        storage_type_enum = NoSQLStorageTypes(storage_type_name)
+
+        storage_type = sebs.SeBS.get_nosql_implementation(storage_type_enum)
+        storage_config = sebs.SeBS.get_nosql_config_implementation(storage_type_enum)
+        config = storage_config.deserialize(user_storage_config["nosql"][storage_type_name])
+
+        storage_instance = storage_type(docker.from_env(), None, config)
+
+        storage_instance.start()
+
+        key, value = storage_instance.serialize()
+        user_storage_config["nosql"][key] = value
+
     if output_json:
         logging.info(f"Writing storage configuration to {output_json}.")
         with open(output_json, "w") as f:
@@ -398,12 +415,16 @@ def storage_start(storage, config, output_json):
 
 
 @storage.command("stop")
+@click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
 @click.argument("input-json", type=click.Path(exists=True, dir_okay=False, readable=True))
-def storage_stop(input_json):
+def storage_stop(storage, input_json):
 
     sebs.utils.global_logging()
     with open(input_json, "r") as f:
         cfg = json.load(f)
+
+    if storage in ["object", "all"]:
+
         storage_type = cfg["object"]["type"]
 
         storage_cfg, storage_resources = sebs.SeBS.get_storage_config_implementation(storage_type)
@@ -419,6 +440,17 @@ def storage_stop(input_json):
         storage.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 
+    if storage in ["nosql", "all"]:
+
+        storage_type = cfg["nosql"]["type"]
+
+        storage_cfg = sebs.SeBS.get_nosql_config_implementation(storage_type)
+        config = storage_cfg.deserialize(cfg["nosql"][storage_type])
+
+        logging.info(f"Stopping nosql deployment of {storage_type}.")
+        storage = sebs.SeBS.get_nosql_implementation(storage_type).deserialize(config, None)
+        storage.stop()
+        logging.info(f"Stopped nosql deployment of {storage_type}.")
 
 @cli.group()
 def local():

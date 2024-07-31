@@ -39,9 +39,6 @@ class ScyllaDB(NoSQLStorage):
 
     def start(self):
 
-        # docker run --rm --name some-scylla --hostname some-scylla -p 8000:8000 -d scylladb/scylla:4.0.0
-        # --smp 1 - -memory = 750M - -overprovisioned 1 - -alternator-port = 8000c
-
         if self._cfg.data_volume == "":
             scylladb_volume = os.path.join(project_absolute_path(), "scylladb_volume")
         else:
@@ -81,6 +78,7 @@ class ScyllaDB(NoSQLStorage):
             )
             self._cfg.instance_id = self._storage_container.id
 
+            # Wait until it boots up
             attempts = 0
             max_attempts = 30
             while attempts < max_attempts:
@@ -100,7 +98,6 @@ class ScyllaDB(NoSQLStorage):
                 raise RuntimeError("Failed to launch ScyllaBD!")
 
             self.configure_connection()
-            # FIXME: wait for it ot start
         except docker.errors.APIError as e:
             self.logging.error("Starting ScyllaDB storage failed! Reason: {}".format(e))
             raise RuntimeError("Starting ScyllaDB storage unsuccesful")
@@ -151,6 +148,22 @@ class ScyllaDB(NoSQLStorage):
 
     def serialize(self) -> dict:
         return StorageType.SCYLLADB, self._cfg.serialize()
+
+    @staticmethod
+    def deserialize(cached_config: ScyllaDBConfig, cache_client: Cache) -> "ScyllaDB":
+        docker_client = docker.from_env()
+        obj = ScyllaDB(docker_client, cache_client, cached_config)
+
+        if cached_config.instance_id:
+            instance_id = cached_config.instance_id
+            try:
+                obj._storage_container = docker_client.containers.get(instance_id)
+            except docker.errors.NotFound:
+                raise RuntimeError(f"Storage container {instance_id} does not exist!")
+        else:
+            obj._storage_container = None
+        obj.configure_connection()
+        return obj
 
     # def __init__(
     #    self,
