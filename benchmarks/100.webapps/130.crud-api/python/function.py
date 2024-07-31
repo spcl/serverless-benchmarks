@@ -1,10 +1,35 @@
-from . import nosql
 import os
+
+from . import nosql
+
 nosql_client = nosql.nosql.get_instance()
+
+nosql_table_name = "shopping_cart"
+
+def add_product(card_id: str, product_id: str, product_name: str, price: float, quantity: int):
+
+    nosql_client.insert(
+        table,
+        ("cart_id", card_id),
+        ("product_id", product_id),
+        {"price": 10, "quantity": 1}
+    )
+
+def get_products():
+    pass
+
+def query_items():
+    pass
 
 def handler(event):
 
-    table = "shopping_cart"
+
+    for request in event:
+
+        route = request['route']
+
+        if route == "PUT /cart":
+            add_product()
 
     nosql_client.insert(
         table,
