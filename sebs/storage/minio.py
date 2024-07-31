@@ -14,6 +14,7 @@ from sebs.types import Storage as StorageTypes
 from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
+from sebs.utils import project_absolute_path
 
 
 class Minio(PersistentStorage):
@@ -70,7 +71,7 @@ class Minio(PersistentStorage):
     def start(self):
 
         if self._cfg.data_volume == "":
-            output_dir = os.path.join(project_absolute_path(), "minio_volume")
+            minio_volume = os.path.join(project_absolute_path(), "minio_volume")
         else:
             minio_volume = self._cfg.data_volume
         minio_volume = os.path.abspath(minio_volume)
