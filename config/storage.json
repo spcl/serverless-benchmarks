@@ -3,14 +3,15 @@
     "type": "minio",
     "minio": {
       "mapped_port": 9011,
-      "version": "RELEASE.2024-07-16T23-46-41Z"
+      "version": "RELEASE.2024-07-16T23-46-41Z",
+      "data_volume": "minio-data"
     }
   },
   "nosql": {
     "type": "scylladb",
     "scylladb": {
       "mapped_port": 9012,
-      "version": "RELEASE.2024-07-16T23-46-41Z",
+      "version": "6.0",
       "cpus": 1,
       "memory": "750"
     }
