@@ -12,8 +12,6 @@ from sebs.config import SeBSConfig
 from sebs.faas.resources import SystemResources
 from sebs.faas.config import Resources
 from sebs.faas.function import Function, Trigger, ExecutionResult
-from sebs.faas.storage import PersistentStorage
-from sebs.faas.nosql import NoSQLStorage
 from sebs.utils import LoggingBase
 from .config import Config
 

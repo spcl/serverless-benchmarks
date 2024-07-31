@@ -1,6 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from sebs.faas.config import Resources
 from sebs.cache import Cache
@@ -87,6 +87,17 @@ class NoSQLStorage(ABC, LoggingBase):
     def create_table(
         self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
     ) -> str:
+        pass
+
+    @abstractmethod
+    def writer_func(
+        self,
+        benchmark: str,
+        table: str,
+        data: dict,
+        primary_key: Tuple[str, str],
+        secondary_key: Optional[Tuple[str, str]] = None,
+    ):
         pass
 
     """

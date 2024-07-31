@@ -5,17 +5,15 @@ import os
 import shutil
 import subprocess
 from abc import abstractmethod
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import docker
 
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.faas.config import Resources
-from sebs.faas.nosql import NoSQLStorage
 from sebs.faas.resources import SystemResources
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
-from sebs.faas.storage import PersistentStorage
 from sebs.types import BenchmarkModule
 from typing import TYPE_CHECKING
 
@@ -586,24 +584,33 @@ class Benchmark(LoggingBase):
         """
         Handle object storage buckets.
         """
+        if hasattr(self._benchmark_input_module, "buckets_count"):
 
-        buckets = self._benchmark_input_module.buckets_count()
-        storage = system_resources.get_storage(replace_existing)
-        input, output = storage.benchmark_data(self.benchmark, buckets)
+            buckets = self._benchmark_input_module.buckets_count()
+            storage = system_resources.get_storage(replace_existing)
+            input, output = storage.benchmark_data(self.benchmark, buckets)
 
-        self._uses_storage = len(input) > 0 or len(output) > 0
+            self._uses_storage = len(input) > 0 or len(output) > 0
 
-        self._cache_client.update_storage(
-            storage.deployment_name(),
-            self._benchmark,
-            {
-                "buckets": {
-                    "input": storage.input_prefixes,
-                    "output": storage.output_prefixes,
-                    "input_uploaded": True,
-                }
-            },
-        )
+            self._cache_client.update_storage(
+                storage.deployment_name(),
+                self._benchmark,
+                {
+                    "buckets": {
+                        "input": storage.input_prefixes,
+                        "output": storage.output_prefixes,
+                        "input_uploaded": True,
+                    }
+                },
+            )
+
+            storage_func = storage.uploader_func
+            bucket = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+        else:
+            input = []
+            output = []
+            storage_func = None
+            bucket = None
 
         """
             Handle key-value storage.
@@ -611,8 +618,9 @@ class Benchmark(LoggingBase):
         """
         if hasattr(self._benchmark_input_module, "allocate_nosql"):
 
+            nosql_storage = system_resources.get_nosql_storage()
             for name, table_properties in self._benchmark_input_module.allocate_nosql().items():
-                system_resources.get_nosql_storage().create_benchmark_tables(
+                nosql_storage.create_benchmark_tables(
                     self._benchmark,
                     name,
                     table_properties["primary_key"],
@@ -620,17 +628,15 @@ class Benchmark(LoggingBase):
                 )
 
             self._uses_nosql = True
+            nosql_func = nosql_storage.writer_func
+        else:
+            nosql_func = None
 
         # buckets = mod.buckets_count()
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = self._benchmark_input_module.generate_input(
-            self._benchmark_data_path,
-            size,
-            storage.get_bucket(Resources.StorageBucketType.BENCHMARKS),
-            input,
-            output,
-            storage.uploader_func,
+            self._benchmark_data_path, size, bucket, input, output, storage_func, nosql_func
         )
 
         self._input_processed = True
@@ -716,10 +722,13 @@ class BenchmarkModuleInterface:
     def generate_input(
         data_dir: str,
         size: str,
-        benchmarks_bucket: str,
+        benchmarks_bucket: Optional[str],
         input_paths: List[str],
         output_paths: List[str],
-        upload_func: Callable[[int, str, str], None],
+        upload_func: Optional[Callable[[int, str, str], None]],
+        nosql_func: Optional[
+            Callable[[str, str, dict, Tuple[str, str], Optional[Tuple[str, str]]], None]
+        ],
     ) -> Dict[str, str]:
         pass
 
