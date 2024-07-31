@@ -25,3 +25,4 @@ class NoSQLStorage(str, Enum):
     AWS_DYNAMODB = "aws-dynamodb"
     AZURE_COSMOSDB = "azure-cosmosdb"
     GCP_DATASTORE = "google-cloud-datastore"
+    SCYLLADB = "scylladb"
