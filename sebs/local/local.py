@@ -9,12 +9,11 @@ import docker
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.local.resources import LocalSystemResources
 from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
-from sebs.local.storage import Minio
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
-from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 from sebs.benchmark import Benchmark
 
@@ -67,7 +66,12 @@ class Local(System):
         docker_client: docker.client,
         logger_handlers: LoggingHandlers,
     ):
-        super().__init__(sebs_config, cache_client, docker_client)
+        super().__init__(
+            sebs_config,
+            cache_client,
+            docker_client,
+            LocalSystemResources(config, cache_client, docker_client, logger_handlers),
+        )
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
@@ -76,31 +80,6 @@ class Local(System):
         self._measure_interval = -1
 
         self.initialize_resources(select_prefix="local")
-
-    """
-        Create wrapper object for minio storage and fill buckets.
-        Starts minio as a Docker instance, using always fresh buckets.
-
-        :param benchmark:
-        :param buckets: number of input and output buckets
-        :param replace_existing: not used.
-        :return: Azure storage instance
-    """
-
-    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        if not hasattr(self, "storage"):
-
-            if not self.config.resources.storage_config:
-                raise RuntimeError(
-                    "The local deployment is missing the configuration of pre-allocated storage!"
-                )
-            self.storage = Minio.deserialize(
-                self.config.resources.storage_config, self.cache_client, self.config.resources
-            )
-            self.storage.logging_handlers = self.logging_handlers
-        else:
-            self.storage.replace_existing = replace_existing
-        return self.storage
 
     """
         Shut down minio storage instance.
