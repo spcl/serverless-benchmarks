@@ -93,11 +93,12 @@ class AWS(System):
             aws_access_key_id=self.config.credentials.access_key,
             aws_secret_access_key=self.config.credentials.secret_key,
         )
+        self.system_resources.initialize_session(self.session)
+
         self.get_lambda_client()
         self.get_sfn_client()
         self.initialize_resources(select_prefix=resource_prefix)
 
-        self.system_resources.initialize_session(self.session)
 
     def get_lambda_client(self):
         if not hasattr(self, "lambda_client"):
@@ -489,7 +490,7 @@ class AWS(System):
         # If we modify them, we need to first read existing ones and append.
         if len(envs) > 0:
 
-            response = self.client.get_function_configuration(FunctionName=function.name)
+            response = self.lambda_client.get_function_configuration(FunctionName=function.name)
             # preserve old variables while adding new ones.
             # but for conflict, we select the new one
             if "Environment" in response:
@@ -498,14 +499,14 @@ class AWS(System):
         function = cast(LambdaFunction, function)
         # We only update envs if anything new was added
         if len(envs) > 0:
-            self.client.update_function_configuration(
+            self.lambda_client.update_function_configuration(
                 FunctionName=function.name,
                 Timeout=function.config.timeout,
                 MemorySize=function.config.memory,
                 Environment={"Variables": envs},
             )
         else:
-            self.client.update_function_configuration(
+            self.lambda_client.update_function_configuration(
                 FunctionName=function.name,
                 Timeout=function.config.timeout,
                 MemorySize=function.config.memory,
