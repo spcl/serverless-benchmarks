@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from abc import abstractmethod
+from enum import Enum
 from typing import Dict, List, Optional
 
 from sebs.cache import Cache
