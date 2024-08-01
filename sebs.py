@@ -323,14 +323,14 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         logging_filename=logging_filename,
     )
 
-    workflow = deployment_client.get_workflow(
-        benchmark_obj, workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj)
-    )
-    storage = deployment_client.get_storage(
+    input_config = benchmark_obj.prepare_input(
+        deployment_client.system_resources,
+        size=benchmark_input_size,
         replace_existing=experiment_config.update_storage
     )
-    input_config = benchmark_obj.prepare_input(
-        storage=storage, size=benchmark_input_size
+
+    workflow = deployment_client.get_workflow(
+        benchmark_obj, workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj)
     )
 
     measurements = []
