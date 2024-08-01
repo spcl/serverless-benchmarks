@@ -7,10 +7,13 @@ from sebs.cache import Cache
 from sebs.faas.config import Config
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.nosql import NoSQLStorage
+from sebs.utils import LoggingBase
 
 
-class SystemResources(ABC):
+class SystemResources(ABC, LoggingBase):
     def __init__(self, config: Config, cache_client: Cache, docker_client: docker.client):
+
+        super().__init__()
 
         self._config = config
         self._cache_client = cache_client

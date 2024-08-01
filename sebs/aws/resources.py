@@ -14,6 +14,10 @@ import docker
 
 
 class AWSSystemResources(SystemResources):
+    @staticmethod
+    def typename() -> str:
+        return "AWS.SystemResources"
+
     @property
     def config(self) -> AWSConfig:
         return cast(AWSConfig, self._config)
@@ -50,6 +54,7 @@ class AWSSystemResources(SystemResources):
 
         if not self._storage:
             assert self._session is not None
+            self.logging.info("Initialize S3 storage instance.")
             self._storage = S3(
                 self._session,
                 self._cache_client,
@@ -67,6 +72,7 @@ class AWSSystemResources(SystemResources):
     def get_nosql_storage(self) -> NoSQLStorage:
         if not self._nosql_storage:
             assert self._session is not None
+            self.logging.info("Initialize DynamoDB NoSQL instance.")
             self._nosql_storage = DynamoDB(
                 self._session,
                 self._cache_client,
