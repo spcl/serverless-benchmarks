@@ -1,10 +1,5 @@
 import uuid
 
-
-def buckets_count():
-    return (0, 0)
-
-
 def allocate_nosql() -> dict:
     return {"shopping_cart": {"primary_key": "cart_id", "secondary_key": "product_id"}}
 
