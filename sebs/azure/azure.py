@@ -11,9 +11,12 @@ import docker
 
 from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
+from sebs.azure.cosmosdb import CosmosDB
 from sebs.azure.function import AzureFunction, AzureWorkflow
 from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
+from sebs.faas.function import Trigger
+from sebs.faas.nosql import NoSQLStorage
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -66,6 +69,8 @@ class Azure(System):
         super().__init__(sebs_config, cache_client, docker_client)
         self.logging_handlers = logger_handlers
         self._config = config
+
+        self.nosql_storage: Optional[CosmosDB] = None
 
     def initialize_cli(self, cli: AzureCLI):
         self.cli_instance = cli
@@ -155,6 +160,13 @@ class Azure(System):
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
+
+    def get_nosql_storage(self) -> NoSQLStorage:
+        if not self.nosql_storage:
+            self.nosql_storage = CosmosDB(
+                self.cli_instance, self.cache_client, self.config.resources, self.config.region
+            )
+        return self.nosql_storage
 
     # Directory structure
     # handler
@@ -421,22 +433,108 @@ class Azure(System):
 
     def update_benchmark(self, function: CloudBenchmark, code_package: Benchmark):
 
+        assert code_package.has_input_processed
+
         # Mount code package in Docker instance
         container_dest = self._mount_function_code(code_package)
-        url = self.publish_function(function, code_package, container_dest, True)
+        function_url = self.publish_function(function, code_package, container_dest, True)
 
-        storage_account = self.config.resources.data_storage_account(self.cli_instance)
+        envs = {}
+        if code_package.uses_nosql:
+
+            # If we use NoSQL, then the handle must be allocated
+            assert self.nosql_storage is not None
+            _, url, creds = self.nosql_storage.credentials()
+            db = self.nosql_storage.benchmark_database(code_package.benchmark)
+            envs["NOSQL_STORAGE_DATABASE"] = db
+            envs["NOSQL_STORAGE_URL"] = url
+            envs["NOSQL_STORAGE_CREDS"] = creds
+
+            for original_name, actual_name in self.nosql_storage.get_tables(
+                code_package.benchmark
+            ).items():
+                envs[f"NOSQL_STORAGE_TABLE_{original_name}"] = actual_name
+
+        if code_package.uses_storage:
+
+            envs["STORAGE_CONNECTION_STRING"] = self.config.resources.data_storage_account(
+                self.cli_instance
+            ).connection_string
+
         resource_group = self.config.resources.resource_group(self.cli_instance)
+        # Retrieve existing environment variables to prevent accidental overwrite
+        if len(envs) > 0:
 
-        self.cli_instance.execute(
-            f"az functionapp config appsettings set --name {function.name} "
-            f" --resource-group {resource_group} "
-            f" --settings STORAGE_CONNECTION_STRING={storage_account.connection_string}"
-        )
+            try:
+                self.logging.info(
+                    f"Retrieving existing environment variables for function {function.name}"
+                )
 
-        trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
-        trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(trigger)
+                # First read existing properties
+                response = self.cli_instance.execute(
+                    f"az functionapp config appsettings list --name {function.name} "
+                    f" --resource-group {resource_group} "
+                )
+                old_envs = json.loads(response.decode())
+
+                # Find custom envs and copy them - unless they are overwritten now
+                for env in old_envs:
+
+                    # Ignore vars set automatically by Azure
+                    found = False
+                    for prefix in ["FUNCTIONS_", "WEBSITE_", "APPINSIGHTS_", "Azure"]:
+                        if env["name"].startswith(prefix):
+                            found = True
+                            break
+
+                    # do not overwrite new value
+                    if not found and env["name"] not in envs:
+                        envs[env["name"]] = env["value"]
+
+            except RuntimeError as e:
+                self.logging.error("Failed to retrieve environment variables!")
+                self.logging.error(e)
+                raise e
+
+        if len(envs) > 0:
+            try:
+                env_string = ""
+                for k, v in envs.items():
+                    env_string += f" {k}={v}"
+
+                self.logging.info(f"Exporting environment variables for function {function.name}")
+                self.cli_instance.execute(
+                    f"az functionapp config appsettings set --name {function.name} "
+                    f" --resource-group {resource_group} "
+                    f" --settings {env_string} "
+                )
+
+                # if we don't do that, next invocation might still see old values
+                self.logging.info(
+                    "Sleeping for 5 seconds - Azure needs more time to propagate changes"
+                )
+                time.sleep(5)
+
+            except RuntimeError as e:
+                self.logging.error("Failed to set environment variable!")
+                self.logging.error(e)
+                raise e
+
+        # Avoid duplication of HTTP trigger
+        found_trigger = False
+        for trigger in function.triggers_all():
+
+            if isinstance(trigger, HTTPTrigger):
+                found_trigger = True
+                trigger.url = function_url
+                break
+
+        if not found_trigger:
+            trigger = HTTPTrigger(
+                function_url, self.config.resources.data_storage_account(self.cli_instance)
+            )
+            trigger.logging_handlers = self.logging_handlers
+            function.add_trigger(trigger)
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout

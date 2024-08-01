@@ -32,7 +32,8 @@
           "files": [
             "storage.py"
           ],
-          "packages": []
+          "packages": [],
+          "module_packages": {}
         }
       },
       "nodejs": {
@@ -72,11 +73,13 @@
           "files": [
             "handler_function.py",
             "handler_workflow.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
           "packages": [
             "redis"
-          ]
+          ],
+          "module_packages": {}
         }
       },
       "nodejs": {
@@ -120,14 +123,22 @@
             "storage.py",
             "fsm.py",
             "run_workflow.py",
-            "run_subworkflow.py"
+            "run_subworkflow.py",
+            "nosql.py"
           ],
           "packages": [
-            "azure-storage-blob",
             "azure-functions",
             "azure-functions-durable==1.1.6",
             "redis"
-          ]
+          ],
+          "module_packages": {
+            "storage": [
+              "azure-storage-blob"
+            ],
+            "nosql": [
+              "azure-cosmos"
+            ]
+          }
         }
       },
       "nodejs": {
@@ -177,12 +188,20 @@
           "files": [
             "handler_function.py",
             "handler_workflow.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
           "packages": [
-            "google-cloud-storage",
             "redis"
-          ]
+          ],
+          "module_packages": {
+            "storage": [
+              "google-cloud-storage"
+            ],
+            "nosql": [
+              "google-cloud-datastore"
+            ]
+          }
         }
       },
       "nodejs": {
@@ -209,6 +228,11 @@
           }
         }
       }
+    },
+    "images": {
+      "manage": {
+        "username": "docker_user"
+      }
     }
   },
   "openwhisk": {
@@ -230,8 +254,12 @@
             "storage.py",
             "setup.py"
           ],
-          "packages": {
-            "minio": "^5.0.10"
+          "packages": [],
+          "module_packages": {
+            "storage": {
+              "minio": "^5.0.10"
+            },
+            "nosql": []
           }
         }
       },

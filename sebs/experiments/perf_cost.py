@@ -60,11 +60,15 @@ class PerfCost(Experiment):
             self._function = deployment_client.get_workflow(self._benchmark)
         else:
             self._function = deployment_client.get_function(self._benchmark)
+
         # prepare benchmark input
-        self._storage = deployment_client.get_storage(replace_existing=self.config.update_storage)
         self._benchmark_input = self._benchmark.prepare_input(
-            storage=self._storage, size=settings["input-size"]
+            deployment_client.system_resources,
+            size=settings["input-size"],
+            replace_existing=self.config.update_storage,
         )
+
+        self._function = deployment_client.get_function(self._benchmark)
 
         # add HTTP trigger
         if self.is_workflow and not isinstance(deployment_client, Azure):

@@ -9,9 +9,9 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.faas.resources import SystemResources
 from sebs.faas.config import Resources
 from sebs.faas.function import CloudBenchmark, Function, Trigger, ExecutionResult, Workflow
-from sebs.faas.storage import PersistentStorage
 from sebs.utils import LoggingBase
 from .config import Config
 
@@ -30,12 +30,15 @@ class System(ABC, LoggingBase):
         system_config: SeBSConfig,
         cache_client: Cache,
         docker_client: docker.client,
+        system_resources: SystemResources,
     ):
         super().__init__()
         self._system_config = system_config
         self._docker_client = docker_client
         self._cache_client = cache_client
         self._cold_start_counter = randrange(100)
+
+        self._system_resources = system_resources
 
     @property
     def system_config(self) -> SeBSConfig:
@@ -62,6 +65,10 @@ class System(ABC, LoggingBase):
     def config(self) -> Config:
         pass
 
+    @property
+    def system_resources(self) -> SystemResources:
+        return self._system_resources
+
     @staticmethod
     @abstractmethod
     def function_type() -> "Type[Function]":
@@ -80,7 +87,7 @@ class System(ABC, LoggingBase):
         This can be overriden, e.g., in Azure that looks for unique
         """
 
-        return self.get_storage().find_deployments()
+        return self.system_resources.get_storage().find_deployments()
 
     def initialize_resources(self, select_prefix: Optional[str]):
 
@@ -124,7 +131,7 @@ class System(ABC, LoggingBase):
         self.config.resources.resources_id = res_id
         self.logging.info(f"Generating unique resource name {res_id}")
         # ensure that the bucket is created - this allocates the new resource
-        self.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
+        self.system_resources.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
 
     """
         Initialize the system. After the call the local or remote
@@ -135,18 +142,6 @@ class System(ABC, LoggingBase):
     """
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
-        pass
-
-    """
-        Access persistent storage instance.
-        It might be a remote and truly persistent service (AWS S3, Azure Blob..),
-        or a dynamically allocated local instance.
-
-        :param replace_existing: replace benchmark input data if exists already
-    """
-
-    @abstractmethod
-    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
         pass
 
     """

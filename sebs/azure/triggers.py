@@ -34,8 +34,7 @@ class HTTPTrigger(AzureTrigger):
         request_id = str(uuid.uuid4())[0:8]
         input = {
             "payload": payload,
-            "request_id": request_id,
-            "connection_string": self.data_storage_account.connection_string,
+            "request_id": request_id
         }
         return self._http_invoke(input, self.url)
 

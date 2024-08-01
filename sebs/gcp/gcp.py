@@ -11,16 +11,19 @@ from typing import cast, Dict, Optional, Tuple, List, Type
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google.cloud import monitoring_v3  # type: ignore
+import google.cloud.monitoring_v3 as monitoring_v3
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
+from sebs.faas.nosql import NoSQLStorage
 from sebs.faas.function import CloudBenchmark, Function, FunctionConfig, Trigger, Workflow
-from .storage import PersistentStorage
+from sebs.gcp.storage import PersistentStorage
 from sebs.faas.config import Resources
-from ..faas.system import System
+from sebs.faas.system import System
+from sebs.gcp.cli import GCloudCLI
 from sebs.gcp.config import GCPConfig
+from sebs.gcp.datastore import Datastore
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
 from sebs.gcp.workflow import GCPWorkflow
@@ -52,6 +55,9 @@ class GCP(System):
         self.storage: Optional[GCPStorage] = None
         self.logging_handlers = logging_handlers
 
+        self._cli_instance: Optional[GCloudCLI] = None
+        self.cli_instance_stop = False
+
     @property
     def config(self) -> GCPConfig:
         return self._config
@@ -72,6 +78,11 @@ class GCP(System):
     def workflow_type() -> "Type[Workflow]":
         return GCPWorkflow
 
+    @property
+    def cli_instance(self) -> GCloudCLI:
+        assert self._cli_instance
+        return self._cli_instance
+
     """
         Initialize the system. After the call the local or remote
         FaaS system should be ready to allocate functions, manage
@@ -85,6 +96,20 @@ class GCP(System):
         self.workflow_client = build("workflows", "v1", cache_discovery=False)
         self.get_storage()
         self.initialize_resources(select_prefix=resource_prefix)
+
+        if self._cli_instance is None:
+            self._cli_instance = GCloudCLI(
+                self.config.credentials, self.system_config, self.docker_client
+            )
+            self._cli_instance_stop = True
+
+            self._cli_instance.login(self.config.credentials.project_name)
+
+        self.nosql_storage: Optional[Datastore] = None
+
+    def initialize_cli(self, cli: GCloudCLI):
+        self._cli_instance = cli
+        self._cli_instance_stop = False
 
     def get_function_client(self):
         return self.function_client
@@ -114,6 +139,13 @@ class GCP(System):
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
+
+    def get_nosql_storage(self) -> NoSQLStorage:
+        if not self.nosql_storage:
+            self.nosql_storage = Datastore(
+                self.cli_instance, self.cache_client, self.config.resources, self.config.region
+            )
+        return self.nosql_storage
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -230,6 +262,11 @@ class GCP(System):
         try:
             get_req.execute()
         except HttpError:
+
+            envs = self._generate_function_envs(code_package)
+            # FIXME: why is that needed?
+            envs["MY_FUNCTION_NAME"] = func_name
+
             create_req = (
                 self.function_client.projects()
                 .locations()
@@ -245,7 +282,7 @@ class GCP(System):
                         "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
                         "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
-                        "environmentVariables": {"MY_FUNCTION_NAME": func_name},
+                        "environmentVariables": envs,
                     },
                 )
             )
@@ -346,7 +383,11 @@ class GCP(System):
 
         bucket = function.code_bucket(code_package.benchmark, storage)
         storage.upload(bucket, code_package.code_location, code_package_name)
-        self.logging.info(f"Uploaded new code package to {bucket}/{code_package.benchmark}")
+
+        envs = self._generate_function_envs(code_package)
+        envs["MY_FUNCTION_NAME"] = function.name
+
+        self.logging.info(f"Uploaded new code package to {bucket}/{code_package_name}")
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
@@ -364,9 +405,7 @@ class GCP(System):
                     "timeout": str(function.config.timeout) + "s",
                     "httpsTrigger": {},
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-                    "environmentVariables": {
-                        "MY_FUNCTION_NAME": function.name,
-                    },
+                    "environmentVariables": envs
                 },
             )
         )
@@ -390,24 +429,79 @@ class GCP(System):
             )
         self.logging.info("Published new function code and configuration.")
 
-    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+    def _update_envs(self, full_function_name: str, envs: dict) -> dict:
+
+        get_req = (
+            self.function_client.projects().locations().functions().get(name=full_function_name)
+        )
+        response = get_req.execute()
+
+        # preserve old variables while adding new ones.
+        # but for conflict, we select the new one
+        if "environmentVariables" in response:
+            envs = {**response["environmentVariables"], **envs}
+
+        return envs
+
+    def _generate_function_envs(self, code_package: Benchmark) -> dict:
+
+        envs = {}
+        if code_package.uses_nosql:
+
+            assert self.nosql_storage is not None
+            db = self.nosql_storage.benchmark_database(code_package.benchmark)
+            envs["NOSQL_STORAGE_DATABASE"] = db
+
+        return envs
+
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+
+        assert code_package.has_input_processed
+
         function = cast(GCPFunction, function)
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
-        req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .patch(
-                name=full_func_name,
-                updateMask="availableMemoryMb,timeout",
-                body={
-                    "availableMemoryMb": function.config.memory,
-                    "timeout": str(function.config.timeout) + "s",
-                },
+
+        envs = self._generate_function_envs(code_package)
+        # GCP might overwrite existing variables
+        # If we modify them, we need to first read existing ones and append.
+        if len(envs) > 0:
+            envs = self._update_envs(full_func_name, envs)
+
+        if len(envs) > 0:
+
+            req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .patch(
+                    name=full_func_name,
+                    updateMask="availableMemoryMb,timeout,environmentVariables",
+                    body={
+                        "availableMemoryMb": function.config.memory,
+                        "timeout": str(function.config.timeout) + "s",
+                        "environmentVariables": envs,
+                    },
+                )
             )
-        )
+
+        else:
+
+            req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .patch(
+                    name=full_func_name,
+                    updateMask="availableMemoryMb,timeout",
+                    body={
+                        "availableMemoryMb": function.config.memory,
+                        "timeout": str(function.config.timeout) + "s",
+                    },
+                )
+            )
+
         res = req.execute()
         versionId = res["metadata"]["versionId"]
         retries = 0
@@ -624,6 +718,8 @@ class GCP(System):
         return logs_bucket
 
     def shutdown(self) -> None:
+        if self._cli_instance and self._cli_instance_stop:
+            self._cli_instance.shutdown()
         super().shutdown()
 
     def download_metrics(
@@ -649,8 +745,7 @@ class GCP(System):
             There shouldn't be problem of waiting for complete results,
             since logs appear very quickly here.
         """
-
-        from google.cloud import logging as gcp_logging  # type: ignore
+        import google.cloud.logging as gcp_logging
 
         logging_client = gcp_logging.Client()
         logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")
@@ -750,7 +845,13 @@ class GCP(System):
         name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
+
         self.cold_start_counter += 1
+        envs = self._update_envs(name, {})
+        envs["cold_start"] = str(self.cold_start_counter)
+        # FIXME: why is that needed?
+        envs["MY_FUNCTION_NAME"] = function.name
+
         req = (
             self.function_client.projects()
             .locations()
@@ -758,12 +859,7 @@ class GCP(System):
             .patch(
                 name=name,
                 updateMask="environmentVariables",
-                body={
-                    "environmentVariables": {
-                        "cold_start": str(self.cold_start_counter),
-                        "MY_FUNCTION_NAME": function.name,
-                    }
-                },
+                body={"environmentVariables": envs},
             )
         )
         res = req.execute()

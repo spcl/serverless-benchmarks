@@ -39,6 +39,8 @@ class MinioConfig:
     instance_id: str = ""
     output_buckets: List[str] = field(default_factory=list)
     input_buckets: List[str] = field(default_factory=lambda: [])
+    version: str = ""
+    data_volume: str = ""
     type: str = "minio"
 
     def update_cache(self, path: List[str], cache: Cache):
@@ -55,9 +57,40 @@ class MinioConfig:
         data = {k: v for k, v in data.items() if k in keys}
 
         cfg = MinioConfig(**data)
-        # cfg.resources = cast(MinioResources, MinioResources.deserialize(data["resources"]))
 
         return cfg
 
     def serialize(self) -> dict:
-        return self.__dict__  # , "resources": self.resources.serialize()}
+        return self.__dict__
+
+
+@dataclass
+class ScyllaDBConfig:
+    address: str = ""
+    mapped_port: int = -1
+    access_key: str = "None"
+    secret_key: str = "None"
+    instance_id: str = ""
+    region: str = "None"
+    cpus: int = -1
+    memory: int = -1
+    version: str = ""
+    data_volume: str = ""
+    type: str = "nosql"
+
+    def update_cache(self, path: List[str], cache: Cache):
+
+        for key in ScyllaDBConfig.__dataclass_fields__.keys():
+            cache.update_config(val=getattr(self, key), keys=[*path, key])
+
+    @staticmethod
+    def deserialize(data: dict) -> "ScyllaDBConfig":
+        keys = list(ScyllaDBConfig.__dataclass_fields__.keys())
+        data = {k: v for k, v in data.items() if k in keys}
+
+        cfg = ScyllaDBConfig(**data)
+
+        return cfg
+
+    def serialize(self) -> dict:
+        return self.__dict__
