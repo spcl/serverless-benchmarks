@@ -19,11 +19,11 @@ def get_products(cart_id: str, product_id: str):
     return nosql_client.get(nosql_table_name, ("cart_id", cart_id), ("product_id", product_id))
 
 
-def query_products():
+def query_products(cart_id: str):
 
     res = nosql_client.query(
         nosql_table_name,
-        ("cart_id", "new_tmp_cart"),
+        ("cart_id", cart_id),
         "product_id",
     )
 
@@ -36,7 +36,9 @@ def query_products():
         price_sum += product["price"]
         quantity_sum += product["quantity"]
 
-    return {"products": products, "total_cost": price_sum, "avg_price": price_sum / quantity_sum}
+    avg_price = price_sum / quantity_sum if quantity_sum > 0 else 0.0
+
+    return {"products": products, "total_cost": price_sum, "avg_price": avg_price}
 
 
 def handler(event):
@@ -50,13 +52,13 @@ def handler(event):
 
         if route == "PUT /cart":
             add_product(
-                body["cart"], body["product"], body["name"], body["price"], body["quantity"]
+                body["cart"], body["product_id"], body["name"], body["price"], body["quantity"]
             )
             res = {}
         elif route == "GET /cart/{id}":
             res = get_products(body["cart"], request["path"]["id"])
         elif route == "GET /cart":
-            res = query_products()
+            res = query_products(body["cart"])
         else:
             raise RuntimeError(f"Unknown request route: {route}")
 
