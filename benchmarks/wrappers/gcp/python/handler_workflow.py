@@ -10,6 +10,13 @@ import importlib
 # Add current directory to allow location of packages
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
 
+if 'NOSQL_STORAGE_DATABASE' in os.environ:
+    from function import nosql
+
+    nosql.nosql.get_instance(
+        os.environ['NOSQL_STORAGE_DATABASE']
+    )
+
 from redis import Redis
 
 def probe_cold_start():
@@ -31,8 +38,10 @@ def handler(req):
     start = datetime.datetime.now().timestamp()
     os.environ["STORAGE_UPLOAD_BYTES"] = "0"
     os.environ["STORAGE_DOWNLOAD_BYTES"] = "0"
+    provider_request_id = req.headers.get("Function-Execution-Id")
 
     event = req.get_json()
+    event["payload"]['request-id'] = provider_request_id
     full_function_name = os.getenv("MY_FUNCTION_NAME")
     workflow_name, func_name = full_function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
@@ -40,7 +49,6 @@ def handler(req):
 
     end = datetime.datetime.now().timestamp()
 
-    provider_request_id = req.headers.get("Function-Execution-Id")
     is_cold, container_id = probe_cold_start()
     payload = {
         "func": func_name,
