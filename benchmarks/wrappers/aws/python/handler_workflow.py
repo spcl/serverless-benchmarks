@@ -32,6 +32,9 @@ def handler(event, context):
     os.environ["STORAGE_UPLOAD_BYTES"] = "0"
     os.environ["STORAGE_DOWNLOAD_BYTES"] = "0"
 
+    req_id = context.aws_request_id
+    event["payload"]['request-id'] = req_id
+
     workflow_name, func_name = context.function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
     res = function.handler(event["payload"])
