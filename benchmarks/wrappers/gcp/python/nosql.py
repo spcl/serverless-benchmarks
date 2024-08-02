@@ -54,7 +54,20 @@ class nosql:
         data: dict,
     ):
         # There is no direct update - we have to fetch the entire entity and manually change fields.
-        self.insert(table_name, primary_key, secondary_key, data)
+        parent_key = self._client.key(primary_key[0], primary_key[1])
+        key = self._client.key(
+            # kind determines the table
+            table_name,
+            # main ID key
+            secondary_key[1],
+            # organization key
+            parent=parent_key,
+        )
+        res = self._client.get(key)
+        if res is None:
+            res = datastore.Entity(key=key)
+        res.update(data)
+        self._client.put(res)
 
     def get(
         self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
