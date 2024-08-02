@@ -618,7 +618,9 @@ class GCP(System):
         prefix = workflow.name + "___"
         code_files = list(code_package.get_code_files(include_config=False))
         func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
-        funcs = [self.create_function(code_package, prefix + fn) for fn in func_names]
+        # FIXME: does it really resolve the problem of caching?
+        # funcs = [self.create_function(code_package, prefix + fn) for fn in func_names]
+        funcs = [self.get_function(code_package, prefix + fn) for fn in func_names]
 
         # Generate workflow definition.json
         triggers = [self.create_function_trigger(f, Trigger.TriggerType.HTTP) for f in funcs]
@@ -659,7 +661,8 @@ class GCP(System):
                 body={"name": full_workflow_name, "sourceContents": definition},
             )
         )
-        req.execute()
+        # FIXME: wait for success!
+        res = req.execute()
         workflow.functions = funcs
         self.logging.info("Published new workflow code and configuration.")
 
