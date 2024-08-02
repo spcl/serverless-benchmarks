@@ -19,7 +19,6 @@ from sebs.benchmark import Benchmark
 from sebs.faas.function import CloudBenchmark, Function, FunctionConfig, Trigger, Workflow
 from sebs.faas.config import Resources
 from sebs.faas.system import System
-from sebs.gcp.cli import GCloudCLI
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.resources import GCPSystemResources
 from sebs.gcp.storage import GCPStorage

@@ -24,6 +24,20 @@ def probe_cold_start():
 
     return is_cold, container_id
 
+if 'NOSQL_STORAGE_DATABASE' in os.environ:
+
+    from . import nosql
+
+    nosql.nosql.get_instance(
+        os.environ['NOSQL_STORAGE_DATABASE'],
+        os.environ['NOSQL_STORAGE_URL'],
+        os.environ['NOSQL_STORAGE_CREDS']
+    )
+
+if 'STORAGE_CONNECTION_STRING' in os.environ:
+
+    from . import storage
+    client = storage.storage.get_instance(os.environ['STORAGE_CONNECTION_STRING'])
 
 def main(event, context: func.Context):
     start = datetime.datetime.now().timestamp()
@@ -32,6 +46,8 @@ def main(event, context: func.Context):
 
     workflow_name = os.getenv("APPSETTING_WEBSITE_SITE_NAME")
     func_name = os.path.basename(os.path.dirname(__file__))
+
+    event["payload"]["request-id"] = context.invocation_id
 
     module_name = f"{func_name}.{func_name}"
     module_path = f"{func_name}/{func_name}.py"

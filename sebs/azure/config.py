@@ -7,7 +7,7 @@ from typing import cast, Dict, List, Optional
 
 
 from sebs.azure.cli import AzureCLI
-from sebs.azure.resources import CosmosDBAccount
+from sebs.azure.cloud_resources import CosmosDBAccount
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
 from sebs.utils import LoggingHandlers

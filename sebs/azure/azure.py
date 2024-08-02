@@ -14,9 +14,9 @@ from sebs.azure.cli import AzureCLI
 from sebs.azure.cosmosdb import CosmosDB
 from sebs.azure.function import AzureFunction, AzureWorkflow
 from sebs.azure.config import AzureConfig, AzureResources
+from sebs.azure.system_resources import AzureSystemResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
 from sebs.faas.function import Trigger
-from sebs.faas.nosql import NoSQLStorage
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -29,7 +29,6 @@ from sebs.faas.function import (
     Workflow,
     Trigger,
 )
-from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 
 
@@ -58,6 +57,10 @@ class Azure(System):
     def workflow_type() -> Type[Workflow]:
         return AzureWorkflow
 
+    @property
+    def cli_instance(self) -> AzureCLI:
+        return cast(AzureSystemResources, self._system_resources).cli_instance
+
     def __init__(
         self,
         sebs_config: SeBSConfig,
@@ -66,15 +69,14 @@ class Azure(System):
         docker_client: docker.client,
         logger_handlers: LoggingHandlers,
     ):
-        super().__init__(sebs_config, cache_client, docker_client)
+        super().__init__(
+            sebs_config,
+            cache_client,
+            docker_client,
+            AzureSystemResources(sebs_config, config, cache_client, docker_client, logger_handlers),
+        )
         self.logging_handlers = logger_handlers
         self._config = config
-
-        self.nosql_storage: Optional[CosmosDB] = None
-
-    def initialize_cli(self, cli: AzureCLI):
-        self.cli_instance = cli
-        self.cli_instance_stop = False
 
     """
         Start the Docker container running Azure CLI tools.
@@ -85,30 +87,11 @@ class Azure(System):
         config: Dict[str, str] = {},
         resource_prefix: Optional[str] = None,
     ):
-        if not hasattr(self, "cli_instance"):
-            self.cli_instance = AzureCLI(self.system_config, self.docker_client)
-            self.cli_instance_stop = True
-
-        output = self.cli_instance.login(
-            appId=self.config.credentials.appId,
-            tenant=self.config.credentials.tenant,
-            password=self.config.credentials.password,
-        )
-
-        subscriptions = json.loads(output)
-        if len(subscriptions) == 0:
-            raise RuntimeError("Didn't find any valid subscription on Azure!")
-        if len(subscriptions) > 1:
-            raise RuntimeError("Found more than one valid subscription on Azure - not supported!")
-
-        self.config.credentials.subscription_id = subscriptions[0]["id"]
-
         self.initialize_resources(select_prefix=resource_prefix)
         self.allocate_shared_resource()
 
     def shutdown(self):
-        if self.cli_instance and self.cli_instance_stop:
-            self.cli_instance.shutdown()
+        cast(AzureSystemResources, self._system_resources).shutdown()
         super().shutdown()
 
     def find_deployments(self) -> List[str]:
@@ -133,40 +116,6 @@ class Azure(System):
 
     def allocate_shared_resource(self):
         self.config.resources.data_storage_account(self.cli_instance)
-
-    """
-        Create wrapper object for Azure blob storage.
-        First ensure that storage account is created and connection string
-        is known. Then, create wrapper and create request number of buckets.
-
-        Requires Azure CLI instance in Docker to obtain storage account details.
-
-        :param benchmark:
-        :param buckets: number of input and output buckets
-        :param replace_existing: when true, replace existing files in input buckets
-        :return: Azure storage instance
-    """
-
-    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        if not hasattr(self, "storage"):
-            self.storage = BlobStorage(
-                self.config.region,
-                self.cache_client,
-                self.config.resources,
-                self.config.resources.data_storage_account(self.cli_instance).connection_string,
-                replace_existing=replace_existing,
-            )
-            self.storage.logging_handlers = self.logging_handlers
-        else:
-            self.storage.replace_existing = replace_existing
-        return self.storage
-
-    def get_nosql_storage(self) -> NoSQLStorage:
-        if not self.nosql_storage:
-            self.nosql_storage = CosmosDB(
-                self.cli_instance, self.cache_client, self.config.resources, self.config.region
-            )
-        return self.nosql_storage
 
     # Directory structure
     # handler
@@ -442,15 +391,16 @@ class Azure(System):
         envs = {}
         if code_package.uses_nosql:
 
+            nosql_storage = cast(CosmosDB, self._system_resources.get_nosql_storage())
+
             # If we use NoSQL, then the handle must be allocated
-            assert self.nosql_storage is not None
-            _, url, creds = self.nosql_storage.credentials()
-            db = self.nosql_storage.benchmark_database(code_package.benchmark)
+            _, url, creds = nosql_storage.credentials()
+            db = nosql_storage.benchmark_database(code_package.benchmark)
             envs["NOSQL_STORAGE_DATABASE"] = db
             envs["NOSQL_STORAGE_URL"] = url
             envs["NOSQL_STORAGE_CREDS"] = creds
 
-            for original_name, actual_name in self.nosql_storage.get_tables(
+            for original_name, actual_name in nosql_storage.get_tables(
                 code_package.benchmark
             ).items():
                 envs[f"NOSQL_STORAGE_TABLE_{original_name}"] = actual_name

@@ -1,4 +1,3 @@
-from os import environ
 from typing import Dict, List, Optional, Tuple
 
 from azure.cosmos import CosmosClient, ContainerProxy
@@ -32,7 +31,7 @@ class nosql:
         # secondary key must have that name in CosmosDB
         data["id"] = secondary_key[1]
 
-        self._get_table(table_name).create_item(data)
+        self._get_table(table_name).upsert_item(data)
 
     def get(
         self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
@@ -43,6 +42,22 @@ class nosql:
         res[secondary_key[0]] = secondary_key[1]
 
         return res
+
+    def update(
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
+        updates: dict,
+    ):
+
+        ops = []
+        for key, value in updates.items():
+            ops.append({"op": "add", "path": f"/{key}", "value": value})
+
+        self._get_table(table_name).patch_item(
+            item=secondary_key[1], partition_key=primary_key[1], patch_operations=ops
+        )
 
     """
         This query must involve partition key - it does not scan across partitions.
