@@ -31,19 +31,40 @@ class GCPGenerator(Generator):
     def encode_task(self, state: Task) -> Union[dict, List[dict]]:
         url = self._func_triggers[state.func_name]
 
+        next_state: str
+        if state.next is not None:
+            next_state = state.next
+        else:
+            next_state = "final"
+
+        state_body = {
+            "call": "http.post",
+            "args": {
+                "url": url,
+                "body": {"request_id": "${request_id}", "payload": "${payload}"},
+                "timeout": 900,
+            },
+            "result": "payload"
+            # "next": f"assign_payload_{state.name}"
+        }
+
+        if state.failure is not None:
+            state_body = {
+                "try": state_body,
+                "except": {
+                    "as": "e",
+                    "steps": [{f"unhandled_exception_{state.name}": {"next": state.failure}}],
+                },
+            }
+
         return [
+            {state.name: state_body},
             {
-                state.name: {
-                    "call": "http.post",
-                    "args": {
-                        "url": url,
-                        "body": {"request_id": "${request_id}", "payload": "${payload}"},
-                        "timeout": 900,
-                    },
-                    "result": "payload",
+                f"assign_payload_{state.name}": {
+                    "assign": [{"payload": "${payload.body}"}],
+                    "next": next_state,
                 }
             },
-            {"assign_payload_" + state.name: {"assign": [{"payload": "${payload.body}"}]}},
         ]
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
