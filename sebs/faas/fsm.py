@@ -15,14 +15,20 @@ class State(ABC):
 
 
 class Task(State):
-    def __init__(self, name: str, func_name: str, next: Optional[str]):
+    def __init__(self, name: str, func_name: str, next: Optional[str], failure: Optional[str]):
         self.name = name
         self.func_name = func_name
         self.next = next
+        self.failure = failure
 
     @classmethod
     def deserialize(cls, name: str, payload: dict) -> "Task":
-        return cls(name=name, func_name=payload["func_name"], next=payload.get("next"))
+        return cls(
+            name=name,
+            func_name=payload["func_name"],
+            next=payload.get("next"),
+            failure=payload.get("failure"),
+        )
 
 
 class Switch(State):
