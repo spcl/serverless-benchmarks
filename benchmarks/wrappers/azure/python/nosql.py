@@ -1,4 +1,3 @@
-from os import environ
 from typing import Dict, List, Optional, Tuple
 
 from azure.cosmos import CosmosClient, ContainerProxy
