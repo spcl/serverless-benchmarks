@@ -31,7 +31,7 @@ class nosql:
         # secondary key must have that name in CosmosDB
         data["id"] = secondary_key[1]
 
-        self._get_table(table_name).create_item(data)
+        self._get_table(table_name).upsert_item(data)
 
     def get(
         self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
