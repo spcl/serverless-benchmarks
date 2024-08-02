@@ -1,4 +1,3 @@
-
 import datetime
 import io
 import json
@@ -8,9 +7,10 @@ import uuid
 import importlib
 
 # Add current directory to allow location of packages
-sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".python_packages/lib/site-packages"))
 
 from redis import Redis
+
 
 def probe_cold_start():
     is_cold = False
@@ -33,7 +33,11 @@ def handler(event, context):
     os.environ["STORAGE_DOWNLOAD_BYTES"] = "0"
 
     req_id = context.aws_request_id
-    event["payload"]['request-id'] = req_id
+    # FIXME : distinguish func and workflow req id!
+    event["payload"]["request-id"] = req_id
+    # FIXME: sort out passing payload
+    # we should support both payload and error
+    # without potentially overwriting user data
 
     workflow_name, func_name = context.function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
@@ -48,7 +52,7 @@ def handler(event, context):
         "end": end,
         "is_cold": is_cold,
         "container_id": container_id,
-        "provider.request_id": context.aws_request_id
+        "provider.request_id": context.aws_request_id,
     }
 
     func_res = os.getenv("SEBS_FUNCTION_RESULT")
@@ -65,12 +69,13 @@ def handler(event, context):
 
     payload = json.dumps(payload)
 
-    redis = Redis(host={{REDIS_HOST}},
-                  port=6379,
-                  decode_responses=True,
-                  socket_connect_timeout=10,
-                  password={{REDIS_PASSWORD}})
-
+    redis = Redis(
+        host={{REDIS_HOST}},
+        port=6379,
+        decode_responses=True,
+        socket_connect_timeout=10,
+        password={{REDIS_PASSWORD}},
+    )
 
     req_id = event["request_id"]
     key = os.path.join(workflow_name, func_name, req_id, str(uuid.uuid4())[0:8])
