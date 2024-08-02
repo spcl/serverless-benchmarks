@@ -9,12 +9,14 @@
     "rental": {
       "type": "task",
       "func_name": "reserve_rental",
-      "next": "flight"
+      "next": "flight",
+      "failure": "cancel_hotel"
     },
     "flight": {
       "type": "task",
       "func_name": "reserve_flight",
-      "next": "confirm"
+      "next": "confirm",
+      "failure": "cancel_rental"
     },
     "confirm": {
       "type": "task",
@@ -23,7 +25,17 @@
     },
     "cancel_flight": {
       "type": "task",
-      "func_name": "cancel_flight"
+      "func_name": "cancel_flight",
+      "next": "cancel_rental"
+    },
+    "cancel_rental": {
+      "type": "task",
+      "func_name": "cancel_rental",
+      "next": "cancel_hotel"
+    },
+    "cancel_hotel": {
+      "type": "task",
+      "func_name": "cancel_hotel"
     }
   }
 }

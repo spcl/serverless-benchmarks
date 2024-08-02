@@ -21,4 +21,4 @@ def handler(event):
         {"status": "booked"},
     )
 
-    return {"trip_id": trip_id}
+    return {"trip_id": trip_id, "status": "success"}

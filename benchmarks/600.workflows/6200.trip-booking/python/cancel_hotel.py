@@ -8,13 +8,12 @@ def handler(event):
     trip_id = event["trip_id"]
 
     # Confirm flight
-    nosql_table_name = "flights"
-    flight_id = event["flight_id"]
+    nosql_table_name = "hotel_booking"
+    booking_id = event["booking_id"]
     nosql_client.delete(
         nosql_table_name,
         ("trip_id", trip_id),
-        ("flight_id", flight_id)
+        ("booking_id", booking_id)
     )
 
-    event.pop('flight_id')
-    return event
+    return {"trip_id": trip_id, "status": "failure"}
