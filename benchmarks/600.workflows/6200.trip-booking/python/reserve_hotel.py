@@ -28,7 +28,12 @@ def handler(event):
             **{key: event[key] for key in event.keys() if key.startswith("hotel_")},
             "hotel_price": hotel_price,
             "hotel_name": hotel_name,
+            "status": "pending"
         },
     )
 
-    return {"result": {"trip_id": trip_id, "booking_id": hotel_booking_id}}
+    return {
+        "trip_id": trip_id,
+        "booking_id": hotel_booking_id,
+        **event
+    }

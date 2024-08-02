@@ -3,7 +3,22 @@
   "states": {
     "hotel": {
       "type": "task",
-      "func_name": "reserve_hotel"
+      "func_name": "reserve_hotel",
+      "next": "rental"
+    },
+    "rental": {
+      "type": "task",
+      "func_name": "reserve_rental",
+      "next": "flight"
+    },
+    "flight": {
+      "type": "task",
+      "func_name": "reserve_flight",
+      "next": "confirm"
+    },
+    "confirm": {
+      "type": "task",
+      "func_name": "confirm"
     }
   }
 }
