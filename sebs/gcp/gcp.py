@@ -356,7 +356,7 @@ class GCP(System):
                     "timeout": str(function.config.timeout) + "s",
                     "httpsTrigger": {},
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-                    "environmentVariables": envs
+                    "environmentVariables": envs,
                 },
             )
         )
