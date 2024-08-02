@@ -56,6 +56,16 @@ class SFNGenerator(Generator):
         else:
             payload["End"] = True
 
+        if state.failure is not None:
+
+            payload["Catch"] = [
+                {
+                    "ErrorEquals": ["States.ALL"],
+                    "ResultPath": "$.payload.error",
+                    "Next": state.failure,
+                }
+            ]
+
         return payload
 
     def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
