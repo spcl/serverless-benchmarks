@@ -18,7 +18,12 @@
     },
     "confirm": {
       "type": "task",
-      "func_name": "confirm"
+      "func_name": "confirm",
+      "failure": "cancel_flight"
+    },
+    "cancel_flight": {
+      "type": "task",
+      "func_name": "cancel_flight"
     }
   }
 }
