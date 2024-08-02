@@ -46,6 +46,16 @@ class nosql:
         val.update(data)
         self._client.put(val)
 
+    def update(
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
+        data: dict,
+    ):
+        # There is no direct update - we have to fetch the entire entity and manually change fields.
+        self.insert(table_name, primary_key, secondary_key, data)
+
     def get(
         self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
     ) -> Optional[dict]:
