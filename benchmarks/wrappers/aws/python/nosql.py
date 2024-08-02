@@ -67,6 +67,38 @@ class nosql:
         res = self._get_table(table_name).get_item(Key=data)
         return self._remove_decimals(res["Item"])
 
+    def update(
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
+        updates: dict,
+    ):
+
+        key_data = {}
+        for key in (primary_key, secondary_key):
+            key_data[key[0]] = key[1]
+
+        update_expression = "SET "
+        update_values = {}
+        update_names = {}
+
+        # We use attribute names because DynamoDB reserves some keywords, like 'status'
+        for key, value in updates.items():
+
+            update_expression += f" #{key}_name = :{key}_value, "
+            update_values[f":{key}_value"] = value
+            update_names[f"#{key}_name"] = key
+
+        update_expression = update_expression[:-2]
+
+        self._get_table(table_name).update_item(
+            Key=key_data,
+            UpdateExpression=update_expression,
+            ExpressionAttributeValues=update_values,
+            ExpressionAttributeNames=update_names,
+        )
+
     def query(self, table_name: str, primary_key: Tuple[str, str], _: str) -> List[dict]:
 
         res = self._get_table(table_name).query(
