@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import cast, Dict, List, Optional, Tuple
 
 from sebs.azure.cli import AzureCLI
-from sebs.azure.resources import CosmosDBAccount
+from sebs.azure.cloud_resources import CosmosDBAccount
 from sebs.cache import Cache
 from sebs.azure.config import AzureResources
 from sebs.faas.nosql import NoSQLStorage
@@ -107,6 +107,30 @@ class CosmosDB(NoSQLStorage):
             self._cosmosdb_account.url,
             self._cosmosdb_account.credential,
         )
+
+    def writer_func(
+        self,
+        benchmark: str,
+        table: str,
+        data: dict,
+        primary_key: Tuple[str, str],
+        secondary_key: Optional[Tuple[str, str]] = None,
+    ):
+        res = self._benchmark_resources[benchmark]
+        table_name = self._get_table_name(benchmark, table)
+        assert table_name is not None
+
+        data[primary_key[0]] = primary_key[1]
+        # secondary key must have that name in CosmosDB
+        # FIXME: support both options
+        assert secondary_key is not None
+        data["id"] = secondary_key[1]
+
+        if res.database_client is None:
+            res.database_client = self.cosmos_client().get_database_client(benchmark)
+
+        container_client = res.database_client.get_container_client(table_name)
+        container_client.create_item(data)
 
     def create_table(
         self, benchmark: str, name: str, primary_key: str, _: Optional[str] = None
