@@ -122,12 +122,15 @@ class WorkflowLibraryTrigger(LibraryTrigger):
 
             # If we haven't seen the result yet, wait a second.
             if not execution_finished:
-                time.sleep(10)
+                time.sleep(1)
             elif status == "FAILED":
                 self.logging.error(f"Invocation of {self.name} failed")
                 self.logging.error(f"Input: {payload}")
                 aws_result.stats.failure = True
                 return aws_result
+
+        # FIXME: payload? should we use it here?
+        aws_result.output = json.loads(execution["output"])["payload"]
 
         return aws_result
 
