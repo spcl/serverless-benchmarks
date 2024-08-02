@@ -1,0 +1,9 @@
+{
+  "root": "hotel",
+  "states": {
+    "hotel": {
+      "type": "task",
+      "func_name": "reserve_hotel"
+    }
+  }
+}
