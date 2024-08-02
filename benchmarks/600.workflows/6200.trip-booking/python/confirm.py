@@ -21,4 +21,22 @@ def handler(event):
         {"status": "booked"},
     )
 
+    # Confirm car rental
+    nosql_table_name = "car_rentals"
+    nosql_client.update(
+        nosql_table_name,
+        ("trip_id", trip_id),
+        ("rental_id", event["rental_id"]),
+        {"status": "booked"},
+    )
+
+    # Confirm hotel booking
+    nosql_table_name = "hotel_booking"
+    nosql_client.update(
+        nosql_table_name,
+        ("trip_id", trip_id),
+        ("booking_id", event["booking_id"]),
+        {"status": "booked"},
+    )
+
     return {"trip_id": trip_id, "status": "success"}
