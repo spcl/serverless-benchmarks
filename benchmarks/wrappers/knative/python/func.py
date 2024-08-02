@@ -1,7 +1,6 @@
 import logging
 import datetime
 import os
-import uuid
 from flask import jsonify
 from parliament import Context
 import minio
@@ -14,7 +13,7 @@ def main(context: Context):
     event = context.request.json
     logging.info(f"Received event: {event}")
 
-    request_id = str(uuid.uuid4())  # Generate a unique request ID
+    request_id = context.request.headers.get('X-Request-ID')
 
     try:
         from function import function

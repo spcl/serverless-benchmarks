@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import yaml
@@ -10,7 +11,7 @@ from sebs.faas.storage import PersistentStorage
 from sebs.benchmark import Benchmark
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
-from sebs.utils import LoggingHandlers, sanitize_benchmark_name_for_knative
+from sebs.utils import LoggingHandlers, execute
 from sebs.knative.storage import KnativeMinio
 from sebs.knative.triggers import LibraryTrigger, HTTPTrigger
 from typing import Dict, Tuple, Type, List, Optional
@@ -78,10 +79,21 @@ class Knative(System):
         if hasattr(self, "storage") and self.config.shutdownStorage:
             self.storage.stop()
         if self.config.removeCluster:
-            from tools.knative_preparation import delete_cluster
+            from tools.knative_setup import delete_cluster
 
             delete_cluster()
         super().shutdown()
+
+    def sanitize_benchmark_name_for_knative(self, name: str) -> str:
+        # Replace invalid characters with hyphens
+        sanitized_name = re.sub(r"[^a-z0-9\-]+", "-", name.lower())
+        # Ensure it starts with an alphabet
+        sanitized_name_starts_with_alphabet = re.sub(r"^[^a-z]+", "", sanitized_name)
+        # Ensure it ends with an alphanumeric character
+        sanitized_benchmark_name = re.sub(
+            r"[^a-z0-9]+$", "", sanitized_name_starts_with_alphabet
+        )
+        return sanitized_benchmark_name
 
     @staticmethod
     def name() -> str:
@@ -163,10 +175,20 @@ class Knative(System):
                 f"building Docker package for {benchmark}."
             )
 
+        # Fetch the base image for the specified language and version
+        base_images = self.system_config.benchmark_base_images(
+            self.name(), language_name
+        )
+        builder_image = base_images.get(language_version)
+
         # Construct the build command
         build_command = [
             "func",
             "build",
+            "--builder",
+            "s2i",
+            "--builder-image",
+            builder_image,
             "--registry",
             repository_name,
             "--path",
@@ -181,7 +203,6 @@ class Knative(System):
                 capture_output=True,
                 check=True,
             )
-            self.logging.info(f"Build output: {result.stdout.decode()}")
         except subprocess.CalledProcessError as e:
             self.logging.error(f"Error building the function: {e.stderr.decode()}")
             raise RuntimeError(e) from e
@@ -215,12 +236,29 @@ class Knative(System):
         """
 
         CONFIG_FILES = {
-            "python": ["func.py", "func.yaml", "Procfile", "requirements.txt"],
+            "python": [
+                "func.py",
+                "func.yaml",
+                "Procfile",
+                "requirements.txt",
+                "app.sh",
+            ],
             "nodejs": ["index.js", "func.yaml", "package.json"],
         }
 
         # Sanitize the benchmark name for the image tag
-        sanitized_benchmark_name = sanitize_benchmark_name_for_knative(benchmark)
+        sanitized_benchmark_name = self.sanitize_benchmark_name_for_knative(benchmark)
+
+        # Load the configuration from example.json
+        config_path = 'config/example.json'
+        with open(config_path, 'r') as config_file:
+            config_data = json.load(config_file)
+
+        # Extract MinIO storage configuration for Knative
+        knative_storage = config_data['deployment']['knative']['storage']
+        minio_storage_connection_url = f"{knative_storage['address']}"
+        minio_storage_access_key = knative_storage['access_key']
+        minio_storage_secret_key = knative_storage['secret_key']
 
         # Generate func.yaml
         func_yaml_content = {
@@ -232,15 +270,15 @@ class Knative(System):
                 "envs": [
                     {
                         "name": "MINIO_STORAGE_CONNECTION_URL",
-                        "value": "{{ env:MINIO_STORAGE_CONNECTION_URL }}",
+                        "value": minio_storage_connection_url,
                     },
                     {
                         "name": "MINIO_STORAGE_ACCESS_KEY",
-                        "value": "{{ env:MINIO_STORAGE_ACCESS_KEY }}",
+                        "value": minio_storage_access_key,
                     },
                     {
                         "name": "MINIO_STORAGE_SECRET_KEY",
-                        "value": "{{ env:MINIO_STORAGE_SECRET_KEY }}",
+                        "value": minio_storage_secret_key,
                     },
                 ]
             },
@@ -259,7 +297,32 @@ class Knative(System):
             # Create an empty __init__.py file
             init_file_out = os.path.join(directory, "__init__.py")
             open(init_file_out, "a").close()
-        
+
+            # Determine the correct requirements.txt file
+            requirements_file = (
+                f"requirements.txt.{language_version}"
+                if language_version in ["3.9", "3.8", "3.7", "3.6"]
+                else "requirements.txt"
+            )
+            requirements_src = os.path.join(directory, requirements_file)
+            requirements_dst = os.path.join(directory, "requirements.txt")
+
+            if os.path.exists(requirements_src):
+                with open(requirements_src, "r") as src_file:
+                    requirements_content = src_file.read()
+                with open(requirements_dst, "a") as dst_file:
+                    dst_file.write(requirements_content)
+            # Create app.sh file for Python runtime
+            app_sh_content = """#!/bin/sh
+            exec python -m parliament "$(dirname "$0")"
+            """
+            app_sh_out = os.path.join(directory, "app.sh")
+            with open(app_sh_out, "w") as app_sh_file:
+                app_sh_file.write(app_sh_content)
+
+            # Make app.sh executable
+            os.chmod(app_sh_out, 0o755)
+
         # Modify package.json for Node.js runtime to add the faas-js-runtime.
         if language_name == "nodejs":
             package_json_path = os.path.join(directory, "package.json")
@@ -314,7 +377,7 @@ class Knative(System):
                 stderr=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
             )
-            sanitize_benchmark_name = sanitize_benchmark_name_for_knative(
+            sanitize_benchmark_name = self.sanitize_benchmark_name_for_knative(
                 code_package.benchmark
             )
 
@@ -338,14 +401,17 @@ class Knative(System):
                     code_package.hash,
                     function_cfg,
                 )
+                self.logging.info(
+                    f"Retrieved existing Knative function {sanitize_benchmark_name}"
+                )
                 self.update_function(res, code_package)
+                return res
 
             else:
                 try:
                     self.logging.info(
                         f"Deploying new Knative function {sanitize_benchmark_name}"
                     )
-                    language = code_package.language_name
                     try:
                         docker_image = self.system_config.benchmark_image_name(
                             self.name(),
@@ -440,6 +506,7 @@ class Knative(System):
                     "deploy",
                     "--path",
                     code_package.code_location,
+                    "--push=false",
                 ],
                 capture_output=True,
                 check=True,
@@ -462,12 +529,8 @@ class Knative(System):
     def update_function_configuration(
         self, function: Function, code_package: Benchmark
     ):
-        self.logging.info(f"Updating an existing Knative function {function.name}.")
-        docker_image = self.system_config.benchmark_image_name(
-            self.name(),
-            code_package.benchmark,
-            code_package.language_name,
-            code_package.language_version,
+        self.logging.info(
+            f"Update configuration of an existing Knative function {function.name}."
         )
         try:
             subprocess.run(
@@ -476,6 +539,7 @@ class Knative(System):
                     "deploy",
                     "--path",
                     code_package.code_location,
+                    "--push=false",
                 ],
                 capture_output=True,
                 check=True,
@@ -528,6 +592,8 @@ class Knative(System):
             raise RuntimeError("Not supported!")
 
     def cached_function(self, function: Function):
+        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
+            trigger.logging_handlers = self.logging_handlers
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
 
@@ -548,5 +614,4 @@ class Knative(System):
         requests: Dict[str, ExecutionResult],
         metrics: dict,
     ):
-        pass
-
+        raise NotImplementedError()

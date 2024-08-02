@@ -98,10 +98,10 @@
         "password": ""
       },
       "storage": {
-        "address": "localhost:9000",
-        "mapped_port": 9000,
-        "access_key": "myaccesskey",
-        "secret_key": "mysecretkey",
+        "address": "",
+        "mapped_port": "",
+        "access_key": "",
+        "secret_key": "",
         "instance_id": "",
         "input_buckets": [],
         "output_buckets": [],

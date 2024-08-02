@@ -4,18 +4,17 @@ const {
 } = require('cloudevents');
 const path = require('path');
 const fs = require('fs');
-const {
-  v4: uuidv4
-} = require('uuid');
 
 async function handle(context, event) {
-  const requestId = uuidv4();
+    
+    const requestId = context.headers['x-request-id'] || context.headers['X-Request-ID'];
+
 
   // Ensure event data is parsed correctly
   const eventData = event ? event : context.body;
   context.log.info(`Received event: ${JSON.stringify(eventData)}`);
 
-  const func = require('/function/function.js');
+  const func = require('./function/function.js');
   const begin = Date.now() / 1000;
   const start = process.hrtime();
 
