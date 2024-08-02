@@ -206,7 +206,7 @@ class Generator(ABC):
         for i in range(state.count):
             name = state.name if i == 0 else f"{state.name}_{i}"
             next = state.next if i == state.count - 1 else f"{state.name}_{i+1}"
-            task = Task(name, state.func_name, next)
+            task = Task(name, state.func_name, next, None)
 
             res = self.encode_task(task)
             tasks += res if isinstance(res, list) else [res]
