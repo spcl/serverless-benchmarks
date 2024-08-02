@@ -11,11 +11,19 @@
     "type": "invocation-overhead",
     "perf-cost": {
       "benchmark": "110.dynamic-html",
-      "experiments": ["cold", "warm", "burst", "sequential"],
+      "experiments": [
+        "cold",
+        "warm",
+        "burst",
+        "sequential"
+      ],
       "input-size": "test",
       "repetitions": 50,
       "concurrent-invocations": 50,
-      "memory-sizes": [128, 256]
+      "memory-sizes": [
+        128,
+        256
+      ]
     },
     "network-ping-pong": {
       "invocations": 50,
@@ -44,7 +52,13 @@
     "name": "aws",
     "aws": {
       "region": "us-east-1",
-      "lambda-role": ""
+      "lambda-role": "",
+      "resources": {
+        "redis": {
+          "host": "ec2-54-86-32-136.compute-1.amazonaws.com",
+          "password": "xB46z3u9I6WJ"
+        }
+      }
     },
     "azure": {
       "region": "westeurope"

@@ -99,7 +99,6 @@ class AWS(System):
         self.get_sfn_client()
         self.initialize_resources(select_prefix=resource_prefix)
 
-
     def get_lambda_client(self):
         if not hasattr(self, "lambda_client"):
             self.lambda_client = self.session.client(

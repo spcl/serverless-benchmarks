@@ -127,6 +127,7 @@ class GCPResources(Resources):
 
         cached_config = cache.get_config("gcp")
         ret = GCPResources()
+        print(config)
         if cached_config and "resources" in cached_config:
             GCPResources.initialize(ret, cached_config["resources"])
             ret.load_redis(cached_config["resources"])
@@ -220,6 +221,7 @@ class GCPConfig(Config):
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(GCPConfig, cfg)
+        print(dct)
         config._region = dct["region"]
 
     def serialize(self) -> dict:

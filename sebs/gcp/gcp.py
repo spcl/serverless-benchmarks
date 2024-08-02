@@ -16,14 +16,12 @@ import google.cloud.monitoring_v3 as monitoring_v3
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
-from sebs.faas.nosql import NoSQLStorage
 from sebs.faas.function import CloudBenchmark, Function, FunctionConfig, Trigger, Workflow
-from sebs.gcp.storage import PersistentStorage
 from sebs.faas.config import Resources
 from sebs.faas.system import System
 from sebs.gcp.cli import GCloudCLI
 from sebs.gcp.config import GCPConfig
-from sebs.gcp.datastore import Datastore
+from sebs.gcp.resources import GCPSystemResources
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
 from sebs.gcp.workflow import GCPWorkflow
@@ -50,13 +48,16 @@ class GCP(System):
         docker_client: docker.client,
         logging_handlers: LoggingHandlers,
     ):
-        super().__init__(system_config, cache_client, docker_client)
+        super().__init__(
+            system_config,
+            cache_client,
+            docker_client,
+            GCPSystemResources(
+                system_config, config, cache_client, docker_client, logging_handlers
+            ),
+        )
         self._config = config
-        self.storage: Optional[GCPStorage] = None
         self.logging_handlers = logging_handlers
-
-        self._cli_instance: Optional[GCloudCLI] = None
-        self.cli_instance_stop = False
 
     @property
     def config(self) -> GCPConfig:
@@ -78,11 +79,6 @@ class GCP(System):
     def workflow_type() -> "Type[Workflow]":
         return GCPWorkflow
 
-    @property
-    def cli_instance(self) -> GCloudCLI:
-        assert self._cli_instance
-        return self._cli_instance
-
     """
         Initialize the system. After the call the local or remote
         FaaS system should be ready to allocate functions, manage
@@ -94,58 +90,13 @@ class GCP(System):
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         self.function_client = build("cloudfunctions", "v1", cache_discovery=False)
         self.workflow_client = build("workflows", "v1", cache_discovery=False)
-        self.get_storage()
         self.initialize_resources(select_prefix=resource_prefix)
-
-        if self._cli_instance is None:
-            self._cli_instance = GCloudCLI(
-                self.config.credentials, self.system_config, self.docker_client
-            )
-            self._cli_instance_stop = True
-
-            self._cli_instance.login(self.config.credentials.project_name)
-
-        self.nosql_storage: Optional[Datastore] = None
-
-    def initialize_cli(self, cli: GCloudCLI):
-        self._cli_instance = cli
-        self._cli_instance_stop = False
 
     def get_function_client(self):
         return self.function_client
 
     def get_workflow_client(self):
         return self.workflow_client
-
-    """
-        Access persistent storage instance.
-        It might be a remote and truly persistent service (AWS S3, Azure Blob..),
-        or a dynamically allocated local instance.
-
-        :param replace_existing: replace benchmark input data if exists already
-    """
-
-    def get_storage(
-        self,
-        replace_existing: bool = False,
-        benchmark=None,
-        buckets=None,
-    ) -> PersistentStorage:
-        if not self.storage:
-            self.storage = GCPStorage(
-                self.config.region, self.cache_client, self.config.resources, replace_existing
-            )
-            self.storage.logging_handlers = self.logging_handlers
-        else:
-            self.storage.replace_existing = replace_existing
-        return self.storage
-
-    def get_nosql_storage(self) -> NoSQLStorage:
-        if not self.nosql_storage:
-            self.nosql_storage = Datastore(
-                self.cli_instance, self.cache_client, self.config.resources, self.config.region
-            )
-        return self.nosql_storage
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -245,7 +196,7 @@ class GCP(System):
         timeout = code_package.benchmark_config.timeout
         memory = code_package.benchmark_config.memory
         code_bucket: Optional[str] = None
-        storage_client = self.get_storage()
+        storage_client = self._system_resources.get_storage()
         location = self.config.region
         project_name = self.config.project_name
         function_cfg = FunctionConfig.from_benchmark(code_package)
@@ -379,7 +330,7 @@ class GCP(System):
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version
         code_package_name = os.path.basename(code_package.code_location)
-        storage = cast(GCPStorage, self.get_storage())
+        storage = cast(GCPStorage, self._system_resources.get_storage())
 
         bucket = function.code_bucket(code_package.benchmark, storage)
         storage.upload(bucket, code_package.code_location, code_package_name)
@@ -448,8 +399,11 @@ class GCP(System):
         envs = {}
         if code_package.uses_nosql:
 
-            assert self.nosql_storage is not None
-            db = self.nosql_storage.benchmark_database(code_package.benchmark)
+            db = (
+                cast(GCPSystemResources, self._system_resources)
+                .get_nosql_storage()
+                .benchmark_database(code_package.benchmark)
+            )
             envs["NOSQL_STORAGE_DATABASE"] = db
 
         return envs
@@ -714,12 +668,13 @@ class GCP(System):
         return f"projects/{project_name}/locations/{location}/workflows/{workflow_name}"
 
     def prepare_experiment(self, benchmark):
-        logs_bucket = self.storage.add_output_bucket(benchmark, suffix="logs")
+        logs_bucket = self._system_resources.get_storage().add_output_bucket(
+            benchmark, suffix="logs"
+        )
         return logs_bucket
 
     def shutdown(self) -> None:
-        if self._cli_instance and self._cli_instance_stop:
-            self._cli_instance.shutdown()
+        cast(GCPSystemResources, self._system_resources).shutdown()
         super().shutdown()
 
     def download_metrics(

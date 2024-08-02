@@ -126,7 +126,7 @@ class DynamoDB(NoSQLStorage):
 
                 self.logging.info(f"Waiting for creation of DynamoDB table {name}")
                 waiter = self.client.get_waiter("table_exists")
-                waiter.wait(TableName=name)
+                waiter.wait(TableName=table_name, WaiterConfig={"Delay": 1})
 
             self.logging.info(f"Created DynamoDB table {name} for benchmark {benchmark}")
             self._tables[benchmark][name] = table_name

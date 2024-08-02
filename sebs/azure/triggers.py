@@ -32,10 +32,7 @@ class HTTPTrigger(AzureTrigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         request_id = str(uuid.uuid4())[0:8]
-        input = {
-            "payload": payload,
-            "request_id": request_id
-        }
+        input = {"payload": payload, "request_id": request_id}
         return self._http_invoke(input, self.url)
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:

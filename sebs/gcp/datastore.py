@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Tuple, Optional
 
 from sebs.cache import Cache
 from sebs.faas.config import Resources
@@ -81,6 +81,38 @@ class Datastore(NoSQLStorage):
 
     def benchmark_database(self, benchmark: str) -> str:
         return self._benchmark_resources[benchmark].database
+
+    def writer_func(
+        self,
+        benchmark: str,
+        table: str,
+        data: dict,
+        primary_key: Tuple[str, str],
+        secondary_key: Optional[Tuple[str, str]] = None,
+    ):
+
+        res = self._benchmark_resources[benchmark]
+        table_name = self._get_table_name(benchmark, table)
+
+        # FIXME: support both options
+        assert secondary_key is not None
+
+        if res.database_client is None:
+            res.database_client = datastore.Client(database=res.database)
+
+        parent_key = res.database_client.key(secondary_key[0], secondary_key[1])
+        key = res.database_client.key(
+            # kind determines the table
+            table_name,
+            # main ID key
+            secondary_key[1],
+            # organization key
+            parent=parent_key,
+        )
+
+        val = datastore.Entity(key=key)
+        val.update(data)
+        res.database_client.put(val)
 
     def create_table(
         self, benchmark: str, name: str, primary_key: str, _: Optional[str] = None
