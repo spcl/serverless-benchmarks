@@ -141,6 +141,10 @@ def download_measurements(
             except json.decoder.JSONDecodeError:
                 print(f"Failed to decode payload: {payload}")
 
+    if len(payloads) == 0:
+        # FIXME: logging error
+        raise RuntimeError(f"Couldn't find measurements in Redis for {request_id}")
+
     return payloads
 
 
