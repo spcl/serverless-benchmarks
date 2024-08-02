@@ -43,6 +43,22 @@ class nosql:
 
         return res
 
+    def update(
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
+        updates: dict,
+    ):
+
+        ops = []
+        for key, value in updates.items():
+            ops.append({"op": "add", "path": f"/{key}", "value": value})
+
+        self._get_table(table_name).patch_item(
+            item=secondary_key[1], partition_key=primary_key[1], patch_operations=ops
+        )
+
     """
         This query must involve partition key - it does not scan across partitions.
     """
