@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List, Optional, Tuple
 
 from azure.cosmos import CosmosClient, ContainerProxy
@@ -89,6 +90,12 @@ class nosql:
         database: Optional[str] = None, url: Optional[str] = None, credential: Optional[str] = None
     ):
         if nosql.instance is None:
-            assert database is not None and url is not None and credential is not None
+            #import logging
+            #logging.error(os.environ)
+            #logging.error('NOSQL_STORAGE_DATABASE' in os.environ)
+            #assert database is not None and url is not None and credential is not None
+            database = os.environ['NOSQL_STORAGE_DATABASE']
+            url = os.environ['NOSQL_STORAGE_URL']
+            credential = os.environ['NOSQL_STORAGE_CREDS']
             nosql.instance = nosql(url, credential, database)
         return nosql.instance
