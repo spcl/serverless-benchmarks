@@ -137,7 +137,7 @@ class Azure(System):
             "nodejs": ["package.json", "node_modules"],
         }
         WRAPPER_FILES = {
-            "python": ["handler.py", "storage.py", "fsm.py"],
+            "python": ["handler.py", "storage.py", "nosql.py", "fsm.py"],
             "nodejs": ["handler.js", "storage.js"],
         }
         file_type = FILES[code_package.language_name]
