@@ -58,10 +58,19 @@ def handler(context: df.DurableOrchestrationContext):
             input = {"payload": res, "request_id": request_id}
 
             duration += (now() - ts)
-            res = yield context.call_activity(current.func_name, input)
+
+            if current.failure is None:
+                res = yield context.call_activity(current.func_name, input)
+                current = states.get(current.next, None)
+            else:
+                try:
+                    res = yield context.call_activity(current.func_name, input)
+                    current = states.get(current.next, None)
+                except:
+                    current = states.get(current.failure, None)
+
             ts = now()
 
-            current = states.get(current.next, None)
         elif isinstance(current, Switch):
             ops = {
                 "<": operator.lt,
