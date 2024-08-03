@@ -6,7 +6,6 @@ import importlib
 
 import logging
 
-from azure.storage.blob import BlobServiceClient
 import azure.functions as func
 from redis import Redis
 
@@ -47,7 +46,9 @@ def main(event, context: func.Context):
     workflow_name = os.getenv("APPSETTING_WEBSITE_SITE_NAME")
     func_name = os.path.basename(os.path.dirname(__file__))
 
-    event["payload"]["request-id"] = context.invocation_id
+    # FIXME: sort out workflow and function request id
+    #event["payload"]["request-id"] = context.invocation_id
+    event["request-id"] = context.invocation_id
 
     module_name = f"{func_name}.{func_name}"
     module_path = f"{func_name}/{func_name}.py"
