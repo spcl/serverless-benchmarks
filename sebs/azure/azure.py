@@ -1,4 +1,5 @@
 import datetime
+import glob
 import json
 import re
 import os
@@ -16,7 +17,6 @@ from sebs.azure.function import AzureFunction, AzureWorkflow
 from sebs.azure.config import AzureConfig, AzureResources
 from sebs.azure.system_resources import AzureSystemResources
 from sebs.azure.triggers import AzureTrigger, HTTPTrigger
-from sebs.faas.function import Trigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -178,7 +178,7 @@ class Azure(System):
             main_path = os.path.join(directory, "main_workflow.py")
             os.remove(main_path)
 
-        ## TODO: extension to other triggers than HTTP
+        # TODO: extension to other triggers than HTTP
         main_bindings = [
             {
                 "name": "req",
@@ -337,7 +337,6 @@ class Azure(System):
                         "Couldnt find function URL in the output: {}".format(ret.decode("utf-8"))
                     )
 
-                    storage_account = self.config.resources.data_storage_account(self.cli_instance)
                     resource_group = self.config.resources.resource_group(self.cli_instance)
                     ret = self.cli_instance.execute(
                         "az functionapp function show --function-name function "
@@ -628,7 +627,10 @@ class Azure(System):
     """
 
     def prepare_experiment(self, benchmark: str):
-        logs_container = self.storage.add_output_bucket(benchmark, suffix="logs")
+
+        logs_container = self._system_resources.get_storage().add_output_bucket(
+            benchmark, suffix="logs"
+        )
         return logs_container
 
     def download_metrics(
