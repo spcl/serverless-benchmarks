@@ -407,7 +407,7 @@ class GCP(System):
 
         return envs
 
-    def update_function_configuration(self, function: Function, code_package: Benchmark):
+    def update_function_configuration(self, function: Function, code_package: Benchmark, env_variables: dict = {}):
 
         assert code_package.has_input_processed
 
@@ -417,6 +417,7 @@ class GCP(System):
         )
 
         envs = self._generate_function_envs(code_package)
+        envs = {**envs, **env_variables}
         # GCP might overwrite existing variables
         # If we modify them, we need to first read existing ones and append.
         if len(envs) > 0:
@@ -474,6 +475,8 @@ class GCP(System):
                 f"Version {versionId} has not been published, last version {last_version}."
             )
         self.logging.info("Published new function configuration.")
+
+        return versionId
 
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str):
@@ -797,30 +800,37 @@ class GCP(System):
                             }
                         ]
 
-    def _enforce_cold_start(self, function: Function):
+    def _enforce_cold_start(self, function: Function, code_package: Benchmark):
 
         name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
 
         self.cold_start_counter += 1
-        envs = self._update_envs(name, {})
-        envs["cold_start"] = str(self.cold_start_counter)
-        # FIXME: why is that needed?
-        envs["MY_FUNCTION_NAME"] = function.name
-
-        req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .patch(
-                name=name,
-                updateMask="environmentVariables",
-                body={"environmentVariables": envs},
-            )
+        new_version = self.update_function_configuration(
+            function, code_package,
+            {
+                "cold_start": str(self.cold_start_counter),
+                "MY_FUNCTION_NAME": function.name
+            }
         )
-        res = req.execute()
-        new_version = res["metadata"]["versionId"]
+        #envs = self._update_envs(name, {})
+        #envs["cold_start"] = str(self.cold_start_counter)
+        ## FIXME: why is that needed?
+        #envs["MY_FUNCTION_NAME"] = function.name
+
+        #req = (
+        #    self.function_client.projects()
+        #    .locations()
+        #    .functions()
+        #    .patch(
+        #        name=name,
+        #        updateMask="environmentVariables",
+        #        body={"environmentVariables": envs},
+        #    )
+        #)
+        #res = req.execute()
+        #new_version = res["metadata"]["versionId"]
 
         return new_version
 
@@ -828,7 +838,7 @@ class GCP(System):
 
         new_versions = []
         for func in functions:
-            new_versions.append((self._enforce_cold_start(func), func))
+            new_versions.append((self._enforce_cold_start(func, code_package), func))
             self.cold_start_counter -= 1
 
         # verify deployment
