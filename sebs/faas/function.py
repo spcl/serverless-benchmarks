@@ -225,7 +225,7 @@ class Trigger(ABC, LoggingBase):
         try:
             output = json.loads(data.getvalue())
 
-            # FIXME this only works for Azure.
+            # FIXME: this only works for Azure.
 
             statusQuery = output["statusQueryGetUri"]
             print("status query: ", statusQuery)
@@ -272,6 +272,8 @@ class Trigger(ABC, LoggingBase):
             print("request_id: ", result.request_id, "end time: ", end)
             # General benchmark output parsing
             result.parse_benchmark_output(output)
+            if 'output' in response:
+                result.output = response['output']
             return result
         except json.decoder.JSONDecodeError:
             self.logging.error(
