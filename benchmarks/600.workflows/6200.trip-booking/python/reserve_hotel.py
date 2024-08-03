@@ -1,8 +1,8 @@
 import uuid
+
 from . import nosql
 
 nosql_client = nosql.nosql.get_instance()
-
 nosql_table_name = "hotel_booking"
 
 
@@ -28,12 +28,8 @@ def handler(event):
             **{key: event[key] for key in event.keys() if key.startswith("hotel_")},
             "hotel_price": hotel_price,
             "hotel_name": hotel_name,
-            "status": "pending"
+            "status": "pending",
         },
     )
 
-    return {
-        "trip_id": trip_id,
-        "booking_id": hotel_booking_id,
-        **event
-    }
+    return {"trip_id": trip_id, "booking_id": hotel_booking_id, **event}

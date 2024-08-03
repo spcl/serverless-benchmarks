@@ -1,7 +1,6 @@
 from . import nosql
 
 nosql_client = nosql.nosql.get_instance()
-
 nosql_table_name = "car_rentals"
 
 
@@ -27,12 +26,8 @@ def handler(event):
             **{key: event[key] for key in event.keys() if key.startswith("rental_")},
             "rental_price": car_price,
             "rental_name": car_name,
-            "status": "pending"
+            "status": "pending",
         },
     )
 
-    return {
-        "trip_id": trip_id,
-        "rental_id": rental_id,
-        **event
-    }
+    return {"trip_id": trip_id, "rental_id": rental_id, **event}

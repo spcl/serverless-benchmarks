@@ -1,7 +1,6 @@
 from . import nosql
 
 nosql_client = nosql.nosql.get_instance()
-
 nosql_table_name = "flights"
 
 
@@ -37,5 +36,5 @@ def handler(event):
         "trip_id": trip_id,
         "flight_id": flight_id,
         **{key: event[key] for key in ["booking_id", "rental_id"]},
-        "expected_result": expected_result
+        "expected_result": expected_result,
     }
