@@ -101,7 +101,15 @@ class CosmosDB(NoSQLStorage):
         return self._benchmark_resources[benchmark].database
 
     def credentials(self) -> Tuple[str, str, str]:
-        assert self._cosmosdb_account is not None
+
+        # An update of function that uses fully cached data will have
+        # to initialize it separately
+        # There were no prior actions that initialized this variable
+        if self._cosmosdb_account is None:
+            self._cosmosdb_account = cast(AzureResources, self._cloud_resources).cosmosdb_account(
+                self._cli_instance
+            )
+
         return (
             self._cosmosdb_account.account_name,
             self._cosmosdb_account.url,
