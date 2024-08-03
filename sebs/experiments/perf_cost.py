@@ -56,10 +56,6 @@ class PerfCost(Experiment):
         self._benchmark = sebs_client.get_benchmark(
             settings["benchmark"], deployment_client, self.config
         )
-        if self.is_workflow:
-            self._function = deployment_client.get_workflow(self._benchmark)
-        else:
-            self._function = deployment_client.get_function(self._benchmark)
 
         # prepare benchmark input
         self._benchmark_input = self._benchmark.prepare_input(
@@ -67,8 +63,10 @@ class PerfCost(Experiment):
             size=settings["input-size"],
             replace_existing=self.config.update_storage,
         )
-
-        self._function = deployment_client.get_function(self._benchmark)
+        if self.is_workflow:
+            self._function = deployment_client.get_workflow(self._benchmark)
+        else:
+            self._function = deployment_client.get_function(self._benchmark)
 
         # add HTTP trigger
         if self.is_workflow and not isinstance(deployment_client, Azure):
@@ -99,14 +97,14 @@ class PerfCost(Experiment):
             self.logging.info(f"Begin experiment on memory size {memory}")
             self._function.config.memory = memory
 
-            code_package = self._sebs_client.get_benchmark(
-                settings["benchmark"], self._deployment_client, self.config
-            )
+            #code_package = self._sebs_client.get_benchmark(
+            #    settings["benchmark"], self._deployment_client, self.config
+            #)
             platform = self._deployment_client.name()
             if self.is_workflow and platform != "azure":
                 for func in self._function.functions:
                     func.memory = memory
-                    self._deployment_client.update_function(func, code_package)
+                    self._deployment_client.update_function(func, self._benchmark)
             self._sebs_client.cache_client.update_benchmark(self._function)
 
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
