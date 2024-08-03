@@ -47,8 +47,9 @@ def main(event, context: func.Context):
     func_name = os.path.basename(os.path.dirname(__file__))
 
     # FIXME: sort out workflow and function request id
-    #event["payload"]["request-id"] = context.invocation_id
-    event["request-id"] = context.invocation_id
+    #event["request-id"] = context.invocation_id
+    # this only works on benchmarks where payload is dict
+    event["payload"]["request-id"] = context.invocation_id
 
     module_name = f"{func_name}.{func_name}"
     module_path = f"{func_name}/{func_name}.py"
