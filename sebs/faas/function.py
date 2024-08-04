@@ -272,8 +272,8 @@ class Trigger(ABC, LoggingBase):
             print("request_id: ", result.request_id, "end time: ", end)
             # General benchmark output parsing
             result.parse_benchmark_output(output)
-            if 'output' in response:
-                result.output = response['output']
+            if "output" in response:
+                result.output = response["output"]
             return result
         except json.decoder.JSONDecodeError:
             self.logging.error(

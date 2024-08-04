@@ -407,7 +407,9 @@ class GCP(System):
 
         return envs
 
-    def update_function_configuration(self, function: Function, code_package: Benchmark, env_variables: dict = {}):
+    def update_function_configuration(
+        self, function: Function, code_package: Benchmark, env_variables: dict = {}
+    ):
 
         assert code_package.has_input_processed
 
@@ -802,35 +804,13 @@ class GCP(System):
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark):
 
-        name = GCP.get_full_function_name(
-            self.config.project_name, self.config.region, function.name
-        )
-
+        ## FIXME: why is MY_FUNCTION_NAME that needed?
         self.cold_start_counter += 1
         new_version = self.update_function_configuration(
-            function, code_package,
-            {
-                "cold_start": str(self.cold_start_counter),
-                "MY_FUNCTION_NAME": function.name
-            }
+            function,
+            code_package,
+            {"cold_start": str(self.cold_start_counter), "MY_FUNCTION_NAME": function.name},
         )
-        #envs = self._update_envs(name, {})
-        #envs["cold_start"] = str(self.cold_start_counter)
-        ## FIXME: why is that needed?
-        #envs["MY_FUNCTION_NAME"] = function.name
-
-        #req = (
-        #    self.function_client.projects()
-        #    .locations()
-        #    .functions()
-        #    .patch(
-        #        name=name,
-        #        updateMask="environmentVariables",
-        #        body={"environmentVariables": envs},
-        #    )
-        #)
-        #res = req.execute()
-        #new_version = res["metadata"]["versionId"]
 
         return new_version
 

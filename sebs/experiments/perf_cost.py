@@ -97,9 +97,6 @@ class PerfCost(Experiment):
             self.logging.info(f"Begin experiment on memory size {memory}")
             self._function.config.memory = memory
 
-            #code_package = self._sebs_client.get_benchmark(
-            #    settings["benchmark"], self._deployment_client, self.config
-            #)
             platform = self._deployment_client.name()
             if self.is_workflow and platform != "azure":
                 for func in self._function.functions:

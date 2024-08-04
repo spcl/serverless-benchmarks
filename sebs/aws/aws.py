@@ -471,7 +471,9 @@ class AWS(System):
         else:
             raise RuntimeError("Not supported!")
 
-    def update_function_configuration(self, function: Function, code_package: Benchmark, env_variables: dict = {}):
+    def update_function_configuration(
+        self, function: Function, code_package: Benchmark, env_variables: dict = {}
+    ):
 
         # We can only update storage configuration once it has been processed for this benchmark
         assert code_package.has_input_processed
@@ -715,13 +717,9 @@ class AWS(System):
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark):
         func = cast(LambdaFunction, function)
-        self.update_function_configuration(func, code_package, {"ForceColdStart": str(self.cold_start_counter)})
-        #self.get_lambda_client().update_function_configuration(
-        #    FunctionName=func.name,
-        #    Timeout=func.config.timeout,
-        #    MemorySize=func.config.memory,
-        #    Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
-        #)
+        self.update_function_configuration(
+            func, code_package, {"ForceColdStart": str(self.cold_start_counter)}
+        )
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         self.cold_start_counter += 1
