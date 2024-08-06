@@ -287,16 +287,22 @@ class Fission(System):
     def storage_arguments(self) -> List[str]:
         storage = cast(Minio, self.get_storage())
         return [
-            "--runtime-env",
-            "MINIO_STORAGE_SECRET_KEY",
-            storage.config.secret_key,
-            "--runtime-env",
-            "MINIO_STORAGE_ACCESS_KEY",
-            storage.config.access_key,
-            "--runtime-env",
-            "MINIO_STORAGE_CONNECTION_URL",
-            storage.config.address,
-        ] 
+        f"MINIO_STORAGE_SECRET_KEY={storage.config.secret_key}",
+        f"MINIO_STORAGE_ACCESS_KEY={storage.config.access_key}",
+        f"MINIO_STORAGE_CONNECTION_URL={storage.config.address}"
+        ]
+
+        # return [
+        #     "--runtime-env",
+        #     "MINIO_STORAGE_SECRET_KEY",
+        #     storage.config.secret_key,
+        #     "--runtime-env",
+        #     "MINIO_STORAGE_ACCESS_KEY",
+        #     storage.config.access_key,
+        #     "--runtime-env",
+        #     "MINIO_STORAGE_CONNECTION_URL",
+        #     storage.config.address,
+        # ] 
 
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "FissionFunction":

@@ -1,9 +1,9 @@
 {
   "address": "localhost:9011",
   "mapped_port": 9011,
-  "access_key": "nGUIrfwgqm0OOSuTDBbFrlJ857hvj1RmCduNG_fA5fs",
-  "secret_key": "b4298ae315d1204a6ce2d9bb309bcc6e5f65e4a251ab7213fdbf25bcb2cbb6b0",
-  "instance_id": "4e167c8953ba293e1237313256e3591e4babd9bf0688ead694e20c24ca3b7b7d",
+  "access_key": "p1a-VpGMCOw0UX4b5LxD2zKVWklMjTVNhJxk6UiSpCg",
+  "secret_key": "a40939431705f9facfe11a598fefc500d12f44d898d82709347e6802daf1b257",
+  "instance_id": "a83363e7e61072c5b75385357086abcb5b26df9e6baf5dc34ccbc39c2d0a98ad",
   "output_buckets": [],
   "input_buckets": [],
   "type": "minio"

@@ -211,22 +211,12 @@ class FissionResources(Resources):
             # ret.logging.info(f'Creating env for {name} using image "{image}".')
             print(f'Creating env for {name} using image "{image}".')
             try:
-                # PK: Testing 
-                runtime_env = [
-                    "MINIO_STORAGE_SECRET_KEY=b4298ae315d1204a6ce2d9bb309bcc6e5f65e4a251ab7213fdbf25bcb2cbb6b0",
-                    "MINIO_STORAGE_ACCESS_KEY=nGUIrfwgqm0OOSuTDBbFrlJ857hvj1RmCduNG_fA5fs",
-                    "MINIO_STORAGE_CONNECTION_URL=192.168.0.128:9011"
-                ]
-
                 connection_uri = runtime_env[2]
                 access_key = runtime_env[1]
                 secret_key = runtime_env[0]
-                print(f"fission env create --name {name} --image {image} --builder {builder} --runtime-env {connection_uri} --runtime-env {access_key} --runtime-env {secret_key}")
-                print("The runtime env is", runtime_env)
-                exit(0)
                 subprocess.run(
                     f"fission env create --name {name} --image {image} \
-                    --builder {builder} --runtime-env {connection_uri} --runtime-env {access_key} --runtime-env {secret_key}".split(),
+                    --builder {builder} --runtime-env {runtime_env[2]} --runtime-env {runtime_env[1]} --runtime-env {runtime_env[0]}".split(),
                     check=True,
                     stdout=subprocess.DEVNULL,
                 ) 
