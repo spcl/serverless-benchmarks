@@ -5,12 +5,8 @@ import uuid
 
 import urllib.request
 
-# from . import storage
-# client = storage.storage.get_instance()
-# PK: IN fission the above import is not working because of directroy structure. 
-# Need to rethink how to do this
-from storage import storage
-client = storage.get_instance()
+from . import storage
+client = storage.storage.get_instance()
 
 
 def handler(event):

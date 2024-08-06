@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import shutil
 import subprocess
 from typing import cast, Dict, List, Optional, Tuple, Type
@@ -243,10 +244,6 @@ class Fission(System):
 
         # PK while creating enviroment , we need to set the env variables for minio
         storage_args = self.storage_arguments()
-        print(storage_args)
-        # # ['--runtime-env', 'MINIO_STORAGE_SECRET_KEY', 'a126b20a04f11ebfd7b5d68f97e0dbd59e24bcb412a2a37d0feca71d4c035164', 
-        # '--runtime-env', 'MINIO_STORAGE_ACCESS_KEY', 'iwcJwa8y1lCAtpoM4zqdRKr8rD3lzSCA0oET07S1lco', 
-        # '--runtime-env', 'MINIO_STORAGE_CONNECTION_URL', 'localhost:9011']
 
         self.config.resources.create_enviroment(name = enviroment_name, image = runtime_image, builder = builder_image, runtime_env = storage_args)
 
@@ -261,11 +258,29 @@ class Fission(System):
 
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
-        # move all files to 'function' except handler.py
+
         for file in os.listdir(directory):
             if file not in package_config:
-                file = os.path.join(directory, file)
-                shutil.move(file, function_dir)
+                file_path = os.path.join(directory, file)
+                if file == "function.py":
+                    with open(file_path, 'r') as f:
+                        content = f.read()
+                    
+                    modified_content = re.sub(
+                        r'from \. import storage\nclient = storage\.storage\.get_instance\(\)',
+                        'from storage import storage\nclient = storage.get_instance()',
+                        content
+                    )
+                    
+                    with open(os.path.join(function_dir, file), 'w') as f:
+                        f.write(modified_content)
+                else:
+                    shutil.move(file_path, function_dir)
+        # # move all files to 'function' except handler.py
+        # for file in os.listdir(directory):
+        #     if file not in package_config:
+        #         file = os.path.join(directory, file)
+        #         shutil.move(file, function_dir)
 
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
