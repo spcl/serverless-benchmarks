@@ -5,8 +5,10 @@ import uuid
 
 import urllib.request
 
-from . import storage
-client = storage.storage.get_instance()
+# from . import storage
+# client = storage.storage.get_instance()
+from storage import storage
+client = storage.get_instance()
 
 
 def handler(event):

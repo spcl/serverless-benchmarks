@@ -8,11 +8,8 @@ from jinja2 import Template
 
 SCRIPT_DIR = path.abspath(path.join(path.dirname(__file__)))
 
-
-from flask import request
 def handler(event):
 
-    event = request.get_json(force=True)
     # start timing
     name = event.get('username')
     size = event.get('random_len')

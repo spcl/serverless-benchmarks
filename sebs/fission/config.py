@@ -7,7 +7,7 @@ from sebs.cache import Cache
 from sebs.utils import LoggingHandlers
 from sebs.storage.config import MinioConfig
 
-from typing import cast, Optional
+from typing import cast, Optional, List
 
 class FissionCredentials(Credentials):
     @staticmethod
@@ -158,7 +158,7 @@ class FissionResources(Resources):
             print("Package already exist")
         except subprocess.CalledProcessError:
             process = f"fission package create --sourcearchive {path} \
-            --name {package_name} --env {env_name} --buildcmd ./build.sh"
+            --name {package_name} --env {env_name}"
             subprocess.run(process.split(), check=True)
             # logging.info("Waiting for package build...")
             print("Waiting for package build...")
@@ -186,7 +186,7 @@ class FissionResources(Resources):
             print("Package ready")
 
 
-    def create_enviroment(self, name: str, image: str, builder: str):
+    def create_enviroment(self, name: str, image: str, builder: str, runtime_env: List[str] = []):
         print("Add logic to create the enviroment")
         # Here we need to create enviroment if it does not exist else get it from the cache 
         # PK: ADD Caching mechasim here so that not to create enviroment every time or query the enviroment everytime
@@ -211,9 +211,22 @@ class FissionResources(Resources):
             # ret.logging.info(f'Creating env for {name} using image "{image}".')
             print(f'Creating env for {name} using image "{image}".')
             try:
+                # PK: Testing 
+                runtime_env = [
+                    "MINIO_STORAGE_SECRET_KEY=b4298ae315d1204a6ce2d9bb309bcc6e5f65e4a251ab7213fdbf25bcb2cbb6b0",
+                    "MINIO_STORAGE_ACCESS_KEY=nGUIrfwgqm0OOSuTDBbFrlJ857hvj1RmCduNG_fA5fs",
+                    "MINIO_STORAGE_CONNECTION_URL=192.168.0.128:9011"
+                ]
+
+                connection_uri = runtime_env[2]
+                access_key = runtime_env[1]
+                secret_key = runtime_env[0]
+                print(f"fission env create --name {name} --image {image} --builder {builder} --runtime-env {connection_uri} --runtime-env {access_key} --runtime-env {secret_key}")
+                print("The runtime env is", runtime_env)
+                exit(0)
                 subprocess.run(
                     f"fission env create --name {name} --image {image} \
-                    --builder {builder}".split(),
+                    --builder {builder} --runtime-env {connection_uri} --runtime-env {access_key} --runtime-env {secret_key}".split(),
                     check=True,
                     stdout=subprocess.DEVNULL,
                 ) 

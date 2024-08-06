@@ -200,7 +200,7 @@ class Trigger(ABC, LoggingBase):
             c.setopt(pycurl.SSL_VERIFYPEER, 0)
         data = BytesIO()
         c.setopt(pycurl.WRITEFUNCTION, data.write)
-
+        print("the payload is", payload)
         c.setopt(pycurl.POSTFIELDS, json.dumps(payload))
         begin = datetime.now()
         c.perform()
@@ -226,6 +226,7 @@ class Trigger(ABC, LoggingBase):
                 raise RuntimeError(f"Cannot process allocation with output: {output}")
             result.request_id = output["request_id"]
             # General benchmark output parsing
+            print("The output from the fucntion returned is", output)
             result.parse_benchmark_output(output)
             return result
         except json.decoder.JSONDecodeError:

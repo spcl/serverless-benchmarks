@@ -27,6 +27,8 @@ class storage:
                     total=5, backoff_factor=0.2, status_forcelist=[500, 502, 503, 504]
                 )
             )
+            print("WE get from os")
+            print(os.getenv("MINIO_STORAGE_CONNECTION_URL"))
             self.client = minio.Minio(
                 os.getenv("MINIO_STORAGE_CONNECTION_URL"),
                 access_key=os.getenv("MINIO_STORAGE_ACCESS_KEY"),

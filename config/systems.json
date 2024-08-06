@@ -248,7 +248,7 @@
         "images": ["build"],
         "username": "docker_user",
         "deployment": {
-          "files": ["handler.py", "storage.py", "setup.py", "__main__.py", "build.sh"],
+          "files": ["handler.py", "storage.py", "__main__.py"],
           "packages": {"minio" : "^5.0.10"}
         }
       },
@@ -259,7 +259,7 @@
           "16":"fission/node-builder-16"
         },
         "versions": ["12", "14", "16"],
-        "images": ["build"],
+        "images": ["function"],
         "username": "docker_user",
         "deployment": {
           "files": ["index.js", "storage.js"],
