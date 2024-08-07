@@ -39,9 +39,10 @@ class LocalSystemResources(SystemResources):
 
             storage_config = cast(LocalResources, self._config.resources).storage_config
             if storage_config is None:
-                raise RuntimeError(
+                self.logging.error(
                     "The local deployment is missing the configuration of pre-allocated storage!"
                 )
+                raise RuntimeError("Cannot run local deployment without any object storage")
 
             self._storage = Minio.deserialize(
                 storage_config,
