@@ -38,6 +38,10 @@ class PersistentStorageConfig(ABC):
     def serialize(self) -> dict:
         pass
 
+    @abstractmethod
+    def envs(self) -> dict:
+        pass
+
 
 @dataclass
 class MinioConfig(PersistentStorageConfig):
@@ -71,6 +75,13 @@ class MinioConfig(PersistentStorageConfig):
 
     def serialize(self) -> dict:
         return self.__dict__
+
+    def envs(self) -> dict:
+        return {
+            "MINIO_ADDRESS": self.address,
+            "MINIO_ACCESS_KEY": self.access_key,
+            "MINIO_SECRET_KEY": self.secret_key,
+        }
 
 
 @dataclass

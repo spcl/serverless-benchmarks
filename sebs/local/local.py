@@ -144,9 +144,7 @@ class Local(System):
         environment: Dict[str, str] = {}
         if self.config.resources.storage_config:
             environment = {
-                "MINIO_ADDRESS": self.config.resources.storage_config.address,
-                "MINIO_ACCESS_KEY": self.config.resources.storage_config.access_key,
-                "MINIO_SECRET_KEY": self.config.resources.storage_config.secret_key,
+                **self.config.resources.storage_config.envs(),
                 "CONTAINER_UID": str(os.getuid()),
                 "CONTAINER_GID": str(os.getgid()),
                 "CONTAINER_USER": self._system_config.username(
