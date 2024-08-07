@@ -6,7 +6,7 @@ import logging
 import functools
 import os
 import traceback
-from typing import cast, Optional
+from typing import cast, List, Optional
 
 import click
 
@@ -121,7 +121,7 @@ def parse_common_params(
     resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
-    storage_configuration: Optional[str] = None
+    storage_configuration: Optional[List[str]] = None
 ):
 
     global sebs_client, deployment_client
@@ -141,9 +141,16 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
 
-    if storage_configuration:
-        cfg = json.load(open(storage_configuration, 'r'))
-        update_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
+    if storage_configuration is not None:
+
+        for cfg_f in storage_configuration:
+            sebs_client.logging.info(f"Loading storage configuration from {cfg_f}")
+
+            cfg = json.load(open(cfg_f, 'r'))
+            print(json.dumps(cfg, indent=2))
+            print(json.dumps(config_obj, indent=2))
+            update_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
+            print(json.dumps(config_obj, indent=2))
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
@@ -207,7 +214,7 @@ def benchmark():
     type=str,
     help="Attach prefix to generated Docker image tag.",
 )
-@click.option("--storage-configuration", type=str, help="JSON configuration of deployed storage.")
+@click.option("--storage-configuration", type=str, multiple=True, help="JSON configuration of deployed storage.")
 @common_params
 def invoke(
     benchmark,
@@ -466,7 +473,7 @@ def local():
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
 @click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
-@click.option("--storage-configuration", type=str, help="JSON configuration of deployed storage.")
+@click.option("--storage-configuration", type=str, multiple=True, help="JSON configuration of deployed storage.")
 @click.option("--measure-interval", type=int, default=-1,
               help="Interval duration between memory measurements in ms.")
 @click.option(
