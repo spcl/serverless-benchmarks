@@ -19,7 +19,7 @@ class SeBSConfig:
         self._image_tag_prefix = tag
 
     def docker_repository(self) -> str:
-        return "abhidocker12"
+        return self._system_config["general"]["docker_repository"]
 
     def deployment_packages(self, deployment_name: str, language_name: str) -> Dict[str, str]:
         return self._system_config[deployment_name]["languages"][language_name]["deployment"][

@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import yaml
+from sebs import benchmark
 from sebs.faas.system import System
 from sebs.faas.function import ExecutionResult, Function, Trigger
 from sebs.faas.storage import PersistentStorage
@@ -111,22 +112,23 @@ class Knative(System):
         cmd = [self.config.knative_exec]
         return cmd
 
-    def find_image(self, repository_name: str, image_tag: str) -> bool:
-        """
-        Check if a Docker image exists in the repository.
+    def find_image(self, repository_name, image_tag) -> bool:
 
-        Args:
-        - repository_name: Name of the Docker repository.
-        - image_tag: Tag of the Docker image.
-
-        Returns:
-        - Boolean indicating if the image exists.
-        """
-        try:
-            self._docker_client.images.pull(repository=repository_name, tag=image_tag)
-            return True
-        except docker.errors.NotFound:
-            return False
+        if self.config.experimentalManifest:
+            try:
+                # This requires enabling experimental Docker features
+                # Furthermore, it's not yet supported in the Python library
+                execute(f"docker manifest inspect {repository_name}:{image_tag}")
+                return True
+            except RuntimeError:
+                return False
+        else:
+            try:
+                # default version requires pulling for an image
+                self.docker_client.images.pull(repository=repository_name, tag=image_tag)
+                return True
+            except docker.errors.NotFound:
+                return False
 
     def build_base_image(
         self,
@@ -193,6 +195,8 @@ class Knative(System):
             repository_name,
             "--path",
             directory,
+            "--image",
+            image_tag
         ]
 
         self.logging.info(f"Running build command: {' '.join(build_command)}")
@@ -208,7 +212,7 @@ class Knative(System):
             raise RuntimeError(e) from e
 
         self.logging.info(
-            f"Successfully built and pushed Docker image {repository_name}:{image_tag} "
+            f"Successfully built function image {repository_name}:{image_tag} "
             f"to registry: {registry_name}."
         )
         return True
@@ -248,18 +252,6 @@ class Knative(System):
 
         # Sanitize the benchmark name for the image tag
         sanitized_benchmark_name = self.sanitize_benchmark_name_for_knative(benchmark)
-
-        # Load the configuration from example.json
-        config_path = 'config/example.json'
-        with open(config_path, 'r') as config_file:
-            config_data = json.load(config_file)
-
-        # Extract MinIO storage configuration for Knative
-        knative_storage = config_data['deployment']['knative']['storage']
-        minio_storage_connection_url = f"{knative_storage['address']}"
-        minio_storage_access_key = knative_storage['access_key']
-        minio_storage_secret_key = knative_storage['secret_key']
-
         # Generate func.yaml
         func_yaml_content = {
             "specVersion": "0.36.0",
@@ -270,19 +262,20 @@ class Knative(System):
                 "envs": [
                     {
                         "name": "MINIO_STORAGE_CONNECTION_URL",
-                        "value": minio_storage_connection_url,
+                        "value": self.config._resources.storage_config.address,
                     },
                     {
                         "name": "MINIO_STORAGE_ACCESS_KEY",
-                        "value": minio_storage_access_key,
+                        "value": self.config._resources.storage_config.access_key,
                     },
                     {
                         "name": "MINIO_STORAGE_SECRET_KEY",
-                        "value": minio_storage_secret_key,
+                        "value": self.config._resources.storage_config.secret_key,
                     },
                 ]
-            },
+            }
         }
+
         yaml_out = os.path.join(directory, "func.yaml")
         with open(yaml_out, "w") as yaml_file:
             yaml.dump(func_yaml_content, yaml_file, default_flow_style=False)
