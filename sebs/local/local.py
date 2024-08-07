@@ -141,8 +141,10 @@ class Local(System):
             code_package.language_name,
             code_package.language_version,
         )
+
         environment: Dict[str, str] = {}
         if self.config.resources.storage_config:
+
             environment = {
                 **self.config.resources.storage_config.envs(),
                 "CONTAINER_UID": str(os.getuid()),
@@ -151,6 +153,17 @@ class Local(System):
                     self.name(), code_package.language_name
                 ),
             }
+
+        if code_package.uses_nosql:
+
+            nosql_storage = self.system_resources.get_nosql_storage()
+            environment = {**environment, **nosql_storage.envs()}
+
+            for original_name, actual_name in nosql_storage.get_tables(
+                code_package.benchmark
+            ).items():
+                environment[f"NOSQL_STORAGE_TABLE_{original_name}"] = actual_name
+
         container = self._docker_client.containers.run(
             image=container_name,
             command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
