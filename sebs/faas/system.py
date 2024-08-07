@@ -215,7 +215,24 @@ class System(ABC, LoggingBase):
             be updated if the local version is different.
         """
         functions = code_package.functions
-        if not functions or func_name not in functions:
+
+        is_function_cached = not (not functions or func_name not in functions)
+        if is_function_cached:
+            # retrieve function
+            cached_function = functions[func_name]
+            code_location = code_package.code_location
+
+            try:
+                function = self.function_type().deserialize(cached_function)
+            except RuntimeError as e:
+
+                self.logging.error(
+                    f"Cached function {cached_function['name']} is no longer available."
+                )
+                self.logging.error(e)
+                is_function_cached = False
+
+        if not is_function_cached:
             msg = (
                 "function name not provided."
                 if not func_name
@@ -232,10 +249,8 @@ class System(ABC, LoggingBase):
             code_package.query_cache()
             return function
         else:
-            # retrieve function
-            cached_function = functions[func_name]
-            code_location = code_package.code_location
-            function = self.function_type().deserialize(cached_function)
+
+            assert function is not None
             self.cached_function(function)
             self.logging.info(
                 "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
