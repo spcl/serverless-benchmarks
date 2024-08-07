@@ -60,7 +60,7 @@ def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
         cfg[keys[-1]] = value
 
 
-def append_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
+def append_nested_dict(cfg: dict, keys: List[str], value: Optional[dict]):
     if value:
         # make sure parent keys exist
         for key in keys[:-1]:
