@@ -147,10 +147,7 @@ def parse_common_params(
             sebs_client.logging.info(f"Loading storage configuration from {cfg_f}")
 
             cfg = json.load(open(cfg_f, 'r'))
-            print(json.dumps(cfg, indent=2))
-            print(json.dumps(config_obj, indent=2))
-            update_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
-            print(json.dumps(config_obj, indent=2))
+            append_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
