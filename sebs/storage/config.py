@@ -8,30 +8,6 @@ from sebs.cache import Cache
 from sebs.faas.config import Resources
 
 
-class MinioResources(Resources):
-    def __init__(self):
-        super().__init__(name="minio")
-
-    @staticmethod
-    def initialize(res: Resources, dct: dict):
-        ret = cast(MinioResources, res)
-        super(MinioResources, MinioResources).initialize(ret, dct)
-        return ret
-
-    def serialize(self) -> dict:
-        return super().serialize()
-
-    @staticmethod
-    def deserialize(config: dict) -> "Resources":  # type: ignore
-
-        ret = MinioResources()
-        MinioResources.initialize(ret, {})
-        return ret
-
-    def update_cache(self, cache: Cache):
-        super().update_cache(cache)
-
-
 @dataclass
 class PersistentStorageConfig(ABC):
     @abstractmethod
@@ -95,6 +71,7 @@ class NoSQLStorageConfig(ABC):
 class ScyllaDBConfig(NoSQLStorageConfig):
     address: str = ""
     mapped_port: int = -1
+    alternator_port: int = 8000
     access_key: str = "None"
     secret_key: str = "None"
     instance_id: str = ""

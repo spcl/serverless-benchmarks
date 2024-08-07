@@ -15,7 +15,7 @@ from sebs import SeBS
 from sebs.types import Storage as StorageTypes
 from sebs.types import NoSQLStorage as NoSQLStorageTypes
 from sebs.regression import regression_suite
-from sebs.utils import update_nested_dict, catch_interrupt
+from sebs.utils import update_nested_dict, append_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
 
@@ -382,11 +382,10 @@ def storage_start(storage, config, output_json):
         storage_type_enum = StorageTypes(storage_type_name)
 
         storage_type = sebs.SeBS.get_storage_implementation(storage_type_enum)
-        storage_config, storage_resources = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
+        storage_config = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
-        resources = storage_resources()
 
-        storage_instance = storage_type(docker.from_env(), None, resources, True)
+        storage_instance = storage_type(docker.from_env(), None, None, True)
         storage_instance.config = config
 
         storage_instance.start()
@@ -435,16 +434,11 @@ def storage_stop(storage, input_json):
 
         storage_type = cfg["object"]["type"]
 
-        storage_cfg, storage_resources = sebs.SeBS.get_storage_config_implementation(storage_type)
+        storage_cfg = sebs.SeBS.get_storage_config_implementation(storage_type)
         config = storage_cfg.deserialize(cfg["object"][storage_type])
 
-        if "resources" in cfg:
-            resources = storage_resources.deserialize(cfg["resources"])
-        else:
-            resources = storage_resources()
-
         logging.info(f"Stopping storage deployment of {storage_type}.")
-        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(config, None, resources)
+        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(config, None, None)
         storage.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 
@@ -456,7 +450,7 @@ def storage_stop(storage, input_json):
         config = storage_cfg.deserialize(cfg["nosql"][storage_type])
 
         logging.info(f"Stopping nosql deployment of {storage_type}.")
-        storage = sebs.SeBS.get_nosql_implementation(storage_type).deserialize(config, None)
+        storage = sebs.SeBS.get_nosql_implementation(storage_type).deserialize(config, None, None)
         storage.stop()
         logging.info(f"Stopped nosql deployment of {storage_type}.")
 
