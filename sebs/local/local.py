@@ -134,7 +134,9 @@ class Local(System):
 
         return directory, bytes_size
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+    def _start_container(
+        self, code_package: Benchmark, func_name: str, func: Optional[LocalFunction]
+    ) -> LocalFunction:
 
         container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),
@@ -203,16 +205,20 @@ class Local(System):
             )
             pid = proc.pid
 
-        function_cfg = FunctionConfig.from_benchmark(code_package)
-        func = LocalFunction(
-            container,
-            self.DEFAULT_PORT,
-            func_name,
-            code_package.benchmark,
-            code_package.hash,
-            function_cfg,
-            pid,
-        )
+        if func is None:
+            function_cfg = FunctionConfig.from_benchmark(code_package)
+            func = LocalFunction(
+                container,
+                self.DEFAULT_PORT,
+                func_name,
+                code_package.benchmark,
+                code_package.hash,
+                function_cfg,
+                pid,
+            )
+        else:
+            func.container = container
+            func._measurement_pid = pid
 
         # Wait until server starts
         max_attempts = 10
@@ -228,20 +234,27 @@ class Local(System):
         if attempts == max_attempts:
             raise RuntimeError(
                 f"Couldn't start {func_name} function at container "
-                f"{container.id} , running on {func._url}"
+                f"{container.id} , running on {func.url}"
             )
 
         self.logging.info(
             f"Started {func_name} function at container {container.id} , running on {func._url}"
         )
+
         return func
 
+    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+        return self._start_container(code_package, func_name, None)
+
     """
-        FIXME: restart Docker?
+        Restart Docker container
     """
 
     def update_function(self, function: Function, code_package: Benchmark):
-        pass
+        func = cast(LocalFunction, function)
+        func.stop()
+        self.logging.info("Allocating a new function container with updated code")
+        self._start_container(code_package, function.name, func)
 
     """
         For local functions, we don't need to do anything for a cached function.
