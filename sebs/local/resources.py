@@ -72,7 +72,8 @@ class LocalSystemResources(SystemResources):
             storage_config = cast(LocalResources, self._config.resources).nosql_storage_config
             if storage_config is None:
                 self.logging.error(
-                    "The local deployment is missing the configuration of pre-allocated NoSQL storage!"
+                    "The local deployment is missing the configuration "
+                    "of pre-allocated NoSQL storage!"
                 )
                 raise RuntimeError("Cannot allocate NoSQL storage!")
 
