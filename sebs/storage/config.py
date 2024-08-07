@@ -1,3 +1,5 @@
+from abc import ABC
+from abc import abstractmethod
 from typing import cast, List
 
 from dataclasses import dataclass, field
@@ -31,7 +33,14 @@ class MinioResources(Resources):
 
 
 @dataclass
-class MinioConfig:
+class PersistentStorageConfig(ABC):
+    @abstractmethod
+    def serialize(self) -> dict:
+        pass
+
+
+@dataclass
+class MinioConfig(PersistentStorageConfig):
     address: str = ""
     mapped_port: int = -1
     access_key: str = ""
@@ -65,7 +74,14 @@ class MinioConfig:
 
 
 @dataclass
-class ScyllaDBConfig:
+class NoSQLStorageConfig(ABC):
+    @abstractmethod
+    def serialize(self) -> dict:
+        pass
+
+
+@dataclass
+class ScyllaDBConfig(NoSQLStorageConfig):
     address: str = ""
     mapped_port: int = -1
     access_key: str = "None"
