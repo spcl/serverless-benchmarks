@@ -1,11 +1,10 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import cast, List
+from typing import List
 
 from dataclasses import dataclass, field
 
 from sebs.cache import Cache
-from sebs.faas.config import Resources
 
 
 @dataclass
