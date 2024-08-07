@@ -259,6 +259,14 @@ class Minio(PersistentStorage):
             "type": StorageTypes.MINIO,
         }
 
+    """
+        This implementation supports overriding this class.
+        The main Minio class is used to start/stop deployments.
+
+        When overriding the implementation in Local/OpenWhisk/...,
+        we call the _deserialize and provide an alternative implementation.
+    """
+
     T = TypeVar("T", bound="Minio")
 
     @staticmethod

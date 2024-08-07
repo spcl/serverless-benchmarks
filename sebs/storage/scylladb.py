@@ -3,7 +3,7 @@ import os
 import platform
 import time
 from collections import defaultdict
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Type, TypeVar
 
 from sebs.cache import Cache
 from sebs.faas.config import Resources
@@ -168,15 +168,28 @@ class ScyllaDB(NoSQLStorage):
         else:
             self.logging.error("Stopping ScyllaDB was not succesful, storage container not known!")
 
+    def envs(self) -> dict:
+        return {"NOSQL_STORAGE_TYPE": "scylladb", "NOSQL_STORAGE_ENDPOINT": self._cfg.address}
+
     def serialize(self) -> Tuple[StorageType, dict]:
         return StorageType.SCYLLADB, self._cfg.serialize()
 
+    """
+        This implementation supports overriding this class.
+        The main ScyllaDB class is used to start/stop deployments.
+
+        When overriding the implementation in Local/OpenWhisk/...,
+        we call the _deserialize and provide an alternative implementation.
+    """
+
+    T = TypeVar("T", bound="ScyllaDB")
+
     @staticmethod
-    def deserialize(
-        cached_config: ScyllaDBConfig, cache_client: Cache, resources: Resources
-    ) -> "ScyllaDB":
+    def _deserialize(
+        cached_config: ScyllaDBConfig, cache_client: Cache, resources: Resources, obj_type: Type[T]
+    ) -> T:
         docker_client = docker.from_env()
-        obj = ScyllaDB(docker_client, cache_client, cached_config, resources)
+        obj = obj_type(docker_client, cache_client, cached_config, resources)
 
         if cached_config.instance_id:
             instance_id = cached_config.instance_id
@@ -187,6 +200,12 @@ class ScyllaDB(NoSQLStorage):
         else:
             obj._storage_container = None
         return obj
+
+    @staticmethod
+    def deserialize(
+        cached_config: ScyllaDBConfig, cache_client: Cache, resources: Resources
+    ) -> "ScyllaDB":
+        return ScyllaDB._deserialize(cached_config, cache_client, resources, ScyllaDB)
 
     def retrieve_cache(self, benchmark: str) -> bool:
 
