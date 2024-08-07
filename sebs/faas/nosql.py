@@ -47,6 +47,9 @@ class NoSQLStorage(ABC, LoggingBase):
     def update_cache(self, benchmark: str):
         pass
 
+    def envs(self) -> dict:
+        return {}
+
     """
         Each table name follow this pattern:
         sebs-benchmarks-{resource_id}-{benchmark-name}-{table-name}
