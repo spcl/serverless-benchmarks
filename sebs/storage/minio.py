@@ -71,7 +71,7 @@ class Minio(PersistentStorage):
     def start(self):
 
         if self._cfg.data_volume == "":
-            minio_volume = os.path.join(project_absolute_path(), "minio_volume")
+            minio_volume = os.path.join(project_absolute_path(), "minio-volume")
         else:
             minio_volume = self._cfg.data_volume
         minio_volume = os.path.abspath(minio_volume)
