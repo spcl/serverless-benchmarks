@@ -4,7 +4,7 @@
     "minio": {
       "mapped_port": 9011,
       "version": "RELEASE.2024-07-16T23-46-41Z",
-      "data_volume": "minio-data"
+      "data_volume": "minio-volume"
     }
   },
   "nosql": {
