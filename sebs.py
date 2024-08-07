@@ -388,6 +388,8 @@ def storage_start(storage, config, output_json):
         storage_instance.start()
 
         user_storage_config["object"][storage_type_name] = storage_instance.serialize()
+    else:
+        user_storage_config.pop("object")
 
     if storage in ["nosql", "all"]:
 
@@ -404,6 +406,8 @@ def storage_start(storage, config, output_json):
 
         key, value = storage_instance.serialize()
         user_storage_config["nosql"][key] = value
+    else:
+        user_storage_config.pop("nosql")
 
     if output_json:
         logging.info(f"Writing storage configuration to {output_json}.")
