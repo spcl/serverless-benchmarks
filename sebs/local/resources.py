@@ -1,13 +1,12 @@
 from typing import cast, Optional
 
 from sebs.cache import Cache
-from sebs.local.storage import Minio
+from sebs.local.storage import Minio, ScyllaDB
 from sebs.faas.resources import SystemResources
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.nosql import NoSQLStorage
 from sebs.local.config import LocalConfig, LocalResources
 from sebs.storage.config import MinioConfig, ScyllaDBConfig
-from sebs.storage.scylladb import ScyllaDB
 from sebs.utils import LoggingHandlers
 
 import docker
