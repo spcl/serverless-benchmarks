@@ -85,6 +85,7 @@ class DynamoDB(NoSQLStorage):
     ):
 
         table_name = self._get_table_name(benchmark, table)
+        assert table_name is not None
 
         for key in (primary_key, secondary_key):
             if key is not None:
@@ -118,8 +119,8 @@ class DynamoDB(NoSQLStorage):
             ret = self.client.create_table(
                 TableName=table_name,
                 BillingMode="PAY_PER_REQUEST",
-                AttributeDefinitions=definitions,
-                KeySchema=key_schema,
+                AttributeDefinitions=definitions,  # type: ignore
+                KeySchema=key_schema,  # type: ignore
             )
 
             if ret["TableDescription"]["TableStatus"] == "CREATING":
