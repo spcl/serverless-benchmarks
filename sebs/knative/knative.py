@@ -125,10 +125,28 @@ class Knative(System):
         else:
             try:
                 # default version requires pulling for an image
-                self.docker_client.images.pull(repository=repository_name, tag=image_tag)
+                self.docker_client.images.pull(
+                    repository=repository_name, tag=image_tag
+                )
                 return True
             except docker.errors.NotFound:
                 return False
+
+    def update_func_yaml_with_resources(self, directory: str, memory: int):
+        yaml_path = os.path.join(directory, "func.yaml")
+
+        with open(yaml_path, "r") as yaml_file:
+            func_yaml_content = yaml.safe_load(yaml_file)
+
+        if "run" in func_yaml_content:
+            if "options" not in func_yaml_content:
+                func_yaml_content["options"] = {}
+            if "resources" not in func_yaml_content["options"]:
+                func_yaml_content["options"]["resources"] = {}
+            func_yaml_content["options"]["resources"]["requests"] = {"memory": memory}
+
+        with open(yaml_path, "w") as yaml_file:
+            yaml.dump(func_yaml_content, yaml_file, default_flow_style=False)
 
     def build_base_image(
         self,
@@ -196,7 +214,7 @@ class Knative(System):
             "--path",
             directory,
             "--image",
-            image_tag
+            image_tag,
         ]
 
         self.logging.info(f"Running build command: {' '.join(build_command)}")
@@ -273,7 +291,7 @@ class Knative(System):
                         "value": self.config._resources.storage_config.secret_key,
                     },
                 ]
-            }
+            },
         }
 
         yaml_out = os.path.join(directory, "func.yaml")
@@ -492,6 +510,11 @@ class Knative(System):
             code_package.language_version,
         )
 
+        # Update func.yaml with resources before re-deployment
+        self.update_func_yaml_with_resources(
+            code_package.code_location, code_package.benchmark_config.memory
+        )
+
         try:
             subprocess.run(
                 [
@@ -499,7 +522,6 @@ class Knative(System):
                     "deploy",
                     "--path",
                     code_package.code_location,
-                    "--push=false",
                 ],
                 capture_output=True,
                 check=True,
@@ -525,6 +547,11 @@ class Knative(System):
         self.logging.info(
             f"Update configuration of an existing Knative function {function.name}."
         )
+
+        self.update_func_yaml_with_resources(
+            code_package.code_location, code_package.benchmark_config.memory
+        )
+
         try:
             subprocess.run(
                 [
