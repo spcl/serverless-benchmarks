@@ -101,9 +101,9 @@
       "storage": {
         "address": "192.168.0.128:9011",
         "mapped_port": 9011,
-        "access_key": "p1a-VpGMCOw0UX4b5LxD2zKVWklMjTVNhJxk6UiSpCg",
-        "secret_key": "a40939431705f9facfe11a598fefc500d12f44d898d82709347e6802daf1b257",
-        "instance_id": "a83363e7e61072c5b75385357086abcb5b26df9e6baf5dc34ccbc39c2d0a98ad",
+        "access_key": "wfZoxJ4IJk3pO4XqPtNgPtnTGRbbQCZ-zEZjZ5SeQnQ",
+        "secret_key": "34f2fea2f7a66645a12c15e0c4153d74fcb5b9b3945629e7b218e3ea4d03bd9b",
+        "instance_id": "1f9a300aceb7af2081fdbbebbd1351d15e5bfefa2517c16fe5ee211db0f4308c",
         "input_buckets": [],
         "output_buckets": [],
         "type": "minio"

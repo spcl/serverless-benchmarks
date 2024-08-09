@@ -12,16 +12,11 @@ def handler():
     event = request.json
     income_timestamp = datetime.datetime.now().timestamp()
 
-    # HTTP trigger with API Gateaway
-    # if 'body' in event:
-    #     event = json.loads(event['body'])
     req_id = str(uuid.uuid4())
-    # req_id = context.aws_request_id
-    # event['request-id'] = req_id
     event['income-timestamp'] = income_timestamp
     begin = datetime.datetime.now()
-    from function import handler 
-    ret = handler(event)
+    from function import function
+    ret = function.handler(event)
     end = datetime.datetime.now()
 
     log_data = {
@@ -70,16 +65,3 @@ def handler():
         'container_id': container_id,
     }
 
-    # return 
-    #     json.dumps({
-    #         'begin': begin.strftime('%s.%f'),
-    #         'end': end.strftime('%s.%f'),
-    #         'results_time': results_time,
-    #         'result': log_data,
-    #         'is_cold': is_cold,
-    #         'cold_start_var': cold_start_var,
-    #         'container_id': container_id,
-    #         'statusCode': 200,
-    #         'request_id': req_id,
-    #
-    #     })

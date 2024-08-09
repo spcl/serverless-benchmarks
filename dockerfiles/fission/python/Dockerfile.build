@@ -7,7 +7,8 @@ ENV PYTHON_VERSION=${VERSION}
 # useradd, groupmod
 # RUN apt install -y shadow-utils zip
 # RUN apt update -y && yum install -y libffi-dev
-RUN apk add --no-cache shadow zip libffi-dev gcc musl-dev make curl
+RUN apk add --no-cache shadow zip libffi-dev gcc musl-dev make curl jpeg-dev zlib-dev build-base python3-dev py3-pip libtool autoconf automake git pkgconfig flex bison libxml2-dev libxslt-dev zlib-dev
+
 # RUN apk add --no-cache shadow zip libffi-dev curl
 ENV GOSU_VERSION 1.14
 # https://github.com/tianon/gosu/releases/tag/1.14

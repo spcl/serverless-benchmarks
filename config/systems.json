@@ -244,8 +244,14 @@
           "3.9":"fission/python-builder-3.9",
           "3.10":"fission/python-builder-3.10"
         },
+        "base_images_runtime": {
+          "3.7":"fission/python-env-3.7",
+          "3.8":"fission/python-env-3.8",
+          "3.9":"fission/python-env-3.9",
+          "3.10":"fission/python-env-3.10"
+        },
         "versions": ["3.7", "3.8", "3.9", "3.10"],
-        "images": ["build"],
+        "images": ["build", "runtime"],
         "username": "docker_user",
         "deployment": {
           "files": ["handler.py", "storage.py", "__main__.py"],

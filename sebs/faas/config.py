@@ -210,9 +210,7 @@ class Config(ABC, LoggingBase):
 
             implementations["fission"] = FissionConfig.deserialize
         
-        print("THe implementations are", implementations)
         func = implementations.get(name)
-        print("The func is", func)
         assert func, "Unknown config type!"
         return func(config[name] if name in config else config, cache, handlers)
 

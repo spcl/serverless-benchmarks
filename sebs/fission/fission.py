@@ -21,15 +21,6 @@ from sebs.fission.config import FissionConfig
 from sebs.fission.storage import Minio
 from .function import FissionFunction, FissionFunctionConfig
 
-# from tools.fission_preparation import (
-#     check_if_minikube_installed,
-#     run_minikube,
-#     check_if_k8s_installed,
-#     check_if_helm_installed,
-#     stop_minikube,
-# )
-
-
 class Fission(System):
     _config: FissionConfig
 
@@ -132,94 +123,8 @@ class Fission(System):
         benchmark: str,
         is_cached: bool,
     ) -> bool:
+        # This needs to be implemented when implementing the container deployment
         pass
-        # """
-        # When building function for the first time (according to SeBS cache),
-        # check if Docker image is available in the registry.
-        # If yes, then skip building.
-        # If no, then continue building.
-        #
-        # For every subsequent build, we rebuild image and push it to the
-        # registry. These are triggered by users modifying code and enforcing
-        # a build.
-        # """
-        #
-        # # We need to retag created images when pushing to registry other
-        # # than default
-        # registry_name = self.config.resources.docker_registry
-        # repository_name = self.system_config.docker_repository()
-        # image_tag = self.system_config.benchmark_image_tag(
-        #     self.name(), benchmark, language_name, language_version
-        # )
-        # if registry_name is not None and registry_name != "":
-        #     repository_name = f"{registry_name}/{repository_name}"
-        # else:
-        #     registry_name = "Docker Hub"
-        #
-        # # Check if we the image is already in the registry.
-        # # cached package, rebuild not enforced -> check for new one
-        # if is_cached:
-        #     if self.find_image(repository_name, image_tag):
-        #         self.logging.info(
-        #             f"Skipping building Fission Docker package for {benchmark}, using "
-        #             f"Docker image {repository_name}:{image_tag} from registry: "
-        #             f"{registry_name}."
-        #         )
-        #         return False
-        #     else:
-        #         # image doesn't exist, let's continue
-        #         self.logging.info(
-        #             f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
-        #             f"building Fission package for {benchmark}."
-        #         )
-        #
-        # build_dir = os.path.join(directory, "docker")
-        # os.makedirs(build_dir, exist_ok=True)
-        # shutil.copy(
-        #     os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
-        #     os.path.join(build_dir, "Dockerfile"),
-        # )
-        #
-        # for fn in os.listdir(directory):
-        #     if fn not in ("index.js", "__main__.py"):
-        #         file = os.path.join(directory, fn)
-        #         shutil.move(file, build_dir)
-        #
-        # with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
-        #     f.write("Dockerfile")
-        #
-        # builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
-        #     language_version
-        # ]
-        # self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
-        # print("THE BUIDER Image is", builder_image)
-        #
-        # buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
-        # print(f"{repository_name}:{image_tag}")
-        # print("Build dir is", build_dir)
-        # print("Build Argument is", buildargs)
-        # image, _ = self.docker_client.images.build(
-        #     tag=f"{repository_name}:{image_tag}", path=build_dir, buildargs=buildargs
-        # )
-        #
-        # # Now push the image to the registry
-        # # image will be located in a private repository
-        # self.logging.info(
-        #     f"Push the benchmark base image {repository_name}:{image_tag} "
-        #     f"to registry: {registry_name}."
-        # )
-        #
-        # # PK: PUshing the Image function is not implemented as of now 
-        #
-        # # ret = self.docker_client.images.push(
-        # #     repository=repository_name, tag=image_tag, stream=True, decode=True
-        # # )
-        # # # doesn't raise an exception for some reason
-        # # for val in ret:
-        # #     if "error" in val:
-        # #         self.logging.error(f"Failed to push the image to registry {registry_name}")
-        # #         raise RuntimeError(val)
-        # return True
 
 
     def package_code(
@@ -234,59 +139,44 @@ class Fission(System):
         # Use this when wokring for container deployment supports.
         # self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
 
+        repo_name = self.system_config.docker_repository()
+
         enviroment_name = language_name + language_version.replace(".","")
         builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
             language_version
         ]
-        # PK: Get this from config
-        builder_image = "spcleth/serverless-benchmarks:build.fission.python.3.8"
-        runtime_image = "fission/python-env-3.8"
 
-        # PK while creating enviroment , we need to set the env variables for minio
+        runtime_image = "runtime.{deployment}.{language}.{runtime}".format(
+        deployment="fission",
+        language=language_name,
+        runtime=language_version,
+        )
+
+        runtime_image = repo_name + ":" + runtime_image 
+
         storage_args = self.storage_arguments()
-
         self.config.resources.create_enviroment(name = enviroment_name, image = runtime_image, builder = builder_image, runtime_env = storage_args)
 
 
-        # We deploy Minio config in code package since this depends on local
-        # deployment - it cannnot be a part of Docker image
         CONFIG_FILES = {
-            "python": [""],
-            "nodejs": ["index.js"],
+            "python": ["handler.py", "requirements.txt", ".python_packages"],
+            "nodejs": ["handler.js", "package.json", "node_modules"],
         }
         package_config = CONFIG_FILES[language_name]
 
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
-
         for file in os.listdir(directory):
             if file not in package_config:
-                file_path = os.path.join(directory, file)
-                if file == "function.py":
-                    with open(file_path, 'r') as f:
-                        content = f.read()
-                    
-                    modified_content = re.sub(
-                        r'from \. import storage\nclient = storage\.storage\.get_instance\(\)',
-                        'from storage import storage\nclient = storage.get_instance()',
-                        content
-                    )
-                    
-                    with open(os.path.join(function_dir, file), 'w') as f:
-                        f.write(modified_content)
-                else:
-                    shutil.move(file_path, function_dir)
-        # # move all files to 'function' except handler.py
-        # for file in os.listdir(directory):
-        #     if file not in package_config:
-        #         file = os.path.join(directory, file)
-        #         shutil.move(file, function_dir)
+                file = os.path.join(directory, file)
+                shutil.move(file, function_dir)
+
 
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
-        execute("rm requirements.txt", shell=True, cwd=function_dir)
-        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=function_dir)
-        benchmark_archive = "{}.zip".format(os.path.join(function_dir, benchmark))
+        execute("rm requirements.txt", shell=True, cwd=directory)
+        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
         self.logging.info("Created {} archive".format(benchmark_archive))
         
         bytes_size = os.path.getsize(os.path.join(function_dir, benchmark_archive))
@@ -299,6 +189,7 @@ class Fission(System):
 
         return benchmark_archive, bytes_size
 
+
     def storage_arguments(self) -> List[str]:
         storage = cast(Minio, self.get_storage())
         return [
@@ -306,18 +197,6 @@ class Fission(System):
         f"MINIO_STORAGE_ACCESS_KEY={storage.config.access_key}",
         f"MINIO_STORAGE_CONNECTION_URL={storage.config.address}"
         ]
-
-        # return [
-        #     "--runtime-env",
-        #     "MINIO_STORAGE_SECRET_KEY",
-        #     storage.config.secret_key,
-        #     "--runtime-env",
-        #     "MINIO_STORAGE_ACCESS_KEY",
-        #     storage.config.access_key,
-        #     "--runtime-env",
-        #     "MINIO_STORAGE_CONNECTION_URL",
-        #     storage.config.address,
-        # ] 
 
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "FissionFunction":
