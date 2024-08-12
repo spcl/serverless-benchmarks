@@ -16,6 +16,7 @@ parser.add_argument("--type", default=None, choices=["build", "run", "manage"], 
 parser.add_argument("--language", default=None, choices=["python", "nodejs"], action="store")
 parser.add_argument("--language-version", default=None, type=str, action="store")
 parser.add_argument("--runtime", default=False, action="store_true", help="Build runtime image")
+parser.add_argument("--platform", default="linux/amd64", help="Target platform for Docker build")
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
 client = docker.from_env()
@@ -52,7 +53,7 @@ def build(image_type, system, language=None, version=None, version_name=None):
         )
     )
     try:
-        client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
+        client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target, platform=args.platform)
     except docker.errors.BuildError as exc:
         print("Error! Build failed!")
         print(exc)

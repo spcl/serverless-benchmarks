@@ -347,6 +347,7 @@ class Fission(System):
         triggerName = triggerName.replace("-", "")
         postUrl = triggerName
         if trigger_type == Trigger.TriggerType.LIBRARY:
+            self.logging.info("Library trigger is not supported in Fission as of now.")
             return function.triggers(Trigger.TriggerType.LIBRARY)[0]
         elif trigger_type == Trigger.TriggerType.HTTP:
             try:

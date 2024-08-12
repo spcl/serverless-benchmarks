@@ -12,7 +12,7 @@ class LibraryTrigger(Trigger):
         super().__init__()
         self.fname = fname
         if fission_cmd:
-            self._fission_cmd = [*fission_cmd, "action", "invoke", "--result", self.fname]
+            self._fission_cmd = [*fission_cmd, "function", "test", "--name", self.fname]
 
     @staticmethod
     def trigger_type() -> "Trigger.TriggerType":
@@ -21,19 +21,16 @@ class LibraryTrigger(Trigger):
     @property
     def fission_cmd(self) -> List[str]:
         assert self._fission_cmd
-        return self._fission_cmd
 
     @fission_cmd.setter
     def fission_cmd(self, fission_cmd: List[str]):
-        self._fission_cmd = [*fission_cmd, "action", "invoke", "--result", self.fname]
+        self._fission_cmd = [*fission_cmd, "function", "test", "--name", self.fname]
 
     @staticmethod
     def get_command(payload: dict) -> List[str]:
         params = []
-        for key, value in payload.items():
-            params.append("--param")
-            params.append(key)
-            params.append(json.dumps(value))
+        params.extend(["--method", "POST", "--header", "Content-Type: application/json"])
+        params.extend(["--body", json.dumps(payload)])
         return params
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
@@ -96,7 +93,6 @@ class HTTPTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         self.logging.debug(f"Invoke function {self.url}")
-        print("THE payload for fission here is", payload)
         return self._http_invoke(payload, self.url, False)
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
