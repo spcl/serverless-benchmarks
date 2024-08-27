@@ -1,6 +1,5 @@
 const puppeteer = require('puppeteer-core');
 const path = require('path');
-const fs = require('fs');
 const { PassThrough } = require('stream');
 const storage = require('./storage');
 
