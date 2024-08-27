@@ -25,7 +25,8 @@
         },
         "images": [
           "run",
-          "build"
+          "build",
+          "run-papi"
         ],
         "username": "docker_user",
         "deployment": {

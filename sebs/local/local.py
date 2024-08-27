@@ -48,6 +48,14 @@ class Local(System):
         self._remove_containers = val
 
     @property
+    def with_papi(self) -> bool:
+        return self._with_papi
+
+    @with_papi.setter
+    def with_papi(self, val: bool):
+        self._with_papi = val
+
+    @property
     def measure_interval(self) -> int:
         return self._measure_interval
 
@@ -71,6 +79,7 @@ class Local(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
+        self._with_papi = False
         self._memory_measurement_path: Optional[str] = None
         # disable external measurements
         self._measure_interval = -1
@@ -157,8 +166,9 @@ class Local(System):
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
 
-        container_name = "{}:run.local.{}.{}".format(
+        container_name = "{}:{}.local.{}.{}".format(
             self._system_config.docker_repository(),
+            "run-papi" if self._with_papi else "run",
             code_package.language_name,
             code_package.language_version,
         )
@@ -174,6 +184,12 @@ class Local(System):
                     self.name(), code_package.language_name
                 ),
             }
+
+        options = {}
+        # Enable PAPI counters
+        if self.with_papi:
+            options["cap_add"] = ["PERFMON"]
+
         container = self._docker_client.containers.run(
             image=container_name,
             command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
@@ -182,18 +198,13 @@ class Local(System):
             # FIXME: make CPUs configurable
             # FIXME: configure memory
             # FIXME: configure timeout
-            # cpuset_cpus=cpuset,
-            # required to access perf counters
-            # alternative: use custom seccomp profile
-            privileged=True,
-            security_opt=["seccomp:unconfined"],
             network_mode="bridge",
             # somehow removal of containers prevents checkpointing from working?
             remove=self.remove_containers,
             stdout=True,
             stderr=True,
             detach=True,
-            # tty=True,
+            **options,
         )
 
         pid: Optional[int] = None
