@@ -132,4 +132,4 @@ To verify the correctness of installation, you can use [our regression testing](
 * [Kaleab](https://github.com/Kaleab-git) - contributed to SeBS local backend to make it portable between platforms and more robust on non-Linux systems.
 * [lawrence910426](https://github.com/lawrence910426) - contributed color-coded output to SeBS CLI.
 * [Abhishek Kumar](https://github.com/octonawish-akcodes) - contributed new language versions and Knative support.
-* [Prajin Khadka](https://github.com/octonawish-akcodes) - contributed new language versions, container support, and ARM builds.
+* [Prajin Khadka](https://github.com/prajinkhadka) - contributed new language versions, container support, and ARM builds.
