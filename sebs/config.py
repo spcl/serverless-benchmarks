@@ -42,6 +42,9 @@ class SeBSConfig:
     def benchmark_base_images(self, deployment_name: str, language_name: str) -> Dict[str, str]:
         return self._system_config[deployment_name]["languages"][language_name]["base_images"]
 
+    def benchmark_base_images_runtime(self, deployment_name: str, language_name: str) -> Dict[str, str]:
+        return self._system_config[deployment_name]["languages"][language_name]["base_images_runtime"]
+
     def benchmark_image_name(
         self,
         system: str,

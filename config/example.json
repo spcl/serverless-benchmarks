@@ -6,7 +6,7 @@
     "download_results": false,
     "runtime": {
       "language": "python",
-      "version": "3.7"
+      "version": "3.8"
     },
     "type": "invocation-overhead",
     "perf-cost": {
@@ -78,11 +78,32 @@
         "password": ""
       },
       "storage": {
-        "address": "",
-        "mapped_port": -1,
-        "access_key": "",
-        "secret_key": "",
-        "instance_id": "",
+        "address": "localhost:9011",
+        "mapped_port": 9011,
+        "access_key": "ioyzpSAmJWjpdgL_0f_HkKa-wIBfdiPrUyGaHDzk3dg",
+        "secret_key": "f68742dfcc91132ab01601271587736173a8df8daa6118c327bfdd28a1f181d3",
+        "instance_id": "338e8f4d9e51ea6f6e7a9683f80b0a7c1f0f740f93b247eefd6185fdc0c1fb3e",
+        "input_buckets": [],
+        "output_buckets": [],
+        "type": "minio"
+      }
+    },
+    "fission": {
+      "shutdownStorage": false,
+      "removeCluster": false,
+      "fissionExec": "fission",
+      "docker_registry": {
+        "registry": "",
+        "username": "",
+        "password": ""
+      },
+
+      "storage": {
+        "address": "192.168.0.128:9011",
+        "mapped_port": 9011,
+        "access_key": "wfZoxJ4IJk3pO4XqPtNgPtnTGRbbQCZ-zEZjZ5SeQnQ",
+        "secret_key": "34f2fea2f7a66645a12c15e0c4153d74fcb5b9b3945629e7b218e3ea4d03bd9b",
+        "instance_id": "1f9a300aceb7af2081fdbbebbd1351d15e5bfefa2517c16fe5ee211db0f4308c",
         "input_buckets": [],
         "output_buckets": [],
         "type": "minio"

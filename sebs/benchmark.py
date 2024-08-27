@@ -348,6 +348,8 @@ class Benchmark(LoggingBase):
                 language=self.language_name,
                 runtime=self.language_version,
             )
+            # PK: To do: Marcin Need to add this docker image with fission to the dockerhub
+            # image_name = image_name.replace('fission', 'aws')
             try:
                 self._docker_client.images.get(repo_name + ":" + image_name)
             except docker.errors.ImageNotFound:

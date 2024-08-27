@@ -1,0 +1,336 @@
+{
+  "_invocations": {
+    "120uploader-python-38": {
+      "2f2dc04d-f7e3-4ae8-8724-c54170995df8": {
+        "billing": {
+          "_billed_time": null,
+          "_gb_seconds": 0,
+          "_memory": null
+        },
+        "output": {
+          "begin": "1722917285.352187",
+          "cold_start_var": "",
+          "container_id": "d0159c55",
+          "end": "1722917285.669119",
+          "is_cold": false,
+          "request_id": "2f2dc04d-f7e3-4ae8-8724-c54170995df8",
+          "result": {
+            "measurement": {
+              "compute_time": 304905.0,
+              "download_size": 0,
+              "download_time": 0,
+              "upload_size": 235408,
+              "upload_time": 11975.0
+            },
+            "output": {
+              "bucket": "sebs-benchmarks-6b073204",
+              "key": "120.uploader-0-output/800px-Jammlich_crop.3e01864e.jpg",
+              "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Jammlich_crop.jpg/800px-Jammlich_crop.jpg"
+            }
+          },
+          "results_time": 0,
+          "statusCode": 200
+        },
+        "provider_times": {
+          "execution": 0,
+          "initialization": 0
+        },
+        "request_id": "2f2dc04d-f7e3-4ae8-8724-c54170995df8",
+        "stats": {
+          "cold_start": false,
+          "failure": false,
+          "memory_used": null
+        },
+        "times": {
+          "benchmark": 316932,
+          "client": 324899,
+          "client_begin": "2024-08-05 23:08:05.349099",
+          "client_end": "2024-08-05 23:08:05.673998",
+          "http_first_byte_return": 0.324788,
+          "http_startup": 0.000415,
+          "initialization": 0
+        }
+      },
+      "42cba73d-ea93-4017-8e47-14c1b8aea1c7": {
+        "billing": {
+          "_billed_time": null,
+          "_gb_seconds": 0,
+          "_memory": null
+        },
+        "output": {
+          "begin": "1722917285.030580",
+          "cold_start_var": "",
+          "container_id": "d0159c55",
+          "end": "1722917285.345622",
+          "is_cold": false,
+          "request_id": "42cba73d-ea93-4017-8e47-14c1b8aea1c7",
+          "result": {
+            "measurement": {
+              "compute_time": 302574.0,
+              "download_size": 0,
+              "download_time": 0,
+              "upload_size": 235408,
+              "upload_time": 12427.0
+            },
+            "output": {
+              "bucket": "sebs-benchmarks-6b073204",
+              "key": "120.uploader-0-output/800px-Jammlich_crop.6781c9d7.jpg",
+              "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Jammlich_crop.jpg/800px-Jammlich_crop.jpg"
+            }
+          },
+          "results_time": 0,
+          "statusCode": 200
+        },
+        "provider_times": {
+          "execution": 0,
+          "initialization": 0
+        },
+        "request_id": "42cba73d-ea93-4017-8e47-14c1b8aea1c7",
+        "stats": {
+          "cold_start": false,
+          "failure": false,
+          "memory_used": null
+        },
+        "times": {
+          "benchmark": 315042,
+          "client": 320896,
+          "client_begin": "2024-08-05 23:08:05.027589",
+          "client_end": "2024-08-05 23:08:05.348485",
+          "http_first_byte_return": 0.320782,
+          "http_startup": 0.000417,
+          "initialization": 0
+        }
+      },
+      "617cd20e-0327-4461-9f38-15eb7babd308": {
+        "billing": {
+          "_billed_time": null,
+          "_gb_seconds": 0,
+          "_memory": null
+        },
+        "output": {
+          "begin": "1722917284.367158",
+          "cold_start_var": "",
+          "container_id": "d0159c55",
+          "end": "1722917284.689440",
+          "is_cold": false,
+          "request_id": "617cd20e-0327-4461-9f38-15eb7babd308",
+          "result": {
+            "measurement": {
+              "compute_time": 311838.0,
+              "download_size": 0,
+              "download_time": 0,
+              "upload_size": 235408,
+              "upload_time": 10377.0
+            },
+            "output": {
+              "bucket": "sebs-benchmarks-6b073204",
+              "key": "120.uploader-0-output/800px-Jammlich_crop.a8c8716f.jpg",
+              "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Jammlich_crop.jpg/800px-Jammlich_crop.jpg"
+            }
+          },
+          "results_time": 0,
+          "statusCode": 200
+        },
+        "provider_times": {
+          "execution": 0,
+          "initialization": 0
+        },
+        "request_id": "617cd20e-0327-4461-9f38-15eb7babd308",
+        "stats": {
+          "cold_start": false,
+          "failure": false,
+          "memory_used": null
+        },
+        "times": {
+          "benchmark": 322282,
+          "client": 334824,
+          "client_begin": "2024-08-05 23:08:04.357864",
+          "client_end": "2024-08-05 23:08:04.692688",
+          "http_first_byte_return": 0.334692,
+          "http_startup": 0.000554,
+          "initialization": 0
+        }
+      },
+      "8b3c9e20-6558-4dba-b50d-369613ab3a2c": {
+        "billing": {
+          "_billed_time": null,
+          "_gb_seconds": 0,
+          "_memory": null
+        },
+        "output": {
+          "begin": "1722917284.695676",
+          "cold_start_var": "",
+          "container_id": "d0159c55",
+          "end": "1722917285.024566",
+          "is_cold": false,
+          "request_id": "8b3c9e20-6558-4dba-b50d-369613ab3a2c",
+          "result": {
+            "measurement": {
+              "compute_time": 315074.0,
+              "download_size": 0,
+              "download_time": 0,
+              "upload_size": 235408,
+              "upload_time": 13784.0
+            },
+            "output": {
+              "bucket": "sebs-benchmarks-6b073204",
+              "key": "120.uploader-0-output/800px-Jammlich_crop.625c0b7b.jpg",
+              "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Jammlich_crop.jpg/800px-Jammlich_crop.jpg"
+            }
+          },
+          "results_time": 0,
+          "statusCode": 200
+        },
+        "provider_times": {
+          "execution": 0,
+          "initialization": 0
+        },
+        "request_id": "8b3c9e20-6558-4dba-b50d-369613ab3a2c",
+        "stats": {
+          "cold_start": false,
+          "failure": false,
+          "memory_used": null
+        },
+        "times": {
+          "benchmark": 328890,
+          "client": 333646,
+          "client_begin": "2024-08-05 23:08:04.693349",
+          "client_end": "2024-08-05 23:08:05.026995",
+          "http_first_byte_return": 0.333554,
+          "http_startup": 0.000377,
+          "initialization": 0
+        }
+      },
+      "e9f0aee3-5fe9-4c5d-8d90-c5d286c88a63": {
+        "billing": {
+          "_billed_time": null,
+          "_gb_seconds": 0,
+          "_memory": null
+        },
+        "output": {
+          "begin": "1722917283.352124",
+          "cold_start_var": "",
+          "container_id": "d0159c55",
+          "end": "1722917284.345936",
+          "is_cold": true,
+          "request_id": "e9f0aee3-5fe9-4c5d-8d90-c5d286c88a63",
+          "result": {
+            "measurement": {
+              "compute_time": 372054.0,
+              "download_size": 0,
+              "download_time": 0,
+              "upload_size": 235408,
+              "upload_time": 14994.0
+            },
+            "output": {
+              "bucket": "sebs-benchmarks-6b073204",
+              "key": "120.uploader-0-output/800px-Jammlich_crop.d84c119a.jpg",
+              "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Jammlich_crop.jpg/800px-Jammlich_crop.jpg"
+            }
+          },
+          "results_time": 0,
+          "statusCode": 200
+        },
+        "provider_times": {
+          "execution": 0,
+          "initialization": 0
+        },
+        "request_id": "e9f0aee3-5fe9-4c5d-8d90-c5d286c88a63",
+        "stats": {
+          "cold_start": true,
+          "failure": false,
+          "memory_used": null
+        },
+        "times": {
+          "benchmark": 993812,
+          "client": 1237433,
+          "client_begin": "2024-08-05 23:08:03.112263",
+          "client_end": "2024-08-05 23:08:04.349696",
+          "http_first_byte_return": 1.237141,
+          "http_startup": 0.000342,
+          "initialization": 0
+        }
+      }
+    }
+  },
+  "_metrics": {},
+  "begin_time": 1722917283.027722,
+  "config": {
+    "deployment": {
+      "credentials": {},
+      "fissionExec": "fission",
+      "name": "fission",
+      "removeCluster": false,
+      "resources": {
+        "benchmarks": "sebs-benchmarks-6b073204",
+        "docker_password": "",
+        "docker_registry": "",
+        "docker_username": "",
+        "resources_id": "6b073204",
+        "storage": {
+          "access_key": "p1a-VpGMCOw0UX4b5LxD2zKVWklMjTVNhJxk6UiSpCg",
+          "address": "192.168.0.128:9011",
+          "input_buckets": [],
+          "instance_id": "a83363e7e61072c5b75385357086abcb5b26df9e6baf5dc34ccbc39c2d0a98ad",
+          "mapped_port": 9011,
+          "output_buckets": [],
+          "secret_key": "a40939431705f9facfe11a598fefc500d12f44d898d82709347e6802daf1b257",
+          "type": "minio"
+        }
+      },
+      "shutdownStorage": false
+    },
+    "experiments": {
+      "download_results": false,
+      "experiments": {
+        "eviction-model": {
+          "function_copy_idx": 0,
+          "invocations": 1,
+          "repetitions": 5,
+          "sleep": 1
+        },
+        "invocation-overhead": {
+          "N": 20,
+          "code_begin": 1048576,
+          "code_end": 261619712,
+          "code_points": 20,
+          "payload_begin": 1024,
+          "payload_end": 6251000,
+          "payload_points": 20,
+          "repetitions": 5,
+          "type": "payload"
+        },
+        "network-ping-pong": {
+          "invocations": 50,
+          "repetitions": 1000,
+          "threads": 1
+        },
+        "perf-cost": {
+          "benchmark": "110.dynamic-html",
+          "concurrent-invocations": 50,
+          "experiments": [
+            "cold",
+            "warm",
+            "burst",
+            "sequential"
+          ],
+          "input-size": "test",
+          "memory-sizes": [
+            128,
+            256
+          ],
+          "repetitions": 50
+        }
+      },
+      "flags": {},
+      "runtime": {
+        "language": "python",
+        "version": "3.8"
+      },
+      "update_code": false,
+      "update_storage": false
+    }
+  },
+  "end_time": 1722917285.674868,
+  "result_bucket": null
+}

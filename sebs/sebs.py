@@ -104,14 +104,20 @@ class SeBS(LoggingBase):
             from sebs.openwhisk import OpenWhisk
 
             implementations["openwhisk"] = OpenWhisk
+        if has_platform("fission"):
+            from sebs.fission.fission import Fission
+
+            implementations["fission"] = Fission
 
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.generate_logging_handlers(logging_filename)
+
         if not deployment_config:
             deployment_config = Config.deserialize(config, self.cache_client, handlers)
+
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore

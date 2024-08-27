@@ -245,5 +245,44 @@
         }
       }
     }
+  },
+  "fission": { 
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.7":"fission/python-builder-3.7",
+          "3.8":"fission/python-builder-3.8",
+          "3.9":"fission/python-builder-3.9",
+          "3.10":"fission/python-builder-3.10"
+        },
+        "base_images_runtime": {
+          "3.7":"fission/python-env-3.7",
+          "3.8":"fission/python-env-3.8",
+          "3.9":"fission/python-env-3.9",
+          "3.10":"fission/python-env-3.10"
+        },
+        "versions": ["3.7", "3.8", "3.9", "3.10"],
+        "images": ["build", "runtime"],
+        "username": "docker_user",
+        "deployment": {
+          "files": ["handler.py", "storage.py", "__main__.py"],
+          "packages": {"minio" : "^5.0.10"}
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "12":"fission/node-builder-12",
+          "14":"fission/node-builder-14",
+          "16":"fission/node-builder-16"
+        },
+        "versions": ["12", "14", "16"],
+        "images": ["function"],
+        "username": "docker_user",
+        "deployment": {
+          "files": ["index.js", "storage.js"],
+          "packages": {"minio" : "^7.0.16"}
+        }
+      }
+    }
   }
 }

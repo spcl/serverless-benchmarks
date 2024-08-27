@@ -1,0 +1,7 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
+ARG VERSION
+ENV PYTHON_VERSION=${VERSION}
+# COPY . function/
+# add when wokring for contianer ssupport
+

@@ -10,24 +10,25 @@ DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
 
 parser = argparse.ArgumentParser(description="Run local app experiments.")
 parser.add_argument(
-    "--deployment", default=None, choices=["local", "aws", "azure", "gcp"], action="store"
+    "--deployment", default=None, choices=["local", "aws", "azure", "gcp", "fission"], action="store"
 )
 parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
 parser.add_argument("--language", default=None, choices=["python", "nodejs"], action="store")
 parser.add_argument("--language-version", default=None, type=str, action="store")
+parser.add_argument("--runtime", default=False, action="store_true", help="Build runtime image")
+parser.add_argument("--platform", default="linux/amd64", help="Target platform for Docker build")
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
 client = docker.from_env()
 
 
 def build(image_type, system, language=None, version=None, version_name=None):
-
     msg = "Build *{}* Dockerfile for *{}* system".format(image_type, system)
     if language:
         msg += " with language *" + language + "*"
     if version:
         msg += " with version *" + version + "*"
-    print(msg)
+    print("The message is", msg)
     if language is not None:
         dockerfile = os.path.join(DOCKER_DIR, system, language, f"Dockerfile.{image_type}")
     else:
@@ -43,6 +44,8 @@ def build(image_type, system, language=None, version=None, version_name=None):
         "VERSION": version,
     }
     if version:
+        if image_type == "runtime":
+            version_name = version_name.replace("builder", "env")
         buildargs["BASE_IMAGE"] = version_name
     print(
         "Build img {} in {} from file {} with args {}".format(
@@ -50,7 +53,7 @@ def build(image_type, system, language=None, version=None, version_name=None):
         )
     )
     try:
-        client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
+        client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target, platform=args.platform)
     except docker.errors.BuildError as exc:
         print("Error! Build failed!")
         print(exc)
@@ -102,6 +105,7 @@ if args.deployment is None:
     for system, system_dict in config.items():
         if system == "general":
             continue
+        print("First if ")
         build_systems(system, system_dict)
 else:
     build_systems(args.deployment, config[args.deployment])

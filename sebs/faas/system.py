@@ -227,6 +227,9 @@ class System(ABC, LoggingBase):
                 else "function {} not found in cache.".format(func_name)
             )
             self.logging.info("Creating new function! Reason: " + msg)
+            # PK: 
+            print("CREATING NEW FUNCUIN FOR FISSION", func_name)
+            print("SELF>CREATE FUNC", self.create_function)
             function = self.create_function(code_package, func_name)
             self.cache_client.add_function(
                 deployment_name=self.name(),

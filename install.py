@@ -7,7 +7,7 @@ import subprocess
 parser = argparse.ArgumentParser(description="Install SeBS and dependencies.")
 parser.add_argument('--venv', metavar='DIR', type=str, default="python-venv", help='destination of local Python virtual environment')
 parser.add_argument('--python-path', metavar='DIR', type=str, default="python3", help='Path to local Python installation.')
-for deployment in ["aws", "azure", "gcp", "openwhisk"]:
+for deployment in ["aws", "azure", "gcp", "openwhisk", "fission"]:
     parser.add_argument(f"--{deployment}", action="store_const", const=True, default=True, dest=deployment)
     parser.add_argument(f"--no-{deployment}", action="store_const", const=False, default=True, dest=deployment)
 for deployment in ["local"]:
@@ -62,6 +62,10 @@ execute(f'echo "unset SEBS_WITH_GCP" >> {env_dir}/bin/deactivate')
 flag = "TRUE" if args.openwhisk else "FALSE"
 execute(f'echo "export SEBS_WITH_OPENWHISK={flag}" >> {env_dir}/bin/activate')
 execute(f'echo "unset SEBS_WITH_OPENWHISK" >> {env_dir}/bin/deactivate')
+
+flag = "TRUE" if args.fission else "FALSE"
+execute(f'echo "export SEBS_WITH_FISSION={flag}" >> {env_dir}/bin/activate')
+execute(f'echo "unset SEBS_WITH_FISSION" >> {env_dir}/bin/deactivate')
 
 if args.local:
     print("Install Python dependencies for local")

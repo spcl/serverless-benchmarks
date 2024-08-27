@@ -179,6 +179,8 @@ sebs-*
 # cache
 cache
 
+# ide
+.vscode
 # IntelliJ IDEA files
 .idea
 *.iml
