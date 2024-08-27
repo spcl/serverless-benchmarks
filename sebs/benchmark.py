@@ -296,7 +296,7 @@ class Benchmark(LoggingBase):
         if len(packages):
             with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
                 for package in packages:
-                    out.write(package)
+                    out.write(package + "\n")
 
     def add_deployment_package_nodejs(self, output_dir):
         # modify package.json

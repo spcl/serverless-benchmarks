@@ -68,3 +68,4 @@ class SeBSConfig:
 
     def username(self, deployment_name: str, language_name: str) -> str:
         return self._system_config[deployment_name]["languages"][language_name]["username"]
+    

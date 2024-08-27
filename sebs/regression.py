@@ -292,6 +292,44 @@ class OpenWhiskTestSequenceNodejs(
         return deployment_client
 
 
+class KnativeTestSequencePython(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
+    deployment_name="knative",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    def get_deployment(self, benchmark_name):
+        deployment_name = "knative"
+        assert cloud_config
+        deployment_client = self.client.get_deployment(
+            cloud_config,
+            logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+        )
+        with KnativeTestSequencePython.lock:
+            deployment_client.initialize(resource_prefix="regression")
+        return deployment_client
+
+
+class KnativeTestSequenceNodejs(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    deployment_name="knative",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    def get_deployment(self, benchmark_name):
+        deployment_name = "knative"
+        assert cloud_config
+        deployment_client = self.client.get_deployment(
+            cloud_config,
+            logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+        )
+        with KnativeTestSequenceNodejs.lock:
+            deployment_client.initialize(resource_prefix="regression")
+        return deployment_client
+
+
 # https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
 class TracingStreamResult(testtools.StreamResult):
     all_correct: bool
@@ -379,6 +417,16 @@ def regression_suite(
         elif language == "nodejs":
             suite.addTest(
                 unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequenceNodejs)
+            )
+    if "knative" in providers:
+        assert "knative" in cloud_config
+        if language == "python":
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(KnativeTestSequencePython)
+            )
+        elif language == "nodejs":
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(KnativeTestSequenceNodejs)
             )
 
     tests = []

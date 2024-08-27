@@ -6,6 +6,7 @@ import subprocess
 import uuid
 import click
 import datetime
+import re
 
 from typing import List, Optional
 
@@ -86,8 +87,6 @@ def configure_logging():
         for logger in loggers:
             if name.startswith(logger):
                 logging.getLogger(name).setLevel(logging.ERROR)
-
-
 # def configure_logging(verbose: bool = False, output_dir: Optional[str] = None):
 #    logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
 #    logging_date_format = "%H:%M:%S"

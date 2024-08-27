@@ -245,5 +245,47 @@
         }
       }
     }
+  },
+  "knative": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.8": "registry.access.redhat.com/ubi8/python-38",
+          "3.9": "registry.access.redhat.com/ubi8/python-39",
+          "3.10": "registry.access.redhat.com/ubi8/python-310"
+        },
+        "images": [],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "func.py",
+            "storage.py"
+          ],
+          "packages": {
+            "parliament-functions": "0.1.0",
+            "minio": "5.0.10"
+          }
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "16": "registry.access.redhat.com/ubi8/nodejs-16",
+          "14": "registry.access.redhat.com/ubi8/nodejs-14",
+          "12": "registry.access.redhat.com/ubi8/nodejs-12"
+        },
+        "images": [],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "index.js",
+            "storage.js"
+          ],
+          "packages": {
+            "faas-js-runtime": "^2.2.2",
+            "minio": "7.0.16"
+          }
+        }
+      }
+    }
   }
 }

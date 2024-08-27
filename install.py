@@ -7,7 +7,7 @@ import subprocess
 parser = argparse.ArgumentParser(description="Install SeBS and dependencies.")
 parser.add_argument('--venv', metavar='DIR', type=str, default="python-venv", help='destination of local Python virtual environment')
 parser.add_argument('--python-path', metavar='DIR', type=str, default="python3", help='Path to local Python installation.')
-for deployment in ["aws", "azure", "gcp", "openwhisk"]:
+for deployment in ["aws", "azure", "gcp", "openwhisk", "knative"]:
     parser.add_argument(f"--{deployment}", action="store_const", const=True, default=True, dest=deployment)
     parser.add_argument(f"--no-{deployment}", action="store_const", const=False, default=True, dest=deployment)
 for deployment in ["local"]:
@@ -63,6 +63,13 @@ flag = "TRUE" if args.openwhisk else "FALSE"
 execute(f'echo "export SEBS_WITH_OPENWHISK={flag}" >> {env_dir}/bin/activate')
 execute(f'echo "unset SEBS_WITH_OPENWHISK" >> {env_dir}/bin/deactivate')
 
+if args.knative:
+    print("Install Python dependencies for Knative")
+    execute(". {}/bin/activate && pip3 install -r requirements.knative.txt".format(env_dir))
+flag = "TRUE" if args.knative else "FALSE"
+execute(f'echo "export SEBS_WITH_KNATIVE={flag}" >> {env_dir}/bin/activate')
+execute(f'echo "unset SEBS_WITH_KNATIVE" >> {env_dir}/bin/deactivate')
+
 if args.local:
     print("Install Python dependencies for local")
     execute(". {}/bin/activate && pip3 install -r requirements.local.txt".format(env_dir))
@@ -99,4 +106,3 @@ if args.with_pypapi:
     execute("python3 setup.py build")
     execute("python3 pypapi/papi_build.py")
     os.chdir(cur_dir)
-
