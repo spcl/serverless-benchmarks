@@ -1,6 +1,5 @@
 import datetime
 import io
-import os
 from urllib.parse import unquote_plus
 from PIL import Image
 import torch
@@ -8,8 +7,6 @@ from transformers import VisionEncoderDecoderModel, ViTImageProcessor, AutoToken
 from . import storage
 
 # Load the pre-trained ViT-GPT2 model
-# Model URL: https://huggingface.co/nlpconnect/vit-gpt2-image-captioning
-# License: Apache 2.0 License (https://huggingface.co/datasets/choosealicense/licenses/blob/main/markdown/apache-2.0.md)
 model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
 image_processor = ViTImageProcessor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
 tokenizer = AutoTokenizer.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
@@ -31,7 +28,6 @@ def generate_caption(image_bytes):
 def handler(event):
     bucket = event.get('bucket').get('bucket')
     input_prefix = event.get('bucket').get('input')
-    output_prefix = event.get('bucket').get('output')
     key = unquote_plus(event.get('object').get('key'))
     
     download_begin = datetime.datetime.now()
@@ -42,26 +38,16 @@ def handler(event):
     caption = generate_caption(img)
     process_end = datetime.datetime.now()
 
-    upload_begin = datetime.datetime.now()
-    caption_file_name = os.path.splitext(key)[0] + '.txt'
-    caption_file_path = os.path.join(output_prefix, caption_file_name)
-    client.upload_stream(bucket, caption_file_path, io.BytesIO(caption.encode('utf-8')))
-    upload_end = datetime.datetime.now()
-
     download_time = (download_end - download_begin) / datetime.timedelta(microseconds=1)
-    upload_time = (upload_end - upload_begin) / datetime.timedelta(microseconds=1)
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
 
     return {
         'result': {
-            'bucket': bucket,
-            'key': caption_file_path
+            'caption': caption,
         },
         'measurement': {
             'download_time': download_time,
             'download_size': len(img),
-            'upload_time': upload_time,
-            'upload_size': len(caption.encode('utf-8')),
             'compute_time': process_time
         }
     }

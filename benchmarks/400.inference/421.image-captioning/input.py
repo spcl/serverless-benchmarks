@@ -15,7 +15,9 @@ def buckets_count():
     :param upload_func: Upload function taking three params (bucket_idx, key, filepath)
 '''
 def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func):
-    input_files = glob.glob(os.path.join(data_dir, '*.jpg')) + glob.glob(os.path.join(data_dir, '*.png')) + glob.glob(os.path.join(data_dir, '*.jpeg'))
+    input_files = []
+    for ext in ['*.jpg', '*.jpeg', '*.png']:
+        input_files.extend(glob.glob(os.path.join(data_dir, ext)))
     
     if not input_files:
         raise ValueError("No input files found in the provided directory.")
