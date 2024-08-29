@@ -1,6 +1,6 @@
 from sebs.cache import Cache
 from sebs.faas.config import Resources
-from sebs.faas.queue import Queue
+from sebs.faas.queue import Queue, QueueType
 
 from azure.core.exceptions import ResourceExistsError
 from azure.identity import DefaultAzureCredential
@@ -29,7 +29,7 @@ class AzureQueue(Queue):
     def __init__(
         self,
         benchmark: str,
-        queue_type: Queue.QueueType,
+        queue_type: QueueType,
         cache_client: Cache,
         resources: Resources,
         region: str,
@@ -53,11 +53,26 @@ class AzureQueue(Queue):
             self.logging.info("Queue already exists, reusing...")
 
     def remove_queue(self):
-        raise NotImplementedError()
+        self.logging.info(f"Deleting queue {self.name}")
+
+        self.client.delete_queue()
+
+        self.logging.info("Deleted queue")
 
     def send_message(self, serialized_message: str):
         self.client.send_message(serialized_message)
         self.logging.info(f"Sent message to queue {self.queue_name}")
 
     def receive_message(self) -> str:
-        raise NotImplementedError()
+        self.logging.info(f"Pulling a message from {self.name}")
+
+        response = self.client.receive_messages(
+            max_messages=1,
+            timeout=5,
+        )
+
+        if (len(response) == 0):
+            self.logging.info("No messages to be received")
+            return
+
+        return response[0].content
