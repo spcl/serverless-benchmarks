@@ -14,6 +14,7 @@ from sebs.types import Storage as StorageTypes
 from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
+from sebs.utils import is_linux
 
 
 class Minio(PersistentStorage):
@@ -108,7 +109,7 @@ class Minio(PersistentStorage):
             self._storage_container.reload()
 
             # Check if the system is Linux and that it's not WSL
-            if platform.system() == "Linux" and "microsoft" not in platform.release().lower():
+            if is_linux():
                 networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
                 self._cfg.address = "{IPAddress}:{Port}".format(
                     IPAddress=networks["bridge"]["IPAddress"], Port=9000

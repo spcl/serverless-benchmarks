@@ -3,6 +3,7 @@ import docker
 import json
 from typing import Optional
 
+from sebs.utils import is_linux
 from sebs.faas.function import ExecutionResult, Function, FunctionConfig, Trigger
 
 
@@ -53,17 +54,21 @@ class LocalFunction(Function):
         self._instance.reload()
         networks = self._instance.attrs["NetworkSettings"]["Networks"]
         self._port = port
-        self._url = "{IPAddress}:{Port}".format(
-            IPAddress=networks["bridge"]["IPAddress"], Port=port
-        )
-        if not self._url:
-            self.logging.error(
-                f"Couldn't read the IP address of container from attributes "
-                f"{json.dumps(self._instance.attrs, indent=2)}"
+
+        if is_linux():
+            self._url = "{IPAddress}:{Port}".format(
+                IPAddress=networks["bridge"]["IPAddress"], Port=port
             )
-            raise RuntimeError(
-                f"Incorrect detection of IP address for container with id {self._instance_id}"
-            )
+            if not self._url:
+                self.logging.error(
+                    f"Couldn't read the IP address of container from attributes "
+                    f"{json.dumps(self._instance.attrs, indent=2)}"
+                )
+                raise RuntimeError(
+                    f"Incorrect detection of IP address for container with id {self._instance_id}"
+                )
+        else:
+            self._url = f"localhost:{port}"
 
         self._measurement_pid = measurement_pid
 
