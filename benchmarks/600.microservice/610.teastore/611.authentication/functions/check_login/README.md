@@ -21,7 +21,7 @@ mvn clean package
 
 - If you do not have OpenWhisk, follow [this](https://openwhisk.apache.org/documentation.html) instruction.
 
-- Create A Java-based action: [link(https://github.com/apache/openwhisk/blob/master/docs/actions-java.md)
+- Create A Java-based action: [link](https://github.com/apache/openwhisk/blob/master/docs/actions-java.md)
   
 - Invoke the action with different parameter formats: [link](https://github.com/apache/openwhisk/blob/master/docs/parameters.md)
 
@@ -52,7 +52,7 @@ wsk -i action list
 ```bash
 wsk -i action invoke --result loginChecker --param-file src/test/java/sample_input_valid_token.txt
 ```
-* check Input section of readme for more detail
+* check [Input](https://github.com/spcl/serverless-benchmarks/blob/microservice_teastore_becnhmarks/benchmarks/600.microservice/610.teastore/611.authentication/functions/check_login/README.md#input) section for more detail
 
 #### View Logs of the Last Invocation
 
@@ -64,7 +64,7 @@ wsk activation logs --last
 
 #### Input
 
-In the `test` folder, there is an `inputGenerator` for the function. You can change the values as needed. For the token, three states exist:
+In the `test` folder, there is an `inputGenerator` for the function. You can change the values as needed. For the token, three states exist (You can switch between them with uncomment related part of code):
 
 - `null`
 - `invalid`
