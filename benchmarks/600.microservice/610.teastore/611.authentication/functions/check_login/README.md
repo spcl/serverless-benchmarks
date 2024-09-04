@@ -1,103 +1,76 @@
+
 # README
-
-
 
 ## Deployment on OpenWhisk
 
-
-
 To deploy your project on OpenWhisk, follow these steps:
 
+### 1. Create the JAR file
 
+Use the JAR file from this [link](https://github.com/spcl/serverless-benchmarks/tree/microservice_teastore_becnhmarks/benchmarks/600.microservice/610.teastore/611.authentication/functions/check_login/output) or follow the steps below:
 
-### 1. Prepare the Project
-
-
-
-Use the JAR file from this [link](#) or follow the steps below:
-
-
-
-1. Create a Maven project. The project should be named `copy_files_and_pom.xml`.
-
-2. Build the project using Maven:
+1. Create a Maven project. The project should be named `check_login`.
+2. Replace the `src` folder of the project with src folder of in this [link](https://github.com/spcl/serverless-benchmarks/tree/microservice_teastore_becnhmarks/benchmarks/600.microservice/610.teastore/611.authentication/functions/check_login)
+3. Build the project using Maven:
 
 ```bash
-	mvn clean package
+mvn clean package
 ```
 
+### 2. Run the Function on OpenWhisk
 
-### 2. Test the Function
+If you do not have OpenWhisk, follow this instruction.
 
+- Create A Java-based action: [link](Making a java function )
+- Invoke the action with different parameter formats: [link](Invoking with different parameter input formats)
 
+Below are example commands you can use quickly:
 
-#### Delete an Action
+#### Create the Action
 
+To create an action, use the following command:
 
+```bash
+wsk -i action create loginChecker target/check_login-1.0-SNAPSHOT.jar --main faas.LoggedInChecker
+```
 
-To delete an action, use the following command:
+If the function already exists, you can delete it using the following command:
+
 ```bash
 wsk -i action delete loginChecker
 ```
 
-
-#### Create an Action
-
-
-
-To create an action, use the following command:
-
-
+#### Check if the Action is Created
 
 ```bash
-
-wsk -i action create loginChecker target/check_login-1.0-SNAPSHOT.jar --main faas.LoggedInChecker
+wsk -i action list
 ```
 
-
-#### Check if the Action Exists
-
-
-
-To check if the action exists, use:
-
-
+#### Invoke the Action
 
 ```bash
-
-wsk -i list
+wsk -i action invoke --result loginChecker --param-file src/test/java/sample_input_valid_token.txt
 ```
-
 
 #### View Logs of the Last Invocation
 
-
-
-
+(If there is an error in invocation)
 
 ```bash
 wsk activation logs --last
 ```
 
-
-### Manual Testing
-
-
-
 #### Input
-
-
 
 In the `test` folder, there is an `inputGenerator` for the function. You can change the values as needed. For the token, three states exist:
 
-
-
 - `null`
-
 - `invalid`
-
 - `valid`
 
-
-
 A sample input is also available in the folder.
+
+### About the Code
+
+In the source code of TeaStore, the token is checked in the validate function of ShaSecurityProvider class and then set to null. In each operation which check validity of blob, uses the secure function in ShaSecurityProvider, which subsequently sets a valid token.
+
