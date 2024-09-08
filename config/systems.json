@@ -319,7 +319,7 @@
       },
       "java": {
         "base_images": {
-          "8": "openwhisk/actionloop-java-v8",
+          "8": "openwhisk/java8action"
         },
         "images": [
           "function"
@@ -327,8 +327,8 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "index.js",
-            "storage.js"
+            "Main.java",
+            "Storage.java"
           ],
           "packages": {
             "minio": "8.5.9"
