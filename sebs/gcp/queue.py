@@ -1,3 +1,4 @@
+from typing import Optional
 from googleapiclient.discovery import build
 
 from sebs.cache import Cache
@@ -36,11 +37,17 @@ class GCPQueue(Queue):
         self,
         benchmark: str,
         queue_type: QueueType,
-        cache_client: Cache,
-        resources: Resources,
+        # cache_client: Cache,
+        # resources: Resources,
         region: str
     ):
-        super().__init__(benchmark, queue_type, region, cache_client, resources)
+        super().__init__(
+            benchmark,
+            queue_type,
+            region
+            # cache_client,
+            # resources
+        )
         self.client = pubsub_v1.PublisherClient()
         self._subscription_client = pubsub_v1.SubscriberClient()
 
@@ -98,7 +105,7 @@ class GCPQueue(Queue):
 
         if (len(response.received_messages) == 0):
             self.logging.info("No messages to be received")
-            return
+            return ""
 
         # Acknowledge the received message so it is not sent again.
         received_message = response.received_messages[0]
@@ -109,3 +116,18 @@ class GCPQueue(Queue):
         self.logging.info(f"Received a message from {self.name}")
 
         return received_message.message.data
+
+    def serialize(self) -> dict:
+        return {
+            "name": self.name,
+            "type": self.queue_type,
+            "region": self.region,
+        }
+
+    @staticmethod
+    def deserialize(obj: dict) -> "GCPQueue":
+        return GCPQueue(
+            obj["name"],
+            obj["type"],
+            obj["region"],
+        )

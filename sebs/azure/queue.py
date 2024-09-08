@@ -30,14 +30,20 @@ class AzureQueue(Queue):
         self,
         benchmark: str,
         queue_type: QueueType,
-        cache_client: Cache,
-        resources: Resources,
-        region: str,
+        # cache_client: Cache,
+        # resources: Resources,
         storage_account: str,
+        region: str
     ):
         default_credential = DefaultAzureCredential()
 
-        super().__init__(benchmark, queue_type, region, cache_client, resources)
+        super().__init__(
+            benchmark,
+            queue_type,
+            region
+            # cache_client,
+            # resources
+        )
         self._storage_account = storage_account
         self.client = QueueClient(self.account_url,
                                   queue_name=self.name,
@@ -61,7 +67,7 @@ class AzureQueue(Queue):
 
     def send_message(self, serialized_message: str):
         self.client.send_message(serialized_message)
-        self.logging.info(f"Sent message to queue {self.queue_name}")
+        self.logging.info(f"Sent message to queue {self.name}")
 
     def receive_message(self) -> str:
         self.logging.info(f"Pulling a message from {self.name}")
@@ -71,8 +77,26 @@ class AzureQueue(Queue):
             timeout=5,
         )
 
-        if (len(response) == 0):
-            self.logging.info("No messages to be received")
-            return
+        for msg in response:
+            self.client.delete_message(msg)
+            return msg.content
 
-        return response[0].content
+        self.logging.info("No messages to be received")
+        return ""
+
+    def serialize(self) -> dict:
+        return {
+            "name": self.name,
+            "type": self.queue_type,
+            "storage_account": self.storage_account,
+            "region": self.region
+        }
+
+    @staticmethod
+    def deserialize(obj: dict) -> "AzureQueue":
+        return AzureQueue(
+            obj["name"],
+            obj["type"],
+            obj["storage_account"],
+            obj["region"]
+        )

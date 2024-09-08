@@ -1,8 +1,9 @@
 from abc import ABC
 from abc import abstractmethod
 from enum import Enum
+from typing import Optional
 
-from sebs.faas.config import Resources
+# from sebs.faas.config import Resources
 from sebs.cache import Cache
 from sebs.utils import LoggingBase
 
@@ -18,9 +19,9 @@ class Queue(ABC, LoggingBase):
     def deployment_name() -> str:
         pass
 
-    @property
-    def cache_client(self) -> Cache:
-        return self._cache_client
+    # @property
+    # def cache_client(self) -> Cache:
+    #     return self._cache_client
 
     @property
     def region(self):
@@ -34,14 +35,28 @@ class Queue(ABC, LoggingBase):
     def name(self):
         return self._name
 
-    def __init__(self, benchmark: str, queue_type: QueueType, region: str, cache_client: Cache, resources: Resources):
+    def __init__(
+        self,
+        benchmark: str,
+        queue_type: QueueType,
+        region: str
+        # cache_client: Optional[Cache],
+        # resources: Optional[Resources]
+    ):
         super().__init__()
-        self._name = "{}-{}".format(benchmark, queue_type)
+        self._name = None
+        if (queue_type == QueueType.RESULT):
+            self._name = "{}-{}".format(benchmark, queue_type)
+        else:
+            self._name = benchmark
+        # TODO(oana) maybe think of a better way
+        if (benchmark.endswith("-result") or benchmark.endswith("-trigger")):
+            self._name = benchmark
         self._queue_type = queue_type
-        self._cache_client = cache_client
+        # self._cache_client = cache_client
         self._cached = False
         self._region = region
-        self._cloud_resources = resources
+        # self._cloud_resources = resources
 
     @abstractmethod
     def create_queue(self):
