@@ -267,7 +267,8 @@ Check other platforms to see how configuration is defined, for example, for AWS:
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "queue.py"
           ],
           "packages": []
         }

@@ -11,7 +11,9 @@ from typing import Dict, Optional  # noqa
 from google.cloud import storage as gcp_storage
 
 from sebs.gcp.gcp import GCP
+from sebs.gcp.queue import GCPQueue
 from sebs.faas.function import ExecutionResult, Trigger
+from sebs.faas.queue import QueueType
 
 
 class LibraryTrigger(Trigger):
@@ -120,11 +122,28 @@ class HTTPTrigger(Trigger):
 
 
 class QueueTrigger(Trigger):
-    def __init__(self, fname: str, queue_name: str, deployment_client: Optional[GCP] = None):
+    def __init__(
+        self,
+        fname: str,
+        queue_name: str,
+        region: str,
+        result_queue: Optional[GCPQueue] = None
+    ):
         super().__init__()
         self.name = fname
-        self._deployment_client = deployment_client
         self._queue_name = queue_name
+        self._region = region
+        self._result_queue = result_queue
+
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (not self._result_queue):
+            self._result_queue = GCPQueue(
+                fname,
+                QueueType.RESULT,
+                self.region
+            )
+            self._result_queue.create_queue()
 
     @staticmethod
     def typename() -> str:
@@ -136,13 +155,14 @@ class QueueTrigger(Trigger):
         return self._queue_name
 
     @property
-    def deployment_client(self) -> GCP:
-        assert self._deployment_client
-        return self._deployment_client
+    def region(self) -> str:
+        assert self._region
+        return self._region
 
-    @deployment_client.setter
-    def deployment_client(self, deployment_client: GCP):
-        self._deployment_client = deployment_client
+    @property
+    def result_queue(self) -> GCPQueue:
+        assert self._result_queue
+        return self._result_queue
 
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
@@ -160,6 +180,7 @@ class QueueTrigger(Trigger):
         serialized_payload = base64.b64encode(json.dumps(payload).encode("utf-8"))
 
         # Publish payload to queue
+        begin = datetime.datetime.now()
         pub_sub.projects().topics().publish(
             topic=self.queue_name,
             body={
@@ -167,7 +188,16 @@ class QueueTrigger(Trigger):
             },
         ).execute()
 
-        # TODO(oana): gather metrics
+        response = ""
+        while (response == ""):
+            response = self.result_queue.receive_message()
+
+        end = datetime.datetime.now()
+
+        # TODO(oana) error handling
+        result = ExecutionResult.from_times(begin, end)
+        result.parse_benchmark_output(json.loads(response))
+        return result
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -176,18 +206,47 @@ class QueueTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "Queue", "name": self.name, "queue_name": self.queue_name}
+        return {
+            "type": "Queue",
+            "name": self.name,
+            "queue_name": self.queue_name,
+            "region": self.region,
+            "result_queue": self.result_queue.serialize()
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return QueueTrigger(obj["name"], obj["queue_name"])
+        return QueueTrigger(
+            obj["name"],
+            obj["queue_name"],
+            obj["region"],
+            GCPQueue.deserialize(obj["result_queue"])
+        )
 
 
 class StorageTrigger(Trigger):
-    def __init__(self, fname: str, bucket_name: str):
+    def __init__(
+        self,
+        fname: str,
+        bucket_name: str,
+        region: str,
+        result_queue: Optional[GCPQueue] = None
+    ):
         super().__init__()
         self.name = fname
         self._bucket_name = bucket_name
+        self._region = region
+        self._result_queue = result_queue
+
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (not self._result_queue):
+            self._result_queue = GCPQueue(
+                fname,
+                QueueType.RESULT,
+                self.region
+            )
+            self._result_queue.create_queue()
 
     @staticmethod
     def typename() -> str:
@@ -202,13 +261,23 @@ class StorageTrigger(Trigger):
         assert self._bucket_name
         return self._bucket_name
 
+    @property
+    def region(self) -> str:
+        assert self._region
+        return self._region
+
+    @property
+    def result_queue(self) -> GCPQueue:
+        assert self._result_queue
+        return self._result_queue
+
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
         self.logging.info(f"Invoke function {self.name}")
 
         # Init clients
         client = gcp_storage.Client()
-        bucket_instance = client.bucket(self.bucket_name)
+        bucket_instance = client.bucket(self.name)
 
         # Prepare payload
         file_name = "payload.json"
@@ -218,11 +287,21 @@ class StorageTrigger(Trigger):
         # Upload object
         gcp_storage.blob._MAX_MULTIPART_SIZE = 5 * 1024 * 1024
         blob = bucket_instance.blob(blob_name=file_name, chunk_size=4 * 1024 * 1024)
+        begin = datetime.datetime.now()
         blob.upload_from_filename(file_name)
 
         self.logging.info(f"Uploaded payload to bucket {self.bucket_name}")
 
-        # TODO(oana): gather metrics
+        response = ""
+        while (response == ""):
+            response = self.result_queue.receive_message()
+
+        end = datetime.datetime.now()
+
+        # TODO(oana) error handling
+        result = ExecutionResult.from_times(begin, end)
+        result.parse_benchmark_output(json.loads(response))
+        return result
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -231,8 +310,19 @@ class StorageTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "Storage", "name": self.name, "bucket_name": self.bucket_name}
+        return {
+            "type": "Storage",
+            "name": self.name,
+            "bucket_name": self.bucket_name,
+            "region": self.region,
+            "result_queue": self.result_queue.serialize()
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return StorageTrigger(obj["name"], obj["bucket_name"])
+        return StorageTrigger(
+            obj["name"],
+            obj["bucket_name"],
+            obj["region"],
+            GCPQueue.deserialize(obj["result_queue"])
+        )

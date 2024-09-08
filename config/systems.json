@@ -71,7 +71,8 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "queue.py"
           ],
           "packages": []
         }
@@ -114,10 +115,13 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "queue.py"
           ],
           "packages": [
-            "azure-storage-blob"
+            "azure-storage-blob",
+            "\nazure-storage-queue",
+            "\nazure-identity"
           ]
         }
       },
@@ -162,7 +166,8 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "queue.py"
           ],
           "packages": [
             "google-cloud-storage"

@@ -8,7 +8,9 @@ import uuid  # noqa
 import boto3
 
 from sebs.aws.aws import AWS
+from sebs.aws.queue import SQS
 from sebs.faas.function import ExecutionResult, Trigger
+from sebs.faas.queue import QueueType
 
 
 class LibraryTrigger(Trigger):
@@ -133,65 +135,59 @@ class QueueTrigger(Trigger):
         self,
         fname: str,
         deployment_client: Optional[AWS] = None,
-        queue_arn: Optional[str] = None,
-        queue_url: Optional[str] = None,
+        queue: Optional[SQS] = None,
+        result_queue: Optional[SQS] = None
     ):
         super().__init__()
         self.name = fname
+        self._queue = queue
+        self._result_queue = result_queue
+        self._deployment_client = deployment_client
 
-        self._deployment_client = None
-        self._queue_arn = None
-        self._queue_url = None
-
-        if deployment_client:
-            self._deployment_client = deployment_client
-        if queue_arn:
-            self._queue_arn = queue_arn
-        if queue_url:
-            self._queue_url = queue_url
-
-        # When creating the trigger for the first time, also create and store
-        # queue information.
-        if not self.queue_arn and not self.queue_url:
-            # Init clients
-            lambda_client = self.deployment_client.get_lambda_client()
-            sqs_client = boto3.client("sqs", region_name=self.deployment_client.config.region)
-
-            # Create queue
-            self.logging.debug(f"Creating queue {self.name}")
-
-            self._queue_url = sqs_client.create_queue(QueueName=self.name)["QueueUrl"]
-            self._queue_arn = sqs_client.get_queue_attributes(
-                QueueUrl=self.queue_url, AttributeNames=["QueueArn"]
-            )["Attributes"]["QueueArn"]
-
-            self.logging.debug("Created queue")
+        if (not self._queue):
+            self._queue = SQS(
+                self.name,
+                QueueType.TRIGGER,
+                self.deployment_client.config.region                
+            )
+            self.queue.create_queue()
 
             # Add queue trigger
+            lambda_client = self.deployment_client.get_lambda_client()
             if not len(
                 lambda_client.list_event_source_mappings(
-                    EventSourceArn=self.queue_arn, FunctionName=self.name
+                    EventSourceArn=self.queue.queue_arn, FunctionName=self.name
                 )["EventSourceMappings"]
             ):
                 lambda_client.create_event_source_mapping(
-                    EventSourceArn=self.queue_arn,
+                    EventSourceArn=self.queue.queue_arn,
                     FunctionName=self.name,
                     MaximumBatchingWindowInSeconds=1,
                 )
+
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (not self._result_queue):
+            self._result_queue = SQS(
+                fname,
+                QueueType.RESULT,
+                self.deployment_client.config.region
+            )
+            self._result_queue.create_queue()
 
     @staticmethod
     def typename() -> str:
         return "AWS.QueueTrigger"
 
     @property
-    def queue_arn(self) -> str:
-        assert self._queue_arn
-        return self._queue_arn
+    def queue(self) -> SQS:
+        assert self._queue
+        return self._queue
 
     @property
-    def queue_url(self) -> str:
-        assert self._queue_url
-        return self._queue_url
+    def result_queue(self) -> SQS:
+        assert self._result_queue
+        return self._result_queue
 
     @property
     def deployment_client(self) -> AWS:
@@ -210,14 +206,21 @@ class QueueTrigger(Trigger):
 
         self.logging.debug(f"Invoke function {self.name}")
 
-        sqs_client = boto3.client("sqs", region_name=self.deployment_client.config.region)
-
         # Publish payload to queue
         serialized_payload = json.dumps(payload)
-        sqs_client.send_message(QueueUrl=self.queue_url, MessageBody=serialized_payload)
-        self.logging.info(f"Sent message to queue {self.name}")
+        begin = datetime.datetime.now()
+        self.queue.send_message(serialized_payload)
 
-        # TODO(oana): gather metrics
+        response = ""
+        while (response == ""):
+            response = self.result_queue.receive_message()
+        
+        end = datetime.datetime.now()
+
+        # TODO(oana) error handling
+        result = ExecutionResult.from_times(begin, end)
+        result.parse_benchmark_output(json.loads(response))
+        return result
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -229,33 +232,45 @@ class QueueTrigger(Trigger):
         return {
             "type": "Queue",
             "name": self.name,
-            "queue_arn": self.queue_arn,
-            "queue_url": self.queue_url,
+            "queue": self.queue.serialize(),
+            "result_queue": self.result_queue.serialize()
         }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return QueueTrigger(obj["name"], None, obj["queue_arn"], obj["queue_url"])
+        return QueueTrigger(
+            obj["name"],
+            None,
+            SQS.deserialize(obj["queue"]),
+            SQS.deserialize(obj["result_queue"])
+        )
 
 
 class StorageTrigger(Trigger):
     def __init__(
-        self, fname: str, deployment_client: Optional[AWS] = None, bucket_name: Optional[str] = None
+        self,
+        fname: str,
+        deployment_client: Optional[AWS] = None,
+        bucket_name: Optional[str] = None,
+        result_queue: Optional[SQS] = None
     ):
         super().__init__()
         self.name = fname
 
         self._deployment_client = None
         self._bucket_name = None
+        self._result_queue = None
 
         if deployment_client:
             self._deployment_client = deployment_client
         if bucket_name:
             self._bucket_name = bucket_name
+        if result_queue:
+            self._result_queue = result_queue
 
         # When creating the trigger for the first time, also create and store
         # storage bucket information.
-        if not self.bucket_name:
+        if not self._bucket_name:
             # Init clients
             s3 = boto3.resource("s3")
             lambda_client = self.deployment_client.get_lambda_client()
@@ -301,6 +316,16 @@ class StorageTrigger(Trigger):
                 }
             )
 
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (not self._result_queue):
+            self._result_queue = SQS(
+                fname,
+                QueueType.RESULT,
+                self.deployment_client.config.region
+            )
+            self._result_queue.create_queue()
+
     @staticmethod
     def typename() -> str:
         return "AWS.StorageTrigger"
@@ -314,6 +339,11 @@ class StorageTrigger(Trigger):
     def deployment_client(self) -> AWS:
         assert self._deployment_client
         return self._deployment_client
+
+    @property
+    def result_queue(self) -> SQS:
+        assert self._result_queue
+        return self._result_queue
 
     @deployment_client.setter
     def deployment_client(self, deployment_client: AWS):
@@ -331,10 +361,20 @@ class StorageTrigger(Trigger):
 
         # Put object
         s3 = boto3.resource("s3")
+        begin = datetime.datetime.now()
         s3.Object(self.bucket_name, "payload.json").put(Body=serialized_payload)
         self.logging.info(f"Uploaded payload to bucket {self.bucket_name}")
 
-        # TODO(oana): gather metrics
+        response = ""
+        while (response == ""):
+            response = self.result_queue.receive_message()
+
+        end = datetime.datetime.now()
+
+        # TODO(oana) error handling
+        result = ExecutionResult.from_times(begin, end)
+        result.parse_benchmark_output(json.loads(response))
+        return result
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -343,8 +383,18 @@ class StorageTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "Storage", "name": self.name, "bucket_name": self.bucket_name}
+        return {
+            "type": "Storage",
+            "name": self.name,
+            "bucket_name": self.bucket_name,
+            "result_queue": self.result_queue.serialize()
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return StorageTrigger(obj["name"], None, obj["bucket_name"])
+        return StorageTrigger(
+            obj["name"],
+            None,
+            obj["bucket_name"],
+            SQS.deserialize(obj["result_queue"])
+        )

@@ -35,8 +35,8 @@ class AWSCreateFunction(unittest.TestCase):
         }
     }
     package_files = {
-        "python": ["handler.py", "function/storage.py", "requirements.txt", '.python_packages/'],
-        "nodejs": ["handler.js", "function/storage.js", "package.json", "node_modules/"]
+        "python": ["handler.py", "function/storage.py", "function/queue.py", "requirements.txt", '.python_packages/'],
+        "nodejs": ["handler.js", "function/storage.js", "function/queue.js", "package.json", "node_modules/"]
     }
     benchmark = "110.dynamic-html"
     function_name_suffixes = [] 

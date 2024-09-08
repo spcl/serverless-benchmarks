@@ -7,9 +7,15 @@ def handler(event, context):
 
     income_timestamp = datetime.datetime.now().timestamp()
 
+    # Flag to indicate whether the measurements should be returned as an HTTP
+    # response or via a result queue.
+    return_http = True
+
     # Queue trigger
     if ("Records" in event and event["Records"][0]["eventSource"] == 'aws:sqs'):
         event = json.loads(event["Records"][0]["body"])
+
+        return_http = False
 
     # Storage trigger
     if ("Records" in event and "s3" in event["Records"][0]):
@@ -21,6 +27,8 @@ def handler(event, context):
 
         obj = storage_inst.get_object(bucket_name, file_name)
         event = json.loads(obj['Body'].read())
+
+        return_http = False
 
     # HTTP trigger with API Gateaway
     if 'body' in event:
@@ -68,17 +76,30 @@ def handler(event, context):
     if "cold_start" in os.environ:
         cold_start_var = os.environ["cold_start"]
 
-    return {
-        'statusCode': 200,
-        'body': json.dumps({
-            'begin': begin.strftime('%s.%f'),
-            'end': end.strftime('%s.%f'),
-            'results_time': results_time,
-            'is_cold': is_cold,
-            'result': log_data,
-            'request_id': context.aws_request_id,
-            'cold_start_var': cold_start_var,
-            'container_id': container_id,
-        })
-    }
+    stats = json.dumps({
+                'begin': begin.strftime('%s.%f'),
+                'end': end.strftime('%s.%f'),
+                'results_time': results_time,
+                'is_cold': is_cold,
+                'result': log_data,
+                'request_id': context.aws_request_id,
+                'cold_start_var': cold_start_var,
+                'container_id': container_id,
+            })
 
+    # HTTP or library trigger: return an HTTP response.
+    if (return_http):
+        return {
+            'statusCode': 200,
+            'body': stats
+        }
+
+    # Queue or storage trigger: return via a result queue.
+    arn = context.invoked_function_arn.split(":")
+    region = arn[3]
+    account_id = arn[4]
+    queue_name = f"{arn[6]}-result"
+
+    from function import queue
+    queue_client = queue.queue(queue_name, account_id, region)
+    queue_client.send_message(stats)

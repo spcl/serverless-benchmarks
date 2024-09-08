@@ -119,6 +119,7 @@ class AWS(System):
         function
         - function.py
         - storage.py
+        - queue.py
         - resources
         handler.py
 

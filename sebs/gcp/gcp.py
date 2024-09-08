@@ -248,7 +248,8 @@ class GCP(System):
                 shutil.move(file, function_dir)
 
         requirements = open(os.path.join(directory, "requirements.txt"), "w")
-        requirements.write("google-cloud-storage")
+        requirements.write("google-cloud-storage\n")
+        requirements.write("google-cloud-pubsub")
         requirements.close()
 
         # rename handler function.py since in gcp it has to be caled main.py
@@ -401,11 +402,17 @@ class GCP(System):
             self.logging.info(f"Created HTTP trigger for {function.name} function")
         elif trigger_type == Trigger.TriggerType.QUEUE:
             trigger = QueueTrigger(
-                function.name, self.get_trigger_resource_name(function.name), self
+                function.name,
+                self.get_trigger_resource_name(function.name),
+                self.config.region
             )
             self.logging.info(f"Created Queue trigger for {function.name} function")
         elif trigger_type == Trigger.TriggerType.STORAGE:
-            trigger = StorageTrigger(function.name, self.get_trigger_resource_name(function.name))
+            trigger = StorageTrigger(
+                function.name,
+                self.get_trigger_resource_name(function.name),
+                self.config.region
+            )
             self.logging.info(f"Created Storage trigger for {function.name} function")
         else:
             raise RuntimeError("Not supported!")

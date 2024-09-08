@@ -8,10 +8,67 @@ def handler_http(req):
     income_timestamp = datetime.datetime.now().timestamp()
     req_id = req.headers.get('Function-Execution-Id')
 
-
     req_json = req.get_json()
     req_json['request-id'] = req_id
     req_json['income-timestamp'] = income_timestamp
+
+    return measure(req_json), 200, {'ContentType': 'application/json'}
+
+def handler_queue(data, context):
+    income_timestamp = datetime.datetime.now().timestamp()
+
+    serialized_payload = data.get('data')
+    payload = json.loads(base64.b64decode(serialized_payload).decode("utf-8"))
+
+    payload['request-id'] = context.event_id
+    payload['income-timestamp'] = income_timestamp
+    
+    stats = measure(payload)
+
+    # Retrieve the project id and construct the result queue name.
+    project_id = context.resource.split("/")[1]
+    topic_name = f"{context.resource.split('/')[3]}-result"
+
+    from function import queue
+    queue_client = queue.queue(topic_name, project_id)
+    queue_client.send_message(stats)
+
+def handler_storage(data, context):
+    income_timestamp = datetime.datetime.now().timestamp()
+
+    bucket_name = data.get('bucket')
+    name = data.get('name')
+    filepath = '/tmp/bucket_contents'
+
+    from function import storage
+    storage_inst = storage.storage.get_instance()
+    storage_inst.download(bucket_name, name, filepath)
+
+    payload = {}
+
+    with open(filepath, 'r') as fp:
+        payload = json.load(fp)
+
+    payload['request-id'] = context.event_id
+    payload['income-timestamp'] = income_timestamp
+
+    stats = measure(payload)
+
+    # Retrieve the project id and construct the result queue name.
+    from google.auth import default
+    # Used to be an env var, now we need an additional request to the metadata
+    # server to retrieve it.
+    _, project_id = default()
+    topic_name = f"{context.resource['name'].split('/')[3]}-result"
+
+    from function import queue
+    queue_client = queue.queue(topic_name, project_id)
+    queue_client.send_message(stats)
+
+# TODO(oana) comment
+def measure(req_json) -> str:
+    req_id = req_json['request-id']
+
     begin = datetime.datetime.now()
     # We are deployed in the same directorygit status
     from function import function
@@ -62,32 +119,4 @@ def handler_http(req):
             'request_id': req_id,
             'cold_start_var': cold_start_var,
             'container_id': container_id,
-        }), 200, {'ContentType': 'application/json'}
-
-def handler_queue(data, context):
-    serialized_payload = data.get('data')
-    payload = json.loads(base64.b64decode(serialized_payload).decode("utf-8"))
-
-    from function import function
-    ret = function.handler(payload)
-
-    # TODO(oana)
-
-def handler_storage(data, context):
-    bucket_name = data.get('bucket')
-    name = data.get('name')
-    filepath = '/tmp/bucket_contents'
-
-    from function import storage
-    storage_inst = storage.storage.get_instance()
-    storage_inst.download(bucket_name, name, filepath)
-
-    payload = {}
-
-    with open(filepath, 'r') as fp:
-        payload = json.load(fp)
-
-    from function import function
-    ret = function.handler(payload)
-
-    # TODO(oana)
+        })

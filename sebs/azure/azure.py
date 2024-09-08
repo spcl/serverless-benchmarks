@@ -573,8 +573,8 @@ class Azure(System):
         time.sleep(20)
 
     """
-        The only implemented trigger at the moment is HTTPTrigger.
-        It is automatically created for each function.
+        Supports HTTP, queue and storage triggers, as specified by
+        the user when SeBS is run.
     """
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
@@ -605,12 +605,36 @@ class Azure(System):
         )
 
         trigger: Trigger
-        if trigger_type == Trigger.TriggerType.QUEUE:
-            trigger = QueueTrigger(function.name, storage_account)
-            self.logging.info(f"Created Queue trigger for {function.name} function")
-        elif trigger_type == Trigger.TriggerType.STORAGE:
-            trigger = StorageTrigger(function.name, storage_account)
-            self.logging.info(f"Created Storage trigger for {function.name} function")
+        if trigger_type == Trigger.TriggerType.QUEUE or trigger_type == Trigger.TriggerType.STORAGE:
+            resource_group = self.config.resources.resource_group(self.cli_instance)
+
+            # Set the storage account as an env var on the function.
+            ret = self.cli_instance.execute(
+                f"az functionapp config appsettings set --name {function.name} "
+                f" --resource-group {resource_group} "
+                f" --settings STORAGE_ACCOUNT={storage_account}"
+            )
+            print(ret.decode())
+
+            # Connect the function app to the result queue via Service
+            # Connector.
+            ret = self.cli_instance.execute(
+                f"az webapp connection create storage-queue "
+                f" --resource-group {resource_group} "
+                f" --target-resource-group {resource_group} "
+                f" --account {storage_account} "
+                f" --name {function.name} "
+                f" --client-type python " # TODO(oana) does this work for nodejs
+                f" --system-identity "
+            )
+            print(ret.decode())
+
+            if trigger_type == Trigger.TriggerType.QUEUE:
+                trigger = QueueTrigger(function.name, storage_account, self.config.region)
+                self.logging.info(f"Created Queue trigger for {function.name} function")
+            elif trigger_type == Trigger.TriggerType.STORAGE:
+                trigger = StorageTrigger(function.name, storage_account, self.config.region)
+                self.logging.info(f"Created Storage trigger for {function.name} function")
         else:
             raise RuntimeError("Not supported!")
 
