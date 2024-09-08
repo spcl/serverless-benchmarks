@@ -13,7 +13,7 @@ from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
-from sebs.faas.function import Trigger
+# from sebs.faas.function import Trigger
 from sebs.faas.storage import PersistentStorage
 from typing import TYPE_CHECKING
 
@@ -471,10 +471,12 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-        self,
-        deployment_build_step: Callable[
-            [str, str, str, str, bool, Optional[Trigger.TriggerType]], Tuple[str, int]
-        ],
+        self, deployment_build_step: Callable[[str, str, str, str, bool], Tuple[str, int]]
+        # TODO(oana) fix?
+        # self,
+        # deployment_build_step: Callable[
+        #     [str, str, str, str, bool, Optional[Trigger.TriggerType]], Tuple[str, int]
+        # ],
     ) -> Tuple[bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
