@@ -4,6 +4,7 @@ from enum import Enum
 
 from sebs.utils import LoggingBase
 
+
 class QueueType(str, Enum):
     TRIGGER = "trigger"
     RESULT = "result"

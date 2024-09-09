@@ -62,7 +62,7 @@ class GCPQueue(Queue):
         # GCP additionally needs a 'subscription' resource which is the
         # actual receiver of the messages. It is constructed and destructed
         # alongside the topic at all times.
-        self.logging.info(f"Creating queue subscription")
+        self.logging.info("Creating queue subscription")
         try:
             self.subscription_client.create_subscription(
                 name=self.subscription_name,

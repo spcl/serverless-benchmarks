@@ -18,7 +18,7 @@ class AzureQueue(Queue):
     def storage_account(self) -> str:
         assert self._storage_account
         return self._storage_account
-    
+
     @property
     def account_url(self) -> str:
         return f"https://{self.storage_account}.queue.core.windows.net"
