@@ -37,16 +37,12 @@ class GCPQueue(Queue):
         self,
         benchmark: str,
         queue_type: QueueType,
-        # cache_client: Cache,
-        # resources: Resources,
         region: str
     ):
         super().__init__(
             benchmark,
             queue_type,
             region
-            # cache_client,
-            # resources
         )
         self.client = pubsub_v1.PublisherClient()
         self._subscription_client = pubsub_v1.SubscriberClient()

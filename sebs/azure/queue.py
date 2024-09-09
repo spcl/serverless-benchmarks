@@ -30,8 +30,6 @@ class AzureQueue(Queue):
         self,
         benchmark: str,
         queue_type: QueueType,
-        # cache_client: Cache,
-        # resources: Resources,
         storage_account: str,
         region: str
     ):
@@ -41,8 +39,6 @@ class AzureQueue(Queue):
             benchmark,
             queue_type,
             region
-            # cache_client,
-            # resources
         )
         self._storage_account = storage_account
         self.client = QueueClient(self.account_url,

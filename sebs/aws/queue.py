@@ -36,8 +36,6 @@ class SQS(Queue):
             benchmark,
             queue_type,
             region
-            # deployment_client.cache_client,
-            # deployment_client.config.resources
         )
         self._queue_url = queue_url
         self._queue_arn = queue_arn
