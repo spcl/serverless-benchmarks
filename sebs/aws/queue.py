@@ -1,7 +1,4 @@
-from typing import Optional, cast
-from sebs.aws.aws import AWS
-from sebs.cache import Cache
-from sebs.faas.config import Resources
+from typing import Optional
 from sebs.faas.queue import Queue, QueueType
 
 import boto3

@@ -1,10 +1,7 @@
-from sebs.cache import Cache
-from sebs.faas.config import Resources
 from sebs.faas.queue import Queue, QueueType
 
 from azure.core.exceptions import ResourceExistsError
 from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient
 from azure.storage.queue import QueueClient
 
 

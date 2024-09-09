@@ -1,8 +1,3 @@
-from typing import Optional
-from googleapiclient.discovery import build
-
-from sebs.cache import Cache
-from sebs.faas.config import Resources
 from sebs.faas.queue import Queue, QueueType
 
 from google.api_core import retry
