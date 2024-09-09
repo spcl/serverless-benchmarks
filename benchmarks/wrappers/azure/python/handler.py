@@ -60,9 +60,9 @@ def handler_storage(blob: func.InputStream, context: func.Context):
     queue_client = queue.queue(queue_name, storage_account)
     queue_client.send_message(stats)
 
+# Contains generic logic for gathering measurements for the function at hand,
+# given a request JSON. Used by all handlers, regardless of the trigger.
 def measure(req_json) -> str:
-    # logging.info("TIPU") TODO(oana) remove
-    # logging.info(type(req_json))
     req_id = req_json['request-id']
 
     begin = datetime.datetime.now()

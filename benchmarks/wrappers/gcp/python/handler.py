@@ -65,7 +65,8 @@ def handler_storage(data, context):
     queue_client = queue.queue(topic_name, project_id)
     queue_client.send_message(stats)
 
-# TODO(oana) comment
+# Contains generic logic for gathering measurements for the function at hand,
+# given a request JSON. Used by all handlers, regardless of the trigger.
 def measure(req_json) -> str:
     req_id = req_json['request-id']
 

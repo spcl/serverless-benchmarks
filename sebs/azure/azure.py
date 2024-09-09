@@ -351,7 +351,6 @@ class Azure(System):
         self._mount_function_code(code_package)
         url = self.publish_function(function, code_package, True)
 
-        # TODO(oana): this might need refactoring
         if function.name.endswith("http"):
             trigger = HTTPTrigger(
                 url, self.config.resources.data_storage_account(self.cli_instance)
@@ -624,7 +623,6 @@ class Azure(System):
                 f" --target-resource-group {resource_group} "
                 f" --account {storage_account} "
                 f" --name {function.name} "
-                f" --client-type python " # TODO(oana) does this work for nodejs
                 f" --system-identity "
             )
             print(ret.decode())

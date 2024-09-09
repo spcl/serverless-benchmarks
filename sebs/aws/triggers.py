@@ -217,7 +217,6 @@ class QueueTrigger(Trigger):
         
         end = datetime.datetime.now()
 
-        # TODO(oana) error handling
         result = ExecutionResult.from_times(begin, end)
         result.parse_benchmark_output(json.loads(response))
         return result
@@ -371,7 +370,6 @@ class StorageTrigger(Trigger):
 
         end = datetime.datetime.now()
 
-        # TODO(oana) error handling
         result = ExecutionResult.from_times(begin, end)
         result.parse_benchmark_output(json.loads(response))
         return result

@@ -146,7 +146,6 @@ class QueueTrigger(Trigger):
 
         end = datetime.datetime.now()
 
-        # TODO(oana) error handling
         result = ExecutionResult.from_times(begin, end)
         result.parse_benchmark_output(json.loads(response))
         return result
@@ -278,18 +277,13 @@ class StorageTrigger(Trigger):
             blob_client.upload_blob(payload_data, overwrite=True)
         self.logging.info(f"Uploaded payload to container {self.container_name}")
 
-        response = "" # TODO(oana) cleanup
-        # while (response == ""):
-        #     response = self.result_queue.receive_message()
-        #     if (response == ""):
-        #         time.sleep(5)
+        response = ""
         while (response == ""):
             time.sleep(5)
             response = self.result_queue.receive_message()
             
         end = datetime.datetime.now()
 
-        # TODO(oana) error handling
         result = ExecutionResult.from_times(begin, end)
         result.parse_benchmark_output(json.loads(response))
         return result
