@@ -1,1 +1,3 @@
 azure-storage-blob==12.10.0
+azure-storage-queue==12.9.0
+azure-identity==1.16.0

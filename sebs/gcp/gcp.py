@@ -103,6 +103,94 @@ class GCP(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
+    """
+        Provide the fully qualified name of a trigger resource (queue or storage).
+    """
+
+    def get_trigger_resource_name(self, func_name: str) -> str:
+        trigger = func_name.split("-")[-1]
+
+        assert trigger == "queue" or trigger == "storage"
+
+        if trigger == "queue":
+            return "projects/{project_name}/topics/{topic}".format(
+                project_name=self.config.project_name, topic=func_name
+            )
+        else:
+            return "projects/{project_name}/buckets/{bucket}".format(
+                project_name=self.config.project_name, bucket=func_name
+            )
+
+    """
+        Trigger resources (queue, bucket) must exist on GCP before the
+        corresponding function is first deployed.
+
+        This function creates the required resources and returns a dict
+        containing trigger information required by create_req inside of
+        create_function.
+
+        :param func_name: the name of the function to be deployed,
+        including its trigger
+
+        :param cached: when True, skip the creation of the actual resource
+        - merely create the configuration required to deploy the function.
+        This option is used in update_function() only.
+
+        :return: JSON/dict with the trigger configuration required by GCP
+        on function creation/update
+    """
+
+    def create_trigger_resource(self, func_name: str, cached=False) -> Dict:
+        trigger = func_name.split("-")[-1]
+
+        if trigger == "queue":
+            topic_name = self.get_trigger_resource_name(func_name)
+
+            if not cached:
+                pub_sub = build("pubsub", "v1", cache_discovery=False)
+
+                self.logging.info(f"Creating queue '{topic_name}'")
+                try:
+                    pub_sub.projects().topics().create(name=topic_name).execute()
+                    self.logging.info("Created queue")
+                except HttpError as http_error:
+                    if http_error.resp.status == 409:
+                        self.logging.info("Queue already exists, reusing...")
+
+            return {
+                "eventTrigger": {
+                    "eventType": "providers/cloud.pubsub/eventTypes/topic.publish",
+                    "resource": topic_name,
+                },
+                "entryPoint": "handler_queue",
+            }
+        elif trigger == "storage":
+            bucket_name = self.get_trigger_resource_name(func_name)
+
+            if not cached:
+                storage = build("storage", "v1", cache_discovery=False)
+
+                self.logging.info(f"Creating storage bucket '{bucket_name}'")
+                try:
+                    storage.buckets().insert(
+                        project=self.config.project_name,
+                        body={"name": func_name},
+                    ).execute()
+                    self.logging.info("Created storage bucket")
+                except HttpError as http_error:
+                    if http_error.resp.status == 409:
+                        self.logging.info("Storage bucket already exists, reusing...")
+
+            return {
+                "eventTrigger": {
+                    "eventType": "google.storage.object.finalize",
+                    "resource": bucket_name,
+                },
+                "entryPoint": "handler_storage",
+            }
+        # HTTP triggers do not require resource creation
+        return {"httpsTrigger": {}, "entryPoint": "handler_http"}
+
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
         # Create function name
@@ -140,6 +228,7 @@ class GCP(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        trigger: Optional[Trigger.TriggerType],
     ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
@@ -159,7 +248,8 @@ class GCP(System):
                 shutil.move(file, function_dir)
 
         requirements = open(os.path.join(directory, "requirements.txt"), "w")
-        requirements.write("google-cloud-storage")
+        requirements.write("google-cloud-storage\n")
+        requirements.write("google-cloud-pubsub")
         requirements.close()
 
         # rename handler function.py since in gcp it has to be caled main.py
@@ -218,6 +308,10 @@ class GCP(System):
         try:
             get_req.execute()
         except HttpError:
+            # Before creating the function, ensure all trigger resources (queue,
+            # bucket) exist on GCP.
+            trigger_info = self.create_trigger_resource(func_name)
+
             create_req = (
                 self.function_client.projects()
                 .locations()
@@ -228,14 +322,13 @@ class GCP(System):
                     ),
                     body={
                         "name": full_func_name,
-                        "entryPoint": "handler",
                         "runtime": code_package.language_name + language_runtime.replace(".", ""),
                         "availableMemoryMb": memory,
                         "timeout": str(timeout) + "s",
-                        "httpsTrigger": {},
                         "ingressSettings": "ALLOW_ALL",
                         "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
-                    },
+                    }
+                    | trigger_info,
                 )
             )
             create_req.execute()
@@ -284,28 +377,43 @@ class GCP(System):
         return function
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
-        from sebs.gcp.triggers import HTTPTrigger
+        from sebs.gcp.triggers import HTTPTrigger, QueueTrigger, StorageTrigger
 
+        location = self.config.region
+        project_name = self.config.project_name
+        full_func_name = GCP.get_full_function_name(project_name, location, function.name)
+        self.logging.info(f"Function {function.name} - waiting for deployment...")
+        our_function_req = (
+            self.function_client.projects().locations().functions().get(name=full_func_name)
+        )
+        deployed = False
+        while not deployed:
+            status_res = our_function_req.execute()
+            if status_res["status"] == "ACTIVE":
+                deployed = True
+            else:
+                time.sleep(3)
+        self.logging.info(f"Function {function.name} - deployed!")
+
+        trigger: Trigger
         if trigger_type == Trigger.TriggerType.HTTP:
-
-            location = self.config.region
-            project_name = self.config.project_name
-            full_func_name = GCP.get_full_function_name(project_name, location, function.name)
-            self.logging.info(f"Function {function.name} - waiting for deployment...")
-            our_function_req = (
-                self.function_client.projects().locations().functions().get(name=full_func_name)
-            )
-            deployed = False
-            while not deployed:
-                status_res = our_function_req.execute()
-                if status_res["status"] == "ACTIVE":
-                    deployed = True
-                else:
-                    time.sleep(3)
-            self.logging.info(f"Function {function.name} - deployed!")
             invoke_url = status_res["httpsTrigger"]["url"]
-
             trigger = HTTPTrigger(invoke_url)
+            self.logging.info(f"Created HTTP trigger for {function.name} function")
+        elif trigger_type == Trigger.TriggerType.QUEUE:
+            trigger = QueueTrigger(
+                function.name,
+                self.get_trigger_resource_name(function.name),
+                self.config.region
+            )
+            self.logging.info(f"Created Queue trigger for {function.name} function")
+        elif trigger_type == Trigger.TriggerType.STORAGE:
+            trigger = StorageTrigger(
+                function.name,
+                self.get_trigger_resource_name(function.name),
+                self.config.region
+            )
+            self.logging.info(f"Created Storage trigger for {function.name} function")
         else:
             raise RuntimeError("Not supported!")
 
@@ -317,12 +425,20 @@ class GCP(System):
     def cached_function(self, function: Function):
 
         from sebs.faas.function import Trigger
-        from sebs.gcp.triggers import LibraryTrigger
+        from sebs.gcp.triggers import LibraryTrigger, QueueTrigger, StorageTrigger
 
+        gcp_trigger: Trigger
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             gcp_trigger = cast(LibraryTrigger, trigger)
             gcp_trigger.logging_handlers = self.logging_handlers
             gcp_trigger.deployment_client = self
+        for trigger in function.triggers(Trigger.TriggerType.QUEUE):
+            gcp_trigger = cast(QueueTrigger, trigger)
+            gcp_trigger.logging_handlers = self.logging_handlers
+            gcp_trigger.deployment_client = self
+        for trigger in function.triggers(Trigger.TriggerType.STORAGE):
+            gcp_trigger = cast(StorageTrigger, trigger)
+            gcp_trigger.logging_handlers = self.logging_handlers
 
     def update_function(self, function: Function, code_package: Benchmark):
 
@@ -337,6 +453,11 @@ class GCP(System):
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
+
+        # Before creating the function, ensure all trigger resources (queue,
+        # bucket) exist on GCP.
+        trigger_info = self.create_trigger_resource(function.name, cached=True)
+
         req = (
             self.function_client.projects()
             .locations()
@@ -345,13 +466,12 @@ class GCP(System):
                 name=full_func_name,
                 body={
                     "name": full_func_name,
-                    "entryPoint": "handler",
                     "runtime": code_package.language_name + language_runtime.replace(".", ""),
                     "availableMemoryMb": function.config.memory,
                     "timeout": str(function.config.timeout) + "s",
-                    "httpsTrigger": {},
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-                },
+                }
+                | trigger_info,
             )
         )
         res = req.execute()

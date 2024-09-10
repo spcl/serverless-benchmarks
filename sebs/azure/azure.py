@@ -37,6 +37,10 @@ class Azure(System):
     def name():
         return "azure"
 
+    @staticmethod
+    def typename():
+        return "Azure"
+
     @property
     def config(self) -> AzureConfig:
         return self._config
@@ -146,6 +150,61 @@ class Azure(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
+    """
+        Composes the JSON config that describes the trigger and bindings configs
+        for a given function to be run on Azure.
+
+        :param benchmark:
+        :param exec_files: the files which define and implement the function to be executed
+        :return: JSON dictionary containing the function configuration
+    """
+
+    def create_function_json(self, benchmark, exec_files) -> Dict:
+        trigger = benchmark.split("-")[-1]
+
+        if trigger == "queue":
+            return {
+                "scriptFile": exec_files,
+                "entryPoint": "handler_queue",
+                "bindings": [
+                    {
+                        "name": "msg",
+                        "type": "queueTrigger",
+                        "direction": "in",
+                        "queueName": benchmark,
+                        "connection": "AzureWebJobsStorage",
+                    }
+                ],
+            }
+        elif trigger == "storage":
+            return {
+                "scriptFile": exec_files,
+                "entryPoint": "handler_storage",
+                "bindings": [
+                    {
+                        "name": "blob",
+                        "type": "blobTrigger",
+                        "direction": "in",
+                        "path": benchmark,
+                        "connection": "AzureWebJobsStorage",
+                    }
+                ],
+            }
+        return {  # HTTP
+            "scriptFile": exec_files,
+            "entryPoint": "handler_http",
+            "bindings": [
+                {
+                    "authLevel": "anonymous",
+                    "type": "httpTrigger",
+                    "direction": "in",
+                    "name": "req",
+                    "methods": ["get", "post"],
+                },
+                {"type": "http", "direction": "out", "name": "$return"},
+            ],
+        }
+
     # Directory structure
     # handler
     # - source files
@@ -161,6 +220,7 @@ class Azure(System):
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        trigger: Optional[Trigger.TriggerType],
     ) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
@@ -180,23 +240,25 @@ class Azure(System):
                 source_file = os.path.join(directory, f)
                 shutil.move(source_file, handler_dir)
 
+        func_name = (
+            "{}-{}-{}-{}-{}".format(
+                benchmark,
+                language_name,
+                language_version,
+                self.config.resources.resources_id,
+                trigger,
+            )
+            .replace(".", "-")
+            .replace("_", "-")
+        )
+
         # generate function.json
-        # TODO: extension to other triggers than HTTP
-        default_function_json = {
-            "scriptFile": EXEC_FILES[language_name],
-            "bindings": [
-                {
-                    "authLevel": "anonymous",
-                    "type": "httpTrigger",
-                    "direction": "in",
-                    "name": "req",
-                    "methods": ["get", "post"],
-                },
-                {"type": "http", "direction": "out", "name": "$return"},
-            ],
-        }
         json_out = os.path.join(directory, "handler", "function.json")
-        json.dump(default_function_json, open(json_out, "w"), indent=2)
+        json.dump(
+            self.create_function_json(func_name, EXEC_FILES[language_name]),
+            open(json_out, "w"),
+            indent=2,
+        )
 
         # generate host.json
         default_host_json = {
@@ -291,9 +353,12 @@ class Azure(System):
         container_dest = self._mount_function_code(code_package)
         url = self.publish_function(function, code_package, container_dest, True)
 
-        trigger = HTTPTrigger(url, self.config.resources.data_storage_account(self.cli_instance))
-        trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(trigger)
+        if function.name.endswith("http"):
+            trigger = HTTPTrigger(
+                url, self.config.resources.data_storage_account(self.cli_instance)
+            )
+            trigger.logging_handlers = self.logging_handlers
+            function.add_trigger(trigger)
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout
@@ -404,7 +469,6 @@ class Azure(System):
         return function
 
     def cached_function(self, function: Function):
-
         data_storage_account = self.config.resources.data_storage_account(self.cli_instance)
         for trigger in function.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
@@ -513,12 +577,74 @@ class Azure(System):
         time.sleep(20)
 
     """
-        The only implemented trigger at the moment is HTTPTrigger.
-        It is automatically created for each function.
+        Supports HTTP, queue and storage triggers, as specified by
+        the user when SeBS is run.
     """
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
-        raise NotImplementedError()
+        from sebs.azure.triggers import QueueTrigger, StorageTrigger
+
+        azure_function = cast(AzureFunction, function)
+        resource_group = self.config.resources.resource_group(self.cli_instance)
+        storage_account = azure_function.function_storage.account_name
+
+        user_principal_name = self.cli_instance.execute("az ad user list")
+
+        storage_account_scope = self.cli_instance.execute(
+            ("az storage account show --resource-group {} --name {} --query id").format(
+                resource_group, storage_account
+            )
+        )
+
+        self.cli_instance.execute(
+            (
+                'az role assignment create --assignee "{}" \
+              --role "Storage {} Data Contributor" \
+              --scope {}'
+            ).format(
+                json.loads(user_principal_name.decode("utf-8"))[0]["userPrincipalName"],
+                "Queue" if trigger_type == Trigger.TriggerType.QUEUE else "Blob",
+                storage_account_scope.decode("utf-8"),
+            )
+        )
+
+        trigger: Trigger
+        if trigger_type == Trigger.TriggerType.QUEUE or trigger_type == Trigger.TriggerType.STORAGE:
+            resource_group = self.config.resources.resource_group(self.cli_instance)
+
+            # Set the storage account as an env var on the function.
+            ret = self.cli_instance.execute(
+                f"az functionapp config appsettings set --name {function.name} "
+                f" --resource-group {resource_group} "
+                f" --settings STORAGE_ACCOUNT={storage_account}"
+            )
+            print(ret.decode())
+
+            # Connect the function app to the result queue via Service
+            # Connector.
+            ret = self.cli_instance.execute(
+                f"az webapp connection create storage-queue "
+                f" --resource-group {resource_group} "
+                f" --target-resource-group {resource_group} "
+                f" --account {storage_account} "
+                f" --name {function.name} "
+                f" --system-identity "
+            )
+            print(ret.decode())
+
+            if trigger_type == Trigger.TriggerType.QUEUE:
+                trigger = QueueTrigger(function.name, storage_account, self.config.region)
+                self.logging.info(f"Created Queue trigger for {function.name} function")
+            elif trigger_type == Trigger.TriggerType.STORAGE:
+                trigger = StorageTrigger(function.name, storage_account, self.config.region)
+                self.logging.info(f"Created Storage trigger for {function.name} function")
+        else:
+            raise RuntimeError("Not supported!")
+
+        trigger.logging_handlers = self.logging_handlers
+        function.add_trigger(trigger)
+        self.cache_client.update_function(function)
+        return trigger
 
 
 #

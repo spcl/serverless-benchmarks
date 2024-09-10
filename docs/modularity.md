@@ -267,7 +267,8 @@ Check other platforms to see how configuration is defined, for example, for AWS:
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "queue.py"
           ],
           "packages": []
         }
@@ -303,6 +304,7 @@ Implement this step in the following function:
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        trigger: Optional[Trigger.TriggerType],
     ) -> Tuple[str, int]
 ```
 

@@ -162,7 +162,9 @@ class Cache(LoggingBase):
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
-    def add_code_package(self, deployment_name: str, language_name: str, code_package: "Benchmark"):
+    def add_code_package(
+        self, deployment_name: str, language_name: str, code_package: "Benchmark"
+    ):
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
