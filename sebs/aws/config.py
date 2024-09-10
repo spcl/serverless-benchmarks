@@ -79,7 +79,7 @@ class AWSCredentials(Credentials):
                 "your cache directory or create a new one!"
             )
             raise RuntimeError(
-                f"AWS login credentials do not match the acccount {account_id} in cache!"
+                f"AWS login credentials do not match the account {account_id} in cache!"
             )
         ret.logging_handlers = handlers
         return ret

@@ -120,6 +120,7 @@ def parse_common_params(
     resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
+    storage_configuration: Optional[str] = None
 ):
 
     global sebs_client, deployment_client
@@ -138,6 +139,10 @@ def parse_common_params(
     update_nested_dict(config_obj, ["deployment", "name"], deployment)
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
+
+    if storage_configuration:
+        cfg = json.load(open(storage_configuration, 'r'))
+        update_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
@@ -416,7 +421,7 @@ def local():
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
 @click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
-@click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
+@click.option("--storage-configuration", type=str, help="JSON configuration of deployed storage.")
 @click.option("--measure-interval", type=int, default=-1,
               help="Interval duration between memory measurements in ms.")
 @click.option(
@@ -425,14 +430,15 @@ def local():
     help="Remove containers after stopping.",
 )
 @simplified_common_params
-def start(benchmark, benchmark_input_size, output, deployments, measure_interval,
-          remove_containers, **kwargs):
+def start(benchmark, benchmark_input_size, output, deployments, storage_configuration,
+          measure_interval, remove_containers, **kwargs):
     """
     Start a given number of function instances and a storage instance.
     """
 
     (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
-        ignore_cache=True, update_code=False, update_storage=False, deployment="local", **kwargs
+        ignore_cache=True, update_code=False, update_storage=False,
+        deployment="local", storage_configuration=storage_configuration, **kwargs
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers

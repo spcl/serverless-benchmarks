@@ -1,10 +1,12 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG VERSION
-ENV HOME=/home/${USER}
+ENV NVM_DIR=/nvm
 
-RUN install_node --ignore-verification-failure v${VERSION}
-RUN apt-get update && apt-get install -y gosu
+#RUN install_node --ignore-verification-failure v${VERSION}
+RUN apt-get update && apt-get install -y gosu wget
+RUN mkdir -p ${NVM_DIR} && wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+RUN . ${NVM_DIR}/nvm.sh && nvm install ${VERSION} && nvm alias default ${VERSION} && nvm use default
 
 RUN mkdir -p /sebs/
 COPY dockerfiles/nodejs_installer.sh /sebs/installer.sh
@@ -16,3 +18,4 @@ ENV PATH=/usr/sbin:$PATH
 ENV SCRIPT_FILE=/mnt/function/package.sh
 CMD /bin/bash /sebs/installer.sh
 ENTRYPOINT ["/sebs/entrypoint.sh"]
+

@@ -94,7 +94,7 @@ class Cache(LoggingBase):
                         json.dump(self.cached_config[cloud], out, indent=2)
 
     """
-        Acccess cached config of a benchmark.
+        Access cached config of a benchmark.
 
         :param deployment: allowed deployment clouds or local
         :param benchmark:
@@ -111,7 +111,7 @@ class Cache(LoggingBase):
                 return cfg[deployment] if deployment in cfg else None
 
     """
-        Acccess cached version of benchmark code.
+        Access cached version of benchmark code.
 
         :param deployment: allowed deployment clouds or local
         :param benchmark:
@@ -139,7 +139,7 @@ class Cache(LoggingBase):
             return None
 
     """
-        Acccess cached storage config of a benchmark.
+        Access cached storage config of a benchmark.
 
         :param deployment: allowed deployment clouds or local
         :param benchmark:
@@ -247,7 +247,7 @@ class Cache(LoggingBase):
                 if os.path.isdir(code_package.code_location):
                     cached_location = os.path.join(cached_dir, "code")
                     # could be replaced with dirs_exists_ok in copytree
-                    # availble in 3.8
+                    # available in 3.8
                     shutil.rmtree(cached_location)
                     shutil.copytree(src=code_package.code_location, dst=cached_location)
                 # copy zip file

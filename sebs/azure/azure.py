@@ -4,6 +4,7 @@ import re
 import os
 import shutil
 import time
+import uuid
 from typing import cast, Dict, List, Optional, Set, Tuple, Type  # noqa
 
 import docker
@@ -264,7 +265,7 @@ class Azure(System):
             "version": "2.0",
             "extensionBundle": {
                 "id": "Microsoft.Azure.Functions.ExtensionBundle",
-                "version": "[1.*, 2.0.0)",
+                "version": "[4.0.0, 5.0.0)",
             },
         }
         json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
@@ -277,6 +278,7 @@ class Azure(System):
         self,
         function: Function,
         code_package: Benchmark,
+        container_dest: str,
         repeat_on_failure: bool = False,
     ) -> str:
         success = False
@@ -285,7 +287,7 @@ class Azure(System):
         while not success:
             try:
                 ret = self.cli_instance.execute(
-                    "bash -c 'cd /mnt/function "
+                    f"bash -c 'cd {container_dest} "
                     "&& func azure functionapp publish {} --{} --no-build'".format(
                         function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
@@ -348,8 +350,8 @@ class Azure(System):
     def update_function(self, function: Function, code_package: Benchmark):
 
         # Mount code package in Docker instance
-        self._mount_function_code(code_package)
-        url = self.publish_function(function, code_package, True)
+        container_dest = self._mount_function_code(code_package)
+        url = self.publish_function(function, code_package, container_dest, True)
 
         if function.name.endswith("http"):
             trigger = HTTPTrigger(
@@ -364,8 +366,10 @@ class Azure(System):
             "Updating function's memory and timeout configuration is not supported."
         )
 
-    def _mount_function_code(self, code_package: Benchmark):
-        self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
+    def _mount_function_code(self, code_package: Benchmark) -> str:
+        dest = os.path.join("/mnt", "function", uuid.uuid4().hex)
+        self.cli_instance.upload_package(code_package.code_location, dest)
+        return dest
 
     def default_function_name(self, code_package: Benchmark) -> str:
         """
@@ -431,6 +435,7 @@ class Azure(System):
                             " --os-type Linux --consumption-plan-location {region} "
                             " --runtime {runtime} --runtime-version {runtime_version} "
                             " --name {func_name} --storage-account {storage_account}"
+                            " --functions-version 4 "
                         ).format(**config)
                     )
                     self.logging.info("Azure: Created function app {}".format(func_name))

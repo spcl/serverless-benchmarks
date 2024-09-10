@@ -122,7 +122,7 @@ class System(ABC, LoggingBase):
         self.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
 
     """
-        Initialize the system. After the call the local or remot
+        Initialize the system. After the call the local or remote
         FaaS system should be ready to allocate functions, manage
         storage resources and invoke functions.
 

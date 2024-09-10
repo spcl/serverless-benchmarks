@@ -1,5 +1,7 @@
 import os
+import requests
 import shutil
+import time
 from typing import cast, Dict, List, Optional, Type, Tuple  # noqa
 import subprocess
 
@@ -9,7 +11,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
-from sebs.storage.minio import Minio
+from sebs.local.storage import Minio
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
@@ -222,6 +224,24 @@ class Local(System):
             function_cfg,
             pid,
         )
+
+        # Wait until server starts
+        max_attempts = 10
+        attempts = 0
+        while attempts < max_attempts:
+            try:
+                requests.get(f"http://{func.url}/alive")
+                break
+            except requests.exceptions.ConnectionError:
+                time.sleep(0.25)
+                attempts += 1
+
+        if attempts == max_attempts:
+            raise RuntimeError(
+                f"Couldn't start {func_name} function at container "
+                f"{container.id} , running on {func._url}"
+            )
+
         self.logging.info(
             f"Started {func_name} function at container {container.id} , running on {func._url}"
         )

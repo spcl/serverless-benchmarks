@@ -126,6 +126,7 @@ class AWSTestSequencePython(
                 self.client.output_dir, f"regression_{deployment_name}_{benchmark_name}.log"
             ),
         )
+
         with AWSTestSequencePython.lock:
             deployment_client.initialize(resource_prefix="regression")
         return deployment_client
@@ -229,7 +230,8 @@ class GCPTestSequencePython(
             cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
-        deployment_client.initialize()
+        with GCPTestSequencePython.lock:
+            deployment_client.initialize(resource_prefix="regression")
         return deployment_client
 
 
@@ -247,7 +249,8 @@ class GCPTestSequenceNodejs(
             cloud_config,
             logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
         )
-        deployment_client.initialize()
+        with GCPTestSequenceNodejs.lock:
+            deployment_client.initialize(resource_prefix="regression")
         return deployment_client
 
 
@@ -322,8 +325,15 @@ def filter_out_benchmarks(
     benchmark: str, deployment_name: str, language: str, language_version: str
 ) -> bool:
 
-    if deployment_name == "aws" and language == "python" and language_version == "3.9":
+    # fmt: off
+    if (deployment_name == "aws" and language == "python"
+            and language_version in ["3.9", "3.10", "3.11"]):
         return "411.image-recognition" not in benchmark
+
+    if (deployment_name == "gcp" and language == "python"
+            and language_version in ["3.8", "3.9", "3.10", "3.11", "3.12"]):
+        return "411.image-recognition" not in benchmark
+    # fmt: on
 
     return True
 
