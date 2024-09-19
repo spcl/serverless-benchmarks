@@ -1,5 +1,5 @@
 import com.google.gson.JsonObject;
-import java.util.faas.Function;
+import com.example.project.App ;
 import java.time.Instant;
 import java.time.Duration;
 import java.io.File;
@@ -13,7 +13,7 @@ public class Main {
         // logger.setLevel(Level.INFO);
         
         Gson gson = new Gson();
-        Function function = new Function();
+        App function = new App();
 
         Instant begin = Instant.now();
         JsonObject result = function.handler(args);
