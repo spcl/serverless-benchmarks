@@ -316,6 +316,8 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "java": ["pom.xml"],
+
         }
         path = os.path.join(self.benchmark_path, self.language_name)
         for file_type in FILES[self.language_name]:
@@ -357,6 +359,16 @@ class Benchmark(LoggingBase):
         ]
         for file in handlers:
             shutil.copy2(file, os.path.join(output_dir))
+
+    def add_deployment_package_java(self, output_dir):
+        # append to the end of requirements file
+        packages = self._system_config.deployment_packages(
+            self._deployment_name, self.language_name
+        )
+        if len(packages):
+            with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
+                for package in packages:
+                    out.write(package)
 
     def add_deployment_package_python(self, output_dir):
 
@@ -406,6 +418,8 @@ class Benchmark(LoggingBase):
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
+        elif self.language == Language.JAVA:
+            self.add_deployment_package_java(output_dir)
         else:
             raise NotImplementedError
 
