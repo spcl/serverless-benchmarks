@@ -10,7 +10,7 @@
       },
       "type": "invocation-overhead",
       "perf-cost": {
-        "benchmark": "110.dynamic-html",
+        "benchmark": "601.hello-world",
         "experiments": ["cold", "warm", "burst", "sequential"],
         "input-size": "test",
         "repetitions": 50,
