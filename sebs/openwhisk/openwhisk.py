@@ -168,7 +168,7 @@ class OpenWhisk(System):
         )
 
         for fn in os.listdir(directory):
-            if fn not in ("index.js", "__main__.py", "Main.java"):
+            if fn not in ("index.js", "__main__.py"):
                 file = os.path.join(directory, fn)
                 shutil.move(file, build_dir)
 

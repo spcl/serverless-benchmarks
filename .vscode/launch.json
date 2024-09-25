@@ -1,0 +1,27 @@
+
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Debug sebs.py Command",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/sebs.py",  // Path to sebs.py script
+            "args": [
+                "benchmark",
+                "invoke",
+                "602.login-checker",
+                "test",
+                "--config",
+                "config/example2.json",
+                "--deployment",
+                "openwhisk",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",  // Runs in VS Code's integrated terminal
+            "cwd": "${workspaceFolder}",  // Set the current working directory to the workspace
+            "justMyCode": false
+        }
+    ]
+ }
+ 

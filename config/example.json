@@ -78,13 +78,13 @@
         "password": ""
       },
       "storage": {
-        "address": "",
-        "mapped_port": -1,
-        "access_key": "",
-        "secret_key": "",
-        "instance_id": "",
-        "input_buckets": [],
+        "address": "172.20.10.3:9011",
+        "mapped_port": 9011,
+        "access_key": "mtkTCw_sA0UqcSkgGD60AN8tLr2nx1sXympC6q7wCLA",
+        "secret_key": "4bea2b1443d8fd7e537176c52f2f979dd42026b2321019c59435a4bfe872381c",
+        "instance_id": "c7b51cf6f93e85580994550ec08ae7edad9245b6a56ebde1a39265adaa1e7818",
         "output_buckets": [],
+        "input_buckets": [],
         "type": "minio"
       }
     }
