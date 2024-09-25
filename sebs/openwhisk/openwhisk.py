@@ -219,7 +219,7 @@ class OpenWhisk(System):
         CONFIG_FILES = {
             "python": ["__main__.py"],
             "nodejs": ["index.js"],
-            "nodejs": ["Main.java"],
+            "java": ["Main.java"],
         }
         package_config = CONFIG_FILES[language_name]
 
