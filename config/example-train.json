@@ -10,7 +10,7 @@
       },
       "type": "invocation-overhead",
       "perf-cost": {
-        "benchmark": "601.hello-world",
+        "benchmark": "603.train-recommender",
         "experiments": ["cold", "warm", "burst", "sequential"],
         "input-size": "test",
         "repetitions": 50,
@@ -53,16 +53,15 @@
           "password": ""
         },
         "storage": {
-          "address": "",
+          "address": "172.20.10.3:9011",
           "mapped_port": 9011,
-          "access_key": "",
-          "secret_key": "",
-          "instance_id": "",
+          "access_key": "4K_4r6_i10-WCXctJT7cjSVvr02yzHebpQHdHs96NcM",
+          "secret_key": "7f870971968d1cb7356876993fe61e4edc5977e3825b9617e796e8a333af0ad2",
+          "instance_id": "976374b8ec72f70dc1ac9d414d639f03bb86e1db77eb54291450c9b5ea5df689",
           "output_buckets": [],
           "input_buckets": [],
           "type": "minio"
-         }
-         
+        }
       }
     }
   }
