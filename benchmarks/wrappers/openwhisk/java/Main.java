@@ -19,12 +19,17 @@ public class Main {
         Gson gson = new Gson();
         App function = new App();
 
+        long start_nano = System.nanoTime();
+
         Instant begin = Instant.now();
         JsonObject result = function.handler(args);
         Instant end = Instant.now();
 
-        long computeTime = Duration.between(begin, end).toNanos() / 1000; // Convert nanoseconds to microseconds
+        long end_nano = System.nanoTime();
 
+        // long computeTime = Duration.between(begin, end).toNanos() / 1000; // Convert nanoseconds to microseconds
+
+        long computeTime = end_nano - start_nano;
         boolean isCold = false;
         String fileName = "/cold_run"; 
 
@@ -47,7 +52,7 @@ public class Main {
         JsonObject jsonResult = new JsonObject();
         jsonResult.addProperty("begin", formattedBegin); 
         jsonResult.addProperty("end", formattedEnd);
-        jsonResult.addProperty("request_id", "requestId");  
+        jsonResult.addProperty("request_id", requestId);  
         jsonResult.addProperty("compute_time", computeTime);
         jsonResult.addProperty("is_cold", isCold);
         jsonResult.addProperty("result", result.toString());

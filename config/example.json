@@ -5,67 +5,11 @@
     "update_storage": false,
     "download_results": false,
     "runtime": {
-      "language": "python",
-      "version": "3.7"
-    },
-    "type": "invocation-overhead",
-    "perf-cost": {
-      "benchmark": "110.dynamic-html",
-      "experiments": ["cold", "warm", "burst", "sequential"],
-      "input-size": "test",
-      "repetitions": 50,
-      "concurrent-invocations": 50,
-      "memory-sizes": [128, 256]
-    },
-    "network-ping-pong": {
-      "invocations": 50,
-      "repetitions": 1000,
-      "threads": 1
-    },
-    "invocation-overhead": {
-      "repetitions": 5,
-      "N": 20,
-      "type": "payload",
-      "payload_begin": 1024,
-      "payload_end": 6251000,
-      "payload_points": 20,
-      "code_begin": 1048576,
-      "code_end": 261619712,
-      "code_points": 20
-    },
-    "eviction-model": {
-      "invocations": 1,
-      "function_copy_idx": 0,
-      "repetitions": 5,
-      "sleep": 1
+      "language": "java",
+      "version": "8"
     }
   },
   "deployment": {
-    "name": "aws",
-    "aws": {
-      "region": "us-east-1",
-      "lambda-role": ""
-    },
-    "azure": {
-      "region": "westeurope"
-    },
-    "gcp": {
-      "region": "europe-west1",
-      "project_name": "",
-      "credentials": ""
-    },
-    "local": {
-      "storage": {
-        "address": "",
-        "mapped_port": -1,
-        "access_key": "",
-        "secret_key": "",
-        "instance_id": "",
-        "input_buckets": [],
-        "output_buckets": [],
-        "type": "minio"
-      }
-    },
     "openwhisk": {
       "shutdownStorage": false,
       "removeCluster": false,
@@ -80,9 +24,9 @@
       "storage": {
         "address": "172.20.10.3:9011",
         "mapped_port": 9011,
-        "access_key": "ZAf_4KyKlhcp6QZqOvDACOiJ5sYsRufkvHKholssuc0",
-        "secret_key": "4b9ed3376593cf0cfd44514574db769eeeb95f7e25a8042c76d127932e17851b",
-        "instance_id": "fc0dfacb252dd804f3a58892b02df75fda69a6a8e195858052eb8de221f2282e",
+        "access_key": "yun7vF4uN_Qiay_H2O-7rnOKBYCQxuKCMqudDufjIJg",
+        "secret_key": "0f5ff6e9ee49adf19879cd6b7e351610eecb5d3d15a0056469b7707618630942",
+        "instance_id": "a5d66a9d5cb9e2348bdf399a4cdc77ea33400cf91b41a9c57114bfa9525e52ab",
         "output_buckets": [],
         "input_buckets": [],
         "type": "minio"

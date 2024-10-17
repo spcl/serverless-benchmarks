@@ -1,0 +1,38 @@
+{
+    "experiments": {
+      "deployment": "openwhisk",
+      "update_code": false,
+      "update_storage": false,
+      "download_results": "true",
+      "runtime": {
+        "language": "java",
+        "version": "8"
+      }
+    },
+    
+    "deployment": {
+      "openwhisk": {
+        "shutdownStorage": false,
+        "removeCluster": false,
+        "wskBypassSecurity": "true",
+        "wskExec": "wsk",
+        "experimentalManifest": false,
+        "docker_registry": {
+          "registry": "",
+          "username": "",
+          "password": ""
+        },
+        "storage": {
+          "address": "172.20.10.3:9011",
+          "mapped_port": 9011,
+          "access_key": "yun7vF4uN_Qiay_H2O-7rnOKBYCQxuKCMqudDufjIJg",
+          "secret_key": "0f5ff6e9ee49adf19879cd6b7e351610eecb5d3d15a0056469b7707618630942",
+          "instance_id": "a5d66a9d5cb9e2348bdf399a4cdc77ea33400cf91b41a9c57114bfa9525e52ab",
+          "output_buckets": [],
+          "input_buckets": [],
+          "type": "minio"
+        }
+      }
+    }
+  }
+  
