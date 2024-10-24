@@ -1,4 +1,4 @@
-from typing import cast
+from typing import cast, Optional
 
 from sebs.azure.config import AzureResources
 from sebs.faas.function import Function, FunctionConfig
@@ -12,8 +12,9 @@ class AzureFunction(Function):
         code_hash: str,
         function_storage: AzureResources.Storage,
         cfg: FunctionConfig,
+        application_name: Optional[str] = None
     ):
-        super().__init__(benchmark, name, code_hash, cfg)
+        super().__init__(benchmark, name, code_hash, cfg, application_name)
         self.function_storage = function_storage
 
     @staticmethod
@@ -38,6 +39,7 @@ class AzureFunction(Function):
             cached_config["hash"],
             AzureResources.Storage.deserialize(cached_config["function_storage"]),
             cfg,
+            cached_config["application_name"],
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(

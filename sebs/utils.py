@@ -128,13 +128,19 @@ def configure_logging():
 
     :param benchmark: Benchmark name.
     :param path: Path for lookup, relative to repository.
+    :param function: [Optional, for apps] the particular function we are
+    looking for.
     :return: relative path to directory corresponding to benchmark
 """
 
 
-def find_benchmark(benchmark: str, path: str):
+def find_benchmark(benchmark: str, path: str, function: Optional[str] = None):
     benchmarks_dir = os.path.join(PROJECT_DIR, path)
     benchmark_path = find(benchmark, benchmarks_dir)
+
+    if (function):
+        benchmark_path = find(function, benchmark_path)
+
     return benchmark_path
 
 

@@ -23,10 +23,21 @@ if TYPE_CHECKING:
 
 
 class BenchmarkConfig:
-    def __init__(self, timeout: int, memory: int, languages: List["Language"]):
+    def __init__(
+        self,
+        timeout: int,
+        memory: int,
+        languages: List["Language"],
+        trigger: Optional[str] = None,
+        entrypoint: Optional[bool] = False,
+        result_queue: Optional[str] = None
+    ):
         self._timeout = timeout
         self._memory = memory
         self._languages = languages
+        self._trigger = trigger
+        self._entrypoint = entrypoint
+        self._result_queue = result_queue
 
     @property
     def timeout(self) -> int:
@@ -48,6 +59,26 @@ class BenchmarkConfig:
     def languages(self) -> List["Language"]:
         return self._languages
 
+    @property
+    def trigger(self) -> str:
+        return self._trigger
+
+    @trigger.setter
+    def trigger(self, val: str):
+        self._trigger = val
+
+    @property
+    def entrypoint(self) -> bool:
+        return self._entrypoint
+
+    @property
+    def result_queue(self) -> str:
+        return self._result_queue
+
+    @result_queue.setter
+    def result_queue(self, val: str):
+        self._result_queue = val
+
     # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
@@ -57,6 +88,9 @@ class BenchmarkConfig:
             json_object["timeout"],
             json_object["memory"],
             [Language.deserialize(x) for x in json_object["languages"]],
+            json_object["trigger"] if "trigger" in json_object else None,
+            json_object["entrypoint"] if "entrypoint" in json_object else None,
+            json_object["result_queue"] if "result_queue" in json_object else None
         )
 
 
@@ -137,6 +171,14 @@ class Benchmark(LoggingBase):
     def language_version(self):
         return self._language_version
 
+    @property
+    def application_name(self) -> str:
+        return self._application_name
+
+    @application_name.setter
+    def application_name(self, val: str):
+        self._application_name = val
+
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
@@ -159,6 +201,7 @@ class Benchmark(LoggingBase):
         output_dir: str,
         cache_client: Cache,
         docker_client: docker.client,
+        app_function_name: Optional[str] = None
     ):
         super().__init__()
         self._benchmark = benchmark
@@ -166,9 +209,11 @@ class Benchmark(LoggingBase):
         self._experiment_config = config
         self._language = config.runtime.language
         self._language_version = config.runtime.version
-        self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
+        self._application_name = benchmark if app_function_name is not None else None
+        self._benchmark_path = find_benchmark(self.benchmark, "benchmarks", app_function_name)
         if not self._benchmark_path:
-            raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
+            benchmark = f"{self._benchmark}-{app_function_name}" if app_function_name is not None else self._benchmark
+            raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=benchmark))
         with open(os.path.join(self.benchmark_path, "config.json")) as json_file:
             self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
                 json.load(json_file)
@@ -181,9 +226,15 @@ class Benchmark(LoggingBase):
         self._docker_client = docker_client
         self._system_config = system_config
         self._hash_value = None
-        self._output_dir = os.path.join(
-            output_dir, f"{benchmark}_code", self._language.value, self._language_version
-        )
+        if (self.application_name):
+            self._output_dir = os.path.join(
+                output_dir, f"{benchmark}_code", app_function_name, self._language.value, self._language_version
+            )
+            self._benchmark = '{}.{}'.format(self._benchmark, app_function_name)
+        else:
+            self._output_dir = os.path.join(
+                output_dir, f"{benchmark}_code", self._language.value, self._language_version
+            )
 
         # verify existence of function in cache
         self.query_cache()
@@ -471,12 +522,7 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str, str, bool], Tuple[str, int]]
-        # TODO(oana) fix?
-        # self,
-        # deployment_build_step: Callable[
-        #     [str, str, str, str, bool, Optional[Trigger.TriggerType]], Tuple[str, int]
-        # ],
+        self, deployment_build_step: Callable[[str, str, str, str, bool, Optional[str]], Tuple[str, int]]
     ) -> Tuple[bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
@@ -511,7 +557,7 @@ class Benchmark(LoggingBase):
             self.language_version,
             self.benchmark,
             self.is_cached_valid,
-            self._experiment_config.trigger,
+            self.benchmark_config.trigger,
         )
         self.logging.info(
             (
@@ -545,8 +591,12 @@ class Benchmark(LoggingBase):
     """
 
     def prepare_input(self, storage: PersistentStorage, size: str):
-        benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
-        mod = load_benchmark_input(self._benchmark_path)
+        # The root benchmark name, i.e. xxx.airline-booking.
+        root_benchmark = '{}.{}'.format(self.benchmark.split('.')[0], self.benchmark.split('.')[1])
+        benchmark_data_path = find_benchmark(root_benchmark, "benchmarks-data")
+
+        temp_path = find_benchmark(root_benchmark, "benchmarks")
+        mod = load_benchmark_input(temp_path)
 
         buckets = mod.buckets_count()
         input, output = storage.benchmark_data(self.benchmark, buckets)
@@ -565,7 +615,7 @@ class Benchmark(LoggingBase):
 
         self._cache_client.update_storage(
             storage.deployment_name(),
-            self._benchmark,
+            self.benchmark,
             {
                 "buckets": {
                     "input": storage.input_prefixes,

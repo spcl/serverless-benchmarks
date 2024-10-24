@@ -17,10 +17,29 @@ from sebs.faas.queue import QueueType
 
 
 class LibraryTrigger(Trigger):
-    def __init__(self, fname: str, deployment_client: Optional[GCP] = None):
+    def __init__(
+        self,
+        fname: str,
+        deployment_client: Optional[GCP] = None,
+        application_name: Optional[str] = None,
+        result_queue: Optional[GCPQueue] = None,
+        with_result_queue: Optional[bool] = False
+    ):
         super().__init__()
         self.name = fname
         self._deployment_client = deployment_client
+        self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
+        
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (self.with_result_queue and not self._result_queue):
+            self._result_queue = GCPQueue(
+                f"{application_name}-result",
+                QueueType.RESULT,
+                self.region
+            )
+            self._result_queue.create_queue()
 
     @staticmethod
     def typename() -> str:
@@ -38,6 +57,11 @@ class LibraryTrigger(Trigger):
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
         return Trigger.TriggerType.LIBRARY
+
+    @property
+    def result_queue(self) -> GCPQueue:
+        assert self._result_queue
+        return self._result_queue
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
@@ -83,17 +107,46 @@ class LibraryTrigger(Trigger):
         raise NotImplementedError()
 
     def serialize(self) -> dict:
-        return {"type": "Library", "name": self.name}
+        return {
+            "type": "Library",
+            "name": self.name,
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue,
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return LibraryTrigger(obj["name"])
+        return LibraryTrigger(
+            obj["name"],
+            GCPQueue.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            obj["with_result_queue"],
+        )
 
 
 class HTTPTrigger(Trigger):
-    def __init__(self, url: str):
+    def __init__(
+        self,
+        fname: str,
+        url: str,
+        application_name: Optional[str] = None,
+        result_queue: Optional[GCPQueue] = None,
+        with_result_queue: Optional[bool] = False
+    ):
         super().__init__()
+        self.name = fname
         self.url = url
+        self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
+
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (self.with_result_queue and not self._result_queue):
+            self._result_queue = GCPQueue(
+                f"{application_name}-result",
+                QueueType.RESULT,
+                self.region
+            )
+            self._result_queue.create_queue()
 
     @staticmethod
     def typename() -> str:
@@ -102,6 +155,11 @@ class HTTPTrigger(Trigger):
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
         return Trigger.TriggerType.HTTP
+
+    @property
+    def result_queue(self) -> GCPQueue:
+        assert self._result_queue
+        return self._result_queue
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
@@ -114,11 +172,22 @@ class HTTPTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "HTTP", "url": self.url}
+        return {
+            "type": "HTTP",
+            "name": self.name,
+            "url": self.url,
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue,
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return HTTPTrigger(obj["url"])
+        return HTTPTrigger(
+            obj["name"],
+            obj["url"],
+            GCPQueue.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            obj["with_result_queue"],
+        )
 
 
 class QueueTrigger(Trigger):
@@ -127,19 +196,22 @@ class QueueTrigger(Trigger):
         fname: str,
         queue_name: str,
         region: str,
-        result_queue: Optional[GCPQueue] = None
+        application_name: Optional[str] = None,
+        result_queue: Optional[GCPQueue] = None,
+        with_result_queue: Optional[bool] = False
     ):
         super().__init__()
         self.name = fname
         self._queue_name = queue_name
         self._region = region
         self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
 
         # Create result queue for communicating benchmark results back to the
         # client.
-        if (not self._result_queue):
+        if (self.with_result_queue and not self._result_queue):
             self._result_queue = GCPQueue(
-                fname,
+                f"{application_name}-result",
                 QueueType.RESULT,
                 self.region
             )
@@ -188,15 +260,15 @@ class QueueTrigger(Trigger):
             },
         ).execute()
 
-        response = ""
-        while (response == ""):
-            response = self.result_queue.receive_message()
+        results = self.collect_async_results(self.result_queue)
 
-        end = datetime.datetime.now()
+        ret = []
+        for recv_ts, result_data in results.items():
+            result = ExecutionResult.from_times(begin, recv_ts)
+            result.parse_benchmark_output(result_data)
+            ret.append(result)
 
-        result = ExecutionResult.from_times(begin, end)
-        result.parse_benchmark_output(json.loads(response))
-        return result
+        return ret
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -210,7 +282,8 @@ class QueueTrigger(Trigger):
             "name": self.name,
             "queue_name": self.queue_name,
             "region": self.region,
-            "result_queue": self.result_queue.serialize()
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue,
         }
 
     @staticmethod
@@ -219,7 +292,8 @@ class QueueTrigger(Trigger):
             obj["name"],
             obj["queue_name"],
             obj["region"],
-            GCPQueue.deserialize(obj["result_queue"])
+            GCPQueue.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            obj["with_result_queue"],
         )
 
 
@@ -229,19 +303,22 @@ class StorageTrigger(Trigger):
         fname: str,
         bucket_name: str,
         region: str,
-        result_queue: Optional[GCPQueue] = None
+        application_name: Optional[str] = None,
+        result_queue: Optional[GCPQueue] = None,
+        with_result_queue: Optional[bool] = False
     ):
         super().__init__()
         self.name = fname
         self._bucket_name = bucket_name
         self._region = region
         self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
 
         # Create result queue for communicating benchmark results back to the
         # client.
-        if (not self._result_queue):
+        if (self.with_result_queue and not self._result_queue):
             self._result_queue = GCPQueue(
-                fname,
+                f"{application_name}-result",
                 QueueType.RESULT,
                 self.region
             )
@@ -291,15 +368,15 @@ class StorageTrigger(Trigger):
 
         self.logging.info(f"Uploaded payload to bucket {self.bucket_name}")
 
-        response = ""
-        while (response == ""):
-            response = self.result_queue.receive_message()
+        results = self.collect_async_results(self.result_queue)
 
-        end = datetime.datetime.now()
+        ret = []
+        for recv_ts, result_data in results.items():
+            result = ExecutionResult.from_times(begin, recv_ts)
+            result.parse_benchmark_output(result_data)
+            ret.append(result)
 
-        result = ExecutionResult.from_times(begin, end)
-        result.parse_benchmark_output(json.loads(response))
-        return result
+        return ret
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -313,14 +390,16 @@ class StorageTrigger(Trigger):
             "name": self.name,
             "bucket_name": self.bucket_name,
             "region": self.region,
-            "result_queue": self.result_queue.serialize()
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue,
         }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return StorageTrigger(
-            obj["name"],
-            obj["bucket_name"],
-            obj["region"],
-            GCPQueue.deserialize(obj["result_queue"])
+            fname=obj["name"],
+            bucket_name=obj["bucket_name"],
+            region=obj["region"],
+            result_queue=GCPQueue.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            with_result_queue=obj["with_result_queue"],
         )

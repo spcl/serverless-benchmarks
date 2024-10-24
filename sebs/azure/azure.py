@@ -12,7 +12,7 @@ from sebs.azure.blob_storage import BlobStorage
 from sebs.azure.cli import AzureCLI
 from sebs.azure.function import AzureFunction
 from sebs.azure.config import AzureConfig, AzureResources
-from sebs.azure.triggers import AzureTrigger, HTTPTrigger
+from sebs.azure.triggers import AzureTrigger, HTTPTrigger, QueueTrigger, StorageTrigger
 from sebs.faas.function import Trigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
@@ -171,7 +171,7 @@ class Azure(System):
                         "type": "queueTrigger",
                         "direction": "in",
                         "queueName": benchmark,
-                        "connection": "AzureWebJobsStorage",
+                        "connection": "DATA_STORAGE_ACCOUNT_CONN_STR",
                     }
                 ],
             }
@@ -185,7 +185,7 @@ class Azure(System):
                         "type": "blobTrigger",
                         "direction": "in",
                         "path": benchmark,
-                        "connection": "AzureWebJobsStorage",
+                        "connection": "DATA_STORAGE_ACCOUNT_CONN_STR",
                     }
                 ],
             }
@@ -349,14 +349,7 @@ class Azure(System):
 
         # Mount code package in Docker instance
         self._mount_function_code(code_package)
-        url = self.publish_function(function, code_package, True)
-
-        if function.name.endswith("http"):
-            trigger = HTTPTrigger(
-                url, self.config.resources.data_storage_account(self.cli_instance)
-            )
-            trigger.logging_handlers = self.logging_handlers
-            function.add_trigger(trigger)
+        url = self.publish_function(function, code_package, True) 
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout
@@ -366,6 +359,19 @@ class Azure(System):
 
     def _mount_function_code(self, code_package: Benchmark):
         self.cli_instance.upload_package(code_package.code_location, "/mnt/function/")
+
+    def default_application_name(self, code_package: Benchmark) -> str:
+        func_name = (
+            "{}-{}-{}-{}".format(
+                code_package.application_name,
+                code_package.language_name,
+                code_package.language_version,
+                self.config.resources.resources_id,
+            )
+            .replace(".", "-")
+            .replace("_", "-")
+        )
+        return func_name
 
     def default_function_name(self, code_package: Benchmark) -> str:
         """
@@ -433,6 +439,31 @@ class Azure(System):
                             " --name {func_name} --storage-account {storage_account}"
                         ).format(**config)
                     )
+
+                    # Add result queue env var.
+                    result_queue_env = f"RESULT_QUEUE={code_package.benchmark_config.result_queue}"
+                    self.cli_instance.execute(
+                        f"az functionapp config appsettings set --name {func_name} "
+                        f" --resource-group {resource_group} "
+                        f" --settings {result_queue_env}"
+                    )
+
+                    # Set the data storage account as env vars in the function.
+                    resource_group = self.config.resources.resource_group(self.cli_instance)
+                    data_storage_account = self.config.resources.data_storage_account(self.cli_instance)
+
+                    self.cli_instance.execute(
+                        f"az functionapp config appsettings set --name {func_name} "
+                        f" --resource-group {resource_group} "
+                        f" --settings DATA_STORAGE_ACCOUNT={data_storage_account.account_name}"
+                    )
+
+                    self.cli_instance.execute(
+                        f"az functionapp config appsettings set --name {func_name} "
+                        f" --resource-group {resource_group} "
+                        f" --settings DATA_STORAGE_ACCOUNT_CONN_STR={data_storage_account.connection_string}"
+                    )
+
                     self.logging.info("Azure: Created function app {}".format(func_name))
                     break
                 except RuntimeError as e:
@@ -450,6 +481,7 @@ class Azure(System):
             code_hash=code_package.hash,
             function_storage=function_storage_account,
             cfg=function_cfg,
+            application_name=code_package.application_name,
         )
 
         # update existing function app
@@ -576,63 +608,124 @@ class Azure(System):
         the user when SeBS is run.
     """
 
-    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
-        from sebs.azure.triggers import QueueTrigger, StorageTrigger
+    def create_trigger(
+        self,
+        function: Function,
+        trigger_type: Trigger.TriggerType,
+        with_result_queue: Optional[bool] = False
+    ) -> Trigger:
 
         azure_function = cast(AzureFunction, function)
         resource_group = self.config.resources.resource_group(self.cli_instance)
-        storage_account = azure_function.function_storage.account_name
-
-        user_principal_name = self.cli_instance.execute("az ad user list")
+        data_storage_account = self.config.resources.data_storage_account(self.cli_instance).account_name
 
         storage_account_scope = self.cli_instance.execute(
             ("az storage account show --resource-group {} --name {} --query id").format(
-                resource_group, storage_account
+                resource_group, data_storage_account
             )
-        )
+        ).decode('utf-8')
 
-        self.cli_instance.execute(
-            (
-                'az role assignment create --assignee "{}" \
-              --role "Storage {} Data Contributor" \
-              --scope {}'
-            ).format(
-                json.loads(user_principal_name.decode("utf-8"))[0]["userPrincipalName"],
-                "Queue" if trigger_type == Trigger.TriggerType.QUEUE else "Blob",
-                storage_account_scope.decode("utf-8"),
+        user_principal_name = self.cli_instance.execute("az ad user list").decode('utf-8')
+
+        # All functions in an application need permission to write to the
+        # result queue.
+        if (function.application_name is not None):
+            function_principal = self.cli_instance.execute(
+                (
+                    'az functionapp identity assign  \
+                    --name {} \
+                    --resource-group {}'
+                ).format(
+                    function.name,
+                    self.config.resources.resource_group(self.cli_instance)
+                )
+            ).decode('utf-8')
+
+            self.cli_instance.execute(
+                (
+                    'az role assignment create --assignee "{}" \
+                    --role "Storage Queue Data Contributor" \
+                    --scope {}'
+                ).format(
+                    json.loads(function_principal)['principalId'],
+                    storage_account_scope
+                )
             )
-        )
 
-        trigger: Trigger
-        if trigger_type == Trigger.TriggerType.QUEUE or trigger_type == Trigger.TriggerType.STORAGE:
-            resource_group = self.config.resources.resource_group(self.cli_instance)
-
-            # Set the storage account as an env var on the function.
-            ret = self.cli_instance.execute(
-                f"az functionapp config appsettings set --name {function.name} "
-                f" --resource-group {resource_group} "
-                f" --settings STORAGE_ACCOUNT={storage_account}"
+        # Storage-triggered functions require Blob Storage access.
+        if (trigger_type == Trigger.TriggerType.STORAGE):
+            self.cli_instance.execute(
+                (
+                    'az role assignment create --assignee "{}" \
+                    --role "Storage Blob Data Owner" \
+                    --scope {}'
+                ).format(
+                    json.loads(user_principal_name)[0]["userPrincipalName"],
+                    storage_account_scope,
+                )
             )
-            print(ret.decode())
+
+        # Everything async needs queue access attached to the SeBS client.
+        if (function.application_name is not None
+            or trigger_type == Trigger.TriggerType.QUEUE
+            or trigger_type == Trigger.TriggerType.STORAGE
+        ):
+            self.cli_instance.execute(
+                (
+                    'az role assignment create --assignee "{}" \
+                    --role "Storage Queue Data Contributor" \
+                    --scope {}'
+                ).format(
+                    json.loads(user_principal_name)[0]["userPrincipalName"],
+                    storage_account_scope,
+                )
+            )
 
             # Connect the function app to the result queue via Service
             # Connector.
-            ret = self.cli_instance.execute(
-                f"az webapp connection create storage-queue "
-                f" --resource-group {resource_group} "
-                f" --target-resource-group {resource_group} "
-                f" --account {storage_account} "
-                f" --name {function.name} "
-                f" --system-identity "
+            self.cli_instance.execute(
+                (
+                    'az webapp connection create storage-queue \
+                    --resource-group {} \
+                    --target-resource-group {} \
+                    --account {} \
+                    --name {} \
+                    --system-identity'
+                ).format(
+                    resource_group,
+                    resource_group,
+                    data_storage_account,
+                    function.name
+                )
             )
-            print(ret.decode())
 
-            if trigger_type == Trigger.TriggerType.QUEUE:
-                trigger = QueueTrigger(function.name, storage_account, self.config.region)
-                self.logging.info(f"Created Queue trigger for {function.name} function")
-            elif trigger_type == Trigger.TriggerType.STORAGE:
-                trigger = StorageTrigger(function.name, storage_account, self.config.region)
-                self.logging.info(f"Created Storage trigger for {function.name} function")
+        trigger: Trigger
+        if trigger_type == Trigger.TriggerType.HTTP:
+            trigger = HTTPTrigger(
+                function.name,
+                url=url,
+                storage_account=data_storage_account,
+                application_name=function.application_name,
+            )
+            self.logging.info(f"Created HTTP trigger for {function.name} function")
+        elif trigger_type == Trigger.TriggerType.QUEUE:
+            trigger = QueueTrigger(
+                function.name,
+                storage_account=data_storage_account,
+                region=self.config.region,
+                application_name=function.application_name,
+                with_result_queue=with_result_queue,
+            )
+            self.logging.info(f"Created Queue trigger for {function.name} function")
+        elif trigger_type == Trigger.TriggerType.STORAGE:
+            trigger = StorageTrigger(
+                function.name,
+                storage_account=data_storage_account,
+                region=self.config.region,
+                application_name=function.application_name,
+                with_result_queue=with_result_queue,
+            )
+            self.logging.info(f"Created Storage trigger for {function.name} function")
         else:
             raise RuntimeError("Not supported!")
 

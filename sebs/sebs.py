@@ -162,6 +162,7 @@ class SeBS(LoggingBase):
         name: str,
         deployment: FaaSSystem,
         config: ExperimentConfig,
+        app_function_name: Optional[str] = None,
         logging_filename: Optional[str] = None,
     ) -> Benchmark:
         benchmark = Benchmark(
@@ -172,6 +173,7 @@ class SeBS(LoggingBase):
             self._output_dir,
             self.cache_client,
             self.docker_client,
+            app_function_name=app_function_name
         )
         benchmark.logging_handlers = self.generate_logging_handlers(
             logging_filename=logging_filename

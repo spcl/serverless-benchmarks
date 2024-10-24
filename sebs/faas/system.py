@@ -319,6 +319,10 @@ class System(ABC, LoggingBase):
         return changed
 
     @abstractmethod
+    def default_application_name(self, code_package: Benchmark) -> str:
+        pass
+
+    @abstractmethod
     def default_function_name(self, code_package: Benchmark) -> str:
         pass
 
@@ -338,7 +342,12 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(
+        self,
+        function: Function,
+        trigger_type: Trigger.TriggerType,
+        with_result_queue: Optional[bool] = False
+    ) -> Trigger:
         pass
 
     # @abstractmethod

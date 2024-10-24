@@ -143,20 +143,22 @@ class PersistentStorage(ABC, LoggingBase):
     def benchmark_data(
         self, benchmark: str, requested_buckets: Tuple[int, int]
     ) -> Tuple[List[str], List[str]]:
+        # The root benchmark name, i.e. xxx.map-reduce.
+        root_benchmark = '{}.{}'.format(benchmark.split('.')[0], benchmark.split('.')[1])
 
         """
         Add an input path inside benchmarks bucket.
         Bucket name format: name-idx-input
         """
         for i in range(0, requested_buckets[0]):
-            self.input_prefixes.append("{}-{}-input".format(benchmark, i))
+            self.input_prefixes.append("{}-{}-input".format(root_benchmark, i))
 
         """
             Add an input path inside benchmarks bucket.
             Bucket name format: name-idx-output
         """
         for i in range(0, requested_buckets[1]):
-            self.output_prefixes.append("{}-{}-output".format(benchmark, i))
+            self.output_prefixes.append("{}-{}-output".format(root_benchmark, i))
 
         cached_storage = self.cache_client.get_storage_config(self.deployment_name(), benchmark)
         self.cached = True

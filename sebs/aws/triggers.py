@@ -14,14 +14,38 @@ from sebs.faas.queue import QueueType
 
 
 class LibraryTrigger(Trigger):
-    def __init__(self, fname: str, deployment_client: Optional[AWS] = None):
+    def __init__(
+        self,
+        fname: str,
+        deployment_client: Optional[AWS] = None,
+        application_name: Optional[str] = None,
+        result_queue: Optional[SQS] = None,
+        with_result_queue: Optional[bool] = False
+    ):
         super().__init__()
         self.name = fname
         self._deployment_client = deployment_client
+        self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
+
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (self.with_result_queue and not self._result_queue):
+            self._result_queue = SQS(
+                f'{application_name}-result',
+                QueueType.RESULT,
+                self.deployment_client.config.region
+            )
+            self._result_queue.create_queue()
 
     @staticmethod
     def typename() -> str:
         return "AWS.LibraryTrigger"
+
+    @property
+    def result_queue(self) -> SQS:
+        assert self._result_queue
+        return self._result_queue
 
     @property
     def deployment_client(self) -> AWS:
@@ -90,18 +114,49 @@ class LibraryTrigger(Trigger):
         return ret
 
     def serialize(self) -> dict:
-        return {"type": "Library", "name": self.name}
+        return {
+            "type": "Library",
+            "name": self.name,
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return LibraryTrigger(obj["name"])
+        return LibraryTrigger(
+            obj["name"],
+            None,
+            SQS.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            obj["with_result_queue"]
+        )
 
 
 class HTTPTrigger(Trigger):
-    def __init__(self, url: str, api_id: str):
+    def __init__(
+        self,
+        fname: str,
+        url: str,
+        api_id: str,
+        application_name: Optional[str] = None,
+        result_queue: Optional[SQS] = None,
+        with_result_queue: Optional[bool] = False
+    ):
         super().__init__()
+        self.name = fname
         self.url = url
         self.api_id = api_id
+        self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
+
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (self.with_result_queue and not self._result_queue):
+            self._result_queue = SQS(
+                f'{application_name}-result',
+                QueueType.RESULT,
+                self.deployment_client.config.region
+            )
+            self._result_queue.create_queue()
 
     @staticmethod
     def typename() -> str:
@@ -110,6 +165,11 @@ class HTTPTrigger(Trigger):
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
         return Trigger.TriggerType.HTTP
+
+    @property
+    def result_queue(self) -> SQS:
+        assert self._result_queue
+        return self._result_queue
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
@@ -123,11 +183,24 @@ class HTTPTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "HTTP", "url": self.url, "api-id": self.api_id}
+        return {
+            "type": "HTTP",
+            "name": self.name,
+            "url": self.url,
+            "api-id": self.api_id,
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return HTTPTrigger(obj["url"], obj["api-id"])
+        return HTTPTrigger(
+            obj["name"],
+            obj["url"],
+            obj["api-id"],
+            SQS.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            obj["with_result_queue"]
+        )
 
 
 class QueueTrigger(Trigger):
@@ -136,13 +209,16 @@ class QueueTrigger(Trigger):
         fname: str,
         deployment_client: Optional[AWS] = None,
         queue: Optional[SQS] = None,
-        result_queue: Optional[SQS] = None
+        application_name: Optional[str] = None,
+        result_queue: Optional[SQS] = None,
+        with_result_queue: Optional[bool] = False
     ):
         super().__init__()
         self.name = fname
         self._queue = queue
         self._result_queue = result_queue
         self._deployment_client = deployment_client
+        self.with_result_queue = with_result_queue
 
         if (not self._queue):
             self._queue = SQS(
@@ -162,14 +238,16 @@ class QueueTrigger(Trigger):
                 lambda_client.create_event_source_mapping(
                     EventSourceArn=self.queue.queue_arn,
                     FunctionName=self.name,
+                    Enabled=True,
+                    BatchSize=1,
                     MaximumBatchingWindowInSeconds=1,
                 )
 
         # Create result queue for communicating benchmark results back to the
         # client.
-        if (not self._result_queue):
+        if (self.with_result_queue and not self._result_queue):
             self._result_queue = SQS(
-                fname,
+                f'{application_name}-result',
                 QueueType.RESULT,
                 self.deployment_client.config.region
             )
@@ -211,15 +289,15 @@ class QueueTrigger(Trigger):
         begin = datetime.datetime.now()
         self.queue.send_message(serialized_payload)
 
-        response = ""
-        while (response == ""):
-            response = self.result_queue.receive_message()
-        
-        end = datetime.datetime.now()
+        results = self.collect_async_results(self.result_queue)
 
-        result = ExecutionResult.from_times(begin, end)
-        result.parse_benchmark_output(json.loads(response))
-        return result
+        ret = []
+        for recv_ts, result_data in results.items():
+            result = ExecutionResult.from_times(begin, recv_ts)
+            result.parse_benchmark_output(result_data)
+            ret.append(result)
+
+        return ret
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -232,7 +310,8 @@ class QueueTrigger(Trigger):
             "type": "Queue",
             "name": self.name,
             "queue": self.queue.serialize(),
-            "result_queue": self.result_queue.serialize()
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue
         }
 
     @staticmethod
@@ -241,7 +320,8 @@ class QueueTrigger(Trigger):
             obj["name"],
             None,
             SQS.deserialize(obj["queue"]),
-            SQS.deserialize(obj["result_queue"])
+            SQS.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            obj["with_result_queue"]
         )
 
 
@@ -251,21 +331,17 @@ class StorageTrigger(Trigger):
         fname: str,
         deployment_client: Optional[AWS] = None,
         bucket_name: Optional[str] = None,
-        result_queue: Optional[SQS] = None
+        application_name: Optional[str] = None,
+        result_queue: Optional[SQS] = None,
+        with_result_queue: Optional[bool] = False
     ):
         super().__init__()
         self.name = fname
 
-        self._deployment_client = None
-        self._bucket_name = None
-        self._result_queue = None
-
-        if deployment_client:
-            self._deployment_client = deployment_client
-        if bucket_name:
-            self._bucket_name = bucket_name
-        if result_queue:
-            self._result_queue = result_queue
+        self._deployment_client = deployment_client
+        self._bucket_name = bucket_name
+        self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
 
         # When creating the trigger for the first time, also create and store
         # storage bucket information.
@@ -317,9 +393,9 @@ class StorageTrigger(Trigger):
 
         # Create result queue for communicating benchmark results back to the
         # client.
-        if (not self._result_queue):
+        if (self.with_result_queue and not self._result_queue):
             self._result_queue = SQS(
-                fname,
+                f'{application_name}-result',
                 QueueType.RESULT,
                 self.deployment_client.config.region
             )
@@ -364,15 +440,15 @@ class StorageTrigger(Trigger):
         s3.Object(self.bucket_name, "payload.json").put(Body=serialized_payload)
         self.logging.info(f"Uploaded payload to bucket {self.bucket_name}")
 
-        response = ""
-        while (response == ""):
-            response = self.result_queue.receive_message()
+        results = self.collect_async_results(self.result_queue)
 
-        end = datetime.datetime.now()
+        ret = []
+        for recv_ts, result_data in results.items():
+            result = ExecutionResult.from_times(begin, recv_ts)
+            result.parse_benchmark_output(result_data)
+            ret.append(result)
 
-        result = ExecutionResult.from_times(begin, end)
-        result.parse_benchmark_output(json.loads(response))
-        return result
+        return ret
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -385,14 +461,15 @@ class StorageTrigger(Trigger):
             "type": "Storage",
             "name": self.name,
             "bucket_name": self.bucket_name,
-            "result_queue": self.result_queue.serialize()
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue
         }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return StorageTrigger(
-            obj["name"],
-            None,
-            obj["bucket_name"],
-            SQS.deserialize(obj["result_queue"])
+            fname=obj["name"],
+            bucket_name=obj["bucket_name"],
+            result_queue=SQS.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            with_result_queue=obj["with_result_queue"]
         )

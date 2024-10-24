@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 
 from sebs.benchmark import Benchmark
+from sebs.faas.queue import Queue
 from sebs.utils import LoggingBase
 
 """
@@ -237,6 +238,53 @@ class Trigger(ABC, LoggingBase):
                 self.logging.error("No output provided!")
             raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
 
+    # Common method to collect the measurement results of applications or
+    # queue/storage-triggered functions.
+    #
+    # :param result_queue: The result queue to read from.
+    # :return: dictionary from end timestamps to the actual measurement data
+    def collect_async_results(self, result_queue: Queue) -> dict:
+        # Executions map from function invocation id to the # of new functions
+        # invoked by that id.
+        executions = {}
+        ret = {}
+        message = ""
+
+        while (True):
+            message = result_queue.receive_message()
+            if (message != ""):
+                end = datetime.now()
+
+                message = json.loads(message)
+                ret[end] = message
+
+                if ('fns_triggered' in message['result']):
+                    fns_triggered = message['result']['fns_triggered']
+                    execution_id = message['request_id']
+
+                    if (execution_id not in executions):
+                        executions[execution_id] = fns_triggered
+                    else:
+                        executions[execution_id] += fns_triggered
+                        if (executions[execution_id] == 0):
+                            executions.pop(execution_id)
+
+                if ('parent_execution_id' in message['result']):
+                    parent_execution_id = message['result']['parent_execution_id']
+
+                    if (parent_execution_id in executions):
+                        executions[parent_execution_id] -= 1
+                    else:
+                        executions[parent_execution_id] = -1
+                    if (executions[parent_execution_id] == 0):
+                        executions.pop(parent_execution_id)
+
+                if (not executions):
+                    break
+
+                message = ""
+        return ret
+
     # FIXME: 3.7+, future annotations
     @staticmethod
     @abstractmethod
@@ -348,7 +396,14 @@ class FunctionConfig:
 
 
 class Function(LoggingBase):
-    def __init__(self, benchmark: str, name: str, code_hash: str, cfg: FunctionConfig):
+    def __init__(
+        self,
+        benchmark: str,
+        name: str,
+        code_hash: str,
+        cfg: FunctionConfig,
+        application_name: Optional[str] = None
+    ):
         super().__init__()
         self._benchmark = benchmark
         self._name = name
@@ -356,6 +411,7 @@ class Function(LoggingBase):
         self._updated_code = False
         self._triggers: Dict[Trigger.TriggerType, List[Trigger]] = {}
         self._cfg = cfg
+        self._application_name = application_name
 
     @property
     def config(self) -> FunctionConfig:
@@ -368,6 +424,10 @@ class Function(LoggingBase):
     @property
     def benchmark(self):
         return self._benchmark
+
+    @property
+    def application_name(self):
+        return self._application_name
 
     @property
     def code_package_hash(self):
@@ -409,6 +469,7 @@ class Function(LoggingBase):
             "triggers": [
                 obj.serialize() for t_type, triggers in self._triggers.items() for obj in triggers
             ],
+            "application_name": self._application_name,
         }
 
     @staticmethod

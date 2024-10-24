@@ -199,6 +199,7 @@ class AWS(System):
                 language_runtime,
                 self.config.resources.lambda_role(self.session),
                 function_cfg,
+                code_package.application_name,
             )
             self.update_function(lambda_function, code_package)
             lambda_function.updated_code = True
@@ -224,6 +225,12 @@ class AWS(System):
 
                 self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix}
+
+            # Result queue added as an env variable.
+            result_queue_env = {}
+            if (code_package.benchmark_config.result_queue):
+                result_queue_env["RESULT_QUEUE"] = code_package.benchmark_config.result_queue
+
             ret = self.client.create_function(
                 FunctionName=func_name,
                 Runtime="{}{}".format(
@@ -234,6 +241,7 @@ class AWS(System):
                 MemorySize=memory,
                 Timeout=timeout,
                 Code=code_config,
+                Environment={"Variables": result_queue_env}
             )
 
             lambda_function = LambdaFunction(
@@ -245,6 +253,7 @@ class AWS(System):
                 self.config.resources.lambda_role(self.session),
                 function_cfg,
                 code_bucket,
+                code_package.application_name
             )
 
             self.wait_function_active(lambda_function)
@@ -252,7 +261,11 @@ class AWS(System):
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import LibraryTrigger
 
-        trigger = LibraryTrigger(func_name, self)
+        trigger = LibraryTrigger(
+            func_name,
+            self,
+            application_name=code_package.application_name
+        )
         trigger.logging_handlers = self.logging_handlers
         lambda_function.add_trigger(trigger)
 
@@ -325,6 +338,13 @@ class AWS(System):
         )
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {function.name} function. ")
+
+    @staticmethod
+    def default_application_name(code_package: Benchmark) -> str:
+        app_name = "{}-{}-{}".format(
+            code_package.application_name, code_package.language_name, code_package.language_version
+        )
+        return AWS.format_function_name(app_name)
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -491,7 +511,12 @@ class AWS(System):
             f"out of {results_count} invocations"
         )
 
-    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(
+        self,
+        func: Function,
+        trigger_type: Trigger.TriggerType,
+        with_result_queue: Optional[bool] = False
+    ) -> Trigger:
         from sebs.aws.triggers import HTTPTrigger, QueueTrigger, StorageTrigger
 
         function = cast(LambdaFunction, func)
@@ -510,7 +535,13 @@ class AWS(System):
                 Principal="apigateway.amazonaws.com",
                 SourceArn=f"{http_api.arn}/*/*",
             )
-            trigger = HTTPTrigger(http_api.endpoint, api_name)
+            trigger = HTTPTrigger(
+                func.name,
+                url=http_api.endpoint,
+                api_id=api_name,
+                application_name=func.application_name,
+                with_result_queue=with_result_queue
+            )
             self.logging.info(
                 f"Created HTTP trigger for {func.name} function. "
                 "Sleep 5 seconds to avoid cloud errors."
@@ -521,11 +552,21 @@ class AWS(System):
             # should already exist
             return func.triggers(Trigger.TriggerType.LIBRARY)[0]
         elif trigger_type == Trigger.TriggerType.QUEUE:
-            trigger = QueueTrigger(func.name, self)
+            trigger = QueueTrigger(
+                func.name,
+                application_name=func.application_name,
+                deployment_client=self,
+                with_result_queue=with_result_queue
+            )
             trigger.logging_handlers = self.logging_handlers
             self.logging.info(f"Created Queue trigger for {func.name} function.")
         elif trigger_type == Trigger.TriggerType.STORAGE:
-            trigger = StorageTrigger(func.name, self)
+            trigger = StorageTrigger(
+                func.name,
+                application_name=func.application_name,
+                deployment_client=self,
+                with_result_queue=with_result_queue
+            )
             trigger.logging_handlers = self.logging_handlers
             self.logging.info(f"Created Storage trigger for {func.name} function.")
         else:

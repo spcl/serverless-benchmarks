@@ -16,8 +16,9 @@ class LambdaFunction(Function):
         role: str,
         cfg: FunctionConfig,
         bucket: Optional[str] = None,
+        application_name: Optional[str] = None
     ):
-        super().__init__(benchmark, name, code_package_hash, cfg)
+        super().__init__(benchmark, name, code_package_hash, cfg, application_name)
         self.arn = arn
         self.role = role
         self.runtime = runtime
@@ -51,6 +52,7 @@ class LambdaFunction(Function):
             cached_config["role"],
             cfg,
             cached_config["bucket"],
+            cached_config["application_name"],
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(

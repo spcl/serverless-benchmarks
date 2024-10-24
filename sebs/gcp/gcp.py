@@ -192,6 +192,14 @@ class GCP(System):
         return {"httpsTrigger": {}, "entryPoint": "handler_http"}
 
     @staticmethod
+    def default_application_name(code_package: Benchmark) -> str:
+        # Create function name
+        func_name = "{}-{}-{}".format(
+            code_package.application_name, code_package.language_name, code_package.language_version
+        )
+        return GCP.format_function_name(func_name)
+
+    @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
         # Create function name
         func_name = "{}-{}-{}".format(
@@ -305,6 +313,9 @@ class GCP(System):
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
         get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
 
+        # Add result queue env var.
+        result_queue_env = {"RESULT_QUEUE": code_package.benchmark_config.result_queue}
+
         try:
             get_req.execute()
         except HttpError:
@@ -327,6 +338,7 @@ class GCP(System):
                         "timeout": str(timeout) + "s",
                         "ingressSettings": "ALLOW_ALL",
                         "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
+                        "environmentVariables": result_queue_env,
                     }
                     | trigger_info,
                 )
@@ -352,7 +364,12 @@ class GCP(System):
             self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
-                func_name, benchmark, code_package.hash, function_cfg, code_bucket
+                name=func_name,
+                benchmark=benchmark,
+                code_package_hash=code_package.hash, 
+                cfg=function_cfg,
+                bucket=code_bucket,
+                application_name=code_package.application_name
             )
         else:
             # if result is not empty, then function does exists
@@ -364,6 +381,7 @@ class GCP(System):
                 code_package_hash=code_package.hash,
                 cfg=function_cfg,
                 bucket=code_bucket,
+                application_name=code_package.application_name
             )
             self.update_function(function, code_package)
 
@@ -376,7 +394,12 @@ class GCP(System):
 
         return function
 
-    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(
+        self,
+        function: Function,
+        trigger_type: Trigger.TriggerType,
+        with_result_queue: Optional[bool] = False
+    ) -> Trigger:
         from sebs.gcp.triggers import HTTPTrigger, QueueTrigger, StorageTrigger
 
         location = self.config.region
@@ -398,20 +421,29 @@ class GCP(System):
         trigger: Trigger
         if trigger_type == Trigger.TriggerType.HTTP:
             invoke_url = status_res["httpsTrigger"]["url"]
-            trigger = HTTPTrigger(invoke_url)
+            trigger = HTTPTrigger(
+                function.name,
+                url=invoke_url,
+                application_name=function.application_name,
+                with_result_queue=with_result_queue
+            )
             self.logging.info(f"Created HTTP trigger for {function.name} function")
         elif trigger_type == Trigger.TriggerType.QUEUE:
             trigger = QueueTrigger(
                 function.name,
-                self.get_trigger_resource_name(function.name),
-                self.config.region
+                queue_name=self.get_trigger_resource_name(function.name),
+                region=self.config.region,
+                application_name=function.application_name,
+                with_result_queue=with_result_queue
             )
             self.logging.info(f"Created Queue trigger for {function.name} function")
         elif trigger_type == Trigger.TriggerType.STORAGE:
             trigger = StorageTrigger(
                 function.name,
-                self.get_trigger_resource_name(function.name),
-                self.config.region
+                bucket_name=self.get_trigger_resource_name(function.name),
+                region=self.config.region,
+                application_name=function.application_name,
+                with_result_queue=with_result_queue
             )
             self.logging.info(f"Created Storage trigger for {function.name} function")
         else:
@@ -458,6 +490,9 @@ class GCP(System):
         # bucket) exist on GCP.
         trigger_info = self.create_trigger_resource(function.name, cached=True)
 
+        # Add result queue env var.
+        result_queue_env = {"RESULT_QUEUE": code_package.benchmark_config.result_queue}
+
         req = (
             self.function_client.projects()
             .locations()
@@ -470,6 +505,7 @@ class GCP(System):
                     "availableMemoryMb": function.config.memory,
                     "timeout": str(function.config.timeout) + "s",
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+                    "environmentVariables": result_queue_env,
                 }
                 | trigger_info,
             )

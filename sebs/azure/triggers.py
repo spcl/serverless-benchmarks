@@ -32,13 +32,39 @@ class AzureTrigger(Trigger):
 
 
 class HTTPTrigger(AzureTrigger):
-    def __init__(self, url: str, data_storage_account: Optional[AzureResources.Storage] = None):
+    def __init__(
+        self,
+        fname: str,
+        url: str,
+        data_storage_account: Optional[AzureResources.Storage] = None,
+        result_queue: Optional[AzureQueue] = None,
+        with_result_queue: Optional[bool] = False
+    ):
         super().__init__(data_storage_account)
+        self.name = fname
         self.url = url
+        self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
+
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (self.with_result_queue and not self._result_queue):
+            self._result_queue = AzureQueue(
+                self.name,
+                QueueType.RESULT,
+                data_storage_account,
+                self.region
+            )
+            self._result_queue.create_queue()
 
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
         return Trigger.TriggerType.HTTP
+
+    @property
+    def result_queue(self) -> AzureQueue:
+        assert self._result_queue
+        return self._result_queue
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
@@ -51,11 +77,22 @@ class HTTPTrigger(AzureTrigger):
         return fut
 
     def serialize(self) -> dict:
-        return {"type": "HTTP", "url": self.url}
+        return {
+            "type": "HTTP",
+            "name": self.name,
+            "url": self.url,
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue,
+        }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
-        return HTTPTrigger(obj["url"])
+        return HTTPTrigger(
+            obj["name"],
+            obj["url"],
+            AzureQueue.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            obj["with_result_queue"],
+        )
 
 
 class QueueTrigger(Trigger):
@@ -65,7 +102,9 @@ class QueueTrigger(Trigger):
         storage_account: str,
         region: str,
         queue: Optional[AzureQueue] = None,
-        result_queue: Optional[AzureQueue] = None
+        application_name: Optional[str] = None,
+        result_queue: Optional[AzureQueue] = None,
+        with_result_queue: Optional[bool] = False
     ):
         super().__init__()
         self.name = fname
@@ -73,6 +112,7 @@ class QueueTrigger(Trigger):
         self._region = region
         self._queue = queue
         self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
 
         if (not self._queue):
             self._queue = AzureQueue(
@@ -83,11 +123,13 @@ class QueueTrigger(Trigger):
             )
             self.queue.create_queue()
 
-        if (not self._result_queue):
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (self.with_result_queue and not self._result_queue):
             self._result_queue = AzureQueue(
-                fname,
+                f"{application_name}-result",
                 QueueType.RESULT,
-                storage_account,
+                self.storage_account,
                 self.region
             )
             self._result_queue.create_queue()
@@ -138,17 +180,15 @@ class QueueTrigger(Trigger):
         begin = datetime.datetime.now()
         self.queue.send_message(serialized_payload)
 
-        response = ""
-        while (response == ""):
-            response = self.result_queue.receive_message()
-            if (response == ""):
-                time.sleep(5)
+        results = self.collect_async_results(self.result_queue)
 
-        end = datetime.datetime.now()
+        ret = []
+        for recv_ts, result_data in results.items():
+            result = ExecutionResult.from_times(begin, recv_ts)
+            result.parse_benchmark_output(result_data)
+            ret.append(result)
 
-        result = ExecutionResult.from_times(begin, end)
-        result.parse_benchmark_output(json.loads(response))
-        return result
+        return ret
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -163,7 +203,8 @@ class QueueTrigger(Trigger):
             "storage_account": self.storage_account,
             "region": self.region,
             "queue": self.queue.serialize(),
-            "result_queue": self.result_queue.serialize()
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue,
         }
 
     @staticmethod
@@ -173,7 +214,8 @@ class QueueTrigger(Trigger):
             obj["storage_account"],
             obj["region"],
             AzureQueue.deserialize(obj["queue"]),
-            AzureQueue.deserialize(obj["result_queue"])
+            AzureQueue.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            obj["with_result_queue"],
         )
 
 
@@ -183,14 +225,17 @@ class StorageTrigger(Trigger):
         fname: str,
         storage_account: str,
         region: str,
+        application_name: Optional[str] = None,
         result_queue: Optional[AzureQueue] = None,
-        container_name: Optional[str] = None
+        with_result_queue: Optional[bool] = False,
+        container_name: Optional[str] = None,
     ):
         super().__init__()
         self.name = fname
         self._storage_account = storage_account
         self._region = region
         self._result_queue = result_queue
+        self.with_result_queue = with_result_queue
         self._container_name = None
 
         if container_name:
@@ -214,11 +259,13 @@ class StorageTrigger(Trigger):
             except ResourceExistsError:
                 self.logging.info("Container already exists, reusing...")
 
-        if (not self._result_queue):
+        # Create result queue for communicating benchmark results back to the
+        # client.
+        if (self.with_result_queue and not self._result_queue):
             self._result_queue = AzureQueue(
-                fname,
+                f"{application_name}-result",
                 QueueType.RESULT,
-                storage_account,
+                self.storage_account,
                 self.region
             )
             self._result_queue.create_queue()
@@ -255,7 +302,7 @@ class StorageTrigger(Trigger):
         assert self._container_name
         return self._container_name
 
-    def sync_invoke(self, payload: dict) -> ExecutionResult:
+    def sync_invoke(self, payload: dict) -> list[ExecutionResult]:
 
         self.logging.info(f"Invoke function {self.name}")
 
@@ -277,16 +324,15 @@ class StorageTrigger(Trigger):
             blob_client.upload_blob(payload_data, overwrite=True)
         self.logging.info(f"Uploaded payload to container {self.container_name}")
 
-        response = ""
-        while (response == ""):
-            time.sleep(5)
-            response = self.result_queue.receive_message()
-            
-        end = datetime.datetime.now()
+        results = self.collect_async_results(self.result_queue)
 
-        result = ExecutionResult.from_times(begin, end)
-        result.parse_benchmark_output(json.loads(response))
-        return result
+        ret = []
+        for recv_ts, result_data in results.items():
+            result = ExecutionResult.from_times(begin, recv_ts)
+            result.parse_benchmark_output(result_data)
+            ret.append(result)
+
+        return ret
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
 
@@ -300,16 +346,18 @@ class StorageTrigger(Trigger):
             "name": self.name,
             "storage_account": self.storage_account,
             "region": self.region,
-            "result_queue": self.result_queue.serialize(),
+            "result_queue": self._result_queue.serialize() if self._result_queue else "",
+            "with_result_queue": self.with_result_queue,
             "container_name": self.container_name,
         }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return StorageTrigger(
-            obj["name"],
-            obj["storage_account"],
-            obj["region"],
-            AzureQueue.deserialize(obj["result_queue"]),
-            obj["container_name"]
+            fname=obj["name"],
+            storage_account=obj["storage_account"],
+            region=obj["region"],
+            result_queue=AzureQueue.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            with_result_queue=obj["with_result_queue"],
+            container_name=obj["container_name"],
         )

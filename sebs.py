@@ -14,7 +14,7 @@ import sebs
 from sebs import SeBS
 from sebs.types import Storage as StorageTypes
 from sebs.regression import regression_suite
-from sebs.utils import update_nested_dict, catch_interrupt
+from sebs.utils import update_nested_dict, catch_interrupt, find_benchmark
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
 
@@ -230,51 +230,128 @@ def invoke(
 
     experiment_config = sebs_client.get_experiment_config(config["experiments"])
     update_nested_dict(config, ["experiments", "benchmark"], benchmark)
-    benchmark_obj = sebs_client.get_benchmark(
-        benchmark,
-        deployment_client,
-        experiment_config,
-        logging_filename=logging_filename,
-    )
-    if memory is not None:
-        benchmark_obj.benchmark_config.memory = memory
-    if timeout is not None:
-        benchmark_obj.benchmark_config.timeout = timeout
 
-    function_name = function_name if function_name else deployment_client.default_function_name(benchmark_obj)
+    root_benchmark_path = find_benchmark(benchmark, "benchmarks")
+    if not root_benchmark_path:
+        raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=benchmark))
+    with open(os.path.join(root_benchmark_path, "config.json")) as json_file:
+        root_benchmark_config = json.load(json_file)   
 
-    # GCP and Azure only allow one trigger per function, so augment function name with
-    # trigger type: _http, _queue etc.
-    #
-    # Additionally, Azure requires for the trigger to be defined at deployment time.
-    if deployment_client.name() == "gcp" or deployment_client.name() == "azure":
-        function_name = "{}-{}".format(function_name, trigger)
+    # Application handling.
+    benchmark_objs = {}
+    if ("type" in root_benchmark_config and root_benchmark_config["type"] == "app"):
+        list_subfolders = [f.name for f in os.scandir(root_benchmark_path) if f.is_dir()]
 
-    func = deployment_client.get_function(
-        benchmark_obj,
-        function_name,
-    )
-    storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
-    input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
+        for function in list_subfolders:
+            benchmark_obj = sebs_client.get_benchmark(
+                benchmark,
+                deployment_client,
+                experiment_config,
+                app_function_name=function,
+                logging_filename=logging_filename
+            )
 
-    result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
-    result.begin()
+            application_name = deployment_client.default_application_name(benchmark_obj)
+            function_name = deployment_client.default_function_name(benchmark_obj)
 
-    trigger_type = Trigger.TriggerType.get(trigger)
-    triggers = func.triggers(trigger_type)
-    if len(triggers) == 0:
-        trigger = deployment_client.create_trigger(func, trigger_type)
+            benchmark_obj.application_name = application_name
+
+            # All functions within an application need to be connected to the
+            # result queue.
+            benchmark_obj.benchmark_config.result_queue = f"{application_name}-result"
+
+            trigger = benchmark_obj.benchmark_config.trigger
+            if deployment_client.name() == "gcp" or deployment_client.name() == "azure":
+                function_name = "{}-{}".format(function_name, trigger)
+
+            func = deployment_client.get_function(benchmark_obj, function_name)
+
+            storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
+            input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
+
+            benchmark_objs[benchmark_obj] = func
+
+        # Start timing from just before triggers are deployed.
+        result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
+        result.begin()
+
+        for benchmark_obj, func in benchmark_objs.items():
+            trigger = benchmark_obj.benchmark_config.trigger
+
+            trigger_type = Trigger.TriggerType.get(trigger)
+            triggers = func.triggers(trigger_type)
+
+            if len(triggers) == 0:
+                if (benchmark_obj.benchmark_config.entrypoint):
+                    trigger = deployment_client.create_trigger(func, trigger_type, with_result_queue=True)
+                else:
+                    trigger = deployment_client.create_trigger(func, trigger_type)
+            else:
+                trigger = triggers[0]
+
+            if (benchmark_obj.benchmark_config.entrypoint):
+                main_func = func
+                main_trigger = trigger
+
+        func = main_func
+        trigger = main_trigger
+
+    # Standalone function handling.
     else:
-        trigger = triggers[0]
+        benchmark_obj = sebs_client.get_benchmark(
+            benchmark,
+            deployment_client,
+            experiment_config,
+            logging_filename=logging_filename,
+        )
+        if memory is not None:
+            benchmark_obj.benchmark_config.memory = memory
+        if timeout is not None:
+            benchmark_obj.benchmark_config.timeout = timeout
+
+        function_name = function_name if function_name else deployment_client.default_function_name(benchmark_obj)
+
+        # GCP and Azure only allow one trigger per function, so augment function name with
+        # trigger type: _http, _queue etc.
+        #
+        # Additionally, Azure requires for the trigger to be defined at deployment time.
+        if deployment_client.name() == "gcp" or deployment_client.name() == "azure":
+            function_name = "{}-{}".format(function_name, trigger)
+
+        if trigger == "queue" or trigger == "storage":
+            benchmark_obj.benchmark_config.result_queue = "{}-result".format(function_name)
+
+        func = deployment_client.get_function(
+            benchmark_obj,
+            function_name,
+        )
+        storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
+        input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
+
+        result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
+        result.begin()
+
+        trigger_type = Trigger.TriggerType.get(trigger)
+        triggers = func.triggers(trigger_type)
+        if len(triggers) == 0:
+            if (trigger_type == Trigger.TriggerType.QUEUE or trigger_type == Trigger.TriggerType.STORAGE):
+                trigger = deployment_client.create_trigger(func, trigger_type, with_result_queue=True)
+            else:
+                trigger = deployment_client.create_trigger(func, trigger_type)
+        else:
+            trigger = triggers[0]
+
+    # This part is common for both apps and functions.
     for i in range(repetitions):
         sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
         ret = trigger.sync_invoke(input_config)
-        if ret.stats.failure:
-            sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
-            # deployment_client.get_invocation_error(
-            #    function_name=func.name, start_time=start_time, end_time=end_time
-            # )
-        result.add_invocation(func, ret)
+        for experiment in ret:
+            if experiment.stats.failure:
+                sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
+                # deployment_client.get_invocation_error(
+                #    function_name=func.name, start_time=start_time, end_time=end_time
+                # )
+            result.add_invocation(func, experiment)
     result.end()
 
     result_file = os.path.join(output_dir, "experiments.json")

@@ -13,8 +13,9 @@ class GCPFunction(Function):
         code_package_hash: str,
         cfg: FunctionConfig,
         bucket: Optional[str] = None,
+        application_name: Optional[str] = None
     ):
-        super().__init__(benchmark, name, code_package_hash, cfg)
+        super().__init__(benchmark, name, code_package_hash, cfg, application_name)
         self.bucket = bucket
 
     @staticmethod
@@ -39,6 +40,7 @@ class GCPFunction(Function):
             cached_config["hash"],
             cfg,
             cached_config["bucket"],
+            cached_config["application_name"],
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
