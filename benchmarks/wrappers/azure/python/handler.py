@@ -12,6 +12,7 @@ def handler_http(req: func.HttpRequest, context: func.Context) -> func.HttpRespo
     income_timestamp = datetime.datetime.now().timestamp()
 
     req_json = req.get_json()
+
     if 'connection_string' in req_json:
         os.environ['STORAGE_CONNECTION_STRING'] = req_json['connection_string']
 
@@ -23,7 +24,6 @@ def handler_http(req: func.HttpRequest, context: func.Context) -> func.HttpRespo
 def handler_queue(msg: func.QueueMessage, context: func.Context):
     income_timestamp = datetime.datetime.now().timestamp()
 
-    logging.info('Python queue trigger function processed a queue item.')
     payload = msg.get_json()
 
     payload['request-id'] = context.invocation_id
@@ -31,19 +31,20 @@ def handler_queue(msg: func.QueueMessage, context: func.Context):
 
     stats = measure(payload)
 
-    queue_name = f"{os.getenv('WEBSITE_SITE_NAME')}-result"
-    storage_account = os.getenv('STORAGE_ACCOUNT')
-    logging.info(queue_name)
-    logging.info(storage_account)
+    # Send the results onwards.
+    result_queue = os.getenv('RESULT_QUEUE')
+    storage_account = os.getenv('DATA_STORAGE_ACCOUNT')
 
-    from . import queue
-    queue_client = queue.queue(queue_name, storage_account)
-    queue_client.send_message(stats)
+    if (result_queue and storage_account):
+        storage_account = os.getenv('STORAGE_ACCOUNT')
+
+        from . import queue
+        queue_client = queue.queue(result_queue, storage_account)
+        queue_client.send_message(stats)
 
 def handler_storage(blob: func.InputStream, context: func.Context):
     income_timestamp = datetime.datetime.now().timestamp()
 
-    logging.info('Python Blob trigger function processed %s', blob.name)
     payload = json.loads(blob.readline().decode('utf-8'))
     
     payload['request-id'] = context.invocation_id
@@ -51,14 +52,15 @@ def handler_storage(blob: func.InputStream, context: func.Context):
 
     stats = measure(payload)
 
-    queue_name = f"{os.getenv('WEBSITE_SITE_NAME')}-result"
-    storage_account = os.getenv('STORAGE_ACCOUNT')
-    logging.info(queue_name)
-    logging.info(storage_account)
+    # Send the results onwards.
+    result_queue = os.getenv('RESULT_QUEUE')
+    storage_account = os.getenv('DATA_STORAGE_ACCOUNT')
 
-    from . import queue
-    queue_client = queue.queue(queue_name, storage_account)
-    queue_client.send_message(stats)
+    if (result_queue and storage_account):
+
+        from . import queue
+        queue_client = queue.queue(result_queue, storage_account)
+        queue_client.send_message(stats)
 
 # Contains generic logic for gathering measurements for the function at hand,
 # given a request JSON. Used by all handlers, regardless of the trigger.
@@ -74,6 +76,10 @@ def measure(req_json) -> str:
     log_data = {
         'output': ret['result']
     }
+    if 'fns_triggered' in ret and ret['fns_triggered'] > 0:
+        log_data['fns_triggered'] = ret['fns_triggered']
+    if 'parent_execution_id' in ret:
+        log_data['parent_execution_id'] = ret['parent_execution_id']
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
     if 'logs' in req_json:

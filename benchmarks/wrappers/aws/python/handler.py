@@ -26,7 +26,7 @@ def handler(event, context):
         storage_inst = storage.storage.get_instance()
 
         obj = storage_inst.get_object(bucket_name, file_name)
-        event = json.loads(obj['Body'].read())
+        event = json.loads(obj)
 
         return_http = False
 
@@ -34,6 +34,7 @@ def handler(event, context):
     if 'body' in event:
         event = json.loads(event['body'])
 
+    # Run function and measure.
     req_id = context.aws_request_id
     event['request-id'] = req_id
     event['income-timestamp'] = income_timestamp
@@ -45,6 +46,10 @@ def handler(event, context):
     log_data = {
         'output': ret['result']
     }
+    if 'fns_triggered' in ret and ret['fns_triggered'] > 0:
+        log_data['fns_triggered'] = ret['fns_triggered']
+    if 'parent_execution_id' in ret:
+        log_data['parent_execution_id'] = ret['parent_execution_id']
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
     if 'logs' in event:
@@ -87,19 +92,22 @@ def handler(event, context):
                 'container_id': container_id,
             })
 
-    # HTTP or library trigger: return an HTTP response.
-    if (return_http):
+    # Send the results onwards.
+    result_queue = os.getenv('RESULT_QUEUE')
+
+    if (return_http or result_queue is None):
+        # HTTP / library trigger, standalone function: return an HTTP response.
         return {
             'statusCode': 200,
             'body': stats
         }
+    else:
+        # Queue trigger, storage trigger, or application: write to a queue.
+        arn = context.invoked_function_arn.split(":")
+        region = arn[3]
+        account_id = arn[4]
+        queue_name = result_queue
 
-    # Queue or storage trigger: return via a result queue.
-    arn = context.invoked_function_arn.split(":")
-    region = arn[3]
-    account_id = arn[4]
-    queue_name = f"{arn[6]}-result"
-
-    from function import queue
-    queue_client = queue.queue(queue_name, account_id, region)
-    queue_client.send_message(stats)
+        from function import queue
+        queue_client = queue.queue(queue_name, account_id, region)
+        queue_client.send_message(stats)

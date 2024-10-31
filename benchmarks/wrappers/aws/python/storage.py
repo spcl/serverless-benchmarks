@@ -21,8 +21,10 @@ class storage:
                     random=str(uuid.uuid4()).split('-')[0]
                 )
 
-    def upload(self, bucket, file, filepath):
+    def upload(self, bucket, file, filepath, overwrite=False):
         key_name = storage.unique_name(file)
+        if (overwrite):
+            key_name = file
         self.client.upload_file(filepath, bucket, key_name)
         return key_name
 
@@ -48,9 +50,19 @@ class storage:
         return data.getbuffer()
 
     def get_object(self, bucket, file):
-        return self.client.get_object(Bucket=bucket, Key=file)
-    
+        obj = self.client.get_object(Bucket=bucket, Key=file)
+        return obj['Body'].read().decode('utf-8')
+
     def get_instance():
         if storage.instance is None:
             storage.instance = storage()
         return storage.instance
+
+    def list_blobs(self, bucket):
+        res = self.client.list_objects(Bucket=bucket)
+
+        objs = []
+        for obj in res['Contents']:
+            objs.append(obj['Key'])
+
+        return objs

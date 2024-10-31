@@ -171,7 +171,7 @@ class Azure(System):
                         "type": "queueTrigger",
                         "direction": "in",
                         "queueName": benchmark,
-                        "connection": "DATA_STORAGE_ACCOUNT_CONN_STR",
+                        "connection": "STORAGE_CONNECTION_STRING",
                     }
                 ],
             }
@@ -185,7 +185,7 @@ class Azure(System):
                         "type": "blobTrigger",
                         "direction": "in",
                         "path": benchmark,
-                        "connection": "DATA_STORAGE_ACCOUNT_CONN_STR",
+                        "connection": "STORAGE_CONNECTION_STRING",
                     }
                 ],
             }
@@ -461,7 +461,7 @@ class Azure(System):
                     self.cli_instance.execute(
                         f"az functionapp config appsettings set --name {func_name} "
                         f" --resource-group {resource_group} "
-                        f" --settings DATA_STORAGE_ACCOUNT_CONN_STR={data_storage_account.connection_string}"
+                        f" --settings STORAGE_CONNECTION_STRING={data_storage_account.connection_string}"
                     )
 
                     self.logging.info("Azure: Created function app {}".format(func_name))

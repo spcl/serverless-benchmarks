@@ -1,5 +1,6 @@
 import base64, datetime, io, json, os, uuid, sys
 
+from google.auth import default
 from google.cloud import storage as gcp_storage
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
@@ -25,13 +26,15 @@ def handler_queue(data, context):
     
     stats = measure(payload)
 
-    # Retrieve the project id and construct the result queue name.
-    project_id = context.resource.split("/")[1]
-    topic_name = f"{context.resource.split('/')[3]}-result"
+    # Send the results onwards.
+    result_queue = os.getenv('RESULT_QUEUE')
 
-    from function import queue
-    queue_client = queue.queue(topic_name, project_id)
-    queue_client.send_message(stats)
+    if (result_queue):
+        project_id = context.resource.split("/")[1]
+
+        from function import queue
+        queue_client = queue.queue(result_queue, project_id)
+        queue_client.send_message(stats)
 
 def handler_storage(data, context):
     income_timestamp = datetime.datetime.now().timestamp()
@@ -54,16 +57,15 @@ def handler_storage(data, context):
 
     stats = measure(payload)
 
-    # Retrieve the project id and construct the result queue name.
-    from google.auth import default
-    # Used to be an env var, now we need an additional request to the metadata
-    # server to retrieve it.
-    _, project_id = default()
-    topic_name = f"{context.resource['name'].split('/')[3]}-result"
+    # Send the results onwards.
+    result_queue = os.getenv('RESULT_QUEUE')
 
-    from function import queue
-    queue_client = queue.queue(topic_name, project_id)
-    queue_client.send_message(stats)
+    if (result_queue):
+        _, project_id = default()
+
+        from function import queue
+        queue_client = queue.queue(result_queue, project_id)
+        queue_client.send_message(stats)
 
 # Contains generic logic for gathering measurements for the function at hand,
 # given a request JSON. Used by all handlers, regardless of the trigger.
@@ -80,6 +82,10 @@ def measure(req_json) -> str:
     log_data = {
         'output': ret['result']
     }
+    if 'fns_triggered' in ret and ret['fns_triggered'] > 0:
+        log_data['fns_triggered'] = ret['fns_triggered']
+    if 'parent_execution_id' in ret:
+        log_data['parent_execution_id'] = ret['parent_execution_id']
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
     if 'logs' in req_json:
