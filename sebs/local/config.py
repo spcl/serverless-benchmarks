@@ -1,9 +1,11 @@
+import json
+
 from typing import cast, Optional
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
 from sebs.storage.minio import MinioConfig
-from sebs.utils import LoggingHandlers
+from sebs.utils import serialize, LoggingHandlers
 
 
 class LocalCredentials(Credentials):
@@ -23,15 +25,28 @@ class LocalCredentials(Credentials):
 
 class LocalResources(Resources):
     def __init__(self, storage_cfg: Optional[MinioConfig] = None):
+        self._path: str = ""
         super().__init__(name="local")
         self._storage = storage_cfg
+        self._allocated_ports = set()
 
     @property
     def storage_config(self) -> Optional[MinioConfig]:
         return self._storage
 
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def allocated_ports(self) -> set:
+        return self._allocated_ports
+
     def serialize(self) -> dict:
-        return {}
+        out = {
+            "allocated_ports": list(self._allocated_ports)
+        }
+        return out
 
     @staticmethod
     def initialize(res: Resources, cfg: dict):
@@ -40,10 +55,15 @@ class LocalResources(Resources):
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
         ret = LocalResources()
+        ret._path = config["path"]
         # Check for new config
         if "storage" in config:
             ret._storage = MinioConfig.deserialize(config["storage"])
             ret.logging.info("Using user-provided configuration of storage for local containers.")
+
+        if "allocated_ports" in config:
+            ret._allocated_ports = set(config["allocated_ports"])
+
         return ret
 
 
@@ -84,6 +104,12 @@ class LocalConfig(Config):
         return config_obj
 
     def serialize(self) -> dict:
+        with open(self.resources.path, "r+") as out:
+            config = json.load(out)
+            config["deployment"]["local"].update(self.resources.serialize())
+            out.seek(0)
+            out.write(serialize(config))
+
         return {}
 
     def update_cache(self, cache: Cache):
