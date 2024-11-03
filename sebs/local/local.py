@@ -193,7 +193,8 @@ class Local(System):
             # "tty": True,
         }
 
-        # If SeBS is running on non-linux platforms, container port must be mapped to host port to make it reachable
+        # If SeBS is running on non-linux platforms,
+        # container port must be mapped to host port to make it reachable
         # Check if the system is NOT Linux or that it is WSL
         port = self.DEFAULT_PORT
         if not is_linux():
@@ -211,7 +212,7 @@ class Local(System):
                             port_found = True
                             self.config.resources.allocated_ports.add(p)
                             break
-                        except socket.error as e:
+                        except socket.error:
                             # The port is already in use
                             continue
 

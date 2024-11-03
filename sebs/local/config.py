@@ -1,11 +1,9 @@
-import json
-
 from typing import cast, Optional, Set
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
 from sebs.storage.minio import MinioConfig
-from sebs.utils import serialize, LoggingHandlers
+from sebs.utils import LoggingHandlers
 
 
 class LocalCredentials(Credentials):
