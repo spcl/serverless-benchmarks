@@ -59,7 +59,7 @@ class Cache(LoggingBase):
 
     def load_config(self):
         with self._lock:
-            for cloud in ["azure", "aws", "gcp", "openwhisk"]:
+            for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
                 cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
                 if os.path.exists(cloud_config_file):
                     self.cached_config[cloud] = json.load(open(cloud_config_file, "r"))
@@ -86,7 +86,7 @@ class Cache(LoggingBase):
 
     def shutdown(self):
         if self.config_updated:
-            for cloud in ["azure", "aws", "gcp", "openwhisk"]:
+            for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
                 if cloud in self.cached_config:
                     cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
                     self.logging.info("Update cached config {}".format(cloud_config_file))

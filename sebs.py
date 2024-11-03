@@ -427,7 +427,7 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
     """
 
     (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
-        ignore_cache=True, update_code=False, update_storage=False,
+        update_code=False, update_storage=False,
         deployment="local", storage_configuration=storage_configuration, **kwargs
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
@@ -457,8 +457,6 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
     # Otherwise we want to clean up as much as possible
     deployment_client.shutdown_storage = False
 
-    deployment_client.config.serialize()
-
     result.serialize(output)
     sebs_client.logging.info(f"Save results to {os.path.abspath(output)}")
 
@@ -475,8 +473,16 @@ def stop(input_json, output_json, **kwargs):
     sebs.utils.global_logging()
 
     logging.info(f"Stopping deployment from {os.path.abspath(input_json)}")
+    (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
+        update_code=False, update_storage=False,
+        deployment="local", **kwargs
+    )
+
+    deployment_client.res
+
     deployment = sebs.local.Deployment.deserialize(input_json, None)
     deployment.shutdown(output_json)
+
     logging.info(f"Stopped deployment from {os.path.abspath(input_json)}")
 
 

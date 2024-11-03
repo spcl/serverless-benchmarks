@@ -103,12 +103,8 @@ class Local(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
-    """
-        Shut down minio storage instance.
-    """
-
     def shutdown(self):
-        pass
+        super().shutdown()
 
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.
@@ -197,7 +193,8 @@ class Local(System):
             # "tty": True,
         }
 
-        # If SeBS is running on non-linux platforms, container port must be mapped to host port to make it reachable
+        # If SeBS is running on non-linux platforms,
+        # container port must be mapped to host port to make it reachable
         # Check if the system is NOT Linux or that it is WSL
         port = self.DEFAULT_PORT
         if not is_linux():
@@ -215,7 +212,7 @@ class Local(System):
                             port_found = True
                             self.config.resources.allocated_ports.add(p)
                             break
-                        except socket.error as e:
+                        except socket.error:
                             # The port is already in use
                             continue
 
@@ -226,7 +223,7 @@ class Local(System):
                 )
 
             container_kwargs["command"] = f"/bin/bash /sebs/run_server.sh {port}"
-            container_kwargs["ports"] = {f'{port}/tcp': port}
+            container_kwargs["ports"] = {f"{port}/tcp": port}
 
         container = self._docker_client.containers.run(**container_kwargs)
 

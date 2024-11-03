@@ -3,7 +3,6 @@ import json
 import os
 import secrets
 import uuid
-import platform
 from typing import List, Optional, Type, TypeVar
 
 import docker
