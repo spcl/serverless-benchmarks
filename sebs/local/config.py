@@ -35,34 +35,46 @@ class LocalResources(Resources):
         return self._storage
 
     @property
-    def path(self) -> str:
-        return self._path
-
-    @property
     def allocated_ports(self) -> set:
         return self._allocated_ports
 
     def serialize(self) -> dict:
         out = {
-            "allocated_ports": list(self._allocated_ports)
+            "allocated_ports": list(self._allocated_ports),
+            "storage": self._storage.serialize()
         }
         return out
 
     @staticmethod
-    def initialize(res: Resources, cfg: dict):
-        pass
+    def initialize(res: Resources, config: dict):
+
+        # Check for new config
+        if "storage" in config:
+            res._storage = MinioConfig.deserialize(config["storage"])
+            res.logging.info("Using user-provided configuration of storage for local containers.")
+
+        if "allocated_ports" in config:
+            res._allocated_ports = set(config["allocated_ports"])
+
+    def update_cache(self, cache: Cache):
+        super().update_cache(cache)
+        cache.update_config(val=list(self._allocated_ports), keys=["local", "resources", "allocated_ports"])
+        self._storage.update_cache(["local", "resources", "storage"], cache)
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
         ret = LocalResources()
-        ret._path = config["path"]
-        # Check for new config
-        if "storage" in config:
-            ret._storage = MinioConfig.deserialize(config["storage"])
-            ret.logging.info("Using user-provided configuration of storage for local containers.")
 
-        if "allocated_ports" in config:
-            ret._allocated_ports = set(config["allocated_ports"])
+        cached_config = cache.get_config("local")
+        # Load cached values
+        if cached_config and "resources" in cached_config:
+            LocalResources.initialize(ret, cached_config["resources"])
+            ret.logging_handlers = handlers
+            ret.logging.info("Using cached resources for Local")
+        else:
+            # Check for new config
+            ret.logging_handlers = handlers
+            LocalResources.initialize(ret, config)
 
         return ret
 
@@ -104,13 +116,12 @@ class LocalConfig(Config):
         return config_obj
 
     def serialize(self) -> dict:
-        with open(self.resources.path, "r+") as out:
-            config = json.load(out)
-            config["deployment"]["local"].update(self.resources.serialize())
-            out.seek(0)
-            out.write(serialize(config))
-
-        return {}
+        out = {
+            "name": "local",
+            "region": self._region,
+            "resources": self._resources.serialize()
+        }
+        return out
 
     def update_cache(self, cache: Cache):
-        pass
+        self.resources.update_cache(cache)

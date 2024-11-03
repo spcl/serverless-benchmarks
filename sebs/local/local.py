@@ -103,12 +103,8 @@ class Local(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
-    """
-        Shut down minio storage instance.
-    """
-
     def shutdown(self):
-        pass
+        super().shutdown()
 
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.

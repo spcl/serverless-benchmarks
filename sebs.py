@@ -457,8 +457,6 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
     # Otherwise we want to clean up as much as possible
     deployment_client.shutdown_storage = False
 
-    deployment_client.config.serialize()
-
     result.serialize(output)
     sebs_client.logging.info(f"Save results to {os.path.abspath(output)}")
 
