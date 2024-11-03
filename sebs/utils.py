@@ -252,9 +252,11 @@ class LoggingBase:
 def has_platform(name: str) -> bool:
     return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "true"
 
+
 # Check if the system is Linux and that it's not WSL
 def is_linux() -> bool:
     return platform.system() == "Linux" and "microsoft" not in platform.release().lower()
+
 
 def catch_interrupt():
 
