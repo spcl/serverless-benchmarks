@@ -315,13 +315,13 @@ class FunctionConfig:
 
     @staticmethod
     def _from_benchmark(benchmark: Benchmark, obj_type: Type[T]) -> T:
-        runtime = Runtime(language=benchmark.language, version=benchmark.language_version )
+        runtime = Runtime(language=benchmark.language, version=benchmark.language_version)
         architecture = Architecture.deserialize(benchmark._experiment_config._architecture)
         cfg = obj_type(
             timeout=benchmark.benchmark_config.timeout,
             memory=benchmark.benchmark_config.memory,
             runtime=runtime,
-            architecture=architecture,  
+            architecture=architecture,
         )
         return cfg
 

@@ -232,7 +232,7 @@ class AWS(System):
                 MemorySize=memory,
                 Timeout=timeout,
                 Code=code_config,
-                Architectures = [architecture]
+                Architectures=[architecture],
             )
 
             lambda_function = LambdaFunction(

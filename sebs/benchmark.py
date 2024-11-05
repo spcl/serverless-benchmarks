@@ -269,7 +269,11 @@ class Benchmark(LoggingBase):
         for path in paths:
             if os.path.exists(os.path.join(path, "init.sh")):
                 subprocess.run(
-                    cmd.format(benchmark_path=path, output_dir=output_dir, architecture=self._experiment_config._architecture),
+                    cmd.format(
+                        benchmark_path=path,
+                        output_dir=output_dir,
+                        architecture=self._experiment_config._architecture,
+                    ),
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
