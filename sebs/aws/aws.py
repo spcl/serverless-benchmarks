@@ -284,11 +284,20 @@ class AWS(System):
         name = function.name
         code_size = code_package.code_size
         package = code_package.code_location
+
+        function_cfg = FunctionConfig.from_benchmark(code_package)
+        architecture = function_cfg.architecture.value
+        architecture = function_cfg.architecture.value
+
         # Run AWS update
         # AWS Lambda limit on zip deployment
         if code_size < 50 * 1024 * 1024:
             with open(package, "rb") as code_body:
-                self.client.update_function_code(FunctionName=name, ZipFile=code_body.read())
+                self.client.update_function_code(
+                    FunctionName=name,
+                    ZipFile=code_body.read(),
+                    Architectures=[architecture],
+                )
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(package)
@@ -296,13 +305,18 @@ class AWS(System):
             bucket = function.code_bucket(code_package.benchmark, storage)
             storage.upload(bucket, package, code_package_name)
             self.client.update_function_code(
-                FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
+                FunctionName=name,
+                S3Bucket=bucket,
+                S3Key=code_package_name,
+                Architectures=[architecture],
             )
         self.wait_function_updated(function)
         self.logging.info(f"Updated code of {name} function. ")
         # and update config
         self.client.update_function_configuration(
-            FunctionName=name, Timeout=function.config.timeout, MemorySize=function.config.memory
+            FunctionName=name,
+            Timeout=function.config.timeout,
+            MemorySize=function.config.memory,
         )
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {name} function. ")
