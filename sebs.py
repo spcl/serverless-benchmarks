@@ -92,16 +92,16 @@ def common_params(func):
         help="Cloud deployment to use.",
     )
     @click.option(
-        "--resource-prefix",
-        default=None,
-        type=str,
-        help="Resource prefix to look for.",
-    )
-    @click.option(
         "--architecture",
         default=None,
         type=click.Choice(["x86_64", "arm64"]),
         help="Target architecture",
+    )
+    @click.option(
+        "--resource-prefix",
+        default=None,
+        type=str,
+        help="Resource prefix to look for.",
     )
 
     @simplified_common_params
@@ -124,8 +124,8 @@ def parse_common_params(
     deployment,
     language,
     language_version,
-    resource_prefix: Optional[str] = None,
     architecture,
+    resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
     storage_configuration: Optional[str] = None
