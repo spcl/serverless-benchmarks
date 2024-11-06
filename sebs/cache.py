@@ -201,8 +201,10 @@ class Cache(LoggingBase):
                 # config = {deployment_name: {language: language_config}}
                 config = {
                     deployment_name: {
-                        f"{language_version}-{architecture}": {
-                            "code_package": {language_version: language_config},
+                        language: {
+                            "code_package": {
+                                f"{language_version}-{architecture}": language_config
+                            },
                             "functions": {},
                         }
                     }
