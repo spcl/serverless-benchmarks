@@ -242,7 +242,9 @@ class AWSResources(Resources):
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
 
-    def check_ecr_repository_exists(self, ecr_client, repository_name) -> Optional[str]:
+    def check_ecr_repository_exists(
+        self, ecr_client: ECRClient, repository_name: str
+    ) -> Optional[str]:
         try:
             resp = ecr_client.describe_repositories(repositoryNames=[repository_name])
             return resp["repositories"][0]["repositoryUri"]
@@ -252,12 +254,10 @@ class AWSResources(Resources):
             self.logging.error(f"Error checking repository: {e}")
             raise e
 
-    def get_ecr_repository(self, boto3_session: boto3.session.Session) -> Tuple[ECRClient, str]:
-
-        ecr_client = boto3_session.client(service_name="ecr", region_name=cast(str, self._region))
+    def get_ecr_repository(self, ecr_client: ECRClient) -> str:
 
         if self._container_repository is not None:
-            return ecr_client, self._container_repository
+            return self._container_repository
 
         self._container_repository = "sebs-benchmarks-{}".format(self._resources_id)
 
@@ -278,9 +278,9 @@ class AWSResources(Resources):
                     ecr_client, self._container_repository
                 )
 
-        return ecr_client, self._container_repository
+        return self._container_repository
 
-    def ecr_repository_authorization(self, ecr_client) -> Tuple[str, str, str]:
+    def ecr_repository_authorization(self, ecr_client: ECRClient) -> Tuple[str, str, str]:
 
         if self._docker_password is None:
             response = ecr_client.get_authorization_token()

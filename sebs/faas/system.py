@@ -173,26 +173,6 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def build_base_image(
-        self,
-        directory: str,
-        language_name: str,
-        language_version: str,
-        architecture: str,
-        benchmark: str,
-        is_cached: bool,
-    ) -> Tuple[bool, str]:
-        pass
-
-    @abstractmethod
-    def find_image(self, repository_client, repository_name, image_tag) -> bool:
-        pass
-
-    @abstractmethod
-    def push_image_to_repository(self, repository_client, repository_uri, image_tag):
-        pass
-
-    @abstractmethod
     def create_function(
         self,
         code_package: Benchmark,

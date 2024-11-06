@@ -1,6 +1,5 @@
 import math
 import os
-import platform
 import shutil
 import time
 import uuid
@@ -8,17 +7,17 @@ from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
 import docker
-from botocore.exceptions import ClientError
 
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
+from sebs.aws.container import ECRContainer
 from sebs.aws.config import AWSConfig
 from sebs.faas.config import Resources
 from sebs.utils import execute
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingHandlers, DOCKER_DIR
+from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
@@ -73,6 +72,10 @@ class AWS(System):
         self.get_lambda_client()
         self.get_storage()
         self.initialize_resources(select_prefix=resource_prefix)
+
+        self.ecr_client = ECRContainer(
+            self.system_config, self.session, self.config, self.docker_client
+        )
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
@@ -143,7 +146,7 @@ class AWS(System):
         # if the containerzied deployment is set to True
         if container_deployment:
             # build base image and upload to ECR
-            _, container_uri = self.build_base_image(
+            _, container_uri = self.ecr_client.build_base_image(
                 directory, language_name, language_version, architecture, benchmark, is_cached
             )
 
@@ -180,179 +183,6 @@ class AWS(System):
         if architecture == "x64":
             return "x86_64"
         return architecture
-
-    # PK: To Do: Test
-    def find_image(self, repository_client, repository_name, image_tag) -> bool:
-        try:
-            response = repository_client.describe_images(
-                repositoryName=repository_name, imageIds=[{"imageTag": image_tag}]
-            )
-            if response["imageDetails"]:
-                return True
-        except ClientError:
-            return False
-
-        return False
-
-    def push_image_to_repository(self, repository_client, repository_uri, image_tag):
-
-        username, password, registry_url = self.config.resources.ecr_repository_authorization(
-            repository_client
-        )
-
-        import json
-
-        layer_tasks = {}
-
-        def show_progress(line, progress):
-
-            if isinstance(line, str):
-                line = json.loads(line)
-
-            status = line.get("status", "")
-            progress_detail = line.get("progressDetail", {})
-            id_ = line.get("id", "")
-
-            if "Pushing" in status and progress_detail:
-                current = progress_detail.get("current", 0)
-                total = progress_detail.get("total", 0)
-
-                if id_ not in layer_tasks and total > 0:
-                    # Create new progress task for this layer
-                    description = f"Layer {id_[:12]}"
-                    layer_tasks[id_] = progress.add_task(description, total=total)
-                if id_ in layer_tasks:
-                    # Update progress for existing task
-                    progress.update(layer_tasks[id_], completed=current)
-
-            elif any(x in status for x in ["Layer already exists", "Pushed"]):
-                if id_ in layer_tasks:
-                    # Complete the task
-                    progress.update(
-                        layer_tasks[id_], completed=progress.tasks[layer_tasks[id_]].total
-                    )
-
-            elif "error" in line:
-                raise Exception(line["error"])
-
-        def push_image(repository_uri, image_tag):
-            try:
-                from rich.progress import Progress
-
-                with Progress() as progress:
-
-                    self.logging.info(f"Pushing image {image_tag} to {repository_uri}")
-                    ret = self.docker_client.images.push(
-                        repository=repository_uri, tag=image_tag, stream=True, decode=True
-                    )
-                    for line in ret:
-                        show_progress(line, progress)
-            except docker.errors.APIError as e:
-                self.logging.error(
-                    f"Failed to push the image to registry {repository_uri}. Error: {str(e)}"
-                )
-                raise e
-
-        try:
-            self.docker_client.login(username=username, password=password, registry=registry_url)
-            push_image(repository_uri, image_tag)
-            self.logging.info(f"Successfully pushed the image to registry {repository_uri}.")
-        except docker.errors.APIError as e:
-            self.logging.error(f"Failed to push the image to registry {repository_uri}.")
-            self.logging.error(f"Error: {str(e)}")
-            raise RuntimeError("Couldn't push to Docker registry")
-
-    def build_base_image(
-        self,
-        directory: str,
-        language_name: str,
-        language_version: str,
-        architecture: str,
-        benchmark: str,
-        is_cached: bool,
-    ) -> Tuple[bool, str]:
-        """
-        When building function for the first time (according to SeBS cache),
-        check if Docker image is available in the registry.
-        If yes, then skip building.
-        If no, then continue building.
-
-        For every subsequent build, we rebuild image and push it to the
-        registry. These are triggered by users modifying code and enforcing
-        a build.
-        """
-
-        account_id = self.config.credentials.account_id
-        region = self.config.region
-        registry_name = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
-
-        ecr_client, repository_name = self.config.resources.get_ecr_repository(self.session)
-
-        image_tag = self.system_config.benchmark_image_tag(
-            self.name(), benchmark, language_name, language_version, architecture
-        )
-        repository_uri = f"{registry_name}/{repository_name}:{image_tag}"
-
-        # cached package, rebuild not enforced -> check for new one
-        # if cached is true, no need to build and push the image.
-        if is_cached:
-            if self.find_image(self.docker_client, repository_name, image_tag):
-                self.logging.info(
-                    f"Skipping building AWS Docker package for {benchmark}, using "
-                    f"Docker image {repository_name}:{image_tag} from registry: "
-                    f"{registry_name}."
-                )
-                return False, repository_uri
-            else:
-                # image doesn't exist, let's continue
-                self.logging.info(
-                    f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
-                    f"building the image for {benchmark}."
-                )
-
-        build_dir = os.path.join(directory, "docker")
-        os.makedirs(build_dir, exist_ok=True)
-
-        shutil.copy(
-            os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
-            os.path.join(build_dir, "Dockerfile"),
-        )
-        for fn in os.listdir(directory):
-            if fn not in ("index.js", "__main__.py"):
-                file = os.path.join(directory, fn)
-                shutil.move(file, build_dir)
-
-        with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
-            f.write("Dockerfile")
-
-        builder_image = self.system_config.benchmark_base_images(
-            self.name(), language_name, architecture
-        )[language_version]
-        self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
-
-        isa = platform.processor()
-        if (isa == "x86_64" and architecture != "x64") or (
-            isa == "arm64" and architecture != "arm64"
-        ):
-            self.logging.warning(
-                f"Building image for architecture: {architecture} on CPU architecture: {isa}. "
-                "This step requires configured emulation. If the build fails, please consult "
-                "our documentation. We recommend QEMU as it can be configured to run automatically."
-            )
-
-        buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
-        image, _ = self.docker_client.images.build(
-            tag=repository_uri, path=build_dir, buildargs=buildargs
-        )
-
-        self.logging.info(
-            f"Push the benchmark base image {repository_name}:{image_tag} "
-            f"to registry: {registry_name}."
-        )
-
-        self.push_image_to_repository(ecr_client, repository_uri, image_tag)
-
-        return True, repository_uri
 
     def _map_language_runtime(self, language: str, runtime: str):
 
