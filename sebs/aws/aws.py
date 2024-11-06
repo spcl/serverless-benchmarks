@@ -7,7 +7,6 @@ from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
 import docker
-import base64
 from botocore.exceptions import ClientError
 
 from sebs.aws.s3 import S3
@@ -206,23 +205,59 @@ class AWS(System):
 
         return False
 
-    def repository_authorization(self, repository_client):
-        auth = repository_client.get_authorization_token()
-        auth_data = auth["authorizationData"][0]
-        token = base64.b64decode(auth_data["authorizationToken"]).decode("utf-8")
-        username, password = token.split(":")
-        registry_url = auth_data["proxyEndpoint"]
-        return username, password, registry_url
-
     def push_image_to_repository(self, repository_client, repository_uri, image_tag):
+
+        username, password, registry_url = self.config.resources.ecr_repository_authorization(
+            repository_client
+        )
+
+        import json
+
+        layer_tasks = {}
+
+        def show_progress(line, progress):
+
+            if isinstance(line, str):
+                line = json.loads(line)
+
+            status = line.get("status", "")
+            progress_detail = line.get("progressDetail", {})
+            id_ = line.get("id", "")
+
+            if "Pushing" in status and progress_detail:
+                current = progress_detail.get("current", 0)
+                total = progress_detail.get("total", 0)
+
+                if id_ not in layer_tasks and total > 0:
+                    # Create new progress task for this layer
+                    description = f"Layer {id_[:12]}"
+                    layer_tasks[id_] = progress.add_task(description, total=total)
+                if id_ in layer_tasks:
+                    # Update progress for existing task
+                    progress.update(layer_tasks[id_], completed=current)
+
+            elif any(x in status for x in ["Layer already exists", "Pushed"]):
+                if id_ in layer_tasks:
+                    # Complete the task
+                    progress.update(
+                        layer_tasks[id_], completed=progress.tasks[layer_tasks[id_]].total
+                    )
+
+            elif "error" in line:
+                raise Exception(line["error"])
+
         def push_image(repository_uri, image_tag):
             try:
-                ret = self.docker_client.images.push(
-                    repository=repository_uri, tag=image_tag, stream=True, decode=True
-                )
-                for val in ret:
-                    if "error" in val:
-                        raise docker.errors.APIError(f"Push failed: {val['error']}")
+                from rich.progress import Progress
+
+                with Progress() as progress:
+
+                    self.logging.info(f"Pushing image {image_tag} to {repository_uri}")
+                    ret = self.docker_client.images.push(
+                        repository=repository_uri, tag=image_tag, stream=True, decode=True
+                    )
+                    for line in ret:
+                        show_progress(line, progress)
             except docker.errors.APIError as e:
                 self.logging.error(
                     f"Failed to push the image to registry {repository_uri}. Error: {str(e)}"
@@ -230,27 +265,22 @@ class AWS(System):
                 raise e
 
         try:
-            push_image(repository_uri, image_tag)
-            self.logging.info(
-                f"Successfully pushed the image to registry {repository_uri} \
-                        with user provided credentials"
-            )
-        except docker.errors.APIError:
-            self.logging.info("Retrying to push the Image to the ECR repository .....")
-            username, password, registry_url = self.repository_authorization(repository_client)
-            try:
+            print(username, password, registry_url)
+            print(
                 self.docker_client.login(
                     username=username, password=password, registry=registry_url
                 )
-                push_image(repository_uri, image_tag)
-                self.logging.info(
-                    f"Successfully pushed the image to registry {repository_uri} after retry"
-                )
-            except docker.errors.APIError as e:
-                self.logging.error(
-                    f"Failed to push the image to registry {repository_uri} after retry. Error: {str(e)}"
-                )
-                raise RuntimeError("Couldn't push to Docker registry")
+            )
+            push_image(repository_uri, image_tag)
+            self.logging.info(
+                f"Successfully pushed the image to registry {repository_uri} after retry"
+            )
+        except docker.errors.APIError as e:
+            self.logging.error(
+                f"Failed to push the image to registry {repository_uri} after retry."
+            )
+            self.logging.error(f"Error: {str(e)}")
+            raise RuntimeError("Couldn't push to Docker registry")
 
     def build_base_image(
         self,
@@ -275,7 +305,7 @@ class AWS(System):
         region = self.config.region
         registry_name = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
 
-        ecr_client, repository_name = self.config.resources.create_ecr_repository(self.session)
+        ecr_client, repository_name = self.config.resources.get_ecr_repository(self.session)
 
         image_tag = self.system_config.benchmark_image_tag(
             self.name(), benchmark, language_name, language_version

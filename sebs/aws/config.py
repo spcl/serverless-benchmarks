@@ -1,11 +1,12 @@
+import base64
 import json
 import os
 import time
-from typing import cast, Dict, Optional
+from typing import cast, Dict, Optional, Tuple
 
 import boto3
+from mypy_boto3_ecr import ECRClient
 from botocore.exceptions import ClientError
-
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -242,44 +243,68 @@ class AWSResources(Resources):
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
 
-    def check_ecr_repository_exists(self, ecr_client, repository_name):
+    def check_ecr_repository_exists(self, ecr_client, repository_name) -> Optional[str]:
         try:
-            ecr_client.describe_repositories(repositoryNames=[repository_name])
-            return True
+            resp = ecr_client.describe_repositories(repositoryNames=[repository_name])
+            return resp["repositories"][0]["repositoryUri"]
         except ecr_client.exceptions.RepositoryNotFoundException:
-            return False
+            return None
         except Exception as e:
             self.logging.error(f"Error checking repository: {e}")
             raise e
 
-    def create_ecr_repository(self, boto3_session: boto3.session.Session):
+    def get_ecr_repository(self, boto3_session: boto3.session.Session) -> Tuple[ECRClient, str]:
+
         ecr_client = boto3_session.client(service_name="ecr", region_name=cast(str, self._region))
 
-        if not self._container_repository:
-            repository_name = "sebs-benchmark-{}".format(self._resources_id)
-        else:
-            repository_name = self._container_repository
+        if self._container_repository is not None:
+            return ecr_client, self._container_repository
 
-        if not self.check_ecr_repository_exists(ecr_client, repository_name):
+        self._container_repository = "sebs-benchmarks-{}".format(self._resources_id)
+
+        self._docker_registry = self.check_ecr_repository_exists(
+            ecr_client, self._container_repository
+        )
+
+        if self._docker_registry is None:
             try:
-                ecr_client.create_repository(repositoryName=repository_name)
-                self.logging.info(f"Created ECR repository: {repository_name}")
+                resp = ecr_client.create_repository(repositoryName=self._container_repository)
+                self.logging.info(f"Created ECR repository: {self._container_repository}")
+
+                self._docker_registry = resp["repository"]["repositoryUri"]
             except ClientError as e:
                 if e.response["Error"]["Code"] != "RepositoryAlreadyExistsException":
                     self.logging.error(f"Failed to create ECR repository: {e}")
                     raise e
-        return ecr_client, repository_name
 
-    # FIXME: python3.7+ future annotations
+        return ecr_client, self._container_repository
+
+    def ecr_repository_authorization(self, ecr_client) -> Tuple[str, str, str]:
+
+        if self._docker_password is None:
+            response = ecr_client.get_authorization_token()
+            auth_token = response["authorizationData"][0]["authorizationToken"]
+            decoded_token = base64.b64decode(auth_token).decode("utf-8")
+            # Split username:password
+            self._docker_username, self._docker_password = decoded_token.split(":")
+
+        assert self._docker_username is not None
+        assert self._docker_registry is not None
+
+        return self._docker_username, self._docker_password, self._docker_registry
+
     @staticmethod
     def initialize(res: Resources, dct: dict):
 
         ret = cast(AWSResources, res)
-        ret._docker_registry = dct["registry"]
-        ret._docker_username = dct["username"]
-        ret._docker_password = dct["password"]
-        ret._container_repository = dct["container_repository"]
         super(AWSResources, AWSResources).initialize(ret, dct)
+
+        if "docker" in dct:
+            ret._docker_registry = dct["docker"]["registry"]
+            ret._docker_username = dct["docker"]["username"]
+            ret._docker_password = dct["docker"]["password"]
+            ret._container_repository = dct["container_repository"]
+
         ret._lambda_role = dct["lambda-role"] if "lambda-role" in dct else ""
         if "http-apis" in dct:
             for key, value in dct["http-apis"].items():
@@ -292,9 +317,11 @@ class AWSResources(Resources):
             **super().serialize(),
             "lambda-role": self._lambda_role,
             "http-apis": {key: value.serialize() for (key, value) in self._http_apis.items()},
-            "docker_registry": self.docker_registry,
-            "docker_username": self.docker_username,
-            "docker_password": self.docker_password,
+            "docker": {
+                "registry": self.docker_registry,
+                "username": self.docker_username,
+                "password": self.docker_password,
+            },
             "container_repository": self.container_repository,
         }
         return out
@@ -322,21 +349,11 @@ class AWSResources(Resources):
         ret = AWSResources()
         cached_config = cache.get_config("aws")
 
-        if "docker_registry" in config:
-            AWSResources.initialize(ret, config["docker_registry"])
-            ret.logging.info("Using user-provided Docker registry for AWS.")
-            ret.logging_handlers = handlers
-
         # Load cached values
-        elif (
-            cached_config
-            and "resources" in cached_config
-            and "docker" in cached_config["resources"]
-        ):
-
-            AWSResources.initialize(ret, cached_config["resources"]["docker"])
+        if cached_config and "resources" in cached_config:
+            AWSResources.initialize(ret, cached_config["resources"])
             ret.logging_handlers = handlers
-            ret.logging.info("Using cached Docker registry for AWS")
+            ret.logging.info("Using cached resources for AWS")
         else:
             # Check for new config
             if "resources" in config:
