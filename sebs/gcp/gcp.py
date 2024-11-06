@@ -138,6 +138,7 @@ class GCP(System):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
         container_deployment: bool,
