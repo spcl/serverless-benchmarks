@@ -336,8 +336,11 @@ class AWS(System):
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
         # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.benchmark, code_package.language_name, code_package.language_version
+        func_name = "{}-{}-{}-{}".format(
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.language_version,
+            code_package.architecture,
         )
         return AWS.format_function_name(func_name)
 
