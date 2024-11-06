@@ -259,13 +259,9 @@ class AWS(System):
                 )
             )
             push_image(repository_uri, image_tag)
-            self.logging.info(
-                f"Successfully pushed the image to registry {repository_uri} after retry"
-            )
+            self.logging.info(f"Successfully pushed the image to registry {repository_uri}.")
         except docker.errors.APIError as e:
-            self.logging.error(
-                f"Failed to push the image to registry {repository_uri} after retry."
-            )
+            self.logging.error(f"Failed to push the image to registry {repository_uri}.")
             self.logging.error(f"Error: {str(e)}")
             raise RuntimeError("Couldn't push to Docker registry")
 
@@ -563,6 +559,8 @@ class AWS(System):
             code_package.language_version,
             code_package.architecture,
         )
+        if code_package.container_deployment:
+            func_name = f"{func_name}-docker"
         return AWS.format_function_name(func_name)
 
     @staticmethod
