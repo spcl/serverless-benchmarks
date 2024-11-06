@@ -248,9 +248,9 @@ class AWS(System):
                 )
             except docker.errors.APIError as e:
                 self.logging.error(
-                    f"Failed to push the image to registry {repository_uri} after retry. \
-                            Error: {str(e)}"
+                    f"Failed to push the image to registry {repository_uri} after retry. Error: {str(e)}"
                 )
+                raise RuntimeError("Couldn't push to Docker registry")
 
     def build_base_image(
         self,
