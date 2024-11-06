@@ -3,4 +3,4 @@ botocore
 flake8-boto3
 urllib3
 boto3-stubs
-boto3-stubs[lambda,s3,apigatewayv2,sts,logs,iam]
+boto3-stubs[lambda,s3,apigatewayv2,sts,logs,iam,ecr]
