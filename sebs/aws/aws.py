@@ -293,7 +293,6 @@ class AWS(System):
 
         function_cfg = FunctionConfig.from_benchmark(code_package)
         architecture = function_cfg.architecture.value
-        architecture = function_cfg.architecture.value
 
         # Run AWS update
         # AWS Lambda limit on zip deployment
@@ -306,7 +305,7 @@ class AWS(System):
                 )
         # Upload code package to S3, then update
         else:
-            code_package_name = os.path.basename(package)
+            code_package_name = f"{architecture}-{os.path.basename(package)}"
             storage = cast(S3, self.get_storage())
             bucket = function.code_bucket(code_package.benchmark, storage)
             storage.upload(bucket, package, code_package_name)
