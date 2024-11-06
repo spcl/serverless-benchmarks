@@ -63,19 +63,6 @@ class AWS(System):
         self._config = config
         self.storage: Optional[S3] = None
 
-        if self.config.resources.docker_username:
-            if self.config.resources.docker_registry:
-                docker_client.login(
-                    username=self.config.resources.docker_username,
-                    password=self.config.resources.docker_password,
-                    registry=self.config.resources.docker_registry,
-                )
-            else:
-                docker_client.login(
-                    username=self.config.resources.docker_username,
-                    password=self.config.resources.docker_password,
-                )
-
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         # thread-safe
         self.session = boto3.session.Session(
