@@ -223,7 +223,7 @@ class AWS(System):
                 code_package_name = cast(str, os.path.basename(package))
 
                 code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
-                code_prefix = os.path.join(benchmark, code_package_name)
+                code_prefix = os.path.join(benchmark, architecture, code_package_name)
                 storage_client.upload(code_bucket, package, code_prefix)
 
                 self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
@@ -290,6 +290,7 @@ class AWS(System):
         name = function.name
         code_size = code_package.code_size
         package = code_package.code_location
+        benchmark = code_package.benchmark
 
         function_cfg = FunctionConfig.from_benchmark(code_package)
         architecture = function_cfg.architecture.value
@@ -305,14 +306,17 @@ class AWS(System):
                 )
         # Upload code package to S3, then update
         else:
-            code_package_name = f"{architecture}-{os.path.basename(package)}"
+            code_package_name = os.path.basename(package)
+
             storage = cast(S3, self.get_storage())
             bucket = function.code_bucket(code_package.benchmark, storage)
-            storage.upload(bucket, package, code_package_name)
+            code_prefix = os.path.join(benchmark, architecture, code_package_name)
+            storage.upload(bucket, package, code_prefix)
+
             self.client.update_function_code(
                 FunctionName=name,
                 S3Bucket=bucket,
-                S3Key=code_package_name,
+                S3Key=code_prefix,
                 Architectures=[self._map_architecture(architecture)],
             )
         self.wait_function_updated(function)
