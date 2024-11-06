@@ -62,10 +62,18 @@
     "languages": {
       "python": {
         "base_images": {
-          "3.11": "amazon/aws-lambda-python:3.11",
-          "3.10": "amazon/aws-lambda-python:3.10",
-          "3.9": "amazon/aws-lambda-python:3.9",
-          "3.8": "amazon/aws-lambda-python:3.8"
+          "x64": {
+            "3.11": "amazon/aws-lambda-python:3.11",
+            "3.10": "amazon/aws-lambda-python:3.10",
+            "3.9": "amazon/aws-lambda-python:3.9",
+            "3.8": "amazon/aws-lambda-python:3.8"
+          },
+          "arm64": {
+            "3.11": "amazon/aws-lambda-python:3.11.2024.05.23.17",
+            "3.10": "amazon/aws-lambda-python:3.10.2024.06.19.11",
+            "3.9": "amazon/aws-lambda-python:3.9.2024.05.20.23",
+            "3.8": "amazon/aws-lambda-python:3.8.2024.09.05.16"
+          }
         },
         "images": [
           "build"
@@ -81,7 +89,12 @@
       },
       "nodejs": {
         "base_images": {
-          "16": "amazon/aws-lambda-nodejs:16"
+          "x64": {
+            "16": "amazon/aws-lambda-nodejs:16"
+          },
+          "arm64": {
+            "16": "amazon/aws-lambda-nodejs:16.2024.09.06.13"
+          }
         },
         "images": [
           "build"

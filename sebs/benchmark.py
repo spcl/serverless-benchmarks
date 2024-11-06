@@ -510,7 +510,9 @@ class Benchmark(LoggingBase):
 
     def build(
         self,
-        deployment_build_step: Callable[[str, str, str, str, bool, bool], Tuple[str, int, str]],
+        deployment_build_step: Callable[
+            [str, str, str, str, str, bool, bool], Tuple[str, int, str]
+        ],
     ) -> Tuple[bool, str, bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
@@ -547,6 +549,7 @@ class Benchmark(LoggingBase):
             os.path.abspath(self._output_dir),
             self.language_name,
             self.language_version,
+            self.architecture,
             self.benchmark,
             self.is_cached_valid,
             self.container_deployment,

@@ -1,5 +1,6 @@
 import math
 import os
+import platform
 import shutil
 import time
 import uuid
@@ -131,6 +132,7 @@ class AWS(System):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
         container_deployment: bool,
@@ -142,7 +144,7 @@ class AWS(System):
         if container_deployment:
             # build base image and upload to ECR
             _, container_uri = self.build_base_image(
-                directory, language_name, language_version, benchmark, is_cached
+                directory, language_name, language_version, architecture, benchmark, is_cached
             )
 
         CONFIG_FILES = {
@@ -265,6 +267,7 @@ class AWS(System):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
     ) -> Tuple[bool, str]:
@@ -286,7 +289,7 @@ class AWS(System):
         ecr_client, repository_name = self.config.resources.get_ecr_repository(self.session)
 
         image_tag = self.system_config.benchmark_image_tag(
-            self.name(), benchmark, language_name, language_version
+            self.name(), benchmark, language_name, language_version, architecture
         )
         repository_uri = f"{registry_name}/{repository_name}:{image_tag}"
 
@@ -322,10 +325,20 @@ class AWS(System):
         with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
             f.write("Dockerfile")
 
-        builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
-            language_version
-        ]
+        builder_image = self.system_config.benchmark_base_images(
+            self.name(), language_name, architecture
+        )[language_version]
         self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
+
+        isa = platform.processor()
+        if (isa == "x86_64" and architecture != "x64") or (
+            isa == "arm64" and architecture != "arm64"
+        ):
+            self.logging.warning(
+                f"Building image for architecture: {architecture} on CPU architecture: {isa}. "
+                "This step requires configured emulation. If the build fails, please consult "
+                "our documentation. We recommend QEMU as it can be configured to run automatically."
+            )
 
         buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
         image, _ = self.docker_client.images.build(

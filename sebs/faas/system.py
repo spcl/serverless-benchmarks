@@ -165,6 +165,7 @@ class System(ABC, LoggingBase):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
         container_deployment: bool,
@@ -177,6 +178,7 @@ class System(ABC, LoggingBase):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
     ) -> Tuple[bool, str]:
@@ -230,7 +232,7 @@ class System(ABC, LoggingBase):
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
 
         if code_package.language_version not in self.system_config.supported_language_versions(
-            self.name(), code_package.language_name
+            self.name(), code_package.language_name, code_package.architecture
         ):
             raise Exception(
                 "Unsupported {language} version {version} in {system}!".format(

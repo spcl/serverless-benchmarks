@@ -34,9 +34,11 @@ class SeBSConfig:
     def docker_image_types(self, deployment_name: str, language_name: str) -> List[str]:
         return self._system_config[deployment_name]["languages"][language_name]["images"]
 
-    def supported_language_versions(self, deployment_name: str, language_name: str) -> List[str]:
-        return self._system_config[deployment_name]["languages"][language_name][
-            "base_images"
+    def supported_language_versions(
+        self, deployment_name: str, language_name: str, architecture: str
+    ) -> List[str]:
+        return self._system_config[deployment_name]["languages"][language_name]["base_images"][
+            architecture
         ].keys()
 
     def supported_architecture(self, deployment_name: str) -> List[str]:
@@ -45,8 +47,12 @@ class SeBSConfig:
     def supported_container_deployment(self) -> List[str]:
         return self._system_config["general"]["container_deployment"]
 
-    def benchmark_base_images(self, deployment_name: str, language_name: str) -> Dict[str, str]:
-        return self._system_config[deployment_name]["languages"][language_name]["base_images"]
+    def benchmark_base_images(
+        self, deployment_name: str, language_name: str, architecture: str
+    ) -> Dict[str, str]:
+        return self._system_config[deployment_name]["languages"][language_name]["base_images"][
+            architecture
+        ]
 
     def benchmark_image_name(
         self,
@@ -65,9 +71,14 @@ class SeBSConfig:
             return f"{repo_name}: {tag}"
 
     def benchmark_image_tag(
-        self, system: str, benchmark: str, language_name: str, language_version: str
+        self,
+        system: str,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
     ) -> str:
-        tag = f"function.{system}.{benchmark}.{language_name}-{language_version}"
+        tag = f"function.{system}.{benchmark}.{language_name}-{language_version}-{architecture}"
         if self.image_tag_prefix:
             tag = f"{tag}-{self.image_tag_prefix}"
         return tag
