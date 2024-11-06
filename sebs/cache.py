@@ -191,10 +191,14 @@ class Cache(LoggingBase):
 
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
+
+            package_type = "docker" if code_package.container_deployment else "package"
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(
-                benchmark_dir, deployment_name, language, language_version, architecture
+                benchmark_dir, deployment_name, language,
+                language_version, architecture, package_type
             )
+
             if not os.path.exists(cached_dir):
                 os.makedirs(cached_dir, exist_ok=True)
 
@@ -212,7 +216,6 @@ class Cache(LoggingBase):
                 relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
                 language_config["location"] = relative_cached_loc
 
-                #language_config["container_uri"] = container_uri
                 date = str(datetime.datetime.now())
                 language_config["date"] = {
                     "created": date,
@@ -257,9 +260,16 @@ class Cache(LoggingBase):
                         if deployment_name in cached_config:
                             # language known, platform known, extend dictionary
                             if language in cached_config[deployment_name]:
-                                cached_config[deployment_name][language]["code_package"][
-                                   key 
-                                ] = language_config
+
+                                if code_package.container_deployment:
+                                    cached_config[deployment_name][language]["containers"][
+                                        key
+                                    ] = language_config
+                                else:
+                                    cached_config[deployment_name][language]["code_package"][
+                                        key
+                                    ] = language_config
+
                             # language unknown, platform known - add new dictionary
                             else:
                                 cached_config[deployment_name][language] = config[deployment_name][
@@ -289,10 +299,14 @@ class Cache(LoggingBase):
             language_version = code_package.language_version
             architecture = code_package.architecture
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
+
+            package_type = "docker" if code_package.container_deployment else "package"
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(
-                benchmark_dir, deployment_name, language, language_version, architecture
+                benchmark_dir, deployment_name, language,
+                language_version, architecture, package_type
             )
+
             if os.path.exists(cached_dir):
 
                 # copy code
