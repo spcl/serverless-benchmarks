@@ -277,6 +277,9 @@ class Cache(LoggingBase):
                     config[deployment_name][language]["code_package"][key][
                         "hash"
                     ] = code_package.hash
+                    config[deployment_name][language]["code_package"][key][
+                        "size"
+                    ] = code_package.code_size
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
             else:
