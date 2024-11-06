@@ -252,12 +252,7 @@ class AWS(System):
                 raise e
 
         try:
-            print(username, password, registry_url)
-            print(
-                self.docker_client.login(
-                    username=username, password=password, registry=registry_url
-                )
-            )
+            self.docker_client.login(username=username, password=password, registry=registry_url)
             push_image(repository_uri, image_tag)
             self.logging.info(f"Successfully pushed the image to registry {repository_uri}.")
         except docker.errors.APIError as e:
