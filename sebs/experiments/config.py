@@ -8,7 +8,7 @@ class Config:
         self._update_code: bool = False
         self._update_storage: bool = False
         self._download_results: bool = False
-        self._architecture: str = "x86_64"
+        self._architecture: str = "x64"
         self._flags: Dict[str, bool] = {}
         self._experiment_configs: Dict[str, dict] = {}
         self._runtime = Runtime(None, None)

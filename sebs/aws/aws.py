@@ -159,6 +159,12 @@ class AWS(System):
 
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
+    def _map_architecture(self, architecture: str) -> str:
+
+        if architecture == "x64":
+            return "x86_64"
+        return architecture
+
     def _map_language_runtime(self, language: str, runtime: str):
 
         # AWS uses different naming scheme for Node.js versions
@@ -232,7 +238,7 @@ class AWS(System):
                 MemorySize=memory,
                 Timeout=timeout,
                 Code=code_config,
-                Architectures=[architecture],
+                Architectures=[self._map_architecture(architecture)],
             )
 
             lambda_function = LambdaFunction(
@@ -296,7 +302,7 @@ class AWS(System):
                 self.client.update_function_code(
                     FunctionName=name,
                     ZipFile=code_body.read(),
-                    Architectures=[architecture],
+                    Architectures=[self._map_architecture(architecture)],
                 )
         # Upload code package to S3, then update
         else:
@@ -308,7 +314,7 @@ class AWS(System):
                 FunctionName=name,
                 S3Bucket=bucket,
                 S3Key=code_package_name,
-                Architectures=[architecture],
+                Architectures=[self._map_architecture(architecture)],
             )
         self.wait_function_updated(function)
         self.logging.info(f"Updated code of {name} function. ")

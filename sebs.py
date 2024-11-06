@@ -94,7 +94,7 @@ def common_params(func):
     @click.option(
         "--architecture",
         default=None,
-        type=click.Choice(["x86_64", "arm64"]),
+        type=click.Choice(["x64", "arm64"]),
         help="Target architecture",
     )
     @click.option(

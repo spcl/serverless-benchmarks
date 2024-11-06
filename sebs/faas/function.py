@@ -274,7 +274,7 @@ class Language(Enum):
 
 
 class Architecture(Enum):
-    X86 = "x86_64"
+    X86 = "x64"
     ARM = "arm64"
 
     def serialize(self) -> str:
