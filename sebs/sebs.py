@@ -60,8 +60,8 @@ class SeBS(LoggingBase):
         logging_filename: Optional[str] = None,
     ):
         super().__init__()
-        self._cache_client = Cache(cache_dir)
         self._docker_client = docker.from_env()
+        self._cache_client = Cache(cache_dir, self._docker_client)
         self._config = SeBSConfig()
         self._output_dir = output_dir
         self._verbose = verbose

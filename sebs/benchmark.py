@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 from abc import abstractmethod
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import docker
 
@@ -125,9 +125,9 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     @property
-    def container_uri(self):
-        if self.code_package:
-            return self.code_package["container_uri"]
+    def container_uri(self) -> str:
+        assert self._container_uri is not None
+        return self._container_uri
 
     @property
     def language(self) -> "Language":
@@ -202,6 +202,7 @@ class Benchmark(LoggingBase):
             self._language_version,
             self._architecture,
         )
+        self._container_uri: Optional[str] = None
 
         # verify existence of function in cache
         self.query_cache()
@@ -242,13 +243,26 @@ class Benchmark(LoggingBase):
         return {"size": self.code_size, "hash": self.hash}
 
     def query_cache(self):
-        self._code_package = self._cache_client.get_code_package(
-            deployment=self._deployment_name,
-            benchmark=self._benchmark,
-            language=self.language_name,
-            language_version=self.language_version,
-            architecture=self.architecture,
-        )
+
+        if self.container_deployment:
+            self._code_package = self._cache_client.get_container(
+                deployment=self._deployment_name,
+                benchmark=self._benchmark,
+                language=self.language_name,
+                language_version=self.language_version,
+                architecture=self.architecture,
+            )
+            if self._code_package is not None:
+                self._container_uri = self._code_package["image-uri"]
+        else:
+            self._code_package = self._cache_client.get_code_package(
+                deployment=self._deployment_name,
+                benchmark=self._benchmark,
+                language=self.language_name,
+                language_version=self.language_version,
+                architecture=self.architecture,
+            )
+
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
             benchmark=self._benchmark,
@@ -550,9 +564,9 @@ class Benchmark(LoggingBase):
         )
 
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self._container_uri, self)
+            self._cache_client.update_code_package(self._deployment_name, self)
         else:
-            self._cache_client.add_code_package(self._deployment_name, self._container_uri, self)
+            self._cache_client.add_code_package(self._deployment_name, self)
         self.query_cache()
 
         return True, self._code_location, self._container_deployment, self._container_uri
