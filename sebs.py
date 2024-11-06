@@ -92,11 +92,18 @@ def common_params(func):
         help="Cloud deployment to use.",
     )
     @click.option(
+        "--architecture",
+        default=None,
+        type=click.Choice(["x64", "arm64"]),
+        help="Target architecture",
+    )
+    @click.option(
         "--resource-prefix",
         default=None,
         type=str,
         help="Resource prefix to look for.",
     )
+
     @simplified_common_params
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -117,6 +124,7 @@ def parse_common_params(
     deployment,
     language,
     language_version,
+    architecture,
     resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
@@ -139,6 +147,7 @@ def parse_common_params(
     update_nested_dict(config_obj, ["deployment", "name"], deployment)
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
+    update_nested_dict(config_obj, ["experiments", "architecture"], architecture)
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)
@@ -149,7 +158,7 @@ def parse_common_params(
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
-            config_obj["deployment"], logging_filename=logging_filename
+            config_obj, logging_filename=logging_filename
         )
         deployment_client.initialize(resource_prefix=resource_prefix)
     else:
@@ -342,7 +351,7 @@ def regression(benchmark_input_size, benchmark_name, **kwargs):
         sebs_client,
         config["experiments"],
         set((config["deployment"]["name"],)),
-        config["deployment"],
+        config,
         benchmark_name,
     )
 

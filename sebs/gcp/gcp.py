@@ -204,8 +204,10 @@ class GCP(System):
         location = self.config.region
         project_name = self.config.project_name
         function_cfg = FunctionConfig.from_benchmark(code_package)
+        architecture = function_cfg.architecture.value
 
         code_package_name = cast(str, os.path.basename(package))
+        code_package_name = f"{architecture}-{code_package_name}"
         code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
         code_prefix = os.path.join(benchmark, code_package_name)
         storage_client.upload(code_bucket, package, code_prefix)
@@ -328,7 +330,12 @@ class GCP(System):
 
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version
+
+        function_cfg = FunctionConfig.from_benchmark(code_package)
+        architecture = function_cfg.architecture.value
         code_package_name = os.path.basename(code_package.code_location)
+        code_package_name = f"{architecture}-{code_package_name}"
+
         storage = cast(GCPStorage, self.get_storage())
 
         bucket = function.code_bucket(code_package.benchmark, storage)

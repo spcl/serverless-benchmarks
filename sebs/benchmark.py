@@ -136,6 +136,10 @@ class Benchmark(LoggingBase):
     def language_version(self):
         return self._language_version
 
+    @property
+    def architecture(self) -> str:
+        return self._architecture
+
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
@@ -165,6 +169,8 @@ class Benchmark(LoggingBase):
         self._experiment_config = config
         self._language = config.runtime.language
         self._language_version = config.runtime.version
+        self._architecture = self._experiment_config.architecture
+
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not self._benchmark_path:
             raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
@@ -181,7 +187,11 @@ class Benchmark(LoggingBase):
         self._system_config = system_config
         self._hash_value = None
         self._output_dir = os.path.join(
-            output_dir, f"{benchmark}_code", self._language.value, self._language_version
+            output_dir,
+            f"{benchmark}_code",
+            self._language.value,
+            self._language_version,
+            self._architecture,
         )
 
         # verify existence of function in cache
@@ -228,6 +238,7 @@ class Benchmark(LoggingBase):
             benchmark=self._benchmark,
             language=self.language_name,
             language_version=self.language_version,
+            architecture=self.architecture,
         )
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
@@ -261,7 +272,7 @@ class Benchmark(LoggingBase):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
 
     def add_benchmark_data(self, output_dir):
-        cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"
+        cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false {architecture}"
         paths = [
             self.benchmark_path,
             os.path.join(self.benchmark_path, self.language_name),
@@ -269,7 +280,11 @@ class Benchmark(LoggingBase):
         for path in paths:
             if os.path.exists(os.path.join(path, "init.sh")):
                 subprocess.run(
-                    cmd.format(benchmark_path=path, output_dir=output_dir),
+                    cmd.format(
+                        benchmark_path=path,
+                        output_dir=output_dir,
+                        architecture=self._experiment_config._architecture,
+                    ),
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
@@ -400,6 +415,7 @@ class Benchmark(LoggingBase):
                                 "CONTAINER_USER": "docker_user",
                                 "APP": self.benchmark,
                                 "PLATFORM": self._deployment_name.upper(),
+                                "TARGET_ARCHITECTURE": self._experiment_config._architecture,
                             },
                             remove=True,
                             stdout=True,
@@ -520,9 +536,9 @@ class Benchmark(LoggingBase):
 
         # package already exists
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.update_code_package(self._deployment_name, self)
         else:
-            self._cache_client.add_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.add_code_package(self._deployment_name, self)
         self.query_cache()
 
         return True, self._code_location

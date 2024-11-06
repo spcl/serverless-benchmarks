@@ -274,8 +274,8 @@ class Language(Enum):
 
 
 class Architecture(Enum):
-    X86 = "x86"
-    ARM = "arm"
+    X86 = "x64"
+    ARM = "arm64"
 
     def serialize(self) -> str:
         return self.value
@@ -316,12 +316,13 @@ class FunctionConfig:
     @staticmethod
     def _from_benchmark(benchmark: Benchmark, obj_type: Type[T]) -> T:
         runtime = Runtime(language=benchmark.language, version=benchmark.language_version)
+        architecture = Architecture.deserialize(benchmark._experiment_config._architecture)
         cfg = obj_type(
             timeout=benchmark.benchmark_config.timeout,
             memory=benchmark.benchmark_config.memory,
             runtime=runtime,
+            architecture=architecture,
         )
-        # FIXME: configure architecture
         return cfg
 
     @staticmethod

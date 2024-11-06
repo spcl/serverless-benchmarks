@@ -159,6 +159,12 @@ class AWS(System):
 
         return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
 
+    def _map_architecture(self, architecture: str) -> str:
+
+        if architecture == "x64":
+            return "x86_64"
+        return architecture
+
     def _map_language_runtime(self, language: str, runtime: str):
 
         # AWS uses different naming scheme for Node.js versions
@@ -180,7 +186,7 @@ class AWS(System):
         func_name = AWS.format_function_name(func_name)
         storage_client = self.get_storage()
         function_cfg = FunctionConfig.from_benchmark(code_package)
-
+        architecture = function_cfg.architecture.value
         # we can either check for exception or use list_functions
         # there's no API for test
         try:
@@ -217,7 +223,7 @@ class AWS(System):
                 code_package_name = cast(str, os.path.basename(package))
 
                 code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
-                code_prefix = os.path.join(benchmark, code_package_name)
+                code_prefix = os.path.join(benchmark, architecture, code_package_name)
                 storage_client.upload(code_bucket, package, code_prefix)
 
                 self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
@@ -232,6 +238,7 @@ class AWS(System):
                 MemorySize=memory,
                 Timeout=timeout,
                 Code=code_config,
+                Architectures=[self._map_architecture(architecture)],
             )
 
             lambda_function = LambdaFunction(
@@ -283,25 +290,42 @@ class AWS(System):
         name = function.name
         code_size = code_package.code_size
         package = code_package.code_location
+        benchmark = code_package.benchmark
+
+        function_cfg = FunctionConfig.from_benchmark(code_package)
+        architecture = function_cfg.architecture.value
+
         # Run AWS update
         # AWS Lambda limit on zip deployment
         if code_size < 50 * 1024 * 1024:
             with open(package, "rb") as code_body:
-                self.client.update_function_code(FunctionName=name, ZipFile=code_body.read())
+                self.client.update_function_code(
+                    FunctionName=name,
+                    ZipFile=code_body.read(),
+                    Architectures=[self._map_architecture(architecture)],
+                )
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(package)
+
             storage = cast(S3, self.get_storage())
             bucket = function.code_bucket(code_package.benchmark, storage)
-            storage.upload(bucket, package, code_package_name)
+            code_prefix = os.path.join(benchmark, architecture, code_package_name)
+            storage.upload(bucket, package, code_prefix)
+
             self.client.update_function_code(
-                FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
+                FunctionName=name,
+                S3Bucket=bucket,
+                S3Key=code_prefix,
+                Architectures=[self._map_architecture(architecture)],
             )
         self.wait_function_updated(function)
         self.logging.info(f"Updated code of {name} function. ")
         # and update config
         self.client.update_function_configuration(
-            FunctionName=name, Timeout=function.config.timeout, MemorySize=function.config.memory
+            FunctionName=name,
+            Timeout=function.config.timeout,
+            MemorySize=function.config.memory,
         )
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {name} function. ")
@@ -321,8 +345,11 @@ class AWS(System):
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
         # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.benchmark, code_package.language_name, code_package.language_version
+        func_name = "{}-{}-{}-{}".format(
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.language_version,
+            code_package.architecture,
         )
         return AWS.format_function_name(func_name)
 

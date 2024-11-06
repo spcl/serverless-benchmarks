@@ -182,9 +182,27 @@ class AWSResources(Resources):
                     break
             if not api_data:
                 self.logging.info(f"Creating HTTP API {api_name}")
-                api_data = api_client.create_api(  # type: ignore
-                    Name=api_name, ProtocolType="HTTP", Target=func.arn
-                )
+
+                retries = 0
+                while retries < 5:
+
+                    try:
+                        api_data = api_client.create_api(  # type: ignore
+                            Name=api_name, ProtocolType="HTTP", Target=func.arn
+                        )
+                        break
+                    except api_client.exceptions.TooManyRequestsException as e:
+
+                        retries += 1
+
+                        if retries == 5:
+                            self.logging.error("Failed to create the HTTP API!")
+                            self.logging.error(e)
+                            raise RuntimeError("Failed to create the HTTP API!")
+                        else:
+                            self.logging.info("HTTP API is overloaded, applying backoff.")
+                            time.sleep(retries)
+
             api_id = api_data["ApiId"]  # type: ignore
             endpoint = api_data["ApiEndpoint"]  # type: ignore
 

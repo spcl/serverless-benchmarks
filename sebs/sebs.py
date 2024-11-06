@@ -85,7 +85,8 @@ class SeBS(LoggingBase):
         logging_filename: Optional[str] = None,
         deployment_config: Optional[Config] = None,
     ) -> FaaSSystem:
-        name = config["name"]
+        dep_config = config["deployment"]
+        name = dep_config["name"]
         implementations: Dict[str, Type[FaaSSystem]] = {"local": Local}
 
         if has_platform("aws"):
@@ -108,10 +109,17 @@ class SeBS(LoggingBase):
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
+        if config["experiments"]["architecture"] not in self._config.supported_architecture(name):
+            raise RuntimeError(
+                "{architecture} is not supported in {name}".format(
+                    architecture=config["experiments"]["architecture"], name=name
+                )
+            )
+
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.generate_logging_handlers(logging_filename)
         if not deployment_config:
-            deployment_config = Config.deserialize(config, self.cache_client, handlers)
+            deployment_config = Config.deserialize(dep_config, self.cache_client, handlers)
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore
