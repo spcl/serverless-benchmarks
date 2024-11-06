@@ -302,7 +302,6 @@ class AWSResources(Resources):
         if "docker" in dct:
             ret._docker_registry = dct["docker"]["registry"]
             ret._docker_username = dct["docker"]["username"]
-            ret._docker_password = dct["docker"]["password"]
             ret._container_repository = dct["container_repository"]
 
         ret._lambda_role = dct["lambda-role"] if "lambda-role" in dct else ""
@@ -320,7 +319,6 @@ class AWSResources(Resources):
             "docker": {
                 "registry": self.docker_registry,
                 "username": self.docker_username,
-                "password": self.docker_password,
             },
             "container_repository": self.container_repository,
         }
@@ -333,9 +331,6 @@ class AWSResources(Resources):
         )
         cache.update_config(
             val=self.docker_username, keys=["aws", "resources", "docker", "username"]
-        )
-        cache.update_config(
-            val=self.docker_password, keys=["aws", "resources", "docker", "password"]
         )
         cache.update_config(
             val=self.container_repository, keys=["aws", "resources", "container_repository"]
