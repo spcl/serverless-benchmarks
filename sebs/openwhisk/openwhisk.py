@@ -1,5 +1,4 @@
 import os
-import shutil
 import subprocess
 from typing import cast, Dict, List, Optional, Tuple, Type
 
@@ -9,9 +8,10 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.faas import System, PersistentStorage
 from sebs.faas.function import Function, ExecutionResult, Trigger
+from sebs.openwhisk.container import OpenWhiskContainer
 from sebs.openwhisk.storage import Minio
 from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
-from sebs.utils import DOCKER_DIR, LoggingHandlers, execute
+from sebs.utils import LoggingHandlers
 from .config import OpenWhiskConfig
 from .function import OpenWhiskFunction, OpenWhiskFunctionConfig
 from ..config import SeBSConfig
@@ -31,6 +31,10 @@ class OpenWhisk(System):
         super().__init__(system_config, cache_client, docker_client)
         self._config = config
         self.logging_handlers = logger_handlers
+
+        self.container_client = OpenWhiskContainer(
+            self.system_config, self.config, self.docker_client, self.config.experimentalManifest
+        )
 
         if self.config.resources.docker_username:
             if self.config.resources.docker_registry:
@@ -94,123 +98,12 @@ class OpenWhisk(System):
             cmd.append("-i")
         return cmd
 
-    def find_image(self, repository_client, repository_name, image_tag) -> bool:
-        if self.config.experimentalManifest:
-            try:
-                # This requires enabling experimental Docker features
-                # Furthermore, it's not yet supported in the Python library
-                execute(f"docker manifest inspect {repository_name}:{image_tag}")
-                return True
-            except RuntimeError:
-                return False
-        else:
-            try:
-                # default version requires pulling for an image
-                self.docker_client.images.pull(repository=repository_name, tag=image_tag)
-                return True
-            except docker.errors.NotFound:
-                return False
-
-    def push_image_to_repository(self, repository_client, repository_uri, image_tag):
-        ret = self.docker_client.images.push(
-            repository=repository_uri, tag=image_tag, stream=True, decode=True
-        )
-        # doesn't raise an exception for some reason
-        for val in ret:
-            if "error" in val:
-                self.logging.error(f"Failed to push the image to registry {repository_uri}")
-                raise RuntimeError(val)
-
-    def build_base_image(
-        self,
-        directory: str,
-        language_name: str,
-        language_version: str,
-        benchmark: str,
-        is_cached: bool,
-    ) -> Tuple[bool, str]:
-        """
-        When building function for the first time (according to SeBS cache),
-        check if Docker image is available in the registry.
-        If yes, then skip building.
-        If no, then continue building.
-
-        For every subsequent build, we rebuild image and push it to the
-        registry. These are triggered by users modifying code and enforcing
-        a build.
-        """
-
-        # We need to retag created images when pushing to registry other
-        # than default
-        registry_name = self.config.resources.docker_registry
-        repository_name = self.system_config.docker_repository()
-        image_tag = self.system_config.benchmark_image_tag(
-            self.name(), benchmark, language_name, language_version
-        )
-        if registry_name is not None and registry_name != "":
-            repository_name = f"{registry_name}/{repository_name}"
-        else:
-            registry_name = "Docker Hub"
-        image_uri = f"{repository_name}:{image_tag}"
-
-        # Check if the image is already in the registry.
-        # cached package, rebuild not enforced -> check for new one
-        if is_cached:
-            if self.find_image(self.docker_client, repository_name, image_tag):
-                self.logging.info(
-                    f"Skipping building OpenWhisk Docker package for {benchmark}, using "
-                    f"Docker image {repository_name}:{image_tag} from registry: "
-                    f"{registry_name}."
-                )
-                return False, repository_name
-            else:
-                # image doesn't exist, let's continue
-                self.logging.info(
-                    f"Image {repository_name}:{image_tag} doesn't exist in the registry, "
-                    f"building OpenWhisk package for {benchmark}."
-                )
-
-        build_dir = os.path.join(directory, "docker")
-        os.makedirs(build_dir, exist_ok=True)
-        shutil.copy(
-            os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
-            os.path.join(build_dir, "Dockerfile"),
-        )
-
-        for fn in os.listdir(directory):
-            if fn not in ("index.js", "__main__.py"):
-                file = os.path.join(directory, fn)
-                shutil.move(file, build_dir)
-
-        with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
-            f.write("Dockerfile")
-
-        builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
-            language_version
-        ]
-        self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
-
-        buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
-        image, _ = self.docker_client.images.build(
-            tag=f"{repository_name}:{image_tag}", path=build_dir, buildargs=buildargs
-        )
-
-        # Now push the image to the registry
-        # image will be located in a private repository
-        self.logging.info(
-            f"Push the benchmark base image {repository_name}:{image_tag} "
-            f"to registry: {registry_name}."
-        )
-
-        self.push_image_to_repository(self.docker_client, repository_name, image_tag)
-
-        return True, image_uri
-
     def package_code(
         self,
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
         container_deployment: bool,
@@ -218,8 +111,8 @@ class OpenWhisk(System):
 
         # Regardless of Docker image status, we need to create .zip file
         # to allow registration of function with OpenWhisk
-        _, image_uri = self.build_base_image(
-            directory, language_name, language_version, benchmark, is_cached
+        _, image_uri = self.container_client.build_base_image(
+            directory, language_name, language_version, architecture, benchmark, is_cached
         )
 
         # We deploy Minio config in code package since this depends on local
@@ -293,6 +186,7 @@ class OpenWhisk(System):
                         code_package.benchmark,
                         code_package.language_name,
                         code_package.language_version,
+                        code_package.architecture,
                     )
                     subprocess.run(
                         [
@@ -349,6 +243,7 @@ class OpenWhisk(System):
             code_package.benchmark,
             code_package.language_name,
             code_package.language_version,
+            code_package.architecture,
         )
         try:
             subprocess.run(

@@ -154,9 +154,21 @@ class System(ABC, LoggingBase):
 
         This step allows us to change the structure above to fit different
         deployment requirements, Example: a zip file for AWS or a specific
-        directory structure for Azure.
 
-        :return: path to packaged code and its size
+        Args:
+            directory: Path to the code directory
+            language_name: Programming language name
+            language_version: Programming language version
+            architecture: Target architecture (e.g., 'x64', 'arm64')
+            benchmark: Benchmark name
+            is_cached: Whether the code is cached
+            container_deployment: Whether to package for container deployment
+
+        Returns:
+            Tuple containing:
+            - Path to packaged code
+            - Size of the package
+            - Container URI
     """
 
     @abstractmethod
@@ -180,6 +192,24 @@ class System(ABC, LoggingBase):
         container_deployment: bool,
         container_uri: str,
     ) -> Function:
+
+        """
+        Create a new function in the FaaS platform.
+        The implementation is responsible for creating all necessary
+        cloud resources.
+
+        Args:
+            code_package: Benchmark containing the function code
+            func_name: Name of the function
+            container_deployment: Whether to deploy as a container
+            container_uri: URI of the container image
+
+        Returns:
+            Function: Created function instance
+
+        Raises:
+            NotImplementedError: If container deployment is requested but not supported
+        """
         pass
 
     @abstractmethod
@@ -194,6 +224,18 @@ class System(ABC, LoggingBase):
         container_deployment: bool,
         container_uri: str,
     ):
+        """
+        Update an existing function in the FaaS platform.
+
+        Args:
+            function: Existing function instance to update
+            code_package: New benchmark containing the function code
+            container_deployment: Whether to deploy as a container
+            container_uri: URI of the container image
+
+        Raises:
+            NotImplementedError: If container deployment is requested but not supported
+        """
         pass
 
     """
