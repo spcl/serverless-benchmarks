@@ -46,13 +46,7 @@
     "name": "aws",
     "aws": {
       "region": "us-east-1",
-      "lambda-role": "",
-      "docker_registry": {
-      "registry": "",
-      "username": "AWS",
-      "password": "",
-      "container_repository": "test_repo"
-      }
+      "lambda-role": ""
     },
     "azure": {
       "region": "westeurope"
