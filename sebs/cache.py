@@ -122,7 +122,7 @@ class Cache(LoggingBase):
 
     def get_code_package(
         self, deployment: str, benchmark: str, language: str,
-        language_version: str, architecture: str
+        language_version: str, architecture: str,
     ) -> Optional[Dict[str, Any]]:
         cfg = self.get_benchmark_config(deployment, benchmark)
 
