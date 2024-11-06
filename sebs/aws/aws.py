@@ -393,9 +393,6 @@ class AWS(System):
                 "Code": {},
             }
 
-            if not container_deployment:
-                create_function_params["Runtime"] = "{}{}".format(language, self._map_language_runtime(language, language_runtime) )
-
             if container_deployment:
                 create_function_params["PackageType"] = "Image"
                 create_function_params["Code"] = {"ImageUri": container_uri}

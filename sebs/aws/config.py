@@ -1,6 +1,5 @@
 import json
 import os
-import uuid
 import time
 from typing import cast, Dict, Optional
 
@@ -129,7 +128,6 @@ class AWSResources(Resources):
         self._container_repository: Optional[str] = None
         self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
-        self._region: Optional[str] = None
 
     @staticmethod
     def typename() -> str:

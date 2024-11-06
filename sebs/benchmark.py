@@ -550,13 +550,9 @@ class Benchmark(LoggingBase):
         )
 
         if self.is_cached:
-            self._cache_client.update_code_package(
-                self._deployment_name, self._container_uri, self
-            )
+            self._cache_client.update_code_package(self._deployment_name, self._container_uri, self)
         else:
-            self._cache_client.add_code_package(
-                self._deployment_name, self._container_uri, self
-            )
+            self._cache_client.add_code_package(self._deployment_name, self._container_uri, self)
         self.query_cache()
 
         return True, self._code_location, self._container_deployment, self._container_uri
