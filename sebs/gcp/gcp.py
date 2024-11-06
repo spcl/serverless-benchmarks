@@ -351,7 +351,7 @@ class GCP(System):
     ):
 
         if container_deployment:
-            raise NotImplementedError("Container deployment is not supported in Azure")
+            raise NotImplementedError("Container deployment is not supported in GCP")
 
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version
