@@ -121,11 +121,14 @@ class Cache(LoggingBase):
     """
 
     def get_code_package(
-        self, deployment: str, benchmark: str, language: str, language_version: str
+        self, deployment: str, benchmark: str, language: str,
+        language_version: str, architecture: str
     ) -> Optional[Dict[str, Any]]:
         cfg = self.get_benchmark_config(deployment, benchmark)
-        if cfg and language in cfg and language_version in cfg[language]["code_package"]:
-            return cfg[language]["code_package"][language_version]
+
+        key = f"{language_version}-{architecture}"
+        if cfg and language in cfg and key in cfg[language]["code_package"]:
+            return cfg[language]["code_package"][key]
         else:
             return None
 
@@ -162,14 +165,18 @@ class Cache(LoggingBase):
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
-    def add_code_package(self, deployment_name: str, language_name: str, code_package: "Benchmark"):
+    def add_code_package(self, deployment_name: str, code_package: "Benchmark"):
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
+            architecture = code_package.architecture
+
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
             # Check if cache directory for this deployment exist
-            cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
+            cached_dir = os.path.join(
+                benchmark_dir, deployment_name, language, language_version, architecture
+            )
             if not os.path.exists(cached_dir):
                 os.makedirs(cached_dir, exist_ok=True)
 
@@ -194,7 +201,7 @@ class Cache(LoggingBase):
                 # config = {deployment_name: {language: language_config}}
                 config = {
                     deployment_name: {
-                        language: {
+                        f"{language_version}-{architecture}": {
                             "code_package": {language_version: language_config},
                             "functions": {},
                         }
@@ -209,7 +216,7 @@ class Cache(LoggingBase):
                             # language known, platform known, extend dictionary
                             if language in cached_config[deployment_name]:
                                 cached_config[deployment_name][language]["code_package"][
-                                    language_version
+                                    f"{language_version}-{architecture}"
                                 ] = language_config
                             # language unknown, platform known - add new dictionary
                             else:
@@ -231,14 +238,17 @@ class Cache(LoggingBase):
                 )
 
     def update_code_package(
-        self, deployment_name: str, language_name: str, code_package: "Benchmark"
+        self, deployment_name: str, code_package: "Benchmark"
     ):
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
+            architecture = code_package.architecture
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             # Check if cache directory for this deployment exist
-            cached_dir = os.path.join(benchmark_dir, deployment_name, language, language_version)
+            cached_dir = os.path.join(
+                benchmark_dir, deployment_name, language, language_version, architecture
+            )
             if os.path.exists(cached_dir):
 
                 # copy code
@@ -258,16 +268,17 @@ class Cache(LoggingBase):
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                     config = json.load(fp)
                     date = str(datetime.datetime.now())
-                    config[deployment_name][language]["code_package"][language_version]["date"][
+                    key = f"{language_version}-{architecture}"
+                    config[deployment_name][language]["code_package"][key]["date"][
                         "modified"
                     ] = date
-                    config[deployment_name][language]["code_package"][language_version][
+                    config[deployment_name][language]["code_package"][key][
                         "hash"
                     ] = code_package.hash
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
             else:
-                self.add_code_package(deployment_name, language_name, code_package)
+                self.add_code_package(deployment_name, code_package)
 
     """
         Add new function to cache.
