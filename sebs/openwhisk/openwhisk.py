@@ -112,7 +112,7 @@ class OpenWhisk(System):
                 return False
 
     def push_image_to_repository(self, repository_client, repository_uri, image_tag):
-        ret = self.repository_client.images.push(
+        ret = self.docker_client.images.push(
             repository=repository_uri, tag=image_tag, stream=True, decode=True
         )
         # doesn't raise an exception for some reason
@@ -151,6 +151,7 @@ class OpenWhisk(System):
             repository_name = f"{registry_name}/{repository_name}"
         else:
             registry_name = "Docker Hub"
+        image_uri = f"{repository_name}:{image_tag}"
 
         # Check if the image is already in the registry.
         # cached package, rebuild not enforced -> check for new one
@@ -203,7 +204,7 @@ class OpenWhisk(System):
 
         self.push_image_to_repository(self.docker_client, repository_name, image_tag)
 
-        return True, repository_name
+        return True, image_uri
 
     def package_code(
         self,
@@ -215,11 +216,11 @@ class OpenWhisk(System):
         container_deployment: bool,
     ) -> Tuple[str, int, str]:
 
-        container_uri = ""
-
         # Regardless of Docker image status, we need to create .zip file
         # to allow registration of function with OpenWhisk
-        self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
+        _, image_uri = self.build_base_image(
+            directory, language_name, language_version, benchmark, is_cached
+        )
 
         # We deploy Minio config in code package since this depends on local
         # deployment - it cannnot be a part of Docker image
@@ -236,7 +237,7 @@ class OpenWhisk(System):
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
         self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
-        return benchmark_archive, bytes_size, container_uri
+        return benchmark_archive, bytes_size, image_uri
 
     def storage_arguments(self) -> List[str]:
         storage = cast(Minio, self.get_storage())

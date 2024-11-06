@@ -6,7 +6,6 @@ from typing import cast, Dict, Optional, Tuple
 
 import boto3
 from mypy_boto3_ecr import ECRClient
-from botocore.exceptions import ClientError
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -272,10 +271,12 @@ class AWSResources(Resources):
                 self.logging.info(f"Created ECR repository: {self._container_repository}")
 
                 self._docker_registry = resp["repository"]["repositoryUri"]
-            except ClientError as e:
-                if e.response["Error"]["Code"] != "RepositoryAlreadyExistsException":
-                    self.logging.error(f"Failed to create ECR repository: {e}")
-                    raise e
+            except ecr_client.exceptions.RepositoryAlreadyExistsException:
+                # Support the situation where two invocations concurrently initialize it.
+                self.logging.info(f"ECR repository {self._container_repository} already exists.")
+                self._docker_registry = self.check_ecr_repository_exists(
+                    ecr_client, self._container_repository
+                )
 
         return ecr_client, self._container_repository
 

@@ -138,7 +138,6 @@ class Local(System):
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        container_uri = ""
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
@@ -152,7 +151,7 @@ class Local(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Function size {:2f} MB".format(mbytes))
 
-        return directory, bytes_size, container_uri
+        return directory, bytes_size, ""
 
     def create_function(
         self,
@@ -161,6 +160,9 @@ class Local(System):
         container_deployment: bool,
         container_uri: str,
     ) -> "LocalFunction":
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Local")
 
         container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),

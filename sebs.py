@@ -100,7 +100,7 @@ def common_params(func):
     @click.option(
         "--container-deployment/--no-container-deployment",
         default=False,
-        help="Use container deployment or not",
+        help="Deploy functions as containers (AWS only). When enabled, functions are packaged as container images and pushed to Amazon ECR."
     )
     @click.option(
         "--resource-prefix",
@@ -433,7 +433,6 @@ def local():
 @click.argument("benchmark", type=str)
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
-@click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
 @click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
 @click.option("--storage-configuration", type=str, help="JSON configuration of deployed storage.")
 @click.option(

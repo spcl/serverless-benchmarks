@@ -299,6 +299,9 @@ class Azure(System):
         container_uri: str,
     ):
 
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Azure")
+
         # Mount code package in Docker instance
         container_dest = self._mount_function_code(code_package)
         url = self.publish_function(function, code_package, container_dest, True)
@@ -341,6 +344,9 @@ class Azure(System):
         container_deployment: bool,
         container_uri: str,
     ) -> AzureFunction:
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Azure")
 
         language = code_package.language_name
         language_runtime = code_package.language_version
