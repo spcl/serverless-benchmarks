@@ -225,6 +225,7 @@ def benchmark():
     type=str,
     help="Attach prefix to generated Docker image tag.",
 )
+@click.option("--storage-configuration", default=None, type=str, help="JSON configuration of deployed storage.")
 @common_params
 def invoke(
     benchmark,
@@ -243,7 +244,7 @@ def invoke(
         output_dir,
         logging_filename,
         sebs_client,
-        deployment_client,
+        deployment_client
     ) = parse_common_params(**kwargs)
 
     if image_tag_prefix is not None:
