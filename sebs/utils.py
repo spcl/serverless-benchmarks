@@ -54,7 +54,7 @@ def execute(cmd, shell=False, cwd=None):
 
 
 def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
-    if value:
+    if value is not None:
         # make sure parent keys exist
         for key in keys[:-1]:
             cfg = cfg.setdefault(key, {})
