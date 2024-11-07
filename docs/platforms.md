@@ -12,6 +12,16 @@ points for each platform.
 > [!WARNING]
 > On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through JSON input configuration, do not commit nor publish these files anywhere.
 
+### Architectures
+
+By default, SeBS defaults functions built for the x64 (x86_64) architecture. On AWS, functions can also be build and deployed for ARM CPUs to benefit from Graviton CPUs available on Lambda.
+This change primarily affects functions that make use of dependencies with native builds, such as `torch`, `numpy` or `ffmpeg`.
+
+Such functions can be build as code packages on any platforms, as we rely on package managers like pip and npm to provide binary dependencies.
+However, special care is needed to build Docker containers: since installation of packages is a part of the Docker build, we cannot natively execute
+binaries based on ARM containers on x86 CPUs. To build multi-platform images, we recommend to follow official [Docker guidelines](https://docs.docker.com/build/building/multi-platform/#build-multi-platform-images) and provide static QEMU installation.
+On Ubuntu-based distributions, this requires installing an OS package and executing a single Docker command to provide seamless emulation of ARM containers.
+
 ### Cloud Account Identifiers
 
 SeBS ensures that all locally cached cloud resources are valid by storing a unique identifier associated with each cloud account. Furthermore, we store this identifier in experiment results to easily match results with the cloud account or subscription that was used to obtain them. We use non-sensitive identifiers such as account IDs on AWS, subscription IDs on Azure, and Google Cloud project IDs.
