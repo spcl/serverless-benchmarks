@@ -1,10 +1,11 @@
+import base64
 import json
 import os
 import time
-from typing import cast, Dict, Optional
+from typing import cast, Dict, Optional, Tuple
 
 import boto3
-
+from mypy_boto3_ecr import ECRClient
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -114,15 +115,39 @@ class AWSResources(Resources):
             out = {"arn": self.arn, "endpoint": self.endpoint}
             return out
 
-    def __init__(self):
+    def __init__(
+        self,
+        registry: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+    ):
         super().__init__(name="aws")
+        self._docker_registry: Optional[str] = registry if registry != "" else None
+        self._docker_username: Optional[str] = username if username != "" else None
+        self._docker_password: Optional[str] = password if password != "" else None
+        self._container_repository: Optional[str] = None
         self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
-        self._region: Optional[str] = None
 
     @staticmethod
     def typename() -> str:
         return "AWS.Resources"
+
+    @property
+    def docker_registry(self) -> Optional[str]:
+        return self._docker_registry
+
+    @property
+    def docker_username(self) -> Optional[str]:
+        return self._docker_username
+
+    @property
+    def docker_password(self) -> Optional[str]:
+        return self._docker_password
+
+    @property
+    def container_repository(self) -> Optional[str]:
+        return self._container_repository
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         if not self._lambda_role:
@@ -217,12 +242,69 @@ class AWSResources(Resources):
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
 
-    # FIXME: python3.7+ future annotations
+    def check_ecr_repository_exists(
+        self, ecr_client: ECRClient, repository_name: str
+    ) -> Optional[str]:
+        try:
+            resp = ecr_client.describe_repositories(repositoryNames=[repository_name])
+            return resp["repositories"][0]["repositoryUri"]
+        except ecr_client.exceptions.RepositoryNotFoundException:
+            return None
+        except Exception as e:
+            self.logging.error(f"Error checking repository: {e}")
+            raise e
+
+    def get_ecr_repository(self, ecr_client: ECRClient) -> str:
+
+        if self._container_repository is not None:
+            return self._container_repository
+
+        self._container_repository = "sebs-benchmarks-{}".format(self._resources_id)
+
+        self._docker_registry = self.check_ecr_repository_exists(
+            ecr_client, self._container_repository
+        )
+
+        if self._docker_registry is None:
+            try:
+                resp = ecr_client.create_repository(repositoryName=self._container_repository)
+                self.logging.info(f"Created ECR repository: {self._container_repository}")
+
+                self._docker_registry = resp["repository"]["repositoryUri"]
+            except ecr_client.exceptions.RepositoryAlreadyExistsException:
+                # Support the situation where two invocations concurrently initialize it.
+                self.logging.info(f"ECR repository {self._container_repository} already exists.")
+                self._docker_registry = self.check_ecr_repository_exists(
+                    ecr_client, self._container_repository
+                )
+
+        return self._container_repository
+
+    def ecr_repository_authorization(self, ecr_client: ECRClient) -> Tuple[str, str, str]:
+
+        if self._docker_password is None:
+            response = ecr_client.get_authorization_token()
+            auth_token = response["authorizationData"][0]["authorizationToken"]
+            decoded_token = base64.b64decode(auth_token).decode("utf-8")
+            # Split username:password
+            self._docker_username, self._docker_password = decoded_token.split(":")
+
+        assert self._docker_username is not None
+        assert self._docker_registry is not None
+
+        return self._docker_username, self._docker_password, self._docker_registry
+
     @staticmethod
     def initialize(res: Resources, dct: dict):
 
         ret = cast(AWSResources, res)
         super(AWSResources, AWSResources).initialize(ret, dct)
+
+        if "docker" in dct:
+            ret._docker_registry = dct["docker"]["registry"]
+            ret._docker_username = dct["docker"]["username"]
+            ret._container_repository = dct["container_repository"]
+
         ret._lambda_role = dct["lambda-role"] if "lambda-role" in dct else ""
         if "http-apis" in dct:
             for key, value in dct["http-apis"].items():
@@ -235,20 +317,34 @@ class AWSResources(Resources):
             **super().serialize(),
             "lambda-role": self._lambda_role,
             "http-apis": {key: value.serialize() for (key, value) in self._http_apis.items()},
+            "docker": {
+                "registry": self.docker_registry,
+                "username": self.docker_username,
+            },
+            "container_repository": self.container_repository,
         }
         return out
 
     def update_cache(self, cache: Cache):
         super().update_cache(cache)
+        cache.update_config(
+            val=self.docker_registry, keys=["aws", "resources", "docker", "registry"]
+        )
+        cache.update_config(
+            val=self.docker_username, keys=["aws", "resources", "docker", "username"]
+        )
+        cache.update_config(
+            val=self.container_repository, keys=["aws", "resources", "container_repository"]
+        )
         cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
         for name, api in self._http_apis.items():
             cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
-
         ret = AWSResources()
         cached_config = cache.get_config("aws")
+
         # Load cached values
         if cached_config and "resources" in cached_config:
             AWSResources.initialize(ret, cached_config["resources"])

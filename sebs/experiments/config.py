@@ -7,6 +7,7 @@ class Config:
     def __init__(self):
         self._update_code: bool = False
         self._update_storage: bool = False
+        self._container_deployment: bool = False
         self._download_results: bool = False
         self._architecture: str = "x64"
         self._flags: Dict[str, bool] = {}
@@ -36,6 +37,10 @@ class Config:
     def architecture(self) -> str:
         return self._architecture
 
+    @property
+    def container_deployment(self) -> bool:
+        return self._container_deployment
+
     def experiment_settings(self, name: str) -> dict:
         return self._experiment_configs[name]
 
@@ -48,6 +53,7 @@ class Config:
             "flags": self._flags,
             "experiments": self._experiment_configs,
             "architecture": self._architecture,
+            "container_deployment": self._container_deployment,
         }
         return out
 
@@ -59,6 +65,7 @@ class Config:
         cfg._update_code = config["update_code"]
         cfg._update_storage = config["update_storage"]
         cfg._download_results = config["download_results"]
+        cfg._container_deployment = config["container_deployment"]
         cfg._runtime = Runtime.deserialize(config["runtime"])
         cfg._flags = config["flags"] if "flags" in config else {}
         cfg._architecture = config["architecture"]

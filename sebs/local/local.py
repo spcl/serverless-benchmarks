@@ -129,9 +129,11 @@ class Local(System):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+        container_deployment: bool,
+    ) -> Tuple[str, int, str]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -150,9 +152,18 @@ class Local(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Function size {:2f} MB".format(mbytes))
 
-        return directory, bytes_size
+        return directory, bytes_size, ""
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> "LocalFunction":
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Local")
 
         container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),
@@ -281,7 +292,13 @@ class Local(System):
         FIXME: restart Docker?
     """
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
         pass
 
     """

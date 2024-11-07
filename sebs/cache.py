@@ -1,5 +1,6 @@
 # https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
 import collections.abc
+import docker
 import datetime
 import json
 import os
@@ -42,8 +43,9 @@ class Cache(LoggingBase):
     """
     config_updated = False
 
-    def __init__(self, cache_dir: str):
+    def __init__(self, cache_dir: str, docker_client: docker.DockerClient):
         super().__init__()
+        self.docker_client = docker_client
         self.cache_dir = os.path.abspath(cache_dir)
         self.ignore_functions: bool = False
         self.ignore_storage: bool = False
@@ -122,13 +124,25 @@ class Cache(LoggingBase):
 
     def get_code_package(
         self, deployment: str, benchmark: str, language: str,
-        language_version: str, architecture: str,
+        language_version: str, architecture: str
     ) -> Optional[Dict[str, Any]]:
         cfg = self.get_benchmark_config(deployment, benchmark)
 
         key = f"{language_version}-{architecture}"
         if cfg and language in cfg and key in cfg[language]["code_package"]:
             return cfg[language]["code_package"][key]
+        else:
+            return None
+
+    def get_container(
+        self, deployment: str, benchmark: str, language: str,
+        language_version: str, architecture: str
+    ) -> Optional[Dict[str, Any]]:
+        cfg = self.get_benchmark_config(deployment, benchmark)
+
+        key = f"{language_version}-{architecture}"
+        if cfg and language in cfg and key in cfg[language]["containers"]:
+            return cfg[language]["containers"][key]
         else:
             return None
 
@@ -165,7 +179,11 @@ class Cache(LoggingBase):
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
-    def add_code_package(self, deployment_name: str, code_package: "Benchmark"):
+    def add_code_package(
+        self,
+        deployment_name: str,
+        code_package: "Benchmark",
+    ):
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
@@ -173,10 +191,14 @@ class Cache(LoggingBase):
 
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
+
+            package_type = "docker" if code_package.container_deployment else "package"
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(
-                benchmark_dir, deployment_name, language, language_version, architecture
+                benchmark_dir, deployment_name, language,
+                language_version, architecture, package_type
             )
+
             if not os.path.exists(cached_dir):
                 os.makedirs(cached_dir, exist_ok=True)
 
@@ -193,22 +215,43 @@ class Cache(LoggingBase):
                 # don't store absolute path to avoid problems with moving cache dir
                 relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
                 language_config["location"] = relative_cached_loc
+
                 date = str(datetime.datetime.now())
                 language_config["date"] = {
                     "created": date,
                     "modified": date,
                 }
-                # config = {deployment_name: {language: language_config}}
-                config = {
-                    deployment_name: {
-                        language: {
-                            "code_package": {
-                                f"{language_version}-{architecture}": language_config
-                            },
-                            "functions": {},
+
+                key = f"{language_version}-{architecture}"
+                if code_package.container_deployment:
+
+                    image = self.docker_client.images.get(code_package.container_uri)
+                    language_config["image-uri"] = code_package.container_uri
+                    language_config["image-id"] = image.id
+
+                    config = {
+                        deployment_name: {
+                            language: {
+                                "containers": {
+                                    key: language_config
+                                },
+                                "code_package": {},
+                                "functions": {},
+                            }
                         }
                     }
-                }
+                else:
+                    config = {
+                        deployment_name: {
+                            language: {
+                                "code_package": {
+                                    key: language_config
+                                },
+                                "containers": {},
+                                "functions": {},
+                            }
+                        }
+                    }
 
                 # make sure to not replace other entries
                 if os.path.exists(os.path.join(benchmark_dir, "config.json")):
@@ -217,9 +260,16 @@ class Cache(LoggingBase):
                         if deployment_name in cached_config:
                             # language known, platform known, extend dictionary
                             if language in cached_config[deployment_name]:
-                                cached_config[deployment_name][language]["code_package"][
-                                    f"{language_version}-{architecture}"
-                                ] = language_config
+
+                                if code_package.container_deployment:
+                                    cached_config[deployment_name][language]["containers"][
+                                        key
+                                    ] = language_config
+                                else:
+                                    cached_config[deployment_name][language]["code_package"][
+                                        key
+                                    ] = language_config
+
                             # language unknown, platform known - add new dictionary
                             else:
                                 cached_config[deployment_name][language] = config[deployment_name][
@@ -240,17 +290,23 @@ class Cache(LoggingBase):
                 )
 
     def update_code_package(
-        self, deployment_name: str, code_package: "Benchmark"
+        self,
+        deployment_name: str,
+        code_package: "Benchmark",
     ):
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
             architecture = code_package.architecture
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
+
+            package_type = "docker" if code_package.container_deployment else "package"
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(
-                benchmark_dir, deployment_name, language, language_version, architecture
+                benchmark_dir, deployment_name, language,
+                language_version, architecture, package_type
             )
+
             if os.path.exists(cached_dir):
 
                 # copy code
@@ -270,16 +326,33 @@ class Cache(LoggingBase):
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                     config = json.load(fp)
                     date = str(datetime.datetime.now())
+
                     key = f"{language_version}-{architecture}"
-                    config[deployment_name][language]["code_package"][key]["date"][
+                    if code_package.container_deployment:
+                        main_key = "containers"
+                    else:
+                        main_key = "code_package"
+
+                    config[deployment_name][language][main_key][key]["date"][
                         "modified"
                     ] = date
-                    config[deployment_name][language]["code_package"][key][
+                    config[deployment_name][language][main_key][key][
                         "hash"
                     ] = code_package.hash
-                    config[deployment_name][language]["code_package"][key][
+                    config[deployment_name][language][main_key][key][
                         "size"
                     ] = code_package.code_size
+
+                    if code_package.container_deployment:
+
+                        image = self.docker_client.images.get(code_package.container_uri)
+                        config[deployment_name][language][main_key][key][
+                            "image-id"
+                        ] = image.id
+                        config[deployment_name][language][main_key][key][
+                            "image-uri"
+                        ] = code_package.container_uri
+
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
             else:
