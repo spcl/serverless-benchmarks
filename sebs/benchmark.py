@@ -201,6 +201,7 @@ class Benchmark(LoggingBase):
             self._language.value,
             self._language_version,
             self._architecture,
+            "container" if self._container_deployment else "package",
         )
         self._container_uri: Optional[str] = None
 
