@@ -116,10 +116,15 @@ class SeBS(LoggingBase):
                 )
             )
 
-        if (config["experiments"]["container_deployment"]) and (
-            name not in self._config.supported_container_deployment()
-        ):
+        if config["experiments"][
+            "container_deployment"
+        ] and not self._config.supported_container_deployment(name):
             raise RuntimeError(f"Container deployment is not supported in {name}.")
+
+        if not config["experiments"][
+            "container_deployment"
+        ] and not self._config.supported_package_deployment(name):
+            raise RuntimeError(f"Code package deployment is not supported in {name}.")
 
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.generate_logging_handlers(logging_filename)

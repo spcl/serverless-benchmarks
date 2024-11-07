@@ -13,7 +13,6 @@ from sebs.utils import LoggingBase, execute, DOCKER_DIR
 
 
 class DockerContainer(LoggingBase):
-
     @staticmethod
     @abstractmethod
     def name() -> str:
