@@ -28,34 +28,51 @@ benchmarks_python = [
 benchmarks_nodejs = ["110.dynamic-html", "120.uploader", "210.thumbnailer"]
 
 architectures_aws = ["x64", "arm64"]
+deployments_aws = ["package", "container"]
+
 architectures_gcp = ["x64"]
+deployments_gcp = ["package"]
+
 architectures_azure = ["x64"]
+deployments_azure = ["package"]
+
 architectures_openwhisk = ["x64"]
+deployments_openwhisk = ["container"]
 
 # user-defined config passed during initialization
 cloud_config: Optional[dict] = None
 
 
 class TestSequenceMeta(type):
-    def __init__(cls, name, bases, attrs, benchmarks, architectures, deployment_name, triggers):
+    def __init__(
+        cls, name, bases, attrs, benchmarks, architectures,
+        deployments, deployment_name, triggers
+    ):
         type.__init__(cls, name, bases, attrs)
         cls.deployment_name = deployment_name
         cls.triggers = triggers
 
-    def __new__(mcs, name, bases, dict, benchmarks, architectures, deployment_name, triggers):
-        def gen_test(benchmark_name, architecture):
+    def __new__(
+        mcs, name, bases, dict, benchmarks, architectures,
+        deployments, deployment_name, triggers
+    ):
+        def gen_test(benchmark_name, architecture, deployment_type):
             def test(self):
 
-                log_name = f"Regression-{deployment_name}-{benchmark_name}"
+                log_name = f"Regression-{deployment_name}-{benchmark_name}-{deployment_type}"
                 logger = logging.getLogger(log_name)
                 logger.setLevel(logging.INFO)
                 logging_wrapper = ColoredWrapper(log_name, logger)
 
                 self.experiment_config["architecture"] = architecture
+                self.experiment_config["container_deployment"] = deployment_type == "container"
 
                 deployment_client = self.get_deployment(benchmark_name, architecture)
+                deployment_client.disable_rich_output()
+
                 logging_wrapper.info(
-                    f"Begin regression test of {benchmark_name} on {deployment_client.name()}."
+                    f"Begin regression test of {benchmark_name} on {deployment_client.name()}. "
+                    f"Architecture {architecture}, deployment type: {deployment_type}."
                 )
 
                 experiment_config = self.client.get_experiment_config(self.experiment_config)
@@ -109,9 +126,12 @@ class TestSequenceMeta(type):
 
             for architecture in architectures:
 
-                # for trigger in triggers:
-                test_name = f"test_{deployment_name}_{benchmark}_{architecture}"
-                dict[test_name] = gen_test(benchmark, architecture)
+                for deployment_type in deployments:
+
+                    # for trigger in triggers:
+                    test_name = f"test_{deployment_name}_{benchmark}"
+                    test_name += f"_{architecture}_{deployment_type}"
+                    dict[test_name] = gen_test(benchmark, architecture, deployment_type)
 
         dict["lock"] = threading.Lock()
         dict["cfg"] = None
@@ -123,6 +143,7 @@ class AWSTestSequencePython(
     metaclass=TestSequenceMeta,
     benchmarks=benchmarks_python,
     architectures=architectures_aws,
+    deployments=deployments_aws,
     deployment_name="aws",
     triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
 ):
@@ -151,6 +172,7 @@ class AWSTestSequenceNodejs(
     metaclass=TestSequenceMeta,
     benchmarks=benchmarks_nodejs,
     architectures=architectures_aws,
+    deployments=deployments_aws,
     deployment_name="aws",
     triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
 ):
@@ -174,6 +196,7 @@ class AzureTestSequencePython(
     metaclass=TestSequenceMeta,
     benchmarks=benchmarks_python,
     architectures=architectures_azure,
+    deployments=deployments_azure,
     deployment_name="azure",
     triggers=[Trigger.TriggerType.HTTP],
 ):
@@ -214,6 +237,7 @@ class AzureTestSequenceNodejs(
     metaclass=TestSequenceMeta,
     benchmarks=benchmarks_nodejs,
     architectures=architectures_azure,
+    deployments=deployments_azure,
     deployment_name="azure",
     triggers=[Trigger.TriggerType.HTTP],
 ):
@@ -250,6 +274,7 @@ class GCPTestSequencePython(
     metaclass=TestSequenceMeta,
     benchmarks=benchmarks_python,
     architectures=architectures_gcp,
+    deployments=deployments_gcp,
     deployment_name="gcp",
     triggers=[Trigger.TriggerType.HTTP],
 ):
@@ -273,6 +298,7 @@ class GCPTestSequenceNodejs(
     metaclass=TestSequenceMeta,
     benchmarks=benchmarks_nodejs,
     architectures=architectures_gcp,
+    deployments=deployments_gcp,
     deployment_name="gcp",
     triggers=[Trigger.TriggerType.HTTP],
 ):
@@ -296,6 +322,7 @@ class OpenWhiskTestSequencePython(
     metaclass=TestSequenceMeta,
     benchmarks=benchmarks_python,
     architectures=architectures_openwhisk,
+    deployments=deployments_openwhisk,
     deployment_name="openwhisk",
     triggers=[Trigger.TriggerType.HTTP],
 ):
@@ -319,6 +346,7 @@ class OpenWhiskTestSequenceNodejs(
     metaclass=TestSequenceMeta,
     benchmarks=benchmarks_nodejs,
     architectures=architectures_openwhisk,
+    deployments=deployments_openwhisk,
     deployment_name="openwhisk",
     triggers=[Trigger.TriggerType.HTTP],
 ):
@@ -351,8 +379,8 @@ class TracingStreamResult(testtools.StreamResult):
     def status(self, *args, **kwargs):
         self.all_correct = self.all_correct and (kwargs["test_status"] in ["inprogress", "success"])
 
-        bench, arch = kwargs["test_id"].split("_")[-2:None]
-        test_name = f"{bench}, {arch}"
+        bench, arch, deployment_type = kwargs["test_id"].split("_")[-3:None]
+        test_name = f"{bench}, {arch}, {deployment_type}"
         if not kwargs["test_status"]:
             test_id = kwargs["test_id"]
             if test_id not in self.output:
