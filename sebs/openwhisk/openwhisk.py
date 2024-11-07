@@ -372,3 +372,6 @@ class OpenWhisk(System):
             cast(LibraryTrigger, trigger).wsk_cmd = self.get_wsk_cmd()
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
+
+    def disable_rich_output(self):
+        self.container_client.disable_rich_output = True

@@ -398,6 +398,9 @@ class System(ABC, LoggingBase):
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         pass
 
+    def disable_rich_output(self):
+        pass
+
     # @abstractmethod
     # def get_invocation_error(self, function_name: str,
     #   start_time: int, end_time: int):

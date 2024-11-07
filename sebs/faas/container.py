@@ -18,14 +18,26 @@ class DockerContainer(LoggingBase):
     def name() -> str:
         pass
 
+    @property
+    def disable_rich_output(self) -> bool:
+        return self._disable_rich_output
+
+    @disable_rich_output.setter
+    def disable_rich_output(self, val: bool):
+        self._disable_rich_output = val
+
     def __init__(
-        self, system_config: SeBSConfig, docker_client, experimental_manifest: bool = False
+        self,
+        system_config: SeBSConfig,
+        docker_client,
+        experimental_manifest: bool = False,
     ):
         super().__init__()
 
         self.docker_client = docker_client
         self.experimental_manifest = experimental_manifest
         self.system_config = system_config
+        self._disable_rich_output = False
 
     def find_image(self, repository_name, image_tag) -> bool:
 
@@ -79,15 +91,28 @@ class DockerContainer(LoggingBase):
     def push_image(self, repository_uri, image_tag):
         try:
 
-            layer_tasks = {}
-            with Progress() as progress:
+            if not self.disable_rich_output:
 
+                layer_tasks = {}
+                with Progress() as progress:
+
+                    self.logging.info(f"Pushing image {image_tag} to {repository_uri}")
+                    ret = self.docker_client.images.push(
+                        repository=repository_uri, tag=image_tag, stream=True, decode=True
+                    )
+                    for line in ret:
+                        self.show_progress(line, progress, layer_tasks)
+
+            else:
                 self.logging.info(f"Pushing image {image_tag} to {repository_uri}")
                 ret = self.docker_client.images.push(
                     repository=repository_uri, tag=image_tag, stream=True, decode=True
                 )
-                for line in ret:
-                    self.show_progress(line, progress, layer_tasks)
+
+                for val in ret:
+                    if "error" in val:
+                        self.logging.error(f"Failed to push the image to registry {repository_uri}")
+                        raise RuntimeError(val)
 
         except docker.errors.APIError as e:
             self.logging.error(
@@ -141,7 +166,7 @@ class DockerContainer(LoggingBase):
                     f"building the image for {benchmark}."
                 )
 
-        build_dir = os.path.join(directory, "docker")
+        build_dir = os.path.join(directory, "build")
         os.makedirs(build_dir, exist_ok=True)
 
         shutil.copy(

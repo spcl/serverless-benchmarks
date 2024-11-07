@@ -143,7 +143,7 @@ class AWS(System):
 
         container_uri = ""
 
-        # if the containerzied deployment is set to True
+        # if the containerized deployment is set to True
         if container_deployment:
             # build base image and upload to ECR
             _, container_uri = self.ecr_client.build_base_image(
@@ -625,3 +625,6 @@ class AWS(System):
         waiter = self.client.get_waiter("function_updated_v2")
         waiter.wait(FunctionName=func.name)
         self.logging.info("Lambda function has been updated.")
+
+    def disable_rich_output(self):
+        self.ecr_client.disable_rich_output = True
