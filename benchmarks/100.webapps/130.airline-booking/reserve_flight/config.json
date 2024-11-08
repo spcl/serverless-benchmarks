@@ -1,0 +1,7 @@
+{
+    "timeout": 30,
+    "memory": 128,
+    "languages": ["python"],
+    "trigger": "queue",
+    "entrypoint": true
+}
