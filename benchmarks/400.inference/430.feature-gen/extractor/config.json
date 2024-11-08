@@ -1,0 +1,6 @@
+{
+    "timeout": 300,
+    "memory": 512,
+    "languages": ["python"],
+    "trigger": "storage"
+}
