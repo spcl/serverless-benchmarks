@@ -193,11 +193,7 @@ class GCP(System):
 
     @staticmethod
     def default_application_name(code_package: Benchmark) -> str:
-        # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.application_name, code_package.language_name, code_package.language_version
-        )
-        return GCP.format_function_name(func_name)
+        return GCP.format_function_name(code_package.application_name)
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
@@ -313,8 +309,11 @@ class GCP(System):
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
         get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
 
-        # Add result queue env var.
-        result_queue_env = {"RESULT_QUEUE": code_package.benchmark_config.result_queue}
+        # Add result queue and application name env vars.
+        env_vars = {
+            "RESULT_QUEUE": code_package.benchmark_config.result_queue,
+            "APP_NAME": code_package.application_name
+        }
 
         try:
             get_req.execute()
@@ -338,7 +337,7 @@ class GCP(System):
                         "timeout": str(timeout) + "s",
                         "ingressSettings": "ALLOW_ALL",
                         "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
-                        "environmentVariables": result_queue_env,
+                        "environmentVariables": env_vars,
                     }
                     | trigger_info,
                 )
@@ -490,8 +489,11 @@ class GCP(System):
         # bucket) exist on GCP.
         trigger_info = self.create_trigger_resource(function.name, cached=True)
 
-        # Add result queue env var.
-        result_queue_env = {"RESULT_QUEUE": code_package.benchmark_config.result_queue}
+        # Add result queue and applcation name env vars.
+        env_vars = {
+            "RESULT_QUEUE": code_package.benchmark_config.result_queue,
+            "APP_NAME": code_package.application_name
+        }
 
         req = (
             self.function_client.projects()
@@ -505,7 +507,7 @@ class GCP(System):
                     "availableMemoryMb": function.config.memory,
                     "timeout": str(function.config.timeout) + "s",
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-                    "environmentVariables": result_queue_env,
+                    "environmentVariables": env_vars,
                 }
                 | trigger_info,
             )

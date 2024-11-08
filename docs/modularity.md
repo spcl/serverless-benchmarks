@@ -268,7 +268,8 @@ Check other platforms to see how configuration is defined, for example, for AWS:
           "files": [
             "handler.py",
             "storage.py",
-            "queue.py"
+            "queue.py",
+            "misc.py"
           ],
           "packages": []
         }

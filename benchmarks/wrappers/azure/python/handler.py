@@ -24,6 +24,8 @@ def handler_http(req: func.HttpRequest, context: func.Context) -> func.HttpRespo
 def handler_queue(msg: func.QueueMessage, context: func.Context):
     income_timestamp = datetime.datetime.now().timestamp()
 
+    populate_env_vars()
+
     payload = msg.get_json()
 
     payload['request-id'] = context.invocation_id
@@ -36,16 +38,18 @@ def handler_queue(msg: func.QueueMessage, context: func.Context):
     storage_account = os.getenv('DATA_STORAGE_ACCOUNT')
 
     if (result_queue and storage_account):
-        storage_account = os.getenv('STORAGE_ACCOUNT')
 
         from . import queue
-        queue_client = queue.queue(result_queue, storage_account)
+        queue_client = queue.queue(result_queue)
         queue_client.send_message(stats)
 
 def handler_storage(blob: func.InputStream, context: func.Context):
     income_timestamp = datetime.datetime.now().timestamp()
 
+    populate_env_vars()
+
     payload = json.loads(blob.readline().decode('utf-8'))
+    logging.info(payload)
     
     payload['request-id'] = context.invocation_id
     payload['income-timestamp'] = income_timestamp
@@ -59,7 +63,7 @@ def handler_storage(blob: func.InputStream, context: func.Context):
     if (result_queue and storage_account):
 
         from . import queue
-        queue_client = queue.queue(result_queue, storage_account)
+        queue_client = queue.queue(result_queue)
         queue_client.send_message(stats)
 
 # Contains generic logic for gathering measurements for the function at hand,
@@ -78,8 +82,8 @@ def measure(req_json) -> str:
     }
     if 'fns_triggered' in ret and ret['fns_triggered'] > 0:
         log_data['fns_triggered'] = ret['fns_triggered']
-    if 'parent_execution_id' in ret:
-        log_data['parent_execution_id'] = ret['parent_execution_id']
+    if 'parent_execution_id' in req_json:
+        log_data['parent_execution_id'] = req_json['parent_execution_id']
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
     if 'logs' in req_json:
@@ -125,4 +129,7 @@ def measure(req_json) -> str:
             'container_id': container_id,
             'environ_container_id': os.environ['CONTAINER_NAME'],
             'request_id': req_id
-        })
+        })  
+
+def populate_env_vars():
+    os.environ['ACCOUNT_ID'] = os.getenv('DATA_STORAGE_ACCOUNT')

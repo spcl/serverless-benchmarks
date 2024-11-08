@@ -61,16 +61,20 @@ class storage:
 
     def get_object(self, container, key):
         blob_client = self.client.get_blob_client(container=container, blob=key)
-        downloader = blob_client.download_blob(max_concurrency=1, encoding='UTF-8')
+        downloader = blob_client.download_blob()
         return downloader.readall()
 
-    def list_blobs(self, container):
+    def list_objects(self, container, prefix=None):
         client = self.client.get_container_client(container=container)
 
         # Azure returns an iterator. Turn it into a list.
         objs = []
-        res = client.list_blob_names()
+        res = client.list_blob_names(name_starts_with=prefix)
         for obj in res:
             objs.append(obj)
 
         return objs
+
+    def delete_object(self, bucket, key):
+        blob_client = self.client.get_blob_client(container=bucket, blob=key)
+        blob_client.delete_blob(delete_snapshots="include")

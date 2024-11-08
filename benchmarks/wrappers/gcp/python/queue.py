@@ -1,12 +1,14 @@
+import os
+
 from google.cloud import pubsub_v1
 
 class queue:
     client = None
 
-    def __init__(self, topic_name: str, project_id: str):
+    def __init__(self, topic_name: str):
         self.client = pubsub_v1.PublisherClient()
         self.topic_name = 'projects/{project_id}/topics/{topic}'.format(
-            project_id=project_id,
+            project_id=os.getenv('ACCOUNT_ID'),
             topic=topic_name,
         )
 

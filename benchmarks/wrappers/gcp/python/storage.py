@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import uuid
 
@@ -43,8 +44,10 @@ class storage:
             os.makedirs(os.path.join(path, path_to_file), exist_ok=True)
             self.download(bucket, file_name, os.path.join(path, file_name))
 
-    def upload_stream(self, bucket, file, data):
+    def upload_stream(self, bucket, file, data, overwrite=False):
         key_name = storage.unique_name(file)
+        if (overwrite):
+            key_name = file
         bucket_instance = self.client.bucket(bucket)
         blob = bucket_instance.blob(key_name)
         blob.upload_from_file(data)
@@ -61,18 +64,23 @@ class storage:
         bucket_instance = self.client.bucket(bucket)
         blob = bucket_instance.blob(key)
         contents = blob.download_as_bytes()
-        return contents['Body'].read().decode('utf-8')
+        return contents
 
     def get_instance():
         if storage.instance is None:
             storage.instance = storage()
         return storage.instance
 
-    def list_blobs(self, bucket):
-        res = self.client.list_blobs(bucket)
+    def list_objects(self, bucket, prefix=None):
+        res = self.client.list_blobs(bucket, prefix=prefix)
 
         objs = []
         for obj in res:
             objs.append(obj.name)
 
         return objs
+
+    def delete_object(self, bucket, key):
+        bucket = self.client.bucket(bucket)
+        blob = bucket.blob(key)
+        blob.delete()

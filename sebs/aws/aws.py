@@ -120,6 +120,7 @@ class AWS(System):
         - function.py
         - storage.py
         - queue.py
+        - misc.py
         - resources
         handler.py
 
@@ -226,10 +227,14 @@ class AWS(System):
                 self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix}
 
+            env_vars = {}
             # Result queue added as an env variable.
-            result_queue_env = {}
             if (code_package.benchmark_config.result_queue):
-                result_queue_env["RESULT_QUEUE"] = code_package.benchmark_config.result_queue
+                env_vars["RESULT_QUEUE"] = code_package.benchmark_config.result_queue
+                
+            # Application name added as an env variable.
+            if (code_package.application_name):
+                env_vars["APP_NAME"] = code_package.application_name
 
             ret = self.client.create_function(
                 FunctionName=func_name,
@@ -241,7 +246,7 @@ class AWS(System):
                 MemorySize=memory,
                 Timeout=timeout,
                 Code=code_config,
-                Environment={"Variables": result_queue_env}
+                Environment={"Variables": env_vars}
             )
 
             lambda_function = LambdaFunction(
@@ -341,10 +346,7 @@ class AWS(System):
 
     @staticmethod
     def default_application_name(code_package: Benchmark) -> str:
-        app_name = "{}-{}-{}".format(
-            code_package.application_name, code_package.language_name, code_package.language_version
-        )
-        return AWS.format_function_name(app_name)
+        return AWS.format_function_name(code_package.application_name)
 
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:

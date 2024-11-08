@@ -317,11 +317,10 @@ class QueueTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return QueueTrigger(
-            obj["name"],
-            None,
-            SQS.deserialize(obj["queue"]),
-            SQS.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
-            obj["with_result_queue"]
+            fname=obj["name"],
+            queue=SQS.deserialize(obj["queue"]),
+            result_queue=SQS.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            with_result_queue=obj["with_result_queue"]
         )
 
 

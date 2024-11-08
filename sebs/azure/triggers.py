@@ -210,12 +210,12 @@ class QueueTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         return QueueTrigger(
-            obj["name"],
-            obj["storage_account"],
-            obj["region"],
-            AzureQueue.deserialize(obj["queue"]),
-            AzureQueue.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
-            obj["with_result_queue"],
+            fname=obj["name"],
+            storage_account=obj["storage_account"],
+            region=obj["region"],
+            queue=AzureQueue.deserialize(obj["queue"]),
+            result_queue=AzureQueue.deserialize(obj["result_queue"]) if obj["result_queue"] != "" else None,
+            with_result_queue=obj["with_result_queue"],
         )
 
 

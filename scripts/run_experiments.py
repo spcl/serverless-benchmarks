@@ -446,6 +446,7 @@ class local:
         - function.py
         - storage.py
         - queue.py
+        - misc.py
         - resources
         handler.py
 

@@ -362,10 +362,8 @@ class Azure(System):
 
     def default_application_name(self, code_package: Benchmark) -> str:
         func_name = (
-            "{}-{}-{}-{}".format(
+            "{}-{}".format(
                 code_package.application_name,
-                code_package.language_name,
-                code_package.language_version,
                 self.config.resources.resources_id,
             )
             .replace(".", "-")
@@ -446,6 +444,14 @@ class Azure(System):
                         f"az functionapp config appsettings set --name {func_name} "
                         f" --resource-group {resource_group} "
                         f" --settings {result_queue_env}"
+                    )
+
+                    # Add application name env var.
+                    app_name_env = f"APP_NAME={code_package.application_name}"
+                    self.cli_instance.execute(
+                        f"az functionapp config appsettings set --name {func_name} "
+                        f" --resource-group {resource_group} "
+                        f" --settings {app_name_env}"
                     )
 
                     # Set the data storage account as env vars in the function.

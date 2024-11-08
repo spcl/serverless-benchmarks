@@ -7,6 +7,8 @@ def handler(event, context):
 
     income_timestamp = datetime.datetime.now().timestamp()
 
+    populate_env_vars(context)
+
     # Flag to indicate whether the measurements should be returned as an HTTP
     # response or via a result queue.
     return_http = True
@@ -48,8 +50,8 @@ def handler(event, context):
     }
     if 'fns_triggered' in ret and ret['fns_triggered'] > 0:
         log_data['fns_triggered'] = ret['fns_triggered']
-    if 'parent_execution_id' in ret:
-        log_data['parent_execution_id'] = ret['parent_execution_id']
+    if 'parent_execution_id' in event:
+        log_data['parent_execution_id'] = event['parent_execution_id']
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
     if 'logs' in event:
@@ -103,11 +105,12 @@ def handler(event, context):
         }
     else:
         # Queue trigger, storage trigger, or application: write to a queue.
-        arn = context.invoked_function_arn.split(":")
-        region = arn[3]
-        account_id = arn[4]
-        queue_name = result_queue
-
         from function import queue
-        queue_client = queue.queue(queue_name, account_id, region)
+        queue_client = queue.queue(result_queue)
         queue_client.send_message(stats)
+
+def populate_env_vars(context):
+    arn = context.invoked_function_arn.split(":")
+
+    os.environ['REGION'] = arn[3]
+    os.environ['ACCOUNT_ID'] = arn[4]

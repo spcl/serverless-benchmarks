@@ -1,4 +1,4 @@
-import time
+import base64, time
 
 from sebs.faas.queue import Queue, QueueType
 
@@ -75,7 +75,8 @@ class AzureQueue(Queue):
         for msg in response:
             self.logging.info(f"Received a message from {self.name}")
             self.client.delete_message(msg)
-            return msg.content
+            msg = base64.b64decode(msg.content)
+            return msg
 
         self.logging.info("No messages to be received")
 

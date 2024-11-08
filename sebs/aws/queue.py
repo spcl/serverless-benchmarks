@@ -55,7 +55,9 @@ class SQS(Queue):
         self._queue_url = self.client.create_queue(
             QueueName=self.name,
             Attributes={
-                "VisibilityTimeout": "3600"
+                # This currently works well in all cases - however it could be
+                # beneficial to adjust it based on the function's timeout.
+                "VisibilityTimeout": "540"
             }
         )["QueueUrl"]
         self._queue_arn = self.client.get_queue_attributes(

@@ -18,6 +18,8 @@ def handler_http(req):
 def handler_queue(data, context):
     income_timestamp = datetime.datetime.now().timestamp()
 
+    populate_env_vars()
+
     serialized_payload = data.get('data')
     payload = json.loads(base64.b64decode(serialized_payload).decode("utf-8"))
 
@@ -30,14 +32,14 @@ def handler_queue(data, context):
     result_queue = os.getenv('RESULT_QUEUE')
 
     if (result_queue):
-        project_id = context.resource.split("/")[1]
-
         from function import queue
-        queue_client = queue.queue(result_queue, project_id)
+        queue_client = queue.queue(result_queue)
         queue_client.send_message(stats)
 
 def handler_storage(data, context):
     income_timestamp = datetime.datetime.now().timestamp()
+
+    populate_env_vars()
 
     bucket_name = data.get('bucket')
     name = data.get('name')
@@ -61,10 +63,8 @@ def handler_storage(data, context):
     result_queue = os.getenv('RESULT_QUEUE')
 
     if (result_queue):
-        _, project_id = default()
-
         from function import queue
-        queue_client = queue.queue(result_queue, project_id)
+        queue_client = queue.queue(result_queue)
         queue_client.send_message(stats)
 
 # Contains generic logic for gathering measurements for the function at hand,
@@ -84,8 +84,8 @@ def measure(req_json) -> str:
     }
     if 'fns_triggered' in ret and ret['fns_triggered'] > 0:
         log_data['fns_triggered'] = ret['fns_triggered']
-    if 'parent_execution_id' in ret:
-        log_data['parent_execution_id'] = ret['parent_execution_id']
+    if 'parent_execution_id' in req_json:
+        log_data['parent_execution_id'] = req_json['parent_execution_id']
     if 'measurement' in ret:
         log_data['measurement'] = ret['measurement']
     if 'logs' in req_json:
@@ -127,3 +127,7 @@ def measure(req_json) -> str:
             'cold_start_var': cold_start_var,
             'container_id': container_id,
         })
+
+def populate_env_vars():
+    _, project_id = default()
+    os.environ['ACCOUNT_ID'] = project_id

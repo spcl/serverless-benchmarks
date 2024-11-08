@@ -39,8 +39,10 @@ class storage:
             os.makedirs(os.path.join(path, path_to_file), exist_ok=True)
             self.download(bucket, file_name, os.path.join(path, file_name))
 
-    def upload_stream(self, bucket, file, data):
+    def upload_stream(self, bucket, file, data, overwrite=False):
         key_name = storage.unique_name(file)
+        if (overwrite):
+            key_name = file
         self.client.upload_fileobj(data, bucket, key_name)
         return key_name
 
@@ -51,18 +53,23 @@ class storage:
 
     def get_object(self, bucket, file):
         obj = self.client.get_object(Bucket=bucket, Key=file)
-        return obj['Body'].read().decode('utf-8')
+        return obj['Body'].read()
 
     def get_instance():
         if storage.instance is None:
             storage.instance = storage()
         return storage.instance
 
-    def list_blobs(self, bucket):
-        res = self.client.list_objects(Bucket=bucket)
+    def list_objects(self, bucket, prefix=None):
+        if (not prefix):
+            prefix = ''
+        res = self.client.list_objects(Bucket=bucket, Prefix=prefix)
 
         objs = []
         for obj in res['Contents']:
             objs.append(obj['Key'])
 
         return objs
+
+    def delete_object(self, bucket, key):
+        self.client.delete_object(Bucket=bucket, Key=key)

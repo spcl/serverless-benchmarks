@@ -1,9 +1,12 @@
-import boto3
+import boto3, os
 
 class queue:
     client = None
 
-    def __init__(self, queue_name: str, account_id: str, region: str):
+    def __init__(self, queue_name: str):
+        account_id = os.getenv('ACCOUNT_ID')
+        region = os.getenv('REGION')
+    
         self.client = boto3.client('sqs', region_name=region)
         self.queue_url = f"https://sqs.{region}.amazonaws.com/{account_id}/{queue_name}"
 
