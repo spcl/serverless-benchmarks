@@ -1,6 +1,6 @@
 {
   "general": {
-    "docker_repository": "duckerhubformahla/serverless_benchmarks"
+    "docker_repository": ""
   },
   "local": {
     "experiments": {
