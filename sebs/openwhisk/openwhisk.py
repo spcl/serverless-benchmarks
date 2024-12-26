@@ -284,34 +284,8 @@ class OpenWhisk(System):
                         code_package.language_name,
                         code_package.language_version,
                     )
-                    if code_package.language_name == 'java':
-                        subprocess.run(
-                            [
-                                *self.get_wsk_cmd(),
-                                "action",
-                                "create",
-                                func_name,
-                                "--web",
-                                "true",
-                                "--docker",
-                                docker_image,
-                                "--memory",
-                                str(code_package.benchmark_config.memory),
-                                "--timeout",
-                                str(code_package.benchmark_config.timeout * 1000),
-                                *self.storage_arguments(),
-                                code_package.code_location,
-                                "--main",
-                                "Main"
-                            ],
-                            stderr=subprocess.PIPE,
-                            stdout=subprocess.PIPE,
-                            check=True,
-                        )
 
-                    else:
-                        subprocess.run(
-                            [
+                    run_arguments = [
                                 *self.get_wsk_cmd(),
                                 "action",
                                 "create",
@@ -326,11 +300,18 @@ class OpenWhisk(System):
                                 str(code_package.benchmark_config.timeout * 1000),
                                 *self.storage_arguments(),
                                 code_package.code_location,
-                            ],
-                            stderr=subprocess.PIPE,
-                            stdout=subprocess.PIPE,
-                            check=True,
-                        )
+                            ]
+                    if code_package.language_name == 'java':               
+                        run_arguments.extend(["--main", "Main"])
+
+                    
+                    subprocess.run(
+                        run_arguments,
+                        stderr=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        check=True,
+                    )
+                    
                     function_cfg.docker_image = docker_image
                     res = OpenWhiskFunction(
                         func_name, code_package.benchmark, code_package.hash, function_cfg
