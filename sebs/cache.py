@@ -169,14 +169,19 @@ class Cache(LoggingBase):
         return cfg["storage"] if cfg and "storage" in cfg and not self.ignore_storage else None
 
     def update_storage(self, deployment: str, benchmark: str, config: dict):
-        if self.ignore_storage:
-            return
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
+        config_path = os.path.join(benchmark_dir, "config.json")
+
+        if self.ignore_storage or not os.path.exists(config_path):
+            self.logging.debug(
+                f"Skipping storage update: ignore_storage={self.ignore_storage}, config exists={os.path.exists(config_path)} at {config_path}"
+            )
+            return
         with self._lock:
-            with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
+            with open(config_path, "r") as fp:
                 cached_config = json.load(fp)
             cached_config[deployment]["storage"] = config
-            with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
+            with open(config_path, "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
     def add_code_package(

@@ -37,9 +37,12 @@ class SeBSConfig:
     def supported_language_versions(
         self, deployment_name: str, language_name: str, architecture: str
     ) -> List[str]:
-        return self._system_config[deployment_name]["languages"][language_name]["base_images"][
-            architecture
-        ].keys()
+        languages = self._system_config.get(deployment_name, {}).get("languages", {})
+        base_images = languages.get(language_name, {}).get("base_images", {})
+        
+        if deployment_name == "local":
+            return list(base_images.keys())
+        return list(base_images.get(architecture, {}).keys())
 
     def supported_architecture(self, deployment_name: str) -> List[str]:
         return self._system_config[deployment_name]["architecture"]
