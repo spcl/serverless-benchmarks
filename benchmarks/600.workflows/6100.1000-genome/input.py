@@ -14,7 +14,6 @@ def buckets_count():
     return (1, 1)
 
 def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
-    #TODO replace individuals input with larger file. 
     files = ["ALL.chr21.1250.vcf", "ALL.chr21.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.annotation.vcf", "columns.txt", "AFR", "ALL", "AMR", "EAS", "EUR", "GBR", "SAS"]
     for name in files:
         #if name != "ALL.chr21.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.annotation.vcf":
