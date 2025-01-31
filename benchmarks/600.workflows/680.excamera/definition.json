@@ -10,7 +10,7 @@
             "type": "map",
             "root": "encode",
             "array": "segments",
-            "next": "reencode",
+            "next": "reencode-state",
             "states": {
               "encode": {
                 "type": "task",
@@ -18,7 +18,7 @@
               }
             }
         },
-        "reencode": {
+        "reencode-state": {
             "type": "map",
             "root": "reencode",
             "array": "segments",
