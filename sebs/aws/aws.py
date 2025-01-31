@@ -389,13 +389,14 @@ class AWS(System):
         self.logging.info(f"Updated configuration of {function.name} function. ")
 
     @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(code_package: Benchmark,resources:Resources) -> str:
         # Create function name
-        func_name = "{}-{}-{}-{}".format(
+        func_name = "{}-{}-{}-{}-{}".format(
             code_package.benchmark,
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,
+            resources.resources_id
         )
         if code_package.container_deployment:
             func_name = f"{func_name}-docker"

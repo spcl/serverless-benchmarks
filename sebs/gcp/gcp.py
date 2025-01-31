@@ -104,10 +104,10 @@ class GCP(System):
         return self.storage
 
     @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(code_package: Benchmark,resources:Resources) -> str:
         # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.benchmark, code_package.language_name, code_package.language_version
+        func_name = "{}-{}-{}-{}".format(
+            code_package.benchmark, code_package.language_name, code_package.language_version,resources.resources_id
         )
         return GCP.format_function_name(func_name)
 

@@ -90,7 +90,9 @@ class SeBSConfig:
         tag = f"function.{system}.{benchmark}.{language_name}-{language_version}-{architecture}"
         if self.image_tag_prefix:
             tag = f"{tag}-{self.image_tag_prefix}"
-        return tag
+        sebs_version=self._system_config["general"].get("SeBS_version", "unknown")
+        tag=f"{tag}.{sebs_version}"
+        return tag  
 
     def username(self, deployment_name: str, language_name: str) -> str:
         return self._system_config[deployment_name]["languages"][language_name]["username"]
