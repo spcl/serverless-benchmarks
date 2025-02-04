@@ -1,7 +1,7 @@
 {
-    "root": "individuals",
+    "root": "individuals_state",
     "states": {
-        "individuals": {
+        "individuals_state": {
             "type": "map",
             "root": "individuals",
             "array": "blob",
