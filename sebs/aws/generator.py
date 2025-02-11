@@ -167,7 +167,11 @@ class SFNGenerator(Generator):
         return payload
 
     def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
-        map_state = Map(state.name, state.func_name, state.array, state.next, None)
+        funcs: Dict[str, Any] = {state.func_name : {
+            "type": "task",
+            "func_name": state.func_name
+        }}
+        map_state = Map(state.name, funcs, state.array, state.func_name, state.next, None)
         payload = self.encode_map(map_state)
         payload["MaxConcurrency"] = 1
         payload["ResultSelector"] = dict()
