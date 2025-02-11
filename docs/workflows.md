@@ -21,7 +21,7 @@ To execute a workflow, the host address and password of the redis instance must 
 }
 ```
 
-Our workflow benchmarks are provided in the benchmarks folder (benchmarks/600.workflows). To execute a given workflow, use the following command, with "library" triggers for Azure and "http" for AWS and GCP:
+Our workflow benchmarks are provided in the benchmarks folder (benchmarks/600.workflows). To execute a given workflow, use the following command, with "http" triggers for Azure and "library" for AWS and GCP:
 
 ```
 ./sebs.py benchmark workflow {workflow-name} --config {path/to/config.json} --deployment {platform-name} --verbose {input-size} --trigger {library|http} --repetitions 1
