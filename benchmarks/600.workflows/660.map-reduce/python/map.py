@@ -15,12 +15,13 @@ def count_words(lst):
     return index
 
 def handler(event):
+    benchmark_bucket = event["benchmark_bucket"]
     bucket = event["bucket"]
     blob = event["blob"]
     prefix = event["prefix"]
 
     client = storage.storage.get_instance()
-    my_buffer = client.download_stream(bucket, blob)
+    my_buffer = client.download_stream(benchmark_bucket, bucket + '/' + blob)
     words = bytes(my_buffer).decode("utf-8").split("\n")
  
     index = count_words(words)
@@ -29,6 +30,7 @@ def handler(event):
         data.write(str(count).encode("utf-8"))
         data.seek(0)
 
-        client.upload_stream(bucket, os.path.join(prefix, word, blob), data)
+        #client.upload_stream(benchmark_bucket, os.path.join(bucket, prefix, word, blob), data)
+        client.upload_stream(benchmark_bucket, os.path.join(prefix, word, blob), data)
 
     return event

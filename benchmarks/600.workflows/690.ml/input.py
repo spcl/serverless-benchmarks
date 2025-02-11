@@ -14,10 +14,11 @@ classifiers = [
 def buckets_count():
     return (0, 1)
 
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func):
     n_classifiers, n_samples, n_features = size_generators[size]
     return {
         "classifiers": classifiers[:n_classifiers],
+        "benchmark_bucket" : benchmarks_bucket,
         "dataset_bucket": output_buckets[0],
         "n_samples": n_samples,
         "n_features": n_features

@@ -1,6 +1,6 @@
     #threads-duration
 size_generators = {
-    'test' : (2, 1),
+    'test' : (2, 2),
     'small': (16, 20),
     'large': (50, 2),
     '2-1': (2, 1),
@@ -29,6 +29,6 @@ size_generators = {
 def buckets_count():
     return (0, 0)
 
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
     count, sleep = size_generators[size]
     return { 'count': count, 'sleep': sleep }

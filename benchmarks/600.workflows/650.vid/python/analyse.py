@@ -33,10 +33,11 @@ def load_model(bucket, weights_blob, config_blob, dest_dir):
     return net
 
 
-def load_frames(bucket, blobs, dest_dir):
+def load_frames(benchmark_bucket, bucket, blobs, dest_dir):
     for blob in blobs:
-        path = os.path.join(dest_dir, blob)
-        client.download(bucket, blob, path)
+        stripped_blob = blob.replace(bucket + '/', '')
+        path = os.path.join(dest_dir, stripped_blob)
+        client.download(benchmark_bucket, blob, path)
         yield cv2.imread(path)
 
 
@@ -63,8 +64,10 @@ def detect(net, img):
 def handler(event):
     tmp_dir = "/tmp"
 
-    frames = list(load_frames(event["frames_bucket"], event["frames"], tmp_dir))
-    net = load_model(event["model_bucket"], event["model_weights"], event["model_config"], tmp_dir)
+    benchmark_bucket = event["benchmark_bucket"]
+
+    frames = list(load_frames(benchmark_bucket, event["frames_bucket"], event["frames"], tmp_dir))
+    net = load_model(benchmark_bucket, event["model_bucket"] + '/' + event["model_weights"], event["model_bucket"] + '/' + event["model_config"], tmp_dir)
 
     preds = [detect(net, frame) for frame in frames]
     

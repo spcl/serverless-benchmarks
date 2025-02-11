@@ -32,7 +32,7 @@ def generate(size):
         yield data
 
 
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func):
     count, size_bytes = size_generators[size]
 
     data_name = f"data-{size_bytes}.txt"
@@ -45,4 +45,4 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     upload_func(0, data_name, data_path)
     # os.remove(data_path)
 
-    return { 'count': count, "bucket": input_buckets[0], "blob": data_name}
+    return { 'count': count, "bucket": benchmarks_bucket, "blob": input_buckets[0] + '/' + data_name}

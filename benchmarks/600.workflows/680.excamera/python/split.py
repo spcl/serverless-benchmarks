@@ -9,6 +9,7 @@ def handler(event):
     segs = chunks(event["segments"], event["batch_size"])
     input_bucket = event["input_bucket"]
     output_bucket = event["output_bucket"]
+    benchmark_bucket = event["benchmark_bucket"]
     quality = event["quality"]
 
     return {
@@ -19,6 +20,7 @@ def handler(event):
                 "quality": quality,
                 "input_bucket": input_bucket,
                 "output_bucket": output_bucket,
+                "benchmark_bucket": benchmark_bucket
             } for idx, ss in enumerate(segs)
         ]
     }

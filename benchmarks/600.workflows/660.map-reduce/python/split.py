@@ -13,12 +13,13 @@ def chunks(lst, n):
 
 
 def handler(event):
+    benchmark_bucket = event["benchmark_bucket"]
     words_bucket = event["words_bucket"]
     words_blob = event["words"]
     words_path = os.path.join("/tmp", "words.txt")
 
     client = storage.storage.get_instance()
-    client.download(words_bucket, words_blob, words_path)
+    client.download(benchmark_bucket, words_bucket + '/' + words_blob, words_path)
     with open(words_path, "r") as f:
         list = f.read().split("\n")
     os.remove(words_path)
@@ -35,11 +36,13 @@ def handler(event):
         data.writelines((val+"\n").encode("utf-8") for val in chunk)
         data.seek(0)
 
-        name = client.upload_stream(output_bucket, name, data)
-        blobs.append(name)
+        name = client.upload_stream(benchmark_bucket, output_bucket + '/' + name, data)
+        stripped_name = name.replace(output_bucket + '/', '')
+        blobs.append(stripped_name)
 
     prefix = str(uuid.uuid4())[:8]
     lst = [{
+        "benchmark_bucket": benchmark_bucket,
         "bucket": output_bucket,
         "blob": b,
         "prefix": prefix

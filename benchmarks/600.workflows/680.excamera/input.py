@@ -12,7 +12,7 @@ def buckets_count():
     return (1, 1)
 
 
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func):
     num_frames, batch_size = size_generators[size]
 
     for bin in os.listdir(data_dir):
@@ -36,6 +36,7 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
 
     return {
         "segments": new_vid_segs,
+        "benchmark_bucket": benchmarks_bucket,
         "input_bucket": input_buckets[0],
         "output_bucket": output_buckets[0],
         "batch_size": batch_size,

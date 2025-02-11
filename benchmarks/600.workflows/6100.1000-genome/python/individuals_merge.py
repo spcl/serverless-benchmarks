@@ -4,9 +4,10 @@ import time
 import tarfile
 import tempfile
 import shutil
+import datetime
 
 def handler(event):
-
+  benchmark_bucket = event["benchmark_bucket"]
   individuals_output_bucket = event["bucket"]
   filenames = []
   for elem in event["blob"]: 
@@ -15,13 +16,16 @@ def handler(event):
   #download files
   client = storage.storage.get_instance()
   for file in filenames:
-      client.download(individuals_output_bucket, file, os.path.join('/tmp', file))
-
+      client.download(benchmark_bucket, individuals_output_bucket + '/' + file, os.path.join('/tmp', file))
+  
   #call merging with c and directories.
   outputfile_name, outputfile = merging(21, filenames)
+  
   #upload outputfile
-  outputfile_name = client.upload(individuals_output_bucket, outputfile_name, outputfile)
+  outputfile_name = client.upload(benchmark_bucket, individuals_output_bucket + '/' + outputfile_name, outputfile)
+  outputfile_name = outputfile_name.replace(individuals_output_bucket + '/', '')
 
+  
   return {
       "merge_outputfile_name": outputfile_name
   }

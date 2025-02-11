@@ -11,7 +11,7 @@ def buckets_count():
     return (1, 1)
 
 
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func):
     n_frames, batch_size, video_name = size_generators[size]
     files = ["frozen_inference_graph.pb", "faster_rcnn_resnet50_coco_2018_01_28.pbtxt", video_name]
     for name in files:
@@ -23,6 +23,7 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
         "n_frames": n_frames,
         "batch_size": batch_size,
         "frames_bucket": output_buckets[0],
+        "benchmark_bucket": benchmarks_bucket,
         "input_bucket": input_buckets[0],
         "model_weights": files[0],
         "model_config": files[1]

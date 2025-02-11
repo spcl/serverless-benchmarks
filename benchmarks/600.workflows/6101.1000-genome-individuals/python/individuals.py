@@ -18,11 +18,9 @@ def readfile(file):
     return content
 
 def handler(event):
-    
-    
+    benchmark_bucket = event["benchmark_bucket"]
     individuals_bucket = event["bucket"]
     individuals_input = event["individuals_file"]
-
 
     start_bytes = event["array_element"]["start_bytes"]
     end_bytes = event["array_element"]["end_bytes"]
@@ -32,8 +30,8 @@ def handler(event):
     columns_path = os.path.join("/tmp", "columns.txt")
     
     client = storage.storage.get_instance()
-    client.download(columns_bucket, columns, columns_path)
-    data = client.download_within_range(columns_bucket, individuals_input, start_bytes, end_bytes)
+    client.download(benchmark_bucket, columns_bucket + '/' + columns, columns_path)
+    data = client.download_within_range(benchmark_bucket, columns_bucket + '/' + individuals_input, start_bytes, end_bytes)
 
     ndir = 'chr{}n-{}/'.format(21, individuals_input)
     ndir = os.path.join("/tmp", ndir)
@@ -102,7 +100,8 @@ def handler(event):
 
     # tar -zcf .. /$outputfile .
     compress(os.path.join("/tmp/", outputfile), ndir)
-    outputfile_name = client.upload(individuals_bucket, outputfile, os.path.join("/tmp/", outputfile))
+    outputfile_name = client.upload(benchmark_bucket, individuals_bucket + '/' + outputfile, os.path.join("/tmp/", outputfile))
+    outputfile_name = outputfile_name.replace(individuals_bucket + '/', '')
 
     # Cleaning temporary files
     try:

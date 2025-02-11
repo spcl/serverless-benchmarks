@@ -12,9 +12,9 @@ def chunks(lst, n):
         yield lst[i:i + n]
 
 
-def load_video(bucket, blob, dest_dir):
+def load_video(benchmark_bucket, bucket, blob, dest_dir):
     path = os.path.join(dest_dir, blob)
-    client.download(bucket, blob, path)
+    client.download(benchmark_bucket, bucket + '/' + blob, path)
     return path
 
 
@@ -31,12 +31,12 @@ def decode_video(path, n_frames, dest_dir):
     return img_paths
 
 
-def upload_imgs(bucket, paths):
+def upload_imgs(benchmark_bucket, bucket, paths):
     client = storage.storage.get_instance()
 
     for path in paths:
         name = os.path.basename(path)
-        yield client.upload(bucket, name, path)
+        yield client.upload(benchmark_bucket, bucket + '/' + name, path)
 
 
 def handler(event):
@@ -45,19 +45,21 @@ def handler(event):
     batch_size = event["batch_size"]
     frames_bucket = event["frames_bucket"]
     input_bucket = event["input_bucket"]
+    benchmark_bucket = event["benchmark_bucket"]
 
     tmp_dir = os.path.join("/tmp", str(uuid.uuid4()))
     os.makedirs(tmp_dir, exist_ok=True)
 
-    vid_path = load_video(input_bucket, vid_blob, tmp_dir)
+    vid_path = load_video(benchmark_bucket, input_bucket, vid_blob, tmp_dir)
     img_paths = decode_video(vid_path, n_frames, tmp_dir)
-    paths = list(upload_imgs(frames_bucket, img_paths))
+    paths = list(upload_imgs(benchmark_bucket, frames_bucket, img_paths))
     frames = list(chunks(paths, batch_size))
 
     return {
         "frames": [{
             "frames_bucket": frames_bucket,
             "frames": fs,
+            "benchmark_bucket": benchmark_bucket,
             "model_bucket": input_bucket,
             "model_config": event["model_config"],
             "model_weights": event["model_weights"]

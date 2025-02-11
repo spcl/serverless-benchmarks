@@ -11,4 +11,4 @@ def handler(event):
         if len(data) > size:
             break
 
-    return data[:size]
+    return {'len' : data[:size]}

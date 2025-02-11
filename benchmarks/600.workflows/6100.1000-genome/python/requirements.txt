@@ -1,3 +1,3 @@
 #numpy==1.17
-numpy==1.18 #1.16 works on Azure, but not AWS
+numpy==1.25 #1.16 works on Azure, but not AWS
 matplotlib

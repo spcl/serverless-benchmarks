@@ -12,7 +12,7 @@ def buckets_count():
     return (1, 1)
 
 
-def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func):
     mult, n_mappers = size_generators[size]
     words = ["cat", "dog", "bird", "horse", "pig"]
     lst = mult * words
@@ -27,6 +27,7 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
     #os.remove(list_path)
 
     return {
+        "benchmark_bucket": benchmarks_bucket,
         "words_bucket": input_buckets[0],
         "words": list_name,
         "n_mappers": n_mappers,

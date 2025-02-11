@@ -4,9 +4,9 @@
         "split": {
             "type": "task",
             "func_name": "split",
-            "next": "encode"
+            "next": "encode-state"
         },
-        "encode": {
+        "encode-state": {
             "type": "map",
             "root": "encode",
             "array": "segments",
@@ -22,7 +22,7 @@
             "type": "map",
             "root": "reencode",
             "array": "segments",
-            "next": "rebase",
+            "next": "rebase-state",
             "states": {
               "reencode": {
                 "type": "task",
@@ -30,7 +30,7 @@
               }
             }
         },
-        "rebase": {
+        "rebase-state": {
             "type": "loop",
             "func_name": "rebase",
             "array": "segments"

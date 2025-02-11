@@ -13,16 +13,17 @@ def str_to_cls(cls_name):
     #print(cls_name)
     return globals()[cls_name]
 
-def load_dataset(bucket, features, labels):
+def load_dataset(benchmark_bucket, bucket, features, labels):
     dataset_dir = os.path.join("/tmp", str(uuid.uuid4()))
     os.makedirs(dataset_dir, exist_ok=True)
 
     features_path = os.path.join(dataset_dir, "features.npy")
     labels_path = os.path.join(dataset_dir, "labels.npy")
 
+
     client = storage.storage.get_instance()
-    client.download(bucket, features, features_path)
-    client.download(bucket, labels, labels_path)
+    client.download(benchmark_bucket, bucket + '/' + features, features_path)
+    client.download(benchmark_bucket, bucket + '/' + labels, labels_path)
 
     X = np.load(features_path)
     y = np.load(labels_path)
@@ -53,10 +54,12 @@ def handler(schedule):
     X_key = schedule.pop("features")
     y_key = schedule.pop("labels")
     bucket = schedule.pop("bucket")
+    benchmark_bucket = schedule.pop("benchmark_bucket")
+    request_id = schedule.pop("request-id")
 
     clf = str_to_cls(name)(**schedule)
 
-    X, y = load_dataset(bucket, X_key, y_key)
+    X, y = load_dataset(benchmark_bucket, bucket, X_key, y_key)
     X_train, X_test, y_train, y_test = preprocess(X, y)
 
     train(clf, X_train, y_train)

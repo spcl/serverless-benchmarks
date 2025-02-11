@@ -13,6 +13,7 @@ from matplotlib import pyplot
 import matplotlib as mpl
 import collections
 from collections import Counter
+import datetime
 
 import os
 from . import storage
@@ -247,10 +248,12 @@ class WriteData :
 
 def handler(event):
   POP = event["array_element"]
+  benchmark_bucket = event["sifting"]["benchmark_bucket"]
   output_bucket = event["sifting"]["output_bucket"]
   input_bucket = event["sifting"]["input_bucket"]
   sifting_filename = event["sifting"]["output_sifting"]
   individuals_merge_filename = event["individuals_merge"]["merge_outputfile_name"]
+
 
   #download files
   siftfile = os.path.join("/tmp", "sifting.txt")
@@ -259,11 +262,10 @@ def handler(event):
   columns_file = os.path.join("/tmp", "columns.txt")
 
   client = storage.storage.get_instance()
-  client.download(output_bucket, sifting_filename, siftfile)
-  client.download(output_bucket, individuals_merge_filename, individuals_merge_file)
-  client.download(input_bucket, POP, pop_file)
-  client.download(input_bucket, "columns.txt", columns_file)
-
+  client.download(benchmark_bucket, output_bucket + '/' + sifting_filename, siftfile)
+  client.download(benchmark_bucket, output_bucket + '/' + individuals_merge_filename, individuals_merge_file)
+  client.download(benchmark_bucket, input_bucket + '/' + POP, pop_file)
+  client.download(benchmark_bucket, input_bucket + '/' + "columns.txt", columns_file)
   #chromosome no, doesn't matter. 
   c = 21
 
@@ -369,8 +371,8 @@ def handler(event):
   tar.add(outdata_dir)
   tar.add(plots_dir)
   tar.close()
-
-  result_name = client.upload(output_bucket, 'chr%s-%s.tar.gz' % (c, POP), '/tmp/chr%s-%s.tar.gz' % (c, POP))
+  result_name = client.upload(benchmark_bucket, output_bucket + '/' + 'chr%s-%s.tar.gz' % (c, POP), '/tmp/chr%s-%s.tar.gz' % (c, POP))
+  result_name = result_name.replace(output_bucket + '/', '')
 
   return {
       "output_mutation_overlap": result_name

@@ -2,6 +2,7 @@ import os
 import re
 from . import storage
 import subprocess
+import datetime
 
 def readfile(file):
     with open(file, 'r') as f:
@@ -9,16 +10,17 @@ def readfile(file):
     return content
 
 def handler(event):
-
+  benchmark_bucket = event["benchmark_bucket"]
   input_bucket = event["columns_bucket"]
   input_filename = event["sifting_input"]
   inputfile = os.path.join("/tmp", "sifting_file.vcf")
 
   output_bucket = event["bucket"]
-
+  
+  
   client = storage.storage.get_instance()
-  client.download(input_bucket, input_filename, inputfile)
-
+  client.download(benchmark_bucket, input_bucket + '/' + input_filename, inputfile)
+  
   #c is the chromosome number - doesn't matter here. 
   c = 21
   final_name = 'sifted.SIFT.chr{}.txt'.format(c)
@@ -60,11 +62,12 @@ def handler(event):
               f.write("{} {} {} {} {}\n".format(temp[0], temp[1], temp[2], temp[4], temp[6]))
 
   os.remove(siftfile)
-
-  final_name = client.upload(output_bucket, final_name, final)
+  final_name = client.upload(benchmark_bucket, output_bucket + '/' + final_name, final)
+  final_name = final_name.replace(output_bucket + '/', '')
 
   return {
       "output_bucket": output_bucket,
+      "benchmark_bucket": benchmark_bucket,
       "output_sifting": final_name,
       "populations": event["populations"],
       "input_bucket": input_bucket

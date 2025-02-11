@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import collections
 from collections import Counter
 
+import datetime
+
 import os
 from . import storage
 
@@ -172,6 +174,7 @@ class WriteData:
 
 def handler(event):
   POP = event["array_element"]
+  benchmark_bucket = event["sifting"]["benchmark_bucket"]
   output_bucket = event["sifting"]["output_bucket"]
   input_bucket = event["sifting"]["input_bucket"]
   sifting_filename = event["sifting"]["output_sifting"]
@@ -184,11 +187,11 @@ def handler(event):
   columns_file = os.path.join("/tmp", "columns.txt")
 
   client = storage.storage.get_instance()
-  client.download(output_bucket, sifting_filename, siftfile)
-  client.download(output_bucket, individuals_merge_filename, individuals_merge_file)
-  client.download(input_bucket, POP, pop_file)
-  client.download(input_bucket, "columns.txt", columns_file)
-
+  client.download(benchmark_bucket, output_bucket + '/' + sifting_filename, siftfile)
+  client.download(benchmark_bucket, output_bucket + '/' + individuals_merge_filename, individuals_merge_file)
+  client.download(benchmark_bucket, input_bucket + '/' + POP, pop_file)
+  client.download(benchmark_bucket, input_bucket + '/' + "columns.txt", columns_file)
+  
   #chromosome number, doesn't matter here - just used for naming
   c = 21
 
@@ -261,8 +264,8 @@ def handler(event):
   tar.add(outdata_dir)
   tar.add(plot_dir)
   tar.close()
-
-  result_name = client.upload(output_bucket, 'chr%s-%s-freq.tar.gz' % (c, POP), '/tmp/chr%s-%s-freq.tar.gz' % (c, POP))
+  result_name = client.upload(benchmark_bucket, output_bucket + '/' + 'chr%s-%s-freq.tar.gz' % (c, POP), '/tmp/chr%s-%s-freq.tar.gz' % (c, POP))
+  result_name = result_name.replace(output_bucket + '/', '')
 
   return {
       "output_frequency": result_name

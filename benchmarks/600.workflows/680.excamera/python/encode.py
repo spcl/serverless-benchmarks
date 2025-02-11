@@ -11,19 +11,19 @@ XC_DUMP_0 = "/tmp/xc-dump {input}.ivf {output}.state"
 
 client = storage.storage.get_instance()
 
-def download_bin(bucket, name, dest_dir):
+def download_bin(benchmark_bucket, bucket, name, dest_dir):
     path = os.path.join(dest_dir, name)
     if not os.path.exists(path):
-        client.download(bucket, name, path)
+        client.download(benchmark_bucket, bucket + '/' + name, path)
         subprocess.check_output(f"chmod +x {path}", stderr=subprocess.STDOUT, shell=True)
 
 
-def upload_files(bucket, paths, prefix):
+def upload_files(benchmark_bucket, bucket, paths, prefix):
     for path in paths:
         file = os.path.basename(path)
         file = prefix + file
         #print("Uploading", file, "to", path)
-        client.upload(bucket, file, path, unique_name=False)
+        client.upload(benchmark_bucket, bucket + '/' + file, path, unique_name=False)
 
 
 def run(cmd):
@@ -63,24 +63,25 @@ def encode(segs, data_dir, quality):
 def handler(event):
     input_bucket = event["input_bucket"]
     output_bucket = event["output_bucket"]
+    benchmark_bucket = event["benchmark_bucket"]
     segs = event["segments"]
     quality = event["quality"]
     prefix = event["prefix"]
 
     tmp_dir = "/tmp"
-    download_bin(input_bucket, "vpxenc", tmp_dir)
-    download_bin(input_bucket, "xc-terminate-chunk", tmp_dir)
-    download_bin(input_bucket, "xc-dump", tmp_dir)
+    download_bin(benchmark_bucket, input_bucket, "vpxenc", tmp_dir)
+    download_bin(benchmark_bucket, input_bucket, "xc-terminate-chunk", tmp_dir)
+    download_bin(benchmark_bucket, input_bucket, "xc-dump", tmp_dir)
 
     data_dir = os.path.join(tmp_dir, str(uuid.uuid4()))
     os.makedirs(data_dir, exist_ok=True)
     for seg in segs:
         path = os.path.join(data_dir, seg)
-        client.download(input_bucket, seg, path)
+        client.download(benchmark_bucket, input_bucket + '/' + seg, path)
 
     segs = [os.path.splitext(seg)[0] for seg in segs]
     output_paths = encode(segs, data_dir, quality)
-    upload_files(output_bucket, output_paths, prefix)
+    upload_files(benchmark_bucket, output_bucket, output_paths, prefix)
 
     shutil.rmtree(data_dir)
 
