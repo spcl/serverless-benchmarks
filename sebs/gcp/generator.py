@@ -61,8 +61,8 @@ class GCPGenerator(Generator):
             {state.name: state_body},
             {
                 f"assign_payload_{state.name}": {
-                    "assign": [{"payload": "${payload.body}"}],
-                    "next": next_state,
+                    "assign": [{"payload": "${payload.body}"}]#,
+                    #"next": next_state,
                 }
             },
         ]
