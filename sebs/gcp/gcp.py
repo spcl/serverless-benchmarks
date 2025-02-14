@@ -238,6 +238,7 @@ class GCP(System):
             )
             create_req.execute()
             self.logging.info(f"Function {func_name} has been created!")
+            time.sleep(5)
             allow_unauthenticated_req = (
                 self.function_client.projects()
                 .locations()
