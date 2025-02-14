@@ -1,8 +1,9 @@
-grpcio
 google-cloud-storage==1.32.0
 google-api-python-client==1.12.5
 google-cloud-monitoring==2.0.0
-google-api-python-client-stubs
 google-cloud-logging==2.0.0
-google-cloud-workflows
-google-cloud-datastore
+google-cloud-workflows==1.10.2
+google-cloud-datastore==2.19.0
+google-api-python-client-stubs==0.3.1
+grpcio==1.56.2
+google-auth==1.35.0
