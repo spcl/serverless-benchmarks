@@ -376,7 +376,8 @@ class AzureResources(Resources):
         ret = cast(AzureResources, res)
         super(AzureResources, AzureResources).initialize(ret, dct)
 
-        ret._resource_group = dct["resource_group"]
+        if "resource_group" in dct:
+            ret._resource_group = dct["resource_group"]
         if "storage_accounts" in dct:
             ret._storage_accounts = [
                 AzureResources.Storage.deserialize(x) for x in dct["storage_accounts"]
