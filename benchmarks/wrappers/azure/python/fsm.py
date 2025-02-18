@@ -1,1 +1,1 @@
-../../../../../serverless-benchmarks/sebs/faas/fsm.py
+../../../../sebs/faas/fsm.py
