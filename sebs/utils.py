@@ -102,7 +102,7 @@ def replace_string_in_file(path: str, from_str: str, to_str: str):
 
 def connect_to_redis_cache(host: str, password: str):
     redis = Redis(
-        host=host, port=6379, decode_responses=True, socket_connect_timeout=10, password=password
+        host=host, port=6379, decode_responses=True, socket_keepalive=True, socket_timeout=10, socket_connect_timeout=10, password=password
     )
     redis.ping()
 
@@ -115,6 +115,8 @@ def download_measurements(
     payloads = []
     pattern = f"{workflow_name}/*/{request_id}/*" if request_id else f"{workflow_name}/*"
 
+    # This connection can timeout under certain network conditions.
+    # We might want to put it inside try/catch
     for key in redis.scan_iter(match=pattern):
         wname, fname, request_id, invoc_id = key.split("/")
         assert wname == workflow_name
