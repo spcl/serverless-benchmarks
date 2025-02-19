@@ -23,21 +23,6 @@ def probe_cold_start():
 
     return is_cold, container_id
 
-if 'NOSQL_STORAGE_DATABASE' in os.environ:
-
-    from . import nosql
-
-    nosql.nosql.get_instance(
-        os.environ['NOSQL_STORAGE_DATABASE'],
-        os.environ['NOSQL_STORAGE_URL'],
-        os.environ['NOSQL_STORAGE_CREDS']
-    )
-
-if 'STORAGE_CONNECTION_STRING' in os.environ:
-
-    from . import storage
-    client = storage.storage.get_instance(os.environ['STORAGE_CONNECTION_STRING'])
-
 def main(event, context: func.Context):
     start = datetime.datetime.now().timestamp()
     os.environ["STORAGE_UPLOAD_BYTES"] = "0"

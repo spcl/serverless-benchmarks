@@ -3,26 +3,11 @@ import datetime, io, json, os, uuid
 
 import azure.functions as func
 
-
-#if 'NOSQL_STORAGE_DATABASE' in os.environ:
-#
-#    from . import nosql
-#
-#    nosql.nosql.get_instance(
-#        os.environ['NOSQL_STORAGE_DATABASE'],
-#        os.environ['NOSQL_STORAGE_URL'],
-#        os.environ['NOSQL_STORAGE_CREDS']
-#    )
-
-if 'STORAGE_CONNECTION_STRING' in os.environ:
-
-    from . import storage
-    client = storage.storage.get_instance(os.environ['STORAGE_CONNECTION_STRING'])
-
 # TODO: usual trigger
 # implement support for blob and others
 def main(req: func.HttpRequest, starter: str, context: func.Context) -> func.HttpResponse:
     income_timestamp = datetime.datetime.now().timestamp()
+
     req_json = req.get_json()
 
     # FIXME: proper placement of request
