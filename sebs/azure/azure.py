@@ -337,6 +337,8 @@ class Azure(System):
                         "Couldnt find function URL in the output: {}".format(ret.decode("utf-8"))
                     )
 
+                    self.logging.info("Sleeping 30 seconds before attempting another query.")
+
                     resource_group = self.config.resources.resource_group(self.cli_instance)
                     ret = self.cli_instance.execute(
                         "az functionapp function show --function-name function "
@@ -383,11 +385,13 @@ class Azure(System):
 
         assert code_package.has_input_processed
 
+        # Update environment variables first since it has a non-deterministic
+        # processing time.
+        self.update_envs(function, code_package)
+
         # Mount code package in Docker instance
         container_dest = self._mount_function_code(code_package)
         function_url = self.publish_function(function, code_package, container_dest, True)
-
-        self.update_envs(function, code_package)
 
         # Avoid duplication of HTTP trigger
         found_trigger = False
@@ -481,10 +485,11 @@ class Azure(System):
                 )
 
                 # if we don't do that, next invocation might still see old values
-                self.logging.info(
-                    "Sleeping for 5 seconds - Azure needs more time to propagate changes"
-                )
-                time.sleep(5)
+                # Disabled since we swapped the order - we first update envs, then we publish.
+                #self.logging.info(
+                #    "Sleeping for 10 seconds - Azure needs more time to propagate changes. "
+                #    "Otherwise, functions might not see new variables and fail unexpectedly."
+                #)
 
             except RuntimeError as e:
                 self.logging.error("Failed to set environment variable!")
