@@ -348,10 +348,10 @@ class Local(System):
         # Create function name
         if resources is not None:
             func_name = "{}-{}-{}-{}".format(
+                resources.resources_id,
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
-                resources.resources_id,
             )
         else:
             func_name = "{}-{}-{}".format(

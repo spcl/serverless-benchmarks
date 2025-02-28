@@ -325,16 +325,11 @@ class OpenWhisk(System):
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
-        if resources is not None:
-            return (
-                f"{code_package.benchmark}-{code_package.language_name}-"
-                f"{code_package.language_version}-{resources.resources_id}"
-            )
+        resource_id = resources.resources_id if resources else self.config.resources.resources_id
         return (
-            f"{code_package.benchmark}-{code_package.language_name}-"
-            f"{code_package.language_version}"
-        )
-
+                f"{resource_id}-{code_package.benchmark}-"
+                f"{code_package.language_name}-{code_package.language_version}"
+            )
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         raise NotImplementedError()
 

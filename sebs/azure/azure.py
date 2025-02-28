@@ -331,10 +331,10 @@ class Azure(System):
         """
         func_name = (
             "{}-{}-{}-{}".format(
+                self.config.resources.resources_id,
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
-                self.config.resources.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")
