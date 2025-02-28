@@ -103,21 +103,16 @@ class GCP(System):
             self.storage.replace_existing = replace_existing
         return self.storage
 
-    @staticmethod
+    # @staticmethod
     def default_function_name(
-        code_package: Benchmark, resources: Optional[Resources] = None
+        self,code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
         # Create function name
-        if resources is not None:
-            func_name = "{}-{}-{}-{}".format(
+        func_name = "{}-{}-{}-{}".format(
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
-                resources.resources_id,
-            )
-        else:
-            func_name = "{}-{}-{}".format(
-                code_package.benchmark, code_package.language_name, code_package.language_version
+                self.config.resources.resources_id,
             )
         return GCP.format_function_name(func_name)
 

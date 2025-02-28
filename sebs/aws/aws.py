@@ -388,25 +388,17 @@ class AWS(System):
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {function.name} function. ")
 
-    @staticmethod
+    # @staticmethod
     def default_function_name(
-        code_package: Benchmark, resources: Optional[Resources] = None
+        self,code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
         # Create function name
-        if resources is not None:
-            func_name = "{}-{}-{}-{}-{}".format(
+        func_name = "{}-{}-{}-{}-{}".format(
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
                 code_package.architecture,
-                resources.resources_id,
-            )
-        else:
-            func_name = "{}-{}-{}-{}".format(
-                code_package.benchmark,
-                code_package.language_name,
-                code_package.language_version,
-                code_package.architecture,
+                self.config.resources.resources_id,
             )
         if code_package.container_deployment:
             func_name = f"{func_name}-docker"
