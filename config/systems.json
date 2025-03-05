@@ -30,10 +30,15 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
           "packages": [],
-          "module_packages": {}
+          "module_packages": {
+            "nosql": [
+              "boto3==1.28.3"
+            ]
+          }
         }
       },
       "nodejs": {
