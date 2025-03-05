@@ -93,11 +93,23 @@ def common_params(func):
         help="Cloud deployment to use.",
     )
     @click.option(
+        "--architecture",
+        default=None,
+        type=click.Choice(["x64", "arm64"]),
+        help="Target architecture",
+    )
+    @click.option(
+        "--container-deployment/--no-container-deployment",
+        default=False,
+        help="Deploy functions as containers (AWS only). When enabled, functions are packaged as container images and pushed to Amazon ECR."
+    )
+    @click.option(
         "--resource-prefix",
         default=None,
         type=str,
         help="Resource prefix to look for.",
     )
+
     @simplified_common_params
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -118,6 +130,8 @@ def parse_common_params(
     deployment,
     language,
     language_version,
+    architecture,
+    container_deployment,
     resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
@@ -131,7 +145,7 @@ def parse_common_params(
 
     sebs_client = sebs.SeBS(cache, output_dir, verbose, logging_filename)
     output_dir = sebs.utils.create_output(output_dir, preserve_out, verbose)
-    
+
     sebs_client.logging.info("Created experiment output at {}".format(output_dir))
 
     # CLI overrides JSON options
@@ -140,6 +154,11 @@ def parse_common_params(
     update_nested_dict(config_obj, ["deployment", "name"], deployment)
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
+    update_nested_dict(config_obj, ["experiments", "architecture"], architecture)
+    update_nested_dict(config_obj, ["experiments", "container_deployment"], container_deployment)
+
+    # set the path the configuration was loaded from
+    update_nested_dict(config_obj, ["deployment", "local", "path"], config)
 
     if storage_configuration is not None:
 
@@ -151,7 +170,7 @@ def parse_common_params(
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
-            config_obj["deployment"], logging_filename=logging_filename
+            config_obj, logging_filename=logging_filename
         )
         deployment_client.initialize(resource_prefix=resource_prefix)
     else:
@@ -230,8 +249,9 @@ def invoke(
         output_dir,
         logging_filename,
         sebs_client,
-        deployment_client,
+        deployment_client
     ) = parse_common_params(**kwargs)
+
     if image_tag_prefix is not None:
         sebs_client.config.image_tag_prefix = image_tag_prefix
 
@@ -243,6 +263,7 @@ def invoke(
         experiment_config,
         logging_filename=logging_filename,
     )
+
     if memory is not None:
         benchmark_obj.benchmark_config.memory = memory
     if timeout is not None:
@@ -345,7 +366,7 @@ def regression(benchmark_input_size, benchmark_name, **kwargs):
         sebs_client,
         config["experiments"],
         set((config["deployment"]["name"],)),
-        config["deployment"],
+        config,
         benchmark_name,
     )
 
@@ -473,14 +494,22 @@ def local():
     help="Remove containers after stopping.",
 )
 @simplified_common_params
-def start(benchmark, benchmark_input_size, output, deployments, storage_configuration,
-          measure_interval, remove_containers, **kwargs):
+def start(
+    benchmark,
+    benchmark_input_size,
+    output,
+    deployments,
+    storage_configuration,
+    measure_interval,
+    remove_containers,
+    **kwargs,
+):
     """
     Start a given number of function instances and a storage instance.
     """
 
     (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
-        ignore_cache=True, update_code=False, update_storage=False,
+        update_code=False, update_storage=False,
         deployment="local", storage_configuration=storage_configuration, **kwargs
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
@@ -512,6 +541,7 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
     # Disable shutdown of storage only after we succed
     # Otherwise we want to clean up as much as possible
     deployment_client.shutdown_storage = False
+
     result.serialize(output)
     sebs_client.logging.info(f"Save results to {os.path.abspath(output)}")
 
@@ -528,8 +558,16 @@ def stop(input_json, output_json, **kwargs):
     sebs.utils.global_logging()
 
     logging.info(f"Stopping deployment from {os.path.abspath(input_json)}")
+    (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
+        update_code=False, update_storage=False,
+        deployment="local", **kwargs
+    )
+
+    deployment_client.res
+
     deployment = sebs.local.Deployment.deserialize(input_json, None)
     deployment.shutdown(output_json)
+
     logging.info(f"Stopped deployment from {os.path.abspath(input_json)}")
 
 
@@ -578,10 +616,7 @@ def resources():
 
 
 @resources.command("list")
-@click.argument(
-    "resource",
-    type=click.Choice(["buckets", "resource-groups"])
-)
+@click.argument("resource", type=click.Choice(["buckets", "resource-groups"]))
 @common_params
 def resources_list(resource, **kwargs):
 
@@ -606,32 +641,23 @@ def resources_list(resource, **kwargs):
             sebs_client.logging.error("Resource groups are only supported on Azure!")
             return
 
-        groups = deployment_client.config.resources.list_resource_groups(deployment_client.cli_instance)
+        groups = deployment_client.config.resources.list_resource_groups(
+            deployment_client.cli_instance
+        )
         sebs_client.logging.info("Resource grup:")
         for idx, bucket in enumerate(groups):
             sebs_client.logging.info(f"({idx}) {bucket}")
 
 
 @resources.command("remove")
-@click.argument(
-    "resource",
-    type=click.Choice(["buckets", "resource-groups"])
-)
-@click.argument(
-    "prefix",
-    type=str
-)
-@click.option(
-    "--wait/--no-wait",
-    type=bool,
-    default=True,
-    help="Wait for completion of removal."
-)
+@click.argument("resource", type=click.Choice(["buckets", "resource-groups"]))
+@click.argument("prefix", type=str)
+@click.option("--wait/--no-wait", type=bool, default=True, help="Wait for completion of removal.")
 @click.option(
     "--dry-run/--no-dry-run",
     type=bool,
     default=False,
-    help="Simulate run without actual deletions."
+    help="Simulate run without actual deletions.",
 )
 @common_params
 def resources_remove(resource, prefix, wait, dry_run, **kwargs):
@@ -664,13 +690,18 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
             sebs_client.logging.error("Resource groups are only supported on Azure!")
             return
 
-        groups = deployment_client.config.resources.list_resource_groups(deployment_client.cli_instance)
+        groups = deployment_client.config.resources.list_resource_groups(
+            deployment_client.cli_instance
+        )
         for idx, group in enumerate(groups):
             if len(prefix) > 0 and not group.startswith(prefix):
                 continue
 
             sebs_client.logging.info(f"Removing resource group: {group}")
-            deployment_client.config.resources.delete_resource_group(deployment_client.cli_instance, group, wait)
+            deployment_client.config.resources.delete_resource_group(
+                deployment_client.cli_instance, group, wait
+            )
+
 
 if __name__ == "__main__":
     cli()

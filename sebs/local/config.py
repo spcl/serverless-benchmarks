@@ -1,4 +1,4 @@
-from typing import cast, Optional, Tuple
+from typing import cast, Optional, Set, Tuple
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -28,9 +28,11 @@ class LocalResources(Resources):
         storage_cfg: Optional[PersistentStorageConfig] = None,
         nosql_storage_cfg: Optional[NoSQLStorageConfig] = None,
     ):
+        self._path: str = ""
         super().__init__(name="local")
         self._object_storage = storage_cfg
         self._nosql_storage = nosql_storage_cfg
+        self._allocated_ports: Set[int] = set()
 
     @property
     def storage_config(self) -> Optional[PersistentStorageConfig]:
@@ -39,6 +41,10 @@ class LocalResources(Resources):
     @property
     def nosql_storage_config(self) -> Optional[NoSQLStorageConfig]:
         return self._nosql_storage
+
+    @property
+    def allocated_ports(self) -> set:
+        return self._allocated_ports
 
     def serialize(self) -> dict:
         out: dict = {}
@@ -49,11 +55,24 @@ class LocalResources(Resources):
         if self._nosql_storage is not None:
             out = {**out, "nosql": self._nosql_storage.serialize()}
 
+        out["allocated_ports"] = list(self._allocated_ports)
         return out
 
     @staticmethod
-    def initialize(res: Resources, cfg: dict):
-        pass
+    def initialize(res: Resources, config: dict):
+
+        resources = cast(LocalResources, res)
+
+        if "allocated_ports" in config:
+            resources._allocated_ports = set(config["allocated_ports"])
+
+    def update_cache(self, cache: Cache):
+        super().update_cache(cache)
+        cache.update_config(
+            val=list(self._allocated_ports), keys=["local", "resources", "allocated_ports"]
+        )
+        if self._storage is not None:
+            self._storage.update_cache(["local", "resources", "storage"], cache)
 
     def _deserialize_storage(
         self, config: dict, cached_config: Optional[dict], storage_type: str
@@ -117,6 +136,16 @@ class LocalResources(Resources):
         else:
             ret.logging.info("No NoSQL storage available")
 
+        # Load cached values
+        if cached_config and "resources" in cached_config:
+            LocalResources.initialize(ret, cached_config["resources"])
+            ret.logging_handlers = handlers
+            ret.logging.info("Using cached resources for Local")
+        else:
+            # Check for new config
+            ret.logging_handlers = handlers
+            LocalResources.initialize(ret, config)
+
         return ret
 
 
@@ -157,7 +186,8 @@ class LocalConfig(Config):
         return config_obj
 
     def serialize(self) -> dict:
-        return {}
+        out = {"name": "local", "region": self._region, "resources": self._resources.serialize()}
+        return out
 
     def update_cache(self, cache: Cache):
-        pass
+        self.resources.update_cache(cache)

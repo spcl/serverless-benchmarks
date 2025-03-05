@@ -61,8 +61,8 @@ class SeBS(LoggingBase):
         logging_filename: Optional[str] = None,
     ):
         super().__init__()
-        self._cache_client = Cache(cache_dir)
         self._docker_client = docker.from_env()
+        self._cache_client = Cache(cache_dir, self._docker_client)
         self._config = SeBSConfig()
         self._output_dir = output_dir
         self._verbose = verbose
@@ -86,7 +86,8 @@ class SeBS(LoggingBase):
         logging_filename: Optional[str] = None,
         deployment_config: Optional[Config] = None,
     ) -> FaaSSystem:
-        name = config["name"]
+        dep_config = config["deployment"]
+        name = dep_config["name"]
         implementations: Dict[str, Type[FaaSSystem]] = {"local": Local}
 
         if has_platform("aws"):
@@ -109,10 +110,28 @@ class SeBS(LoggingBase):
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
+        if config["experiments"]["architecture"] not in self._config.supported_architecture(name):
+            raise RuntimeError(
+                "{architecture} is not supported in {name}".format(
+                    architecture=config["experiments"]["architecture"], name=name
+                )
+            )
+
+        if config["experiments"][
+            "container_deployment"
+        ] and not self._config.supported_container_deployment(name):
+            raise RuntimeError(f"Container deployment is not supported in {name}.")
+
+        if not config["experiments"][
+            "container_deployment"
+        ] and not self._config.supported_package_deployment(name):
+            raise RuntimeError(f"Code package deployment is not supported in {name}.")
+
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.generate_logging_handlers(logging_filename)
         if not deployment_config:
-            deployment_config = Config.deserialize(config, self.cache_client, handlers)
+            deployment_config = Config.deserialize(dep_config, self.cache_client, handlers)
+
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore

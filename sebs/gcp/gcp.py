@@ -120,9 +120,16 @@ class GCP(System):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+        container_deployment: bool,
+    ) -> Tuple[str, int, str]:
+
+        container_uri = ""
+
+        if container_deployment:
+            raise NotImplementedError("Container Deployment is not supported in GCP")
 
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],
@@ -172,9 +179,18 @@ class GCP(System):
         # rename the main.py back to handler.py
         shutil.move(new_path, old_path)
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size, container_uri
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "GCPFunction":
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> "GCPFunction":
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in GCP")
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -186,8 +202,10 @@ class GCP(System):
         location = self.config.region
         project_name = self.config.project_name
         function_cfg = FunctionConfig.from_benchmark(code_package)
+        architecture = function_cfg.architecture.value
 
         code_package_name = cast(str, os.path.basename(package))
+        code_package_name = f"{architecture}-{code_package_name}"
         code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
         code_prefix = os.path.join(benchmark, code_package_name)
         storage_client.upload(code_bucket, package, code_prefix)
@@ -258,7 +276,7 @@ class GCP(System):
                 cfg=function_cfg,
                 bucket=code_bucket,
             )
-            self.update_function(function, code_package)
+            self.update_function(function, code_package, container_deployment, container_uri)
 
         # Add LibraryTrigger to a new function
         from sebs.gcp.triggers import LibraryTrigger
@@ -310,12 +328,25 @@ class GCP(System):
             gcp_trigger.logging_handlers = self.logging_handlers
             gcp_trigger.deployment_client = self
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in GCP")
 
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version
+
+        function_cfg = FunctionConfig.from_benchmark(code_package)
+        architecture = function_cfg.architecture.value
         code_package_name = os.path.basename(code_package.code_location)
         storage = cast(GCPStorage, self._system_resources.get_storage())
+        code_package_name = f"{architecture}-{code_package_name}"
 
         bucket = function.code_bucket(code_package.benchmark, storage)
         storage.upload(bucket, code_package.code_location, code_package_name)

@@ -134,6 +134,11 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     @property
+    def container_uri(self) -> str:
+        assert self._container_uri is not None
+        return self._container_uri
+
+    @property
     def language(self) -> "Language":
         return self._language
 
@@ -156,6 +161,14 @@ class Benchmark(LoggingBase):
     @property
     def uses_nosql(self) -> bool:
         return self._uses_nosql
+
+    @property
+    def architecture(self) -> str:
+        return self._architecture
+
+    @property
+    def container_deployment(self):
+        return self._container_deployment
 
     @property  # noqa: A003
     def hash(self):
@@ -186,6 +199,8 @@ class Benchmark(LoggingBase):
         self._experiment_config = config
         self._language = config.runtime.language
         self._language_version = config.runtime.version
+        self._architecture = self._experiment_config.architecture
+        self._container_deployment = config.container_deployment
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not self._benchmark_path:
             raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
@@ -202,8 +217,14 @@ class Benchmark(LoggingBase):
         self._system_config = system_config
         self._hash_value = None
         self._output_dir = os.path.join(
-            output_dir, f"{benchmark}_code", self._language.value, self._language_version
+            output_dir,
+            f"{benchmark}_code",
+            self._language.value,
+            self._language_version,
+            self._architecture,
+            "container" if self._container_deployment else "package",
         )
+        self._container_uri: Optional[str] = None
 
         # verify existence of function in cache
         self.query_cache()
@@ -254,12 +275,26 @@ class Benchmark(LoggingBase):
         return {"size": self.code_size, "hash": self.hash}
 
     def query_cache(self):
-        self._code_package = self._cache_client.get_code_package(
-            deployment=self._deployment_name,
-            benchmark=self._benchmark,
-            language=self.language_name,
-            language_version=self.language_version,
-        )
+
+        if self.container_deployment:
+            self._code_package = self._cache_client.get_container(
+                deployment=self._deployment_name,
+                benchmark=self._benchmark,
+                language=self.language_name,
+                language_version=self.language_version,
+                architecture=self.architecture,
+            )
+            if self._code_package is not None:
+                self._container_uri = self._code_package["image-uri"]
+        else:
+            self._code_package = self._cache_client.get_code_package(
+                deployment=self._deployment_name,
+                benchmark=self._benchmark,
+                language=self.language_name,
+                language_version=self.language_version,
+                architecture=self.architecture,
+            )
+
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
             benchmark=self._benchmark,
@@ -292,7 +327,7 @@ class Benchmark(LoggingBase):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
 
     def add_benchmark_data(self, output_dir):
-        cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"
+        cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false {architecture}"
         paths = [
             self.benchmark_path,
             os.path.join(self.benchmark_path, self.language_name),
@@ -300,7 +335,11 @@ class Benchmark(LoggingBase):
         for path in paths:
             if os.path.exists(os.path.join(path, "init.sh")):
                 subprocess.run(
-                    cmd.format(benchmark_path=path, output_dir=output_dir),
+                    cmd.format(
+                        benchmark_path=path,
+                        output_dir=output_dir,
+                        architecture=self._experiment_config._architecture,
+                    ),
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
@@ -440,6 +479,7 @@ class Benchmark(LoggingBase):
                                 "CONTAINER_USER": "docker_user",
                                 "APP": self.benchmark,
                                 "PLATFORM": self._deployment_name.upper(),
+                                "TARGET_ARCHITECTURE": self._experiment_config._architecture,
                             },
                             remove=True,
                             stdout=True,
@@ -510,15 +550,21 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str, str, bool], Tuple[str, int]]
-    ) -> Tuple[bool, str]:
+        self,
+        deployment_build_step: Callable[
+            [str, str, str, str, str, bool, bool], Tuple[str, int, str]
+        ],
+    ) -> Tuple[bool, str, bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info(
                 "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
             )
-            return False, self.code_location
+            if self.container_deployment:
+                return False, self.code_location, self.container_deployment, self.container_uri
+
+            return False, self.code_location, self.container_deployment, ""
 
         msg = (
             "no cached code package."
@@ -539,12 +585,15 @@ class Benchmark(LoggingBase):
         self.add_deployment_files(self._output_dir)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
-        self._code_location, self._code_size = deployment_build_step(
+
+        self._code_location, self._code_size, self._container_uri = deployment_build_step(
             os.path.abspath(self._output_dir),
             self.language_name,
             self.language_version,
+            self.architecture,
             self.benchmark,
             self.is_cached_valid,
+            self.container_deployment,
         )
         self.logging.info(
             (
@@ -558,14 +607,13 @@ class Benchmark(LoggingBase):
             )
         )
 
-        # package already exists
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.update_code_package(self._deployment_name, self)
         else:
-            self._cache_client.add_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.add_code_package(self._deployment_name, self)
         self.query_cache()
 
-        return True, self._code_location
+        return True, self._code_location, self._container_deployment, self._container_uri
 
     """
         Locates benchmark input generator, inspect how many storage buckets

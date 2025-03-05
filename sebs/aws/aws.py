@@ -12,6 +12,7 @@ from sebs.aws.dynamodb import DynamoDB
 from sebs.aws.resources import AWSSystemResources
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
+from sebs.aws.container import ECRContainer
 from sebs.aws.config import AWSConfig
 from sebs.faas.config import Resources
 from sebs.utils import execute
@@ -83,6 +84,9 @@ class AWS(System):
         self.initialize_resources(select_prefix=resource_prefix)
 
         self.system_resources.initialize_session(self.session)
+        self.ecr_client = ECRContainer(
+            self.system_config, self.session, self.config, self.docker_client
+        )
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
@@ -115,9 +119,20 @@ class AWS(System):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+        container_deployment: bool,
+    ) -> Tuple[str, int, str]:
+
+        container_uri = ""
+
+        # if the containerized deployment is set to True
+        if container_deployment:
+            # build base image and upload to ECR
+            _, container_uri = self.ecr_client.build_base_image(
+                directory, language_name, language_version, architecture, benchmark, is_cached
+            )
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -131,7 +146,6 @@ class AWS(System):
             if file not in package_config:
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
-
         # FIXME: use zipfile
         # create zip with hidden directory but without parent directory
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
@@ -142,7 +156,17 @@ class AWS(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        return (
+            os.path.join(directory, "{}.zip".format(benchmark)),
+            bytes_size,
+            container_uri,
+        )
+
+    def _map_architecture(self, architecture: str) -> str:
+
+        if architecture == "x64":
+            return "x86_64"
+        return architecture
 
     def _map_language_runtime(self, language: str, runtime: str):
 
@@ -152,7 +176,13 @@ class AWS(System):
             return f"{runtime}.x"
         return runtime
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LambdaFunction":
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> "LambdaFunction":
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -164,7 +194,7 @@ class AWS(System):
         code_bucket: Optional[str] = None
         func_name = AWS.format_function_name(func_name)
         function_cfg = FunctionConfig.from_benchmark(code_package)
-
+        architecture = function_cfg.architecture.value
         # we can either check for exception or use list_functions
         # there's no API for test
         try:
@@ -182,42 +212,54 @@ class AWS(System):
                 self.config.resources.lambda_role(self.session),
                 function_cfg,
             )
-            self.update_function(lambda_function, code_package)
+            self.update_function(lambda_function, code_package, container_deployment, container_uri)
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
             self.logging.info("Creating function {} from {}".format(func_name, package))
 
-            # AWS Lambda limit on zip deployment size
-            # Limit to 50 MB
-            # mypy doesn't recognize correctly the case when the same
-            # variable has different types across the path
-            code_config: Dict[str, Union[str, bytes]]
-            if code_size < 50 * 1024 * 1024:
-                package_body = open(package, "rb").read()
-                code_config = {"ZipFile": package_body}
-            # Upload code package to S3, then use it
+            create_function_params = {
+                "FunctionName": func_name,
+                "Role": self.config.resources.lambda_role(self.session),
+                "MemorySize": memory,
+                "Timeout": timeout,
+                "Architectures": [self._map_architecture(architecture)],
+                "Code": {},
+            }
+
+            if container_deployment:
+                create_function_params["PackageType"] = "Image"
+                create_function_params["Code"] = {"ImageUri": container_uri}
             else:
-                code_package_name = cast(str, os.path.basename(package))
+                create_function_params["PackageType"] = "Zip"
+                if code_size < 50 * 1024 * 1024:
+                    package_body = open(package, "rb").read()
+                    create_function_params["Code"] = {"ZipFile": package_body}
+                else:
+                    code_package_name = cast(str, os.path.basename(package))
 
-                storage_client = self.system_resources.get_storage()
-                code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
-                code_prefix = os.path.join(benchmark, code_package_name)
-                storage_client.upload(code_bucket, package, code_prefix)
+                    storage_client = self.system_resources.get_storage()
+                    code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+                    code_prefix = os.path.join(benchmark, code_package_name)
+                    storage_client.upload(code_bucket, package, code_prefix)
 
-                self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
-                code_config = {"S3Bucket": code_bucket, "S3Key": code_prefix}
-            ret = self.client.create_function(
-                FunctionName=func_name,
-                Runtime="{}{}".format(
+                    self.logging.info(
+                        "Uploading function {} code to {}".format(func_name, code_bucket)
+                    )
+                    create_function_params["Code"] = {
+                        "S3Bucket": code_bucket,
+                        "S3Key": code_prefix,
+                    }
+
+                create_function_params["Runtime"] = "{}{}".format(
                     language, self._map_language_runtime(language, language_runtime)
-                ),
-                Handler="handler.handler",
-                Role=self.config.resources.lambda_role(self.session),
-                MemorySize=memory,
-                Timeout=timeout,
-                Code=code_config,
-            )
+                )
+                create_function_params["Handler"] = "handler.handler"
+
+            create_function_params = {
+                k: v for k, v in create_function_params.items() if v is not None
+            }
+            ret = self.client.create_function(**create_function_params)
 
             lambda_function = LambdaFunction(
                 func_name,
@@ -265,32 +307,55 @@ class AWS(System):
         :param memory: memory limit for function
     """
 
-    def update_function(self, function: Function, code_package: Benchmark):
-
-        function = cast(LambdaFunction, function)
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
         name = function.name
-        code_size = code_package.code_size
-        package = code_package.code_location
-        # Run AWS update
-        # AWS Lambda limit on zip deployment
-        if code_size < 50 * 1024 * 1024:
-            with open(package, "rb") as code_body:
-                self.client.update_function_code(FunctionName=name, ZipFile=code_body.read())
-        # Upload code package to S3, then update
+        function = cast(LambdaFunction, function)
+
+        if container_deployment:
+            self.client.update_function_code(FunctionName=name, ImageUri=container_uri)
         else:
-            code_package_name = os.path.basename(package)
-            storage = self.system_resources.get_storage()
-            bucket = function.code_bucket(code_package.benchmark, cast(S3, storage))
-            storage.upload(bucket, package, code_package_name)
-            self.client.update_function_code(
-                FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
-            )
+            code_size = code_package.code_size
+            package = code_package.code_location
+            benchmark = code_package.benchmark
+
+            function_cfg = FunctionConfig.from_benchmark(code_package)
+            architecture = function_cfg.architecture.value
+
+            # Run AWS update
+            # AWS Lambda limit on zip deployment
+            if code_size < 50 * 1024 * 1024:
+                with open(package, "rb") as code_body:
+                    self.client.update_function_code(
+                        FunctionName=name,
+                        ZipFile=code_body.read(),
+                        Architectures=[self._map_architecture(architecture)],
+                    )
+            # Upload code package to S3, then update
+            else:
+                code_package_name = os.path.basename(package)
+
+                storage = self.system_resources.get_storage()
+                bucket = function.code_bucket(code_package.benchmark, cast(S3, storage))
+                code_prefix = os.path.join(benchmark, architecture, code_package_name)
+                storage.upload(bucket, package, code_prefix)
+
+                self.client.update_function_code(
+                    FunctionName=name,
+                    S3Bucket=bucket,
+                    S3Key=code_prefix,
+                    Architectures=[self._map_architecture(architecture)],
+                )
+
         self.wait_function_updated(function)
         self.logging.info(f"Updated code of {name} function. ")
         # and update config
         self.update_function_configuration(function, code_package)
-
-        self.logging.info("Published new function code")
 
     def update_function_configuration(
         self, function: Function, code_package: Benchmark, env_variables: dict = {}
@@ -339,9 +404,14 @@ class AWS(System):
     @staticmethod
     def default_function_name(code_package: Benchmark) -> str:
         # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.benchmark, code_package.language_name, code_package.language_version
+        func_name = "{}-{}-{}-{}".format(
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.language_version,
+            code_package.architecture,
         )
+        if code_package.container_deployment:
+            func_name = f"{func_name}-docker"
         return AWS.format_function_name(func_name)
 
     @staticmethod
@@ -565,3 +635,6 @@ class AWS(System):
         waiter = self.client.get_waiter("function_updated_v2")
         waiter.wait(FunctionName=func.name)
         self.logging.info("Lambda function has been updated.")
+
+    def disable_rich_output(self):
+        self.ecr_client.disable_rich_output = True

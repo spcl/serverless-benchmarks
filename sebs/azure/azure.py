@@ -119,9 +119,16 @@ class Azure(System):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+        container_deployment: bool,
+    ) -> Tuple[str, int, str]:
+
+        container_uri = ""
+
+        if container_deployment:
+            raise NotImplementedError("Container Deployment is not supported in Azure")
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
@@ -170,7 +177,7 @@ class Azure(System):
 
         code_size = Benchmark.directory_size(directory)
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
-        return directory, code_size
+        return directory, code_size, container_uri
 
     def publish_function(
         self,
@@ -245,7 +252,16 @@ class Azure(System):
         :return: URL to reach HTTP-triggered function
     """
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Azure")
 
         assert code_package.has_input_processed
 
@@ -381,7 +397,16 @@ class Azure(System):
         )
         return func_name
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> AzureFunction:
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> AzureFunction:
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Azure")
 
         language = code_package.language_name
         language_runtime = code_package.language_version
@@ -452,7 +477,7 @@ class Azure(System):
         )
 
         # update existing function app
-        self.update_function(function, code_package)
+        self.update_function(function, code_package, container_deployment, container_uri)
 
         self.cache_client.add_function(
             deployment_name=self.name(),
@@ -555,7 +580,7 @@ class Azure(System):
         self.update_envs(function, code_package, {"ForceColdStart": str(self.cold_start_counter)})
 
         # FIXME: is this sufficient to enforce cold starts?
-        # self.update_function(function, code_package)
+        # self.update_function(function, code_package, False, "")
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         self.cold_start_counter += 1

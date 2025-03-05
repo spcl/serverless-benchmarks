@@ -4,13 +4,14 @@ import shutil
 import time
 from typing import cast, Dict, List, Optional, Type, Tuple  # noqa
 import subprocess
+import socket
 
 import docker
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.local.resources import LocalSystemResources
-from sebs.utils import LoggingHandlers
+from sebs.utils import LoggingHandlers, is_linux
 from sebs.local.config import LocalConfig
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
@@ -86,7 +87,7 @@ class Local(System):
     """
 
     def shutdown(self):
-        pass
+        super().shutdown()
 
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.
@@ -111,9 +112,11 @@ class Local(System):
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+        container_deployment: bool,
+    ) -> Tuple[str, int, str]:
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -132,7 +135,7 @@ class Local(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Function size {:2f} MB".format(mbytes))
 
-        return directory, bytes_size
+        return directory, bytes_size, ""
 
     def _start_container(
         self, code_package: Benchmark, func_name: str, func: Optional[LocalFunction]
@@ -144,16 +147,18 @@ class Local(System):
             code_package.language_version,
         )
 
-        environment: Dict[str, str] = {}
+        environment = {
+            "CONTAINER_UID": str(os.getuid()),
+            "CONTAINER_GID": str(os.getgid()),
+            "CONTAINER_USER": self._system_config.username(
+                self.name(), code_package.language_name
+            )
+        }
         if self.config.resources.storage_config:
 
             environment = {
                 **self.config.resources.storage_config.envs(),
-                "CONTAINER_UID": str(os.getuid()),
-                "CONTAINER_GID": str(os.getgid()),
-                "CONTAINER_USER": self._system_config.username(
-                    self.name(), code_package.language_name
-                ),
+                **environment
             }
 
         if code_package.uses_nosql:
@@ -166,27 +171,60 @@ class Local(System):
             ).items():
                 environment[f"NOSQL_STORAGE_TABLE_{original_name}"] = actual_name
 
-        container = self._docker_client.containers.run(
-            image=container_name,
-            command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
-            volumes={code_package.code_location: {"bind": "/function", "mode": "ro"}},
-            environment=environment,
-            # FIXME: make CPUs configurable
-            # FIXME: configure memory
-            # FIXME: configure timeout
-            # cpuset_cpus=cpuset,
-            # required to access perf counters
-            # alternative: use custom seccomp profile
-            privileged=True,
-            security_opt=["seccomp:unconfined"],
-            network_mode="bridge",
-            # somehow removal of containers prevents checkpointing from working?
-            remove=self.remove_containers,
-            stdout=True,
-            stderr=True,
-            detach=True,
-            # tty=True,
-        )
+        # FIXME: make CPUs configurable
+        # FIXME: configure memory
+        # FIXME: configure timeout
+        # cpuset_cpus=cpuset,
+        # required to access perf counters
+        # alternative: use custom seccomp profile
+        container_kwargs = {
+            "image": container_name,
+            "command": f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
+            "volumes": {code_package.code_location: {"bind": "/function", "mode": "ro"}},
+            "environment": environment,
+            "privileged": True,
+            "security_opt": ["seccomp:unconfined"],
+            "network_mode": "bridge",
+            "remove": self.remove_containers,
+            "stdout": True,
+            "stderr": True,
+            "detach": True,
+            # "tty": True,
+        }
+
+        # If SeBS is running on non-linux platforms,
+        # container port must be mapped to host port to make it reachable
+        # Check if the system is NOT Linux or that it is WSL
+        port = self.DEFAULT_PORT
+        if not is_linux():
+            port_found = False
+            for p in range(self.DEFAULT_PORT, self.DEFAULT_PORT + 1000):
+                # check no container has been deployed on docker's port p
+                if p not in self.config.resources.allocated_ports:
+                    # check if port p on the host is free
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        try:
+                            s.bind(("127.0.0.1", p))
+                            # The port is available
+                            port = p
+                            port_found = True
+                            self.config.resources.allocated_ports.add(p)
+                            break
+                        except socket.error:
+                            # The port is already in use
+                            continue
+
+            if not port_found:
+                raise RuntimeError(
+                    f"Failed to allocate port for container: No ports available between "
+                    f"{self.DEFAULT_PORT} and {self.DEFAULT_PORT + 999}"
+                )
+
+            container_kwargs["command"] = f"/bin/bash /sebs/run_server.sh {port}"
+            container_kwargs["ports"] = {f"{port}/tcp": port}
+
+        container = self._docker_client.containers.run(**container_kwargs)
 
         pid: Optional[int] = None
         if self.measurements_enabled and self._memory_measurement_path is not None:
@@ -209,7 +247,7 @@ class Local(System):
             function_cfg = FunctionConfig.from_benchmark(code_package)
             func = LocalFunction(
                 container,
-                self.DEFAULT_PORT,
+                port,
                 func_name,
                 code_package.benchmark,
                 code_package.hash,
@@ -243,14 +281,29 @@ class Local(System):
 
         return func
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> "LocalFunction":
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Local")
         return self._start_container(code_package, func_name, None)
 
     """
         Restart Docker container
     """
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
         func = cast(LocalFunction, function)
         func.stop()
         self.logging.info("Allocating a new function container with updated code")
