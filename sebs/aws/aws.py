@@ -81,9 +81,9 @@ class AWS(System):
             aws_secret_access_key=self.config.credentials.secret_key,
         )
         self.get_lambda_client()
+        self.system_resources.initialize_session(self.session)
         self.initialize_resources(select_prefix=resource_prefix)
 
-        self.system_resources.initialize_session(self.session)
         self.ecr_client = ECRContainer(
             self.system_config, self.session, self.config, self.docker_client
         )
