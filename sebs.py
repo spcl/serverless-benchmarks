@@ -493,6 +493,12 @@ def local():
     default=True,
     help="Remove containers after stopping.",
 )
+@click.option(
+    "--architecture",
+    default=None,
+    type=click.Choice(["x64", "arm64"]),
+    help="Target architecture",
+)
 @simplified_common_params
 def start(
     benchmark,
@@ -502,6 +508,7 @@ def start(
     storage_configuration,
     measure_interval,
     remove_containers,
+    architecture,
     **kwargs,
 ):
     """
@@ -510,7 +517,9 @@ def start(
 
     (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
         update_code=False, update_storage=False,
-        deployment="local", storage_configuration=storage_configuration, **kwargs
+        deployment="local", storage_configuration=storage_configuration,
+        container_deployment=False, architecture=architecture,
+        **kwargs
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers
@@ -558,12 +567,6 @@ def stop(input_json, output_json, **kwargs):
     sebs.utils.global_logging()
 
     logging.info(f"Stopping deployment from {os.path.abspath(input_json)}")
-    (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
-        update_code=False, update_storage=False,
-        deployment="local", **kwargs
-    )
-
-    deployment_client.res
 
     deployment = sebs.local.Deployment.deserialize(input_json, None)
     deployment.shutdown(output_json)

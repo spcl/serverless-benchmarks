@@ -71,8 +71,14 @@ class LocalResources(Resources):
         cache.update_config(
             val=list(self._allocated_ports), keys=["local", "resources", "allocated_ports"]
         )
-        if self._storage is not None:
-            self._storage.update_cache(["local", "resources", "storage"], cache)
+        if self._object_storage is not None:
+            cast(MinioConfig, self._object_storage).update_cache(
+                ["local", "resources", "storage"], cache
+            )
+        if self._nosql_storage is not None:
+            cast(ScyllaDBConfig, self._nosql_storage).update_cache(
+                ["local", "resources", "nosql"], cache
+            )
 
     def _deserialize_storage(
         self, config: dict, cached_config: Optional[dict], storage_type: str

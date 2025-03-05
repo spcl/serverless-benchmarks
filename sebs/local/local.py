@@ -150,16 +150,11 @@ class Local(System):
         environment = {
             "CONTAINER_UID": str(os.getuid()),
             "CONTAINER_GID": str(os.getgid()),
-            "CONTAINER_USER": self._system_config.username(
-                self.name(), code_package.language_name
-            )
+            "CONTAINER_USER": self._system_config.username(self.name(), code_package.language_name),
         }
         if self.config.resources.storage_config:
 
-            environment = {
-                **self.config.resources.storage_config.envs(),
-                **environment
-            }
+            environment = {**self.config.resources.storage_config.envs(), **environment}
 
         if code_package.uses_nosql:
 
