@@ -630,10 +630,6 @@ class GCP(System):
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark):
 
-        name = GCP.get_full_function_name(
-            self.config.project_name, self.config.region, function.name
-        )
-
         self.cold_start_counter += 1
         new_version = self.update_function_configuration(
             function, code_package, {"cold_start": str(self.cold_start_counter)}
