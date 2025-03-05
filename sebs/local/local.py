@@ -347,14 +347,14 @@ class Local(System):
     ) -> str:
         # Create function name
         if resources is not None:
-            func_name = "{}-{}-{}-{}".format(
+            func_name = "sebs-{}-{}-{}-{}".format(
                 resources.resources_id,
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
             )
         else:
-            func_name = "{}-{}-{}".format(
+            func_name = "sebd-{}-{}-{}".format(
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,

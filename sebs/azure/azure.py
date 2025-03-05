@@ -330,7 +330,7 @@ class Azure(System):
         Functionapp names must be globally unique in Azure.
         """
         func_name = (
-            "{}-{}-{}-{}".format(
+            "sebs-{}-{}-{}-{}".format(
                 self.config.resources.resources_id,
                 code_package.benchmark,
                 code_package.language_name,

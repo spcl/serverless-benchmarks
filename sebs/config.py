@@ -91,7 +91,7 @@ class SeBSConfig:
         if self.image_tag_prefix:
             tag = f"{tag}-{self.image_tag_prefix}"
         sebs_version = self._system_config["general"].get("SeBS_version", "unknown")
-        tag = f"{tag}.{sebs_version}"
+        tag = f"{tag}-{sebs_version}"
         return tag
 
     def username(self, deployment_name: str, language_name: str) -> str:

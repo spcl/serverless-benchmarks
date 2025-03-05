@@ -394,7 +394,7 @@ class AWS(System):
     ) -> str:
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
-        func_name = "{}-{}-{}-{}-{}".format(
+        func_name = "sebs-{}-{}-{}-{}-{}".format(
                 resource_id,
                 code_package.benchmark,
                 code_package.language_name,
