@@ -253,6 +253,25 @@ class Azure(System):
         container_dest = self._mount_function_code(code_package)
         function_url = self.publish_function(function, code_package, container_dest, True)
 
+        self.update_envs(function, code_package)
+
+        # Avoid duplication of HTTP trigger
+        found_trigger = False
+        for trigger in function.triggers_all():
+
+            if isinstance(trigger, HTTPTrigger):
+                found_trigger = True
+                trigger.url = function_url
+                break
+
+        if not found_trigger:
+            trigger = HTTPTrigger(
+                function_url, self.config.resources.data_storage_account(self.cli_instance)
+            )
+            trigger.logging_handlers = self.logging_handlers
+            function.add_trigger(trigger)
+
+    def update_envs(self, function: Function, code_package: Benchmark, env_variables: dict = {}):
         envs = {}
         if code_package.uses_nosql:
 
@@ -334,22 +353,6 @@ class Azure(System):
                 self.logging.error("Failed to set environment variable!")
                 self.logging.error(e)
                 raise e
-
-        # Avoid duplication of HTTP trigger
-        found_trigger = False
-        for trigger in function.triggers_all():
-
-            if isinstance(trigger, HTTPTrigger):
-                found_trigger = True
-                trigger.url = function_url
-                break
-
-        if not found_trigger:
-            trigger = HTTPTrigger(
-                function_url, self.config.resources.data_storage_account(self.cli_instance)
-            )
-            trigger.logging_handlers = self.logging_handlers
-            function.add_trigger(trigger)
 
     def update_function_configuration(self, function: Function, code_package: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout
@@ -549,16 +552,10 @@ class Azure(System):
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark):
 
-        fname = function.name
-        resource_group = self.config.resources.resource_group(self.cli_instance)
+        self.update_envs(function, code_package, {"ForceColdStart": str(self.cold_start_counter)})
 
-        self.cli_instance.execute(
-            f"az functionapp config appsettings set --name {fname} "
-            f" --resource-group {resource_group} "
-            f" --settings ForceColdStart={self.cold_start_counter}"
-        )
-
-        self.update_function(function, code_package)
+        # FIXME: is this sufficient to enforce cold starts?
+        # self.update_function(function, code_package)
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         self.cold_start_counter += 1

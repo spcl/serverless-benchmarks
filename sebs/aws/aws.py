@@ -292,12 +292,14 @@ class AWS(System):
 
         self.logging.info("Published new function code")
 
-    def update_function_configuration(self, function: Function, code_package: Benchmark):
+    def update_function_configuration(
+        self, function: Function, code_package: Benchmark, env_variables: dict = {}
+    ):
 
         # We can only update storage configuration once it has been processed for this benchmark
         assert code_package.has_input_processed
 
-        envs = {}
+        envs = env_variables.copy()
         if code_package.uses_nosql:
 
             nosql_storage = self.system_resources.get_nosql_storage()
@@ -534,19 +536,16 @@ class AWS(System):
         self.cache_client.update_function(function)
         return trigger
 
-    def _enforce_cold_start(self, function: Function):
+    def _enforce_cold_start(self, function: Function, code_package: Benchmark):
         func = cast(LambdaFunction, function)
-        self.get_lambda_client().update_function_configuration(
-            FunctionName=func.name,
-            Timeout=func.config.timeout,
-            MemorySize=func.config.memory,
-            Environment={"Variables": {"ForceColdStart": str(self.cold_start_counter)}},
+        self.update_function_configuration(
+            func, code_package, {"ForceColdStart": str(self.cold_start_counter)}
         )
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         self.cold_start_counter += 1
         for func in functions:
-            self._enforce_cold_start(func)
+            self._enforce_cold_start(func, code_package)
         self.logging.info("Sent function updates enforcing cold starts.")
         for func in functions:
             lambda_function = cast(LambdaFunction, func)
