@@ -4,8 +4,7 @@
 ![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
 ![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/spcl/serverless-benchmarks)
-
-Join our community on Slack! [![Slack](https://join.slack.com/t/serverlessbenchmark/shared_invite/zt-30622ov74-_S9QeDjAJLZSe9bJC8tStw)
+[![Slack](https://img.shields.io/badge/Slack-Join%20%23serverless--benchmark-purple?logo=Slack)](https://join.slack.com/t/serverlessbenchmark/shared_invite/zt-30622ov74-_S9QeDjAJLZSe9bJC8tStw)
 
 # SeBS: Serverless Benchmark Suite
 
