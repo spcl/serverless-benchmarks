@@ -662,5 +662,8 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
             )
 
 
-if __name__ == "__main__":
+def main():
     cli()
+
+if __name__ == "__main__":
+    main()
