@@ -19,6 +19,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers, execute
+from sebs.faas.config import Resources
 from ..faas.function import Function, FunctionConfig, ExecutionResult
 from ..faas.storage import PersistentStorage
 from ..faas.system import System
@@ -322,16 +323,18 @@ class Azure(System):
         self.cli_instance.upload_package(code_package.code_location, dest)
         return dest
 
-    def default_function_name(self, code_package: Benchmark) -> str:
+    def default_function_name(
+        self, code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
         """
         Functionapp names must be globally unique in Azure.
         """
         func_name = (
-            "{}-{}-{}-{}".format(
+            "sebs-{}-{}-{}-{}".format(
+                self.config.resources.resources_id,
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
-                self.config.resources.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")
