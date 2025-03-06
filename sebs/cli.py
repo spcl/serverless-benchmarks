@@ -764,5 +764,8 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
         raise NotImplementedError(f"Resource {resource} not supported.")
 
 
-if __name__ == "__main__":
+def main():
     cli()
+
+if __name__ == "__main__":
+    main()
