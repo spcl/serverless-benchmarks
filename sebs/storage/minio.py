@@ -271,10 +271,10 @@ class Minio(PersistentStorage):
 
     @staticmethod
     def _deserialize(
-        cached_config: MinioConfig, cache_client: Cache, res: Resources, obj_type: Type[T]
+        cached_config: MinioConfig, cache_client: Cache, resources: Resources, obj_type: Type[T]
     ) -> T:
         docker_client = docker.from_env()
-        obj = obj_type(docker_client, cache_client, res, False)
+        obj = obj_type(docker_client, cache_client, resources, False)
         obj._cfg = cached_config
         if cached_config.instance_id:
             instance_id = cached_config.instance_id

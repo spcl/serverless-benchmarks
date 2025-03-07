@@ -10,7 +10,7 @@ import docker
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.local.resources import LocalSystemResources
+from sebs.storage.resources import SelfHostedSystemResources
 from sebs.utils import LoggingHandlers, is_linux
 from sebs.local.config import LocalConfig
 from sebs.local.function import LocalFunction
@@ -71,7 +71,7 @@ class Local(System):
             sebs_config,
             cache_client,
             docker_client,
-            LocalSystemResources(config, cache_client, docker_client, logger_handlers),
+            SelfHostedSystemResources(config, cache_client, docker_client, logger_handlers),
         )
         self.logging_handlers = logger_handlers
         self._config = config
