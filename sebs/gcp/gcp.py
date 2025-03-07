@@ -249,6 +249,7 @@ class GCP(System):
             )
             create_req.execute()
             self.logging.info(f"Function {func_name} has been created!")
+
             allow_unauthenticated_req = (
                 self.function_client.projects()
                 .locations()
@@ -264,7 +265,27 @@ class GCP(System):
                     },
                 )
             )
-            allow_unauthenticated_req.execute()
+
+            # Avoid infinite loop
+            MAX_RETRIES = 5
+            counter = 0
+            while counter < MAX_RETRIES:
+                try:
+                    allow_unauthenticated_req.execute()
+                    break
+                except HttpError:
+
+                    self.logging.info(
+                        "Sleeping for 5 seconds because the created functions is not yet available!"
+                    )
+                    time.sleep(5)
+                    counter += 1
+            else:
+                raise RuntimeError(
+                    f"Failed to configure function {full_func_name} "
+                    "for unauthenticated invocations!"
+                )
+
             self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
