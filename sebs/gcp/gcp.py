@@ -85,11 +85,16 @@ class GCP(System):
     def get_function_client(self):
         return self.function_client
 
-    @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(
+        self, code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
         # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.benchmark, code_package.language_name, code_package.language_version
+        resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        func_name = "sebs-{}-{}-{}-{}".format(
+            resource_id,
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.language_version,
         )
         return GCP.format_function_name(func_name)
 

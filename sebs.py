@@ -543,7 +543,7 @@ def start(
 
     for i in range(deployments):
         func = deployment_client.get_function(
-            benchmark_obj, deployment_client.default_function_name(benchmark_obj)
+            benchmark_obj, deployment_client.default_function_name(benchmark_obj,deployment_client.config.resources)
         )
         result.add_function(func)
 

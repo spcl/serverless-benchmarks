@@ -401,15 +401,19 @@ class AWS(System):
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {function.name} function. ")
 
-    @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    # @staticmethod
+    def default_function_name(
+        self,code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
         # Create function name
-        func_name = "{}-{}-{}-{}".format(
-            code_package.benchmark,
-            code_package.language_name,
-            code_package.language_version,
-            code_package.architecture,
-        )
+        resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        func_name = "sebs-{}-{}-{}-{}-{}".format(
+                resource_id,
+                code_package.benchmark,
+                code_package.language_name,
+                code_package.language_version,
+                code_package.architecture,
+            )
         if code_package.container_deployment:
             func_name = f"{func_name}-docker"
         return AWS.format_function_name(func_name)

@@ -14,6 +14,7 @@ from sebs.storage.resources import SelfHostedSystemResources
 from sebs.storage.minio import Minio
 from sebs.storage.scylladb import ScyllaDB
 from sebs.utils import LoggingHandlers
+from sebs.faas.config import Resources
 from .config import OpenWhiskConfig
 from .function import OpenWhiskFunction, OpenWhiskFunctionConfig
 from ..config import SeBSConfig
@@ -349,12 +350,14 @@ class OpenWhisk(System):
 
         return changed
 
-    def default_function_name(self, code_package: Benchmark) -> str:
+    def default_function_name(
+        self, code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
+        resource_id = resources.resources_id if resources else self.config.resources.resources_id
         return (
-            f"{code_package.benchmark}-{code_package.language_name}-"
-            f"{code_package.language_version}"
-        )
-
+                f"sebs-{resource_id}-{code_package.benchmark}-"
+                f"{code_package.language_name}-{code_package.language_version}"
+            )
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         raise NotImplementedError()
 
