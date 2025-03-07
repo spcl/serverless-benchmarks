@@ -1,9 +1,12 @@
 # SeBS specific
-regression*
+regression-cache*
+regression_*
+regression-output*
 *_code
 perf-cost*
 python-venv
-*cache*
+cache*
+!cache.py
 
 minio-volume
 scylladb-volume

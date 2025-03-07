@@ -35,7 +35,6 @@ def update_dict(cfg, val, keys):
 
 
 class Cache(LoggingBase):
-
     cached_config: Dict[str, str] = {}
     """
         Indicate that cloud offerings updated credentials or settings.
@@ -62,7 +61,9 @@ class Cache(LoggingBase):
     def load_config(self):
         with self._lock:
             for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
-                cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
+                cloud_config_file = os.path.join(
+                    self.cache_dir, "{}.json".format(cloud)
+                )
                 if os.path.exists(cloud_config_file):
                     self.cached_config[cloud] = json.load(open(cloud_config_file, "r"))
 
@@ -90,8 +91,12 @@ class Cache(LoggingBase):
         if self.config_updated:
             for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
                 if cloud in self.cached_config:
-                    cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
-                    self.logging.info("Update cached config {}".format(cloud_config_file))
+                    cloud_config_file = os.path.join(
+                        self.cache_dir, "{}.json".format(cloud)
+                    )
+                    self.logging.info(
+                        "Update cached config {}".format(cloud_config_file)
+                    )
                     with open(cloud_config_file, "w") as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 
@@ -123,8 +128,12 @@ class Cache(LoggingBase):
     """
 
     def get_code_package(
-        self, deployment: str, benchmark: str, language: str,
-        language_version: str, architecture: str
+        self,
+        deployment: str,
+        benchmark: str,
+        language: str,
+        language_version: str,
+        architecture: str,
     ) -> Optional[Dict[str, Any]]:
         cfg = self.get_benchmark_config(deployment, benchmark)
 
@@ -135,8 +144,12 @@ class Cache(LoggingBase):
             return None
 
     def get_container(
-        self, deployment: str, benchmark: str, language: str,
-        language_version: str, architecture: str
+        self,
+        deployment: str,
+        benchmark: str,
+        language: str,
+        language_version: str,
+        architecture: str,
     ) -> Optional[Dict[str, Any]]:
         cfg = self.get_benchmark_config(deployment, benchmark)
 
@@ -172,10 +185,13 @@ class Cache(LoggingBase):
 
     def _get_resource_config(self, deployment: str, benchmark: str, resource: str):
         cfg = self.get_benchmark_config(deployment, benchmark)
-        return cfg[resource] if cfg and resource in cfg and not self.ignore_storage else None
+        return (
+            cfg[resource]
+            if cfg and resource in cfg and not self.ignore_storage
+            else None
+        )
 
     def update_storage(self, deployment: str, benchmark: str, config: dict):
-
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
         config_path = os.path.join(benchmark_dir, "config.json")
 
@@ -193,7 +209,9 @@ class Cache(LoggingBase):
             return
         self._update_resources(deployment, benchmark, "nosql", config)
 
-    def _update_resources(self, deployment: str, benchmark: str, resource: str, config: dict):
+    def _update_resources(
+        self, deployment: str, benchmark: str, resource: str, config: dict
+    ):
         if self.ignore_storage:
             return
 
@@ -206,7 +224,6 @@ class Cache(LoggingBase):
         os.makedirs(benchmark_dir, exist_ok=True)
 
         with self._lock:
-
             if os.path.exists(os.path.join(benchmark_dir, "config.json")):
                 with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                     cached_config = json.load(fp)
@@ -237,8 +254,12 @@ class Cache(LoggingBase):
             package_type = "docker" if code_package.container_deployment else "package"
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(
-                benchmark_dir, deployment_name, language,
-                language_version, architecture, package_type
+                benchmark_dir,
+                deployment_name,
+                language,
+                language_version,
+                architecture,
+                package_type,
             )
 
             if not os.path.exists(cached_dir):
@@ -266,7 +287,6 @@ class Cache(LoggingBase):
 
                 key = f"{language_version}-{architecture}"
                 if code_package.container_deployment:
-
                     image = self.docker_client.images.get(code_package.container_uri)
                     language_config["image-uri"] = code_package.container_uri
                     language_config["image-id"] = image.id
@@ -274,9 +294,7 @@ class Cache(LoggingBase):
                     config = {
                         deployment_name: {
                             language: {
-                                "containers": {
-                                    key: language_config
-                                },
+                                "containers": {key: language_config},
                                 "code_package": {},
                                 "functions": {},
                             }
@@ -286,9 +304,7 @@ class Cache(LoggingBase):
                     config = {
                         deployment_name: {
                             language: {
-                                "code_package": {
-                                    key: language_config
-                                },
+                                "code_package": {key: language_config},
                                 "containers": {},
                                 "functions": {},
                             }
@@ -302,21 +318,20 @@ class Cache(LoggingBase):
                         if deployment_name in cached_config:
                             # language known, platform known, extend dictionary
                             if language in cached_config[deployment_name]:
-
                                 if code_package.container_deployment:
-                                    cached_config[deployment_name][language]["containers"][
-                                        key
-                                    ] = language_config
+                                    cached_config[deployment_name][language][
+                                        "containers"
+                                    ][key] = language_config
                                 else:
-                                    cached_config[deployment_name][language]["code_package"][
-                                        key
-                                    ] = language_config
+                                    cached_config[deployment_name][language][
+                                        "code_package"
+                                    ][key] = language_config
 
                             # language unknown, platform known - add new dictionary
                             else:
-                                cached_config[deployment_name][language] = config[deployment_name][
-                                    language
-                                ]
+                                cached_config[deployment_name][language] = config[
+                                    deployment_name
+                                ][language]
                         else:
                             # language unknown, platform unknown - add new dictionary
                             cached_config[deployment_name] = config[deployment_name]
@@ -345,12 +360,15 @@ class Cache(LoggingBase):
             package_type = "docker" if code_package.container_deployment else "package"
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(
-                benchmark_dir, deployment_name, language,
-                language_version, architecture, package_type
+                benchmark_dir,
+                deployment_name,
+                language,
+                language_version,
+                architecture,
+                package_type,
             )
 
             if os.path.exists(cached_dir):
-
                 # copy code
                 if os.path.isdir(code_package.code_location):
                     cached_location = os.path.join(cached_dir, "code")
@@ -378,19 +396,20 @@ class Cache(LoggingBase):
                     config[deployment_name][language][main_key][key]["date"][
                         "modified"
                     ] = date
-                    config[deployment_name][language][main_key][key][
-                        "hash"
-                    ] = code_package.hash
-                    config[deployment_name][language][main_key][key][
-                        "size"
-                    ] = code_package.code_size
+                    config[deployment_name][language][main_key][key]["hash"] = (
+                        code_package.hash
+                    )
+                    config[deployment_name][language][main_key][key]["size"] = (
+                        code_package.code_size
+                    )
 
                     if code_package.container_deployment:
-
-                        image = self.docker_client.images.get(code_package.container_uri)
-                        config[deployment_name][language][main_key][key][
-                            "image-id"
-                        ] = image.id
+                        image = self.docker_client.images.get(
+                            code_package.container_uri
+                        )
+                        config[deployment_name][language][main_key][key]["image-id"] = (
+                            image.id
+                        )
                         config[deployment_name][language][main_key][key][
                             "image-uri"
                         ] = code_package.container_uri
@@ -426,12 +445,16 @@ class Cache(LoggingBase):
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
-                functions_config: Dict[str, Any] = {function.name: {**function.serialize()}}
+                functions_config: Dict[str, Any] = {
+                    function.name: {**function.serialize()}
+                }
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
                     if "functions" not in cached_config[deployment_name][language]:
-                        cached_config[deployment_name][language]["functions"] = functions_config
+                        cached_config[deployment_name][language]["functions"] = (
+                            functions_config
+                        )
                     else:
                         cached_config[deployment_name][language]["functions"].update(
                             functions_config
@@ -441,7 +464,9 @@ class Cache(LoggingBase):
                     fp.write(serialize(config))
             else:
                 raise RuntimeError(
-                    "Can't cache function {} for a non-existing code package!".format(function.name)
+                    "Can't cache function {} for a non-existing code package!".format(
+                        function.name
+                    )
                 )
 
     def update_function(self, function: "Function"):
@@ -452,7 +477,6 @@ class Cache(LoggingBase):
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
-
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
                     for deployment, cfg in cached_config.items():
@@ -468,5 +492,7 @@ class Cache(LoggingBase):
                     fp.write(serialize(cached_config))
             else:
                 raise RuntimeError(
-                    "Can't cache function {} for a non-existing code package!".format(function.name)
+                    "Can't cache function {} for a non-existing code package!".format(
+                        function.name
+                    )
                 )
