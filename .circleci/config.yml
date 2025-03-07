@@ -26,7 +26,7 @@ jobs:
       - run:
           command: |
             . python-venv/bin/activate
-            flake8 sebs --config=.flake8.cfg --black-config=.black.toml --tee --output-file flake-reports
+            flake8 sebs --config=.flake8.cfg --tee --output-file flake-reports
           name: Python code lint with flake8
       - run:
           command: |
