@@ -2,8 +2,6 @@ import logging
 import datetime
 import os
 
-import minio
-
 def main(args):
     logging.getLogger().setLevel(logging.INFO)
     begin = datetime.datetime.now()
