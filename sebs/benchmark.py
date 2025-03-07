@@ -640,18 +640,6 @@ class Benchmark(LoggingBase):
 
             self._uses_storage = len(input) > 0 or len(output) > 0
 
-            self._cache_client.update_storage(
-                storage.deployment_name(),
-                self._benchmark,
-                {
-                    "buckets": {
-                        "input": storage.input_prefixes,
-                        "output": storage.output_prefixes,
-                        "input_uploaded": True,
-                    }
-                },
-            )
-
             storage_func = storage.uploader_func
             bucket = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
         else:
@@ -676,7 +664,7 @@ class Benchmark(LoggingBase):
                 )
 
             self._uses_nosql = True
-            nosql_func = nosql_storage.writer_func
+            nosql_func = nosql_storage.write_to_table
         else:
             nosql_func = None
 
@@ -686,6 +674,23 @@ class Benchmark(LoggingBase):
         input_config = self._benchmark_input_module.generate_input(
             self._benchmark_data_path, size, bucket, input, output, storage_func, nosql_func
         )
+
+        # Cache only once we data is in the cloud.
+        if hasattr(self._benchmark_input_module, "buckets_count"):
+            self._cache_client.update_storage(
+                storage.deployment_name(),
+                self._benchmark,
+                {
+                    "buckets": {
+                        "input": storage.input_prefixes,
+                        "output": storage.output_prefixes,
+                        "input_uploaded": True,
+                    }
+                },
+            )
+
+        if hasattr(self._benchmark_input_module, "allocate_nosql"):
+            nosql_storage.update_cache(self._benchmark)
 
         self._input_processed = True
 

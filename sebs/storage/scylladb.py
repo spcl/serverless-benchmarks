@@ -242,7 +242,7 @@ class ScyllaDB(NoSQLStorage):
 
         return self._tables[benchmark][table]
 
-    def writer_func(
+    def write_to_table(
         self,
         benchmark: str,
         table: str,

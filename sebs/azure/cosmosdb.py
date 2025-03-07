@@ -116,7 +116,7 @@ class CosmosDB(NoSQLStorage):
             self._cosmosdb_account.credential,
         )
 
-    def writer_func(
+    def write_to_table(
         self,
         benchmark: str,
         table: str,

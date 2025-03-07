@@ -77,7 +77,7 @@ class NoSQLStorage(ABC, LoggingBase):
 
         self.create_table(benchmark, name, primary_key, secondary_key)
 
-        self.update_cache(benchmark)
+        # self.update_cache(benchmark)
 
     """
 
@@ -93,7 +93,7 @@ class NoSQLStorage(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def writer_func(
+    def write_to_table(
         self,
         benchmark: str,
         table: str,
