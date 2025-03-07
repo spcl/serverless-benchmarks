@@ -101,9 +101,10 @@ class GCP(System):
     @staticmethod
     def format_function_name(func_name: str) -> str:
         # GCP functions must begin with a letter
+        # however, we now add by default `sebs` in the beginning
         func_name = func_name.replace("-", "_")
         func_name = func_name.replace(".", "_")
-        return f"function-{func_name}"
+        return func_name
 
     """
         Apply the system-specific code packaging routine to build benchmark.
