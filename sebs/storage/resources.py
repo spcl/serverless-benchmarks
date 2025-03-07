@@ -52,11 +52,11 @@ class SelfHostedResources(Resources):
         super().update_cache(cache)
         if self._object_storage is not None:
             cast(MinioConfig, self._object_storage).update_cache(
-                ["local", "resources", "storage"], cache
+                [self._name, "resources", "storage"], cache
             )
         if self._nosql_storage is not None:
             cast(ScyllaDBConfig, self._nosql_storage).update_cache(
-                ["local", "resources", "nosql"], cache
+                [self._name, "resources", "nosql"], cache
             )
 
     def _deserialize_storage(
@@ -71,7 +71,7 @@ class SelfHostedResources(Resources):
             storage_config = config["storage"][storage_type][storage_impl]
             self.logging.info(
                 "Using user-provided configuration of storage "
-                f"type: {storage_type} for local containers."
+                f"type: {storage_type} for {self._name} containers."
             )
 
         # Load cached values
@@ -84,7 +84,8 @@ class SelfHostedResources(Resources):
             storage_impl = cached_config["storage"]["object"]["type"]
             storage_config = cached_config["storage"]["object"][storage_impl]
             self.logging.info(
-                f"Using cached configuration of storage type: {storage_type} for local container."
+                f"Using cached configuration of storage type: "
+                f"{storage_type} for {self._name} container."
             )
 
         return storage_impl, storage_config
@@ -119,6 +120,7 @@ class SelfHostedResources(Resources):
 class SelfHostedSystemResources(SystemResources):
     def __init__(
         self,
+        name: str,
         config: Config,
         cache_client: Cache,
         docker_client: docker.client,
@@ -126,6 +128,7 @@ class SelfHostedSystemResources(SystemResources):
     ):
         super().__init__(config, cache_client, docker_client)
 
+        self._name = name
         self._logging_handlers = logger_handlers
         self._storage: Optional[PersistentStorage] = None
         self._nosql_storage: Optional[NoSQLStorage] = None
@@ -145,9 +148,10 @@ class SelfHostedSystemResources(SystemResources):
             storage_config = cast(SelfHostedResources, self._config.resources).storage_config
             if storage_config is None:
                 self.logging.error(
-                    "The local deployment is missing the configuration of pre-allocated storage!"
+                    f"The {self._name} deployment is missing the "
+                    "configuration of pre-allocated storage!"
                 )
-                raise RuntimeError("Cannot run local deployment without any object storage")
+                raise RuntimeError(f"Cannot run {self._name} deployment without any object storage")
 
             if isinstance(storage_config, MinioConfig):
                 self._storage = Minio.deserialize(
@@ -158,7 +162,7 @@ class SelfHostedSystemResources(SystemResources):
                 self._storage.logging_handlers = self._logging_handlers
             else:
                 self.logging.error(
-                    "The local deployment does not support "
+                    f"The {self._name} deployment does not support "
                     f"the object storage config type: {type(storage_config)}!"
                 )
                 raise RuntimeError("Cannot work with the provided object storage!")
@@ -172,7 +176,7 @@ class SelfHostedSystemResources(SystemResources):
             storage_config = cast(SelfHostedResources, self._config.resources).nosql_storage_config
             if storage_config is None:
                 self.logging.error(
-                    "The local deployment is missing the configuration "
+                    f"The {self._name} deployment is missing the configuration "
                     "of pre-allocated NoSQL storage!"
                 )
                 raise RuntimeError("Cannot allocate NoSQL storage!")
@@ -184,7 +188,7 @@ class SelfHostedSystemResources(SystemResources):
                 self._nosql_storage.logging_handlers = self._logging_handlers
             else:
                 self.logging.error(
-                    "The local deployment does not support "
+                    f"The {self._name} deployment does not support "
                     f"the NoSQL storage config type: {type(storage_config)}!"
                 )
                 raise RuntimeError("Cannot work with the provided NoSQL storage!")

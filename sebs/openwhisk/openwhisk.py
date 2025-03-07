@@ -34,7 +34,9 @@ class OpenWhisk(System):
             system_config,
             cache_client,
             docker_client,
-            SelfHostedSystemResources(config, cache_client, docker_client, logger_handlers),
+            SelfHostedSystemResources(
+                "openwhisk", config, cache_client, docker_client, logger_handlers
+            ),
         )
         self._config = config
         self.logging_handlers = logger_handlers

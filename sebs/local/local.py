@@ -71,7 +71,9 @@ class Local(System):
             sebs_config,
             cache_client,
             docker_client,
-            SelfHostedSystemResources(config, cache_client, docker_client, logger_handlers),
+            SelfHostedSystemResources(
+                "local", config, cache_client, docker_client, logger_handlers
+            ),
         )
         self.logging_handlers = logger_handlers
         self._config = config
