@@ -81,7 +81,9 @@ class TestSequenceMeta(type):
                 self.experiment_config["architecture"] = architecture
                 self.experiment_config["container_deployment"] = deployment_type == "container"
 
-                deployment_client = self.get_deployment(benchmark_name, architecture)
+                deployment_client = self.get_deployment(
+                    benchmark_name, architecture, deployment_type
+                )
                 deployment_client.disable_rich_output()
 
                 logging_wrapper.info(
@@ -163,14 +165,14 @@ class AWSTestSequencePython(
     def typename(self) -> str:
         return "AWSTestPython"
 
-    def get_deployment(self, benchmark_name, architecture):
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "aws"
         assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log",
             ),
         )
 
@@ -188,14 +190,14 @@ class AWSTestSequenceNodejs(
     deployment_name="aws",
     triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
 ):
-    def get_deployment(self, benchmark_name, architecture):
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "aws"
         assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log",
             ),
         )
         with AWSTestSequenceNodejs.lock:
@@ -212,7 +214,7 @@ class AzureTestSequencePython(
     deployment_name="azure",
     triggers=[Trigger.TriggerType.HTTP],
 ):
-    def get_deployment(self, benchmark_name, architecture):
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "azure"
         assert cloud_config
         with AzureTestSequencePython.lock:
@@ -234,7 +236,7 @@ class AzureTestSequencePython(
                 cloud_config,
                 logging_filename=os.path.join(
                     self.client.output_dir,
-                    f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
+                    f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log",
                 ),
                 deployment_config=AzureTestSequencePython.cfg,
             )
@@ -252,7 +254,7 @@ class AzureTestSequenceNodejs(
     deployment_name="azure",
     triggers=[Trigger.TriggerType.HTTP],
 ):
-    def get_deployment(self, benchmark_name, architecture):
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "azure"
         assert cloud_config
         with AzureTestSequenceNodejs.lock:
@@ -271,7 +273,7 @@ class AzureTestSequenceNodejs(
                 cloud_config,
                 logging_filename=os.path.join(
                     self.client.output_dir,
-                    f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
+                    f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log",
                 ),
                 deployment_config=AzureTestSequencePython.cfg,
             )
@@ -289,14 +291,14 @@ class GCPTestSequencePython(
     deployment_name="gcp",
     triggers=[Trigger.TriggerType.HTTP],
 ):
-    def get_deployment(self, benchmark_name, architecture):
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "gcp"
         assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log",
             ),
         )
         with GCPTestSequencePython.lock:
@@ -313,14 +315,14 @@ class GCPTestSequenceNodejs(
     deployment_name="gcp",
     triggers=[Trigger.TriggerType.HTTP],
 ):
-    def get_deployment(self, benchmark_name, architecture):
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "gcp"
         assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log",
             ),
         )
         with GCPTestSequenceNodejs.lock:
@@ -337,14 +339,14 @@ class OpenWhiskTestSequencePython(
     deployment_name="openwhisk",
     triggers=[Trigger.TriggerType.HTTP],
 ):
-    def get_deployment(self, benchmark_name, architecture):
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "openwhisk"
         assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log",
             ),
         )
         with OpenWhiskTestSequencePython.lock:
@@ -361,14 +363,14 @@ class OpenWhiskTestSequenceNodejs(
     deployment_name="openwhisk",
     triggers=[Trigger.TriggerType.HTTP],
 ):
-    def get_deployment(self, benchmark_name, architecture):
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "openwhisk"
         assert cloud_config
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log",
             ),
         )
         with OpenWhiskTestSequenceNodejs.lock:
