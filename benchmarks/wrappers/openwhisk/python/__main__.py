@@ -12,6 +12,12 @@ def main(args):
         os.environ[arg] = args[arg]
         del args[arg]
 
+    key_list = list(args.keys())
+    for arg in key_list:
+        if 'NOSQL_STORAGE_' in arg:
+            os.environ[arg] = args[arg]
+            del args[arg]
+
     try:
         from function import function
         ret = function.handler(args)

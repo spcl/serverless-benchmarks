@@ -278,14 +278,17 @@
           "files": [
             "__main__.py",
             "storage.py",
-            "setup.py"
+            "setup.py",
+            "nosql.py"
           ],
           "packages": [],
           "module_packages": {
             "storage": {
               "minio": "^5.0.10"
             },
-            "nosql": []
+            "nosql": [
+              "boto3==1.28.3"
+            ]
           }
         }
       },
