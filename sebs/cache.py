@@ -182,14 +182,7 @@ class Cache(LoggingBase):
         return cfg[resource] if cfg and resource in cfg and not self.ignore_storage else None
 
     def update_storage(self, deployment: str, benchmark: str, config: dict):
-        benchmark_dir = os.path.join(self.cache_dir, benchmark)
-        config_path = os.path.join(benchmark_dir, "config.json")
-
-        if self.ignore_storage or not os.path.exists(config_path):
-            self.logging.debug(
-                f"Skipping storage update: ignore_storage={self.ignore_storage}, "
-                f"config exists={os.path.exists(config_path)} at {config_path}"
-            )
+        if self.ignore_storage:
             return
 
         self._update_resources(deployment, benchmark, "storage", config)
