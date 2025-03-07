@@ -94,13 +94,13 @@ class TestSequenceMeta(type):
                 benchmark = self.client.get_benchmark(
                     benchmark_name, deployment_client, experiment_config
                 )
-                func = deployment_client.get_function(
-                    benchmark, deployment_client.default_function_name(benchmark)
-                )
                 input_config = benchmark.prepare_input(
                     deployment_client.system_resources,
                     size="test",
                     replace_existing=experiment_config.update_storage,
+                )
+                func = deployment_client.get_function(
+                    benchmark, deployment_client.default_function_name(benchmark)
                 )
 
                 failure = False
