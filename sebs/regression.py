@@ -45,16 +45,14 @@ cloud_config: Optional[dict] = None
 
 class TestSequenceMeta(type):
     def __init__(
-        cls, name, bases, attrs, benchmarks, architectures,
-        deployments, deployment_name, triggers
+        cls, name, bases, attrs, benchmarks, architectures, deployments, deployment_name, triggers
     ):
         type.__init__(cls, name, bases, attrs)
         cls.deployment_name = deployment_name
         cls.triggers = triggers
 
     def __new__(
-        mcs, name, bases, dict, benchmarks, architectures,
-        deployments, deployment_name, triggers
+        mcs, name, bases, dict, benchmarks, architectures, deployments, deployment_name, triggers
     ):
         def gen_test(benchmark_name, architecture, deployment_type):
             def test(self):
@@ -158,7 +156,7 @@ class AWSTestSequencePython(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log"
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
             ),
         )
 
@@ -183,7 +181,7 @@ class AWSTestSequenceNodejs(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log"
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
             ),
         )
         with AWSTestSequenceNodejs.lock:
@@ -210,7 +208,7 @@ class AzureTestSequencePython(
                     cloud_config,
                     logging_filename=os.path.join(
                         self.client.output_dir,
-                        f"regression_{deployment_name}_{benchmark_name}_{architecture}.log"
+                        f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
                     ),
                 )
 
@@ -223,7 +221,7 @@ class AzureTestSequencePython(
                 cloud_config,
                 logging_filename=os.path.join(
                     self.client.output_dir,
-                    f"regression_{deployment_name}_{benchmark_name}_{architecture}.log"
+                    f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
                 ),
                 deployment_config=AzureTestSequencePython.cfg,
             )
@@ -260,7 +258,7 @@ class AzureTestSequenceNodejs(
                 cloud_config,
                 logging_filename=os.path.join(
                     self.client.output_dir,
-                    f"regression_{deployment_name}_{benchmark_name}_{architecture}.log"
+                    f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
                 ),
                 deployment_config=AzureTestSequencePython.cfg,
             )
@@ -285,7 +283,7 @@ class GCPTestSequencePython(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log"
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
             ),
         )
         with GCPTestSequencePython.lock:
@@ -309,7 +307,7 @@ class GCPTestSequenceNodejs(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log"
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
             ),
         )
         with GCPTestSequenceNodejs.lock:
@@ -333,7 +331,7 @@ class OpenWhiskTestSequencePython(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log"
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
             ),
         )
         with OpenWhiskTestSequencePython.lock:
@@ -357,7 +355,7 @@ class OpenWhiskTestSequenceNodejs(
             cloud_config,
             logging_filename=os.path.join(
                 self.client.output_dir,
-                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log"
+                f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
             ),
         )
         with OpenWhiskTestSequenceNodejs.lock:
@@ -470,8 +468,11 @@ def regression_suite(
 
             # Remove unsupported benchmarks
             if not filter_out_benchmarks(
-                test_name, test.deployment_name, language,  # type: ignore
-                language_version, architecture  # type: ignore
+                test_name,
+                test.deployment_name,  # type: ignore
+                language,  # type: ignore
+                language_version,
+                architecture,  # type: ignore
             ):
                 print(f"Skip test {test_name} - not supported.")
                 continue

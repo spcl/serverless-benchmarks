@@ -390,17 +390,17 @@ class AWS(System):
 
     # @staticmethod
     def default_function_name(
-        self,code_package: Benchmark, resources: Optional[Resources] = None
+        self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
         func_name = "sebs-{}-{}-{}-{}-{}".format(
-                resource_id,
-                code_package.benchmark,
-                code_package.language_name,
-                code_package.language_version,
-                code_package.architecture,
-            )
+            resource_id,
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.language_version,
+            code_package.architecture,
+        )
         if code_package.container_deployment:
             func_name = f"{func_name}-docker"
         return AWS.format_function_name(func_name)
