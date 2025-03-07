@@ -632,7 +632,7 @@ def resources_list(resource, **kwargs):
     ) = parse_common_params(**kwargs)
 
     if resource == "buckets":
-        storage_client = deployment_client.get_storage(False)
+        storage_client = deployment_client.system_resources.get_storage(False)
         buckets = storage_client.list_buckets()
         sebs_client.logging.info("Storage buckets:")
         for idx, bucket in enumerate(buckets):
@@ -673,7 +673,7 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
         deployment_client,
     ) = parse_common_params(**kwargs)
 
-    storage_client = deployment_client.get_storage(False)
+    storage_client = deployment_client.system_resources.get_storage(False)
     if resource == "storage":
 
         buckets = storage_client.list_buckets()
