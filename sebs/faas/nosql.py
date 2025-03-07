@@ -28,9 +28,6 @@ class NoSQLStorage(ABC, LoggingBase):
         self._region = region
         self._cloud_resources = resources
 
-        # Map benchmark -> orig_name -> table_name
-        # self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
-
     @abstractmethod
     def get_tables(self, benchmark: str) -> Dict[str, str]:
         pass
@@ -57,7 +54,8 @@ class NoSQLStorage(ABC, LoggingBase):
         Each implementation should do the following
         (1) Retrieve cached data
         (2) Create missing table that do not exist
-        (3) Update cached data if anything new was created
+        (3) Update cached data if anything new was created -> this is done separately
+            in benchmark.py once the data is uploaded by the benchmark.
     """
 
     def create_benchmark_tables(
@@ -76,8 +74,6 @@ class NoSQLStorage(ABC, LoggingBase):
         self.logging.info(f"Preparing to create a NoSQL table {name} for benchmark {benchmark}")
 
         self.create_table(benchmark, name, primary_key, secondary_key)
-
-        # self.update_cache(benchmark)
 
     """
 

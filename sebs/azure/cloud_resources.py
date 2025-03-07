@@ -3,6 +3,12 @@ from typing import Optional
 
 from sebs.azure.cli import AzureCLI
 
+"""
+    Keep a list of deployed special resources in Azure cloud.
+
+    Currently, we have here CosmosDB accounts that require special handling.
+"""
+
 
 class CosmosDBAccount:
     @property

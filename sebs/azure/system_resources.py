@@ -45,8 +45,6 @@ class AzureSystemResources(SystemResources):
 
         Requires Azure CLI instance in Docker to obtain storage account details.
 
-        :param benchmark:
-        :param buckets: number of input and output buckets
         :param replace_existing: when true, replace existing files in input buckets
         :return: Azure storage instance
     """
