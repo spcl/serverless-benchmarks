@@ -174,7 +174,8 @@ class Cache(LoggingBase):
 
         if self.ignore_storage or not os.path.exists(config_path):
             self.logging.debug(
-                f"Skipping storage update: ignore_storage={self.ignore_storage}, config exists={os.path.exists(config_path)} at {config_path}"
+                f"Skipping storage update: ignore_storage={self.ignore_storage}, "
+                "config exists={os.path.exists(config_path)} at {config_path}"
             )
             return
         with self._lock:

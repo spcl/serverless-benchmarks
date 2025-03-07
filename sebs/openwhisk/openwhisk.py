@@ -327,9 +327,10 @@ class OpenWhisk(System):
     ) -> str:
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
         return (
-                f"sebs-{resource_id}-{code_package.benchmark}-"
-                f"{code_package.language_name}-{code_package.language_version}"
-            )
+            f"sebs-{resource_id}-{code_package.benchmark}-"
+            f"{code_package.language_name}-{code_package.language_version}"
+        )
+
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         raise NotImplementedError()
 
