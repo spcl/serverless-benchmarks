@@ -335,6 +335,16 @@ class OpenWhisk(System):
             changed = True
             function.config.object_storage = storage.config
 
+        nosql_storage = cast(ScyllaDB, self.system_resources.get_nosql_storage())
+        function = cast(OpenWhiskFunction, cached_function)
+        # check if now we're using a new storage
+        if function.config.nosql_storage != nosql_storage.config:
+            self.logging.info(
+                "Updating function configuration due to changed NoSQL storage configuration."
+            )
+            changed = True
+            function.config.nosql_storage = nosql_storage.config
+
         return changed
 
     def default_function_name(self, code_package: Benchmark) -> str:
