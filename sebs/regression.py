@@ -333,9 +333,14 @@ class OpenWhiskTestSequencePython(
     def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "openwhisk"
         assert cloud_config
+
+        config_copy = cloud_config.copy()
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
-            cloud_config,
+            config_copy,
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with OpenWhiskTestSequencePython.lock:
@@ -355,9 +360,14 @@ class OpenWhiskTestSequenceNodejs(
     def get_deployment(self, benchmark_name, architecture, deployment_type):
         deployment_name = "openwhisk"
         assert cloud_config
+
+        config_copy = cloud_config.copy()
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
-            cloud_config,
+            config_copy,
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with OpenWhiskTestSequenceNodejs.lock:
