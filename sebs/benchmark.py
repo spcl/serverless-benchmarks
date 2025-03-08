@@ -362,7 +362,7 @@ class Benchmark(LoggingBase):
 
         destination_file = f"requirements.txt.{self._language_version}"
         if not os.path.exists(os.path.join(output_dir, destination_file)):
-            destination_file = f"requirements.txt"
+            destination_file = "requirements.txt"
 
         # append to the end of requirements file
         with open(os.path.join(output_dir, destination_file), "a") as out:
@@ -390,7 +390,7 @@ class Benchmark(LoggingBase):
 
             package_config = os.path.join(output_dir, f"package.json.{self._language_version}")
             if not os.path.exists(package_config):
-                package_config = os.path.join(output_dir, f"package.json")
+                package_config = os.path.join(output_dir, "package.json")
 
             with open(package_config, "r") as package_file:
                 package_json = json.load(package_file)
