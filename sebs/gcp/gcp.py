@@ -153,10 +153,6 @@ class GCP(System):
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
 
-        requirements = open(os.path.join(directory, "requirements.txt"), "w")
-        requirements.write("google-cloud-storage")
-        requirements.close()
-
         # rename handler function.py since in gcp it has to be caled main.py
         old_name, new_name = HANDLER[language_name]
         old_path = os.path.join(directory, old_name)
