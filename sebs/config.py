@@ -67,6 +67,9 @@ class SeBSConfig:
             architecture
         ]
 
+    def version(self) -> str:
+        return self._system_config["general"].get("SeBS_version", "unknown")
+
     def benchmark_image_name(
         self,
         system: str,

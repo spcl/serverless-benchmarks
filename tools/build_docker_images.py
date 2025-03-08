@@ -38,7 +38,7 @@ def build(image_type, system, language=None, version=None, version_name=None):
     if version:
         target += "." + version
     sebs_version = config["general"].get("SeBS_version", "unknown")
-    target += "." + sebs_version
+    target += "-" + sebs_version
 
     # if we pass an integer, the build will fail with 'connection reset by peer'
     buildargs = {
@@ -65,7 +65,7 @@ def build(image_type, system, language=None, version=None, version_name=None):
 def build_language(system, language, language_config):
     configs = []
     if "base_images" in language_config:
-        for version, base_image in language_config["base_images"].items():
+        for version, base_image in language_config["base_images"]["x64"].items():
             if args.language_version is not None and args.language_version == version:
                 configs.append([version, base_image])
             elif args.language_version is None:
