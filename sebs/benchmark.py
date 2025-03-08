@@ -494,7 +494,7 @@ class Benchmark(LoggingBase):
                             environment={"APP": self.benchmark},
                             # user="1000:1000",
                             user=uid,
-                            # remove=True,
+                            remove=True,
                             detach=True,
                             tty=True,
                             command="/bin/bash",
