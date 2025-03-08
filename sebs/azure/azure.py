@@ -367,10 +367,10 @@ class Azure(System):
 
                 # if we don't do that, next invocation might still see old values
                 # Disabled since we swapped the order - we first update envs, then we publish.
-                #self.logging.info(
+                # self.logging.info(
                 #    "Sleeping for 10 seconds - Azure needs more time to propagate changes. "
                 #    "Otherwise, functions might not see new variables and fail unexpectedly."
-                #)
+                # )
 
             except RuntimeError as e:
                 self.logging.error("Failed to set environment variable!")
