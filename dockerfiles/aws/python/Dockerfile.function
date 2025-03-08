@@ -12,7 +12,6 @@ RUN touch function/__init__.py \
     && if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]]; then \
       export PLATFORM_ARG="--platform manylinux_2_17_aarch64 --only-binary=:all:"; \
     fi \
-    && echo ${PLATFORM_ARG} \
     && if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]] && test -f "function/requirements.txt.arm.${PYTHON_VERSION}"; then \
         pip install --no-cache-dir ${PLATFORM_ARG} --target . \
             -r function/requirements.txt \
