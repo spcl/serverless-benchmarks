@@ -228,7 +228,8 @@ class Azure(System):
             except RuntimeError as e:
                 error = str(e)
                 # app not found
-                if "find app with name" in error and repeat_on_failure:
+                # Azure changed the description as some point
+                if ("find app with name" in error or "NotFound" in error) and repeat_on_failure:
                     # Sleep because of problems when publishing immediately
                     # after creating function app.
                     time.sleep(30)
