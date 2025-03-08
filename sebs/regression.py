@@ -217,7 +217,7 @@ class AzureTestSequencePython(
         with AzureTestSequencePython.lock:
             if not AzureTestSequencePython.cfg:
                 AzureTestSequencePython.cfg = self.client.get_deployment_config(
-                    cloud_config,
+                    cloud_config["deployment"],
                     logging_filename=os.path.join(
                         self.client.output_dir,
                         f"regression_{deployment_name}_{benchmark_name}_{architecture}.log",
@@ -236,7 +236,9 @@ class AzureTestSequencePython(
                 logging_filename=os.path.join(self.client.output_dir, f),
                 deployment_config=AzureTestSequencePython.cfg,
             )
-            deployment_client.initialize_cli(cli=AzureTestSequencePython.cli)
+            deployment_client.system_resources.initialize_cli(
+                cli=AzureTestSequencePython.cli, login=True
+            )
             deployment_client.initialize(resource_prefix="regr")
             return deployment_client
 
@@ -256,7 +258,7 @@ class AzureTestSequenceNodejs(
         with AzureTestSequenceNodejs.lock:
             if not AzureTestSequenceNodejs.cfg:
                 AzureTestSequenceNodejs.cfg = self.client.get_deployment_config(
-                    cloud_config,
+                    cloud_config["deployment"],
                     logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
                 )
 
@@ -272,7 +274,7 @@ class AzureTestSequenceNodejs(
                 logging_filename=os.path.join(self.client.output_dir, f),
                 deployment_config=AzureTestSequencePython.cfg,
             )
-            deployment_client.initialize_cli(cli=AzureTestSequenceNodejs.cli)
+            deployment_client.system_resources.initialize_cli(cli=AzureTestSequenceNodejs.cli)
             deployment_client.initialize(resource_prefix="regr")
             return deployment_client
 

@@ -70,6 +70,24 @@ class AzureSystemResources(SystemResources):
             )
         return self._nosql_storage
 
+    def _login_cli(self):
+
+        assert self._cli_instance is not None
+
+        output = self._cli_instance.login(
+            appId=self.config.credentials.appId,
+            tenant=self.config.credentials.tenant,
+            password=self.config.credentials.password,
+        )
+
+        subscriptions = json.loads(output)
+        if len(subscriptions) == 0:
+            raise RuntimeError("Didn't find any valid subscription on Azure!")
+        if len(subscriptions) > 1:
+            raise RuntimeError("Found more than one valid subscription on Azure - not supported!")
+
+        self.config.credentials.subscription_id = subscriptions[0]["id"]
+
     @property
     def cli_instance(self) -> AzureCLI:
 
@@ -77,27 +95,16 @@ class AzureSystemResources(SystemResources):
             self._cli_instance = AzureCLI(self._system_config, self._docker_client)
             self._cli_instance_stop = True
 
-            output = self._cli_instance.login(
-                appId=self.config.credentials.appId,
-                tenant=self.config.credentials.tenant,
-                password=self.config.credentials.password,
-            )
-
-            subscriptions = json.loads(output)
-            if len(subscriptions) == 0:
-                raise RuntimeError("Didn't find any valid subscription on Azure!")
-            if len(subscriptions) > 1:
-                raise RuntimeError(
-                    "Found more than one valid subscription on Azure - not supported!"
-                )
-
-            self.config.credentials.subscription_id = subscriptions[0]["id"]
+            self._login_cli()
 
         return self._cli_instance
 
-    def initialize_cli(self, cli: AzureCLI):
+    def initialize_cli(self, cli: AzureCLI, login: bool = False):
         self._cli_instance = cli
         self._cli_instance_stop = False
+
+        if login:
+            self._login_cli()
 
     def shutdown(self) -> None:
         if self._cli_instance and self._cli_instance_stop:
