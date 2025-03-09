@@ -9,7 +9,6 @@ import docker
 import minio
 
 from sebs.cache import Cache
-from sebs.types import Storage as StorageTypes
 from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
