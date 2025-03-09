@@ -20,7 +20,7 @@ Supported platforms:
 
 ## Storage Configuration
 
-SeBS benchmarks rely on persistent object and NoSQL storage for input and output data. For configuration instructions regarding both object storage and NoSQL databases, please refer to the [storage documentation](docs/storage.md). Storage configuration is particularly important for local deployments, OpenWhisk, and other open-source FaaS platforms.
+SeBS benchmarks rely on persistent object and NoSQL storage for input and output data. For configuration instructions regarding both object storage and NoSQL databases, please refer to the [storage documentation](storage.md). Storage configuration is particularly important for local deployments, OpenWhisk, and other open-source FaaS platforms.
 
 ## Architectures
 
@@ -182,7 +182,7 @@ In the subsections below, we discuss the meaning and use of each parameter.
 To correctly deploy SeBS functions to OpenWhisk, following the
 subsections on *Toolchain* and *Docker* configuration is particularly important.
 
-For storage configuration in OpenWhisk, refer to the [storage documentation](docs/storage.md), which covers both object storage and NoSQL requirements specific to OpenWhisk deployments.
+For storage configuration in OpenWhisk, refer to the [storage documentation](storage.md), which covers both object storage and NoSQL requirements specific to OpenWhisk deployments.
 
 > [!WARNING]
 > Some benchmarks might require larger memory allocations, e.g., 2048 MB. Not all OpenWhisk deployments support this out-of-the-box.
