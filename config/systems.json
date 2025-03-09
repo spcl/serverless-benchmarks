@@ -1,7 +1,7 @@
 {
   "general": {
     "docker_repository": "spcleth/serverless-benchmarks",
-    "SeBS_version": "1.1.0"
+    "SeBS_version": "1.2.0"
   },
   "local": {
     "experiments": {
@@ -18,11 +18,13 @@
     "languages": {
       "python": {
         "base_images": {
-          "3.7": "python:3.7-slim",
-          "3.8": "python:3.8-slim",
-          "3.9": "python:3.9-slim",
-          "3.10": "python:3.10-slim",
-          "3.11": "python:3.11-slim"
+          "x64": {
+            "3.7": "python:3.7-slim",
+            "3.8": "python:3.8-slim",
+            "3.9": "python:3.9-slim",
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim"
+          }
         },
         "images": [
           "run",
@@ -31,17 +33,25 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
-          "packages": []
+          "packages": [],
+          "module_packages": {
+            "nosql": [
+              "boto3==1.28.3"
+            ]
+          }
         }
       },
       "nodejs": {
         "base_images": {
-          "14": "node:14-slim",
-          "16": "node:16-slim",
-          "18": "node:18-slim",
-          "20": "node:20-slim"
+          "x64": {
+            "14": "node:14-slim",
+            "16": "node:16-slim",
+            "18": "node:18-slim",
+            "20": "node:20-slim"
+          }
         },
         "images": [
           "run",
@@ -83,9 +93,11 @@
           "files": [
             "handler.py",
             "storage.py",
+            "nosql.py",
             "setup.py"
           ],
-          "packages": []
+          "packages": [],
+          "module_packages": {}
         }
       },
       "nodejs": {
@@ -133,11 +145,18 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
-          "packages": [
-            "azure-storage-blob"
-          ]
+          "packages": [],
+          "module_packages": {
+            "storage": [
+              "azure-storage-blob"
+            ],
+            "nosql": [
+              "azure-cosmos"
+            ]
+          }
         }
       },
       "nodejs": {
@@ -192,11 +211,18 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
-          "packages": [
-            "google-cloud-storage"
-          ]
+          "packages": [],
+          "module_packages": {
+            "storage": [
+              "google-cloud-storage"
+            ],
+            "nosql": [
+              "google-cloud-datastore"
+            ]
+          }
         }
       },
       "nodejs": {
@@ -226,6 +252,11 @@
         }
       }
     },
+    "images": {
+      "manage": {
+        "username": "docker_user"
+      }
+    },
     "architecture": ["x64"],
     "deployments": ["package"]
   },
@@ -248,10 +279,17 @@
           "files": [
             "__main__.py",
             "storage.py",
-            "setup.py"
+            "setup.py",
+            "nosql.py"
           ],
-          "packages": {
-            "minio": "^5.0.10"
+          "packages": [],
+          "module_packages": {
+            "storage": {
+              "minio": "^5.0.10"
+            },
+            "nosql": [
+              "boto3==1.28.3"
+            ]
           }
         }
       },

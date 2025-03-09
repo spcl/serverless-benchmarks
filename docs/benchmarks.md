@@ -5,6 +5,7 @@
 | :---         | :---:               | :---:              | :---:                | :---:                |
 | Webapps      | 110.dynamic-html    | Python, Node.js    | x64, arm64 | Generate dynamic HTML from a template. |
 | Webapps      | 120.uploader    | Python, Node.js    | x64, arm64 | Uploader file from provided URL to cloud storage. |
+| Webapps      | 130.crud-api    | Python    | x64, arm64 | Simple CRUD application using NoSQL to store application data. |
 | Multimedia      | 210.thumbnailer    | Python, Node.js    | x64, arm64 | Generate a thumbnail of an image. |
 | Multimedia      | 220.video-processing    | Python    | x64, arm64 | Add a watermark and generate gif of a video file. |
 | Utilities      | 311.compression    | Python   | x64, arm64 | Create a .zip file for a group of files in storage and return to user to download. |
@@ -40,6 +41,11 @@ The benchmark represents a dynamic generation of webpage contents through a serv
 ### Uploader
 
 The benchmark implements the common workflow of uploading user-defined data to the persistent cloud storage. It accepts a URL, downloads file contents, and uploads them to the storage. Python implementation uses the standard library `requests`, while the Node.js version uses the third-party `requests` library installed with `npm`.
+
+### CRUD API
+
+The benchmark implements a simple CRUD application simulating a webstore cart. It offers three basic methods: add new item (`PUT`), get an item (`GET`), and query all items in a cart. It uses the NoSQL storage, with each item stored using cart id as primary key and item id as secondary key. The Python implementation uses 
+cloud-native libraries to access the database.
 
 ## Multimedia
 

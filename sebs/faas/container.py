@@ -196,7 +196,11 @@ class DockerContainer(LoggingBase):
                 "our documentation. We recommend QEMU as it can be configured to run automatically."
             )
 
-        buildargs = {"VERSION": language_version, "BASE_IMAGE": builder_image}
+        buildargs = {
+            "VERSION": language_version,
+            "BASE_IMAGE": builder_image,
+            "TARGET_ARCHITECTURE": architecture,
+        }
         image, _ = self.docker_client.images.build(
             tag=image_uri, path=build_dir, buildargs=buildargs
         )

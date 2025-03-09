@@ -8,6 +8,9 @@ python-venv
 cache*
 !cache.py
 
+minio-volume
+scylladb-volume
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

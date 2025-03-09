@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from sebs.benchmark import Benchmark
 from sebs.faas.function import Function, FunctionConfig, Runtime
-from sebs.storage.config import MinioConfig
+from sebs.storage.config import MinioConfig, ScyllaDBConfig
 
 
 @dataclass
@@ -14,14 +14,16 @@ class OpenWhiskFunctionConfig(FunctionConfig):
     # FIXME: merge with higher level abstraction for images
     docker_image: str = ""
     namespace: str = "_"
-    storage: Optional[MinioConfig] = None
+    object_storage: Optional[MinioConfig] = None
+    nosql_storage: Optional[ScyllaDBConfig] = None
 
     @staticmethod
     def deserialize(data: dict) -> OpenWhiskFunctionConfig:
         keys = list(OpenWhiskFunctionConfig.__dataclass_fields__.keys())
         data = {k: v for k, v in data.items() if k in keys}
         data["runtime"] = Runtime.deserialize(data["runtime"])
-        data["storage"] = MinioConfig.deserialize(data["storage"])
+        data["object_storage"] = MinioConfig.deserialize(data["object_storage"])
+        data["nosql_storage"] = ScyllaDBConfig.deserialize(data["nosql_storage"])
         return OpenWhiskFunctionConfig(**data)
 
     def serialize(self) -> dict:

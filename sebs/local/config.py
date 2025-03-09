@@ -2,7 +2,8 @@ from typing import cast, Optional, Set
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
-from sebs.storage.minio import MinioConfig
+from sebs.storage.resources import SelfHostedResources
+from sebs.storage.config import NoSQLStorageConfig, PersistentStorageConfig
 from sebs.utils import LoggingHandlers
 
 
@@ -21,38 +22,30 @@ class LocalCredentials(Credentials):
 """
 
 
-class LocalResources(Resources):
-    def __init__(self, storage_cfg: Optional[MinioConfig] = None):
+class LocalResources(SelfHostedResources):
+    def __init__(
+        self,
+        storage_cfg: Optional[PersistentStorageConfig] = None,
+        nosql_storage_cfg: Optional[NoSQLStorageConfig] = None,
+    ):
         self._path: str = ""
-        super().__init__(name="local")
-        self._storage = storage_cfg
+        super().__init__("local", storage_cfg, nosql_storage_cfg)
         self._allocated_ports: Set[int] = set()
-
-    @property
-    def storage_config(self) -> Optional[MinioConfig]:
-        return self._storage
 
     @property
     def allocated_ports(self) -> set:
         return self._allocated_ports
 
     def serialize(self) -> dict:
-        out: dict = {}
+        out = super().serialize()
+
         out["allocated_ports"] = list(self._allocated_ports)
-        if self._storage is not None:
-            out["storage"] = self._storage.serialize()
         return out
 
     @staticmethod
     def initialize(res: Resources, config: dict):
 
         resources = cast(LocalResources, res)
-        # Check for new config
-        if "storage" in config:
-            resources._storage = MinioConfig.deserialize(config["storage"])
-            resources.logging.info(
-                "Using user-provided configuration of storage for local containers."
-            )
 
         if "allocated_ports" in config:
             resources._allocated_ports = set(config["allocated_ports"])
@@ -62,14 +55,14 @@ class LocalResources(Resources):
         cache.update_config(
             val=list(self._allocated_ports), keys=["local", "resources", "allocated_ports"]
         )
-        if self._storage is not None:
-            self._storage.update_cache(["local", "resources", "storage"], cache)
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
         ret = LocalResources()
 
         cached_config = cache.get_config("local")
+        ret._deserialize(ret, config, cached_config)
+
         # Load cached values
         if cached_config and "resources" in cached_config:
             LocalResources.initialize(ret, cached_config["resources"])

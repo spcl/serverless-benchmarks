@@ -12,7 +12,17 @@ points for each platform.
 > [!WARNING]
 > On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through JSON input configuration, do not commit nor publish these files anywhere.
 
-### Architectures
+Supported platforms:
+* [Amazon Web Services (AWS) Lambda](#aws-lambda)
+* [Microsoft Azure Functions](#azure-functions)
+* [Google Cloud (GCP) Functions](#google-cloud-functions)
+* [OpenWhisk](#openwhisk)
+
+## Storage Configuration
+
+SeBS benchmarks rely on persistent object and NoSQL storage for input and output data. For configuration instructions regarding both object storage and NoSQL databases, please refer to the [storage documentation](storage.md). Storage configuration is particularly important for local deployments, OpenWhisk, and other open-source FaaS platforms.
+
+## Architectures
 
 By default, SeBS defaults functions built for the x64 (x86_64) architecture. On AWS, functions can also be build and deployed for ARM CPUs to benefit from Graviton CPUs available on Lambda.
 This change primarily affects functions that make use of dependencies with native builds, such as `torch`, `numpy` or `ffmpeg`.
@@ -22,7 +32,7 @@ However, special care is needed to build Docker containers: since installation o
 binaries based on ARM containers on x86 CPUs. To build multi-platform images, we recommend to follow official [Docker guidelines](https://docs.docker.com/build/building/multi-platform/#build-multi-platform-images) and provide static QEMU installation.
 On Ubuntu-based distributions, this requires installing an OS package and executing a single Docker command to provide seamless emulation of ARM containers.
 
-### Cloud Account Identifiers
+## Cloud Account Identifiers
 
 SeBS ensures that all locally cached cloud resources are valid by storing a unique identifier associated with each cloud account. Furthermore, we store this identifier in experiment results to easily match results with the cloud account or subscription that was used to obtain them. We use non-sensitive identifiers such as account IDs on AWS, subscription IDs on Azure, and Google Cloud project IDs.
 
@@ -135,6 +145,8 @@ The Google Cloud Free Tier gives free resources. It has two parts:
 - Always Free, which provides limited access to many common Google Cloud resources, free of charge.
 
 You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions. From the cloud problem, download the cloud credentials saved as a JSON file.
+You should have at least write access to **Cloud Functions** (`Cloud Functions Admin`) and **Logging** Furthermore, SeBS needs the permissions to create Firestore databases through
+Google Cloud CLI tool; the `Firestore Service Agent` role allows for that.
 
 You can pass the credentials either using the default GCP-specific environment variable:
 
@@ -169,6 +181,8 @@ in `config/example.json` under the key `['deployment']['openwhisk']`.
 In the subsections below, we discuss the meaning and use of each parameter.
 To correctly deploy SeBS functions to OpenWhisk, following the
 subsections on *Toolchain* and *Docker* configuration is particularly important.
+
+For storage configuration in OpenWhisk, refer to the [storage documentation](storage.md), which covers both object storage and NoSQL requirements specific to OpenWhisk deployments.
 
 > [!WARNING]
 > Some benchmarks might require larger memory allocations, e.g., 2048 MB. Not all OpenWhisk deployments support this out-of-the-box.
@@ -270,73 +284,7 @@ However, Docker's [experimental `manifest` feature](https://docs.docker.com/engi
 allows checking image status without downloading its contents, saving bandwidth and time.
 To use that feature in SeBS, set the `experimentalManifest` flag to true.
 
-### Storage 
+### Storage
 
-To provide persistent object storage in OpenWhisk, users must first deploy an instance
-of [`Minio`](https://github.com/minio/minio) storage.
-The storage instance is deployed as a Docker container, and it can be retained
-across many experiments.
-OpenWhisk functions must be able to reach the storage instance.
-Even on a local machine, it's necessary to configure the network address, as OpenWhisk functions
-are running isolated from the host network and won't be able to reach other containers running on the Docker bridge.
-
-Use the following command to deploy the storage instance locally and map the host public port 9011 to Minio instance.
-
-```bash
-./sebs.py storage start minio --port 9011 --output-json out_storage.json
-```
-
-The output will look similar to the one below.
-As we can see, the storage container is running on the default Docker bridge network with address `172.17.0.2` and uses port `9000`.
-From the host network, port `9011` is mapped to the container's port `9000` to allow external parties - such as OpenWhisk functions - to reach the storage.
-
-```
-{
-  "address": "172.17.0.2:9000",
-  "mapped_port": 9011,
-  "access_key": "XXX",
-  "secret_key": "XXX",
-  "instance_id": "XXX",
-  "input_buckets": [],
-  "output_buckets": [],
-  "type": "minio"
-}
-```
-
-The storage configuration found in `out_storage.json` needs to be provided to
-SeBS via the SeBS configuration, however the address in `out_storage.json` is likely incorrect.  By
-default, it is a address in the local bridge network not accessible to most of
-the Kubernetes cluster. It should be replaced with an external address of the
-machine and the mapped port. You can typically find an externally accessible address via `ip addr`.
-
-For example, for an external address `10.10.1.15` (a LAN-local address on CloudLab) and mapped port `9011`, set the SeBS configuration as follows:
-
-```
-jq --argfile file1 out_storage.json '.deployment.openwhisk.storage = $file1 | .deployment.openwhisk.storage.address = "10.10.1.15:9011"' config/example.json > config/openwhisk.json
-```
-
-You can validate this is the correct address by use `curl` to access the Minio instance from another machine or container:
-
-```
-$ curl -i 10.10.1.15:9011/minio/health/live
-HTTP/1.1 200 OK
-Accept-Ranges: bytes
-Content-Length: 0
-Content-Security-Policy: block-all-mixed-content
-Server: MinIO
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-Vary: Origin
-X-Amz-Request-Id: 16F3D9B9FDFFA340
-X-Content-Type-Options: nosniff
-X-Xss-Protection: 1; mode=block
-Date: Mon, 30 May 2022 10:01:21 GMT
-```
-
-The `shutdownStorage` switch controls the behavior of SeBS.
-When set to true, SeBS will remove the Minio instance after finishing all 
-work.
-Otherwise, the container will be retained, and future experiments with SeBS
-will automatically detect an existing Minio instance.
-Reusing the Minio instance helps run experiments faster and smoothly since
-SeBS does not have to re-upload function's data on each experiment.
-
+OpenWhisk has a `shutdownStorage` switch that controls the behavior of SeBS.
+When set to true, SeBS will remove the Minio instance after finishing all work.
