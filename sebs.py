@@ -459,8 +459,8 @@ def storage_stop(storage, input_json):
         config = storage_cfg.deserialize(cfg["object"][storage_type])
 
         logging.info(f"Stopping storage deployment of {storage_type}.")
-        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(config, None, None)
-        storage.stop()
+        storage_instance = sebs.SeBS.get_storage_implementation(storage_type).deserialize(config, None, None)
+        storage_instance.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 
     if storage in ["nosql", "all"]:
@@ -471,8 +471,8 @@ def storage_stop(storage, input_json):
         config = storage_cfg.deserialize(cfg["nosql"][storage_type])
 
         logging.info(f"Stopping nosql deployment of {storage_type}.")
-        storage = sebs.SeBS.get_nosql_implementation(storage_type).deserialize(config, None, None)
-        storage.stop()
+        storage_instance = sebs.SeBS.get_nosql_implementation(storage_type).deserialize(config, None, None)
+        storage_instance.stop()
         logging.info(f"Stopped nosql deployment of {storage_type}.")
 
 @cli.group()
