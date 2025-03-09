@@ -90,7 +90,7 @@ For example, for an external address `10.10.1.15` (a LAN-local address on CloudL
 jq --slurpfile file1 storage.json '.deployment.openwhisk.storage = $file1[0] | .deployment.openwhisk.storage.address = "10.10.1.15:9011"' config/example.json > config/openwhisk.json
 ```
 
-You can find your machine's externally accessible address using `ip addr` and validate the connection with:
+You can validate the configuration of Minio with an HTTP request by using `curl`:
 
 ```bash
 $ curl -i 10.10.1.15:9011/minio/health/live
