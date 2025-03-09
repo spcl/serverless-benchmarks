@@ -254,10 +254,7 @@ class Minio(PersistentStorage):
         raise NotImplementedError()
 
     def serialize(self) -> dict:
-        return {
-            **self._cfg.serialize(),
-            "type": StorageTypes.MINIO,
-        }
+        return self._cfg.serialize()
 
     """
         This implementation supports overriding this class.

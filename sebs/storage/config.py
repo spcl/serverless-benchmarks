@@ -79,7 +79,6 @@ class ScyllaDBConfig(NoSQLStorageConfig):
     memory: int = -1
     version: str = ""
     data_volume: str = ""
-    type: str = "nosql"
 
     def update_cache(self, path: List[str], cache: Cache):
 
