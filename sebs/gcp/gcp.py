@@ -732,15 +732,6 @@ class GCP(System):
         status_res = status_req.execute()
         return int(status_res["versionId"])
 
-    # @abstractmethod
-    # def get_invocation_error(self, function_name: str,
-    #   start_time: int, end_time: int):
-    #    pass
-
-    # @abstractmethod
-    # def download_metrics(self):
-    #    pass
-
     """
        Helper method for recursive_zip
 
