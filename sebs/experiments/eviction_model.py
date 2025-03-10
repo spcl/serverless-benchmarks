@@ -1,3 +1,15 @@
+"""Container eviction model experiment implementation.
+
+This module provides the EvictionModel experiment implementation, which
+measures how serverless platforms manage function container eviction.
+It determines how long idle containers are kept alive before being
+recycled by the platform, which affects cold start frequency.
+
+The experiment involves invoking functions at increasing time intervals
+and observing when cold starts occur, thus inferring the platform's
+container caching and eviction policies.
+"""
+
 import logging
 import os
 import time
@@ -17,45 +29,91 @@ if TYPE_CHECKING:
 
 
 class EvictionModel(Experiment):
+    """Container eviction model experiment.
+    
+    This experiment measures how serverless platforms manage function 
+    container eviction. It determines how long idle containers are kept 
+    alive before being recycled by the platform, which affects cold start 
+    frequency.
+    
+    The experiment invokes functions at different time intervals (defined
+    in the 'times' list) and observes when cold starts occur, thus inferring
+    the platform's container caching and eviction policies.
+    
+    Attributes:
+        times: List of time intervals (in seconds) between invocations
+        _function: Function to invoke
+        _trigger: Trigger to use for invocation
+        _out_dir: Directory for storing results
+        _deployment_client: Deployment client to use
+        _sebs_client: SeBS client
+    """
 
+    # Time intervals (in seconds) between invocations
+    # Uncomment additional intervals as needed for longer tests
     times = [
-        1,
-        # 2,
-        # 4,
-        # 8,
-        # 15,
-        # 30,
-        # 60,
-        # 120,
-        # 180,
-        # 240,
-        # 300,
-        # 360,
-        # 480,
-        # 600,
-        # 720,
-        # 900,
-        # 1080,
-        # 1200,
+        1,       # 1 second
+        # 2,     # 2 seconds
+        # 4,     # 4 seconds
+        # 8,     # 8 seconds
+        # 15,    # 15 seconds
+        # 30,    # 30 seconds
+        # 60,    # 1 minute
+        # 120,   # 2 minutes
+        # 180,   # 3 minutes
+        # 240,   # 4 minutes
+        # 300,   # 5 minutes
+        # 360,   # 6 minutes
+        # 480,   # 8 minutes
+        # 600,   # 10 minutes
+        # 720,   # 12 minutes
+        # 900,   # 15 minutes
+        # 1080,  # 18 minutes
+        # 1200,  # 20 minutes
     ]
     # TODO: temporal fix
     # function_copies_per_time = 5
     function_copies_per_time = 1
 
     def __init__(self, config: ExperimentConfig):
+        """Initialize a new EvictionModel experiment.
+        
+        Args:
+            config: Experiment configuration
+        """
         super().__init__(config)
 
     @staticmethod
     def name() -> str:
+        """Get the name of the experiment.
+        
+        Returns:
+            The name "eviction-model"
+        """
         return "eviction-model"
 
     @staticmethod
     def typename() -> str:
+        """Get the type name of the experiment.
+        
+        Returns:
+            The type name "Experiment.EvictionModel"
+        """
         return "Experiment.EvictionModel"
 
     @staticmethod
     def accept_replies(port: int, invocations: int):
-
+        """Accept TCP connections from functions and respond to them.
+        
+        This static method acts as a TCP server, accepting connections from
+        functions and responding to them. It runs two rounds of connection
+        acceptance to ensure functions receive a response. The method logs
+        all activity to a file.
+        
+        Args:
+            port: TCP port to listen on
+            invocations: Number of expected function invocations
+        """
         with open(f"server_{invocations}.log", "w") as f:
             import socket
 
@@ -177,21 +235,37 @@ class EvictionModel(Experiment):
         return final_results
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
-
+        """Prepare the experiment for execution.
+        
+        This method sets up the benchmark, functions, and output directory for 
+        the experiment. It creates a separate function for each time interval
+        and copy combination, allowing for parallel testing of different
+        eviction times.
+        
+        Args:
+            sebs_client: The SeBS client to use
+            deployment_client: The deployment client to use
+        """
+        # Get the server-reply benchmark
         self._benchmark = sebs_client.get_benchmark(
             "040.server-reply", deployment_client, self.config
         )
         self._deployment_client = deployment_client
         self._result = ExperimentResult(self.config, deployment_client.config)
+        
+        # Create function names for each time interval and copy
         name = deployment_client.default_function_name(self._benchmark)
         self.functions_names = [
             f"{name}-{time}-{copy}"
             for time in self.times
             for copy in range(self.function_copies_per_time)
         ]
+        
+        # Create output directory
         self._out_dir = os.path.join(sebs_client.output_dir, "eviction-model")
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
+            
         self.functions = []
 
         for fname in self.functions_names:

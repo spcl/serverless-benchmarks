@@ -1,3 +1,11 @@
+"""
+Module for handling benchmarks in the Serverless Benchmarking Suite (SeBS).
+
+This module provides classes for benchmark configuration, code packaging, and execution.
+It handles the preparation of code packages with dependencies for deployment to
+various serverless platforms, including caching mechanisms to avoid redundant builds.
+"""
+
 import glob
 import hashlib
 import json
@@ -23,9 +31,32 @@ if TYPE_CHECKING:
 
 
 class BenchmarkConfig:
+    """
+    Configuration for a benchmark in the Serverless Benchmarking Suite.
+    
+    This class stores the configuration parameters for a benchmark, including
+    timeout, memory allocation, supported languages, and included modules.
+    
+    Attributes:
+        timeout: Maximum execution time in seconds
+        memory: Memory allocation in MB
+        languages: List of supported programming languages
+        modules: List of benchmark modules/features required
+
+    """
+    
     def __init__(
         self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
     ):
+        """
+        Initialize a benchmark configuration.
+        
+        Args:
+            timeout: Maximum execution time in seconds
+            memory: Memory allocation in MB
+            languages: List of supported programming languages
+            modules: List of benchmark modules/features required
+        """
         self._timeout = timeout
         self._memory = memory
         self._languages = languages
@@ -33,31 +64,75 @@ class BenchmarkConfig:
 
     @property
     def timeout(self) -> int:
+        """
+        Get the maximum execution time in seconds.
+        
+        Returns:
+            int: The timeout value
+        """
         return self._timeout
 
     @timeout.setter
     def timeout(self, val: int):
+        """
+        Set the maximum execution time in seconds.
+        
+        Args:
+            val: The new timeout value
+        """
         self._timeout = val
 
     @property
     def memory(self) -> int:
+        """
+        Get the memory allocation in MB.
+        
+        Returns:
+            int: The memory allocation
+        """
         return self._memory
 
     @memory.setter
     def memory(self, val: int):
+        """
+        Set the memory allocation in MB.
+        
+        Args:
+            val: The new memory allocation value
+        """
         self._memory = val
 
     @property
     def languages(self) -> List["Language"]:
+        """
+        Get the list of supported programming languages.
+        
+        Returns:
+            List[Language]: Supported programming languages
+        """
         return self._languages
 
     @property
     def modules(self) -> List[BenchmarkModule]:
+        """
+        Get the list of benchmark modules/features required.
+        
+        Returns:
+            List[BenchmarkModule]: Required benchmark modules
+        """
         return self._modules
 
-    # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
+        """
+        Create a BenchmarkConfig instance from a JSON object.
+        
+        Args:
+            json_object: Dictionary containing benchmark configuration
+            
+        Returns:
+            BenchmarkConfig: A new instance with the deserialized data
+        """
         from sebs.faas.function import Language
 
         return BenchmarkConfig(
@@ -68,110 +143,270 @@ class BenchmarkConfig:
         )
 
 
-"""
-    Creates code package representing a benchmark with all code and assets
-    prepared and dependency install performed within Docker image corresponding
-    to the cloud deployment.
+class Benchmark(LoggingBase):
+    """
+    Creates code package representing a benchmark with all code and assets.
+    
+    This class handles building, packaging, and deploying benchmark code for
+    serverless platforms. It manages dependencies installation within Docker 
+    images corresponding to the target cloud deployment.
 
     The behavior of the class depends on cache state:
-    1)  First, if there's no cache entry, a code package is built.
-    2)  Otherwise, the hash of the entire benchmark is computed and compared
-        with the cached value. If changed, then rebuilt then benchmark.
-    3)  Otherwise, just return the path to cache code.
-"""
+    1. If there's no cache entry, a code package is built
+    2. Otherwise, the hash of the entire benchmark is computed and compared
+       with the cached value. If changed, it rebuilds the benchmark
+    3. Otherwise, it returns the path to cached code
+    
+    Attributes:
+        benchmark: Name of the benchmark
+        benchmark_path: Path to the benchmark directory
+        benchmark_config: Configuration for the benchmark
+        code_package: Dictionary with code package information
+        functions: Dictionary of functions for this benchmark
+        code_location: Location of the code package
+        is_cached: Whether the benchmark is cached
+        is_cached_valid: Whether the cached benchmark is valid
+        code_size: Size of the code package in bytes
+        container_uri: URI of the container for container deployments
+        language: Programming language for the benchmark
+        language_name: Name of the programming language
+        language_version: Version of the programming language
+        has_input_processed: Whether input processing has been performed
+        uses_storage: Whether the benchmark uses cloud storage
+        uses_nosql: Whether the benchmark uses NoSQL databases
+        architecture: CPU architecture of the deployment target
+        container_deployment: Whether using container deployment
 
+    """
 
-class Benchmark(LoggingBase):
     @staticmethod
     def typename() -> str:
+        """
+        Get the type name of this class.
+        
+        Returns:
+            str: The type name
+        """
         return "Benchmark"
 
     @property
-    def benchmark(self):
+    def benchmark(self) -> str:
+        """
+        Get the benchmark name.
+        
+        Returns:
+            str: Name of the benchmark
+        """
         return self._benchmark
 
     @property
-    def benchmark_path(self):
+    def benchmark_path(self) -> str:
+        """
+        Get the path to the benchmark directory.
+        
+        Returns:
+            str: Path to the benchmark directory
+        """
         return self._benchmark_path
 
     @property
     def benchmark_config(self) -> BenchmarkConfig:
+        """
+        Get the benchmark configuration.
+        
+        Returns:
+            BenchmarkConfig: Configuration for the benchmark
+        """
         return self._benchmark_config
 
     @property
     def code_package(self) -> dict:
+        """
+        Get the code package information.
+        
+        Returns:
+            dict: Dictionary with code package information
+        """
         return self._code_package
 
     @property
     def functions(self) -> Dict[str, Any]:
+        """
+        Get the functions for this benchmark.
+        
+        Returns:
+            Dict[str, Any]: Dictionary of functions
+        """
         return self._functions
 
     @property
-    def code_location(self):
+    def code_location(self) -> str:
+        """
+        Get the location of the code package.
+        
+        Returns:
+            str: Path to the code package
+        """
         if self.code_package:
             return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
         else:
             return self._code_location
 
     @property
-    def is_cached(self):
+    def is_cached(self) -> bool:
+        """
+        Check if the benchmark is cached.
+        
+        Returns:
+            bool: True if cached, False otherwise
+        """
         return self._is_cached
 
     @is_cached.setter
     def is_cached(self, val: bool):
+        """
+        Set whether the benchmark is cached.
+        
+        Args:
+            val: True if cached, False otherwise
+        """
         self._is_cached = val
 
     @property
-    def is_cached_valid(self):
+    def is_cached_valid(self) -> bool:
+        """
+        Check if the cached benchmark is valid.
+        
+        Returns:
+            bool: True if valid, False otherwise
+        """
         return self._is_cached_valid
 
     @is_cached_valid.setter
     def is_cached_valid(self, val: bool):
+        """
+        Set whether the cached benchmark is valid.
+        
+        Args:
+            val: True if valid, False otherwise
+        """
         self._is_cached_valid = val
 
     @property
-    def code_size(self):
+    def code_size(self) -> int:
+        """
+        Get the size of the code package in bytes.
+        
+        Returns:
+            int: Size in bytes
+        """
         return self._code_size
 
     @property
     def container_uri(self) -> str:
+        """
+        Get the URI of the container for container deployments.
+        
+        Returns:
+            str: Container URI
+            
+        Raises:
+            AssertionError: If container URI is None
+        """
         assert self._container_uri is not None
         return self._container_uri
 
     @property
     def language(self) -> "Language":
+        """
+        Get the programming language for the benchmark.
+        
+        Returns:
+            Language: Programming language
+        """
         return self._language
 
     @property
     def language_name(self) -> str:
+        """
+        Get the name of the programming language.
+        
+        Returns:
+            str: Name of the language
+        """
         return self._language.value
 
     @property
-    def language_version(self):
+    def language_version(self) -> str:
+        """
+        Get the version of the programming language.
+        
+        Returns:
+            str: Version of the language
+        """
         return self._language_version
 
     @property
     def has_input_processed(self) -> bool:
+        """
+        Check if input processing has been performed.
+        
+        Returns:
+            bool: True if processed, False otherwise
+        """
         return self._input_processed
 
     @property
     def uses_storage(self) -> bool:
+        """
+        Check if the benchmark uses cloud storage.
+        
+        Returns:
+            bool: True if using storage, False otherwise
+        """
         return self._uses_storage
 
     @property
     def uses_nosql(self) -> bool:
+        """
+        Check if the benchmark uses NoSQL databases.
+        
+        Returns:
+            bool: True if using NoSQL, False otherwise
+        """
         return self._uses_nosql
 
     @property
     def architecture(self) -> str:
+        """
+        Get the CPU architecture of the deployment target.
+        
+        Returns:
+            str: Architecture name (e.g., 'x86_64', 'arm64')
+        """
         return self._architecture
 
     @property
-    def container_deployment(self):
+    def container_deployment(self) -> bool:
+        """
+        Check if using container deployment.
+        
+        Returns:
+            bool: True if using container deployment, False otherwise
+        """
         return self._container_deployment
 
     @property  # noqa: A003
-    def hash(self):
+    def hash(self) -> str:
+        """
+        Get the hash of the benchmark code.
+        
+        Computes an MD5 hash of the benchmark directory to determine if
+        the code has changed since the last build.
+        
+        Returns:
+            str: MD5 hash as a hexadecimal string
+        """
         path = os.path.join(self.benchmark_path, self.language_name)
         self._hash_value = Benchmark.hash_directory(path, self._deployment_name, self.language_name)
         return self._hash_value
@@ -179,7 +414,12 @@ class Benchmark(LoggingBase):
     @hash.setter  # noqa: A003
     def hash(self, val: str):
         """
+        Set the hash of the benchmark code.
+        
         Used only for testing purposes.
+        
+        Args:
+            val: MD5 hash as a hexadecimal string
         """
         self._hash_value = val
 
@@ -193,6 +433,25 @@ class Benchmark(LoggingBase):
         cache_client: Cache,
         docker_client: docker.client,
     ):
+        """
+        Initialize a Benchmark instance.
+        
+        Sets up a benchmark for a specific deployment platform, including configuration,
+        language runtime, and caching. Loads the benchmark configuration from the JSON file
+        and validates the language support.
+        
+        Args:
+            benchmark: Name of the benchmark
+            deployment_name: Name of the deployment platform (e.g., 'aws', 'azure')
+            config: Experiment configuration
+            system_config: SeBs system configuration
+            output_dir: Directory for output files
+            cache_client: Cache client for caching code packages
+            docker_client: Docker client for building dependencies
+            
+        Raises:
+            RuntimeError: If the benchmark is not found or doesn't support the language
+        """
         super().__init__()
         self._benchmark = benchmark
         self._deployment_name = deployment_name
@@ -232,7 +491,6 @@ class Benchmark(LoggingBase):
             self._is_cached_valid = False
 
         # Load input module
-
         self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
         self._benchmark_input_module = load_benchmark_input(self._benchmark_path)
 
@@ -241,13 +499,23 @@ class Benchmark(LoggingBase):
         self._uses_storage: bool = False
         self._uses_nosql: bool = False
 
-    """
-        Compute MD5 hash of an entire directory.
-    """
-
     @staticmethod
-    def hash_directory(directory: str, deployment: str, language: str):
-
+    def hash_directory(directory: str, deployment: str, language: str) -> str:
+        """
+        Compute MD5 hash of an entire directory.
+        
+        Calculates a hash of the benchmark source code by combining hashes of all
+        relevant files. This includes language-specific files, deployment wrappers,
+        and shared files like shell scripts and JSON configuration.
+        
+        Args:
+            directory: Path to the directory to hash
+            deployment: Name of the deployment platform
+            language: Programming language name
+            
+        Returns:
+            str: MD5 hash as a hexadecimal string
+        """
         hash_sum = hashlib.md5()
         FILES = {
             "python": ["*.py", "requirements.txt*"],
@@ -272,10 +540,22 @@ class Benchmark(LoggingBase):
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:
+        """
+        Serialize the benchmark to a dictionary.
+        
+        Returns:
+            dict: Dictionary containing size and hash of the benchmark code
+        """
         return {"size": self.code_size, "hash": self.hash}
 
-    def query_cache(self):
-
+    def query_cache(self) -> None:
+        """
+        Query the cache for existing benchmark code packages and functions.
+        
+        Checks if there's a cached code package or container for this benchmark
+        and deployment combination. Updates the cache status fields based on
+        whether the cache exists and if it's still valid (hash matches).
+        """
         if self.container_deployment:
             self._code_package = self._cache_client.get_container(
                 deployment=self._deployment_name,

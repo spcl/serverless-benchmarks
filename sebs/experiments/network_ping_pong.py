@@ -1,3 +1,16 @@
+"""Network latency and throughput measurement experiment implementation.
+
+This module provides the NetworkPingPong experiment implementation, which
+measures network latency and throughput characteristics between client and
+serverless functions, as well as between serverless functions and storage
+services. It can determine:
+
+- Client-to-function latency
+- Function-to-storage latency
+- Network throughput for different payload sizes
+- Variation in network performance over time
+"""
+
 import csv
 import socket
 import os
@@ -20,35 +33,79 @@ if TYPE_CHECKING:
 
 
 class NetworkPingPong(Experiment):
+    """Network latency and throughput measurement experiment.
+    
+    This experiment measures the network performance characteristics
+    between the client, serverless functions, and storage services.
+    It can measure ping-pong latency and throughput with different
+    payload sizes and concurrency levels.
+    
+    Attributes:
+        benchmark_input: Input configuration for the benchmark
+        _storage: Storage service to use for testing
+        _function: Function to invoke
+        _triggers: Dictionary of triggers by type
+        _out_dir: Directory for storing results
+        _deployment_client: Deployment client to use
+        _sebs_client: SeBS client
+    """
+    
     def __init__(self, config: ExperimentConfig):
+        """Initialize a new NetworkPingPong experiment.
+        
+        Args:
+            config: Experiment configuration
+        """
         super().__init__(config)
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
-
+        """Prepare the experiment for execution.
+        
+        This method sets up the benchmark, function, triggers, storage, and output
+        directory for the experiment. It creates or gets the function and
+        its HTTP trigger, and prepares the input data for the benchmark.
+        
+        Args:
+            sebs_client: The SeBS client to use
+            deployment_client: The deployment client to use
+        """
+        # Get the network benchmark
         benchmark = sebs_client.get_benchmark(
             "020.network-benchmark", deployment_client, self.config
         )
 
+        # Prepare benchmark input
         self.benchmark_input = benchmark.prepare_input(
             deployment_client.system_resources, size="test", replace_existing=True
         )
+        
+        # Get storage for testing storage latency
         self._storage = deployment_client.system_resources.get_storage(replace_existing=True)
 
+        # Get or create function
         self._function = deployment_client.get_function(benchmark)
 
+        # Create output directory
         self._out_dir = os.path.join(sebs_client.output_dir, "network-ping-pong")
         if not os.path.exists(self._out_dir):
             # shutil.rmtree(self._out_dir)
             os.mkdir(self._out_dir)
 
+        # Make sure there's an HTTP trigger
         triggers = self._function.triggers(Trigger.TriggerType.HTTP)
         if len(triggers) == 0:
             deployment_client.create_trigger(self._function, Trigger.TriggerType.HTTP)
 
     def run(self):
-
+        """Run the network ping-pong experiment.
+        
+        This method executes the experiment, measuring network latency and 
+        throughput between the client and the serverless function. It first
+        determines the client's public IP address to include in the results.
+        """
         from requests import get
 
+        # Get the client's public IP address
         ip = get("http://checkip.amazonaws.com/").text.rstrip()
         settings = self.config.experiment_settings(self.name())
         invocations = settings["invocations"]
@@ -67,8 +124,16 @@ class NetworkPingPong(Experiment):
         self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
 
     def process(self, directory: str):
-
-        full_data: Dict[str, pd.Dataframe] = {}
+        """Process the experiment results.
+        
+        This method processes the CSV files generated during the experiment
+        execution, computes round-trip times (RTT), and generates summary
+        statistics and a histogram of the RTT distribution.
+        
+        Args:
+            directory: Directory containing the experiment results
+        """
+        full_data: Dict[str, pd.DataFrame] = {}
         for f in glob.glob(os.path.join(directory, "network-ping-pong", "*.csv")):
 
             request_id = os.path.basename(f).split("-", 1)[1].split(".")[0]
@@ -94,7 +159,17 @@ class NetworkPingPong(Experiment):
         fig.savefig(os.path.join(directory, "histogram.png"))
 
     def receive_datagrams(self, repetitions: int, port: int, ip: str):
-
+        """Receive UDP datagrams from the function and respond to them.
+        
+        This method acts as a UDP server, receiving datagrams from the function
+        and responding to them. It measures the timestamps of packet reception
+        and response, and records them for later analysis.
+        
+        Args:
+            repetitions: Number of repetitions to execute
+            port: UDP port to listen on
+            ip: IP address to include in the function invocation input
+        """
         print(f"Starting invocation with {repetitions} repetitions on port {port}")
         socket.setdefaulttimeout(2)
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -143,8 +218,18 @@ class NetworkPingPong(Experiment):
 
     @staticmethod
     def name() -> str:
+        """Get the name of the experiment.
+        
+        Returns:
+            The name "network-ping-pong"
+        """
         return "network-ping-pong"
 
     @staticmethod
     def typename() -> str:
+        """Get the type name of the experiment.
+        
+        Returns:
+            The type name "Experiment.NetworkPingPong"
+        """
         return "Experiment.NetworkPingPong"

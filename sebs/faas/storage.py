@@ -204,7 +204,6 @@ class PersistentStorage(ABC, LoggingBase):
 
         return self.input_prefixes, self.output_prefixes
 
-
     def get_bucket(self, bucket_type: Resources.StorageBucketType) -> str:
 
         bucket = self._cloud_resources.get_storage_bucket(bucket_type)

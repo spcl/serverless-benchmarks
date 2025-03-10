@@ -1,3 +1,18 @@
+"""Invocation overhead measurement experiment implementation.
+
+This module provides the InvocationOverhead experiment implementation, which
+measures the overhead associated with invoking serverless functions. It can
+measure:
+
+- Overhead of different invocation methods (HTTP, SDK)
+- Impact of code package size on deployment and invocation time
+- Overhead of different input data sizes
+- Cold vs. warm start invocation times
+
+The experiment is designed to help identify performance bottlenecks and
+optimize function deployment and invocation.
+"""
+
 import csv
 import os
 import random
@@ -15,10 +30,33 @@ if TYPE_CHECKING:
 
 
 class CodePackageSize:
+    """Helper class for code package size experiments.
+    
+    This class handles creating and deploying functions with different code
+    package sizes to measure the impact of package size on deployment and
+    invocation overhead.
+    
+    Attributes:
+        _benchmark_path: Path to the benchmark code
+        _benchmark: Benchmark instance
+        _deployment_client: Deployment client to use
+        sizes: List of code package sizes to test
+        functions: Dictionary mapping size to function instances
+    """
+    
     def __init__(self, deployment_client: FaaSSystem, benchmark: Benchmark, settings: dict):
+        """Initialize a new code package size experiment.
+        
+        Args:
+            deployment_client: Deployment client to use
+            benchmark: Benchmark instance
+            settings: Experiment settings with code_package_begin, code_package_end,
+                     and code_package_points values
+        """
         import math
         from numpy import linspace
 
+        # Generate code package sizes to test
         points = linspace(
             settings["code_package_begin"],
             settings["code_package_end"],
@@ -26,6 +64,7 @@ class CodePackageSize:
         )
         from sebs.utils import find_benchmark
 
+        # Use the clock synchronization benchmark as a base
         self._benchmark_path = find_benchmark("030.clock-synchronization", "benchmarks")
         self._benchmark = benchmark
         random.seed(1410)
@@ -65,23 +104,59 @@ class PayloadSize:
 
 
 class InvocationOverhead(Experiment):
+    """Invocation overhead measurement experiment.
+    
+    This experiment measures the overhead associated with invoking serverless
+    functions. It can measure the impact of code package size, input data size,
+    and different invocation methods on performance.
+    
+    Attributes:
+        settings: Experiment-specific settings
+        _benchmark: Benchmark to use
+        benchmark_input: Input data for the benchmark
+        _storage: Storage service to use
+        _function: Function to invoke
+        _code_package: Code package size experiment helper
+        _out_dir: Directory for storing results
+        _deployment_client: Deployment client to use
+        _sebs_client: SeBS client
+    """
+    
     def __init__(self, config: ExperimentConfig):
+        """Initialize a new InvocationOverhead experiment.
+        
+        Args:
+            config: Experiment configuration
+        """
         super().__init__(config)
         self.settings = self.config.experiment_settings(self.name())
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
-
-        # deploy network test function
+        """Prepare the experiment for execution.
+        
+        This method sets up the benchmark, function, storage, and output directory
+        for the experiment. It uses the clock-synchronization benchmark as a base
+        and prepares the necessary resources for measuring invocation overhead.
+        
+        Args:
+            sebs_client: The SeBS client to use
+            deployment_client: The deployment client to use
+        """
+        # Import needed modules
         from sebs import SeBS  # noqa
         from sebs.faas.function import Trigger
 
+        # Get the clock-synchronization benchmark
         self._benchmark = sebs_client.get_benchmark(
             "030.clock-synchronization", deployment_client, self.config
         )
 
+        # Prepare benchmark input
         self.benchmark_input = self._benchmark.prepare_input(
             deployment_client.system_resources, size="test", replace_existing=True
         )
+        
+        # Get storage for testing
         self._storage = deployment_client.system_resources.get_storage(replace_existing=True)
 
         self._function = deployment_client.get_function(self._benchmark)
@@ -306,8 +381,18 @@ class InvocationOverhead(Experiment):
 
     @staticmethod
     def name() -> str:
+        """Get the name of the experiment.
+        
+        Returns:
+            The name "invocation-overhead"
+        """
         return "invocation-overhead"
 
     @staticmethod
     def typename() -> str:
+        """Get the type name of the experiment.
+        
+        Returns:
+            The type name "Experiment.InvocOverhead"
+        """
         return "Experiment.InvocOverhead"
