@@ -110,14 +110,14 @@ class OpenWhisk(System):
             directory, language_name, language_version, architecture, benchmark, is_cached
         )
 
-        # We deploy Minio config in code package since this depends on local
-        # deployment - it cannnot be a part of Docker image
-        CONFIG_FILES = {
-            "python": ["__main__.py"],
-            "nodejs": ["index.js"],
-            "java": ["Main.java"],
-        }
-        package_config = CONFIG_FILES[language_name]
+        if language_name != 'java':
+            # We deploy Minio config in code package since this depends on local
+            # deployment - it cannnot be a part of Docker image
+            CONFIG_FILES = {
+                "python": ["__main__.py"],
+                "nodejs": ["index.js"],
+            }
+            package_config = CONFIG_FILES[language_name]
 
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(
@@ -208,6 +208,25 @@ class OpenWhisk(System):
                         code_package.language_version,
                         code_package.architecture,
                     )
+                    run_arguments = [
+                                *self.get_wsk_cmd(),
+                                "action",
+                                "create",
+                                func_name,
+                                "--web",
+                                "true",
+                                "--docker",
+                                docker_image,
+                                "--memory",
+                                str(code_package.benchmark_config.memory),
+                                "--timeout",
+                                str(code_package.benchmark_config.timeout * 1000),
+                                *self.storage_arguments(),
+                                code_package.code_location,
+                            ]
+                    if code_package.language_name == 'java':               
+                        run_arguments.extend(["--main", "Main"])
+                    
                     subprocess.run(
                         [
                             *self.get_wsk_cmd(),
@@ -229,6 +248,7 @@ class OpenWhisk(System):
                         stdout=subprocess.PIPE,
                         check=True,
                     )
+                    
                     function_cfg.docker_image = docker_image
                     res = OpenWhiskFunction(
                         func_name, code_package.benchmark, code_package.hash, function_cfg
