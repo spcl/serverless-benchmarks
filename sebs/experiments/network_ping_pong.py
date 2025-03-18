@@ -61,7 +61,7 @@ class NetworkPingPong(Experiment):
         time.sleep(5)
         self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
 
-    def process(self, directory: str):
+    def process(self, sebs_client, deployment_client, directory, logging_filename, extend_time_interval):
 
         full_data: Dict[str, pd.Dataframe] = {}
         for f in glob.glob(os.path.join(directory, "network-ping-pong", "*.csv")):
