@@ -1,5 +1,4 @@
 import faas.App;
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import java.time.Instant;
 import java.time.Duration;
@@ -7,14 +6,9 @@ import java.io.File;
 import java.io.IOException;
 
 
-
 public class Main {
     public static JsonObject main(JsonObject args) {
-
-        // Logger logger = Logger.getLogger(FunctionHandler.class.getName());
-        // logger.setLevel(Level.INFO);
         
-        Gson gson = new Gson();
         App function = new App();
 
         long start_nano = System.nanoTime();
