@@ -1,7 +1,11 @@
 package faas;
+import com.google.gson.JsonObject;
 
 public class App {
-    public static void main(String[] args) {
-        System.out.println("Hellooooooooooooooooooo, World!");
+    public JsonObject handler(JsonObject args) {
+
+        JsonObject jsonResult = new JsonObject();
+        jsonResult.addProperty("Hello", "World");
+        return jsonResult;
     }
 }
