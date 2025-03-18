@@ -315,6 +315,8 @@ class Benchmark(LoggingBase):
             self._is_cached_valid = False
 
     def copy_code(self, output_dir):
+        from sebs.faas.function import Language
+
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
@@ -327,7 +329,7 @@ class Benchmark(LoggingBase):
                 shutil.copy2(os.path.join(path, f), output_dir)
 
         # copy src folder of java (java benchmarks are maven project and need directories)
-        if self.language_name == "java":
+        if self.language == Language.JAVA:
            output_src_dir = os.path.join(output_dir, "src")
            
            if os.path.exists(output_src_dir):
@@ -343,8 +345,8 @@ class Benchmark(LoggingBase):
 
     #This is for making jar file and add it to docker directory
     def add_java_output(self, code_dir):
-
-        if self.language_name == "java":
+        from sebs.faas.function import Language
+        if self.language == Language.JAVA:
 
             # Step 1: Move Main.java o src directory
             src_dir = os.path.join(code_dir, "src", "main", "java")
