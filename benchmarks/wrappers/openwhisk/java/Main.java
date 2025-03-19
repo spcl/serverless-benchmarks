@@ -23,7 +23,7 @@ public class Main {
 
         long computeTime = end_nano - start_nano;
         boolean isCold = false;
-        String fileName = "/cold_run"; 
+        String fileName = "/tmp/cold_run"; 
 
         File file = new File(fileName);
         if (!file.exists()) {
