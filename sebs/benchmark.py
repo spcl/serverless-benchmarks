@@ -430,11 +430,10 @@ class Benchmark(LoggingBase):
             )
         else:
             repo_name = self._system_config.docker_repository()
-            image_name = "build.{deployment}.{language}.{runtime}-{version}".format(
+            image_name = "build.{deployment}.{language}.{runtime}".format(
                 deployment=self._deployment_name,
                 language=self.language_name,
                 runtime=self.language_version,
-                version=self._system_config.version(),
             )
             try:
                 self._docker_client.images.get(repo_name + ":" + image_name)

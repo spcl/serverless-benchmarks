@@ -46,9 +46,6 @@ class SeBSConfig:
     ) -> List[str]:
         languages = self._system_config.get(deployment_name, {}).get("languages", {})
         base_images = languages.get(language_name, {}).get("base_images", {})
-
-        if deployment_name == "local":
-            return list(base_images.keys())
         return list(base_images.get(architecture, {}).keys())
 
     def supported_architecture(self, deployment_name: str) -> List[str]:
