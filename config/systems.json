@@ -64,6 +64,26 @@
           ],
           "packages": []
         }
+      },
+      "go": {
+        "base_images": {
+          "x64": {
+            "1.22": "golang:1.22",
+            "1.23": "golang:1.23",
+            "1.24": "golang:1.24"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.go",
+            "storage.go"
+          ],
+          "packages": []
+        }
       }
     },
     "architecture": ["x64"],
@@ -120,6 +140,23 @@
           "packages": {
             "uuid": "3.4.0"
           }
+        }
+      },
+      "golang": {
+        "base_images": {
+          "x64": {
+            "1" : "amazon/aws-lambda-go:1.2024.10.04.19"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "handler.go",
+            "storage.go"
+          ],
+          "packages": []
         }
       }
     },
@@ -180,6 +217,26 @@
             "@azure/storage-blob": "^12.0.0",
             "uuid": "3.4.0"
           }
+        }
+      },
+      "golang": {
+        "base_images": {
+          "x64": {
+            "1.22": "mcr.microsoft.com/devcontainers/go:1.4-1.22",
+            "1.23": "mcr.microsoft.com/devcontainers/go:1.4-1.23",
+            "1.24": "mcr.microsoft.com/devcontainers/go:1.4-1.24"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.go",
+            "storage.go"
+          ],
+          "packages": []
         }
       }
     },
@@ -250,6 +307,26 @@
             "uuid": "3.4.0"
           }
         }
+      },
+      "golang": {
+        "base_images": {
+          "x64": {
+            "1.22": "ubuntu:22.04",
+            "1.23": "ubuntu:22.04",
+            "1.24": "ubuntu:22.04"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.go",
+            "storage.go"
+          ],
+          "packages": []
+        }
       }
     },
     "images": {
@@ -315,6 +392,26 @@
           "packages": {
             "minio": "7.0.16"
           }
+        }
+      },
+      "golang": {
+        "base_images": {
+          "x64": {
+            "1.21": "openwhisk/action-golang-v1.21",
+            "1.22": "openwhisk/action-golang-v1.22",
+            "1.23": "openwhisk/action-golang-v1.23"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.go",
+            "storage.go"
+          ],
+          "packages": []
         }
       }
     },
