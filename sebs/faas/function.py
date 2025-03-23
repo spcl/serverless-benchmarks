@@ -263,6 +263,7 @@ class Trigger(ABC, LoggingBase):
 class Language(Enum):
     PYTHON = "python"
     NODEJS = "nodejs"
+    GOLANG = "golang"
 
     # FIXME: 3.7+ python with future annotations
     @staticmethod
