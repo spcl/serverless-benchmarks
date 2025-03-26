@@ -100,7 +100,7 @@ class Minio(PersistentStorage):
                     "MINIO_SECRET_KEY": self._cfg.secret_key,
                 },
                 volumes=volumes,
-                remove=True,
+                remove=self.config.remove_containers,
                 stdout=True,
                 stderr=True,
                 detach=True,

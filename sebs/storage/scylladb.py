@@ -93,7 +93,7 @@ class ScyllaDB(NoSQLStorage):
                 network_mode="bridge",
                 volumes=volumes,
                 ports={"8000": str(self._cfg.mapped_port)},
-                remove=True,
+                remove=self.config.remove_containers,
                 stdout=True,
                 stderr=True,
                 detach=True,

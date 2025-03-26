@@ -334,6 +334,51 @@ def process(**kwargs):
         out_f.write(sebs.utils.serialize(experiments))
     sebs_client.logging.info("Save results to {}".format(output_file))
 
+@benchmark.command()
+@click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
+@click.option(
+    "--function-name",
+    default=None,
+    type=str,
+    help="Override function name for random generation.",
+)
+@click.option(
+    "--image-tag-prefix",
+    default=None,
+    type=str,
+    help="Attach prefix to generated Docker image tag.",
+)
+@common_params
+def package(
+    benchmark,
+    function_name,
+    image_tag_prefix,
+    **kwargs,
+):
+
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    if image_tag_prefix is not None:
+        sebs_client.config.image_tag_prefix = image_tag_prefix
+
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    update_nested_dict(config, ["experiments", "benchmark"], benchmark)
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+
+    func = deployment_client.build_function(
+        benchmark_obj,
+        function_name if function_name else deployment_client.default_function_name(benchmark_obj)
+    )
 
 @benchmark.command()
 @click.argument(
@@ -390,7 +435,12 @@ def storage():
 @click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
 @click.argument("config", type=click.Path(dir_okay=False, readable=True))
 @click.option("--output-json", type=click.Path(dir_okay=False, writable=True), default=None)
-def storage_start(storage, config, output_json):
+@click.option(
+    "--remove-containers/--no-remove-containers",
+    default=True,
+    help="Remove containers after stopping.",
+)
+def storage_start(storage, config, output_json, remove_containers):
 
     import docker
 
@@ -405,6 +455,7 @@ def storage_start(storage, config, output_json):
         storage_type = sebs.SeBS.get_storage_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
+        config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, None, True)
         storage_instance.config = config
@@ -423,6 +474,7 @@ def storage_start(storage, config, output_json):
         storage_type = sebs.SeBS.get_nosql_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_nosql_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["nosql"][storage_type_name])
+        config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, config)
 

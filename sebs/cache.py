@@ -319,6 +319,8 @@ class Cache(LoggingBase):
                         config = cached_config
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
+
+                self.logging.info(f"Updating cached code package {cached_location}")
             else:
                 # TODO: update
                 raise RuntimeError(
@@ -389,6 +391,7 @@ class Cache(LoggingBase):
 
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
+                self.logging.info(f"Updated cached code package {cached_location}")
             else:
                 self.add_code_package(deployment_name, code_package)
 
