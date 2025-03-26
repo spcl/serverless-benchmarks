@@ -76,6 +76,7 @@ class MinioConfig(PersistentStorageConfig):
     version: str = ""
     data_volume: str = ""
     type: str = "minio"
+    remove_containers: bool = False
 
     def update_cache(self, path: List[str], cache: Cache) -> None:
         """Update the cache with this configuration's values.
@@ -196,6 +197,7 @@ class ScyllaDBConfig(NoSQLStorageConfig):
     memory: int = -1
     version: str = ""
     data_volume: str = ""
+    remove_containers: bool = False
 
     def update_cache(self, path: List[str], cache: Cache) -> None:
         """Update the cache with this configuration's values.
