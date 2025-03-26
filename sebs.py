@@ -435,7 +435,12 @@ def storage():
 @click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
 @click.argument("config", type=click.Path(dir_okay=False, readable=True))
 @click.option("--output-json", type=click.Path(dir_okay=False, writable=True), default=None)
-def storage_start(storage, config, output_json):
+@click.option(
+    "--remove-containers/--no-remove-containers",
+    default=True,
+    help="Remove containers after stopping.",
+)
+def storage_start(storage, config, output_json, remove_containers):
 
     import docker
 
@@ -450,6 +455,7 @@ def storage_start(storage, config, output_json):
         storage_type = sebs.SeBS.get_storage_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
+        config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, None, True)
         storage_instance.config = config
@@ -468,6 +474,7 @@ def storage_start(storage, config, output_json):
         storage_type = sebs.SeBS.get_nosql_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_nosql_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["nosql"][storage_type_name])
+        config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, config)
 
