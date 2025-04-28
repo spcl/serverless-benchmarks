@@ -5,16 +5,16 @@ FROM ${BASE_IMAGE}
 ARG GO_VERSION=1.23.0
 ARG TARGETARCH=amd64
 
-#######################################
-# Install required utilities
-RUN yum install -y shadow-utils wget ca-certificates tar zip
-
-# Install gosu for running commands as another user
-ENV GOSU_VERSION 1.14
-# https://github.com/tianon/gosu/releases/tag/1.14
-# key https://keys.openpgp.org/search?q=tianon%40debian.org
-RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-amd64" \
-    && chmod +x /usr/local/bin/gosu
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    wget \
+    ca-certificates \
+    tar \
+    zip \
+    gosu \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Download and install Go
 RUN wget -q "https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" -O go.tar.gz && \
@@ -36,9 +36,9 @@ COPY dockerfiles/golang_installer.sh /sebs/installer.sh
 COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/installer.sh /sebs/entrypoint.sh
 
-# useradd and groupmod is installed in /usr/sbin which is not in PATH
-ENV PATH=/usr/sbin:${PATH}
-ENV SCRIPT_FILE=/mnt/function/package.sh
+# Add /usr/sbin to PATH (for useradd and groupmod)
+ENV PATH="/usr/sbin:${PATH}"
+ENV SCRIPT_FILE="/mnt/function/package.sh"
 
 # Set the entry point and command
 ENTRYPOINT ["/sebs/entrypoint.sh"]

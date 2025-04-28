@@ -8,5 +8,5 @@ python-venv
 regression-*
 *_code
 
-# ignore, will building docker image
+# ignore, while building docker image
 scylladb-volume/
