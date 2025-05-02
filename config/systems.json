@@ -79,7 +79,6 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "handler.go",
             "storage.go"
           ],
           "packages": []
