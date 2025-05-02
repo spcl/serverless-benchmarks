@@ -68,9 +68,9 @@
       "golang": {
         "base_images": {
           "x64": {
-            "1.22": "golang:1.22",
-            "1.23": "golang:1.23",
-            "1.24": "golang:1.24"
+            "1.22.0": "golang:1.22",
+            "1.23.0": "golang:1.23",
+            "1.24.0": "golang:1.24"
           }
         },
         "images": [
@@ -222,9 +222,9 @@
       "golang": {
         "base_images": {
           "x64": {
-            "1.22": "mcr.microsoft.com/devcontainers/go:1.4-1.22",
-            "1.23": "mcr.microsoft.com/devcontainers/go:1.4-1.23",
-            "1.24": "mcr.microsoft.com/devcontainers/go:1.4-1.24"
+            "1.22.0": "mcr.microsoft.com/devcontainers/go:1.4-1.22",
+            "1.23.0": "mcr.microsoft.com/devcontainers/go:1.4-1.23",
+            "1.24.0": "mcr.microsoft.com/devcontainers/go:1.4-1.24"
           }
         },
         "images": [
@@ -311,9 +311,9 @@
       "golang": {
         "base_images": {
           "x64": {
-            "1.22": "ubuntu:22.04",
-            "1.23": "ubuntu:22.04",
-            "1.24": "ubuntu:22.04"
+            "1.22.0": "ubuntu:22.04",
+            "1.23.0": "ubuntu:22.04",
+            "1.24.0": "ubuntu:22.04"
           }
         },
         "images": [
@@ -397,9 +397,9 @@
       "golang": {
         "base_images": {
           "x64": {
-            "1.21": "openwhisk/action-golang-v1.21",
-            "1.22": "openwhisk/action-golang-v1.22",
-            "1.23": "openwhisk/action-golang-v1.23"
+            "1.21.0": "openwhisk/action-golang-v1.21",
+            "1.22.0": "openwhisk/action-golang-v1.22",
+            "1.23.0": "openwhisk/action-golang-v1.23"
           }
         },
         "images": [

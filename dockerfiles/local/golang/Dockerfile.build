@@ -2,7 +2,8 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
 # Define Go version as build argument with default
-ARG GO_VERSION=1.23.0
+ARG VERSION
+ENV GO_VERSION=${VERSION}
 ARG TARGETARCH=amd64
 
 # Install dependencies
