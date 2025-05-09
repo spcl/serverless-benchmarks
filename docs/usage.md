@@ -84,8 +84,7 @@ instance. The `.deployment.local` object in the configuration JSON must contain 
 this automatically with a single command by using `jq`:
 
 ```bash
-jq '.deployment.local.storage = input' config/example.json out_storage.json | \
-jq '.experiments.architecture = "x64"' > config/local_deployment.json
+jq '.deployment.local.storage = input' config/example.json out_storage.json > config/local_deployment.json
 ```
 
 The output file will contain a JSON object that should look similar to this one:
@@ -136,7 +135,7 @@ The output file will contain a JSON object that should look similar to this one:
 To launch Docker containers, use the following command - this example launches benchmark `110.dynamic-html` with size `test`:
 
 ```bash
-./sebs.py local start 110.dynamic-html test out_benchmark.json --config config/local_deployment.json --deployments 1 --remove-containers
+./sebs.py local start 110.dynamic-html test out_benchmark.json --config config/local_deployment.json --deployments 1 --remove-containers --architecture=x64
 ```
 
 The output file `out_benchmark.json` will contain the information on containers deployed and the endpoints that can be used to invoke functions:
