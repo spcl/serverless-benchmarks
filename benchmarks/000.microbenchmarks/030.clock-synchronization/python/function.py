@@ -1,5 +1,6 @@
 import csv
 import json
+import os
 import socket
 from datetime import datetime
 from time import sleep
@@ -12,7 +13,8 @@ def handler(event):
     address = event['server-address']
     port = event['server-port']
     repetitions = event['repetitions']
-    output_bucket = event.get('output-bucket')
+    output_bucket = event.get('bucket').get('bucket')
+    output_prefix = event.get('bucket').get('output')
     times = []
     print("Starting communication with {}:{}".format(address, port))
     i = 0
@@ -64,7 +66,8 @@ def handler(event):
                 writer.writerow(row)
       
         client = storage.storage.get_instance()
-        key = client.upload(output_bucket, 'results-{}.csv'.format(request_id), '/tmp/data.csv')
+        filename = 'results-{}.csv'.format(request_id)
+        key = client.upload(output_bucket, os.path.join(output_prefix, filename), '/tmp/data.csv')
     else:
         key = None
 
