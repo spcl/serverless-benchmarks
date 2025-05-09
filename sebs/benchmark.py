@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 class BenchmarkConfig:
     def __init__(
-            self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
+        self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
     ):
         self._timeout = timeout
         self._memory = memory
@@ -184,14 +184,14 @@ class Benchmark(LoggingBase):
         self._hash_value = val
 
     def __init__(
-            self,
-            benchmark: str,
-            deployment_name: str,
-            config: "ExperimentConfig",
-            system_config: SeBSConfig,
-            output_dir: str,
-            cache_client: Cache,
-            docker_client: docker.client,
+        self,
+        benchmark: str,
+        deployment_name: str,
+        config: "ExperimentConfig",
+        system_config: SeBSConfig,
+        output_dir: str,
+        cache_client: Cache,
+        docker_client: docker.client,
     ):
         super().__init__()
         self._benchmark = benchmark
@@ -420,7 +420,7 @@ class Benchmark(LoggingBase):
     def install_dependencies(self, output_dir):
         # do we have docker image for this run and language?
         if "build" not in self._system_config.docker_image_types(
-                self._deployment_name, self.language_name
+            self._deployment_name, self.language_name
         ):
             self.logging.info(
                 (
@@ -450,13 +450,17 @@ class Benchmark(LoggingBase):
                         )
                         self._docker_client.images.pull(repo_name, name)
                     except docker.errors.APIError:
-                        raise RuntimeError("Docker pull of image {}:{} failed!".format(repo_name, name))
+                        raise RuntimeError(
+                            "Docker pull of image {}:{} failed!".format(repo_name, name)
+                        )
 
             try:
                 ensure_image(image_name)
             except RuntimeError as e:
                 self.logging.warning(
-                    "Failed to ensure image {}, falling back to {}: {}".format(image_name, unversioned_image_name, e)
+                    "Failed to ensure image {}, falling back to {}: {}".format(
+                        image_name, unversioned_image_name, e
+                    )
                 )
                 try:
                     ensure_image(unversioned_image_name)
@@ -575,10 +579,10 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-            self,
-            deployment_build_step: Callable[
-                [str, str, str, str, str, bool, bool], Tuple[str, int, str]
-            ],
+        self,
+        deployment_build_step: Callable[
+            [str, str, str, str, str, bool, bool], Tuple[str, int, str]
+        ],
     ) -> Tuple[bool, str, bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
@@ -622,8 +626,8 @@ class Benchmark(LoggingBase):
         )
         self.logging.info(
             (
-                    "Created code package (source hash: {hash}), for run on {deployment}"
-                    + " with {language}:{runtime}"
+                "Created code package (source hash: {hash}), for run on {deployment}"
+                + " with {language}:{runtime}"
             ).format(
                 hash=self.hash,
                 deployment=self._deployment_name,
@@ -651,7 +655,7 @@ class Benchmark(LoggingBase):
     """
 
     def prepare_input(
-            self, system_resources: SystemResources, size: str, replace_existing: bool = False
+        self, system_resources: SystemResources, size: str, replace_existing: bool = False
     ):
 
         """
@@ -798,15 +802,15 @@ class BenchmarkModuleInterface:
     @staticmethod
     @abstractmethod
     def generate_input(
-            data_dir: str,
-            size: str,
-            benchmarks_bucket: Optional[str],
-            input_paths: List[str],
-            output_paths: List[str],
-            upload_func: Optional[Callable[[int, str, str], None]],
-            nosql_func: Optional[
-                Callable[[str, str, dict, Tuple[str, str], Optional[Tuple[str, str]]], None]
-            ],
+        data_dir: str,
+        size: str,
+        benchmarks_bucket: Optional[str],
+        input_paths: List[str],
+        output_paths: List[str],
+        upload_func: Optional[Callable[[int, str, str], None]],
+        nosql_func: Optional[
+            Callable[[str, str, dict, Tuple[str, str], Optional[Tuple[str, str]]], None]
+        ],
     ) -> Dict[str, str]:
         pass
 
