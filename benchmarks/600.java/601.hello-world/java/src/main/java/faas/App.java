@@ -1,11 +1,13 @@
 package faas;
-import com.google.gson.JsonObject;
+import java.util.HashMap;
+import java.util.Map;
 
 public class App {
-    public JsonObject handler(JsonObject args) {
+    public Map<String, Object> handler(Map<String, Object> input) {
 
-        JsonObject jsonResult = new JsonObject();
-        jsonResult.addProperty("Hello", "World");
-        return jsonResult;
+        Map<String, Object> result = new HashMap<>();
+        result.put("Hello", "World");
+        return result;
     }
 }
+
