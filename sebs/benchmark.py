@@ -397,15 +397,6 @@ class Benchmark(LoggingBase):
         for file in handlers:
             shutil.copy2(file, os.path.join(output_dir))
 
-    def add_deployment_package_java(self, output_dir):
-        # append to the end of requirements file
-        packages = self._system_config.deployment_packages(
-            self._deployment_name, self.language_name
-        )
-        if len(packages):
-            with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
-                for package in packages:
-                    out.write(package)
 
     def add_deployment_package_python(self, output_dir):
 
@@ -447,6 +438,40 @@ class Benchmark(LoggingBase):
                 package_json["dependencies"][key] = val
             with open(package_config, "w") as package_file:
                 json.dump(package_json, package_file, indent=2)
+
+    # Dependencies in system.json are in "group:artifact": version format; 
+    # this function converts them to proper Maven <dependency> blocks.
+    def format_maven_dependency(self, group_artifact: str, version: str) -> str:
+        group_id, artifact_id = group_artifact.split(":")
+        return f"""
+        <dependency>
+            <groupId>{group_id}</groupId>
+            <artifactId>{artifact_id}</artifactId>
+            <version>{version}</version>
+        </dependency>"""
+    
+    def add_deployment_package_java(self, output_dir):
+        
+        pom_path = os.path.join(output_dir, "pom.xml")
+        with open(pom_path, "r") as f:
+            pom_content = f.read()
+
+        packages = self._system_config.deployment_packages(self._deployment_name, self.language_name)
+
+        dependency_blocks = ""
+        if len(packages):
+            for key, val in packages.items():
+                dependency_name = key.strip('"').strip("'")
+                dependency_version = val.strip('"').strip("'")
+                dependency_blocks += self.format_maven_dependency(dependency_name, dependency_version) + "\n"
+
+        if "<!-- PLATFORM_DEPENDENCIES -->" not in pom_content:
+            raise ValueError("pom.xml template is missing <!-- PLATFORM_DEPENDENCIES --> placeholder")
+
+        pom_content = pom_content.replace("<!-- PLATFORM_DEPENDENCIES -->", dependency_blocks.strip())
+
+        with open(pom_path, "w") as f:
+            f.write(pom_content)
 
     def add_deployment_package(self, output_dir):
         from sebs.faas.function import Language
@@ -514,7 +539,7 @@ class Benchmark(LoggingBase):
                     }
 
             # run Docker container to install packages
-            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
+            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "java" : "pom.xml"}
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
@@ -643,7 +668,7 @@ class Benchmark(LoggingBase):
         self.copy_code(self._output_dir)
         self.add_benchmark_data(self._output_dir)
         self.add_deployment_files(self._output_dir)
-        self.add_java_output(self._output_dir)
+#        self.add_java_output(self._output_dir)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
 
