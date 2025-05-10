@@ -149,7 +149,7 @@ class InvocationOverhead(Experiment):
                         while not succesful:
                             self.logging.info(f"Starting with {size} bytes, repetition {i}")
                             if result_type == "cold":
-                                self._deployment_client.enforce_cold_start([self._function])
+                                self._deployment_client.enforce_cold_start([self._function], self._benchmark)
                                 time.sleep(1)
                             row = self.receive_datagrams(input_benchmark, N, 12000, ip)
                             if result_type == "cold":
@@ -172,6 +172,7 @@ class InvocationOverhead(Experiment):
         deployment_client,
         directory: str,
         logging_filename: str,
+        extend_time_interval: int,
     ):
         import pandas as pd
         import glob
@@ -226,6 +227,7 @@ class InvocationOverhead(Experiment):
                     ]
                 )
                 iter2 = iter(reader)
+                next(iter2)
                 for row in iter2:
                     request_id = row[-1]
                     clock_drift = df[df["id"] == request_id]["clock_drift"].mean()
@@ -280,7 +282,7 @@ class InvocationOverhead(Experiment):
 
         # Save results even in case of failure - it might have happened in n-th iteration
         res = fut.result()
-        server_timestamp = res.output["result"]["result"]["timestamp"]
+        server_timestamp = res.output["result"]["output"]["timestamp"]
         request_id = res.output["request_id"]
         is_cold = 1 if res.output["is_cold"] else 0
         output_file = os.path.join(self._out_dir, f"server-{request_id}.csv")
