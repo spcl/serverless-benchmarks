@@ -149,7 +149,9 @@ class InvocationOverhead(Experiment):
                         while not succesful:
                             self.logging.info(f"Starting with {size} bytes, repetition {i}")
                             if result_type == "cold":
-                                self._deployment_client.enforce_cold_start([self._function], self._benchmark)
+                                self._deployment_client.enforce_cold_start(
+                                    [self._function], self._benchmark
+                                )
                                 time.sleep(1)
                             row = self.receive_datagrams(input_benchmark, N, 12000, ip)
                             if result_type == "cold":
