@@ -46,12 +46,15 @@ class PerfCost(Experiment):
         self._benchmark = sebs_client.get_benchmark(
             settings["benchmark"], deployment_client, self.config
         )
-        self._function = deployment_client.get_function(self._benchmark)
+
         # prepare benchmark input
-        self._storage = deployment_client.get_storage(replace_existing=self.config.update_storage)
         self._benchmark_input = self._benchmark.prepare_input(
-            storage=self._storage, size=settings["input-size"]
+            deployment_client.system_resources,
+            size=settings["input-size"],
+            replace_existing=self.config.update_storage,
         )
+
+        self._function = deployment_client.get_function(self._benchmark)
 
         # add HTTP trigger
         triggers = self._function.triggers(Trigger.TriggerType.HTTP)
@@ -80,7 +83,7 @@ class PerfCost(Experiment):
         for memory in memory_sizes:
             self.logging.info(f"Begin experiment on memory size {memory}")
             self._function.config.memory = memory
-            self._deployment_client.update_function(self._function, self._benchmark)
+            self._deployment_client.update_function(self._function, self._benchmark, False, "")
             self._sebs_client.cache_client.update_function(self._function)
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
 

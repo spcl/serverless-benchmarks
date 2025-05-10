@@ -2,8 +2,6 @@ import logging
 import datetime
 import os
 
-import minio
-
 def main(args):
     logging.getLogger().setLevel(logging.INFO)
     begin = datetime.datetime.now()
@@ -13,6 +11,12 @@ def main(args):
     for arg in ["MINIO_STORAGE_CONNECTION_URL", "MINIO_STORAGE_ACCESS_KEY", "MINIO_STORAGE_SECRET_KEY"]:
         os.environ[arg] = args[arg]
         del args[arg]
+
+    key_list = list(args.keys())
+    for arg in key_list:
+        if 'NOSQL_STORAGE_' in arg:
+            os.environ[arg] = args[arg]
+            del args[arg]
 
     try:
         from function import function

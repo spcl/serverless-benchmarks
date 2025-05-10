@@ -12,8 +12,9 @@ import docker
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.faas.config import Resources
+from sebs.faas.resources import SystemResources
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
-from sebs.faas.storage import PersistentStorage
+from sebs.types import BenchmarkModule
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -22,10 +23,13 @@ if TYPE_CHECKING:
 
 
 class BenchmarkConfig:
-    def __init__(self, timeout: int, memory: int, languages: List["Language"]):
+    def __init__(
+        self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
+    ):
         self._timeout = timeout
         self._memory = memory
         self._languages = languages
+        self._modules = modules
 
     @property
     def timeout(self) -> int:
@@ -47,6 +51,10 @@ class BenchmarkConfig:
     def languages(self) -> List["Language"]:
         return self._languages
 
+    @property
+    def modules(self) -> List[BenchmarkModule]:
+        return self._modules
+
     # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
@@ -56,6 +64,7 @@ class BenchmarkConfig:
             json_object["timeout"],
             json_object["memory"],
             [Language.deserialize(x) for x in json_object["languages"]],
+            [BenchmarkModule(x) for x in json_object["modules"]],
         )
 
 
@@ -142,6 +151,18 @@ class Benchmark(LoggingBase):
         return self._language_version
 
     @property
+    def has_input_processed(self) -> bool:
+        return self._input_processed
+
+    @property
+    def uses_storage(self) -> bool:
+        return self._uses_storage
+
+    @property
+    def uses_nosql(self) -> bool:
+        return self._uses_nosql
+
+    @property
     def architecture(self) -> str:
         return self._architecture
 
@@ -209,6 +230,16 @@ class Benchmark(LoggingBase):
         self.query_cache()
         if config.update_code:
             self._is_cached_valid = False
+
+        # Load input module
+
+        self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
+        self._benchmark_input_module = load_benchmark_input(self._benchmark_path)
+
+        # Check if input has been processed
+        self._input_processed: bool = False
+        self._uses_storage: bool = False
+        self._uses_nosql: bool = False
 
     """
         Compute MD5 hash of an entire directory.
@@ -328,14 +359,27 @@ class Benchmark(LoggingBase):
             shutil.copy2(file, os.path.join(output_dir))
 
     def add_deployment_package_python(self, output_dir):
+
+        destination_file = f"requirements.txt.{self._language_version}"
+        if not os.path.exists(os.path.join(output_dir, destination_file)):
+            destination_file = "requirements.txt"
+
         # append to the end of requirements file
-        packages = self._system_config.deployment_packages(
-            self._deployment_name, self.language_name
-        )
-        if len(packages):
-            with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
-                for package in packages:
-                    out.write(package)
+        with open(os.path.join(output_dir, destination_file), "a") as out:
+
+            packages = self._system_config.deployment_packages(
+                self._deployment_name, self.language_name
+            )
+            for package in packages:
+                out.write(package)
+
+            module_packages = self._system_config.deployment_module_packages(
+                self._deployment_name, self.language_name
+            )
+            for bench_module in self._benchmark_config.modules:
+                if bench_module.value in module_packages:
+                    for package in module_packages[bench_module.value]:
+                        out.write(package)
 
     def add_deployment_package_nodejs(self, output_dir):
         # modify package.json
@@ -343,7 +387,11 @@ class Benchmark(LoggingBase):
             self._deployment_name, self.language_name
         )
         if len(packages):
-            package_config = os.path.join(output_dir, "package.json")
+
+            package_config = os.path.join(output_dir, f"package.json.{self._language_version}")
+            if not os.path.exists(package_config):
+                package_config = os.path.join(output_dir, "package.json")
+
             with open(package_config, "r") as package_file:
                 package_json = json.load(package_file)
             for key, val in packages.items():
@@ -382,23 +430,44 @@ class Benchmark(LoggingBase):
             )
         else:
             repo_name = self._system_config.docker_repository()
-            image_name = "build.{deployment}.{language}.{runtime}".format(
+            unversioned_image_name = "build.{deployment}.{language}.{runtime}".format(
                 deployment=self._deployment_name,
                 language=self.language_name,
                 runtime=self.language_version,
             )
-            try:
-                self._docker_client.images.get(repo_name + ":" + image_name)
-            except docker.errors.ImageNotFound:
+            image_name = "{base_image_name}-{sebs_version}".format(
+                base_image_name=unversioned_image_name,
+                sebs_version=self._system_config.version(),
+            )
+
+            def ensure_image(name: str) -> None:
                 try:
-                    self.logging.info(
-                        "Docker pull of image {repo}:{image}".format(
-                            repo=repo_name, image=image_name
+                    self._docker_client.images.get(repo_name + ":" + name)
+                except docker.errors.ImageNotFound:
+                    try:
+                        self.logging.info(
+                            "Docker pull of image {repo}:{image}".format(repo=repo_name, image=name)
                         )
+                        self._docker_client.images.pull(repo_name, name)
+                    except docker.errors.APIError:
+                        raise RuntimeError(
+                            "Docker pull of image {}:{} failed!".format(repo_name, name)
+                        )
+
+            try:
+                ensure_image(image_name)
+            except RuntimeError as e:
+                self.logging.warning(
+                    "Failed to ensure image {}, falling back to {}: {}".format(
+                        image_name, unversioned_image_name, e
                     )
-                    self._docker_client.images.pull(repo_name, image_name)
-                except docker.errors.APIError:
-                    raise RuntimeError("Docker pull of image {} failed!".format(image_name))
+                )
+                try:
+                    ensure_image(unversioned_image_name)
+                except RuntimeError:
+                    raise
+                # update `image_name` in the context to the fallback image name
+                image_name = unversioned_image_name
 
             # Create set of mounted volumes unless Docker volumes are disabled
             if not self._experiment_config.check_flag("docker_copy_build_files"):
@@ -453,7 +522,7 @@ class Benchmark(LoggingBase):
                             environment={"APP": self.benchmark},
                             # user="1000:1000",
                             user=uid,
-                            # remove=True,
+                            remove=True,
                             detach=True,
                             tty=True,
                             command="/bin/bash",
@@ -585,36 +654,74 @@ class Benchmark(LoggingBase):
         :param size: Benchmark workload size
     """
 
-    def prepare_input(self, storage: PersistentStorage, size: str):
-        benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
-        mod = load_benchmark_input(self._benchmark_path)
+    def prepare_input(
+        self, system_resources: SystemResources, size: str, replace_existing: bool = False
+    ):
 
-        buckets = mod.buckets_count()
-        input, output = storage.benchmark_data(self.benchmark, buckets)
+        """
+        Handle object storage buckets.
+        """
+        if hasattr(self._benchmark_input_module, "buckets_count"):
+
+            buckets = self._benchmark_input_module.buckets_count()
+            storage = system_resources.get_storage(replace_existing)
+            input, output = storage.benchmark_data(self.benchmark, buckets)
+
+            self._uses_storage = len(input) > 0 or len(output) > 0
+
+            storage_func = storage.uploader_func
+            bucket = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+        else:
+            input = []
+            output = []
+            storage_func = None
+            bucket = None
+
+        """
+            Handle key-value storage.
+            This part is optional - only selected benchmarks implement this.
+        """
+        if hasattr(self._benchmark_input_module, "allocate_nosql"):
+
+            nosql_storage = system_resources.get_nosql_storage()
+            for name, table_properties in self._benchmark_input_module.allocate_nosql().items():
+                nosql_storage.create_benchmark_tables(
+                    self._benchmark,
+                    name,
+                    table_properties["primary_key"],
+                    table_properties.get("secondary_key"),
+                )
+
+            self._uses_nosql = True
+            nosql_func = nosql_storage.write_to_table
+        else:
+            nosql_func = None
 
         # buckets = mod.buckets_count()
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
-        input_config = mod.generate_input(
-            benchmark_data_path,
-            size,
-            storage.get_bucket(Resources.StorageBucketType.BENCHMARKS),
-            input,
-            output,
-            storage.uploader_func,
+        input_config = self._benchmark_input_module.generate_input(
+            self._benchmark_data_path, size, bucket, input, output, storage_func, nosql_func
         )
 
-        self._cache_client.update_storage(
-            storage.deployment_name(),
-            self._benchmark,
-            {
-                "buckets": {
-                    "input": storage.input_prefixes,
-                    "output": storage.output_prefixes,
-                    "input_uploaded": True,
-                }
-            },
-        )
+        # Cache only once we data is in the cloud.
+        if hasattr(self._benchmark_input_module, "buckets_count"):
+            self._cache_client.update_storage(
+                storage.deployment_name(),
+                self._benchmark,
+                {
+                    "buckets": {
+                        "input": storage.input_prefixes,
+                        "output": storage.output_prefixes,
+                        "input_uploaded": True,
+                    }
+                },
+            )
+
+        if hasattr(self._benchmark_input_module, "allocate_nosql"):
+            nosql_storage.update_cache(self._benchmark)
+
+        self._input_processed = True
 
         return input_config
 
@@ -689,13 +796,21 @@ class BenchmarkModuleInterface:
 
     @staticmethod
     @abstractmethod
+    def allocate_nosql() -> dict:
+        pass
+
+    @staticmethod
+    @abstractmethod
     def generate_input(
         data_dir: str,
         size: str,
-        benchmarks_bucket: str,
+        benchmarks_bucket: Optional[str],
         input_paths: List[str],
         output_paths: List[str],
-        upload_func: Callable[[int, str, str], None],
+        upload_func: Optional[Callable[[int, str, str], None]],
+        nosql_func: Optional[
+            Callable[[str, str, dict, Tuple[str, str], Optional[Tuple[str, str]]], None]
+        ],
     ) -> Dict[str, str]:
         pass
 

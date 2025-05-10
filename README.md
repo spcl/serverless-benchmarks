@@ -4,6 +4,7 @@
 ![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
 ![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/spcl/serverless-benchmarks)
+[![Slack](https://img.shields.io/badge/Slack-Join%20%23serverless--benchmark-purple?logo=Slack)](https://join.slack.com/t/serverlessbenchmark/shared_invite/zt-30622ov74-_S9QeDjAJLZSe9bJC8tStw)
 
 # SeBS: Serverless Benchmark Suite
 
@@ -35,11 +36,10 @@ tool](docs/design.md), and see the [modularity](docs/modularity.md)
 section to learn how SeBS can be extended with new platforms, benchmarks, and experiments.
 Find out more about our project in [a paper summary](https://mcopik.github.io/projects/sebs/).
 
-Do you have further questions not answered by our documentation?
-Did you encounter troubles with installing and using SeBS?
+Do you have further questions that were not answered by our documentation?
+Did you encounter trouble installing and using SeBS?
 Or do you want to use SeBS in your work and you need new features?
-Feel free to reach us through GitHub issues or by writing to <marcin.copik@inf.ethz.ch>.
-
+[Join our community on Slack](https://join.slack.com/t/serverlessbenchmark/shared_invite/zt-30622ov74-_S9QeDjAJLZSe9bJC8tStw) or open a GitHub issue.
 
 For more information on how to configure, use, and extend SeBS, see our
 documentation:

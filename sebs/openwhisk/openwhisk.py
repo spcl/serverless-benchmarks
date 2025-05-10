@@ -6,12 +6,15 @@ import docker
 
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
-from sebs.faas import System, PersistentStorage
+from sebs.faas import System
 from sebs.faas.function import Function, ExecutionResult, Trigger
 from sebs.openwhisk.container import OpenWhiskContainer
-from sebs.openwhisk.storage import Minio
 from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
+from sebs.storage.resources import SelfHostedSystemResources
+from sebs.storage.minio import Minio
+from sebs.storage.scylladb import ScyllaDB
 from sebs.utils import LoggingHandlers
+from sebs.faas.config import Resources
 from .config import OpenWhiskConfig
 from .function import OpenWhiskFunction, OpenWhiskFunctionConfig
 from ..config import SeBSConfig
@@ -28,7 +31,14 @@ class OpenWhisk(System):
         docker_client: docker.client,
         logger_handlers: LoggingHandlers,
     ):
-        super().__init__(system_config, cache_client, docker_client)
+        super().__init__(
+            system_config,
+            cache_client,
+            docker_client,
+            SelfHostedSystemResources(
+                "openwhisk", config, cache_client, docker_client, logger_handlers
+            ),
+        )
         self._config = config
         self.logging_handlers = logger_handlers
 
@@ -55,21 +65,6 @@ class OpenWhisk(System):
     @property
     def config(self) -> OpenWhiskConfig:
         return self._config
-
-    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        if not hasattr(self, "storage"):
-
-            if not self.config.resources.storage_config:
-                raise RuntimeError(
-                    "OpenWhisk is missing the configuration of pre-allocated storage!"
-                )
-            self.storage = Minio.deserialize(
-                self.config.resources.storage_config, self.cache_client, self.config.resources
-            )
-            self.storage.logging_handlers = self.logging_handlers
-        else:
-            self.storage.replace_existing = replace_existing
-        return self.storage
 
     def shutdown(self) -> None:
         if hasattr(self, "storage") and self.config.shutdownStorage:
@@ -132,19 +127,40 @@ class OpenWhisk(System):
         self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
         return benchmark_archive, bytes_size, image_uri
 
-    def storage_arguments(self) -> List[str]:
-        storage = cast(Minio, self.get_storage())
-        return [
-            "-p",
-            "MINIO_STORAGE_SECRET_KEY",
-            storage.config.secret_key,
-            "-p",
-            "MINIO_STORAGE_ACCESS_KEY",
-            storage.config.access_key,
-            "-p",
-            "MINIO_STORAGE_CONNECTION_URL",
-            storage.config.address,
-        ]
+    def storage_arguments(self, code_package: Benchmark) -> List[str]:
+        envs = []
+
+        if self.config.resources.storage_config:
+
+            storage_envs = self.config.resources.storage_config.envs()
+            envs = [
+                "-p",
+                "MINIO_STORAGE_SECRET_KEY",
+                storage_envs["MINIO_SECRET_KEY"],
+                "-p",
+                "MINIO_STORAGE_ACCESS_KEY",
+                storage_envs["MINIO_ACCESS_KEY"],
+                "-p",
+                "MINIO_STORAGE_CONNECTION_URL",
+                storage_envs["MINIO_ADDRESS"],
+            ]
+
+        if code_package.uses_nosql:
+
+            nosql_storage = self.system_resources.get_nosql_storage()
+            for key, value in nosql_storage.envs().items():
+                envs.append("-p")
+                envs.append(key)
+                envs.append(value)
+
+            for original_name, actual_name in nosql_storage.get_tables(
+                code_package.benchmark
+            ).items():
+                envs.append("-p")
+                envs.append(f"NOSQL_STORAGE_TABLE_{original_name}")
+                envs.append(actual_name)
+
+        return envs
 
     def create_function(
         self,
@@ -169,7 +185,10 @@ class OpenWhisk(System):
                     break
 
             function_cfg = OpenWhiskFunctionConfig.from_benchmark(code_package)
-            function_cfg.storage = cast(Minio, self.get_storage()).config
+            function_cfg.object_storage = cast(Minio, self.system_resources.get_storage()).config
+            function_cfg.nosql_storage = cast(
+                ScyllaDB, self.system_resources.get_nosql_storage()
+            ).config
             if function_found:
                 # docker image is overwritten by the update
                 res = OpenWhiskFunction(
@@ -202,7 +221,7 @@ class OpenWhisk(System):
                             str(code_package.benchmark_config.memory),
                             "--timeout",
                             str(code_package.benchmark_config.timeout * 1000),
-                            *self.storage_arguments(),
+                            *self.storage_arguments(code_package),
                             code_package.code_location,
                         ],
                         stderr=subprocess.PIPE,
@@ -260,7 +279,7 @@ class OpenWhisk(System):
                     str(code_package.benchmark_config.memory),
                     "--timeout",
                     str(code_package.benchmark_config.timeout * 1000),
-                    *self.storage_arguments(),
+                    *self.storage_arguments(code_package),
                     code_package.code_location,
                 ],
                 stderr=subprocess.PIPE,
@@ -291,7 +310,7 @@ class OpenWhisk(System):
                     str(code_package.benchmark_config.memory),
                     "--timeout",
                     str(code_package.benchmark_config.timeout * 1000),
-                    *self.storage_arguments(),
+                    *self.storage_arguments(code_package),
                 ],
                 stderr=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -309,22 +328,35 @@ class OpenWhisk(System):
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
         changed = super().is_configuration_changed(cached_function, benchmark)
 
-        storage = cast(Minio, self.get_storage())
+        storage = cast(Minio, self.system_resources.get_storage())
         function = cast(OpenWhiskFunction, cached_function)
         # check if now we're using a new storage
-        if function.config.storage != storage.config:
+        if function.config.object_storage != storage.config:
             self.logging.info(
                 "Updating function configuration due to changed storage configuration."
             )
             changed = True
-            function.config.storage = storage.config
+            function.config.object_storage = storage.config
+
+        nosql_storage = cast(ScyllaDB, self.system_resources.get_nosql_storage())
+        function = cast(OpenWhiskFunction, cached_function)
+        # check if now we're using a new storage
+        if function.config.nosql_storage != nosql_storage.config:
+            self.logging.info(
+                "Updating function configuration due to changed NoSQL storage configuration."
+            )
+            changed = True
+            function.config.nosql_storage = nosql_storage.config
 
         return changed
 
-    def default_function_name(self, code_package: Benchmark) -> str:
+    def default_function_name(
+        self, code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
+        resource_id = resources.resources_id if resources else self.config.resources.resources_id
         return (
-            f"{code_package.benchmark}-{code_package.language_name}-"
-            f"{code_package.language_version}"
+            f"sebs-{resource_id}-{code_package.benchmark}-"
+            f"{code_package.language_name}-{code_package.language_version}"
         )
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):

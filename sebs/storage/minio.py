@@ -9,10 +9,10 @@ import docker
 import minio
 
 from sebs.cache import Cache
-from sebs.types import Storage as StorageTypes
 from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
+from sebs.utils import project_absolute_path
 from sebs.utils import is_linux
 
 
@@ -44,6 +44,10 @@ class Minio(PersistentStorage):
     def config(self) -> MinioConfig:
         return self._cfg
 
+    @config.setter
+    def config(self, config: MinioConfig):
+        self._cfg = config
+
     @staticmethod
     def _define_http_client():
         """
@@ -63,17 +67,31 @@ class Minio(PersistentStorage):
             ),
         )
 
-    def start(self, port: int = 9000):
+    def start(self):
 
-        self._cfg.mapped_port = port
+        if self._cfg.data_volume == "":
+            minio_volume = os.path.join(project_absolute_path(), "minio-volume")
+        else:
+            minio_volume = self._cfg.data_volume
+        minio_volume = os.path.abspath(minio_volume)
+
+        os.makedirs(minio_volume, exist_ok=True)
+        volumes = {
+            minio_volume: {
+                "bind": "/data",
+                "mode": "rw",
+            }
+        }
+
         self._cfg.access_key = secrets.token_urlsafe(32)
         self._cfg.secret_key = secrets.token_hex(32)
         self._cfg.address = ""
         self.logging.info("Minio storage ACCESS_KEY={}".format(self._cfg.access_key))
         self.logging.info("Minio storage SECRET_KEY={}".format(self._cfg.secret_key))
         try:
+            self.logging.info(f"Starting storage Minio on port {self._cfg.mapped_port}")
             self._storage_container = self._docker_client.containers.run(
-                "minio/minio:latest",
+                f"minio/minio:{self._cfg.version}",
                 command="server /data",
                 network_mode="bridge",
                 ports={"9000": str(self._cfg.mapped_port)},
@@ -81,6 +99,7 @@ class Minio(PersistentStorage):
                     "MINIO_ACCESS_KEY": self._cfg.access_key,
                     "MINIO_SECRET_KEY": self._cfg.secret_key,
                 },
+                volumes=volumes,
                 remove=True,
                 stdout=True,
                 stderr=True,
@@ -218,7 +237,6 @@ class Minio(PersistentStorage):
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         try:
             objects_list = self.connection.list_objects(bucket_name)
-            objects: List[str]
             return [obj.object_name for obj in objects_list if prefix in obj.object_name]
         except minio.error.NoSuchBucket:
             raise RuntimeError(f"Attempting to access a non-existing bucket {bucket_name}!")
@@ -234,19 +252,27 @@ class Minio(PersistentStorage):
         raise NotImplementedError()
 
     def serialize(self) -> dict:
-        return {
-            **self._cfg.serialize(),
-            "type": StorageTypes.MINIO,
-        }
+        return self._cfg.serialize()
+
+    """
+        This implementation supports overriding this class.
+        The main Minio class is used to start/stop deployments.
+
+        When overriding the implementation in Local/OpenWhisk/...,
+        we call the _deserialize and provide an alternative implementation.
+    """
 
     T = TypeVar("T", bound="Minio")
 
     @staticmethod
     def _deserialize(
-        cached_config: MinioConfig, cache_client: Cache, res: Resources, obj_type: Type[T]
+        cached_config: MinioConfig,
+        cache_client: Cache,
+        resources: Resources,
+        obj_type: Type[T],
     ) -> T:
         docker_client = docker.from_env()
-        obj = obj_type(docker_client, cache_client, res, False)
+        obj = obj_type(docker_client, cache_client, resources, False)
         obj._cfg = cached_config
         if cached_config.instance_id:
             instance_id = cached_config.instance_id
