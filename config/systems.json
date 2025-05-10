@@ -121,10 +121,32 @@
             "uuid": "3.4.0"
           }
         }
-      }
+      },
+      "java": {
+        "base_images": {
+          "x64": {
+            "11": "amazon/aws-lambda-java:11"
+          },
+          "arm64": {
+            "11": "amazon/aws-lambda-java:11"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "Handler.java"
+          ],
+          "packages": {
+            "com.amazonaws:aws-lambda-java-core": "1.2.3",
+            "com.fasterxml.jackson.core:jackson-databind": "2.15.2"
+          }
+        }
+      }      
     },
     "architecture": ["x64", "arm64"],
-    "deployments": ["package", "container"]
+    "deployments": ["package"]
   },
   "azure": {
     "languages": {
