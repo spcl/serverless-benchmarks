@@ -253,16 +253,18 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
-            "java": ["*.java", "pom.xml"],
+            #  Use recursive Java scan since *.java files are located in subfolders.
+             "java": ["**/*.java", "pom.xml"],  
         }
         WRAPPERS = {"python": "*.py", "nodejs": "*.js", "java": "*.java"}
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
-            for f in glob.glob(os.path.join(directory, file_type)):
-                path = os.path.join(directory, f)
-                with open(path, "rb") as opened_file:
-                    hash_sum.update(opened_file.read())
+            for f in glob.glob(os.path.join(directory, file_type), recursive=True):
+                if os.path.isfile(f):  
+                    path = os.path.join(directory, f)
+                    with open(path, "rb") as opened_file:
+                        hash_sum.update(opened_file.read())
         # wrappers
         wrappers = project_absolute_path(
             "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
