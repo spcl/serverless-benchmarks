@@ -394,8 +394,17 @@ class Benchmark(LoggingBase):
                 self._deployment_name, self.language_name
             )
         ]
+
+        final_path = output_dir
+
+        # For Java, use Maven structure: put handler files in src/main/java/
+        if self.language_name == 'java':
+            final_path = os.path.join(output_dir, 'src', 'main', 'java')
+            os.makedirs(final_path, exist_ok=True)  # make sure the path exists
+            
         for file in handlers:
-            shutil.copy2(file, os.path.join(output_dir))
+            shutil.copy2(file, final_path)
+
 
 
     def add_deployment_package_python(self, output_dir):
