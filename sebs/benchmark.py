@@ -1,6 +1,7 @@
 import glob
 import hashlib
 import json
+import subprocess
 import os
 import shutil
 import subprocess
@@ -252,15 +253,18 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            #  Use recursive Java scan since *.java files are located in subfolders.
+             "java": ["**/*.java", "pom.xml"],  
         }
-        WRAPPERS = {"python": "*.py", "nodejs": "*.js"}
+        WRAPPERS = {"python": "*.py", "nodejs": "*.js", "java": "*.java"}
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
-            for f in glob.glob(os.path.join(directory, file_type)):
-                path = os.path.join(directory, f)
-                with open(path, "rb") as opened_file:
-                    hash_sum.update(opened_file.read())
+            for f in glob.glob(os.path.join(directory, file_type), recursive=True):
+                if os.path.isfile(f):  
+                    path = os.path.join(directory, f)
+                    with open(path, "rb") as opened_file:
+                        hash_sum.update(opened_file.read())
         # wrappers
         wrappers = project_absolute_path(
             "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
@@ -313,18 +317,55 @@ class Benchmark(LoggingBase):
             self._is_cached_valid = False
 
     def copy_code(self, output_dir):
+        from sebs.faas.function import Language
+
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "java": ["pom.xml"],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
+        
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
+
+        # copy src folder of java (java benchmarks are maven project and need directories)
+        if self.language == Language.JAVA:
+           output_src_dir = os.path.join(output_dir, "src")
+           
+           if os.path.exists(output_src_dir):
+           # If src dir in output exist, remove the directory and all its contents
+                shutil.rmtree(output_src_dir)
+           #To have contents of src directory in the direcory named src located in output 
+           shutil.copytree(os.path.join(path, "src"), output_src_dir)
+     
         # support node.js benchmarks with language specific packages
         nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
         if os.path.exists(nodejs_package_json):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
+
+    #This is for making jar file and add it to docker directory
+    def add_java_output(self, code_dir):
+        from sebs.faas.function import Language
+        if self.language == Language.JAVA:
+
+            # Step 1: Move Main.java o src directory
+            src_dir = os.path.join(code_dir, "src", "main", "java")
+            if os.path.exists(code_dir):
+                main_java_path = os.path.join(code_dir, "Main.java")
+                if os.path.exists(main_java_path):
+                    shutil.move(main_java_path, src_dir)
+
+            # Step 2: Run mvn clean install
+            try:
+                # Navigate to the code directory where the pom.xml file is located
+                subprocess.run(['mvn', 'clean', 'install'], cwd=code_dir, check=True, text=True, capture_output=True)
+                print("Maven build successful!")
+            except subprocess.CalledProcessError as e:
+                print(f"Error during Maven build:\n{e.stdout}\n{e.stderr}")
+                return         
+           
 
     def add_benchmark_data(self, output_dir):
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false {architecture}"
@@ -355,8 +396,18 @@ class Benchmark(LoggingBase):
                 self._deployment_name, self.language_name
             )
         ]
+
+        final_path = output_dir
+
+        # For Java, use Maven structure: put handler files in src/main/java/
+        if self.language_name == 'java':
+            final_path = os.path.join(output_dir, 'src', 'main', 'java')
+            os.makedirs(final_path, exist_ok=True)  # make sure the path exists
+            
         for file in handlers:
-            shutil.copy2(file, os.path.join(output_dir))
+            shutil.copy2(file, final_path)
+
+
 
     def add_deployment_package_python(self, output_dir):
 
@@ -399,6 +450,40 @@ class Benchmark(LoggingBase):
             with open(package_config, "w") as package_file:
                 json.dump(package_json, package_file, indent=2)
 
+    # Dependencies in system.json are in "group:artifact": version format; 
+    # this function converts them to proper Maven <dependency> blocks.
+    def format_maven_dependency(self, group_artifact: str, version: str) -> str:
+        group_id, artifact_id = group_artifact.split(":")
+        return f"""
+        <dependency>
+            <groupId>{group_id}</groupId>
+            <artifactId>{artifact_id}</artifactId>
+            <version>{version}</version>
+        </dependency>"""
+    
+    def add_deployment_package_java(self, output_dir):
+        
+        pom_path = os.path.join(output_dir, "pom.xml")
+        with open(pom_path, "r") as f:
+            pom_content = f.read()
+
+        packages = self._system_config.deployment_packages(self._deployment_name, self.language_name)
+
+        dependency_blocks = ""
+        if len(packages):
+            for key, val in packages.items():
+                dependency_name = key.strip('"').strip("'")
+                dependency_version = val.strip('"').strip("'")
+                dependency_blocks += self.format_maven_dependency(dependency_name, dependency_version) + "\n"
+
+        if "<!-- PLATFORM_DEPENDENCIES -->" not in pom_content:
+            raise ValueError("pom.xml template is missing <!-- PLATFORM_DEPENDENCIES --> placeholder")
+
+        pom_content = pom_content.replace("<!-- PLATFORM_DEPENDENCIES -->", dependency_blocks.strip())
+
+        with open(pom_path, "w") as f:
+            f.write(pom_content)
+
     def add_deployment_package(self, output_dir):
         from sebs.faas.function import Language
 
@@ -406,6 +491,8 @@ class Benchmark(LoggingBase):
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
+        elif self.language == Language.JAVA:
+            self.add_deployment_package_java(output_dir)
         else:
             raise NotImplementedError
 
@@ -483,7 +570,7 @@ class Benchmark(LoggingBase):
                     }
 
             # run Docker container to install packages
-            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
+            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "java" : "pom.xml"}
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
@@ -612,6 +699,7 @@ class Benchmark(LoggingBase):
         self.copy_code(self._output_dir)
         self.add_benchmark_data(self._output_dir)
         self.add_deployment_files(self._output_dir)
+#        self.add_java_output(self._output_dir)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
 
