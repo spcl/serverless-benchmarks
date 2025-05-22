@@ -9,14 +9,31 @@ from sebs.utils import LoggingBase
 
 
 class GCloudCLI(LoggingBase):
+    """
+    Manages interactions with Google Cloud CLI (gcloud) through a Docker container.
+
+    This class starts a Docker container running the gcloud CLI, allowing for
+    execution of gcloud commands, authentication, and other operations.
+    """
     @staticmethod
     def typename() -> str:
+        """Return the type name of this class."""
         return "GCP.CLI"
 
     def __init__(
         self, credentials: GCPCredentials, system_config: SeBSConfig, docker_client: docker.client
     ):
+        """
+        Initialize GCloudCLI and start the Docker container.
 
+        Pulls the gcloud CLI Docker image if not found locally, then runs a
+        container in detached mode with credentials mounted.
+
+        :param credentials: GCPCredentials object containing the path to service account JSON file.
+        :param system_config: SeBS system configuration.
+        :param docker_client: Docker client instance.
+        :raises RuntimeError: If Docker image pull fails.
+        """
         super().__init__()
 
         repo_name = system_config.docker_repository()
@@ -56,12 +73,14 @@ class GCloudCLI(LoggingBase):
         #    except StopIteration:
         #        pass
 
-    """
-        Execute the given command in Azure CLI.
-        Throws an exception on failure (commands are expected to execute succesfully).
-    """
+    def execute(self, cmd: str) -> bytes:
+        """
+        Execute a command in the gcloud CLI Docker container.
 
-    def execute(self, cmd: str):
+        :param cmd: The command string to execute.
+        :return: The standard output of the command as bytes.
+        :raises RuntimeError: If the command execution fails (non-zero exit code).
+        """
         exit_code, out = self.docker_instance.exec_run(cmd)
         if exit_code != 0:
             raise RuntimeError(
@@ -71,27 +90,27 @@ class GCloudCLI(LoggingBase):
             )
         return out
 
-    """
-        Run gcloud auth command on Docker instance.
-
-        Important: we cannot run "init" as this always requires authenticating through a browser.
-        Instead, we authenticate as a service account.
-
-        Setting cloud project will show a warning about missing permissions
-        for Cloud Resource Manager API: I don't know why, we don't seem to need it.
-
-        Because of that, it will ask for verification to continue - which we do by passing "Y".
-    """
-
     def login(self, project_name: str):
+        """
+        Log in to gcloud CLI using a service account and set the project.
+
+        Authenticates using the mounted credentials file (`/credentials.json` in
+        the container) and then sets the active Google Cloud project.
+        Handles potential interactive prompts when setting the project by passing "Y".
+
+        Important:
+            - `gcloud init` is not used as it requires browser-based authentication.
+            - Setting the project might show warnings about Cloud Resource Manager API
+              permissions, which are generally not needed for SeBS operations.
+
+        :param project_name: The Google Cloud project name/ID to set as active.
+        """
         self.execute("gcloud auth login --cred-file=/credentials.json")
+        # Pass "Y" to confirm setting the project if prompted, especially if APIs are not enabled.
         self.execute(f"/bin/bash -c 'gcloud config set project {project_name} <<< Y'")
         self.logging.info("gcloud CLI login succesful")
 
-    """
-        Shuts down the Docker instance.
-    """
-
     def shutdown(self):
+        """Stop the gcloud CLI Docker container."""
         self.logging.info("Stopping gcloud CLI manage Docker instance")
         self.docker_instance.stop()

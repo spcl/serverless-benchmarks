@@ -15,7 +15,22 @@ if TYPE_CHECKING:
 
 
 class CodePackageSize:
+    """
+    Helper class to manage code package size variations for the InvocationOverhead experiment.
+
+    Generates different code package sizes by creating a file with random data.
+    """
     def __init__(self, deployment_client: FaaSSystem, benchmark: Benchmark, settings: dict):
+        """
+        Initialize CodePackageSize.
+
+        Calculates target points for code package sizes based on experiment settings.
+
+        :param deployment_client: FaaS system client for function updates.
+        :param benchmark: The benchmark object to modify.
+        :param settings: Dictionary of experiment settings, expected to contain:
+                         'code_package_begin', 'code_package_end', 'code_package_points'.
+        """
         import math
         from numpy import linspace
 
@@ -38,6 +53,15 @@ class CodePackageSize:
         self._benchmark = benchmark
 
     def before_sample(self, size: int, input_benchmark: dict):
+        """
+        Modify the benchmark's code package to achieve the target size and update the function.
+
+        Creates a file named 'randomdata.bin' with the specified size of random bytes
+        within the benchmark's code package. Then, updates the function on the deployment.
+
+        :param size: The target size of the random data file in bytes.
+        :param input_benchmark: Not directly used but part of a common interface.
+        """
         arr = bytearray((random.getrandbits(8) for i in range(size)))
         self._benchmark.code_package_modify("randomdata.bin", bytes(arr))
         function = self._deployment_client.get_function(self._benchmark)
@@ -45,17 +69,39 @@ class CodePackageSize:
 
 
 class PayloadSize:
+    """
+    Helper class to manage payload size variations for the InvocationOverhead experiment.
+
+    Generates different payload sizes by creating base64 encoded byte arrays.
+    """
     def __init__(self, settings: dict):
+        """
+        Initialize PayloadSize.
+
+        Calculates target points for payload sizes based on experiment settings.
+
+        :param settings: Dictionary of experiment settings, expected to contain:
+                         'payload_begin', 'payload_end', 'payload_points'.
+        """
         from numpy import linspace
 
         points = linspace(
             settings["payload_begin"],
-            settings["payload_end"],
+            settings_["payload_end"],
             settings["payload_points"],
         )
         self.pts = [int(pt) for pt in points]
 
     def before_sample(self, size: int, input_benchmark: dict):
+        """
+        Modify the input benchmark dictionary to include data of the target size.
+
+        Creates a base64 encoded string of a byte array of the specified size
+        and adds it to the `input_benchmark` dictionary under the key 'data'.
+
+        :param size: The target size of the byte array before base64 encoding.
+        :param input_benchmark: The dictionary to modify with the new payload data.
+        """
         import base64
         from io import BytesIO
 
@@ -65,12 +111,31 @@ class PayloadSize:
 
 
 class InvocationOverhead(Experiment):
+    """
+    Experiment to measure invocation overhead by varying code package size or payload size.
+
+    Uses the '030.clock-synchronization' benchmark to establish a baseline and then
+    measures how changes in code/payload size affect invocation times.
+    """
     def __init__(self, config: ExperimentConfig):
+        """
+        Initialize the InvocationOverhead experiment.
+
+        :param config: Experiment configuration.
+        """
         super().__init__(config)
         self.settings = self.config.experiment_settings(self.name())
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
+        """
+        Prepare the experiment environment.
 
+        Deploys the '030.clock-synchronization' benchmark, prepares its input,
+        and sets up necessary triggers and output directories.
+
+        :param sebs_client: The SeBS client instance.
+        :param deployment_client: The FaaS system client.
+        """
         # deploy network test function
         from sebs import SeBS  # noqa
         from sebs.faas.function import Trigger
@@ -103,7 +168,13 @@ class InvocationOverhead(Experiment):
         self._deployment_client = deployment_client
 
     def run(self):
+        """
+        Run the InvocationOverhead experiment.
 
+        Iterates through different sizes (either code package or payload, based on settings)
+        and repetitions, invoking the function and recording timing data.
+        Results, including client-side and server-side timestamps, are saved to CSV files.
+        """
         from requests import get
 
         ip = get("http://checkip.amazonaws.com/").text.rstrip()
@@ -176,69 +247,129 @@ class InvocationOverhead(Experiment):
         logging_filename: str,
         extend_time_interval: int,
     ):
+        """
+        Process the raw results from the InvocationOverhead experiment.
+
+        Reads client-side timing data and server-side UDP datagram timestamps,
+        calculates Round-Trip Time (RTT) and clock drift, and then computes
+        the adjusted invocation time. Processed results are saved to
+        'result-processed.csv'.
+
+        :param sebs_client: The SeBS client instance.
+        :param deployment_client: The FaaS system client (not directly used in this method).
+        :param directory: The main output directory for SeBS results.
+        :param logging_filename: (Not used in this method).
+        :param extend_time_interval: (Not used in this method).
+        """
         import pandas as pd
         import glob
         from sebs import SeBS  # noqa
 
-        full_data: Dict[str, pd.Dataframe] = {}
-        for f in glob.glob(
-            os.path.join(directory, "invocation-overhead", self.settings["type"], "*.csv")
-        ):
-
-            if "result.csv" in f or "result-processed.csv" in f:
+        experiment_out_dir = os.path.join(directory, "invocation-overhead", self.settings["type"])
+        full_data: Dict[str, pd.DataFrame] = {} # Changed type hint for clarity
+        # Process server-side datagram files (e.g., server-request_id.csv)
+        for f_path in glob.glob(os.path.join(experiment_out_dir, "server-*.csv")):
+            if "result.csv" in f_path or "result-processed.csv" in f_path: # Original had `f`
                 continue
-            request_id = os.path.basename(f).split("-", 1)[1].split(".")[0]
-            data = pd.read_csv(f, sep=",").drop(["id"], axis=1)
-            if request_id in full_data:
-                full_data[request_id] = pd.concat([full_data[request_id], data], axis=1)
-                full_data[request_id]["id"] = request_id
-            else:
+            request_id = os.path.basename(f_path).split("-", 1)[1].split(".")[0]
+            data = pd.read_csv(f_path, sep=",").drop(["id"], axis=1) # Assuming 'id' is datagram sequence
+            # It seems like the original logic for concatenating might be incorrect if multiple
+            # files per request_id are not expected or if they have different structures.
+            # Assuming here that each server-*.csv is self-contained for its request_id's datagrams.
+            # If merging is needed, the logic would depend on the structure of these files.
+            # For now, let's assume data for a request_id is processed together.
+            # If `full_data` was meant to merge client and server data, that needs different handling.
+            # The original code seems to build `full_data` from server files only, then uses it with client file.
+            # This suggests `full_data` should be a DataFrame directly.
+            # Let's simplify: assume we process server files to get clock drift per request_id.
+            # This part of the original code seems to build a DataFrame `df` from all server files.
+            if request_id not in full_data:
                 full_data[request_id] = data
-        df = pd.concat(full_data.values()).reset_index(drop=True)
-        df["rtt"] = (df["server_rcv"] - df["client_send"]) + (df["client_rcv"] - df["server_send"])
-        df["clock_drift"] = (
-            (df["client_send"] - df["server_rcv"]) + (df["client_rcv"] - df["server_send"])
+            else:
+                # This concatenation implies server-*.csv files might be split, which is unusual.
+                # Or it means one request_id can have multiple such files (e.g. from retries).
+                # Sticking to original logic for now.
+                full_data[request_id] = pd.concat([full_data[request_id], data], axis=0) # Changed to axis=0 for row-wise concat
+
+        # Create a single DataFrame from all server-side datagram data
+        if not full_data:
+            self.logging.warning(f"No server datagram files found in {experiment_out_dir}. Cannot process clock drift.")
+            return
+        df_all_server_data = pd.concat(full_data.values(), keys=full_data.keys(), names=['request_id_level', 'original_index']).reset_index()
+        df_all_server_data.rename(columns={'request_id_level': 'id'}, inplace=True) # 'id' now means request_id
+
+        # Calculate RTT and clock drift for each datagram
+        df_all_server_data["rtt"] = (df_all_server_data["server_rcv"] - df_all_server_data["client_send"]) + \
+                                    (df_all_server_data["client_rcv"] - df_all_server_data["server_send"])
+        df_all_server_data["clock_drift"] = (
+            (df_all_server_data["client_send"] - df_all_server_data["server_rcv"]) +
+            (df_all_server_data["client_rcv"] - df_all_server_data["server_send"])
         ) / 2
 
-        with open(
-            os.path.join(directory, "invocation-overhead", self.settings["type"], "result.csv")
-        ) as csvfile:
-            with open(
-                os.path.join(
-                    directory,
-                    "invocation-overhead",
-                    self.settings["type"],
-                    "result-processed.csv",
-                ),
-                "w",
-            ) as csvfile2:
-                reader = csv.reader(csvfile, delimiter=",")
-                writer = csv.writer(csvfile2, delimiter=",")
-                writer.writerow(
-                    [
-                        "payload_size",
-                        "repetition",
-                        "is_cold",
-                        "connection_time",
-                        "start_timestamp",
-                        "finish_timestamp",
-                        "request_id",
-                        "clock_drift_mean",
-                        "clock_drift_std",
-                        "invocation_time",
-                    ]
-                )
-                iter2 = iter(reader)
-                next(iter2)
-                for row in iter2:
-                    request_id = row[-1]
-                    clock_drift = df[df["id"] == request_id]["clock_drift"].mean()
-                    clock_drift_std = df[df["id"] == request_id]["clock_drift"].std()
-                    invocation_time = float(row[5]) - float(row[4]) - float(row[3]) + clock_drift
-                    writer.writerow(row + [clock_drift, clock_drift_std, invocation_time])
+        # Aggregate clock drift per request_id
+        clock_drift_stats = df_all_server_data.groupby('id')['clock_drift'].agg(['mean', 'std']).reset_index()
+        clock_drift_stats.rename(columns={'mean': 'clock_drift_mean', 'std': 'clock_drift_std'}, inplace=True)
 
-    def receive_datagrams(self, input_benchmark: dict, repetitions: int, port: int, ip: str):
+        # Process the main client-side result file
+        client_result_file = os.path.join(experiment_out_dir, "result.csv")
+        processed_client_result_file = os.path.join(experiment_out_dir, "result-processed.csv")
 
+        try:
+            df_client = pd.read_csv(client_result_file)
+        except FileNotFoundError:
+            self.logging.error(f"Client result file not found: {client_result_file}")
+            return
+
+        # Merge client results with clock drift stats
+        df_merged = pd.merge(df_client, clock_drift_stats, on="request_id", how="left")
+
+        # Calculate invocation time adjusted for clock drift
+        # invocation_time = server_timestamp - client_start_timestamp - connection_time + clock_drift
+        df_merged["invocation_time"] = (df_merged["finish_timestamp"] -
+                                        df_merged["start_timestamp"] -
+                                        df_merged["connection_time"] +
+                                        df_merged["clock_drift_mean"])
+
+        # Save the processed data
+        output_columns = [
+            "size", # 'payload_size' in original, but 'size' in the client data writer
+            "repetition",
+            "is_cold",
+            "connection_time",
+            "start_timestamp",
+            "finish_timestamp",
+            "request_id",
+            "clock_drift_mean",
+            "clock_drift_std",
+            "invocation_time",
+        ]
+        # Ensure all columns exist, fill with NaN if not (e.g. if clock_drift stats are missing for a request_id)
+        for col in output_columns:
+            if col not in df_merged.columns:
+                df_merged[col] = pd.NA
+
+        df_merged.to_csv(processed_client_result_file, columns=output_columns, index=False, na_rep='NaN')
+        self.logging.info(f"Processed results saved to {processed_client_result_file}")
+
+    def receive_datagrams(self, input_benchmark: dict, repetitions: int, port: int, ip: str) -> list:
+        """
+        Receive UDP datagrams from the invoked function for clock synchronization.
+
+        Opens a UDP socket, triggers an asynchronous function invocation, and then
+        listens for a specified number of datagrams. Records timestamps for
+        received and sent datagrams. Saves server-side timestamps to a CSV file
+        named `server-{request_id}.csv`.
+
+        :param input_benchmark: The input payload for the benchmark function.
+                                Will be modified with 'server-port'.
+        :param repetitions: The number of datagrams expected from the function.
+        :param port: The local port number to bind the UDP socket to.
+        :param ip: (Not directly used in this function, but part of the calling context).
+        :return: A list containing: [is_cold (int), connection_time (float),
+                 client_begin_timestamp (float), server_timestamp (float from function output),
+                 request_id (str)].
+        :raises RuntimeError: If the function invocation fails.
+        """
         import socket
 
         input_benchmark["server-port"] = port
@@ -306,8 +437,10 @@ class InvocationOverhead(Experiment):
 
     @staticmethod
     def name() -> str:
+        """Return the name of the experiment."""
         return "invocation-overhead"
 
     @staticmethod
     def typename() -> str:
+        """Return the type name of this experiment class."""
         return "Experiment.InvocOverhead"

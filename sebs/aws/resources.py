@@ -14,12 +14,15 @@ import docker
 
 
 class AWSSystemResources(SystemResources):
+    """Manages system-level resources for AWS, such as S3 and DynamoDB clients."""
     @staticmethod
     def typename() -> str:
+        """Return the type name of the system resources class."""
         return "AWS.SystemResources"
 
     @property
     def config(self) -> AWSConfig:
+        """Return the AWS-specific configuration."""
         return cast(AWSConfig, self._config)
 
     def __init__(
@@ -29,6 +32,14 @@ class AWSSystemResources(SystemResources):
         docker_client: docker.client,
         logger_handlers: LoggingHandlers,
     ):
+        """
+        Initialize AWSSystemResources.
+
+        :param config: AWS-specific configuration.
+        :param cache_client: Cache client instance.
+        :param docker_client: Docker client instance.
+        :param logger_handlers: Logging handlers.
+        """
         super().__init__(config, cache_client, docker_client)
 
         self._session: Optional[boto3.session.Session] = None
@@ -37,19 +48,25 @@ class AWSSystemResources(SystemResources):
         self._nosql_storage: Optional[DynamoDB] = None
 
     def initialize_session(self, session: boto3.session.Session):
+        """
+        Initialize the Boto3 session for AWS clients.
+
+        :param session: Boto3 session instance.
+        """
         self._session = session
 
-    """
-        Create a client instance for cloud storage. When benchmark and buckets
-        parameters are passed, then storage is initialized with required number
-        of buckets. Buckets may be created or retrieved from cache.
-
-        :param replace_existing: replace existing files in cached buckets?
-        :return: storage client
-    """
-
     def get_storage(self, replace_existing: Optional[bool] = None) -> PersistentStorage:
+        """
+        Get or initialize the S3 persistent storage client.
 
+        Creates an S3 client instance if it doesn't exist. When benchmark and buckets
+        parameters are passed (implicitly via config), storage is initialized with the
+        required number of buckets. Buckets may be created or retrieved from cache.
+
+        :param replace_existing: If True, replace existing files in cached buckets.
+                                 Defaults to False if None.
+        :return: S3 persistent storage client.
+        """
         if not self._storage:
             assert self._session is not None
             self.logging.info("Initialize S3 storage instance.")
@@ -68,6 +85,13 @@ class AWSSystemResources(SystemResources):
         return self._storage
 
     def get_nosql_storage(self) -> NoSQLStorage:
+        """
+        Get or initialize the DynamoDB NoSQL storage client.
+
+        Creates a DynamoDB client instance if it doesn't exist.
+
+        :return: DynamoDB NoSQL storage client.
+        """
         if not self._nosql_storage:
             assert self._session is not None
             self.logging.info("Initialize DynamoDB NoSQL instance.")

@@ -10,8 +10,23 @@ from sebs.utils import LoggingBase
 
 
 class AzureCLI(LoggingBase):
-    def __init__(self, system_config: SeBSConfig, docker_client: docker.client):
+    """
+    Manages interactions with Azure CLI through a Docker container.
 
+    This class starts a Docker container running the Azure CLI, allowing for
+    execution of Azure commands, login, and package uploads.
+    """
+    def __init__(self, system_config: SeBSConfig, docker_client: docker.client):
+        """
+        Initialize AzureCLI and start the Docker container.
+
+        Pulls the Azure CLI Docker image if not found locally, then runs a
+        container in detached mode.
+
+        :param system_config: SeBS system configuration.
+        :param docker_client: Docker client instance.
+        :raises RuntimeError: If Docker image pull fails.
+        """
         super().__init__()
 
         repo_name = system_config.docker_repository()
@@ -52,14 +67,17 @@ class AzureCLI(LoggingBase):
 
     @staticmethod
     def typename() -> str:
+        """Return the type name of this class."""
         return "Azure.CLI"
 
-    """
-        Execute the given command in Azure CLI.
-        Throws an exception on failure (commands are expected to execute succesfully).
-    """
+    def execute(self, cmd: str) -> bytes:
+        """
+        Execute a command in the Azure CLI Docker container.
 
-    def execute(self, cmd: str):
+        :param cmd: The command string to execute.
+        :return: The standard output of the command as bytes.
+        :raises RuntimeError: If the command execution fails (non-zero exit code).
+        """
         exit_code, out = self.docker_instance.exec_run(cmd, user="docker_user")
         if exit_code != 0:
             raise RuntimeError(
@@ -69,11 +87,17 @@ class AzureCLI(LoggingBase):
             )
         return out
 
-    """
-        Run azure login command on Docker instance.
-    """
-
     def login(self, appId: str, tenant: str, password: str) -> bytes:
+        """
+        Log in to Azure using service principal credentials.
+
+        Executes `az login` within the Docker container.
+
+        :param appId: Application ID of the service principal.
+        :param tenant: Tenant ID.
+        :param password: Password/secret of the service principal.
+        :return: The output of the login command.
+        """
         result = self.execute(
             "az login -u {0} --service-principal --tenant {1} -p {2}".format(
                 appId,
@@ -85,37 +109,34 @@ class AzureCLI(LoggingBase):
         return result
 
     def upload_package(self, directory: str, dest: str):
-
         """
-        This is not an efficient and memory-intensive implementation.
-        So far, we didn't have very large functions that require many gigabytes.
+        Upload a directory as a tar.gz archive to the Azure CLI Docker container.
 
-        Since docker-py does not support a straightforward copy, and we can't
-        put_archive in chunks.
+        This implementation reads the entire tar.gz archive into memory before
+        uploading. This is not efficient for very large function packages.
+        Potential solutions for large archives include:
+        1. Manually calling `docker cp` and decompressing within the container.
+        2. Committing the Docker container and restarting with a new mount volume.
 
-        If we end up having problems because of the archive size, there are two
-        potential solutions:
-        (1) manually call docker cp and decompress
-        (2) commit the docker container and restart with a new mount volume.
+        :param directory: Path to the local directory to upload.
+        :param dest: Destination path within the Docker container.
         """
         handle = io.BytesIO()
         with tarfile.open(fileobj=handle, mode="w:gz") as tar:
             for f in os.listdir(directory):
                 tar.add(os.path.join(directory, f), arcname=f)
-        # shutil.make_archive(, 'zip', directory)
         # move to the beginning of memory before writing
         handle.seek(0)
         self.execute("mkdir -p {}".format(dest))
         self.docker_instance.put_archive(path=dest, data=handle.read())
 
     def install_insights(self):
+        """Install the Application Insights extension for Azure CLI if not already installed."""
         if not self._insights_installed:
             self.execute("az extension add --name application-insights")
-
-    """
-        Shutdowns Docker instance.
-    """
+            self._insights_installed = True
 
     def shutdown(self):
+        """Stop the Azure CLI Docker container."""
         self.logging.info("Stopping Azure manage Docker instance")
         self.docker_instance.stop()

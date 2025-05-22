@@ -14,7 +14,14 @@ from sebs.utils import LoggingHandlers
 
 
 class AWSCredentials(Credentials):
+    """AWS account credentials."""
     def __init__(self, access_key: str, secret_key: str):
+        """
+        Initialize AWS credentials.
+
+        :param access_key: AWS access key ID.
+        :param secret_key: AWS secret access key.
+        """
         super().__init__()
 
         self._access_key = access_key
@@ -27,27 +34,48 @@ class AWSCredentials(Credentials):
 
     @staticmethod
     def typename() -> str:
+        """Return the type name of the credentials class."""
         return "AWS.Credentials"
 
     @property
     def access_key(self) -> str:
+        """Return the AWS access key ID."""
         return self._access_key
 
     @property
     def secret_key(self) -> str:
+        """Return the AWS secret access key."""
         return self._secret_key
 
     @property
     def account_id(self) -> str:
+        """Return the AWS account ID."""
         return self._account_id
 
     @staticmethod
     def initialize(dct: dict) -> "AWSCredentials":
+        """
+        Initialize AWSCredentials from a dictionary.
+
+        :param dct: Dictionary containing 'access_key' and 'secret_key'.
+        :return: AWSCredentials instance.
+        """
         return AWSCredentials(dct["access_key"], dct["secret_key"])
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
+        """
+        Deserialize AWS credentials from configuration or environment variables.
 
+        Prioritizes credentials from the config dictionary, then environment variables.
+        Checks against cached account ID if available.
+
+        :param config: Configuration dictionary.
+        :param cache: Cache object for retrieving cached account ID.
+        :param handlers: Logging handlers.
+        :return: AWSCredentials instance.
+        :raises RuntimeError: If credentials are not found or if account ID mismatch with cache.
+        """
         # FIXME: update return types of both functions to avoid cast
         # needs 3.7+  to support annotations
         cached_config = cache.get_config("aws")
@@ -86,32 +114,63 @@ class AWSCredentials(Credentials):
         return ret
 
     def update_cache(self, cache: Cache):
+        """
+        Update the cache with the AWS account ID.
+
+        :param cache: Cache object.
+        """
         cache.update_config(val=self.account_id, keys=["aws", "credentials", "account_id"])
 
     def serialize(self) -> dict:
+        """
+        Serialize AWS credentials to a dictionary.
+
+        :return: Dictionary containing the account ID.
+        """
         out = {"account_id": self._account_id}
         return out
 
 
 class AWSResources(Resources):
+    """Manages AWS resources like ECR repositories, IAM roles, and HTTP APIs."""
     class HTTPApi:
+        """Represents an AWS HTTP API Gateway endpoint."""
         def __init__(self, arn: str, endpoint: str):
+            """
+            Initialize HTTPApi.
+
+            :param arn: ARN of the HTTP API.
+            :param endpoint: Endpoint URL of the HTTP API.
+            """
             self._arn = arn
             self._endpoint = endpoint
 
         @property
         def arn(self) -> str:
+            """Return the ARN of the HTTP API."""
             return self._arn
 
         @property
         def endpoint(self) -> str:
+            """Return the endpoint URL of the HTTP API."""
             return self._endpoint
 
         @staticmethod
         def deserialize(dct: dict) -> "AWSResources.HTTPApi":
+            """
+            Deserialize HTTPApi from a dictionary.
+
+            :param dct: Dictionary containing 'arn' and 'endpoint'.
+            :return: HTTPApi instance.
+            """
             return AWSResources.HTTPApi(dct["arn"], dct["endpoint"])
 
         def serialize(self) -> dict:
+            """
+            Serialize HTTPApi to a dictionary.
+
+            :return: Dictionary containing 'arn' and 'endpoint'.
+            """
             out = {"arn": self.arn, "endpoint": self.endpoint}
             return out
 
@@ -121,6 +180,13 @@ class AWSResources(Resources):
         username: Optional[str] = None,
         password: Optional[str] = None,
     ):
+        """
+        Initialize AWSResources.
+
+        :param registry: Docker registry URL (optional).
+        :param username: Docker registry username (optional).
+        :param password: Docker registry password (optional).
+        """
         super().__init__(name="aws")
         self._docker_registry: Optional[str] = registry if registry != "" else None
         self._docker_username: Optional[str] = username if username != "" else None
@@ -131,25 +197,40 @@ class AWSResources(Resources):
 
     @staticmethod
     def typename() -> str:
+        """Return the type name of the resources class."""
         return "AWS.Resources"
 
     @property
     def docker_registry(self) -> Optional[str]:
+        """Return the Docker registry URL for ECR."""
         return self._docker_registry
 
     @property
     def docker_username(self) -> Optional[str]:
+        """Return the Docker username for ECR."""
         return self._docker_username
 
     @property
     def docker_password(self) -> Optional[str]:
+        """Return the Docker password for ECR."""
         return self._docker_password
 
     @property
     def container_repository(self) -> Optional[str]:
+        """Return the name of the ECR container repository."""
         return self._container_repository
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
+        """
+        Get or create the IAM role for Lambda functions.
+
+        If the role 'sebs-lambda-role' doesn't exist, it's created with
+        necessary trust policies and attached policies for S3 access and
+        basic Lambda execution.
+
+        :param boto3_session: Boto3 session.
+        :return: ARN of the Lambda IAM role.
+        """
         if not self._lambda_role:
             iam_client = boto3_session.client(service_name="iam")
             trust_policy = {
@@ -190,7 +271,18 @@ class AWSResources(Resources):
     def http_api(
         self, api_name: str, func: LambdaFunction, boto3_session: boto3.session.Session
     ) -> "AWSResources.HTTPApi":
+        """
+        Get or create an HTTP API Gateway for a Lambda function.
 
+        If an API with the given name doesn't exist, it's created and
+        configured to target the specified Lambda function.
+
+        :param api_name: Name of the HTTP API.
+        :param func: LambdaFunction object to target.
+        :param boto3_session: Boto3 session.
+        :return: HTTPApi instance.
+        :raises RuntimeError: If API creation fails after multiple retries.
+        """
         http_api = self._http_apis.get(api_name)
         if not http_api:
             # get apigateway client
@@ -245,6 +337,14 @@ class AWSResources(Resources):
     def check_ecr_repository_exists(
         self, ecr_client: ECRClient, repository_name: str
     ) -> Optional[str]:
+        """
+        Check if an ECR repository exists.
+
+        :param ecr_client: Boto3 ECR client.
+        :param repository_name: Name of the repository.
+        :return: Repository URI if it exists, None otherwise.
+        :raises Exception: If an error occurs during the check.
+        """
         try:
             resp = ecr_client.describe_repositories(repositoryNames=[repository_name])
             return resp["repositories"][0]["repositoryUri"]
@@ -255,7 +355,15 @@ class AWSResources(Resources):
             raise e
 
     def get_ecr_repository(self, ecr_client: ECRClient) -> str:
+        """
+        Get or create an ECR repository for SeBS benchmarks.
 
+        The repository name is 'sebs-benchmarks-{resources_id}'.
+        If it doesn't exist, it's created.
+
+        :param ecr_client: Boto3 ECR client.
+        :return: Name of the ECR container repository.
+        """
         if self._container_repository is not None:
             return self._container_repository
 
@@ -281,7 +389,14 @@ class AWSResources(Resources):
         return self._container_repository
 
     def ecr_repository_authorization(self, ecr_client: ECRClient) -> Tuple[str, str, str]:
+        """
+        Get ECR authorization token (username, password, registry).
 
+        If not already retrieved, it fetches an authorization token from ECR.
+
+        :param ecr_client: Boto3 ECR client.
+        :return: Tuple containing username, password, and registry URL.
+        """
         if self._docker_password is None:
             response = ecr_client.get_authorization_token()
             auth_token = response["authorizationData"][0]["authorizationToken"]
@@ -296,7 +411,15 @@ class AWSResources(Resources):
 
     @staticmethod
     def initialize(res: Resources, dct: dict):
+        """
+        Initialize AWSResources from a dictionary.
 
+        Populates Docker registry details, Lambda role, and HTTP APIs.
+
+        :param res: Resources object to initialize (cast to AWSResources).
+        :param dct: Dictionary containing resource configurations.
+        :return: Initialized AWSResources instance.
+        """
         ret = cast(AWSResources, res)
         super(AWSResources, AWSResources).initialize(ret, dct)
 
@@ -313,6 +436,13 @@ class AWSResources(Resources):
         return ret
 
     def serialize(self) -> dict:
+        """
+        Serialize AWSResources to a dictionary.
+
+        Includes Lambda role, HTTP APIs, Docker details, and container repository.
+
+        :return: Dictionary representation of AWSResources.
+        """
         out = {
             **super().serialize(),
             "lambda-role": self._lambda_role,
@@ -326,6 +456,14 @@ class AWSResources(Resources):
         return out
 
     def update_cache(self, cache: Cache):
+        """
+        Update the cache with AWS resource details.
+
+        Saves Docker registry, username, container repository, Lambda role,
+        and HTTP API configurations.
+
+        :param cache: Cache object.
+        """
         super().update_cache(cache)
         cache.update_config(
             val=self.docker_registry, keys=["aws", "resources", "docker", "registry"]
@@ -342,6 +480,16 @@ class AWSResources(Resources):
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
+        """
+        Deserialize AWSResources from configuration or cache.
+
+        Prioritizes cached configuration if available.
+
+        :param config: Configuration dictionary.
+        :param cache: Cache object.
+        :param handlers: Logging handlers.
+        :return: AWSResources instance.
+        """
         ret = AWSResources()
         cached_config = cache.get_config("aws")
 
@@ -365,32 +513,60 @@ class AWSResources(Resources):
 
 
 class AWSConfig(Config):
+    """AWS specific configuration, including credentials and resources."""
     def __init__(self, credentials: AWSCredentials, resources: AWSResources):
+        """
+        Initialize AWSConfig.
+
+        :param credentials: AWSCredentials instance.
+        :param resources: AWSResources instance.
+        """
         super().__init__(name="aws")
         self._credentials = credentials
         self._resources = resources
 
     @staticmethod
     def typename() -> str:
+        """Return the type name of the config class."""
         return "AWS.Config"
 
     @property
     def credentials(self) -> AWSCredentials:
+        """Return the AWS credentials."""
         return self._credentials
 
     @property
     def resources(self) -> AWSResources:
+        """Return the AWS resources configuration."""
         return self._resources
 
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
+        """
+        Initialize AWSConfig attributes from a dictionary.
+
+        Sets the AWS region.
+
+        :param cfg: Config object to initialize (cast to AWSConfig).
+        :param dct: Dictionary containing 'region'.
+        """
         config = cast(AWSConfig, cfg)
         config._region = dct["region"]
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
+        """
+        Deserialize AWSConfig from configuration or cache.
 
+        Deserializes credentials and resources, then initializes the AWSConfig
+        object, prioritizing cached configuration.
+
+        :param config: Configuration dictionary.
+        :param cache: Cache object.
+        :param handlers: Logging handlers.
+        :return: AWSConfig instance.
+        """
         cached_config = cache.get_config("aws")
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(AWSCredentials, AWSCredentials.deserialize(config, cache, handlers))
@@ -408,19 +584,27 @@ class AWSConfig(Config):
         resources.region = config_obj.region
         return config_obj
 
-    """
-        Update the contents of the user cache.
+    def update_cache(self, cache: Cache):
+        """
+        Update the user cache with AWS configuration.
+
+        Saves region, credentials, and resources to the cache.
         The changes are directly written to the file system.
 
-        Update values: region.
-    """
-
-    def update_cache(self, cache: Cache):
+        :param cache: Cache object.
+        """
         cache.update_config(val=self.region, keys=["aws", "region"])
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
 
     def serialize(self) -> dict:
+        """
+        Serialize AWSConfig to a dictionary.
+
+        Includes region, credentials, and resources.
+
+        :return: Dictionary representation of AWSConfig.
+        """
         out = {
             "name": "aws",
             "region": self._region,

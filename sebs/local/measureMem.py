@@ -1,9 +1,9 @@
 """
-Measure memory consumption of a specified docker container.
+Script to measure memory consumption of a specified Docker container.
 
-Specifically, the pseudofile memory.current from the cgroup
-pseudo-filesystem is read by a shell command (cat) every few
-milliseconds while the container is running.
+This script periodically reads the `memory.current` file from the container's
+cgroup in the pseudo-filesystem to record its memory usage. The measurements
+are appended to a specified output file.
 """
 
 import subprocess
@@ -12,10 +12,27 @@ import argparse
 
 
 def measure(container_id: str, measure_interval: int, measurement_file: str) -> None:
+    """
+    Periodically measure the memory usage of a Docker container and write to a file.
 
-    f = open(measurement_file, "a")
+    The function attempts to read memory usage from two possible cgroup paths:
+    1. `/sys/fs/cgroup/system.slice/docker-{container_id}.scope/memory.current`
+    2. `/sys/fs/cgroup/docker/{container_id}/memory.current` (fallback)
 
-    while True:
+    Memory usage is written as "{container_id} {memory_in_bytes}" per line.
+    If the time taken to measure and write exceeds `measure_interval`, a
+    "precision not met" message is written.
+
+    :param container_id: The full ID of the Docker container to measure.
+    :param measure_interval: The target interval in milliseconds between measurements.
+                             If 0 or negative, measurements are taken as fast as possible.
+    :param measurement_file: Path to the file where measurements will be appended.
+    """
+    # Open the measurement file in append mode.
+    # Ensure this file is handled correctly regarding concurrent writes if multiple
+    # instances of this script could target the same file (though typically not the case).
+    with open(measurement_file, "a") as f:
+        while True:
         time_start = time.perf_counter_ns()
         longId = "docker-" + container_id + ".scope"
         try:
@@ -33,13 +50,33 @@ def measure(container_id: str, measure_interval: int, measurement_file: str) -> 
         time.sleep(max(0, (measure_interval - iter_duration / 1e6) / 1000))
 
 
+# Ensure the file is flushed regularly if buffering is an issue for real-time monitoring.
+# However, for typical usage, standard buffering should be fine.
+
 """
- Parse container ID and measure interval and start memory measurement process.
+Command-line interface for the memory measurement script.
+
+Parses arguments for container ID, measurement interval, and output file,
+then starts the memory measurement process.
 """
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--container-id", type=str)
-    parser.add_argument("--measurement-file", type=str)
-    parser.add_argument("--measure-interval", type=int)
-    args, unknown = parser.parse_known_args()
-    measure(args.container_id, args.measure_interval, args.measurement_file)
+    parser = argparse.ArgumentParser(
+        description="Measure memory consumption of a Docker container."
+    )
+    parser.add_argument("--container-id", type=str, required=True, help="Full ID of the Docker container.")
+    parser.add_argument("--measurement-file", type=str, required=True, help="File to append measurements to.")
+    parser.add_argument(
+        "--measure-interval",
+        type=int,
+        required=True,
+        help="Target interval between measurements in milliseconds.",
+    )
+    args = parser.parse_args() # Use parse_args, unknown args will cause error
+
+    try:
+        measure(args.container_id, args.measure_interval, args.measurement_file)
+    except KeyboardInterrupt:
+        print(f"Memory measurement for container {args.container_id} stopped by user.")
+    except Exception as e:
+        print(f"Error during memory measurement for container {args.container_id}: {e}")
+        # Optionally, log to a file or re-raise depending on desired error handling.

@@ -19,28 +19,52 @@ if TYPE_CHECKING:
 
 
 class PerfCost(Experiment):
+    """
+    Experiment to measure performance and cost across different configurations.
+
+    This experiment can run benchmarks in various modes (warm, cold, burst, sequential)
+    and across different memory sizes to evaluate their impact on performance metrics
+    like execution time and cold start overhead, as well as billing implications.
+    """
     def __init__(self, config: ExperimentConfig):
+        """
+        Initialize the PerfCost experiment.
+
+        :param config: Experiment configuration.
+        """
         super().__init__(config)
 
     @staticmethod
     def name() -> str:
+        """Return the name of the experiment."""
         return "perf-cost"
 
     @staticmethod
     def typename() -> str:
+        """Return the type name of this experiment class."""
         return "Experiment.PerfCost"
 
     class RunType(Enum):
+        """Enumeration for different types of experimental runs."""
         WARM = 0
         COLD = 1
         BURST = 2
         SEQUENTIAL = 3
 
         def str(self) -> str:
+            """Return the lower-case string representation of the run type."""
             return self.name.lower()
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
+        """
+        Prepare the experiment environment.
 
+        Retrieves the specified benchmark, prepares its input, deploys the function,
+        and sets up an HTTP trigger. Also creates the output directory for results.
+
+        :param sebs_client: The SeBS client instance.
+        :param deployment_client: The FaaS system client.
+        """
         # create benchmark instance
         settings = self.config.experiment_settings(self.name())
         self._benchmark = sebs_client.get_benchmark(
@@ -72,7 +96,13 @@ class PerfCost(Experiment):
         self._sebs_client = sebs_client
 
     def run(self):
+        """
+        Run the main experiment logic.
 
+        Iterates through configured memory sizes (if any) and runs the benchmark
+        configuration for each. If no memory sizes are specified, runs with the
+        default function memory.
+        """
         settings = self.config.experiment_settings(self.name())
 
         # Execution on systems where memory configuration is not provided
@@ -88,7 +118,15 @@ class PerfCost(Experiment):
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
 
     def compute_statistics(self, times: List[float]):
+        """
+        Compute and log basic statistics and confidence intervals for a list of timings.
 
+        Calculates mean, median, standard deviation, coefficient of variation,
+        and parametric (Student's t-distribution) and non-parametric (Le Boudec)
+        confidence intervals for 95% and 99% confidence levels.
+
+        :param times: A list of floating-point execution times in milliseconds.
+        """
         mean, median, std, cv = basic_stats(times)
         self.logging.info(f"Mean {mean} [ms], median {median} [ms], std {std}, CV {cv}")
         for alpha in [0.95, 0.99]:
@@ -117,7 +155,18 @@ class PerfCost(Experiment):
         repetitions: int,
         suffix: str = "",
     ):
+        """
+        Execute a specific configuration of the performance/cost experiment.
 
+        Manages cold starts, invokes functions multiple times (sequentially or in parallel
+        based on `invocations` in `settings`), collects results, and computes statistics.
+
+        :param run_type: The type of run (COLD, WARM, BURST, SEQUENTIAL).
+        :param settings: Experiment-specific settings from the configuration.
+        :param invocations: Number of concurrent invocations for parallel runs.
+        :param repetitions: Total number of valid samples to gather.
+        :param suffix: Suffix to append to the results file name (e.g., memory size).
+        """
         # Randomize starting value to ensure that it's not the same
         # as in the previous run.
         # Otherwise we could not change anything and containers won't be killed.
@@ -125,9 +174,6 @@ class PerfCost(Experiment):
 
         self._deployment_client.cold_start_counter = randrange(100)
 
-        """
-            Cold experiment: schedule all invocations in parallel.
-        """
         file_name = (
             f"{run_type.str()}_results_{suffix}.json"
             if suffix
@@ -227,7 +273,17 @@ class PerfCost(Experiment):
                 )
 
     def run_configuration(self, settings: dict, repetitions: int, suffix: str = ""):
+        """
+        Run the experiment for all types specified in the configuration (cold, warm, etc.).
 
+        Iterates through the experiment types defined in `settings["experiments"]`
+        and calls `_run_configuration` for each.
+
+        :param settings: Experiment-specific settings from the configuration.
+        :param repetitions: Total number of valid samples to gather for each type.
+        :param suffix: Suffix to append to the results file name (e.g., memory size).
+        :raises RuntimeError: If an unknown experiment type is specified.
+        """
         for experiment_type in settings["experiments"]:
             if experiment_type == "cold":
                 self._run_configuration(
@@ -268,7 +324,19 @@ class PerfCost(Experiment):
         logging_filename: str,
         extend_time_interval: int,
     ):
+        """
+        Process the raw JSON results from the PerfCost experiment.
 
+        Reads each JSON result file, downloads detailed metrics if necessary (e.g., from cloud provider logs),
+        calculates additional statistics, and aggregates results into a summary CSV file.
+        Processed JSON files are saved with a "-processed" suffix.
+
+        :param sebs_client: The SeBS client instance.
+        :param deployment_client: The FaaS system client.
+        :param directory: The main output directory for SeBS results.
+        :param logging_filename: Name for the logging file during processing.
+        :param extend_time_interval: Interval in minutes to extend log querying time window if needed.
+        """
         import glob
         import csv
 
