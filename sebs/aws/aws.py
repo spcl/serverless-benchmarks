@@ -642,3 +642,51 @@ class AWS(System):
 
     def disable_rich_output(self):
         self.ecr_client.disable_rich_output = True
+
+    def get_invocation_logs(self, function_name: str, invocation_id: str) -> List[str]:
+        if not self.logs_client:
+            self.logs_client = boto3.client(
+                service_name="logs",
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
+                region_name=self.config.region,
+            )
+
+        log_group_name = f"/aws/lambda/{function_name}"
+        end_time = int(time.time() * 1000)
+        start_time = end_time - (24 * 60 * 60 * 1000)  # 24 hours ago
+
+        messages: List[str] = []
+        try:
+            paginator = self.logs_client.get_paginator("filter_log_events")
+            response_iterator = paginator.paginate(
+                logGroupName=log_group_name,
+                startTime=start_time,
+                endTime=end_time,
+                filterPattern=invocation_id,
+                # limit=10000 # Default is 1MB or 10k events, should be enough for single invocation
+            )
+
+            for page in response_iterator:
+                for event in page.get("events", []):
+                    messages.append(event["message"])
+                # If we found events, and they all should contain the invocation_id,
+                # we can assume these are all the logs for this specific invocation.
+                # However, AWS Lambda might split one invocation's logs across multiple streams
+                # or even push them with slight delays.
+                # For simplicity, if we get any results, we might assume these are sufficient.
+                # If not, we might need a more sophisticated check or rely on the fact
+                # that filterPattern should be quite specific for an invocation ID.
+
+        except self.logs_client.exceptions.ResourceNotFoundException:
+            self.logging.warning(
+                f"Log group {log_group_name} not found for function {function_name}."
+            )
+            return []
+        except Exception as e:
+            self.logging.error(
+                f"Error retrieving logs for {function_name}, invocation {invocation_id}: {e}"
+            )
+            return []
+
+        return messages

@@ -410,6 +410,10 @@ class System(ABC, LoggingBase):
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         pass
 
+    @abstractmethod
+    def get_invocation_logs(self, function_name: str, invocation_id: str) -> List[str]:
+        pass
+
     def disable_rich_output(self):
         pass
 

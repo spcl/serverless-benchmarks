@@ -782,3 +782,93 @@ class GCP(System):
             archive.write(directory, name)
         archive.close()
         return True
+
+    def get_invocation_logs(self, function_name: str, invocation_id: str) -> List[str]:
+        from google.cloud import logging_v2
+        from google.oauth2 import service_account
+        from datetime import datetime, timezone, timedelta
+        from google.protobuf.json_format import MessageToDict
+
+        if not hasattr(self, "logging_client_v2") or self.logging_client_v2 is None:
+            credentials = None
+            if hasattr(self.config, "credentials") and hasattr(self.config.credentials, "path") and self.config.credentials.path:
+                try:
+                    credentials = service_account.Credentials.from_service_account_file(
+                        self.config.credentials.path,
+                        scopes=['https://www.googleapis.com/auth/cloud-platform'] # Common scope
+                    )
+                    self.logging.info(f"Using credentials from {self.config.credentials.path} for Logging API.")
+                except Exception as e:
+                    self.logging.error(f"Failed to load credentials from {self.config.credentials.path}: {e}. Falling back to default.")
+
+            if credentials:
+                self.logging_client_v2 = logging_v2.services.logging_service_v2.LoggingServiceV2Client(credentials=credentials)
+            else:
+                self.logging_client_v2 = logging_v2.services.logging_service_v2.LoggingServiceV2Client()
+                self.logging.info("Using default credentials for Logging API.")
+
+        project_id = self.config.project_id
+
+        # Construct filter
+        # Standard log name for Cloud Functions (v1 and v2)
+        log_name_filter = f'logName="projects/{project_id}/logs/cloudfunctions.googleapis.com%2Fcloud-functions"'
+        resource_filter = f'resource.type="cloud_function" AND resource.labels.function_name="{function_name}"'
+
+        # Search for invocation_id. GCP often uses 'labels.execution_id'.
+        # Also check textPayload and jsonPayload for broader compatibility.
+        invocation_id_filter = (
+            f'(textPayload:"{invocation_id}" OR jsonPayload.message:"{invocation_id}" OR labels.execution_id="{invocation_id}")'
+        )
+
+        # Time range (last 24 hours)
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(hours=24)
+        time_filter = f'timestamp >= "{start_time.isoformat()}" AND timestamp <= "{end_time.isoformat()}"'
+
+        full_filter = f"{log_name_filter} AND {resource_filter} AND {invocation_id_filter} AND {time_filter}"
+
+        self.logging.info(f"Querying logs with filter: {full_filter}")
+
+        messages: List[str] = []
+        try:
+            # Resource names should be a list of project IDs for this client
+            # GCP functions logs are typically under the project.
+            resource_names = [f"projects/{project_id}"]
+
+            # Iterate over log entries
+            # Using LoggingServiceV2Client to list entries.
+            # The `list_log_entries` method expects `resource_names` (e.g., projects, folders)
+            # and a `filter`. `order_by` can be "timestamp desc" or "timestamp asc".
+            entries_iterator = self.logging_client_v2.list_log_entries(
+                resource_names=resource_names,
+                filter=full_filter,
+                order_by="timestamp asc" # Get logs in chronological order
+            )
+
+            for entry in entries_iterator:
+                log_content = ""
+                if entry.text_payload:
+                    log_content = entry.text_payload
+                elif entry.json_payload:
+                    # json_payload is a Struct which behaves like a dict
+                    log_content = str(dict(entry.json_payload))
+                elif entry.proto_payload:
+                    # proto_payload is an Any message. Convert to dict if possible.
+                    try:
+                        log_content = str(MessageToDict(entry.proto_payload))
+                    except Exception:
+                        log_content = str(entry.proto_payload)
+
+                timestamp_str = entry.timestamp.isoformat()
+                messages.append(f"{timestamp_str} | {log_content}")
+
+            if not messages:
+                self.logging.info(f"No logs found for {function_name}, invocation {invocation_id}.")
+
+        except Exception as e:
+            self.logging.error(
+                f"Error retrieving GCP logs for {function_name}, invocation {invocation_id}: {e}"
+            )
+            return [] # Return empty list on error
+
+        return messages

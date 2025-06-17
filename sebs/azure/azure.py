@@ -607,6 +607,110 @@ class Azure(System):
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         raise NotImplementedError()
 
+    def get_invocation_logs(self, function_name: str, invocation_id: str) -> List[str]:
+        from azure.monitor.query import LogsQueryClient, LogsQueryStatus
+        from azure.identity import DefaultAzureCredential
+        from azure.core.exceptions import HttpResponseError
+        from datetime import timedelta
+
+        try:
+            # Attempt to get Log Analytics Workspace ID
+            # Ensure cli_instance is initialized and available
+            if not hasattr(self, "cli_instance") or not self.cli_instance:
+                # This might happen if initialize() hasn't been called or set up cli_instance properly.
+                # Depending on AzureSystemResources, cli_instance might be initialized there.
+                # For now, assume it's available if the system is initialized.
+                # Attempt to initialize it if possible, or log an error.
+                # This is a simplification; proper initialization flow should be ensured by the caller.
+                self.logging.error(
+                    "Azure CLI instance not available. Cannot retrieve Log Analytics Workspace ID."
+                )
+                # As a fallback, try to get it directly from config if stored, though less ideal
+                if hasattr(self.config.resources, "_log_analytics_workspace_id") and \
+                   self.config.resources._log_analytics_workspace_id:
+                    workspace_id = self.config.resources._log_analytics_workspace_id
+                    self.logging.info(f"Using cached Log Analytics Workspace ID: {workspace_id}")
+                else:
+                    self.logging.error("Log Analytics Workspace ID not found in config cache either.")
+                    return []
+            else:
+                workspace_id = self.config.resources.log_analytics_workspace_id(self.cli_instance)
+
+            if not workspace_id:
+                self.logging.error("Failed to retrieve Log Analytics Workspace ID.")
+                return []
+
+            credential = DefaultAzureCredential()
+            logs_client = LogsQueryClient(credential)
+
+            # KQL Query
+            # Search in AppTraces, also check AppRequests if needed.
+            # Filtering by OperationName (function_name) and looking for invocation_id in Message or customDimensions.
+            # Using 'has' for substring search in Message, and direct equality for customDimensions.InvocationId.
+            kql_query = (
+                f"AppTraces "
+                f"| where OperationName == '{function_name}' "
+                f"and (Message has '{invocation_id}' or customDimensions.InvocationId == '{invocation_id}') "
+                f"| project TimeGenerated, Message, customDimensions"
+            )
+
+            # Define the timespan for the query (e.g., last 24 hours)
+            timespan = timedelta(hours=24)
+
+            self.logging.info(
+                f"Querying logs for {function_name}, invocation {invocation_id} in workspace {workspace_id}"
+            )
+
+            response = logs_client.query_workspace(
+                workspace_id=workspace_id, query=kql_query, timespan=timespan
+            )
+
+            logs: List[str] = []
+            if response.status == LogsQueryStatus.SUCCESS:
+                for table in response.tables:
+                    for row in table.rows:
+                        # Assuming 'Message' column contains the primary log string.
+                        # row is a list of values, so we need to know the column order from 'project'
+                        # TimeGenerated, Message, customDimensions
+                        log_message = row[1] # Message
+                        custom_dims = row[2] # customDimensions
+
+                        full_log = f"{row[0]} | {log_message}"
+                        if custom_dims:
+                            full_log += f" | Dimensions: {custom_dims}"
+                        logs.append(full_log)
+            elif response.status == LogsQueryStatus.PARTIAL:
+                self.logging.warning(
+                    f"Log query for {function_name} returned partial data. Error: {response.error}"
+                )
+                # Process partial data if necessary, similar to full success
+                for table in response.tables:
+                    for row in table.rows:
+                        log_message = row[1]
+                        custom_dims = row[2]
+                        full_log = f"{row[0]} | {log_message}"
+                        if custom_dims:
+                            full_log += f" | Dimensions: {custom_dims}"
+                        logs.append(full_log)
+            else:
+                self.logging.error(
+                    f"Log query failed for {function_name} with status {response.status}. Error: {response.error}"
+                )
+                return []
+
+            if not logs:
+                self.logging.info(
+                    f"No logs found for {function_name}, invocation {invocation_id}."
+                )
+            return logs
+
+        except HttpResponseError as e:
+            self.logging.error(f"Azure Monitor Logs query failed with HttpResponseError: {e}")
+            return []
+        except Exception as e:
+            self.logging.error(f"An unexpected error occurred while fetching Azure logs: {e}")
+            return []
+
 
 #
 #    def create_azure_function(self, fname, config):
