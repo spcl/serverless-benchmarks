@@ -13,8 +13,7 @@ The Experiment class handles:
 - Type and name identification for experiments
 """
 
-from abc import ABC
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from multiprocessing import Semaphore
 
 # from multiprocessing.pool import ThreadPool

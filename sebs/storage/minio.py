@@ -12,7 +12,7 @@ import json
 import os
 import secrets
 import uuid
-from typing import List, Optional, Type, TypeVar
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
 import docker
 import minio
@@ -63,7 +63,7 @@ class Minio(PersistentStorage):
 
     def __init__(
         self,
-        docker_client: docker.client,
+        docker_client: docker.DockerClient,
         cache_client: Cache,
         resources: Resources,
         replace_existing: bool,
@@ -78,8 +78,8 @@ class Minio(PersistentStorage):
             replace_existing: Whether to replace existing buckets
         """
         super().__init__(self.MINIO_REGION, cache_client, resources, replace_existing)
-        self._docker_client = docker_client
-        self._storage_container: Optional[docker.container] = None
+        self._docker_client: docker.DockerClient = docker_client
+        self._storage_container: Optional[docker.models.containers.Container] = None
         self._cfg = MinioConfig()
 
     @property
@@ -103,7 +103,7 @@ class Minio(PersistentStorage):
         self._cfg = config
 
     @staticmethod
-    def _define_http_client():
+    def _define_http_client() -> Any:
         """
         Configure HTTP client for MinIO with appropriate timeouts and retries.
         
@@ -127,7 +127,7 @@ class Minio(PersistentStorage):
             ),
         )
 
-    def start(self):
+    def start(self) -> None:
         """
         Start a MinIO storage container.
         
@@ -189,7 +189,7 @@ class Minio(PersistentStorage):
             self.logging.error("Starting Minio storage failed! Unknown error: {}".format(e))
             raise RuntimeError("Starting Minio storage unsuccesful")
 
-    def configure_connection(self):
+    def configure_connection(self) -> None:
         """
         Configure the connection to the MinIO container.
         
@@ -228,17 +228,17 @@ class Minio(PersistentStorage):
             if not self._cfg.address:
                 self.logging.error(
                     f"Couldn't read the IP address of container from attributes "
-                    f"{json.dumps(self._instance.attrs, indent=2)}"
+                    f"{json.dumps(self._storage_container.attrs, indent=2)}"
                 )
                 raise RuntimeError(
-                    f"Incorrect detection of IP address for container with id {self._instance_id}"
+                    f"Incorrect detection of IP address for container with id {self._cfg.instance_id}"
                 )
             self.logging.info("Starting minio instance at {}".format(self._cfg.address))
         
         # Create the connection using the configured address
         self.connection = self.get_connection()
 
-    def stop(self):
+    def stop(self) -> None:
         """
         Stop the MinIO container.
         
@@ -252,7 +252,7 @@ class Minio(PersistentStorage):
         else:
             self.logging.error("Stopping minio was not successful, storage container not known!")
 
-    def get_connection(self):
+    def get_connection(self) -> minio.Minio:
         """
         Create a new MinIO client connection.
         
@@ -270,7 +270,7 @@ class Minio(PersistentStorage):
             http_client=Minio._define_http_client(),
         )
 
-    def _create_bucket(self, name: str, buckets: List[str] = [], randomize_name: bool = False):
+    def _create_bucket(self, name: str, buckets: List[str] = [], randomize_name: bool = False) -> str:
         """
         Create a new bucket if it doesn't already exist.
         
@@ -315,7 +315,7 @@ class Minio(PersistentStorage):
             # Rethrow the error for handling by the caller
             raise err
 
-    def uploader_func(self, path_idx, file, filepath):
+    def uploader_func(self, path_idx: int, file: str, filepath: str) -> None:
         """
         Upload a file to the MinIO storage.
         
@@ -338,7 +338,7 @@ class Minio(PersistentStorage):
             self.logging.error("Upload failed!")
             raise err
 
-    def clean(self):
+    def clean(self) -> None:
         """
         Clean all objects from output buckets.
         
@@ -351,7 +351,7 @@ class Minio(PersistentStorage):
             for err in self.connection.remove_objects(bucket, objects):
                 self.logging.error("Deletion Error: {}".format(err))
 
-    def download_results(self, result_dir):
+    def download_results(self, result_dir: str) -> None:
         """
         Download all objects from output buckets to a local directory.
         
@@ -368,7 +368,7 @@ class Minio(PersistentStorage):
             for obj in objects:
                 self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
 
-    def clean_bucket(self, bucket: str):
+    def clean_bucket(self, bucket: str) -> None:
         """
         Remove all objects from a bucket.
         
@@ -386,7 +386,7 @@ class Minio(PersistentStorage):
         for error in errors:
             self.logging.error(f"Error when deleting object from bucket {bucket}: {error}!")
 
-    def remove_bucket(self, bucket: str):
+    def remove_bucket(self, bucket: str) -> None:
         """
         Delete a bucket completely.
         
@@ -413,7 +413,7 @@ class Minio(PersistentStorage):
         """
         return name
 
-    def download(self, bucket_name: str, key: str, filepath: str):
+    def download(self, bucket_name: str, key: str, filepath: str) -> None:
         """
         Download an object from a bucket to a local file.
         
@@ -472,7 +472,7 @@ class Minio(PersistentStorage):
         else:
             return [bucket.name for bucket in buckets]
 
-    def upload(self, bucket_name: str, filepath: str, key: str):
+    def upload(self, bucket_name: str, filepath: str, key: str) -> None:
         """
         Upload a file to a bucket.
         
@@ -483,7 +483,7 @@ class Minio(PersistentStorage):
         """
         raise NotImplementedError()
 
-    def serialize(self) -> dict:
+    def serialize(self) -> Dict[str, Any]:
         """
         Serialize MinIO configuration to a dictionary.
         

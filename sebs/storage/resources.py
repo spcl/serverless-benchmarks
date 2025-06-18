@@ -1,4 +1,24 @@
-from typing import cast, Optional, Tuple
+"""Resource management for self-hosted storage deployments in SeBS.
+
+This module provides resource management classes for self-hosted storage
+deployments, including both object storage (MinIO) and NoSQL storage (ScyllaDB).
+It handles configuration deserialization, container lifecycle management, and
+provides unified interfaces for accessing storage services.
+
+Key Classes:
+    SelfHostedResources: Configuration management for self-hosted storage resources
+    SelfHostedSystemResources: System-level resource management and service provisioning
+
+The module supports:
+    - MinIO for S3-compatible object storage
+    - ScyllaDB for DynamoDB-compatible NoSQL storage
+    - Configuration caching and deserialization
+    - Docker container lifecycle management
+    - Dynamic service discovery and connection configuration
+"""
+
+import docker
+from typing import cast, Dict, Optional, Tuple
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Resources
@@ -15,30 +35,62 @@ from sebs.storage.config import (
 )
 from sebs.utils import LoggingHandlers
 
-import docker
-
 
 class SelfHostedResources(Resources):
+    """Resource configuration for self-hosted storage deployments.
+    
+    This class manages configuration for self-hosted storage services,
+    including object storage (MinIO) and NoSQL storage (ScyllaDB). It provides
+    serialization, caching, and deserialization capabilities for storage
+    configurations.
+    
+    Attributes:
+        _object_storage: Configuration for object storage (MinIO)
+        _nosql_storage: Configuration for NoSQL storage (ScyllaDB)
+    """
+    
     def __init__(
         self,
         name: str,
         storage_cfg: Optional[PersistentStorageConfig] = None,
         nosql_storage_cfg: Optional[NoSQLStorageConfig] = None,
     ):
+        """Initialize self-hosted resources configuration.
+        
+        Args:
+            name: Name of the deployment/resource group
+            storage_cfg: Configuration for object storage service
+            nosql_storage_cfg: Configuration for NoSQL storage service
+        """
         super().__init__(name=name)
         self._object_storage = storage_cfg
         self._nosql_storage = nosql_storage_cfg
 
     @property
     def storage_config(self) -> Optional[PersistentStorageConfig]:
+        """Get the object storage configuration.
+        
+        Returns:
+            Optional[PersistentStorageConfig]: Object storage configuration or None
+        """
         return self._object_storage
 
     @property
     def nosql_storage_config(self) -> Optional[NoSQLStorageConfig]:
+        """Get the NoSQL storage configuration.
+        
+        Returns:
+            Optional[NoSQLStorageConfig]: NoSQL storage configuration or None
+        """
         return self._nosql_storage
 
-    def serialize(self) -> dict:
-        out: dict = {}
+    def serialize(self) -> Dict[str, any]:
+        """Serialize the resource configuration to a dictionary.
+        
+        Returns:
+            Dict[str, any]: Serialized configuration containing storage and/or nosql sections
+        """
+        out: Dict[str, any] = {}
 
         if self._object_storage is not None:
             out = {**out, "storage": self._object_storage.serialize()}
@@ -48,7 +100,15 @@ class SelfHostedResources(Resources):
 
         return out
 
-    def update_cache(self, cache: Cache):
+    def update_cache(self, cache: Cache) -> None:
+        """Update the configuration cache with current resource settings.
+        
+        Stores both object storage and NoSQL storage configurations in the
+        cache for later retrieval.
+        
+        Args:
+            cache: Cache instance to store configurations in
+        """
         super().update_cache(cache)
         if self._object_storage is not None:
             cast(MinioConfig, self._object_storage).update_cache(
@@ -60,10 +120,23 @@ class SelfHostedResources(Resources):
             )
 
     def _deserialize_storage(
-        self, config: dict, cached_config: Optional[dict], storage_type: str
-    ) -> Tuple[str, dict]:
+        self, config: Dict[str, any], cached_config: Optional[Dict[str, any]], storage_type: str
+    ) -> Tuple[str, Dict[str, any]]:
+        """Deserialize storage configuration from config or cache.
+        
+        Attempts to load storage configuration from the provided config first,
+        then falls back to cached configuration if available.
+        
+        Args:
+            config: Current configuration dictionary
+            cached_config: Previously cached configuration dictionary
+            storage_type: Type of storage to deserialize ('object' or 'nosql')
+            
+        Returns:
+            Tuple[str, Dict[str, any]]: Storage implementation name and configuration
+        """
         storage_impl = ""
-        storage_config = {}
+        storage_config: Dict[str, any] = {}
 
         # Check for new config
         if "storage" in config and storage_type in config["storage"]:
@@ -91,7 +164,17 @@ class SelfHostedResources(Resources):
         return storage_impl, storage_config
 
     @staticmethod
-    def _deserialize(ret: "SelfHostedResources", config: dict, cached_config: dict):
+    def _deserialize(ret: "SelfHostedResources", config: Dict[str, any], cached_config: Dict[str, any]) -> None:
+        """Deserialize storage configurations from config and cache data.
+        
+        Populates the SelfHostedResources instance with storage configurations
+        loaded from the provided configuration and cached data.
+        
+        Args:
+            ret: SelfHostedResources instance to populate
+            config: Current configuration dictionary
+            cached_config: Previously cached configuration dictionary
+        """
         obj_storage_impl, obj_storage_cfg = ret._deserialize_storage(
             config, cached_config, "object"
         )
@@ -118,6 +201,20 @@ class SelfHostedResources(Resources):
 
 
 class SelfHostedSystemResources(SystemResources):
+    """System-level resource management for self-hosted storage deployments.
+    
+    This class manages the lifecycle and provisioning of self-hosted storage
+    services, including MinIO object storage and ScyllaDB NoSQL storage. It
+    handles container management, service initialization, and provides unified
+    access to storage services.
+    
+    Attributes:
+        _name: Name of the deployment
+        _logging_handlers: Logging configuration handlers
+        _storage: Active persistent storage instance (MinIO)
+        _nosql_storage: Active NoSQL storage instance (ScyllaDB)
+    """
+    
     def __init__(
         self,
         name: str,
@@ -126,6 +223,15 @@ class SelfHostedSystemResources(SystemResources):
         docker_client: docker.client,
         logger_handlers: LoggingHandlers,
     ):
+        """Initialize system resources for self-hosted storage.
+        
+        Args:
+            name: Name of the deployment
+            config: SeBS configuration object
+            cache_client: Cache client for configuration persistence
+            docker_client: Docker client for container management
+            logger_handlers: Logging configuration handlers
+        """
         super().__init__(config, cache_client, docker_client)
 
         self._name = name
@@ -133,17 +239,23 @@ class SelfHostedSystemResources(SystemResources):
         self._storage: Optional[PersistentStorage] = None
         self._nosql_storage: Optional[NoSQLStorage] = None
 
-    """
-        Create wrapper object for minio storage and fill buckets.
-        Starts minio as a Docker instance, using always fresh buckets.
-
-        :param benchmark:
-        :param buckets: number of input and output buckets
-        :param replace_existing: not used.
-        :return: Azure storage instance
-    """
 
     def get_storage(self, replace_existing: Optional[bool] = None) -> PersistentStorage:
+        """Get or create a persistent storage instance.
+        
+        Creates a MinIO storage instance if one doesn't exist, or returns the
+        existing instance. The storage is configured using the deployment's
+        storage configuration.
+        
+        Args:
+            replace_existing: Whether to replace existing buckets (optional)
+            
+        Returns:
+            PersistentStorage: MinIO storage instance
+            
+        Raises:
+            RuntimeError: If storage configuration is missing or unsupported
+        """
         if self._storage is None:
             storage_config = cast(SelfHostedResources, self._config.resources).storage_config
             if storage_config is None:
@@ -172,6 +284,18 @@ class SelfHostedSystemResources(SystemResources):
         return self._storage
 
     def get_nosql_storage(self) -> NoSQLStorage:
+        """Get or create a NoSQL storage instance.
+        
+        Creates a ScyllaDB storage instance if one doesn't exist, or returns the
+        existing instance. The storage is configured using the deployment's
+        NoSQL storage configuration.
+        
+        Returns:
+            NoSQLStorage: ScyllaDB storage instance
+            
+        Raises:
+            RuntimeError: If NoSQL storage configuration is missing or unsupported
+        """
         if self._nosql_storage is None:
             storage_config = cast(SelfHostedResources, self._config.resources).nosql_storage_config
             if storage_config is None:

@@ -1,3 +1,37 @@
+"""Azure serverless platform implementation for SeBS benchmarking.
+
+This module provides the Azure implementation of the SeBS serverless
+benchmarking system. It handles Azure Functions deployment, resource
+management, code packaging, and benchmark execution on Microsoft Azure.
+
+Key features:
+    - Azure Functions deployment and management
+    - Azure Storage integration for code and data
+    - CosmosDB support for NoSQL benchmarks
+    - HTTP trigger configuration and invocation
+    - Performance metrics collection via Application Insights
+    - Resource lifecycle management
+
+The main class Azure extends the base System class to provide Azure-specific
+functionality for serverless function benchmarking.
+
+Example:
+    Basic usage for Azure benchmarking:
+    
+    ```python
+    from sebs.azure.azure import Azure
+    from sebs.azure.config import AzureConfig
+    
+    # Initialize Azure system with configuration
+    azure_system = Azure(sebs_config, azure_config, cache, docker_client, handlers)
+    azure_system.initialize()
+    
+    # Deploy and benchmark functions
+    function = azure_system.create_function(code_package, func_name, False, "")
+    result = function.invoke(payload)
+    ```
+"""
+
 import datetime
 import json
 import re
@@ -27,28 +61,62 @@ from sebs.faas.config import Resources
 
 
 class Azure(System):
+    """Azure serverless platform implementation.
+    
+    This class implements the Azure-specific functionality for the SeBS
+    benchmarking suite. It handles Azure Functions deployment, resource
+    management, and benchmark execution on Microsoft Azure platform.
+    
+    Attributes:
+        logs_client: Azure logs client (currently unused)
+        storage: BlobStorage instance for Azure Blob Storage operations
+        cached: Flag indicating if resources are cached
+        _config: Azure configuration containing credentials and resources
+        AZURE_RUNTIMES: Mapping of language names to Azure runtime identifiers
+    """
+    
     logs_client = None
     storage: BlobStorage
-    cached = False
+    cached: bool = False
     _config: AzureConfig
 
     # runtime mapping
     AZURE_RUNTIMES = {"python": "python", "nodejs": "node"}
 
     @staticmethod
-    def name():
+    def name() -> str:
+        """Get the platform name.
+        
+        Returns:
+            Platform name 'azure'.
+        """
         return "azure"
 
     @property
     def config(self) -> AzureConfig:
+        """Get Azure configuration.
+        
+        Returns:
+            Azure configuration containing credentials and resources.
+        """
         return self._config
 
     @staticmethod
     def function_type() -> Type[Function]:
+        """Get the function type for Azure.
+        
+        Returns:
+            AzureFunction class type.
+        """
         return AzureFunction
 
     @property
     def cli_instance(self) -> AzureCLI:
+        """Get Azure CLI instance.
+        
+        Returns:
+            Azure CLI instance for executing Azure commands.
+        """
         return cast(AzureSystemResources, self._system_resources).cli_instance
 
     def __init__(
@@ -58,7 +126,16 @@ class Azure(System):
         cache_client: Cache,
         docker_client: docker.client,
         logger_handlers: LoggingHandlers,
-    ):
+    ) -> None:
+        """Initialize Azure system.
+        
+        Args:
+            sebs_config: SeBS configuration settings
+            config: Azure-specific configuration
+            cache_client: Cache for storing function and resource data
+            docker_client: Docker client for container operations
+            logger_handlers: Logging handlers for output management
+        """
         super().__init__(
             sebs_config,
             cache_client,
@@ -68,26 +145,39 @@ class Azure(System):
         self.logging_handlers = logger_handlers
         self._config = config
 
-    """
-        Start the Docker container running Azure CLI tools.
-    """
-
     def initialize(
         self,
         config: Dict[str, str] = {},
         resource_prefix: Optional[str] = None,
-    ):
+    ) -> None:
+        """Initialize Azure system and start CLI container.
+        
+        Initializes Azure resources and allocates shared resources like
+        data storage account. Starts the Docker container with Azure CLI tools.
+        
+        Args:
+            config: Additional configuration parameters
+            resource_prefix: Optional prefix for resource naming
+        """
         self.initialize_resources(select_prefix=resource_prefix)
         self.allocate_shared_resource()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
+        """Shutdown Azure system and cleanup resources.
+        
+        Stops the Azure CLI container and performs cleanup of system resources.
+        """
         cast(AzureSystemResources, self._system_resources).shutdown()
         super().shutdown()
 
     def find_deployments(self) -> List[str]:
-
-        """
-        Look for duplicated resource groups.
+        """Find existing SeBS deployments by scanning resource groups.
+        
+        Looks for Azure resource groups matching the SeBS naming pattern
+        to identify existing deployments that can be reused.
+        
+        Returns:
+            List of deployment identifiers found in resource groups.
         """
         resource_groups = self.config.resources.list_resource_groups(self.cli_instance)
         deployments = []
@@ -99,22 +189,15 @@ class Azure(System):
 
         return deployments
 
-    """
-        Allow multiple deployment clients share the same settings.
-        Not an ideal situation, but makes regression testing much simpler.
-    """
-
-    def allocate_shared_resource(self):
+    def allocate_shared_resource(self) -> None:
+        """Allocate shared data storage account.
+        
+        Creates or retrieves the shared data storage account used for
+        benchmark input/output data. This allows multiple deployment
+        clients to share the same storage, simplifying regression testing.
+        """
         self.config.resources.data_storage_account(self.cli_instance)
 
-    # Directory structure
-    # handler
-    # - source files
-    # - Azure wrappers - handler, storage
-    # - additional resources
-    # - function.json
-    # host.json
-    # requirements.txt/package.json
     def package_code(
         self,
         directory: str,
@@ -125,6 +208,30 @@ class Azure(System):
         is_cached: bool,
         container_deployment: bool,
     ) -> Tuple[str, int, str]:
+        """Package function code for Azure Functions deployment.
+        
+        Creates the proper directory structure and configuration files
+        required for Azure Functions deployment. The structure includes:
+        - handler/ directory with source files and Azure wrappers
+        - function.json with trigger and binding configuration
+        - host.json with runtime configuration
+        - requirements.txt or package.json with dependencies
+        
+        Args:
+            directory: Directory containing the function code
+            language_name: Programming language (python, nodejs)
+            language_version: Language runtime version
+            architecture: Target architecture (currently unused)
+            benchmark: Name of the benchmark
+            is_cached: Whether the package is from cache
+            container_deployment: Whether to use container deployment
+            
+        Returns:
+            Tuple of (directory_path, code_size_bytes, container_uri)
+            
+        Raises:
+            NotImplementedError: If container deployment is requested.
+        """
 
         container_uri = ""
 
@@ -187,6 +294,23 @@ class Azure(System):
         container_dest: str,
         repeat_on_failure: bool = False,
     ) -> str:
+        """Publish function code to Azure Functions.
+        
+        Deploys the packaged function code to Azure Functions using the
+        Azure Functions CLI tools. Handles retries and URL extraction.
+        
+        Args:
+            function: Function instance to publish
+            code_package: Benchmark code package to deploy
+            container_dest: Destination path in the CLI container
+            repeat_on_failure: Whether to retry on failure
+            
+        Returns:
+            URL for invoking the published function.
+            
+        Raises:
+            RuntimeError: If function publication fails or URL cannot be found.
+        """
         success = False
         url = ""
         self.logging.info("Attempting publish of function {}".format(function.name))
@@ -245,24 +369,27 @@ class Azure(System):
                     raise e
         return url
 
-    """
-        Publish function code on Azure.
-        Boolean flag enables repeating publish operation until it succeeds.
-        Useful for publish immediately after function creation where it might
-        take from 30-60 seconds for all Azure caches to be updated.
-
-        :param name: function name
-        :param repeat_on_failure: keep repeating if command fails on unknown name.
-        :return: URL to reach HTTP-triggered function
-    """
-
     def update_function(
         self,
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
         container_uri: str,
-    ):
+    ) -> None:
+        """Update existing Azure Function with new code.
+        
+        Updates an existing Azure Function with new code package,
+        including environment variables and function configuration.
+        
+        Args:
+            function: Function instance to update
+            code_package: New benchmark code package
+            container_deployment: Whether using container deployment
+            container_uri: Container URI (unused for Azure)
+            
+        Raises:
+            NotImplementedError: If container deployment is requested.
+        """
 
         if container_deployment:
             raise NotImplementedError("Container deployment is not supported in Azure")
@@ -293,7 +420,21 @@ class Azure(System):
             trigger.logging_handlers = self.logging_handlers
             function.add_trigger(trigger)
 
-    def update_envs(self, function: Function, code_package: Benchmark, env_variables: dict = {}):
+    def update_envs(self, function: Function, code_package: Benchmark, env_variables: dict = {}) -> None:
+        """Update environment variables for Azure Function.
+        
+        Sets up environment variables required for benchmark execution,
+        including storage connection strings and NoSQL database credentials.
+        Preserves existing environment variables while adding new ones.
+        
+        Args:
+            function: Function instance to update
+            code_package: Benchmark code package with requirements
+            env_variables: Additional environment variables to set
+            
+        Raises:
+            RuntimeError: If environment variable operations fail.
+        """
         envs = {}
         if code_package.uses_nosql:
 
@@ -377,13 +518,33 @@ class Azure(System):
                 self.logging.error(e)
                 raise e
 
-    def update_function_configuration(self, function: Function, code_package: Benchmark):
+    def update_function_configuration(self, function: Function, code_package: Benchmark) -> None:
+        """Update Azure Function configuration.
+        
+        Currently not implemented for Azure Functions as memory and timeout
+        configuration is handled at the consumption plan level.
+        
+        Args:
+            function: Function instance to configure
+            code_package: Benchmark code package with requirements
+        """
         # FIXME: this does nothing currently - we don't specify timeout
         self.logging.warning(
             "Updating function's memory and timeout configuration is not supported."
         )
 
     def _mount_function_code(self, code_package: Benchmark) -> str:
+        """Mount function code package in Azure CLI container.
+        
+        Uploads the function code package to a temporary location in the
+        Azure CLI container for deployment operations.
+        
+        Args:
+            code_package: Benchmark code package to mount
+            
+        Returns:
+            Path to mounted code in the CLI container.
+        """
         dest = os.path.join("/mnt", "function", uuid.uuid4().hex)
         self.cli_instance.upload_package(code_package.code_location, dest)
         return dest
@@ -391,8 +552,18 @@ class Azure(System):
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
-        """
-        Functionapp names must be globally unique in Azure.
+        """Generate default function name for Azure.
+        
+        Creates a globally unique function name based on resource ID,
+        benchmark name, language, and version. Function app names must
+        be globally unique across all of Azure.
+        
+        Args:
+            code_package: Benchmark code package
+            resources: Optional resources (unused)
+            
+        Returns:
+            Globally unique function name for Azure.
         """
         func_name = (
             "sebs-{}-{}-{}-{}".format(
@@ -413,6 +584,25 @@ class Azure(System):
         container_deployment: bool,
         container_uri: str,
     ) -> AzureFunction:
+        """Create new Azure Function.
+        
+        Creates a new Azure Function App and deploys the provided code package.
+        Handles function app creation, storage account allocation, and initial
+        deployment with proper configuration.
+        
+        Args:
+            code_package: Benchmark code package to deploy
+            func_name: Name for the Azure Function App
+            container_deployment: Whether to use container deployment
+            container_uri: Container URI (unused for Azure)
+            
+        Returns:
+            AzureFunction instance representing the created function.
+            
+        Raises:
+            NotImplementedError: If container deployment is requested.
+            RuntimeError: If function creation fails.
+        """
 
         if container_deployment:
             raise NotImplementedError("Container deployment is not supported in Azure")
@@ -496,8 +686,15 @@ class Azure(System):
         )
         return function
 
-    def cached_function(self, function: Function):
-
+    def cached_function(self, function: Function) -> None:
+        """Initialize cached function with current configuration.
+        
+        Sets up a cached function with current data storage account
+        and logging handlers for all triggers.
+        
+        Args:
+            function: Function instance loaded from cache
+        """
         data_storage_account = self.config.resources.data_storage_account(self.cli_instance)
         for trigger in function.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
@@ -511,7 +708,20 @@ class Azure(System):
         end_time: int,
         requests: Dict[str, ExecutionResult],
         metrics: Dict[str, dict],
-    ):
+    ) -> None:
+        """Download execution metrics from Azure Application Insights.
+        
+        Retrieves performance metrics for function executions from Azure
+        Application Insights and updates the execution results with
+        provider-specific timing information.
+        
+        Args:
+            function_name: Name of the Azure Function
+            start_time: Start timestamp for metrics collection
+            end_time: End timestamp for metrics collection
+            requests: Dictionary of execution results to update
+            metrics: Additional metrics dictionary (unused)
+        """
 
         self.cli_instance.install_insights()
 
@@ -584,14 +794,30 @@ class Azure(System):
 
         # TODO: query performance counters for mem
 
-    def _enforce_cold_start(self, function: Function, code_package: Benchmark):
-
+    def _enforce_cold_start(self, function: Function, code_package: Benchmark) -> None:
+        """Enforce cold start for a single function.
+        
+        Updates environment variable to force cold start behavior.
+        
+        Args:
+            function: Function instance to update
+            code_package: Benchmark code package
+        """
         self.update_envs(function, code_package, {"ForceColdStart": str(self.cold_start_counter)})
 
         # FIXME: is this sufficient to enforce cold starts?
         # self.update_function(function, code_package, False, "")
 
-    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark) -> None:
+        """Enforce cold start for multiple functions.
+        
+        Forces cold start behavior for all provided functions by updating
+        environment variables and waiting for changes to propagate.
+        
+        Args:
+            functions: List of functions to enforce cold start for
+            code_package: Benchmark code package
+        """
         self.cold_start_counter += 1
         for func in functions:
             self._enforce_cold_start(func, code_package)
@@ -599,10 +825,17 @@ class Azure(System):
 
         time.sleep(20)
 
-    """
-        The only implemented trigger at the moment is HTTPTrigger.
-        It is automatically created for each function.
-    """
-
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+        """Create trigger for Azure Function.
+        
+        Currently not implemented as HTTP triggers are automatically
+        created for each function during deployment.
+        
+        Args:
+            function: Function to create trigger for
+            trigger_type: Type of trigger to create
+            
+        Raises:
+            NotImplementedError: Trigger creation is not supported.
+        """
         raise NotImplementedError()

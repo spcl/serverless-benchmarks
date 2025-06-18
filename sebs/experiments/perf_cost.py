@@ -103,7 +103,7 @@ class PerfCost(Experiment):
             """
             return self.name.lower()
 
-    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
+    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem) -> None:
         """Prepare the experiment for execution.
         
         This method sets up the benchmark, function, trigger, and output
@@ -148,7 +148,7 @@ class PerfCost(Experiment):
         self._deployment_client = deployment_client
         self._sebs_client = sebs_client
 
-    def run(self):
+    def run(self) -> None:
         """Run the experiment.
         
         This method runs the experiment with the configured settings.
@@ -177,7 +177,7 @@ class PerfCost(Experiment):
             # Run experiment with this memory configuration
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
 
-    def compute_statistics(self, times: List[float]):
+    def compute_statistics(self, times: List[float]) -> None:
         """Compute statistical analysis of execution times.
         
         This method computes basic statistics (mean, median, standard deviation,
@@ -221,7 +221,7 @@ class PerfCost(Experiment):
         invocations: int,
         repetitions: int,
         suffix: str = "",
-    ):
+    ) -> None:
         """Run a specific experiment configuration.
         
         This method executes the experiment with the specified run type,
@@ -345,7 +345,7 @@ class PerfCost(Experiment):
                     )
                 )
 
-    def run_configuration(self, settings: dict, repetitions: int, suffix: str = ""):
+    def run_configuration(self, settings: dict, repetitions: int, suffix: str = "") -> None:
         """Run experiments for each configured experiment type.
         
         This method runs the experiment for each experiment type specified
@@ -404,7 +404,7 @@ class PerfCost(Experiment):
         directory: str,
         logging_filename: str,
         extend_time_interval: int,
-    ):
+    ) -> None:
         """Process experiment results and generate a CSV report.
         
         This method processes the experiment results, downloads additional

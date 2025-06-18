@@ -56,24 +56,24 @@ def ci_tstudents(alpha: float, times: List[float]) -> Tuple[float, float]:
 
 def ci_le_boudec(alpha: float, times: List[float]) -> Tuple[float, float]:
     """Compute non-parametric confidence interval using Le Boudec's method.
-    
+
     This function computes a confidence interval for the median of the given
     measurement times using the method described by Le Boudec. This is a
     non-parametric method that does not assume any particular distribution
     of the data.
-    
+
     Reference:
         J.-Y. Le Boudec, "Methods for the Estimation of the Accuracy of 
         Measurements in Computer Performance Evaluation", 
         Performance Evaluation Review, 2010
-    
+
     Args:
         alpha: Confidence level (e.g., 0.95 for 95% confidence)
         times: List of measurement times
-        
+
     Returns:
         A tuple (lower, upper) representing the confidence interval
-        
+
     Raises:
         AssertionError: If an unsupported confidence level is provided
     """

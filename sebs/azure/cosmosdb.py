@@ -1,3 +1,31 @@
+"""Azure CosmosDB integration for SeBS NoSQL benchmarking.
+
+This module provides Azure CosmosDB integration for NoSQL benchmarks in the
+SeBS benchmarking suite. It handles database and container management,
+data operations, and resource lifecycle for NoSQL-based benchmarks.
+
+The module includes:
+    - BenchmarkResources: Dataclass for managing benchmark-specific resources
+    - CosmosDB: Main class for CosmosDB operations and management
+
+Example:
+    Basic usage for CosmosDB operations:
+    
+    ```python
+    from sebs.azure.cosmosdb import CosmosDB
+    
+    # Initialize CosmosDB with account
+    cosmosdb = CosmosDB(cache, resources, cosmosdb_account)
+    
+    # Set up benchmark database and containers
+    db_name = cosmosdb.benchmark_database("my-benchmark")
+    tables = cosmosdb.get_tables("my-benchmark")
+    
+    # Perform operations
+    credentials = cosmosdb.credentials()
+    ```
+"""
+
 from dataclasses import dataclass
 from typing import cast, Dict, List, Optional, Tuple
 
@@ -13,6 +41,16 @@ from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
 @dataclass
 class BenchmarkResources:
+    """Resource container for benchmark-specific CosmosDB resources.
+    
+    This dataclass holds the database and container names allocated
+    for a specific benchmark, along with the database client proxy.
+    
+    Attributes:
+        database: Name of the CosmosDB database
+        containers: List of container names for the benchmark
+        database_client: CosmosDB database proxy (allocated dynamically)
+    """
 
     database: str
     containers: List[str]
@@ -20,10 +58,23 @@ class BenchmarkResources:
     database_client: Optional[DatabaseProxy] = None
 
     def serialize(self) -> dict:
+        """Serialize benchmark resources to dictionary.
+        
+        Returns:
+            Dictionary containing database and container names.
+        """
         return {"database": self.database, "containers": self.containers}
 
     @staticmethod
     def deserialize(config: dict) -> "BenchmarkResources":
+        """Deserialize benchmark resources from dictionary.
+        
+        Args:
+            config: Dictionary containing resource configuration
+            
+        Returns:
+            BenchmarkResources instance with restored configuration.
+        """
         return BenchmarkResources(database=config["database"], containers=config["containers"])
 
 

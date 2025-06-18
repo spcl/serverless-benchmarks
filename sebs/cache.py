@@ -1,3 +1,20 @@
+"""Caching system for SeBS (Serverless Benchmarking Suite).
+
+This module provides comprehensive caching functionality for the SeBS framework,
+including configuration caching, code package management, function deployment
+tracking, and storage resource management.
+
+The Cache class manages persistent storage of benchmark configurations, compiled
+code packages, Docker containers, deployed functions, and cloud resource
+configurations to optimize repeated benchmark executions and deployments.
+
+Example:
+    Basic cache usage:
+        cache = Cache("/path/to/cache", docker_client)
+        config = cache.get_benchmark_config("aws", "110.dynamic-html")
+        cache.add_code_package("aws", benchmark_instance)
+"""
+
 # https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
 import collections.abc
 import docker
@@ -15,7 +32,19 @@ if TYPE_CHECKING:
     from sebs.faas.function import Function
 
 
-def update(d, u):
+def update(d: Dict[str, Any], u: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively update nested dictionary with another dictionary.
+    
+    This function performs deep merge of two dictionaries, updating nested
+    dictionary values rather than replacing them entirely.
+    
+    Args:
+        d (Dict[str, Any]): The target dictionary to update.
+        u (Dict[str, Any]): The source dictionary with updates.
+        
+    Returns:
+        Dict[str, Any]: The updated dictionary.
+    """
     for k, v in u.items():
         if isinstance(v, collections.abc.Mapping):
             d[k] = update(d.get(k, {}), v)
@@ -24,8 +53,18 @@ def update(d, u):
     return d
 
 
-def update_dict(cfg, val, keys):
-    def map_keys(obj, val, keys):
+def update_dict(cfg: Dict[str, Any], val: Any, keys: List[str]) -> None:
+    """Update dictionary value at nested key path.
+    
+    Updates a nested dictionary by setting a value at a path specified
+    by a list of keys. Creates intermediate dictionaries as needed.
+    
+    Args:
+        cfg (Dict[str, Any]): The dictionary to update.
+        val (Any): The value to set at the key path.
+        keys (List[str]): List of keys forming the path to the target location.
+    """
+    def map_keys(obj: Dict[str, Any], val: Any, keys: List[str]) -> Dict[str, Any]:
         if len(keys):
             return {keys[0]: map_keys(obj, val, keys[1:])}
         else:
@@ -35,14 +74,36 @@ def update_dict(cfg, val, keys):
 
 
 class Cache(LoggingBase):
-    cached_config: Dict[str, str] = {}
+    """Persistent caching system for SeBS benchmark configurations and deployments.
+    
+    This class provides comprehensive caching functionality for SeBS benchmarks,
+    including configuration management, code package storage, function tracking,
+    and cloud resource management. It uses a file-based cache system with
+    thread-safe operations.
+    
+    Attributes:
+        cached_config (Dict[str, Any]): In-memory cache of cloud configurations.
+        config_updated (bool): Flag indicating if configuration needs to be saved.
+        cache_dir (str): Absolute path to the cache directory.
+        ignore_functions (bool): Flag to skip function caching operations.
+        ignore_storage (bool): Flag to skip storage resource caching.
+        docker_client (docker.DockerClient): Docker client for container operations.
     """
-        Indicate that cloud offerings updated credentials or settings.
-        Thus we have to write down changes.
-    """
-    config_updated = False
+    
+    cached_config: Dict[str, Any] = {}
+    config_updated: bool = False
 
-    def __init__(self, cache_dir: str, docker_client: docker.DockerClient):
+    def __init__(self, cache_dir: str, docker_client: docker.DockerClient) -> None:
+        """Initialize the Cache with directory and Docker client.
+        
+        Sets up the cache directory structure and loads existing configurations.
+        Creates the cache directory if it doesn't exist, otherwise loads
+        existing cached configurations.
+        
+        Args:
+            cache_dir (str): Path to the cache directory.
+            docker_client (docker.DockerClient): Docker client for container operations.
+        """
         super().__init__()
         self.docker_client = docker_client
         self.cache_dir = os.path.abspath(cache_dir)
@@ -56,36 +117,66 @@ class Cache(LoggingBase):
 
     @staticmethod
     def typename() -> str:
+        """Get the typename for this cache.
+        
+        Returns:
+            str: The cache type name.
+        """
         return "Benchmark"
 
-    def load_config(self):
+    def load_config(self) -> None:
+        """Load cached cloud configurations from disk.
+        
+        Reads configuration files for all supported cloud platforms from
+        the cache directory and loads them into memory.
+        """
         with self._lock:
             for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
                 cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
                 if os.path.exists(cloud_config_file):
-                    self.cached_config[cloud] = json.load(open(cloud_config_file, "r"))
+                    with open(cloud_config_file, "r") as f:
+                        self.cached_config[cloud] = json.load(f)
 
-    def get_config(self, cloud):
+    def get_config(self, cloud: str) -> Optional[Dict[str, Any]]:
+        """Get cached configuration for a specific cloud provider.
+        
+        Args:
+            cloud (str): Cloud provider name (e.g., 'aws', 'azure', 'gcp').
+            
+        Returns:
+            Optional[Dict[str, Any]]: The cached configuration or None if not found.
+        """
         return self.cached_config[cloud] if cloud in self.cached_config else None
 
-    """
-        Update config values. Sets flag to save updated content in the end.
-        val: new value to store
-        keys: array of consecutive keys for multi-level dictionary
-    """
-
-    def update_config(self, val, keys):
+    def update_config(self, val: Any, keys: List[str]) -> None:
+        """Update configuration values at nested key path.
+        
+        Updates cached configuration by setting a value at the specified
+        nested key path. Sets the config_updated flag to ensure changes
+        are persisted to disk.
+        
+        Args:
+            val (Any): New value to store.
+            keys (List[str]): Array of consecutive keys for multi-level dictionary.
+        """
         with self._lock:
             update_dict(self.cached_config, val, keys)
         self.config_updated = True
 
-    def lock(self):
+    def lock(self) -> None:
+        """Acquire the cache lock for thread-safe operations."""
         self._lock.acquire()
 
-    def unlock(self):
+    def unlock(self) -> None:
+        """Release the cache lock."""
         self._lock.release()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
+        """Save cached configurations to disk if they were updated.
+        
+        Writes all updated cloud configurations back to their respective
+        JSON files in the cache directory.
+        """
         if self.config_updated:
             for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
                 if cloud in self.cached_config:
@@ -94,32 +185,24 @@ class Cache(LoggingBase):
                     with open(cloud_config_file, "w") as out:
                         json.dump(self.cached_config[cloud], out, indent=2)
 
-    """
-        Access cached config of a benchmark.
-
-        :param deployment: allowed deployment clouds or local
-        :param benchmark:
-        :param  language:
-
-        :return: a JSON config or None when not exists
-    """
-
-    def get_benchmark_config(self, deployment: str, benchmark: str):
+    def get_benchmark_config(self, deployment: str, benchmark: str) -> Optional[Dict[str, Any]]:
+        """Access cached configuration of a benchmark.
+        
+        Args:
+            deployment (str): Deployment platform ('aws', 'azure', 'gcp', 'openwhisk', 'local').
+            benchmark (str): Benchmark name (e.g., '110.dynamic-html').
+            
+        Returns:
+            Optional[Dict[str, Any]]: Benchmark configuration or None if not found.
+        """
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
         if os.path.exists(benchmark_dir):
-            with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
-                cfg = json.load(fp)
-                return cfg[deployment] if deployment in cfg else None
-
-    """
-        Access cached version of benchmark code.
-
-        :param deployment: allowed deployment clouds or local
-        :param benchmark:
-        :param  language:
-
-        :return: a tuple of JSON config and absolute path to code or None
-    """
+            config_file = os.path.join(benchmark_dir, "config.json")
+            if os.path.exists(config_file):
+                with open(config_file, "r") as fp:
+                    cfg = json.load(fp)
+                    return cfg[deployment] if deployment in cfg else None
+        return None
 
     def get_code_package(
         self,
@@ -129,6 +212,18 @@ class Cache(LoggingBase):
         language_version: str,
         architecture: str,
     ) -> Optional[Dict[str, Any]]:
+        """Access cached version of benchmark code package.
+        
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            language (str): Programming language.
+            language_version (str): Language version.
+            architecture (str): Target architecture.
+            
+        Returns:
+            Optional[Dict[str, Any]]: Code package configuration or None if not found.
+        """
         cfg = self.get_benchmark_config(deployment, benchmark)
 
         key = f"{language_version}-{architecture}"
@@ -145,6 +240,18 @@ class Cache(LoggingBase):
         language_version: str,
         architecture: str,
     ) -> Optional[Dict[str, Any]]:
+        """Access cached container configuration for a benchmark.
+        
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            language (str): Programming language.
+            language_version (str): Language version.
+            architecture (str): Target architecture.
+            
+        Returns:
+            Optional[Dict[str, Any]]: Container configuration or None if not found.
+        """
         cfg = self.get_benchmark_config(deployment, benchmark)
 
         key = f"{language_version}-{architecture}"
@@ -156,57 +263,108 @@ class Cache(LoggingBase):
     def get_functions(
         self, deployment: str, benchmark: str, language: str
     ) -> Optional[Dict[str, Any]]:
+        """Get cached function configurations for a benchmark.
+        
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            language (str): Programming language.
+            
+        Returns:
+            Optional[Dict[str, Any]]: Function configurations or None if not found.
+        """
         cfg = self.get_benchmark_config(deployment, benchmark)
         if cfg and language in cfg and not self.ignore_functions:
             return cfg[language]["functions"]
         else:
             return None
 
-    """
-        Access cached storage config of a benchmark.
-
-        :param deployment: allowed deployment clouds or local
-        :param benchmark:
-
-        :return: a JSON config or None
-    """
-
-    def get_storage_config(self, deployment: str, benchmark: str):
+    def get_storage_config(self, deployment: str, benchmark: str) -> Optional[Dict[str, Any]]:
+        """Access cached storage configuration of a benchmark.
+        
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            
+        Returns:
+            Optional[Dict[str, Any]]: Storage configuration or None if not found.
+        """
         return self._get_resource_config(deployment, benchmark, "storage")
 
-    def get_nosql_config(self, deployment: str, benchmark: str):
+    def get_nosql_config(self, deployment: str, benchmark: str) -> Optional[Dict[str, Any]]:
+        """Access cached NoSQL configuration of a benchmark.
+        
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            
+        Returns:
+            Optional[Dict[str, Any]]: NoSQL configuration or None if not found.
+        """
         return self._get_resource_config(deployment, benchmark, "nosql")
 
-    def _get_resource_config(self, deployment: str, benchmark: str, resource: str):
+    def _get_resource_config(self, deployment: str, benchmark: str, resource: str) -> Optional[Dict[str, Any]]:
+        """Get cached resource configuration for a benchmark.
+        
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            resource (str): Resource type ('storage' or 'nosql').
+            
+        Returns:
+            Optional[Dict[str, Any]]: Resource configuration or None if not found.
+        """
         cfg = self.get_benchmark_config(deployment, benchmark)
         return cfg[resource] if cfg and resource in cfg and not self.ignore_storage else None
 
-    def update_storage(self, deployment: str, benchmark: str, config: dict):
+    def update_storage(self, deployment: str, benchmark: str, config: Dict[str, Any]) -> None:
+        """Update cached storage configuration for a benchmark.
+        
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            config (Dict[str, Any]): Storage configuration to cache.
+        """
         if self.ignore_storage:
             return
 
         self._update_resources(deployment, benchmark, "storage", config)
 
-    def update_nosql(self, deployment: str, benchmark: str, config: dict):
+    def update_nosql(self, deployment: str, benchmark: str, config: Dict[str, Any]) -> None:
+        """Update cached NoSQL configuration for a benchmark.
+        
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            config (Dict[str, Any]): NoSQL configuration to cache.
+        """
         if self.ignore_storage:
             return
         self._update_resources(deployment, benchmark, "nosql", config)
 
-    def _update_resources(self, deployment: str, benchmark: str, resource: str, config: dict):
+    def _update_resources(self, deployment: str, benchmark: str, resource: str, config: Dict[str, Any]) -> None:
+        """Update cached resource configuration for a benchmark.
+        
+        This method handles caching of resource configurations (storage, nosql)
+        for benchmarks. It creates the benchmark directory if it doesn't exist
+        and updates the configuration file.
+        
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            resource (str): Resource type ('storage' or 'nosql').
+            config (Dict[str, Any]): Resource configuration to cache.
+        """
         if self.ignore_storage:
             return
-
-        """
-            We are now preparing benchmark data before caching function.
-            Thus, we have to take over a situation where the cache directory does not exist.
-        """
 
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
         os.makedirs(benchmark_dir, exist_ok=True)
 
         with self._lock:
-            if os.path.exists(os.path.join(benchmark_dir, "config.json")):
-                with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
+            config_file = os.path.join(benchmark_dir, "config.json")
+            if os.path.exists(config_file):
+                with open(config_file, "r") as fp:
                     cached_config = json.load(fp)
             else:
                 cached_config = {}
@@ -216,14 +374,26 @@ class Cache(LoggingBase):
             else:
                 cached_config[deployment] = {resource: config}
 
-            with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
+            with open(config_file, "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 
     def add_code_package(
         self,
         deployment_name: str,
         code_package: "Benchmark",
-    ):
+    ) -> None:
+        """Add a new code package to the cache.
+        
+        Caches a compiled benchmark code package (either directory or ZIP file)
+        along with its configuration. Handles both package and container deployments.
+        
+        Args:
+            deployment_name (str): Name of the deployment platform.
+            code_package (Benchmark): The benchmark code package to cache.
+            
+        Raises:
+            RuntimeError: If cached application already exists for the deployment.
+        """
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
@@ -331,7 +501,16 @@ class Cache(LoggingBase):
         self,
         deployment_name: str,
         code_package: "Benchmark",
-    ):
+    ) -> None:
+        """Update an existing code package in the cache.
+        
+        Updates cached code package with new content and metadata. If the
+        cached package doesn't exist, adds it as a new package.
+        
+        Args:
+            deployment_name (str): Name of the deployment platform.
+            code_package (Benchmark): The benchmark code package to update.
+        """
         with self._lock:
             language = code_package.language_name
             language_version = code_package.language_version
@@ -392,24 +571,27 @@ class Cache(LoggingBase):
             else:
                 self.add_code_package(deployment_name, code_package)
 
-    """
-        Add new function to cache.
-
-        :param deployment:
-        :param benchmark:
-        :param language:
-        :param code_package: Path to directory/ZIP with code.
-        :param language_config: Configuration of language and code.
-        :param storage_config: Configuration of storage buckets.
-    """
-
     def add_function(
         self,
         deployment_name: str,
         language_name: str,
         code_package: "Benchmark",
         function: "Function",
-    ):
+    ) -> None:
+        """Add new function to cache.
+        
+        Caches a deployed function configuration for a benchmark. Links the
+        function to its corresponding code package.
+        
+        Args:
+            deployment_name (str): Name of the deployment platform.
+            language_name (str): Programming language name.
+            code_package (Benchmark): The benchmark code package.
+            function (Function): The deployed function to cache.
+            
+        Raises:
+            RuntimeError: If code package doesn't exist in cache.
+        """
         if self.ignore_functions:
             return
         with self._lock:
@@ -436,7 +618,18 @@ class Cache(LoggingBase):
                     "Can't cache function {} for a non-existing code package!".format(function.name)
                 )
 
-    def update_function(self, function: "Function"):
+    def update_function(self, function: "Function") -> None:
+        """Update an existing function in the cache.
+        
+        Updates cached function configuration with new metadata. Searches
+        across all deployments and languages to find the function by name.
+        
+        Args:
+            function (Function): The function with updated configuration.
+            
+        Raises:
+            RuntimeError: If function's code package doesn't exist in cache.
+        """
         if self.ignore_functions:
             return
         with self._lock:

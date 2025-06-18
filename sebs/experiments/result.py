@@ -69,21 +69,21 @@ class Result:
             self._metrics = metrics
         self.result_bucket = result_bucket
 
-    def begin(self):
+    def begin(self) -> None:
         """Mark the beginning of the experiment.
         
         This method records the start time of the experiment.
         """
         self.begin_time = datetime.now().timestamp()
 
-    def end(self):
+    def end(self) -> None:
         """Mark the end of the experiment.
         
         This method records the end time of the experiment.
         """
         self.end_time = datetime.now().timestamp()
 
-    def times(self) -> Tuple[int, int]:
+    def times(self) -> Tuple[float, float]:
         """Get the start and end times of the experiment.
         
         Returns:
@@ -91,7 +91,7 @@ class Result:
         """
         return self.begin_time, self.end_time
 
-    def add_result_bucket(self, result_bucket: str):
+    def add_result_bucket(self, result_bucket: str) -> None:
         """Set the result bucket for storing experiment results.
         
         Args:
@@ -99,7 +99,7 @@ class Result:
         """
         self.result_bucket = result_bucket
 
-    def add_invocation(self, func: Function, invocation: ExecutionResult):
+    def add_invocation(self, func: Function, invocation: ExecutionResult) -> None:
         """Add an invocation result for a specific function.
         
         If the invocation doesn't have a request ID (likely due to failure),

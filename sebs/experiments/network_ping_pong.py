@@ -58,7 +58,7 @@ class NetworkPingPong(Experiment):
         """
         super().__init__(config)
 
-    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
+    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem) -> None:
         """Prepare the experiment for execution.
         
         This method sets up the benchmark, function, triggers, storage, and output
@@ -96,7 +96,7 @@ class NetworkPingPong(Experiment):
         if len(triggers) == 0:
             deployment_client.create_trigger(self._function, Trigger.TriggerType.HTTP)
 
-    def run(self):
+    def run(self) -> None:
         """Run the network ping-pong experiment.
         
         This method executes the experiment, measuring network latency and 
@@ -123,7 +123,7 @@ class NetworkPingPong(Experiment):
         time.sleep(5)
         self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
 
-    def process(self, directory: str):
+    def process(self, directory: str) -> None:
         """Process the experiment results.
         
         This method processes the CSV files generated during the experiment
@@ -158,7 +158,7 @@ class NetworkPingPong(Experiment):
         fig = ax.get_figure()
         fig.savefig(os.path.join(directory, "histogram.png"))
 
-    def receive_datagrams(self, repetitions: int, port: int, ip: str):
+    def receive_datagrams(self, repetitions: int, port: int, ip: str) -> None:
         """Receive UDP datagrams from the function and respond to them.
         
         This method acts as a UDP server, receiving datagrams from the function
