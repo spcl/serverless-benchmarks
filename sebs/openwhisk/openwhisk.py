@@ -44,7 +44,10 @@ class OpenWhisk(System):
         self.logging_handlers = logger_handlers
 
         self.container_client = OpenWhiskContainer(
-            self.system_config, self.config, self.docker_client, self.config.experimentalManifest
+            self.system_config,
+            self.config,
+            self.docker_client,
+            self.config.experimentalManifest,
         )
 
         if self.config.resources.docker_username:
@@ -108,7 +111,7 @@ class OpenWhisk(System):
         # Regardless of Docker image status, we need to create .zip file
         # to allow registration of function with OpenWhisk
         _, image_uri = self.container_client.build_base_image(
-            directory, language.value, language_version, architecture, benchmark, is_cached
+            directory, language, language_version, architecture, benchmark, is_cached
         )
 
         # We deploy Minio config in code package since this depends on local
@@ -121,7 +124,9 @@ class OpenWhisk(System):
 
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(
-            ["zip", benchmark_archive] + package_config, stdout=subprocess.DEVNULL, cwd=directory
+            ["zip", benchmark_archive] + package_config,
+            stdout=subprocess.DEVNULL,
+            cwd=directory,
         )
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
@@ -231,7 +236,10 @@ class OpenWhisk(System):
                     )
                     function_cfg.docker_image = docker_image
                     res = OpenWhiskFunction(
-                        func_name, code_package.benchmark, code_package.hash, function_cfg
+                        func_name,
+                        code_package.benchmark,
+                        code_package.hash,
+                        function_cfg,
                     )
                 except subprocess.CalledProcessError as e:
                     self.logging.error(f"Cannot create action {func_name}.")

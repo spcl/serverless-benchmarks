@@ -134,15 +134,11 @@ class ExecutionResult:
         self.billing = ExecutionBilling()
 
     @staticmethod
-    def from_times(
-        client_time_begin: datetime, client_time_end: datetime
-    ) -> "ExecutionResult":
+    def from_times(client_time_begin: datetime, client_time_end: datetime) -> "ExecutionResult":
         ret = ExecutionResult()
         ret.times.client_begin = client_time_begin
         ret.times.client_end = client_time_end
-        ret.times.client = int(
-            (client_time_end - client_time_begin) / timedelta(microseconds=1)
-        )
+        ret.times.client = int((client_time_end - client_time_begin) / timedelta(microseconds=1))
         return ret
 
     def parse_benchmark_output(self, output: dict):
@@ -192,9 +188,7 @@ class Trigger(ABC, LoggingBase):
                     return member
             raise Exception("Unknown trigger type {}".format(member))
 
-    def _http_invoke(
-        self, payload: dict, url: str, verify_ssl: bool = True
-    ) -> ExecutionResult:
+    def _http_invoke(self, payload: dict, url: str, verify_ssl: bool = True) -> ExecutionResult:
         import pycurl
         from io import BytesIO
 
@@ -248,9 +242,7 @@ class Trigger(ABC, LoggingBase):
                 self.logging.error("Output: {}".format(data.getvalue().decode()))
             else:
                 self.logging.error("No output provided!")
-            raise RuntimeError(
-                f"Failed invocation of function! Output: {data.getvalue().decode()}"
-            )
+            raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
 
     # FIXME: 3.7+, future annotations
     @staticmethod
@@ -287,9 +279,7 @@ class Runtime:
 
     @staticmethod
     def deserialize(config: dict) -> Runtime:
-        return Runtime(
-            language=Language.deserialize(config["language"]), version=config["version"]
-        )
+        return Runtime(language=Language.deserialize(config["language"]), version=config["version"])
 
 
 T = TypeVar("T", bound="FunctionConfig")
@@ -304,12 +294,8 @@ class FunctionConfig:
 
     @staticmethod
     def _from_benchmark(benchmark: Benchmark, obj_type: Type[T]) -> T:
-        runtime = Runtime(
-            language=benchmark.language, version=benchmark.language_version
-        )
-        architecture = Architecture.deserialize(
-            benchmark._experiment_config._architecture
-        )
+        runtime = Runtime(language=benchmark.language, version=benchmark.language_version)
+        architecture = Architecture.deserialize(benchmark._experiment_config._architecture)
         cfg = obj_type(
             timeout=benchmark.benchmark_config.timeout,
             memory=benchmark.benchmark_config.memory,
@@ -379,11 +365,7 @@ class Function(LoggingBase):
         self._updated_code = val
 
     def triggers_all(self) -> List[Trigger]:
-        return [
-            trig
-            for trigger_type, triggers in self._triggers.items()
-            for trig in triggers
-        ]
+        return [trig for trigger_type, triggers in self._triggers.items() for trig in triggers]
 
     def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
         try:
@@ -404,9 +386,7 @@ class Function(LoggingBase):
             "benchmark": self._benchmark,
             "config": self.config.serialize(),
             "triggers": [
-                obj.serialize()
-                for t_type, triggers in self._triggers.items()
-                for obj in triggers
+                obj.serialize() for t_type, triggers in self._triggers.items() for obj in triggers
             ],
         }
 

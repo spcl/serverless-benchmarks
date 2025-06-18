@@ -16,7 +16,6 @@ from sebs.faas.config import Resources
 from sebs.faas.resources import SystemResources
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.types import BenchmarkModule, Language
-from sebs.types import Language
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,7 +24,11 @@ if TYPE_CHECKING:
 
 class BenchmarkConfig:
     def __init__(
-        self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
+        self,
+        timeout: int,
+        memory: int,
+        languages: List["Language"],
+        modules: List[BenchmarkModule],
     ):
         self._timeout = timeout
         self._memory = memory
@@ -647,7 +650,12 @@ class Benchmark(LoggingBase):
                 "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
             )
             if self.container_deployment:
-                return False, self.code_location, self.container_deployment, self.container_uri
+                return (
+                    False,
+                    self.code_location,
+                    self.container_deployment,
+                    self.container_uri,
+                )
 
             return False, self.code_location, self.container_deployment, ""
 
@@ -698,7 +706,12 @@ class Benchmark(LoggingBase):
             self._cache_client.add_code_package(self._deployment_name, self)
         self.query_cache()
 
-        return True, self._code_location, self._container_deployment, self._container_uri
+        return (
+            True,
+            self._code_location,
+            self._container_deployment,
+            self._container_uri,
+        )
 
     """
         Locates benchmark input generator, inspect how many storage buckets
@@ -711,9 +724,11 @@ class Benchmark(LoggingBase):
     """
 
     def prepare_input(
-        self, system_resources: SystemResources, size: str, replace_existing: bool = False
+        self,
+        system_resources: SystemResources,
+        size: str,
+        replace_existing: bool = False,
     ):
-
         """
         Handle object storage buckets.
         """
@@ -740,7 +755,10 @@ class Benchmark(LoggingBase):
         if hasattr(self._benchmark_input_module, "allocate_nosql"):
 
             nosql_storage = system_resources.get_nosql_storage()
-            for name, table_properties in self._benchmark_input_module.allocate_nosql().items():
+            for (
+                name,
+                table_properties,
+            ) in self._benchmark_input_module.allocate_nosql().items():
                 nosql_storage.create_benchmark_tables(
                     self._benchmark,
                     name,
@@ -757,7 +775,13 @@ class Benchmark(LoggingBase):
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = self._benchmark_input_module.generate_input(
-            self._benchmark_data_path, size, bucket, input, output, storage_func, nosql_func
+            self._benchmark_data_path,
+            size,
+            bucket,
+            input,
+            output,
+            storage_func,
+            nosql_func,
         )
 
         # Cache only once we data is in the cloud.
