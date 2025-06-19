@@ -13,30 +13,31 @@
 #include "key-value.hpp"
 #include "utils.hpp"
 
-KeyValue::KeyValue()
-{
+KeyValue::KeyValue() {
   Aws::Client::ClientConfiguration config;
-  //config.region = "eu-central-1";
+  // config.region = "eu-central-1";
   config.caFile = "/etc/pki/tls/certs/ca-bundle.crt";
 
   char const TAG[] = "LAMBDA_ALLOC";
-  auto credentialsProvider = Aws::MakeShared<Aws::Auth::EnvironmentAWSCredentialsProvider>(TAG);
+  auto credentialsProvider =
+      Aws::MakeShared<Aws::Auth::EnvironmentAWSCredentialsProvider>(TAG);
   _client.reset(new Aws::DynamoDB::DynamoDBClient(credentialsProvider, config));
 }
 
-uint64_t KeyValue::download_file(Aws::String const &table, Aws::String const &key,
-                        int &required_retries, double& read_units, bool with_backoff)
-{
+uint64_t KeyValue::download_file(Aws::String const &table,
+                                 Aws::String const &key, int &required_retries,
+                                 double &read_units, bool with_backoff) {
   Aws::DynamoDB::Model::GetItemRequest req;
 
   // Set up the request
   req.SetTableName(table);
-  req.SetReturnConsumedCapacity(Aws::DynamoDB::Model::ReturnConsumedCapacity::TOTAL);
+  req.SetReturnConsumedCapacity(
+      Aws::DynamoDB::Model::ReturnConsumedCapacity::TOTAL);
   Aws::DynamoDB::Model::AttributeValue hashKey;
   hashKey.SetS(key);
   req.AddKey("key", hashKey);
-    
-  auto bef = timeSinceEpochMillisec();
+
+  auto bef = timeSinceEpochMicrosec();
   int retries = 0;
   const int MAX_RETRIES = 1500;
 
@@ -46,23 +47,24 @@ uint64_t KeyValue::download_file(Aws::String const &table, Aws::String const &ke
 
       // Reference the retrieved fields/values
       auto result = get_result.GetResult();
-      const Aws::Map<Aws::String, Aws::DynamoDB::Model::AttributeValue>& item = result.GetItem();
+      const Aws::Map<Aws::String, Aws::DynamoDB::Model::AttributeValue> &item =
+          result.GetItem();
       if (item.size() > 0) {
-          uint64_t finishedTime = timeSinceEpochMillisec();
+        uint64_t finishedTime = timeSinceEpochMicrosec();
 
-          required_retries = retries;
-          // GetReadCapacityUnits returns 0?
-          read_units = result.GetConsumedCapacity().GetCapacityUnits();
+        required_retries = retries;
+        // GetReadCapacityUnits returns 0?
+        read_units = result.GetConsumedCapacity().GetCapacityUnits();
 
-          return finishedTime - bef;
+        return finishedTime - bef;
       }
 
     } else {
       retries += 1;
-      if(with_backoff) {
+      if (with_backoff) {
         int sleep_time = retries;
         if (retries > 100) {
-            sleep_time = retries * 2;
+          sleep_time = retries * 2;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time));
       }
@@ -71,16 +73,15 @@ uint64_t KeyValue::download_file(Aws::String const &table, Aws::String const &ke
   return 0;
 }
 
-uint64_t KeyValue::upload_file(Aws::String const &table,
-                        Aws::String const &key,
-                        double& write_units,
-                        int size, unsigned char* pBuf)
-{
+uint64_t KeyValue::upload_file(Aws::String const &table, Aws::String const &key,
+                               double &write_units, int size,
+                               unsigned char *pBuf) {
   Aws::Utils::ByteBuffer buf(pBuf, size);
 
   Aws::DynamoDB::Model::PutItemRequest req;
   req.SetTableName(table);
-  req.SetReturnConsumedCapacity(Aws::DynamoDB::Model::ReturnConsumedCapacity::TOTAL);
+  req.SetReturnConsumedCapacity(
+      Aws::DynamoDB::Model::ReturnConsumedCapacity::TOTAL);
 
   Aws::DynamoDB::Model::AttributeValue av;
   av.SetB(buf);
@@ -88,16 +89,16 @@ uint64_t KeyValue::upload_file(Aws::String const &table,
   av.SetS(key);
   req.AddItem("key", av);
 
-  uint64_t bef = timeSinceEpochMillisec();
+  uint64_t bef = timeSinceEpochMicrosec();
   const Aws::DynamoDB::Model::PutItemOutcome put_result = _client->PutItem(req);
   if (!put_result.IsSuccess()) {
-      std::cout << put_result.GetError().GetMessage() << std::endl;
-      return 1;
+    std::cout << put_result.GetError().GetMessage() << std::endl;
+    return 1;
   }
   auto result = put_result.GetResult();
   // GetWriteCapacityUnits returns 0?
   write_units = result.GetConsumedCapacity().GetCapacityUnits();
-  uint64_t finishedTime = timeSinceEpochMillisec();
+  uint64_t finishedTime = timeSinceEpochMicrosec();
 
   return finishedTime - bef;
 }

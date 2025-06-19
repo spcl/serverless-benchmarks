@@ -1,5 +1,8 @@
+#ifndef UTILS_HPP
+#define UTILS_HPP
 
-#include <chrono>
+#include <cstdint>
 
-uint64_t timeSinceEpochMillisec();
+uint64_t timeSinceEpochMicrosec();
 
+#endif
