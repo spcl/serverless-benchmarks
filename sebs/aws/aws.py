@@ -190,13 +190,18 @@ class AWS(System):
             return "x86_64"
         return architecture
 
-    def _map_language_runtime(self, language: str, runtime: str):
+    def cloud_runtime(self, language: Language, language_version: str):
 
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
-        if language == "nodejs":
-            return f"{runtime}.x"
-        return runtime
+        if language == Language.NODEJS:
+            return f"{language_version}.x"
+        elif language == Language.CPP:
+            return "provided.al2"
+        elif language in [Language.PYTHON]:
+            return ("{}{}".format(language, language_version),)
+        else:
+            raise NotImplementedError()
 
     def create_function(
         self,
@@ -248,14 +253,6 @@ class AWS(System):
                 "Architectures": [self._map_architecture(architecture)],
                 "Code": {},
             }
-            ret = self.client.create_function(
-                FunctionName=func_name,
-                Runtime=self.cloud_runtime(language, language_runtime),
-                Handler="handler.handler",
-                Role=self.config.resources.lambda_role(self.session),
-                MemorySize=memory,
-                Timeout=timeout,
-            )
 
             if container_deployment:
                 create_function_params["PackageType"] = "Image"
@@ -282,7 +279,7 @@ class AWS(System):
                     }
 
                 create_function_params["Runtime"] = "{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
+                    language, self.cloud_runtime(language, language_runtime)
                 )
                 create_function_params["Handler"] = "handler.handler"
 
@@ -672,11 +669,3 @@ class AWS(System):
 
     def disable_rich_output(self):
         self.ecr_client.disable_rich_output = True
-
-    def cloud_runtime(self, language: Language, language_version: str):
-        if language in [Language.NODEJS, Language.PYTHON]:
-            return ("{}{}".format(language, language_version),)
-        elif language == Language.CPP:
-            return "provided.al2"
-        else:
-            raise NotImplementedError()
