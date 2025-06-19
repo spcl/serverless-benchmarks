@@ -1,5 +1,6 @@
 
-#include <memory>
+#include <chrono>
+#include <thread>
 
 #include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/core/client/ClientConfiguration.h>

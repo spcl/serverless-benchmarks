@@ -1,5 +1,7 @@
 
 #include <memory>
+#include <iostream>
+#include <sstream>
 
 #include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/core/client/ClientConfiguration.h>
@@ -13,10 +15,7 @@
 
 Storage Storage::get_client() {
   Aws::Client::ClientConfiguration config;
-  // config.region = "eu-central-1";
   config.caFile = "/etc/pki/tls/certs/ca-bundle.crt";
-
-  std::cout << std::getenv("AWS_REGION") << std::endl;
 
   char const TAG[] = "LAMBDA_ALLOC";
   auto credentialsProvider =

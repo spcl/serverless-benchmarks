@@ -32,7 +32,7 @@ class Language(str, Enum):
         for member in Language:
             if member.value == val:
                 return member
-        raise Exception(f"Unknown language type {member}")
+        raise Exception(f"Unknown language type {val}")
 
 
 class NoSQLStorage(str, Enum):

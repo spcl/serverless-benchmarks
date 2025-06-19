@@ -1,3 +1,5 @@
+#include <chrono>
+#include <cstdlib>
 
 #include <aws/core/Aws.h>
 #include <aws/lambda-runtime/runtime.h>
@@ -36,10 +38,6 @@ aws::lambda_runtime::invocation_response handler(aws::lambda_runtime::invocation
   Aws::Utils::Json::JsonValue body;
   body.WithObject("result", ret);
 
-  // Switch cold execution after the first one.
-  if(cold_execution)
-    cold_execution = false;
-
   auto b = std::chrono::duration_cast<std::chrono::microseconds>(begin.time_since_epoch()).count() / 1000.0 / 1000.0;
   auto e = std::chrono::duration_cast<std::chrono::microseconds>(end.time_since_epoch()).count() / 1000.0 / 1000.0;
   body.WithDouble("begin", b);
@@ -49,6 +47,10 @@ aws::lambda_runtime::invocation_response handler(aws::lambda_runtime::invocation
   body.WithBool("is_cold", cold_execution);
   body.WithString("container_id", container_id);
   body.WithString("cold_start_var", cold_start_var);
+
+  // Switch cold execution after the first one.
+  if(cold_execution)
+    cold_execution = false;
 
   Aws::Utils::Json::JsonValue final_result;
   final_result.WithObject("body", body);

@@ -1,5 +1,8 @@
 
+#include <chrono>
+#include <iostream>
 #include <string>
+#include <thread>
 
 #include <aws/core/Aws.h>
 
