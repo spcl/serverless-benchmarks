@@ -195,11 +195,11 @@ class AWS(System):
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
         if language == Language.NODEJS:
-            return f"{language_version}.x"
+            return f"{language}{language_version}.x"
         elif language == Language.CPP:
             return "provided.al2"
         elif language in [Language.PYTHON]:
-            return ("{}{}".format(language, language_version),)
+            return f"{language}{language_version}"
         else:
             raise NotImplementedError()
 
@@ -278,9 +278,7 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                create_function_params["Runtime"] = "{}{}".format(
-                    language, self.cloud_runtime(language, language_runtime)
-                )
+                create_function_params["Runtime"] = self.cloud_runtime(language, language_runtime)
                 create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {
