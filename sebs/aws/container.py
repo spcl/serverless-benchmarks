@@ -23,20 +23,20 @@ from sebs.faas.container import DockerContainer
 
 class ECRContainer(DockerContainer):
     """AWS ECR container management for SeBS.
-    
+
     This class handles Docker container operations specifically for AWS Lambda
     deployments using Amazon Elastic Container Registry (ECR). It provides
     functionality for building, tagging, and pushing container images to ECR.
-    
+
     Attributes:
         ecr_client: AWS ECR client for registry operations
         config: AWS-specific configuration
     """
-    
+
     @staticmethod
     def name() -> str:
         """Get the name of this container system.
-        
+
         Returns:
             str: System name ('aws')
         """
@@ -45,7 +45,7 @@ class ECRContainer(DockerContainer):
     @staticmethod
     def typename() -> str:
         """Get the type name of this container system.
-        
+
         Returns:
             str: Type name ('AWS.ECRContainer')
         """
@@ -59,7 +59,7 @@ class ECRContainer(DockerContainer):
         docker_client: docker.client.DockerClient,
     ) -> None:
         """Initialize ECR container manager.
-        
+
         Args:
             system_config: SeBS system configuration
             session: AWS boto3 session
@@ -73,7 +73,7 @@ class ECRContainer(DockerContainer):
     @property
     def client(self) -> ECRClient:
         """Get the ECR client.
-        
+
         Returns:
             ECRClient: AWS ECR client for registry operations
         """
@@ -83,16 +83,16 @@ class ECRContainer(DockerContainer):
         self, benchmark: str, language_name: str, language_version: str, architecture: str
     ) -> Tuple[str, str, str, str]:
         """Generate ECR registry details for a benchmark image.
-        
+
         Creates the registry name, repository name, image tag, and full image URI
         for a specific benchmark configuration.
-        
+
         Args:
             benchmark: Name of the benchmark
             language_name: Programming language (e.g., 'python', 'nodejs')
             language_version: Language version (e.g., '3.8', '14')
             architecture: Target architecture (e.g., 'x64', 'arm64')
-            
+
         Returns:
             Tuple[str, str, str, str]: Registry name, repository name, image tag, and image URI
         """
@@ -110,11 +110,11 @@ class ECRContainer(DockerContainer):
 
     def find_image(self, repository_name: str, image_tag: str) -> bool:
         """Check if an image exists in the ECR repository.
-        
+
         Args:
             repository_name: Name of the ECR repository
             image_tag: Tag of the image to search for
-            
+
         Returns:
             bool: True if the image exists, False otherwise
         """
@@ -131,14 +131,14 @@ class ECRContainer(DockerContainer):
 
     def push_image(self, repository_uri: str, image_tag: str) -> None:
         """Push a Docker image to ECR.
-        
+
         Authenticates with ECR using temporary credentials and pushes the
         specified image to the repository.
-        
+
         Args:
             repository_uri: URI of the ECR repository
             image_tag: Tag of the image to push
-            
+
         Raises:
             RuntimeError: If the push operation fails
         """

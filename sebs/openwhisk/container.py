@@ -19,25 +19,25 @@ from sebs.openwhisk.config import OpenWhiskConfig
 class OpenWhiskContainer(DockerContainer):
     """
     OpenWhisk-specific Docker container management.
-    
+
     This class extends the base DockerContainer to provide OpenWhisk-specific
     functionality for managing Docker images, registries, and container deployment.
     It handles Docker registry authentication and image URI generation for
     OpenWhisk function deployments.
-    
+
     Attributes:
         config: OpenWhisk configuration containing registry settings
-    
+
     Example:
         >>> container = OpenWhiskContainer(sys_config, ow_config, docker_client, True)
         >>> registry, repo, tag, uri = container.registry_name("benchmark", "python", "3.8", "x86_64")
     """
-    
+
     @staticmethod
     def name() -> str:
         """
         Get the platform name identifier.
-        
+
         Returns:
             Platform name as string
         """
@@ -47,7 +47,7 @@ class OpenWhiskContainer(DockerContainer):
     def typename() -> str:
         """
         Get the container type name.
-        
+
         Returns:
             Container type name as string
         """
@@ -62,7 +62,7 @@ class OpenWhiskContainer(DockerContainer):
     ) -> None:
         """
         Initialize OpenWhisk container manager.
-        
+
         Args:
             system_config: Global SeBS system configuration
             config: OpenWhisk-specific configuration settings
@@ -77,24 +77,24 @@ class OpenWhiskContainer(DockerContainer):
     ) -> Tuple[str, str, str, str]:
         """
         Generate Docker registry information for a benchmark image.
-        
+
         This method creates the appropriate registry name, repository name, image tag,
         and complete image URI based on the benchmark parameters and OpenWhisk
         configuration. It handles both custom registries and Docker Hub.
-        
+
         Args:
             benchmark: Name of the benchmark
             language_name: Programming language (e.g., 'python', 'nodejs')
             language_version: Language version (e.g., '3.8', '14')
             architecture: Target architecture (e.g., 'x86_64')
-        
+
         Returns:
             Tuple containing:
                 - Registry name (e.g., "my-registry.com" or "Docker Hub")
                 - Full repository name with registry prefix
                 - Image tag
                 - Complete image URI
-        
+
         Example:
             >>> registry, repo, tag, uri = container.registry_name("test", "python", "3.8", "x86_64")
             >>> # Returns: ("Docker Hub", "sebs", "openwhisk-test-python-3.8-x86_64", "sebs:openwhisk-test-python-3.8-x86_64")

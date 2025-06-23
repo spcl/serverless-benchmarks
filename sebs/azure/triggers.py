@@ -34,18 +34,18 @@ from sebs.faas.function import ExecutionResult, Trigger
 
 class AzureTrigger(Trigger):
     """Base class for Azure Function triggers.
-    
+
     This abstract base class provides common functionality for Azure Function
     triggers, including data storage account management for benchmark data
     handling.
-    
+
     Attributes:
         _data_storage_account: Azure storage account for benchmark data
     """
-    
+
     def __init__(self, data_storage_account: Optional[AzureResources.Storage] = None) -> None:
         """Initialize Azure trigger.
-        
+
         Args:
             data_storage_account: Optional Azure storage account for data operations
         """
@@ -55,10 +55,10 @@ class AzureTrigger(Trigger):
     @property
     def data_storage_account(self) -> AzureResources.Storage:
         """Get the data storage account.
-        
+
         Returns:
             Azure storage account for benchmark data.
-            
+
         Raises:
             AssertionError: If data storage account is not set.
         """
@@ -68,7 +68,7 @@ class AzureTrigger(Trigger):
     @data_storage_account.setter
     def data_storage_account(self, data_storage_account: AzureResources.Storage) -> None:
         """Set the data storage account.
-        
+
         Args:
             data_storage_account: Azure storage account to set
         """
@@ -77,17 +77,19 @@ class AzureTrigger(Trigger):
 
 class HTTPTrigger(AzureTrigger):
     """HTTP trigger for Azure Functions.
-    
+
     This class implements HTTP-based invocation of Azure Functions, supporting
     both synchronous and asynchronous execution patterns for benchmarking.
-    
+
     Attributes:
         url: HTTP endpoint URL for the Azure Function
     """
-    
-    def __init__(self, url: str, data_storage_account: Optional[AzureResources.Storage] = None) -> None:
+
+    def __init__(
+        self, url: str, data_storage_account: Optional[AzureResources.Storage] = None
+    ) -> None:
         """Initialize HTTP trigger.
-        
+
         Args:
             url: HTTP endpoint URL for the Azure Function
             data_storage_account: Optional Azure storage account for data operations
@@ -98,7 +100,7 @@ class HTTPTrigger(AzureTrigger):
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
         """Get the trigger type.
-        
+
         Returns:
             HTTP trigger type identifier.
         """
@@ -106,12 +108,12 @@ class HTTPTrigger(AzureTrigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         """Synchronously invoke Azure Function via HTTP.
-        
+
         Sends HTTP request to the function endpoint and waits for response.
-        
+
         Args:
             payload: Dictionary payload to send to the function
-            
+
         Returns:
             ExecutionResult containing response data and timing information.
         """
@@ -119,12 +121,12 @@ class HTTPTrigger(AzureTrigger):
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         """Asynchronously invoke Azure Function via HTTP.
-        
+
         Submits function invocation to a thread pool for parallel execution.
-        
+
         Args:
             payload: Dictionary payload to send to the function
-            
+
         Returns:
             Future object that can be used to retrieve the result.
         """
@@ -134,7 +136,7 @@ class HTTPTrigger(AzureTrigger):
 
     def serialize(self) -> dict:
         """Serialize trigger to dictionary.
-        
+
         Returns:
             Dictionary containing trigger type and URL.
         """
@@ -143,10 +145,10 @@ class HTTPTrigger(AzureTrigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         """Deserialize trigger from dictionary.
-        
+
         Args:
             obj: Dictionary containing trigger data
-            
+
         Returns:
             HTTPTrigger instance with restored configuration.
         """

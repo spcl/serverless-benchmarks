@@ -29,12 +29,12 @@ from .config import Config
 class System(ABC, LoggingBase):
     """
     Abstract base class for FaaS system implementations.
-    
+
     This class provides basic abstractions for all supported FaaS platforms.
     It defines the interface for system initialization, resource management,
     function deployment, code packaging, function invocation, and metrics collection.
     Each cloud provider implements a concrete subclass of this abstract base.
-    
+
     The class handles:
     - System and storage service initialization
     - Creation and updating of serverless functions
@@ -43,7 +43,7 @@ class System(ABC, LoggingBase):
     - Metrics collection and error handling
     - Caching of functions to avoid redundant deployments
     - Cold start management
-    
+
     Attributes:
         system_config: Global SeBS configuration
         docker_client: Docker client for building code packages and containers
@@ -51,6 +51,7 @@ class System(ABC, LoggingBase):
         cold_start_counter: Counter for generating unique function names to force cold starts
         system_resources: Resources manager for the specific cloud platform
     """
+
     def __init__(
         self,
         system_config: SeBSConfig,
@@ -60,7 +61,7 @@ class System(ABC, LoggingBase):
     ):
         """
         Initialize a FaaS system implementation.
-        
+
         Args:
             system_config: Global SeBS configuration settings
             cache_client: Cache client for storing function and deployment information
@@ -79,7 +80,7 @@ class System(ABC, LoggingBase):
     def system_config(self) -> SeBSConfig:
         """
         Get the global SeBS configuration.
-        
+
         Returns:
             SeBSConfig: The system configuration
         """
@@ -89,7 +90,7 @@ class System(ABC, LoggingBase):
     def docker_client(self) -> docker.client:
         """
         Get the Docker client.
-        
+
         Returns:
             docker.client: The Docker client
         """
@@ -99,7 +100,7 @@ class System(ABC, LoggingBase):
     def cache_client(self) -> Cache:
         """
         Get the cache client.
-        
+
         Returns:
             Cache: The cache client
         """
@@ -109,10 +110,10 @@ class System(ABC, LoggingBase):
     def cold_start_counter(self) -> int:
         """
         Get the cold start counter.
-        
+
         This counter is used in function name generation to help force cold starts
         by creating new function instances with different names.
-        
+
         Returns:
             int: The current cold start counter value
         """
@@ -122,7 +123,7 @@ class System(ABC, LoggingBase):
     def cold_start_counter(self, val: int):
         """
         Set the cold start counter.
-        
+
         Args:
             val: The new counter value
         """
@@ -133,7 +134,7 @@ class System(ABC, LoggingBase):
     def config(self) -> Config:
         """
         Get the platform-specific configuration.
-        
+
         Returns:
             Config: The platform-specific configuration
         """
@@ -143,7 +144,7 @@ class System(ABC, LoggingBase):
     def system_resources(self) -> SystemResources:
         """
         Get the platform-specific resources manager.
-        
+
         Returns:
             SystemResources: The resources manager
         """
@@ -154,7 +155,7 @@ class System(ABC, LoggingBase):
     def function_type() -> "Type[Function]":
         """
         Get the platform-specific Function class type.
-        
+
         Returns:
             Type[Function]: The Function class for this platform
         """
@@ -163,11 +164,11 @@ class System(ABC, LoggingBase):
     def find_deployments(self) -> List[str]:
         """
         Find existing deployments in the cloud platform.
-        
+
         Default implementation uses storage buckets to identify deployments.
         This can be overridden by platform-specific implementations, e.g.,
         Azure that looks for unique storage accounts.
-        
+
         Returns:
             List[str]: List of existing deployment resource IDs
         """
@@ -176,12 +177,12 @@ class System(ABC, LoggingBase):
     def initialize_resources(self, select_prefix: Optional[str]):
         """
         Initialize cloud resources for the deployment.
-        
+
         This method either:
         1. Uses an existing resource ID from configuration
         2. Finds and reuses an existing deployment matching the prefix
         3. Creates a new unique resource ID and initializes resources
-        
+
         Args:
             select_prefix: Optional prefix to match when looking for existing deployments
         """
@@ -223,17 +224,17 @@ class System(ABC, LoggingBase):
             res_id = str(uuid.uuid1())[0:8]
         self.config.resources.resources_id = res_id
         self.logging.info(f"Generating unique resource name {res_id}")
-        
+
         # Ensure that the bucket is created - this allocates the new resource
         self.system_resources.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         """
         Initialize the system.
-        
+
         After this call completes, the local or remote FaaS system should be ready
         to allocate functions, manage storage resources, and invoke functions.
-        
+
         Args:
             config: System-specific parameters
             resource_prefix: Optional prefix for resource naming
@@ -253,7 +254,7 @@ class System(ABC, LoggingBase):
     ) -> Tuple[str, int, str]:
         """
         Apply system-specific code packaging to prepare a deployment package.
-        
+
         The benchmark creates a code directory with the following structure:
         - [benchmark sources]
         - [benchmark resources]
@@ -262,7 +263,7 @@ class System(ABC, LoggingBase):
 
         This step transforms that structure to fit platform-specific deployment
         requirements, such as creating a zip file for AWS or container image.
-        
+
         Args:
             directory: Path to the code directory
             language_name: Programming language name
@@ -312,11 +313,11 @@ class System(ABC, LoggingBase):
     def cached_function(self, function: Function):
         """
         Perform any necessary operations for a cached function.
-        
+
         This method is called when a function is found in the cache. It may perform
         platform-specific operations such as checking if the function still exists
         in the cloud, updating permissions, etc.
-        
+
         Args:
             function: The cached function instance
         """
@@ -347,22 +348,22 @@ class System(ABC, LoggingBase):
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
         """
         Get or create a function for a benchmark.
-        
+
         This method handles the complete function creation/update workflow:
-        
+
         1. If a cached function with the given name exists and code has not changed,
            returns the existing function
         2. If a cached function exists but the code has changed, updates the
            function with the new code
         3. If no cached function exists, creates a new function
-        
+
         Args:
             code_package: The benchmark containing the function code
             func_name: Optional name for the function (will be generated if not provided)
-            
+
         Returns:
             Function: The function instance
-            
+
         Raises:
             Exception: If the language version is not supported by this platform
         """
@@ -381,14 +382,14 @@ class System(ABC, LoggingBase):
         # Generate function name if not provided
         if not func_name:
             func_name = self.default_function_name(code_package)
-            
+
         # Build the code package
         rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
 
         # Check if function exists in cache
         functions = code_package.functions
         is_function_cached = not (not functions or func_name not in functions)
-        
+
         if is_function_cached:
             # Retrieve function from cache
             cached_function = functions[func_name]
@@ -429,7 +430,7 @@ class System(ABC, LoggingBase):
             self.logging.info(
                 "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
             )
-            
+
             # Check if code needs to be updated
             if function.code_package_hash != code_package.hash or rebuilt:
                 if function.code_package_hash != code_package.hash:
@@ -444,7 +445,7 @@ class System(ABC, LoggingBase):
                         f"Enforcing rebuild and update of cached function "
                         f"{func_name} with hash {function.code_package_hash}."
                     )
-                    
+
                 # Update function code
                 self.update_function(function, code_package, container_deployment, container_uri)
                 function.code_package_hash = code_package.hash
@@ -456,7 +457,7 @@ class System(ABC, LoggingBase):
                     function=function,
                 )
                 code_package.query_cache()
-                
+
             # Check if configuration needs to be updated
             elif self.is_configuration_changed(function, code_package):
                 self.update_function_configuration(function, code_package)
@@ -464,17 +465,17 @@ class System(ABC, LoggingBase):
                 code_package.query_cache()
             else:
                 self.logging.info(f"Cached function {func_name} is up to date.")
-                
+
             return function
 
     @abstractmethod
     def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
         """
         Update the configuration of an existing function.
-        
+
         This method is called when a function's code is up-to-date but its
         configuration (memory, timeout, etc.) needs to be updated.
-        
+
         Args:
             cached_function: The function to update
             benchmark: The benchmark containing the new configuration
@@ -484,19 +485,19 @@ class System(ABC, LoggingBase):
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
         """
         Check if a function's configuration needs to be updated.
-        
+
         This function checks for common function parameters to verify if their
         values are still up to date with the benchmark configuration.
-        
+
         Args:
             cached_function: The existing function
             benchmark: The benchmark with potential new configuration
-            
+
         Returns:
             bool: True if configuration has changed, False otherwise
         """
         changed = False
-        
+
         # Check common configuration attributes
         for attr in ["timeout", "memory"]:
             new_val = getattr(benchmark.benchmark_config, attr)
@@ -531,11 +532,11 @@ class System(ABC, LoggingBase):
     ) -> str:
         """
         Generate a default function name for a benchmark.
-        
+
         Args:
             code_package: The benchmark to generate a name for
             resources: Optional resources configuration
-            
+
         Returns:
             str: Generated function name
         """
@@ -545,10 +546,10 @@ class System(ABC, LoggingBase):
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         """
         Force cold starts for the specified functions.
-        
+
         This method implements platform-specific techniques to ensure that
         subsequent invocations of the functions will be cold starts.
-        
+
         Args:
             functions: List of functions to enforce cold starts for
             code_package: The benchmark associated with the functions
@@ -566,7 +567,7 @@ class System(ABC, LoggingBase):
     ):
         """
         Download function metrics from the cloud platform.
-        
+
         Args:
             function_name: Name of the function to get metrics for
             start_time: Start timestamp for metrics collection
@@ -580,11 +581,11 @@ class System(ABC, LoggingBase):
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """
         Create a trigger for a function.
-        
+
         Args:
             function: The function to create a trigger for
             trigger_type: Type of trigger to create
-            
+
         Returns:
             Trigger: The created trigger
         """
@@ -593,7 +594,7 @@ class System(ABC, LoggingBase):
     def disable_rich_output(self):
         """
         Disable rich output for platforms that support it.
-        
+
         This is mostly used in testing environments or CI pipelines.
         """
         pass
@@ -602,7 +603,7 @@ class System(ABC, LoggingBase):
     def shutdown(self) -> None:
         """
         Shutdown the FaaS system.
-        
+
         Closes connections, stops local instances, and updates the cache.
         This should be called when the system is no longer needed.
         """
@@ -617,7 +618,7 @@ class System(ABC, LoggingBase):
     def name() -> str:
         """
         Get the name of the platform.
-        
+
         Returns:
             str: Platform name (e.g., 'aws', 'azure', 'gcp')
         """

@@ -38,17 +38,17 @@ from sebs.utils import LoggingHandlers
 
 class SelfHostedResources(Resources):
     """Resource configuration for self-hosted storage deployments.
-    
+
     This class manages configuration for self-hosted storage services,
     including object storage (MinIO) and NoSQL storage (ScyllaDB). It provides
     serialization, caching, and deserialization capabilities for storage
     configurations.
-    
+
     Attributes:
         _object_storage: Configuration for object storage (MinIO)
         _nosql_storage: Configuration for NoSQL storage (ScyllaDB)
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -56,7 +56,7 @@ class SelfHostedResources(Resources):
         nosql_storage_cfg: Optional[NoSQLStorageConfig] = None,
     ):
         """Initialize self-hosted resources configuration.
-        
+
         Args:
             name: Name of the deployment/resource group
             storage_cfg: Configuration for object storage service
@@ -69,7 +69,7 @@ class SelfHostedResources(Resources):
     @property
     def storage_config(self) -> Optional[PersistentStorageConfig]:
         """Get the object storage configuration.
-        
+
         Returns:
             Optional[PersistentStorageConfig]: Object storage configuration or None
         """
@@ -78,7 +78,7 @@ class SelfHostedResources(Resources):
     @property
     def nosql_storage_config(self) -> Optional[NoSQLStorageConfig]:
         """Get the NoSQL storage configuration.
-        
+
         Returns:
             Optional[NoSQLStorageConfig]: NoSQL storage configuration or None
         """
@@ -86,7 +86,7 @@ class SelfHostedResources(Resources):
 
     def serialize(self) -> Dict[str, any]:
         """Serialize the resource configuration to a dictionary.
-        
+
         Returns:
             Dict[str, any]: Serialized configuration containing storage and/or nosql sections
         """
@@ -102,10 +102,10 @@ class SelfHostedResources(Resources):
 
     def update_cache(self, cache: Cache) -> None:
         """Update the configuration cache with current resource settings.
-        
+
         Stores both object storage and NoSQL storage configurations in the
         cache for later retrieval.
-        
+
         Args:
             cache: Cache instance to store configurations in
         """
@@ -123,15 +123,15 @@ class SelfHostedResources(Resources):
         self, config: Dict[str, any], cached_config: Optional[Dict[str, any]], storage_type: str
     ) -> Tuple[str, Dict[str, any]]:
         """Deserialize storage configuration from config or cache.
-        
+
         Attempts to load storage configuration from the provided config first,
         then falls back to cached configuration if available.
-        
+
         Args:
             config: Current configuration dictionary
             cached_config: Previously cached configuration dictionary
             storage_type: Type of storage to deserialize ('object' or 'nosql')
-            
+
         Returns:
             Tuple[str, Dict[str, any]]: Storage implementation name and configuration
         """
@@ -164,12 +164,14 @@ class SelfHostedResources(Resources):
         return storage_impl, storage_config
 
     @staticmethod
-    def _deserialize(ret: "SelfHostedResources", config: Dict[str, any], cached_config: Dict[str, any]) -> None:
+    def _deserialize(
+        ret: "SelfHostedResources", config: Dict[str, any], cached_config: Dict[str, any]
+    ) -> None:
         """Deserialize storage configurations from config and cache data.
-        
+
         Populates the SelfHostedResources instance with storage configurations
         loaded from the provided configuration and cached data.
-        
+
         Args:
             ret: SelfHostedResources instance to populate
             config: Current configuration dictionary
@@ -202,19 +204,19 @@ class SelfHostedResources(Resources):
 
 class SelfHostedSystemResources(SystemResources):
     """System-level resource management for self-hosted storage deployments.
-    
+
     This class manages the lifecycle and provisioning of self-hosted storage
     services, including MinIO object storage and ScyllaDB NoSQL storage. It
     handles container management, service initialization, and provides unified
     access to storage services.
-    
+
     Attributes:
         _name: Name of the deployment
         _logging_handlers: Logging configuration handlers
         _storage: Active persistent storage instance (MinIO)
         _nosql_storage: Active NoSQL storage instance (ScyllaDB)
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -224,7 +226,7 @@ class SelfHostedSystemResources(SystemResources):
         logger_handlers: LoggingHandlers,
     ):
         """Initialize system resources for self-hosted storage.
-        
+
         Args:
             name: Name of the deployment
             config: SeBS configuration object
@@ -239,20 +241,19 @@ class SelfHostedSystemResources(SystemResources):
         self._storage: Optional[PersistentStorage] = None
         self._nosql_storage: Optional[NoSQLStorage] = None
 
-
     def get_storage(self, replace_existing: Optional[bool] = None) -> PersistentStorage:
         """Get or create a persistent storage instance.
-        
+
         Creates a MinIO storage instance if one doesn't exist, or returns the
         existing instance. The storage is configured using the deployment's
         storage configuration.
-        
+
         Args:
             replace_existing: Whether to replace existing buckets (optional)
-            
+
         Returns:
             PersistentStorage: MinIO storage instance
-            
+
         Raises:
             RuntimeError: If storage configuration is missing or unsupported
         """
@@ -285,14 +286,14 @@ class SelfHostedSystemResources(SystemResources):
 
     def get_nosql_storage(self) -> NoSQLStorage:
         """Get or create a NoSQL storage instance.
-        
+
         Creates a ScyllaDB storage instance if one doesn't exist, or returns the
         existing instance. The storage is configured using the deployment's
         NoSQL storage configuration.
-        
+
         Returns:
             NoSQLStorage: ScyllaDB storage instance
-            
+
         Raises:
             RuntimeError: If NoSQL storage configuration is missing or unsupported
         """

@@ -42,10 +42,10 @@ from azure.cosmos.exceptions import CosmosResourceNotFoundError
 @dataclass
 class BenchmarkResources:
     """Resource container for benchmark-specific CosmosDB resources.
-    
+
     This dataclass holds the database and container names allocated
     for a specific benchmark, along with the database client proxy.
-    
+
     Attributes:
         database: Name of the CosmosDB database
         containers: List of container names for the benchmark
@@ -59,7 +59,7 @@ class BenchmarkResources:
 
     def serialize(self) -> dict:
         """Serialize benchmark resources to dictionary.
-        
+
         Returns:
             Dictionary containing database and container names.
         """
@@ -68,10 +68,10 @@ class BenchmarkResources:
     @staticmethod
     def deserialize(config: dict) -> "BenchmarkResources":
         """Deserialize benchmark resources from dictionary.
-        
+
         Args:
             config: Dictionary containing resource configuration
-            
+
         Returns:
             BenchmarkResources instance with restored configuration.
         """

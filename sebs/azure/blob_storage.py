@@ -38,20 +38,20 @@ from ..faas.storage import PersistentStorage
 
 class BlobStorage(PersistentStorage):
     """Azure Blob Storage implementation for benchmark data management.
-    
+
     This class provides Azure Blob Storage operations for storing and retrieving
     benchmark input data, function outputs, and temporary files. It manages
     containers (equivalent to S3 buckets) and handles file operations with
     proper error handling and logging.
-    
+
     Attributes:
         client: Azure Blob Service client for storage operations
     """
-    
+
     @staticmethod
     def typename() -> str:
         """Get the storage type name.
-        
+
         Returns:
             Storage type identifier for Azure Blob Storage.
         """
@@ -60,7 +60,7 @@ class BlobStorage(PersistentStorage):
     @staticmethod
     def deployment_name() -> str:
         """Get the deployment platform name.
-        
+
         Returns:
             Platform name 'azure'.
         """
@@ -75,7 +75,7 @@ class BlobStorage(PersistentStorage):
         replace_existing: bool,
     ) -> None:
         """Initialize Azure Blob Storage.
-        
+
         Args:
             region: Azure region for storage operations
             cache_client: Cache for storing storage configuration
@@ -90,15 +90,15 @@ class BlobStorage(PersistentStorage):
         self, name: str, containers: List[str] = [], randomize_name: bool = False
     ) -> str:
         """Create new Azure Blob Storage container.
-        
+
         Internal implementation for creating containers with optional
         name randomization and existence checking.
-        
+
         Args:
             name: Base name for the container
             containers: List of existing containers to check
             randomize_name: Whether to append random suffix to name
-            
+
         Returns:
             Name of the created or existing container.
         """
@@ -115,13 +115,13 @@ class BlobStorage(PersistentStorage):
 
     def correct_name(self, name: str) -> str:
         """Correct container name for Azure requirements.
-        
+
         Azure Blob Storage does not allow dots in container names,
         so they are replaced with hyphens.
-        
+
         Args:
             name: Original container name
-            
+
         Returns:
             Corrected container name with dots replaced by hyphens.
         """
@@ -129,12 +129,12 @@ class BlobStorage(PersistentStorage):
 
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         """List Azure Blob Storage containers.
-        
+
         Lists all containers or those matching a prefix.
-        
+
         Args:
             bucket_name: Optional prefix to filter container names
-            
+
         Returns:
             List of container names.
         """
@@ -148,10 +148,10 @@ class BlobStorage(PersistentStorage):
 
     def uploader_func(self, container_idx: int, file: str, filepath: str) -> None:
         """Upload file to Azure Blob Storage container.
-        
+
         Uploads a file to the specified container with proper path handling
         and duplicate checking.
-        
+
         Args:
             container_idx: Index of the container for file organization
             file: Name of the file being uploaded
@@ -177,9 +177,9 @@ class BlobStorage(PersistentStorage):
 
     def download(self, container_name: str, key: str, filepath: str) -> None:
         """Download file from Azure Blob Storage.
-        
+
         Downloads a blob from the specified container to a local file.
-        
+
         Args:
             container_name: Name of the Azure Blob Storage container
             key: Blob key/name in the container
@@ -192,9 +192,9 @@ class BlobStorage(PersistentStorage):
 
     def upload(self, container_name: str, filepath: str, key: str) -> None:
         """Upload file to Azure Blob Storage.
-        
+
         Uploads a local file to the specified container with the given key.
-        
+
         Args:
             container_name: Name of the Azure Blob Storage container
             filepath: Local file path to upload
@@ -207,10 +207,10 @@ class BlobStorage(PersistentStorage):
 
     def exists_bucket(self, container: str) -> bool:
         """Check if Azure Blob Storage container exists.
-        
+
         Args:
             container: Name of the container to check
-            
+
         Returns:
             True if container exists, False otherwise.
         """
@@ -218,14 +218,14 @@ class BlobStorage(PersistentStorage):
 
     def list_bucket(self, container: str, prefix: str = "") -> List[str]:
         """List files in Azure Blob Storage container.
-        
+
         Returns list of blob names in the specified container,
         optionally filtered by prefix.
-        
+
         Args:
             container: Name of the container to list
             prefix: Optional prefix to filter blob names
-            
+
         Returns:
             List of blob names. Empty list if container is empty.
         """
@@ -239,10 +239,10 @@ class BlobStorage(PersistentStorage):
 
     def clean_bucket(self, bucket: str) -> None:
         """Clean all blobs from Azure Blob Storage container.
-        
+
         Removes all blobs from the specified container but keeps
         the container itself.
-        
+
         Args:
             bucket: Name of the container to clean
         """
@@ -254,9 +254,9 @@ class BlobStorage(PersistentStorage):
 
     def remove_bucket(self, bucket: str) -> None:
         """Remove Azure Blob Storage container.
-        
+
         Deletes the entire container and all its contents.
-        
+
         Args:
             bucket: Name of the container to remove
         """

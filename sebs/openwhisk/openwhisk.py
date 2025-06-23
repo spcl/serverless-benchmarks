@@ -35,21 +35,22 @@ from ..config import SeBSConfig
 class OpenWhisk(System):
     """
     Apache OpenWhisk serverless platform implementation for SeBS.
-    
+
     This class provides the main integration between SeBS and Apache OpenWhisk,
     handling function deployment, execution, container management, and resource
     allocation. It supports both local and remote OpenWhisk deployments with
     Docker-based function packaging.
-    
+
     Attributes:
         _config: OpenWhisk-specific configuration settings
         container_client: Docker container client for function packaging
         logging_handlers: Logging handlers for the OpenWhisk system
-    
+
     Example:
         >>> openwhisk = OpenWhisk(sys_config, ow_config, cache, docker_client, handlers)
         >>> function = openwhisk.create_function(benchmark, "test-func", True, "image:tag")
     """
+
     _config: OpenWhiskConfig
 
     def __init__(
@@ -62,7 +63,7 @@ class OpenWhisk(System):
     ) -> None:
         """
         Initialize OpenWhisk system with configuration and clients.
-        
+
         Args:
             system_config: Global SeBS system configuration
             config: OpenWhisk-specific configuration settings
@@ -98,10 +99,12 @@ class OpenWhisk(System):
                     password=self.config.resources.docker_password,
                 )
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None) -> None:
+    def initialize(
+        self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None
+    ) -> None:
         """
         Initialize OpenWhisk system resources.
-        
+
         Args:
             config: Additional configuration parameters (currently unused)
             resource_prefix: Optional prefix for resource naming
@@ -112,7 +115,7 @@ class OpenWhisk(System):
     def config(self) -> OpenWhiskConfig:
         """
         Get OpenWhisk configuration.
-        
+
         Returns:
             OpenWhisk configuration instance
         """
@@ -121,7 +124,7 @@ class OpenWhisk(System):
     def shutdown(self) -> None:
         """
         Shutdown OpenWhisk system and clean up resources.
-        
+
         This method stops storage services if configured and optionally
         removes the OpenWhisk cluster based on configuration settings.
         """
@@ -137,7 +140,7 @@ class OpenWhisk(System):
     def name() -> str:
         """
         Get the platform name identifier.
-        
+
         Returns:
             Platform name as string
         """
@@ -147,7 +150,7 @@ class OpenWhisk(System):
     def typename() -> str:
         """
         Get the platform type name.
-        
+
         Returns:
             Platform type name as string
         """
@@ -157,7 +160,7 @@ class OpenWhisk(System):
     def function_type() -> "Type[Function]":
         """
         Get the function type for this platform.
-        
+
         Returns:
             OpenWhiskFunction class type
         """
@@ -166,7 +169,7 @@ class OpenWhisk(System):
     def get_wsk_cmd(self) -> List[str]:
         """
         Get the WSK CLI command with appropriate flags.
-        
+
         Returns:
             List of command arguments for WSK CLI execution
         """
@@ -187,11 +190,11 @@ class OpenWhisk(System):
     ) -> Tuple[str, int, str]:
         """
         Package benchmark code for OpenWhisk deployment.
-        
+
         Creates both a Docker image and a ZIP archive containing the benchmark code.
         The ZIP archive is required for OpenWhisk function registration even when
         using Docker-based deployment.
-        
+
         Args:
             directory: Path to the benchmark code directory
             language_name: Programming language (e.g., 'python', 'nodejs')
@@ -200,13 +203,13 @@ class OpenWhisk(System):
             benchmark: Benchmark name
             is_cached: Whether Docker image is already cached
             container_deployment: Whether to use container-based deployment
-        
+
         Returns:
             Tuple containing:
                 - Path to created ZIP archive
                 - Size of ZIP archive in bytes
                 - Docker image URI
-        
+
         Raises:
             RuntimeError: If packaging fails
         """
@@ -237,13 +240,13 @@ class OpenWhisk(System):
     def storage_arguments(self, code_package: Benchmark) -> List[str]:
         """
         Generate storage-related arguments for function deployment.
-        
+
         Creates WSK CLI parameters for Minio object storage and ScyllaDB NoSQL
         storage configurations based on the benchmark requirements.
-        
+
         Args:
             code_package: Benchmark configuration requiring storage access
-        
+
         Returns:
             List of WSK CLI parameter arguments for storage configuration
         """
@@ -290,20 +293,20 @@ class OpenWhisk(System):
     ) -> "OpenWhiskFunction":
         """
         Create or retrieve an OpenWhisk function (action).
-        
+
         This method checks if a function already exists and updates it if necessary,
         or creates a new function with the appropriate configuration, storage settings,
         and Docker image.
-        
+
         Args:
             code_package: Benchmark configuration and code package
             func_name: Name for the OpenWhisk action
             container_deployment: Whether to use container-based deployment
             container_uri: URI of the Docker image for the function
-        
+
         Returns:
             OpenWhiskFunction instance configured with LibraryTrigger
-        
+
         Raises:
             RuntimeError: If WSK CLI is not accessible or function creation fails
         """
@@ -395,13 +398,13 @@ class OpenWhisk(System):
     ) -> None:
         """
         Update an existing OpenWhisk function with new code and configuration.
-        
+
         Args:
             function: Existing function to update
             code_package: New benchmark configuration and code package
             container_deployment: Whether to use container-based deployment
             container_uri: URI of the new Docker image
-        
+
         Raises:
             RuntimeError: If WSK CLI is not accessible or update fails
         """
@@ -450,14 +453,14 @@ class OpenWhisk(System):
     def update_function_configuration(self, function: Function, code_package: Benchmark) -> None:
         """
         Update configuration of an existing OpenWhisk function.
-        
+
         Updates memory allocation, timeout, and storage parameters without
         changing the function code or Docker image.
-        
+
         Args:
             function: Function to update configuration for
             code_package: New benchmark configuration settings
-        
+
         Raises:
             RuntimeError: If WSK CLI is not accessible or configuration update fails
         """
@@ -491,14 +494,14 @@ class OpenWhisk(System):
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
         """
         Check if function configuration has changed compared to cached version.
-        
+
         Compares current benchmark configuration and storage settings with the
         cached function configuration to determine if an update is needed.
-        
+
         Args:
             cached_function: Previously cached function configuration
             benchmark: Current benchmark configuration to compare against
-        
+
         Returns:
             True if configuration has changed and function needs updating
         """
@@ -531,11 +534,11 @@ class OpenWhisk(System):
     ) -> str:
         """
         Generate default function name based on benchmark and resource configuration.
-        
+
         Args:
             code_package: Benchmark package containing name and language info
             resources: Optional specific resources to use for naming
-        
+
         Returns:
             Generated function name string
         """
@@ -548,11 +551,11 @@ class OpenWhisk(System):
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark) -> None:
         """
         Enforce cold start for functions (not implemented for OpenWhisk).
-        
+
         Args:
             functions: List of functions to enforce cold start for
             code_package: Benchmark package configuration
-        
+
         Raises:
             NotImplementedError: Cold start enforcement not implemented for OpenWhisk
         """
@@ -568,14 +571,14 @@ class OpenWhisk(System):
     ) -> None:
         """
         Download metrics for function executions (no-op for OpenWhisk).
-        
+
         Args:
             function_name: Name of the function to download metrics for
             start_time: Start time for metrics collection (epoch timestamp)
             end_time: End time for metrics collection (epoch timestamp)
             requests: Dictionary mapping request IDs to execution results
             metrics: Dictionary to store downloaded metrics
-        
+
         Note:
             OpenWhisk metrics collection is not currently implemented.
         """
@@ -584,14 +587,14 @@ class OpenWhisk(System):
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """
         Create a trigger for function invocation.
-        
+
         Args:
             function: Function to create trigger for
             trigger_type: Type of trigger to create (LIBRARY or HTTP)
-        
+
         Returns:
             Created trigger instance
-        
+
         Raises:
             RuntimeError: If WSK CLI is not accessible or trigger type not supported
         """
@@ -623,9 +626,9 @@ class OpenWhisk(System):
     def cached_function(self, function: Function) -> None:
         """
         Configure a cached function with current system settings.
-        
+
         Updates triggers with current logging handlers and WSK command configuration.
-        
+
         Args:
             function: Cached function to configure
         """
@@ -638,7 +641,7 @@ class OpenWhisk(System):
     def disable_rich_output(self) -> None:
         """
         Disable rich output formatting for container operations.
-        
+
         This is useful for non-interactive environments or when plain text
         output is preferred.
         """

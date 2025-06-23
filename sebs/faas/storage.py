@@ -124,7 +124,7 @@ class PersistentStorage(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def clean_bucket(self, bucket_name: str):
+    def clean_bucket(self, bucket_name: str) -> None:
         pass
 
     @abstractmethod
@@ -163,20 +163,20 @@ class PersistentStorage(ABC, LoggingBase):
 
         if cached_storage is not None:
 
-            cached_storage = cached_storage["buckets"]
+            cached_buckets = cached_storage["buckets"]
 
             # verify the input is up to date
             for prefix in self.input_prefixes:
-                if prefix not in cached_storage["input"]:
+                if prefix not in cached_buckets["input"]:
                     self.cached = False
 
             for prefix in self.output_prefixes:
-                if prefix not in cached_storage["output"]:
+                if prefix not in cached_buckets["output"]:
                     self.cached = False
         else:
             self.cached = False
 
-        if self.cached is True and cached_storage["input_uploaded"] is False:
+        if cached_storage is not None and cached_storage["input_uploaded"] is False:
             self.cached = False
 
         # query buckets if the input prefixes changed, or the input is not up to date.

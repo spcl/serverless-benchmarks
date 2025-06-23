@@ -21,19 +21,19 @@ from sebs.faas.function import ExecutionResult, Trigger
 
 class LibraryTrigger(Trigger):
     """AWS Lambda library trigger for direct SDK invocation.
-    
+
     This trigger uses the AWS Lambda SDK to directly invoke Lambda functions.
     It provides both synchronous and asynchronous invocation methods with
     comprehensive result parsing and error handling.
-    
+
     Attributes:
         name: Name of the Lambda function
         _deployment_client: AWS deployment client for Lambda operations
     """
-    
+
     def __init__(self, fname: str, deployment_client: Optional[AWS] = None) -> None:
         """Initialize the library trigger.
-        
+
         Args:
             fname: Name of the Lambda function
             deployment_client: AWS deployment client (can be set later)
@@ -45,7 +45,7 @@ class LibraryTrigger(Trigger):
     @staticmethod
     def typename() -> str:
         """Get the type name for this trigger.
-        
+
         Returns:
             str: Type name ('AWS.LibraryTrigger')
         """
@@ -54,10 +54,10 @@ class LibraryTrigger(Trigger):
     @property
     def deployment_client(self) -> AWS:
         """Get the AWS deployment client.
-        
+
         Returns:
             AWS: AWS deployment client
-            
+
         Raises:
             AssertionError: If deployment client is not set
         """
@@ -67,7 +67,7 @@ class LibraryTrigger(Trigger):
     @deployment_client.setter
     def deployment_client(self, deployment_client: AWS) -> None:
         """Set the AWS deployment client.
-        
+
         Args:
             deployment_client: AWS deployment client to set
         """
@@ -76,7 +76,7 @@ class LibraryTrigger(Trigger):
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
         """Get the trigger type.
-        
+
         Returns:
             Trigger.TriggerType: LIBRARY trigger type
         """
@@ -84,13 +84,13 @@ class LibraryTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         """Synchronously invoke the Lambda function.
-        
+
         Invokes the Lambda function with the provided payload and waits for
         the result. Parses AWS-specific metrics and benchmark output.
-        
+
         Args:
             payload: Dictionary payload to send to the function
-            
+
         Returns:
             ExecutionResult: Result of the function execution including metrics
         """
@@ -130,16 +130,16 @@ class LibraryTrigger(Trigger):
 
     def async_invoke(self, payload: dict) -> dict:
         """Asynchronously invoke the Lambda function.
-        
+
         Triggers the Lambda function asynchronously without waiting for
         the result. Used for fire-and-forget invocations.
-        
+
         Args:
             payload: Dictionary payload to send to the function
-            
+
         Returns:
             dict: AWS Lambda invocation response
-            
+
         Raises:
             RuntimeError: If the async invocation fails
         """
@@ -161,7 +161,7 @@ class LibraryTrigger(Trigger):
 
     def serialize(self) -> dict:
         """Serialize the trigger to a dictionary.
-        
+
         Returns:
             dict: Serialized trigger configuration
         """
@@ -170,10 +170,10 @@ class LibraryTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         """Deserialize a trigger from a dictionary.
-        
+
         Args:
             obj: Dictionary containing trigger configuration
-            
+
         Returns:
             Trigger: Deserialized LibraryTrigger instance
         """
@@ -182,19 +182,19 @@ class LibraryTrigger(Trigger):
 
 class HTTPTrigger(Trigger):
     """AWS API Gateway HTTP trigger for Lambda functions.
-    
+
     This trigger uses HTTP requests to invoke Lambda functions through
     AWS API Gateway. It provides both synchronous and asynchronous
     invocation methods.
-    
+
     Attributes:
         url: API Gateway endpoint URL
         api_id: API Gateway API ID
     """
-    
+
     def __init__(self, url: str, api_id: str) -> None:
         """Initialize the HTTP trigger.
-        
+
         Args:
             url: API Gateway endpoint URL
             api_id: API Gateway API ID
@@ -206,7 +206,7 @@ class HTTPTrigger(Trigger):
     @staticmethod
     def typename() -> str:
         """Get the type name for this trigger.
-        
+
         Returns:
             str: Type name ('AWS.HTTPTrigger')
         """
@@ -215,7 +215,7 @@ class HTTPTrigger(Trigger):
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
         """Get the trigger type.
-        
+
         Returns:
             Trigger.TriggerType: HTTP trigger type
         """
@@ -223,13 +223,13 @@ class HTTPTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         """Synchronously invoke the function via HTTP.
-        
+
         Sends an HTTP request to the API Gateway endpoint and waits
         for the response.
-        
+
         Args:
             payload: Dictionary payload to send to the function
-            
+
         Returns:
             ExecutionResult: Result of the HTTP invocation
         """
@@ -238,12 +238,12 @@ class HTTPTrigger(Trigger):
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         """Asynchronously invoke the function via HTTP.
-        
+
         Submits the HTTP invocation to a thread pool for asynchronous execution.
-        
+
         Args:
             payload: Dictionary payload to send to the function
-            
+
         Returns:
             concurrent.futures.Future: Future object for the async invocation
         """
@@ -253,7 +253,7 @@ class HTTPTrigger(Trigger):
 
     def serialize(self) -> dict:
         """Serialize the trigger to a dictionary.
-        
+
         Returns:
             dict: Serialized trigger configuration
         """
@@ -262,10 +262,10 @@ class HTTPTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         """Deserialize a trigger from a dictionary.
-        
+
         Args:
             obj: Dictionary containing trigger configuration
-            
+
         Returns:
             Trigger: Deserialized HTTPTrigger instance
         """

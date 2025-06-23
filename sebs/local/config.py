@@ -22,15 +22,15 @@ from sebs.utils import LoggingHandlers
 
 class LocalCredentials(Credentials):
     """Credentials class for local execution platform.
-    
+
     The local platform doesn't require any authentication credentials since
     functions run locally using Docker containers. This class provides the
     required interface with empty implementations.
     """
-    
+
     def serialize(self) -> dict:
         """Serialize credentials to dictionary.
-        
+
         Returns:
             dict: Empty dictionary as no credentials are required for local execution
         """
@@ -39,12 +39,12 @@ class LocalCredentials(Credentials):
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
         """Deserialize credentials from configuration.
-        
+
         Args:
             config: Configuration dictionary (unused for local)
-            cache: Cache client (unused for local) 
+            cache: Cache client (unused for local)
             handlers: Logging handlers (unused for local)
-            
+
         Returns:
             LocalCredentials: New instance of local credentials
         """
@@ -59,23 +59,23 @@ class LocalCredentials(Credentials):
 
 class LocalResources(SelfHostedResources):
     """Resource management for local execution platform.
-    
+
     Manages resources for local function execution, including port allocation
     for Docker containers and storage configurations. Tracks allocated ports
     to avoid conflicts when running multiple functions.
-    
+
     Attributes:
         _path: Path for local resource storage
         _allocated_ports: Set of ports currently allocated to containers
     """
-    
+
     def __init__(
         self,
         storage_cfg: Optional[PersistentStorageConfig] = None,
         nosql_storage_cfg: Optional[NoSQLStorageConfig] = None,
     ):
         """Initialize local resources.
-        
+
         Args:
             storage_cfg: Optional persistent storage configuration
             nosql_storage_cfg: Optional NoSQL storage configuration
@@ -87,7 +87,7 @@ class LocalResources(SelfHostedResources):
     @property
     def allocated_ports(self) -> set:
         """Get the set of allocated ports.
-        
+
         Returns:
             set: Set of port numbers currently allocated to containers
         """
@@ -95,7 +95,7 @@ class LocalResources(SelfHostedResources):
 
     def serialize(self) -> dict:
         """Serialize resources to dictionary.
-        
+
         Returns:
             dict: Dictionary containing resource configuration including allocated ports
         """
@@ -107,7 +107,7 @@ class LocalResources(SelfHostedResources):
     @staticmethod
     def initialize(res: Resources, config: dict) -> None:
         """Initialize resources from configuration.
-        
+
         Args:
             res: Resources instance to initialize
             config: Configuration dictionary containing resource settings
@@ -119,7 +119,7 @@ class LocalResources(SelfHostedResources):
 
     def update_cache(self, cache: Cache) -> None:
         """Update cache with current resource state.
-        
+
         Args:
             cache: Cache client to update
         """
@@ -131,12 +131,12 @@ class LocalResources(SelfHostedResources):
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
         """Deserialize resources from configuration.
-        
+
         Args:
             config: Configuration dictionary
             cache: Cache client for loading cached resources
             handlers: Logging handlers for resource logging
-            
+
         Returns:
             LocalResources: Initialized local resources instance
         """
@@ -160,16 +160,16 @@ class LocalResources(SelfHostedResources):
 
 class LocalConfig(Config):
     """Configuration class for local execution platform.
-    
+
     Provides the main configuration interface for the local platform,
     combining credentials and resources. The local platform requires
     minimal configuration since it runs functions locally.
-    
+
     Attributes:
         _credentials: Local credentials instance (empty)
         _resources: Local resources instance for port management
     """
-    
+
     def __init__(self):
         """Initialize local configuration."""
         super().__init__(name="local")
@@ -179,7 +179,7 @@ class LocalConfig(Config):
     @staticmethod
     def typename() -> str:
         """Get the type name for this configuration.
-        
+
         Returns:
             str: Type name "Local.Config"
         """
@@ -188,11 +188,11 @@ class LocalConfig(Config):
     @staticmethod
     def initialize(cfg: Config, dct: dict) -> None:
         """Initialize configuration from dictionary.
-        
+
         Args:
             cfg: Configuration instance to initialize
             dct: Dictionary containing configuration data
-            
+
         Note:
             No initialization needed for local platform
         """
@@ -201,7 +201,7 @@ class LocalConfig(Config):
     @property
     def credentials(self) -> LocalCredentials:
         """Get the local credentials.
-        
+
         Returns:
             LocalCredentials: The credentials instance
         """
@@ -210,7 +210,7 @@ class LocalConfig(Config):
     @property
     def resources(self) -> LocalResources:
         """Get the local resources.
-        
+
         Returns:
             LocalResources: The resources instance
         """
@@ -219,7 +219,7 @@ class LocalConfig(Config):
     @resources.setter
     def resources(self, val: LocalResources) -> None:
         """Set the local resources.
-        
+
         Args:
             val: New resources instance
         """
@@ -228,12 +228,12 @@ class LocalConfig(Config):
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
         """Deserialize configuration from dictionary.
-        
+
         Args:
             config: Configuration dictionary
             cache: Cache client for loading cached configuration
             handlers: Logging handlers for configuration logging
-            
+
         Returns:
             LocalConfig: Initialized local configuration instance
         """
@@ -246,7 +246,7 @@ class LocalConfig(Config):
 
     def serialize(self) -> dict:
         """Serialize configuration to dictionary.
-        
+
         Returns:
             dict: Dictionary containing configuration data
         """
@@ -255,7 +255,7 @@ class LocalConfig(Config):
 
     def update_cache(self, cache: Cache) -> None:
         """Update cache with current configuration.
-        
+
         Args:
             cache: Cache client to update
         """

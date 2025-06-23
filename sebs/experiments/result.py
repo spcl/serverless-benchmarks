@@ -22,12 +22,12 @@ from sebs.experiments.config import Config as ExperimentConfig
 
 class Result:
     """Experiment result collection and management.
-    
+
     This class stores and manages the results of experiments, including function
     invocation results, metrics from cloud providers, and configuration information.
     It provides methods for adding invocation results, retrieving metrics, and
     serializing/deserializing results.
-    
+
     Attributes:
         config: Dictionary containing experiment and deployment configurations
         _invocations: Dictionary mapping function names to invocation results
@@ -37,7 +37,7 @@ class Result:
         result_bucket: Optional bucket name for storing results
         logging_handlers: Logging handlers for the result
     """
-    
+
     def __init__(
         self,
         experiment_config: ExperimentConfig,
@@ -47,7 +47,7 @@ class Result:
         result_bucket: Optional[str] = None,
     ):
         """Initialize a new experiment result.
-        
+
         Args:
             experiment_config: Experiment configuration
             deployment_config: Deployment configuration
@@ -71,21 +71,21 @@ class Result:
 
     def begin(self) -> None:
         """Mark the beginning of the experiment.
-        
+
         This method records the start time of the experiment.
         """
         self.begin_time = datetime.now().timestamp()
 
     def end(self) -> None:
         """Mark the end of the experiment.
-        
+
         This method records the end time of the experiment.
         """
         self.end_time = datetime.now().timestamp()
 
     def times(self) -> Tuple[float, float]:
         """Get the start and end times of the experiment.
-        
+
         Returns:
             Tuple of (start_time, end_time) as Unix timestamps
         """
@@ -93,7 +93,7 @@ class Result:
 
     def add_result_bucket(self, result_bucket: str) -> None:
         """Set the result bucket for storing experiment results.
-        
+
         Args:
             result_bucket: Name of the bucket to store results in
         """
@@ -101,10 +101,10 @@ class Result:
 
     def add_invocation(self, func: Function, invocation: ExecutionResult) -> None:
         """Add an invocation result for a specific function.
-        
+
         If the invocation doesn't have a request ID (likely due to failure),
         a synthetic ID is generated.
-        
+
         Args:
             func: Function the invocation belongs to
             invocation: Execution result to add
@@ -123,7 +123,7 @@ class Result:
 
     def functions(self) -> List[str]:
         """Get a list of all function names in the results.
-        
+
         Returns:
             List of function names
         """
@@ -131,13 +131,13 @@ class Result:
 
     def invocations(self, func: str) -> Dict[str, ExecutionResult]:
         """Get invocation results for a specific function.
-        
+
         Args:
             func: Name of the function to get invocation results for
-            
+
         Returns:
             Dictionary mapping request IDs to execution results
-            
+
         Raises:
             KeyError: If function name is not found in results
         """
@@ -145,13 +145,13 @@ class Result:
 
     def metrics(self, func: str) -> dict:
         """Get metrics for a specific function.
-        
+
         If no metrics exist for the function, an empty dictionary is created
         and returned.
-        
+
         Args:
             func: Name of the function to get metrics for
-            
+
         Returns:
             Dictionary of metrics for the function
         """
@@ -162,15 +162,15 @@ class Result:
     @staticmethod
     def deserialize(cached_config: dict, cache: Cache, handlers: LoggingHandlers) -> "Result":
         """Deserialize a result from a dictionary representation.
-        
+
         This static method creates a new Result object from a dictionary
         representation, which may have been loaded from a file or cache.
-        
+
         Args:
             cached_config: Dictionary representation of the result
             cache: Cache instance for resolving references
             handlers: Logging handlers for the result
-            
+
         Returns:
             A new Result object with settings from the dictionary
         """

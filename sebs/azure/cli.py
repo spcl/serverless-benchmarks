@@ -42,26 +42,26 @@ from sebs.utils import LoggingBase
 
 class AzureCLI(LoggingBase):
     """Azure CLI Docker container wrapper.
-    
+
     This class manages a Docker container running Azure CLI tools and provides
     methods for executing Azure commands, handling authentication, and managing
     file transfers for serverless function deployment.
-    
+
     Attributes:
         docker_instance: Docker container running Azure CLI
         _insights_installed: Flag indicating if Application Insights extension is installed
     """
-    
+
     def __init__(self, system_config: SeBSConfig, docker_client: docker.client) -> None:
         """Initialize Azure CLI container.
-        
+
         Creates and starts a Docker container with Azure CLI tools installed.
         Handles image pulling if not available locally.
-        
+
         Args:
             system_config: SeBS system configuration
             docker_client: Docker client for container operations
-            
+
         Raises:
             RuntimeError: If Docker image pull fails.
         """
@@ -106,7 +106,7 @@ class AzureCLI(LoggingBase):
     @staticmethod
     def typename() -> str:
         """Get the CLI type name.
-        
+
         Returns:
             Type identifier for Azure CLI.
         """
@@ -114,16 +114,16 @@ class AzureCLI(LoggingBase):
 
     def execute(self, cmd: str) -> bytes:
         """Execute Azure CLI command in Docker container.
-        
+
         Executes the given command in the Azure CLI container and returns
         the output. Raises an exception if the command fails.
-        
+
         Args:
             cmd: Azure CLI command to execute
-            
+
         Returns:
             Command output as bytes.
-            
+
         Raises:
             RuntimeError: If command execution fails.
         """
@@ -138,15 +138,15 @@ class AzureCLI(LoggingBase):
 
     def login(self, appId: str, tenant: str, password: str) -> bytes:
         """Login to Azure using service principal credentials.
-        
+
         Authenticates with Azure using service principal credentials
         within the Docker container.
-        
+
         Args:
             appId: Azure application (client) ID
             tenant: Azure tenant (directory) ID
             password: Azure client secret
-            
+
         Returns:
             Login command output as bytes.
         """
@@ -162,15 +162,15 @@ class AzureCLI(LoggingBase):
 
     def upload_package(self, directory: str, dest: str) -> None:
         """Upload function package to Docker container.
-        
+
         Creates a compressed archive of the function package and uploads
         it to the specified destination in the Docker container.
-        
+
         Note:
             This implementation loads the entire archive into memory,
             which may not be efficient for very large function packages.
             For large packages, consider using docker cp directly.
-        
+
         Args:
             directory: Local directory containing function package
             dest: Destination path in the Docker container
@@ -186,7 +186,7 @@ class AzureCLI(LoggingBase):
 
     def install_insights(self) -> None:
         """Install Azure Application Insights CLI extension.
-        
+
         Installs the Application Insights extension for Azure CLI
         if not already installed. Required for metrics collection.
         """
@@ -196,7 +196,7 @@ class AzureCLI(LoggingBase):
 
     def shutdown(self) -> None:
         """Shutdown Azure CLI Docker container.
-        
+
         Stops and removes the Docker container running Azure CLI tools.
         """
         self.logging.info("Stopping Azure manage Docker instance")

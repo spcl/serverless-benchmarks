@@ -19,13 +19,13 @@ BasicStats = namedtuple("BasicStats", "mean median std cv")
 
 def basic_stats(times: List[float]) -> BasicStats:
     """Compute basic statistics for a list of measurement times.
-    
+
     This function computes the mean, median, standard deviation, and
     coefficient of variation for a list of measurement times.
-    
+
     Args:
         times: List of measurement times
-        
+
     Returns:
         A BasicStats named tuple with the computed statistics
     """
@@ -38,15 +38,15 @@ def basic_stats(times: List[float]) -> BasicStats:
 
 def ci_tstudents(alpha: float, times: List[float]) -> Tuple[float, float]:
     """Compute parametric confidence interval using Student's t-distribution.
-    
+
     This function computes a confidence interval for the mean of the given
     measurement times using Student's t-distribution. This is a parametric
     method that assumes the data follows a normal distribution.
-    
+
     Args:
         alpha: Confidence level (e.g., 0.95 for 95% confidence)
         times: List of measurement times
-        
+
     Returns:
         A tuple (lower, upper) representing the confidence interval
     """
@@ -63,8 +63,8 @@ def ci_le_boudec(alpha: float, times: List[float]) -> Tuple[float, float]:
     of the data.
 
     Reference:
-        J.-Y. Le Boudec, "Methods for the Estimation of the Accuracy of 
-        Measurements in Computer Performance Evaluation", 
+        J.-Y. Le Boudec, "Methods for the Estimation of the Accuracy of
+        Measurements in Computer Performance Evaluation",
         Performance Evaluation Review, 2010
 
     Args:

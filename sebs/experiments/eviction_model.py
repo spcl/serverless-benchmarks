@@ -30,16 +30,16 @@ if TYPE_CHECKING:
 
 class EvictionModel(Experiment):
     """Container eviction model experiment.
-    
-    This experiment measures how serverless platforms manage function 
-    container eviction. It determines how long idle containers are kept 
-    alive before being recycled by the platform, which affects cold start 
+
+    This experiment measures how serverless platforms manage function
+    container eviction. It determines how long idle containers are kept
+    alive before being recycled by the platform, which affects cold start
     frequency.
-    
+
     The experiment invokes functions at different time intervals (defined
     in the 'times' list) and observes when cold starts occur, thus inferring
     the platform's container caching and eviction policies.
-    
+
     Attributes:
         times: List of time intervals (in seconds) between invocations
         _function: Function to invoke
@@ -52,7 +52,7 @@ class EvictionModel(Experiment):
     # Time intervals (in seconds) between invocations
     # Uncomment additional intervals as needed for longer tests
     times = [
-        1,       # 1 second
+        1,  # 1 second
         # 2,     # 2 seconds
         # 4,     # 4 seconds
         # 8,     # 8 seconds
@@ -77,7 +77,7 @@ class EvictionModel(Experiment):
 
     def __init__(self, config: ExperimentConfig):
         """Initialize a new EvictionModel experiment.
-        
+
         Args:
             config: Experiment configuration
         """
@@ -86,7 +86,7 @@ class EvictionModel(Experiment):
     @staticmethod
     def name() -> str:
         """Get the name of the experiment.
-        
+
         Returns:
             The name "eviction-model"
         """
@@ -95,7 +95,7 @@ class EvictionModel(Experiment):
     @staticmethod
     def typename() -> str:
         """Get the type name of the experiment.
-        
+
         Returns:
             The type name "Experiment.EvictionModel"
         """
@@ -104,12 +104,12 @@ class EvictionModel(Experiment):
     @staticmethod
     def accept_replies(port: int, invocations: int) -> None:
         """Accept TCP connections from functions and respond to them.
-        
+
         This static method acts as a TCP server, accepting connections from
         functions and responding to them. It runs two rounds of connection
         acceptance to ensure functions receive a response. The method logs
         all activity to a file.
-        
+
         Args:
             port: TCP port to listen on
             invocations: Number of expected function invocations
@@ -153,23 +153,25 @@ class EvictionModel(Experiment):
             s.close()
 
     @staticmethod
-    def execute_instance(sleep_time: int, pid: int, tid: int, func: Function, payload: dict) -> dict:
+    def execute_instance(
+        sleep_time: int, pid: int, tid: int, func: Function, payload: dict
+    ) -> dict:
         """Execute a single instance of the eviction model test.
-        
+
         This method performs two invocations of a function with a sleep interval
         between them. The first invocation should be a cold start, and the second
         will indicate whether the container was evicted during the sleep period.
-        
+
         Args:
             sleep_time: Time to sleep between invocations (seconds)
             pid: Process ID for logging
             tid: Thread ID for logging
             func: Function to invoke
             payload: Payload to send to the function
-            
+
         Returns:
             Dictionary with invocation results and timing information
-            
+
         Raises:
             RuntimeError: If the first invocation fails
         """
@@ -218,11 +220,11 @@ class EvictionModel(Experiment):
         payload: dict,
     ) -> List[dict]:
         """Process a function with multiple time intervals.
-        
+
         This method executes multiple functions with different sleep times
         in parallel, starting with the largest sleep time to overlap executions.
         The total time should be equal to the maximum execution time.
-        
+
         Args:
             repetition: Current repetition number
             pid: Process ID for logging
@@ -230,10 +232,10 @@ class EvictionModel(Experiment):
             functions: List of functions to invoke
             times: List of sleep times corresponding to functions
             payload: Payload to send to functions
-            
+
         Returns:
             List of dictionaries containing invocation results
-            
+
         Raises:
             RuntimeError: If any execution fails
         """
@@ -275,12 +277,12 @@ class EvictionModel(Experiment):
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem) -> None:
         """Prepare the experiment for execution.
-        
-        This method sets up the benchmark, functions, and output directory for 
+
+        This method sets up the benchmark, functions, and output directory for
         the experiment. It creates a separate function for each time interval
         and copy combination, allowing for parallel testing of different
         eviction times.
-        
+
         Args:
             sebs_client: The SeBS client to use
             deployment_client: The deployment client to use
@@ -291,7 +293,7 @@ class EvictionModel(Experiment):
         )
         self._deployment_client = deployment_client
         self._result = ExperimentResult(self.config, deployment_client.config)
-        
+
         # Create function names for each time interval and copy
         name = deployment_client.default_function_name(self._benchmark)
         self.functions_names = [
@@ -299,12 +301,12 @@ class EvictionModel(Experiment):
             for time in self.times
             for copy in range(self.function_copies_per_time)
         ]
-        
+
         # Create output directory
         self._out_dir = os.path.join(sebs_client.output_dir, "eviction-model")
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
-            
+
         self.functions = []
 
         for fname in self.functions_names:
@@ -315,12 +317,12 @@ class EvictionModel(Experiment):
 
     def run(self) -> None:
         """Execute the eviction model experiment.
-        
+
         This method runs the main eviction model experiment by:
         1. Setting up server instances to handle function responses
         2. Executing parallel invocations with different sleep times
         3. Collecting and storing results
-        
+
         The experiment determines container eviction patterns by measuring
         whether functions experience cold starts after different idle periods.
         """

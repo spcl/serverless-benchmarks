@@ -33,10 +33,10 @@ if TYPE_CHECKING:
 class BenchmarkConfig:
     """
     Configuration for a benchmark in the Serverless Benchmarking Suite.
-    
+
     This class stores the configuration parameters for a benchmark, including
     timeout, memory allocation, supported languages, and included modules.
-    
+
     Attributes:
         timeout: Maximum execution time in seconds
         memory: Memory allocation in MB
@@ -44,13 +44,13 @@ class BenchmarkConfig:
         modules: List of benchmark modules/features required
 
     """
-    
+
     def __init__(
         self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
     ):
         """
         Initialize a benchmark configuration.
-        
+
         Args:
             timeout: Maximum execution time in seconds
             memory: Memory allocation in MB
@@ -66,7 +66,7 @@ class BenchmarkConfig:
     def timeout(self) -> int:
         """
         Get the maximum execution time in seconds.
-        
+
         Returns:
             int: The timeout value
         """
@@ -76,7 +76,7 @@ class BenchmarkConfig:
     def timeout(self, val: int):
         """
         Set the maximum execution time in seconds.
-        
+
         Args:
             val: The new timeout value
         """
@@ -86,7 +86,7 @@ class BenchmarkConfig:
     def memory(self) -> int:
         """
         Get the memory allocation in MB.
-        
+
         Returns:
             int: The memory allocation
         """
@@ -96,7 +96,7 @@ class BenchmarkConfig:
     def memory(self, val: int):
         """
         Set the memory allocation in MB.
-        
+
         Args:
             val: The new memory allocation value
         """
@@ -106,7 +106,7 @@ class BenchmarkConfig:
     def languages(self) -> List["Language"]:
         """
         Get the list of supported programming languages.
-        
+
         Returns:
             List[Language]: Supported programming languages
         """
@@ -116,7 +116,7 @@ class BenchmarkConfig:
     def modules(self) -> List[BenchmarkModule]:
         """
         Get the list of benchmark modules/features required.
-        
+
         Returns:
             List[BenchmarkModule]: Required benchmark modules
         """
@@ -126,10 +126,10 @@ class BenchmarkConfig:
     def deserialize(json_object: dict) -> "BenchmarkConfig":
         """
         Create a BenchmarkConfig instance from a JSON object.
-        
+
         Args:
             json_object: Dictionary containing benchmark configuration
-            
+
         Returns:
             BenchmarkConfig: A new instance with the deserialized data
         """
@@ -146,9 +146,9 @@ class BenchmarkConfig:
 class Benchmark(LoggingBase):
     """
     Creates code package representing a benchmark with all code and assets.
-    
+
     This class handles building, packaging, and deploying benchmark code for
-    serverless platforms. It manages dependencies installation within Docker 
+    serverless platforms. It manages dependencies installation within Docker
     images corresponding to the target cloud deployment.
 
     The behavior of the class depends on cache state:
@@ -156,7 +156,7 @@ class Benchmark(LoggingBase):
     2. Otherwise, the hash of the entire benchmark is computed and compared
        with the cached value. If changed, it rebuilds the benchmark
     3. Otherwise, it returns the path to cached code
-    
+
     Attributes:
         benchmark: Name of the benchmark
         benchmark_path: Path to the benchmark directory
@@ -183,7 +183,7 @@ class Benchmark(LoggingBase):
     def typename() -> str:
         """
         Get the type name of this class.
-        
+
         Returns:
             str: The type name
         """
@@ -193,7 +193,7 @@ class Benchmark(LoggingBase):
     def benchmark(self) -> str:
         """
         Get the benchmark name.
-        
+
         Returns:
             str: Name of the benchmark
         """
@@ -203,7 +203,7 @@ class Benchmark(LoggingBase):
     def benchmark_path(self) -> str:
         """
         Get the path to the benchmark directory.
-        
+
         Returns:
             str: Path to the benchmark directory
         """
@@ -213,7 +213,7 @@ class Benchmark(LoggingBase):
     def benchmark_config(self) -> BenchmarkConfig:
         """
         Get the benchmark configuration.
-        
+
         Returns:
             BenchmarkConfig: Configuration for the benchmark
         """
@@ -223,7 +223,7 @@ class Benchmark(LoggingBase):
     def code_package(self) -> dict:
         """
         Get the code package information.
-        
+
         Returns:
             dict: Dictionary with code package information
         """
@@ -233,7 +233,7 @@ class Benchmark(LoggingBase):
     def functions(self) -> Dict[str, Any]:
         """
         Get the functions for this benchmark.
-        
+
         Returns:
             Dict[str, Any]: Dictionary of functions
         """
@@ -243,7 +243,7 @@ class Benchmark(LoggingBase):
     def code_location(self) -> str:
         """
         Get the location of the code package.
-        
+
         Returns:
             str: Path to the code package
         """
@@ -256,7 +256,7 @@ class Benchmark(LoggingBase):
     def is_cached(self) -> bool:
         """
         Check if the benchmark is cached.
-        
+
         Returns:
             bool: True if cached, False otherwise
         """
@@ -266,7 +266,7 @@ class Benchmark(LoggingBase):
     def is_cached(self, val: bool):
         """
         Set whether the benchmark is cached.
-        
+
         Args:
             val: True if cached, False otherwise
         """
@@ -276,7 +276,7 @@ class Benchmark(LoggingBase):
     def is_cached_valid(self) -> bool:
         """
         Check if the cached benchmark is valid.
-        
+
         Returns:
             bool: True if valid, False otherwise
         """
@@ -286,7 +286,7 @@ class Benchmark(LoggingBase):
     def is_cached_valid(self, val: bool):
         """
         Set whether the cached benchmark is valid.
-        
+
         Args:
             val: True if valid, False otherwise
         """
@@ -296,7 +296,7 @@ class Benchmark(LoggingBase):
     def code_size(self) -> int:
         """
         Get the size of the code package in bytes.
-        
+
         Returns:
             int: Size in bytes
         """
@@ -306,10 +306,10 @@ class Benchmark(LoggingBase):
     def container_uri(self) -> str:
         """
         Get the URI of the container for container deployments.
-        
+
         Returns:
             str: Container URI
-            
+
         Raises:
             AssertionError: If container URI is None
         """
@@ -320,7 +320,7 @@ class Benchmark(LoggingBase):
     def language(self) -> "Language":
         """
         Get the programming language for the benchmark.
-        
+
         Returns:
             Language: Programming language
         """
@@ -330,7 +330,7 @@ class Benchmark(LoggingBase):
     def language_name(self) -> str:
         """
         Get the name of the programming language.
-        
+
         Returns:
             str: Name of the language
         """
@@ -340,7 +340,7 @@ class Benchmark(LoggingBase):
     def language_version(self) -> str:
         """
         Get the version of the programming language.
-        
+
         Returns:
             str: Version of the language
         """
@@ -350,7 +350,7 @@ class Benchmark(LoggingBase):
     def has_input_processed(self) -> bool:
         """
         Check if input processing has been performed.
-        
+
         Returns:
             bool: True if processed, False otherwise
         """
@@ -360,7 +360,7 @@ class Benchmark(LoggingBase):
     def uses_storage(self) -> bool:
         """
         Check if the benchmark uses cloud storage.
-        
+
         Returns:
             bool: True if using storage, False otherwise
         """
@@ -370,7 +370,7 @@ class Benchmark(LoggingBase):
     def uses_nosql(self) -> bool:
         """
         Check if the benchmark uses NoSQL databases.
-        
+
         Returns:
             bool: True if using NoSQL, False otherwise
         """
@@ -380,7 +380,7 @@ class Benchmark(LoggingBase):
     def architecture(self) -> str:
         """
         Get the CPU architecture of the deployment target.
-        
+
         Returns:
             str: Architecture name (e.g., 'x86_64', 'arm64')
         """
@@ -390,7 +390,7 @@ class Benchmark(LoggingBase):
     def container_deployment(self) -> bool:
         """
         Check if using container deployment.
-        
+
         Returns:
             bool: True if using container deployment, False otherwise
         """
@@ -400,10 +400,10 @@ class Benchmark(LoggingBase):
     def hash(self) -> str:
         """
         Get the hash of the benchmark code.
-        
+
         Computes an MD5 hash of the benchmark directory to determine if
         the code has changed since the last build.
-        
+
         Returns:
             str: MD5 hash as a hexadecimal string
         """
@@ -415,9 +415,9 @@ class Benchmark(LoggingBase):
     def hash(self, val: str):
         """
         Set the hash of the benchmark code.
-        
+
         Used only for testing purposes.
-        
+
         Args:
             val: MD5 hash as a hexadecimal string
         """
@@ -435,11 +435,11 @@ class Benchmark(LoggingBase):
     ):
         """
         Initialize a Benchmark instance.
-        
+
         Sets up a benchmark for a specific deployment platform, including configuration,
         language runtime, and caching. Loads the benchmark configuration from the JSON file
         and validates the language support.
-        
+
         Args:
             benchmark: Name of the benchmark
             deployment_name: Name of the deployment platform (e.g., 'aws', 'azure')
@@ -448,7 +448,7 @@ class Benchmark(LoggingBase):
             output_dir: Directory for output files
             cache_client: Cache client for caching code packages
             docker_client: Docker client for building dependencies
-            
+
         Raises:
             RuntimeError: If the benchmark is not found or doesn't support the language
         """
@@ -503,16 +503,16 @@ class Benchmark(LoggingBase):
     def hash_directory(directory: str, deployment: str, language: str) -> str:
         """
         Compute MD5 hash of an entire directory.
-        
+
         Calculates a hash of the benchmark source code by combining hashes of all
         relevant files. This includes language-specific files, deployment wrappers,
         and shared files like shell scripts and JSON configuration.
-        
+
         Args:
             directory: Path to the directory to hash
             deployment: Name of the deployment platform
             language: Programming language name
-            
+
         Returns:
             str: MD5 hash as a hexadecimal string
         """
@@ -542,7 +542,7 @@ class Benchmark(LoggingBase):
     def serialize(self) -> dict:
         """
         Serialize the benchmark to a dictionary.
-        
+
         Returns:
             dict: Dictionary containing size and hash of the benchmark code
         """
@@ -551,7 +551,7 @@ class Benchmark(LoggingBase):
     def query_cache(self) -> None:
         """
         Query the cache for existing benchmark code packages and functions.
-        
+
         Checks if there's a cached code package or container for this benchmark
         and deployment combination. Updates the cache status fields based on
         whether the cache exists and if it's still valid (hash matches).

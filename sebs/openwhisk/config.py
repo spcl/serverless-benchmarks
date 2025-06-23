@@ -24,10 +24,10 @@ from sebs.storage.resources import SelfHostedResources
 class OpenWhiskCredentials(Credentials):
     """
     Manages authentication credentials for OpenWhisk deployments.
-    
+
     This class handles credential serialization and deserialization for OpenWhisk
     platforms. Currently implements a minimal credential system.
-    
+
     Note:
         OpenWhisk deployments typically rely on local authentication through
         the wsk CLI tool rather than explicit credential management.
@@ -37,12 +37,12 @@ class OpenWhiskCredentials(Credentials):
     def deserialize(config: Dict[str, Any], cache: Cache, handlers: LoggingHandlers) -> Credentials:
         """
         Deserialize OpenWhisk credentials from configuration.
-        
+
         Args:
             config: Configuration dictionary containing credential data
             cache: Cache instance for storing/retrieving cached credentials
             handlers: Logging handlers for credential operations
-            
+
         Returns:
             OpenWhiskCredentials instance (currently empty)
         """
@@ -51,7 +51,7 @@ class OpenWhiskCredentials(Credentials):
     def serialize(self) -> Dict[str, Any]:
         """
         Serialize credentials to dictionary format.
-        
+
         Returns:
             Empty dictionary as OpenWhisk uses CLI-based authentication
         """
@@ -61,11 +61,11 @@ class OpenWhiskCredentials(Credentials):
 class OpenWhiskResources(SelfHostedResources):
     """
     Manages Docker registry and storage resources for OpenWhisk deployments.
-    
+
     This class handles configuration of Docker registries, authentication credentials,
     and storage resources needed for OpenWhisk function deployments. It supports
     both user-provided and cached configurations.
-    
+
     Attributes:
         _docker_registry: Docker registry URL for storing function images
         _docker_username: Username for Docker registry authentication
@@ -83,7 +83,7 @@ class OpenWhiskResources(SelfHostedResources):
     ) -> None:
         """
         Initialize OpenWhisk resources configuration.
-        
+
         Args:
             registry: Docker registry URL for storing function images
             username: Username for Docker registry authentication
@@ -101,7 +101,7 @@ class OpenWhiskResources(SelfHostedResources):
     def typename() -> str:
         """
         Get the type name for this resource class.
-        
+
         Returns:
             String identifier for OpenWhisk resources
         """
@@ -111,7 +111,7 @@ class OpenWhiskResources(SelfHostedResources):
     def docker_registry(self) -> Optional[str]:
         """
         Get the Docker registry URL.
-        
+
         Returns:
             Docker registry URL or None if not configured
         """
@@ -121,7 +121,7 @@ class OpenWhiskResources(SelfHostedResources):
     def docker_username(self) -> Optional[str]:
         """
         Get the Docker registry username.
-        
+
         Returns:
             Docker registry username or None if not configured
         """
@@ -131,7 +131,7 @@ class OpenWhiskResources(SelfHostedResources):
     def docker_password(self) -> Optional[str]:
         """
         Get the Docker registry password.
-        
+
         Returns:
             Docker registry password or None if not configured
         """
@@ -141,7 +141,7 @@ class OpenWhiskResources(SelfHostedResources):
     def storage_updated(self) -> bool:
         """
         Check if storage configuration has been updated.
-        
+
         Returns:
             True if storage configuration has been updated, False otherwise
         """
@@ -151,7 +151,7 @@ class OpenWhiskResources(SelfHostedResources):
     def registry_updated(self) -> bool:
         """
         Check if registry configuration has been updated.
-        
+
         Returns:
             True if registry configuration has been updated, False otherwise
         """
@@ -161,7 +161,7 @@ class OpenWhiskResources(SelfHostedResources):
     def initialize(res: Resources, dct: Dict[str, Any]) -> None:
         """
         Initialize OpenWhisk resources from dictionary configuration.
-        
+
         Args:
             res: Resources instance to initialize
             dct: Dictionary containing Docker registry configuration
@@ -176,15 +176,15 @@ class OpenWhiskResources(SelfHostedResources):
     def deserialize(config: Dict[str, Any], cache: Cache, handlers: LoggingHandlers) -> Resources:
         """
         Deserialize OpenWhisk resources from configuration.
-        
+
         This method handles both user-provided configuration and cached values,
         prioritizing user configuration while detecting updates.
-        
+
         Args:
             config: Configuration dictionary that may contain 'docker_registry' section
             cache: Cache instance to retrieve/store configuration
             handlers: Logging handlers for resource operations
-            
+
         Returns:
             OpenWhiskResources instance with appropriate configuration
         """
@@ -233,7 +233,7 @@ class OpenWhiskResources(SelfHostedResources):
     def update_cache(self, cache: Cache) -> None:
         """
         Update cache with current resource configuration.
-        
+
         Args:
             cache: Cache instance to update with current configuration
         """
@@ -251,7 +251,7 @@ class OpenWhiskResources(SelfHostedResources):
     def serialize(self) -> Dict[str, Any]:
         """
         Serialize resource configuration to dictionary.
-        
+
         Returns:
             Dictionary containing all resource configuration including
             Docker registry settings and inherited storage configuration
@@ -268,11 +268,11 @@ class OpenWhiskResources(SelfHostedResources):
 class OpenWhiskConfig(Config):
     """
     Main configuration class for OpenWhisk deployments.
-    
+
     This class manages all OpenWhisk-specific configuration settings including
     cluster management, WSK CLI settings, and experimental features. It integrates
     with the broader SeBS configuration system.
-    
+
     Attributes:
         name: Platform name identifier ('openwhisk')
         shutdownStorage: Whether to shutdown storage after experiments
@@ -284,7 +284,7 @@ class OpenWhiskConfig(Config):
         _credentials: OpenWhisk credentials configuration
         _resources: OpenWhisk resources configuration
     """
-    
+
     name: str
     shutdownStorage: bool
     removeCluster: bool
@@ -296,7 +296,7 @@ class OpenWhiskConfig(Config):
     def __init__(self, config: Dict[str, Any], cache: Cache) -> None:
         """
         Initialize OpenWhisk configuration.
-        
+
         Args:
             config: Configuration dictionary containing OpenWhisk settings
             cache: Cache instance for configuration persistence
@@ -315,7 +315,7 @@ class OpenWhiskConfig(Config):
     def credentials(self) -> OpenWhiskCredentials:
         """
         Get OpenWhisk credentials configuration.
-        
+
         Returns:
             OpenWhiskCredentials instance
         """
@@ -325,7 +325,7 @@ class OpenWhiskConfig(Config):
     def resources(self) -> OpenWhiskResources:
         """
         Get OpenWhisk resources configuration.
-        
+
         Returns:
             OpenWhiskResources instance
         """
@@ -335,7 +335,7 @@ class OpenWhiskConfig(Config):
     def initialize(cfg: Config, dct: Dict[str, Any]) -> None:
         """
         Initialize configuration from dictionary (currently no-op).
-        
+
         Args:
             cfg: Configuration instance to initialize
             dct: Dictionary containing initialization data
@@ -345,7 +345,7 @@ class OpenWhiskConfig(Config):
     def serialize(self) -> Dict[str, Any]:
         """
         Serialize configuration to dictionary format.
-        
+
         Returns:
             Dictionary containing all OpenWhisk configuration settings
             including credentials and resources
@@ -365,12 +365,12 @@ class OpenWhiskConfig(Config):
     def deserialize(config: Dict[str, Any], cache: Cache, handlers: LoggingHandlers) -> Config:
         """
         Deserialize OpenWhisk configuration from dictionary and cache.
-        
+
         Args:
             config: Configuration dictionary containing OpenWhisk settings
             cache: Cache instance to retrieve cached configuration
             handlers: Logging handlers for configuration operations
-            
+
         Returns:
             OpenWhiskConfig instance with deserialized configuration
         """
@@ -387,7 +387,7 @@ class OpenWhiskConfig(Config):
     def update_cache(self, cache: Cache) -> None:
         """
         Update cache with current configuration values.
-        
+
         Args:
             cache: Cache instance to update with current configuration
         """

@@ -55,18 +55,18 @@ from sebs.utils import LoggingHandlers
 
 class GCP(System):
     """Google Cloud Platform serverless system implementation.
-    
+
     Provides complete integration with Google Cloud Functions including deployment,
     monitoring, logging, and resource management. Handles code packaging, function
     lifecycle management, trigger creation, and performance metrics collection.
-    
+
     Attributes:
         _config: GCP-specific configuration including credentials and region
         function_client: Google Cloud Functions API client
         cold_start_counter: Counter for enforcing cold starts in benchmarking
         logging_handlers: Logging configuration for status reporting
     """
-    
+
     def __init__(
         self,
         system_config: SeBSConfig,
@@ -76,7 +76,7 @@ class GCP(System):
         logging_handlers: LoggingHandlers,
     ) -> None:
         """Initialize GCP serverless system.
-        
+
         Args:
             system_config: General SeBS system configuration
             config: GCP-specific configuration with credentials and settings
@@ -98,7 +98,7 @@ class GCP(System):
     @property
     def config(self) -> GCPConfig:
         """Get the GCP configuration instance.
-        
+
         Returns:
             GCP configuration with credentials and region settings
         """
@@ -107,7 +107,7 @@ class GCP(System):
     @staticmethod
     def name() -> str:
         """Get the platform name identifier.
-        
+
         Returns:
             Platform name string 'gcp'
         """
@@ -116,7 +116,7 @@ class GCP(System):
     @staticmethod
     def typename() -> str:
         """Get the platform type name for display.
-        
+
         Returns:
             Platform type string 'GCP'
         """
@@ -125,18 +125,20 @@ class GCP(System):
     @staticmethod
     def function_type() -> "Type[Function]":
         """Get the function class type for this platform.
-        
+
         Returns:
             GCPFunction class type
         """
         return GCPFunction
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None) -> None:
+    def initialize(
+        self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None
+    ) -> None:
         """Initialize the GCP system for function deployment and management.
-        
+
         Sets up the Cloud Functions API client and initializes system resources
         including storage buckets and other required infrastructure.
-        
+
         Args:
             config: Additional system-specific configuration parameters
             resource_prefix: Optional prefix for resource naming to avoid conflicts
@@ -146,7 +148,7 @@ class GCP(System):
 
     def get_function_client(self):
         """Get the Google Cloud Functions API client.
-        
+
         Returns:
             Initialized Cloud Functions API client
         """
@@ -156,15 +158,15 @@ class GCP(System):
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
         """Generate a default function name for the given benchmark.
-        
+
         Creates a standardized function name using resource ID, benchmark name,
         language, and version information. Formats the name according to GCP
         Cloud Functions naming requirements.
-        
+
         Args:
             code_package: Benchmark package containing metadata
             resources: Optional resource configuration for ID generation
-            
+
         Returns:
             Formatted function name suitable for GCP Cloud Functions
         """
@@ -181,14 +183,14 @@ class GCP(System):
     @staticmethod
     def format_function_name(func_name: str) -> str:
         """Format function name according to GCP Cloud Functions requirements.
-        
+
         Converts function names to comply with GCP naming rules by replacing
         hyphens and dots with underscores. GCP functions must begin with a letter
         and can only contain letters, numbers, and underscores.
-        
+
         Args:
             func_name: Raw function name to format
-            
+
         Returns:
             GCP-compliant function name
         """
@@ -209,17 +211,17 @@ class GCP(System):
         container_deployment: bool,
     ) -> Tuple[str, int, str]:
         """Package benchmark code for GCP Cloud Functions deployment.
-        
+
         Transforms the benchmark code directory structure to meet GCP Cloud Functions
         requirements. Creates a zip archive with the appropriate handler file naming
         and directory structure for the specified language runtime.
-        
+
         The packaging process:
         1. Creates a 'function' subdirectory for benchmark sources
         2. Renames handler files to GCP-required names (handler.py -> main.py)
         3. Creates a zip archive for deployment
         4. Restores original file structure
-        
+
         Args:
             directory: Path to the benchmark code directory
             language_name: Programming language (python, nodejs)
@@ -228,10 +230,10 @@ class GCP(System):
             benchmark: Benchmark name for archive naming
             is_cached: Whether this package is from cache
             container_deployment: Whether to use container deployment (unsupported)
-            
+
         Returns:
             Tuple of (archive_path, archive_size_bytes, container_uri)
-            
+
         Raises:
             NotImplementedError: If container_deployment is True
         """
@@ -295,20 +297,20 @@ class GCP(System):
         container_uri: str,
     ) -> "GCPFunction":
         """Create a new GCP Cloud Function or update existing one.
-        
+
         Deploys a benchmark as a Cloud Function, handling code upload to Cloud Storage,
         function creation with proper configuration, and IAM policy setup for
         unauthenticated invocations. If the function already exists, updates it instead.
-        
+
         Args:
             code_package: Benchmark package with code and configuration
             func_name: Name for the Cloud Function
             container_deployment: Whether to use container deployment (unsupported)
             container_uri: Container image URI (unused for GCP)
-            
+
         Returns:
             GCPFunction instance representing the deployed function
-            
+
         Raises:
             NotImplementedError: If container_deployment is True
             RuntimeError: If function creation or IAM configuration fails
@@ -435,17 +437,17 @@ class GCP(System):
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """Create a trigger for the given function.
-        
+
         Creates HTTP triggers for Cloud Functions, waiting for function deployment
         to complete before extracting the trigger URL.
-        
+
         Args:
             function: Function instance to create trigger for
             trigger_type: Type of trigger to create (only HTTP supported)
-            
+
         Returns:
             Created trigger instance with URL and configuration
-            
+
         Raises:
             RuntimeError: If trigger type is not supported
         """
@@ -481,10 +483,10 @@ class GCP(System):
 
     def cached_function(self, function: Function) -> None:
         """Configure a cached function instance for use.
-        
+
         Sets up library triggers for functions loaded from cache, ensuring
         they have the proper deployment client and logging configuration.
-        
+
         Args:
             function: Cached function instance to configure
         """
@@ -505,17 +507,17 @@ class GCP(System):
         container_uri: str,
     ) -> None:
         """Update an existing Cloud Function with new code and configuration.
-        
+
         Uploads new code package to Cloud Storage and patches the existing function
         with updated runtime, memory, timeout, and environment variables. Waits
         for deployment to complete before returning.
-        
+
         Args:
             function: Existing function instance to update
             code_package: New benchmark package with updated code
             container_deployment: Whether to use container deployment (unsupported)
             container_uri: Container image URI (unused)
-            
+
         Raises:
             NotImplementedError: If container_deployment is True
             RuntimeError: If function update fails after maximum retries
@@ -582,14 +584,14 @@ class GCP(System):
 
     def _update_envs(self, full_function_name: str, envs: Dict) -> Dict:
         """Merge new environment variables with existing function environment.
-        
+
         Retrieves current function environment variables and merges them with
         new variables, with new variables taking precedence on conflicts.
-        
+
         Args:
             full_function_name: Fully qualified function name
             envs: New environment variables to add/update
-            
+
         Returns:
             Merged environment variables dictionary
         """
@@ -608,13 +610,13 @@ class GCP(System):
 
     def _generate_function_envs(self, code_package: Benchmark) -> Dict:
         """Generate environment variables for function based on benchmark requirements.
-        
+
         Creates environment variables needed by the benchmark, such as NoSQL
         database connection information.
-        
+
         Args:
             code_package: Benchmark package with module requirements
-            
+
         Returns:
             Dictionary of environment variables for the function
         """
@@ -635,18 +637,18 @@ class GCP(System):
         self, function: Function, code_package: Benchmark, env_variables: Dict = {}
     ) -> int:
         """Update function configuration including memory, timeout, and environment.
-        
+
         Updates the Cloud Function's memory allocation, timeout, and environment
         variables without changing the code. Waits for deployment to complete.
-        
+
         Args:
             function: Function instance to update
             code_package: Benchmark package with configuration requirements
             env_variables: Additional environment variables to set
-            
+
         Returns:
             Version ID of the updated function
-            
+
         Raises:
             RuntimeError: If configuration update fails after maximum retries
         """
@@ -723,12 +725,12 @@ class GCP(System):
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str) -> str:
         """Generate the fully qualified function name for GCP API calls.
-        
+
         Args:
             project_name: GCP project ID
             location: GCP region/location
             func_name: Function name
-            
+
         Returns:
             Fully qualified function name in GCP format
         """
@@ -736,12 +738,12 @@ class GCP(System):
 
     def prepare_experiment(self, benchmark: str) -> str:
         """Prepare storage resources for benchmark experiment.
-        
+
         Creates a dedicated storage bucket for experiment logs and outputs.
-        
+
         Args:
             benchmark: Name of the benchmark being prepared
-            
+
         Returns:
             Name of the created logs storage bucket
         """
@@ -752,7 +754,7 @@ class GCP(System):
 
     def shutdown(self) -> None:
         """Shutdown the GCP system and clean up resources.
-        
+
         Performs cleanup of system resources and calls parent shutdown method.
         """
         cast(GCPSystemResources, self._system_resources).shutdown()
@@ -762,11 +764,11 @@ class GCP(System):
         self, function_name: str, start_time: int, end_time: int, requests: Dict, metrics: Dict
     ) -> None:
         """Download execution metrics and logs from GCP monitoring services.
-        
+
         Retrieves function execution times from Cloud Logging and performance
         metrics from Cloud Monitoring. Processes logs to extract execution times
         and collects metrics like memory usage and network egress.
-        
+
         Args:
             function_name: Name of the function to collect metrics for
             start_time: Start timestamp for metric collection (Unix timestamp)
@@ -891,14 +893,14 @@ class GCP(System):
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark) -> int:
         """Force a cold start by updating function configuration.
-        
+
         Triggers a cold start by updating the function's environment variables
         with a unique counter value, forcing GCP to create a new instance.
-        
+
         Args:
             function: Function instance to enforce cold start on
             code_package: Benchmark package for configuration
-            
+
         Returns:
             Version ID of the updated function
         """
@@ -912,10 +914,10 @@ class GCP(System):
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark) -> None:
         """Enforce cold starts for multiple functions simultaneously.
-        
+
         Updates all provided functions to force cold starts and waits for
         all deployments to complete before returning.
-        
+
         Args:
             functions: List of functions to enforce cold starts on
             code_package: Benchmark package for configuration
@@ -947,14 +949,14 @@ class GCP(System):
 
     def get_functions(self, code_package: Benchmark, function_names: List[str]) -> List["Function"]:
         """Retrieve multiple function instances and ensure they are deployed.
-        
+
         Gets function instances for the provided names and waits for all
         functions to be in ACTIVE deployment state.
-        
+
         Args:
             code_package: Benchmark package for function creation
             function_names: List of function names to retrieve
-            
+
         Returns:
             List of deployed function instances
         """
@@ -988,11 +990,11 @@ class GCP(System):
 
     def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
         """Check if a function is deployed and optionally verify version.
-        
+
         Args:
             func_name: Name of the function to check
             versionId: Optional specific version ID to verify (-1 to check any)
-            
+
         Returns:
             Tuple of (is_deployed, current_version_id)
         """
@@ -1007,10 +1009,10 @@ class GCP(System):
 
     def deployment_version(self, func: Function) -> int:
         """Get the current deployment version ID of a function.
-        
+
         Args:
             func: Function instance to check
-            
+
         Returns:
             Current version ID of the function
         """
@@ -1023,10 +1025,10 @@ class GCP(System):
     @staticmethod
     def helper_zip(base_directory: str, path: str, archive: zipfile.ZipFile) -> None:
         """Recursively add files and directories to a zip archive.
-        
+
         Helper method for recursive_zip that handles directory traversal
         and adds files with relative paths to the archive.
-        
+
         Args:
             base_directory: Base directory path for relative path calculation
             path: Current path being processed (file or directory)
@@ -1044,14 +1046,14 @@ class GCP(System):
     @staticmethod
     def recursive_zip(directory: str, archname: str) -> bool:
         """Create a zip archive of a directory with relative paths.
-        
+
         Creates a compressed zip archive of the specified directory, preserving
         the relative directory structure. Uses maximum compression level.
-        
+
         Args:
             directory: Absolute path to the directory to be zipped
             archname: Path where the zip file should be created
-            
+
         Returns:
             True if archiving was successful
         """

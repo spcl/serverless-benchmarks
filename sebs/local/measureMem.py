@@ -24,16 +24,16 @@ import argparse
 
 def measure(container_id: str, measure_interval: int, measurement_file: str) -> None:
     """Continuously measure memory consumption of a Docker container.
-    
+
     Reads memory usage from the container's cgroup filesystem at regular intervals
     and writes measurements to the specified file. Handles different cgroup paths
     for compatibility with various Docker configurations.
-    
+
     Args:
         container_id: Docker container ID to monitor
         measure_interval: Measurement interval in milliseconds
         measurement_file: Path to file for writing measurements
-        
+
     Note:
         This function runs indefinitely until the process is terminated.
         It attempts two different cgroup paths to accommodate different
@@ -61,32 +61,21 @@ def measure(container_id: str, measure_interval: int, measurement_file: str) -> 
 
 if __name__ == "__main__":
     """Parse command line arguments and start memory measurement process.
-    
+
     Command line arguments:
         --container-id: Docker container ID to monitor
         --measurement-file: Path to file for writing measurements
         --measure-interval: Measurement interval in milliseconds
     """
-    parser = argparse.ArgumentParser(
-        description="Measure memory consumption of a Docker container"
+    parser = argparse.ArgumentParser(description="Measure memory consumption of a Docker container")
+    parser.add_argument(
+        "--container-id", type=str, required=True, help="Docker container ID to monitor"
     )
     parser.add_argument(
-        "--container-id", 
-        type=str, 
-        required=True,
-        help="Docker container ID to monitor"
+        "--measurement-file", type=str, required=True, help="Path to file for writing measurements"
     )
     parser.add_argument(
-        "--measurement-file", 
-        type=str, 
-        required=True,
-        help="Path to file for writing measurements"
-    )
-    parser.add_argument(
-        "--measure-interval", 
-        type=int, 
-        required=True,
-        help="Measurement interval in milliseconds"
+        "--measure-interval", type=int, required=True, help="Measurement interval in milliseconds"
     )
     args, unknown = parser.parse_known_args()
     measure(args.container_id, args.measure_interval, args.measurement_file)

@@ -30,19 +30,20 @@ from ..faas.storage import PersistentStorage
 
 class GCPStorage(PersistentStorage):
     """Google Cloud Storage implementation for SeBS persistent storage.
-    
+
     Provides object storage capabilities using Google Cloud Storage buckets.
     Handles bucket creation, file operations, and storage resource management
     for benchmarks, deployment artifacts, and experiment outputs.
-    
+
     Attributes:
         client: Google Cloud Storage client instance
         cached: Whether storage operations use cached data
     """
+
     @staticmethod
     def typename() -> str:
         """Get the type name for this storage implementation.
-        
+
         Returns:
             Type name string for GCP storage
         """
@@ -51,7 +52,7 @@ class GCPStorage(PersistentStorage):
     @staticmethod
     def deployment_name() -> str:
         """Get the deployment name for this storage implementation.
-        
+
         Returns:
             Deployment name string 'gcp'
         """
@@ -69,7 +70,7 @@ class GCPStorage(PersistentStorage):
         self, region: str, cache_client: Cache, resources: Resources, replace_existing: bool
     ) -> None:
         """Initialize GCP Storage client.
-        
+
         Args:
             region: GCP region for storage resources
             cache_client: Cache instance for storing storage state
@@ -83,23 +84,25 @@ class GCPStorage(PersistentStorage):
 
     def correct_name(self, name: str) -> str:
         """Correct bucket name to meet GCP naming requirements.
-        
+
         Args:
             name: Original bucket name
-            
+
         Returns:
             Corrected bucket name (no changes needed for GCP)
         """
         return name
 
-    def _create_bucket(self, name: str, buckets: List[str] = [], randomize_name: bool = False) -> str:
+    def _create_bucket(
+        self, name: str, buckets: List[str] = [], randomize_name: bool = False
+    ) -> str:
         """Create a new Cloud Storage bucket or return existing one.
-        
+
         Args:
             name: Base name for the bucket
             buckets: List of existing bucket names to check
             randomize_name: Whether to append random suffix to avoid name conflicts
-            
+
         Returns:
             Name of the created or existing bucket
         """
@@ -126,7 +129,7 @@ class GCPStorage(PersistentStorage):
 
     def download(self, bucket_name: str, key: str, filepath: str) -> None:
         """Download a file from Cloud Storage.
-        
+
         Args:
             bucket_name: Name of the storage bucket
             key: Object key/path in the bucket
@@ -139,7 +142,7 @@ class GCPStorage(PersistentStorage):
 
     def upload(self, bucket_name: str, filepath: str, key: str) -> None:
         """Upload a file to Cloud Storage.
-        
+
         Args:
             bucket_name: Name of the storage bucket
             filepath: Local file path to upload
@@ -153,10 +156,10 @@ class GCPStorage(PersistentStorage):
 
     def exists_bucket(self, bucket_name: str) -> bool:
         """Check if a Cloud Storage bucket exists.
-        
+
         Args:
             bucket_name: Name of the bucket to check
-            
+
         Returns:
             True if bucket exists and is accessible, False otherwise
         """
@@ -168,11 +171,11 @@ class GCPStorage(PersistentStorage):
 
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         """List objects in a Cloud Storage bucket with optional prefix filter.
-        
+
         Args:
             bucket_name: Name of the bucket to list
             prefix: Optional prefix to filter objects
-            
+
         Returns:
             List of object names in the bucket matching the prefix
         """
@@ -183,10 +186,10 @@ class GCPStorage(PersistentStorage):
 
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         """List Cloud Storage buckets, optionally filtered by name.
-        
+
         Args:
             bucket_name: Optional bucket name filter
-            
+
         Returns:
             List of bucket names, filtered if bucket_name is provided
         """
@@ -199,7 +202,7 @@ class GCPStorage(PersistentStorage):
 
     def remove_bucket(self, bucket_name: str) -> None:
         """Remove a Cloud Storage bucket.
-        
+
         Args:
             bucket_name: Name of the bucket to remove
         """
@@ -207,10 +210,10 @@ class GCPStorage(PersistentStorage):
 
     def clean_bucket(self, bucket: str) -> None:
         """Clean all objects from a Cloud Storage bucket.
-        
+
         Args:
             bucket: Name of the bucket to clean
-            
+
         Raises:
             NotImplementedError: This method is not yet implemented
         """
@@ -218,10 +221,10 @@ class GCPStorage(PersistentStorage):
 
     def uploader_func(self, path_idx: int, key: str, filepath: str) -> None:
         """Upload function for batch operations with caching support.
-        
+
         Uploads a file to the appropriate benchmark bucket, respecting cache
         settings and replace_existing configuration.
-        
+
         Args:
             path_idx: Index of the input path prefix
             key: Object key for the uploaded file

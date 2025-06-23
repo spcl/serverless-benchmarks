@@ -30,10 +30,10 @@ PACK_CODE_APP = "pack_code_{}.sh"
 def project_absolute_path(*paths: str) -> str:
     """
     Join paths relative to the project root directory.
-    
+
     Args:
         *paths: Path components to join
-        
+
     Returns:
         str: Absolute path including the project directory
     """
@@ -43,20 +43,21 @@ def project_absolute_path(*paths: str) -> str:
 class JSONSerializer(json.JSONEncoder):
     """
     Custom JSON encoder for objects with serialize method.
-    
+
     This encoder handles objects by:
     1. Using their serialize() method if available
     2. Converting dictionaries to strings
     3. Using vars() to get object attributes
     4. Falling back to string representation
     """
+
     def default(self, o):
         """
         Custom serialization for objects.
-        
+
         Args:
             o: Object to serialize
-            
+
         Returns:
             JSON serializable representation of the object
         """
@@ -74,10 +75,10 @@ class JSONSerializer(json.JSONEncoder):
 def serialize(obj) -> str:
     """
     Serialize an object to a JSON string.
-    
+
     Args:
         obj: Object to serialize
-        
+
     Returns:
         str: JSON string representation of the object
     """
@@ -90,15 +91,15 @@ def serialize(obj) -> str:
 def execute(cmd, shell=False, cwd=None) -> str:
     """
     Execute a shell command and capture its output, handling errors.
-    
+
     Args:
         cmd: Command to execute (string)
         shell: Whether to use shell execution (enables wildcards, pipes, etc.)
         cwd: Working directory for command execution
-        
+
     Returns:
         str: Command output as string
-        
+
     Raises:
         RuntimeError: If command execution fails
     """
@@ -117,7 +118,7 @@ def execute(cmd, shell=False, cwd=None) -> str:
 def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]) -> None:
     """
     Update a nested dictionary with a value at the specified key path.
-    
+
     Args:
         cfg: Dictionary to update
         keys: List of keys forming a path to the value
@@ -133,7 +134,7 @@ def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]) -> None
 def append_nested_dict(cfg: dict, keys: List[str], value: Optional[dict]) -> None:
     """
     Append a dictionary to a nested location in another dictionary.
-    
+
     Args:
         cfg: Dictionary to update
         keys: List of keys forming a path to the value
@@ -149,11 +150,11 @@ def append_nested_dict(cfg: dict, keys: List[str], value: Optional[dict]) -> Non
 def find(name: str, path: str) -> Optional[str]:
     """
     Find a directory with the given name in the specified path.
-    
+
     Args:
         name: Directory name to find
         path: Path to search in
-        
+
     Returns:
         str: Path to the found directory, or None if not found
     """
@@ -166,12 +167,12 @@ def find(name: str, path: str) -> Optional[str]:
 def create_output(directory: str, preserve_dir: bool, verbose: bool) -> str:
     """
     Create or clean an output directory for benchmark results.
-    
+
     Args:
         directory: Path to create
         preserve_dir: Whether to preserve existing directory
         verbose: Verbosity level for logging
-        
+
     Returns:
         str: Absolute path to the output directory
     """
@@ -188,7 +189,7 @@ def create_output(directory: str, preserve_dir: bool, verbose: bool) -> str:
 def configure_logging() -> None:
     """
     Configure global logging settings.
-    
+
     Reduces noise from third-party libraries by setting their log levels to ERROR.
     This ensures that only important messages from these libraries are shown.
     """
@@ -203,14 +204,14 @@ def configure_logging() -> None:
 def find_benchmark(benchmark: str, path: str) -> Optional[str]:
     """
     Locate directory corresponding to a benchmark in the repository.
-    
-    Searches for a benchmark directory in either the benchmarks or 
+
+    Searches for a benchmark directory in either the benchmarks or
     benchmarks-data directories.
-    
+
     Args:
         benchmark: Benchmark name
         path: Path for lookup, relative to repository (usually 'benchmarks' or 'benchmarks-data')
-        
+
     Returns:
         str: Path to benchmark directory, or None if not found
     """
@@ -222,7 +223,7 @@ def find_benchmark(benchmark: str, path: str) -> Optional[str]:
 def global_logging() -> None:
     """
     Set up basic global logging configuration.
-    
+
     Configures the root logger with a standard format, timestamp, and INFO level.
     This provides a baseline for all logging in the application.
     """
@@ -234,11 +235,11 @@ def global_logging() -> None:
 class ColoredWrapper:
     """
     Wrapper for logging with colored console output.
-    
+
     This class provides formatted, colorized logging output for better readability
     in terminal environments. It optionally propagates messages to the standard
     Python logger.
-    
+
     Attributes:
         SUCCESS: Green color code for success messages
         STATUS: Blue color code for status/info messages
@@ -247,6 +248,7 @@ class ColoredWrapper:
         BOLD: Bold text formatting code
         END: Code to reset text formatting
     """
+
     SUCCESS = "\033[92m"
     STATUS = "\033[94m"
     WARNING = "\033[93m"
@@ -257,7 +259,7 @@ class ColoredWrapper:
     def __init__(self, prefix, logger, verbose=True, propagte=False):
         """
         Initialize the colored logging wrapper.
-        
+
         Args:
             prefix: Prefix for log messages (usually class name)
             logger: Python logger to propagate to
@@ -272,7 +274,7 @@ class ColoredWrapper:
     def debug(self, message):
         """
         Log a debug message.
-        
+
         Args:
             message: The message to log
         """
@@ -284,7 +286,7 @@ class ColoredWrapper:
     def info(self, message):
         """
         Log an informational message.
-        
+
         Args:
             message: The message to log
         """
@@ -295,7 +297,7 @@ class ColoredWrapper:
     def warning(self, message):
         """
         Log a warning message.
-        
+
         Args:
             message: The message to log
         """
@@ -306,7 +308,7 @@ class ColoredWrapper:
     def error(self, message):
         """
         Log an error message.
-        
+
         Args:
             message: The message to log
         """
@@ -317,7 +319,7 @@ class ColoredWrapper:
     def critical(self, message):
         """
         Log a critical error message.
-        
+
         Args:
             message: The message to log
         """
@@ -328,7 +330,7 @@ class ColoredWrapper:
     def _print(self, message, color):
         """
         Print a formatted message to the console.
-        
+
         Args:
             message: The message to print
             color: ANSI color code to use
@@ -343,19 +345,19 @@ class ColoredWrapper:
 class LoggingHandlers:
     """
     Configures and manages logging handlers.
-    
+
     This class sets up handlers for logging to files and tracks verbosity settings
     for use with ColoredWrapper.
-    
+
     Attributes:
         handler: FileHandler for logging to a file
         verbosity: Whether to include debug-level messages
     """
-    
+
     def __init__(self, verbose: bool = False, filename: Optional[str] = None):
         """
         Initialize logging handlers.
-        
+
         Args:
             verbose: Whether to include debug-level messages
             filename: Optional file to log to
@@ -379,20 +381,20 @@ class LoggingHandlers:
 class LoggingBase:
     """
     Base class providing consistent logging functionality across the framework.
-    
+
     This class sets up a logger with a unique identifier and provides methods
     for logging at different levels with consistent formatting. It supports
     both console output with color coding and optional file logging.
-    
+
     Attributes:
         log_name: Unique identifier for this logger
         logging: ColoredWrapper for formatted console output
     """
-    
+
     def __init__(self):
         """
         Initialize the logging base with a unique identifier.
-        
+
         Creates a unique name for the logger based on class name and a random ID,
         then configures a standard logger and colored wrapper.
         """
@@ -410,7 +412,7 @@ class LoggingBase:
     def logging(self) -> ColoredWrapper:
         """
         Get the colored logging wrapper.
-        
+
         Returns:
             ColoredWrapper: The logging wrapper for this instance
         """
@@ -422,7 +424,7 @@ class LoggingBase:
     def logging_handlers(self) -> LoggingHandlers:
         """
         Get the logging handlers configuration.
-        
+
         Returns:
             LoggingHandlers: The current handlers configuration
         """
@@ -432,7 +434,7 @@ class LoggingBase:
     def logging_handlers(self, handlers: LoggingHandlers):
         """
         Set new logging handlers configuration.
-        
+
         Args:
             handlers: The new handlers configuration to use
         """
@@ -453,12 +455,12 @@ class LoggingBase:
 def has_platform(name: str) -> bool:
     """
     Check if a specific platform is enabled via environment variable.
-    
+
     Looks for SEBS_WITH_{name} environment variable set to 'true'.
-    
+
     Args:
         name: Platform name to check
-        
+
     Returns:
         bool: True if platform is enabled, False otherwise
     """
@@ -468,7 +470,7 @@ def has_platform(name: str) -> bool:
 def is_linux() -> bool:
     """
     Check if the system is Linux and not Windows Subsystem for Linux.
-    
+
     Returns:
         bool: True if native Linux, False otherwise
     """
@@ -478,7 +480,7 @@ def is_linux() -> bool:
 def catch_interrupt() -> None:
     """
     Set up a signal handler to catch interrupt signals (Ctrl+C).
-    
+
     Prints a stack trace and exits when an interrupt is received.
     This helps with debugging by showing the execution context at
     the time of the interruption.
@@ -490,7 +492,7 @@ def catch_interrupt() -> None:
     def handler(x, y):
         """
         Handle interrupt signal by printing stack trace and exiting.
-        
+
         Args:
             x: Signal number
             y: Frame object

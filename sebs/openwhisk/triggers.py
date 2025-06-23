@@ -21,24 +21,24 @@ from sebs.faas.function import ExecutionResult, Trigger
 class LibraryTrigger(Trigger):
     """
     CLI-based trigger for OpenWhisk function invocation.
-    
+
     This trigger uses the wsk CLI tool to invoke OpenWhisk actions directly,
     providing synchronous and asynchronous invocation capabilities. It handles
     parameter passing and result parsing for CLI-based invocations.
-    
+
     Attributes:
         fname: Name of the OpenWhisk action to invoke
         _wsk_cmd: Complete WSK CLI command for function invocation
-    
+
     Example:
         >>> trigger = LibraryTrigger("my-function", ["wsk", "-i"])
         >>> result = trigger.sync_invoke({"key": "value"})
     """
-    
+
     def __init__(self, fname: str, wsk_cmd: Optional[List[str]] = None) -> None:
         """
         Initialize library trigger for OpenWhisk function.
-        
+
         Args:
             fname: Name of the OpenWhisk action to invoke
             wsk_cmd: Optional WSK CLI command prefix (including flags)
@@ -52,7 +52,7 @@ class LibraryTrigger(Trigger):
     def trigger_type() -> "Trigger.TriggerType":
         """
         Get the trigger type identifier.
-        
+
         Returns:
             TriggerType.LIBRARY for CLI-based invocation
         """
@@ -62,10 +62,10 @@ class LibraryTrigger(Trigger):
     def wsk_cmd(self) -> List[str]:
         """
         Get the complete WSK CLI command for invocation.
-        
+
         Returns:
             List of command arguments for WSK CLI invocation
-        
+
         Raises:
             AssertionError: If wsk_cmd has not been set
         """
@@ -76,7 +76,7 @@ class LibraryTrigger(Trigger):
     def wsk_cmd(self, wsk_cmd: List[str]) -> None:
         """
         Set the WSK CLI command prefix.
-        
+
         Args:
             wsk_cmd: WSK CLI command prefix (including any flags)
         """
@@ -86,13 +86,13 @@ class LibraryTrigger(Trigger):
     def get_command(payload: Dict[str, Any]) -> List[str]:
         """
         Convert payload dictionary to WSK CLI parameter arguments.
-        
+
         Args:
             payload: Dictionary of parameters to pass to the function
-        
+
         Returns:
             List of CLI arguments for passing parameters to WSK
-        
+
         Example:
             >>> get_command({"key1": "value1", "key2": 42})
             ["--param", "key1", '"value1"', "--param", "key2", "42"]
@@ -107,10 +107,10 @@ class LibraryTrigger(Trigger):
     def sync_invoke(self, payload: Dict[str, Any]) -> ExecutionResult:
         """
         Synchronously invoke the OpenWhisk function via CLI.
-        
+
         Args:
             payload: Dictionary of parameters to pass to the function
-        
+
         Returns:
             ExecutionResult containing timing information and function output
         """
@@ -143,10 +143,10 @@ class LibraryTrigger(Trigger):
     def async_invoke(self, payload: Dict[str, Any]) -> concurrent.futures.Future:
         """
         Asynchronously invoke the OpenWhisk function via CLI.
-        
+
         Args:
             payload: Dictionary of parameters to pass to the function
-        
+
         Returns:
             Future object that will contain the ExecutionResult
         """
@@ -157,7 +157,7 @@ class LibraryTrigger(Trigger):
     def serialize(self) -> Dict[str, str]:
         """
         Serialize trigger configuration to dictionary.
-        
+
         Returns:
             Dictionary containing trigger type and function name
         """
@@ -167,10 +167,10 @@ class LibraryTrigger(Trigger):
     def deserialize(obj: Dict[str, str]) -> Trigger:
         """
         Deserialize trigger from configuration dictionary.
-        
+
         Args:
             obj: Dictionary containing serialized trigger data
-        
+
         Returns:
             LibraryTrigger instance
         """
@@ -180,7 +180,7 @@ class LibraryTrigger(Trigger):
     def typename() -> str:
         """
         Get the trigger type name.
-        
+
         Returns:
             String identifier for this trigger type
         """
@@ -190,24 +190,24 @@ class LibraryTrigger(Trigger):
 class HTTPTrigger(Trigger):
     """
     HTTP-based trigger for OpenWhisk web action invocation.
-    
+
     This trigger uses HTTP requests to invoke OpenWhisk web actions,
     providing an alternative to CLI-based invocation. It inherits HTTP
     invocation capabilities from the base Trigger class.
-    
+
     Attributes:
         fname: Name of the OpenWhisk action
         url: HTTP URL for the web action endpoint
-    
+
     Example:
         >>> trigger = HTTPTrigger("my-function", "https://openwhisk.example.com/api/v1/web/guest/default/my-function.json")
         >>> result = trigger.sync_invoke({"key": "value"})
     """
-    
+
     def __init__(self, fname: str, url: str) -> None:
         """
         Initialize HTTP trigger for OpenWhisk web action.
-        
+
         Args:
             fname: Name of the OpenWhisk action
             url: HTTP URL for the web action endpoint
@@ -220,7 +220,7 @@ class HTTPTrigger(Trigger):
     def typename() -> str:
         """
         Get the trigger type name.
-        
+
         Returns:
             String identifier for this trigger type
         """
@@ -230,7 +230,7 @@ class HTTPTrigger(Trigger):
     def trigger_type() -> Trigger.TriggerType:
         """
         Get the trigger type identifier.
-        
+
         Returns:
             TriggerType.HTTP for HTTP-based invocation
         """
@@ -239,10 +239,10 @@ class HTTPTrigger(Trigger):
     def sync_invoke(self, payload: Dict[str, Any]) -> ExecutionResult:
         """
         Synchronously invoke the OpenWhisk function via HTTP.
-        
+
         Args:
             payload: Dictionary of parameters to pass to the function
-        
+
         Returns:
             ExecutionResult containing timing information and function output
         """
@@ -252,10 +252,10 @@ class HTTPTrigger(Trigger):
     def async_invoke(self, payload: Dict[str, Any]) -> concurrent.futures.Future:
         """
         Asynchronously invoke the OpenWhisk function via HTTP.
-        
+
         Args:
             payload: Dictionary of parameters to pass to the function
-        
+
         Returns:
             Future object that will contain the ExecutionResult
         """
@@ -266,7 +266,7 @@ class HTTPTrigger(Trigger):
     def serialize(self) -> Dict[str, str]:
         """
         Serialize trigger configuration to dictionary.
-        
+
         Returns:
             Dictionary containing trigger type, function name, and URL
         """
@@ -276,10 +276,10 @@ class HTTPTrigger(Trigger):
     def deserialize(obj: Dict[str, str]) -> Trigger:
         """
         Deserialize trigger from configuration dictionary.
-        
+
         Args:
             obj: Dictionary containing serialized trigger data
-        
+
         Returns:
             HTTPTrigger instance
         """

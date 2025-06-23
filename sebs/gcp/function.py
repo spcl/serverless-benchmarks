@@ -23,13 +23,14 @@ from sebs.gcp.storage import GCPStorage
 
 class GCPFunction(Function):
     """Represents a Google Cloud Function with GCP-specific functionality.
-    
+
     Extends the base Function class with GCP-specific features like bucket
     management for code storage and GCP-specific serialization/deserialization.
-    
+
     Attributes:
         bucket: Cloud Storage bucket name containing the function's code
     """
+
     def __init__(
         self,
         name: str,
@@ -39,7 +40,7 @@ class GCPFunction(Function):
         bucket: Optional[str] = None,
     ) -> None:
         """Initialize a GCP Cloud Function instance.
-        
+
         Args:
             name: Function name on GCP
             benchmark: Name of the benchmark this function implements
@@ -53,7 +54,7 @@ class GCPFunction(Function):
     @staticmethod
     def typename() -> str:
         """Get the type name for this function implementation.
-        
+
         Returns:
             Type name string for GCP functions
         """
@@ -61,7 +62,7 @@ class GCPFunction(Function):
 
     def serialize(self) -> Dict:
         """Serialize function to dictionary for cache storage.
-        
+
         Returns:
             Dictionary containing function state including bucket information
         """
@@ -73,16 +74,16 @@ class GCPFunction(Function):
     @staticmethod
     def deserialize(cached_config: Dict) -> "GCPFunction":
         """Deserialize function from cached configuration.
-        
+
         Reconstructs a GCPFunction instance from cached data including
         triggers and configuration. Handles both Library and HTTP triggers.
-        
+
         Args:
             cached_config: Dictionary containing cached function configuration
-            
+
         Returns:
             Reconstructed GCPFunction instance with triggers
-            
+
         Raises:
             AssertionError: If an unknown trigger type is encountered
         """
@@ -108,14 +109,14 @@ class GCPFunction(Function):
 
     def code_bucket(self, benchmark: str, storage_client: GCPStorage) -> str:
         """Get or create the Cloud Storage bucket for function code.
-        
+
         Returns the bucket name where the function's code is stored,
         creating a deployment bucket if none is assigned.
-        
+
         Args:
             benchmark: Benchmark name (unused but kept for compatibility)
             storage_client: GCP storage client for bucket operations
-            
+
         Returns:
             Cloud Storage bucket name containing function code
         """

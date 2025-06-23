@@ -29,18 +29,19 @@ from sebs.utils import LoggingBase
 
 class GCloudCLI(LoggingBase):
     """Docker-based Google Cloud CLI interface.
-    
+
     Provides a containerized environment for executing gcloud commands with
     proper authentication and project configuration. Uses a Docker container
     with the gcloud CLI pre-installed and configured.
-    
+
     Attributes:
         docker_instance: Running Docker container with gcloud CLI
     """
+
     @staticmethod
     def typename() -> str:
         """Get the type name for this CLI implementation.
-        
+
         Returns:
             Type name string for GCP CLI
         """
@@ -50,15 +51,15 @@ class GCloudCLI(LoggingBase):
         self, credentials: GCPCredentials, system_config: SeBSConfig, docker_client: docker.client
     ) -> None:
         """Initialize the gcloud CLI Docker container.
-        
+
         Sets up a Docker container with the gcloud CLI, pulling the image if needed
         and mounting the GCP credentials file for authentication.
-        
+
         Args:
             credentials: GCP credentials with service account file path
             system_config: SeBS system configuration
             docker_client: Docker client for container management
-            
+
         Raises:
             RuntimeError: If Docker image pull fails
         """
@@ -104,13 +105,13 @@ class GCloudCLI(LoggingBase):
 
     def execute(self, cmd: str) -> bytes:
         """Execute a command in the gcloud CLI container.
-        
+
         Args:
             cmd: Command string to execute in the container
-            
+
         Returns:
             Command output as bytes
-            
+
         Raises:
             RuntimeError: If the command fails (non-zero exit code)
         """
@@ -125,14 +126,14 @@ class GCloudCLI(LoggingBase):
 
     def login(self, project_name: str) -> None:
         """Authenticate gcloud CLI and set the active project.
-        
+
         Performs service account authentication using the mounted credentials file
         and sets the specified project as the active project. Automatically confirms
         any prompts that may appear during project setup.
-        
+
         Args:
             project_name: GCP project ID to set as active
-            
+
         Note:
             Uses service account authentication instead of browser-based auth.
             May show warnings about Cloud Resource Manager API permissions.
@@ -143,7 +144,7 @@ class GCloudCLI(LoggingBase):
 
     def shutdown(self) -> None:
         """Shutdown the gcloud CLI Docker container.
-        
+
         Stops and removes the Docker container used for gcloud operations.
         """
         self.logging.info("Stopping gcloud CLI manage Docker instance")

@@ -30,11 +30,11 @@ from sebs.utils import serialize, LoggingBase
 
 class Deployment(LoggingBase):
     """Manages local function deployments and memory measurements.
-    
+
     Coordinates the lifecycle of locally deployed functions, including container
     management, memory measurement collection, and resource cleanup. Handles
     serialization of deployment state for persistence and recovery.
-    
+
     Attributes:
         _functions: List of deployed local functions
         _storage: Optional Minio storage instance
@@ -42,11 +42,11 @@ class Deployment(LoggingBase):
         _memory_measurement_pids: PIDs of memory measurement processes
         _measurement_file: Path to memory measurement output file
     """
-    
+
     @property
     def measurement_file(self) -> Optional[str]:
         """Get the path to the memory measurement file.
-        
+
         Returns:
             Optional[str]: Path to measurement file, or None if not set
         """
@@ -55,7 +55,7 @@ class Deployment(LoggingBase):
     @measurement_file.setter
     def measurement_file(self, val: Optional[str]) -> None:
         """Set the path to the memory measurement file.
-        
+
         Args:
             val: Path to measurement file, or None to unset
         """
@@ -72,7 +72,7 @@ class Deployment(LoggingBase):
 
     def add_function(self, func: LocalFunction) -> None:
         """Add a function to the deployment.
-        
+
         Args:
             func: Local function to add to the deployment
         """
@@ -82,7 +82,7 @@ class Deployment(LoggingBase):
 
     def add_input(self, func_input: dict) -> None:
         """Add function input configuration to the deployment.
-        
+
         Args:
             func_input: Dictionary containing function input configuration
         """
@@ -90,7 +90,7 @@ class Deployment(LoggingBase):
 
     def set_storage(self, storage: Minio) -> None:
         """Set the storage instance for the deployment.
-        
+
         Args:
             storage: Minio storage instance to use
         """
@@ -98,7 +98,7 @@ class Deployment(LoggingBase):
 
     def serialize(self, path: str) -> None:
         """Serialize deployment configuration to file.
-        
+
         Args:
             path: File path to write serialized deployment configuration
         """
@@ -120,14 +120,14 @@ class Deployment(LoggingBase):
     @staticmethod
     def deserialize(path: str, cache_client: Cache) -> "Deployment":
         """Deserialize deployment configuration from file.
-        
+
         Args:
             path: File path to read serialized deployment configuration
             cache_client: Cache client for loading cached resources
-            
+
         Returns:
             Deployment: Deserialized deployment instance
-            
+
         Note:
             This method may be deprecated - check if still in use
         """
@@ -148,11 +148,11 @@ class Deployment(LoggingBase):
 
     def shutdown(self, output_json: str) -> None:
         """Shutdown the deployment and collect memory measurements.
-        
+
         Terminates all memory measurement processes, processes measurement data,
         and stops all function containers. Memory measurements are aggregated
         and written to the specified output file.
-        
+
         Args:
             output_json: Path to write memory measurement results
         """

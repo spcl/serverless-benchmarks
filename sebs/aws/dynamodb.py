@@ -21,21 +21,21 @@ from boto3.dynamodb.types import TypeSerializer
 
 class DynamoDB(NoSQLStorage):
     """AWS DynamoDB NoSQL storage implementation for SeBS.
-    
+
     This class provides NoSQL storage functionality using Amazon DynamoDB.
     It handles table creation, data operations, caching, and provides a
     unified interface for benchmark data storage.
-    
+
     Attributes:
         client: DynamoDB client for AWS API operations
         _tables: Mapping of benchmark names to table configurations
         _serializer: DynamoDB type serializer for data conversion
     """
-    
+
     @staticmethod
     def typename() -> str:
         """Get the type name for this storage system.
-        
+
         Returns:
             str: Type name ('AWS.DynamoDB')
         """
@@ -44,7 +44,7 @@ class DynamoDB(NoSQLStorage):
     @staticmethod
     def deployment_name() -> str:
         """Get the deployment name for this storage system.
-        
+
         Returns:
             str: Deployment name ('aws')
         """
@@ -60,7 +60,7 @@ class DynamoDB(NoSQLStorage):
         secret_key: str,
     ) -> None:
         """Initialize DynamoDB NoSQL storage.
-        
+
         Args:
             session: AWS boto3 session
             cache_client: Cache client for storing table configurations
@@ -85,10 +85,10 @@ class DynamoDB(NoSQLStorage):
 
     def retrieve_cache(self, benchmark: str) -> bool:
         """Retrieve table configuration from cache.
-        
+
         Args:
             benchmark: Name of the benchmark
-            
+
         Returns:
             bool: True if cache was found and loaded, False otherwise
         """
@@ -104,7 +104,7 @@ class DynamoDB(NoSQLStorage):
 
     def update_cache(self, benchmark: str) -> None:
         """Update cache with current table configuration.
-        
+
         Args:
             benchmark: Name of the benchmark to update cache for
         """
@@ -118,10 +118,10 @@ class DynamoDB(NoSQLStorage):
 
     def get_tables(self, benchmark: str) -> Dict[str, str]:
         """Get table mappings for a benchmark.
-        
+
         Args:
             benchmark: Name of the benchmark
-            
+
         Returns:
             Dict[str, str]: Mapping of logical table names to actual DynamoDB table names
         """
@@ -129,11 +129,11 @@ class DynamoDB(NoSQLStorage):
 
     def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
         """Get the actual DynamoDB table name for a logical table.
-        
+
         Args:
             benchmark: Name of the benchmark
             table: Logical table name used by the benchmark
-            
+
         Returns:
             Optional[str]: Actual DynamoDB table name, or None if not found
         """
@@ -154,14 +154,14 @@ class DynamoDB(NoSQLStorage):
         secondary_key: Optional[Tuple[str, str]] = None,
     ) -> None:
         """Write data to a DynamoDB table.
-        
+
         Args:
             benchmark: Name of the benchmark
             table: Logical table name
             data: Data to write to the table
             primary_key: Primary key as (attribute_name, value) tuple
             secondary_key: Optional secondary key as (attribute_name, value) tuple
-            
+
         Raises:
             AssertionError: If the table name is not found
         """
@@ -179,20 +179,20 @@ class DynamoDB(NoSQLStorage):
         self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
     ) -> str:
         """Create a DynamoDB table for benchmark data.
-        
+
         Creates a DynamoDB table with a unique name for the benchmark. Unlike
         Azure (account -> database -> container) and GCP (database per benchmark),
         AWS requires unique table names across the account.
-        
+
         Args:
             benchmark: Name of the benchmark
             name: Logical table name
             primary_key: Name of the primary key attribute
             secondary_key: Optional name of the secondary key attribute
-            
+
         Returns:
             str: Name of the created table
-            
+
         Raises:
             RuntimeError: If table creation fails for unknown reasons
         """
@@ -261,13 +261,13 @@ class DynamoDB(NoSQLStorage):
 
     def clear_table(self, name: str) -> str:
         """Clear all data from a table.
-        
+
         Args:
             name: Name of the table to clear
-            
+
         Returns:
             str: Result of the operation
-            
+
         Raises:
             NotImplementedError: This operation is not yet implemented
         """
@@ -275,13 +275,13 @@ class DynamoDB(NoSQLStorage):
 
     def remove_table(self, name: str) -> str:
         """Remove a table completely.
-        
+
         Args:
             name: Name of the table to remove
-            
+
         Returns:
             str: Result of the operation
-            
+
         Raises:
             NotImplementedError: This operation is not yet implemented
         """

@@ -35,15 +35,15 @@ if TYPE_CHECKING:
 
 class PerfCost(Experiment):
     """Performance and cost measurement experiment.
-    
+
     This experiment measures the performance characteristics and execution
     costs of serverless functions under different execution conditions.
     It can measure cold starts, warm execution, burst load, and sequential
     execution patterns.
-    
+
     The experiment can be configured to run with different memory sizes,
     allowing for comparison of performance across different resource allocations.
-    
+
     Attributes:
         _benchmark: The benchmark to execute
         _benchmark_input: The input data for the benchmark
@@ -53,10 +53,10 @@ class PerfCost(Experiment):
         _deployment_client: The deployment client to use
         _sebs_client: The SeBS client
     """
-    
+
     def __init__(self, config: ExperimentConfig):
         """Initialize a new PerfCost experiment.
-        
+
         Args:
             config: Experiment configuration
         """
@@ -65,7 +65,7 @@ class PerfCost(Experiment):
     @staticmethod
     def name() -> str:
         """Get the name of the experiment.
-        
+
         Returns:
             The name "perf-cost"
         """
@@ -74,7 +74,7 @@ class PerfCost(Experiment):
     @staticmethod
     def typename() -> str:
         """Get the type name of the experiment.
-        
+
         Returns:
             The type name "Experiment.PerfCost"
         """
@@ -82,14 +82,14 @@ class PerfCost(Experiment):
 
     class RunType(Enum):
         """Types of experiment runs.
-        
+
         This enum defines the different types of experiment runs:
         - WARM: Measure warm execution performance (reused containers)
         - COLD: Measure cold start performance (new containers)
         - BURST: Measure performance under concurrent burst load
         - SEQUENTIAL: Measure performance with sequential invocations
         """
-        
+
         WARM = 0
         COLD = 1
         BURST = 2
@@ -97,7 +97,7 @@ class PerfCost(Experiment):
 
         def str(self) -> str:
             """Get the string representation of the run type.
-            
+
             Returns:
                 The lowercase name of the run type
             """
@@ -105,11 +105,11 @@ class PerfCost(Experiment):
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem) -> None:
         """Prepare the experiment for execution.
-        
+
         This method sets up the benchmark, function, trigger, and output
         directory for the experiment. It creates or gets the function and
         its HTTP trigger, and prepares the input data for the benchmark.
-        
+
         Args:
             sebs_client: The SeBS client to use
             deployment_client: The deployment client to use
@@ -143,14 +143,14 @@ class PerfCost(Experiment):
         self._out_dir = os.path.join(sebs_client.output_dir, "perf-cost")
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
-            
+
         # Save clients for later use
         self._deployment_client = deployment_client
         self._sebs_client = sebs_client
 
     def run(self) -> None:
         """Run the experiment.
-        
+
         This method runs the experiment with the configured settings.
         If memory sizes are specified, it runs the experiment for each
         memory size, updating the function configuration accordingly.
@@ -161,12 +161,12 @@ class PerfCost(Experiment):
 
         # Get memory sizes to test
         memory_sizes = settings["memory-sizes"]
-        
+
         # Run with default memory if no specific sizes are provided
         if len(memory_sizes) == 0:
             self.logging.info("Begin experiment with default memory configuration")
             self.run_configuration(settings, settings["repetitions"])
-            
+
         # Run for each specified memory size
         for memory in memory_sizes:
             self.logging.info(f"Begin experiment on memory size {memory}")
@@ -179,19 +179,19 @@ class PerfCost(Experiment):
 
     def compute_statistics(self, times: List[float]) -> None:
         """Compute statistical analysis of execution times.
-        
+
         This method computes basic statistics (mean, median, standard deviation,
         coefficient of variation) and confidence intervals for the given times.
         It computes both parametric (Student's t-distribution) and non-parametric
         confidence intervals.
-        
+
         Args:
             times: List of execution times in milliseconds
         """
         # Compute basic statistics
         mean, median, std, cv = basic_stats(times)
         self.logging.info(f"Mean {mean} [ms], median {median} [ms], std {std}, CV {cv}")
-        
+
         # Compute confidence intervals for different confidence levels
         for alpha in [0.95, 0.99]:
             # Parametric confidence interval (Student's t-distribution)
@@ -223,12 +223,12 @@ class PerfCost(Experiment):
         suffix: str = "",
     ) -> None:
         """Run a specific experiment configuration.
-        
+
         This method executes the experiment with the specified run type,
         collecting and recording the results. It handles different run types
         (cold, warm, burst, sequential) appropriately, enforcing cold starts
         when needed and collecting execution statistics.
-        
+
         Args:
             run_type: Type of run (cold, warm, burst, sequential)
             settings: Experiment settings
@@ -347,16 +347,16 @@ class PerfCost(Experiment):
 
     def run_configuration(self, settings: dict, repetitions: int, suffix: str = "") -> None:
         """Run experiments for each configured experiment type.
-        
+
         This method runs the experiment for each experiment type specified
         in the settings. It dispatches to the appropriate run type handler
         for each experiment type.
-        
+
         Args:
             settings: Experiment settings
             repetitions: Number of repetitions to run
             suffix: Optional suffix for output file names (e.g., memory size)
-            
+
         Raises:
             RuntimeError: If an unknown experiment type is specified
         """
@@ -406,12 +406,12 @@ class PerfCost(Experiment):
         extend_time_interval: int,
     ) -> None:
         """Process experiment results and generate a CSV report.
-        
+
         This method processes the experiment results, downloads additional
         metrics if needed, and generates a CSV report with the results.
         The report includes memory usage, execution times, and other metrics
         for each experiment type and invocation.
-        
+
         Args:
             sebs_client: The SeBS client to use
             deployment_client: The deployment client to use

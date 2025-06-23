@@ -32,11 +32,11 @@ import docker
 
 class GCPSystemResources(SystemResources):
     """System resource manager for Google Cloud Platform services.
-    
+
     Manages and provides access to all GCP services required for serverless
     benchmarking including Cloud Storage, Firestore/Datastore, and gcloud CLI.
     Handles resource initialization, configuration, and cleanup.
-    
+
     Attributes:
         _storage: Cloud Storage instance for object storage
         _nosql_storage: Datastore instance for NoSQL operations
@@ -44,10 +44,11 @@ class GCPSystemResources(SystemResources):
         _system_config: SeBS system configuration
         _logging_handlers: Logging configuration
     """
+
     @staticmethod
     def typename() -> str:
         """Get the type name for this resource manager.
-        
+
         Returns:
             Type name string for GCP system resources
         """
@@ -56,7 +57,7 @@ class GCPSystemResources(SystemResources):
     @property
     def config(self) -> GCPConfig:
         """Get the GCP configuration instance.
-        
+
         Returns:
             GCP configuration with credentials and settings
         """
@@ -71,7 +72,7 @@ class GCPSystemResources(SystemResources):
         logger_handlers: LoggingHandlers,
     ) -> None:
         """Initialize GCP system resources manager.
-        
+
         Args:
             system_config: SeBS system configuration
             config: GCP-specific configuration
@@ -89,14 +90,14 @@ class GCPSystemResources(SystemResources):
 
     def get_storage(self, replace_existing: Optional[bool] = None) -> GCPStorage:
         """Get or create the Cloud Storage instance.
-        
+
         Provides access to Google Cloud Storage for persistent object storage.
         Creates the storage instance if it doesn't exist, or updates the
         replace_existing setting if provided.
-        
+
         Args:
             replace_existing: Whether to replace existing benchmark input data
-            
+
         Returns:
             Initialized GCP storage instance
         """
@@ -114,10 +115,10 @@ class GCPSystemResources(SystemResources):
 
     def get_nosql_storage(self) -> Datastore:
         """Get or create the Datastore instance for NoSQL operations.
-        
+
         Provides access to Google Cloud Firestore/Datastore for NoSQL
         database operations required by benchmarks.
-        
+
         Returns:
             Initialized Datastore instance
         """
@@ -130,10 +131,10 @@ class GCPSystemResources(SystemResources):
     @property
     def cli_instance(self) -> GCloudCLI:
         """Get or create the gcloud CLI instance.
-        
+
         Provides access to a containerized gcloud CLI for administrative
         operations. Initializes and authenticates the CLI if needed.
-        
+
         Returns:
             Authenticated gcloud CLI instance
         """
@@ -148,9 +149,9 @@ class GCPSystemResources(SystemResources):
 
     def initialize_cli(self, cli: GCloudCLI) -> None:
         """Initialize with an existing CLI instance.
-        
+
         Uses a pre-configured CLI instance instead of creating a new one.
-        
+
         Args:
             cli: Pre-configured gcloud CLI instance
         """
@@ -159,7 +160,7 @@ class GCPSystemResources(SystemResources):
 
     def shutdown(self) -> None:
         """Shutdown system resources and clean up.
-        
+
         Stops the gcloud CLI container if it was created by this instance.
         """
         if self._cli_instance and self._cli_instance_stop:

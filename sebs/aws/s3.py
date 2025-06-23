@@ -21,20 +21,20 @@ from ..faas.storage import PersistentStorage
 
 class S3(PersistentStorage):
     """AWS S3 persistent storage implementation for SeBS.
-    
+
     This class provides persistent storage functionality using Amazon S3.
     It handles bucket creation, file operations, and provides a unified
     interface for benchmark data storage and retrieval.
-    
+
     Attributes:
         client: S3 client for AWS API operations
         cached: Whether bucket configurations are cached
     """
-    
+
     @staticmethod
     def typename() -> str:
         """Get the type name for this storage system.
-        
+
         Returns:
             str: Type name ('AWS.S3')
         """
@@ -43,7 +43,7 @@ class S3(PersistentStorage):
     @staticmethod
     def deployment_name() -> str:
         """Get the deployment name for this storage system.
-        
+
         Returns:
             str: Deployment name ('aws')
         """
@@ -52,7 +52,7 @@ class S3(PersistentStorage):
     @property
     def replace_existing(self) -> bool:
         """Get whether to replace existing files.
-        
+
         Returns:
             bool: True if existing files should be replaced, False otherwise
         """
@@ -61,7 +61,7 @@ class S3(PersistentStorage):
     @replace_existing.setter
     def replace_existing(self, val: bool) -> None:
         """Set whether to replace existing files.
-        
+
         Args:
             val: True to replace existing files, False otherwise
         """
@@ -78,7 +78,7 @@ class S3(PersistentStorage):
         replace_existing: bool,
     ) -> None:
         """Initialize S3 persistent storage.
-        
+
         Args:
             session: AWS boto3 session
             cache_client: Cache client for storing bucket configurations
@@ -99,10 +99,10 @@ class S3(PersistentStorage):
 
     def correct_name(self, name: str) -> str:
         """Correct bucket name for S3 naming requirements.
-        
+
         Args:
             name: Original bucket name
-            
+
         Returns:
             str: Corrected bucket name (no changes for S3)
         """
@@ -112,18 +112,18 @@ class S3(PersistentStorage):
         self, name: str, buckets: List[str] = [], randomize_name: bool = False
     ) -> str:
         """Create an S3 bucket with the specified name.
-        
+
         Handles the complex S3 bucket creation logic including region-specific
         requirements and conflict resolution.
-        
+
         Args:
             name: Desired bucket name
             buckets: List of existing buckets to check against
             randomize_name: Whether to append a random suffix to ensure uniqueness
-            
+
         Returns:
             str: Name of the created bucket
-            
+
         Raises:
             BucketAlreadyExists: If bucket already exists in the same region
             ClientError: If bucket creation fails for other reasons
@@ -178,10 +178,10 @@ class S3(PersistentStorage):
 
     def uploader_func(self, path_idx: int, key: str, filepath: str) -> None:
         """Upload a file to S3 with caching and replacement logic.
-        
+
         Handles the upload of benchmark files with appropriate caching behavior
         and replacement logic based on configuration.
-        
+
         Args:
             path_idx: Index of the input path configuration
             key: S3 object key for the file
@@ -205,7 +205,7 @@ class S3(PersistentStorage):
 
     def upload(self, bucket_name: str, filepath: str, key: str) -> None:
         """Upload a file to S3.
-        
+
         Args:
             bucket_name: Name of the S3 bucket
             filepath: Local path to the file to upload
@@ -216,7 +216,7 @@ class S3(PersistentStorage):
 
     def download(self, bucket_name: str, key: str, filepath: str) -> None:
         """Download a file from S3.
-        
+
         Args:
             bucket_name: Name of the S3 bucket
             key: S3 object key of the file to download
@@ -227,10 +227,10 @@ class S3(PersistentStorage):
 
     def exists_bucket(self, bucket_name: str) -> bool:
         """Check if an S3 bucket exists and is accessible.
-        
+
         Args:
             bucket_name: Name of the bucket to check
-            
+
         Returns:
             bool: True if bucket exists and is accessible, False otherwise
         """
@@ -242,11 +242,11 @@ class S3(PersistentStorage):
 
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         """List objects in an S3 bucket with optional prefix filtering.
-        
+
         Args:
             bucket_name: Name of the S3 bucket
             prefix: Optional prefix to filter objects
-            
+
         Returns:
             List[str]: List of object keys in the bucket
         """
@@ -260,10 +260,10 @@ class S3(PersistentStorage):
 
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         """List S3 buckets with optional name filtering.
-        
+
         Args:
             bucket_name: Optional bucket name pattern to filter by
-            
+
         Returns:
             List[str]: List of bucket names
         """
@@ -275,7 +275,7 @@ class S3(PersistentStorage):
 
     def clean_bucket(self, bucket: str) -> None:
         """Remove all objects from an S3 bucket.
-        
+
         Args:
             bucket: Name of the bucket to clean
         """
@@ -286,10 +286,10 @@ class S3(PersistentStorage):
 
     def remove_bucket(self, bucket: str) -> None:
         """Delete an S3 bucket.
-        
+
         Args:
             bucket: Name of the bucket to delete
-            
+
         Note:
             The bucket must be empty before it can be deleted
         """

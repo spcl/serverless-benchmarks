@@ -30,10 +30,10 @@ from google.cloud import datastore
 @dataclass
 class BenchmarkResources:
     """Resource configuration for a benchmark's Datastore database.
-    
+
     Tracks the allocated database name, table kinds, and client instance
     for a specific benchmark's NoSQL storage requirements.
-    
+
     Attributes:
         database: Name of the Firestore database in Datastore mode
         kinds: List of entity kinds (table equivalents) in the database
@@ -47,7 +47,7 @@ class BenchmarkResources:
 
     def serialize(self) -> Dict:
         """Serialize benchmark resources for cache storage.
-        
+
         Returns:
             Dictionary containing database name and kinds list
         """
@@ -56,10 +56,10 @@ class BenchmarkResources:
     @staticmethod
     def deserialize(config: Dict) -> "BenchmarkResources":
         """Deserialize benchmark resources from cached configuration.
-        
+
         Args:
             config: Dictionary containing cached resource configuration
-            
+
         Returns:
             BenchmarkResources instance with database and kinds
         """
@@ -68,20 +68,21 @@ class BenchmarkResources:
 
 class Datastore(NoSQLStorage):
     """Google Cloud Firestore/Datastore implementation for NoSQL storage.
-    
+
     Provides NoSQL database functionality using Google Cloud Firestore in
     Datastore mode. Manages database allocation, entity kind creation, and
     data operations for benchmarks requiring NoSQL capabilities.
-    
+
     Attributes:
         _cli_instance: gcloud CLI interface for database management
         _region: GCP region for database allocation
         _benchmark_resources: Mapping of benchmarks to their database resources
     """
+
     @staticmethod
     def typename() -> str:
         """Get the type name for this NoSQL storage implementation.
-        
+
         Returns:
             Type name string for GCP Datastore
         """
@@ -90,7 +91,7 @@ class Datastore(NoSQLStorage):
     @staticmethod
     def deployment_name() -> str:
         """Get the deployment name for this NoSQL storage implementation.
-        
+
         Returns:
             Deployment name string 'gcp'
         """
@@ -100,7 +101,7 @@ class Datastore(NoSQLStorage):
         self, cli_instance: GCloudCLI, cache_client: Cache, resources: Resources, region: str
     ) -> None:
         """Initialize Datastore NoSQL storage manager.
-        
+
         Args:
             cli_instance: gcloud CLI interface for database operations
             cache_client: Cache instance for storing resource state
@@ -116,13 +117,13 @@ class Datastore(NoSQLStorage):
 
     def get_tables(self, benchmark: str) -> Dict[str, str]:
         """Get table name mappings for a benchmark.
-        
+
         GCP Datastore requires no table mappings as the entity kind name
         is the same as the benchmark table name.
-        
+
         Args:
             benchmark: Name of the benchmark
-            
+
         Returns:
             Empty dictionary (no mappings needed for GCP)
         """
@@ -130,11 +131,11 @@ class Datastore(NoSQLStorage):
 
     def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
         """Get the actual table name for a benchmark table.
-        
+
         Args:
             benchmark: Name of the benchmark
             table: Logical table name
-            
+
         Returns:
             Table name if it exists in benchmark resources, None otherwise
         """
@@ -149,10 +150,10 @@ class Datastore(NoSQLStorage):
 
     def retrieve_cache(self, benchmark: str) -> bool:
         """Retrieve benchmark resources from cache.
-        
+
         Args:
             benchmark: Name of the benchmark to retrieve resources for
-            
+
         Returns:
             True if resources were found in cache, False otherwise
         """
@@ -169,7 +170,7 @@ class Datastore(NoSQLStorage):
 
     def update_cache(self, benchmark: str) -> None:
         """Update cache with current benchmark resources.
-        
+
         Args:
             benchmark: Name of the benchmark to cache resources for
         """
@@ -180,10 +181,10 @@ class Datastore(NoSQLStorage):
 
     def benchmark_database(self, benchmark: str) -> str:
         """Get the database name for a benchmark.
-        
+
         Args:
             benchmark: Name of the benchmark
-            
+
         Returns:
             Database name for the benchmark's NoSQL resources
         """
@@ -198,14 +199,14 @@ class Datastore(NoSQLStorage):
         secondary_key: Optional[Tuple[str, str]] = None,
     ) -> None:
         """Write data to a Datastore entity kind (table).
-        
+
         Args:
             benchmark: Name of the benchmark
             table: Name of the table (entity kind)
             data: Dictionary of data to write
             primary_key: Primary key tuple (name, value)
             secondary_key: Secondary key tuple (name, value) - required for GCP
-            
+
         Raises:
             AssertionError: If secondary_key is None (required for GCP)
         """
@@ -237,19 +238,19 @@ class Datastore(NoSQLStorage):
         self, benchmark: str, name: str, primary_key: str, _: Optional[str] = None
     ) -> str:
         """Create a new entity kind (table) in Datastore.
-        
+
         Creates a new Firestore database in Datastore mode if needed, and adds
         the specified entity kind to the benchmark's resource configuration.
-        
+
         Args:
             benchmark: Name of the benchmark
             name: Name of the entity kind (table) to create
             primary_key: Primary key field name
             _: Unused parameter for compatibility
-            
+
         Returns:
             Name of the created entity kind
-            
+
         Raises:
             RuntimeError: If database operations fail
         """
@@ -311,13 +312,13 @@ class Datastore(NoSQLStorage):
 
     def clear_table(self, name: str) -> str:
         """Clear all entities from a table.
-        
+
         Args:
             name: Name of the table to clear
-            
+
         Returns:
             Table name
-            
+
         Raises:
             NotImplementedError: This method is not yet implemented
         """
@@ -325,13 +326,13 @@ class Datastore(NoSQLStorage):
 
     def remove_table(self, name: str) -> str:
         """Remove a table from the database.
-        
+
         Args:
             name: Name of the table to remove
-            
+
         Returns:
             Table name
-            
+
         Raises:
             NotImplementedError: This method is not yet implemented
         """

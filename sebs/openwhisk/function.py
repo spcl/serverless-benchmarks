@@ -23,17 +23,17 @@ from sebs.storage.config import MinioConfig, ScyllaDBConfig
 class OpenWhiskFunctionConfig(FunctionConfig):
     """
     Configuration data class for OpenWhisk functions.
-    
+
     This class extends the base FunctionConfig to include OpenWhisk-specific
     configuration parameters such as Docker image information, namespace settings,
     and storage configurations for both object and NoSQL storage.
-    
+
     Attributes:
         docker_image: Docker image URI used for the function deployment
         namespace: OpenWhisk namespace (default: "_" for default namespace)
         object_storage: Minio object storage configuration if required
         nosql_storage: ScyllaDB NoSQL storage configuration if required
-    
+
     Note:
         The docker_image attribute should be merged with higher-level
         image abstraction in future refactoring.
@@ -49,10 +49,10 @@ class OpenWhiskFunctionConfig(FunctionConfig):
     def deserialize(data: Dict[str, Any]) -> OpenWhiskFunctionConfig:
         """
         Deserialize configuration from dictionary data.
-        
+
         Args:
             data: Dictionary containing serialized configuration data
-        
+
         Returns:
             OpenWhiskFunctionConfig instance with deserialized data
         """
@@ -66,7 +66,7 @@ class OpenWhiskFunctionConfig(FunctionConfig):
     def serialize(self) -> Dict[str, Any]:
         """
         Serialize configuration to dictionary format.
-        
+
         Returns:
             Dictionary containing all configuration data
         """
@@ -76,10 +76,10 @@ class OpenWhiskFunctionConfig(FunctionConfig):
     def from_benchmark(benchmark: Benchmark) -> OpenWhiskFunctionConfig:
         """
         Create configuration from benchmark specification.
-        
+
         Args:
             benchmark: Benchmark instance containing configuration requirements
-        
+
         Returns:
             OpenWhiskFunctionConfig instance initialized from benchmark
         """
@@ -91,25 +91,25 @@ class OpenWhiskFunctionConfig(FunctionConfig):
 class OpenWhiskFunction(Function):
     """
     OpenWhisk-specific function implementation for SeBS.
-    
+
     This class provides OpenWhisk-specific function management including
     configuration handling, serialization, and trigger management. It integrates
     with OpenWhisk actions and maintains Docker image information.
-    
+
     Attributes:
         _cfg: OpenWhisk-specific function configuration
-    
+
     Example:
         >>> config = OpenWhiskFunctionConfig.from_benchmark(benchmark)
         >>> function = OpenWhiskFunction("test-func", "benchmark-name", "hash123", config)
     """
-    
+
     def __init__(
         self, name: str, benchmark: str, code_package_hash: str, cfg: OpenWhiskFunctionConfig
     ) -> None:
         """
         Initialize OpenWhisk function.
-        
+
         Args:
             name: Function name (OpenWhisk action name)
             benchmark: Name of the benchmark this function implements
@@ -122,7 +122,7 @@ class OpenWhiskFunction(Function):
     def config(self) -> OpenWhiskFunctionConfig:
         """
         Get OpenWhisk-specific function configuration.
-        
+
         Returns:
             OpenWhiskFunctionConfig instance with current settings
         """
@@ -132,7 +132,7 @@ class OpenWhiskFunction(Function):
     def typename() -> str:
         """
         Get the type name for this function class.
-        
+
         Returns:
             String identifier for OpenWhisk functions
         """
@@ -141,7 +141,7 @@ class OpenWhiskFunction(Function):
     def serialize(self) -> Dict[str, Any]:
         """
         Serialize function to dictionary format.
-        
+
         Returns:
             Dictionary containing function data and OpenWhisk-specific configuration
         """
@@ -151,14 +151,14 @@ class OpenWhiskFunction(Function):
     def deserialize(cached_config: Dict[str, Any]) -> OpenWhiskFunction:
         """
         Deserialize function from cached configuration data.
-        
+
         Args:
             cached_config: Dictionary containing cached function configuration
                           and trigger information
-        
+
         Returns:
             OpenWhiskFunction instance with deserialized configuration and triggers
-        
+
         Raises:
             AssertionError: If unknown trigger type is encountered
         """

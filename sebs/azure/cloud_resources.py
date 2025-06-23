@@ -60,8 +60,8 @@ class CosmosDBAccount:
         ret = cli_instance.execute(
             f" az cosmosdb show --name {account_name} " f" --resource-group {resource_group} "
         )
-        ret = json.loads(ret.decode("utf-8"))
-        return ret["documentEndpoint"]
+        ret_dct = json.loads(ret.decode("utf-8"))
+        return ret_dct["documentEndpoint"]
 
     @staticmethod
     def query_credentials(account_name: str, resource_group: str, cli_instance: AzureCLI) -> str:
@@ -70,8 +70,8 @@ class CosmosDBAccount:
         ret = cli_instance.execute(
             f" az cosmosdb keys list --name {account_name} " f" --resource-group {resource_group} "
         )
-        ret = json.loads(ret.decode("utf-8"))
-        credential = ret["primaryMasterKey"]
+        ret_dct = json.loads(ret.decode("utf-8"))
+        credential = ret_dct["primaryMasterKey"]
 
         return credential
 

@@ -9,7 +9,8 @@ Key components:
     AWS: Main AWS system implementation
     LambdaFunction: AWS Lambda function representation
     AWSConfig: AWS-specific configuration management
-    S3: S3 storage implementation
+    S3: Object storage implementation for S3
+    DynamoDB: Key-value store implementation for DynamoDB
 
 The module handles AWS-specific functionality including:
 - Lambda function deployment and management

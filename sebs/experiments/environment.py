@@ -23,11 +23,11 @@ from sebs.utils import execute
 
 class ExperimentEnvironment:
     """Environment management for benchmark experiments.
-    
+
     This class provides methods to control CPU settings, memory management,
     and other system configurations that can affect benchmark results.
     It focuses on creating a stable, reproducible environment for experiments.
-    
+
     Attributes:
         _cpu_mapping: Dictionary mapping physical cores to logical cores
         _vendor: CPU vendor identifier (currently only "intel" supported)
@@ -35,13 +35,14 @@ class ExperimentEnvironment:
         _prev_boost_status: Previous boost status for restoration
         _prev_min_freq: Previous minimum frequency setting for restoration
     """
+
     def __init__(self) -> None:
         """Initialize the experiment environment.
-        
+
         Discovers CPU topology, checks vendor compatibility, and verifies
         the CPU frequency scaling driver. Currently only supports Intel CPUs
         with the intel_pstate driver.
-        
+
         Raises:
             NotImplementedError: If CPU vendor is not Intel or scaling driver
                 is not intel_pstate
@@ -90,7 +91,7 @@ class ExperimentEnvironment:
 
     def write_cpu_status(self, cores: List[int], status: int) -> None:
         """Write CPU online status for specified cores.
-        
+
         Args:
             cores: List of physical core IDs to modify
             status: Status to set (0 for offline, 1 for online)
@@ -108,7 +109,7 @@ class ExperimentEnvironment:
 
     def disable_hyperthreading(self, cores: List[int]) -> None:
         """Disable hyperthreading for specified cores.
-        
+
         Args:
             cores: List of physical core IDs to disable hyperthreading for
         """
@@ -116,7 +117,7 @@ class ExperimentEnvironment:
 
     def enable_hyperthreading(self, cores: List[int]) -> None:
         """Enable hyperthreading for specified cores.
-        
+
         Args:
             cores: List of physical core IDs to enable hyperthreading for
         """
@@ -124,10 +125,10 @@ class ExperimentEnvironment:
 
     def disable_boost(self, cores: List[int]) -> None:
         """Disable CPU boost (turbo) for specified cores.
-        
+
         Args:
             cores: List of physical core IDs to disable boost for
-            
+
         Raises:
             NotImplementedError: If CPU governor is not intel_pstate
         """
@@ -140,12 +141,12 @@ class ExperimentEnvironment:
 
     def enable_boost(self, cores: List[int]) -> None:
         """Enable CPU boost (turbo) for specified cores.
-        
+
         Restores the previous boost status that was saved when boost was disabled.
-        
+
         Args:
             cores: List of physical core IDs to enable boost for
-            
+
         Raises:
             NotImplementedError: If CPU governor is not intel_pstate
         """
@@ -161,7 +162,7 @@ class ExperimentEnvironment:
 
     def drop_page_cache(self) -> None:
         """Drop system page cache to ensure clean memory state.
-        
+
         This method clears the page cache to prevent cached data from
         affecting benchmark measurements.
         """
@@ -169,7 +170,7 @@ class ExperimentEnvironment:
 
     def set_frequency(self, max_freq: int) -> None:
         """Set minimum CPU frequency percentage.
-        
+
         Args:
             max_freq: Minimum frequency percentage (0-100)
         """
@@ -179,7 +180,7 @@ class ExperimentEnvironment:
 
     def unset_frequency(self) -> None:
         """Restore previous minimum CPU frequency setting.
-        
+
         Restores the frequency setting that was saved when set_frequency
         was called.
         """
@@ -188,14 +189,14 @@ class ExperimentEnvironment:
 
     def setup_benchmarking(self, cores: List[int]) -> None:
         """Set up the environment for stable benchmarking.
-        
+
         This method applies a standard set of optimizations to create
         a stable environment for benchmarking:
         - Disables CPU boost/turbo
         - Disables hyperthreading
         - Sets CPU frequency to maximum
         - Drops page cache
-        
+
         Args:
             cores: List of physical core IDs to configure
         """
@@ -206,13 +207,13 @@ class ExperimentEnvironment:
 
     def after_benchmarking(self, cores: List[int]) -> None:
         """Restore environment settings after benchmarking.
-        
+
         This method restores the system to its previous state after
         benchmarking is complete:
         - Re-enables CPU boost/turbo
         - Re-enables hyperthreading
         - Restores frequency settings
-        
+
         Args:
             cores: List of physical core IDs to restore
         """

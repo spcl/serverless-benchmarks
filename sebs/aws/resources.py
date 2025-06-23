@@ -25,22 +25,22 @@ import docker
 
 class AWSSystemResources(SystemResources):
     """AWS system resources manager for SeBS.
-    
+
     This class manages AWS-specific resources including S3 storage and DynamoDB
     NoSQL storage. It provides a unified interface for accessing AWS services
     with proper session management and caching.
-    
+
     Attributes:
         _session: AWS boto3 session for API calls
         _logging_handlers: Logging configuration handlers
         _storage: S3 storage client instance
         _nosql_storage: DynamoDB NoSQL storage client instance
     """
-    
+
     @staticmethod
     def typename() -> str:
         """Get the type name for these resources.
-        
+
         Returns:
             str: The type name 'AWS.SystemResources'
         """
@@ -49,7 +49,7 @@ class AWSSystemResources(SystemResources):
     @property
     def config(self) -> AWSConfig:
         """Get the AWS configuration.
-        
+
         Returns:
             AWSConfig: AWS-specific configuration
         """
@@ -63,7 +63,7 @@ class AWSSystemResources(SystemResources):
         logger_handlers: LoggingHandlers,
     ) -> None:
         """Initialize AWS system resources.
-        
+
         Args:
             config: AWS-specific configuration
             cache_client: Cache client for resource caching
@@ -79,7 +79,7 @@ class AWSSystemResources(SystemResources):
 
     def initialize_session(self, session: boto3.session.Session) -> None:
         """Initialize the AWS boto3 session.
-        
+
         Args:
             session: Boto3 session to use for AWS API calls
         """
@@ -87,16 +87,16 @@ class AWSSystemResources(SystemResources):
 
     def get_storage(self, replace_existing: Optional[bool] = None) -> PersistentStorage:
         """Get or create S3 storage client.
-        
+
         Creates a client instance for S3 cloud storage. Storage is initialized
         with required buckets that may be created or retrieved from cache.
-        
+
         Args:
             replace_existing: Whether to replace existing files in cached buckets
-            
+
         Returns:
             PersistentStorage: S3 storage client instance
-            
+
         Raises:
             AssertionError: If session has not been initialized
         """
@@ -120,13 +120,13 @@ class AWSSystemResources(SystemResources):
 
     def get_nosql_storage(self) -> NoSQLStorage:
         """Get or create DynamoDB NoSQL storage client.
-        
+
         Creates a client instance for DynamoDB NoSQL storage. The client
         is configured with AWS credentials and region from the system config.
-        
+
         Returns:
             NoSQLStorage: DynamoDB NoSQL storage client instance
-            
+
         Raises:
             AssertionError: If session has not been initialized
         """

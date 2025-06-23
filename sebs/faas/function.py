@@ -30,11 +30,11 @@ from sebs.utils import LoggingBase
 class ExecutionTimes:
     """
     Client-side timing measurements for function execution.
-    
+
     Stores various timing measurements from the client's perspective,
     including total execution time, HTTP connection times, and benchmark
     runtime.
-    
+
     Attributes:
         client: Total client-side execution time in microseconds
         client_begin: Timestamp when the request was initiated
@@ -63,10 +63,10 @@ class ExecutionTimes:
     def deserialize(cached_obj: dict) -> "ExecutionTimes":
         """
         Create an ExecutionTimes instance from a dictionary.
-        
+
         Args:
             cached_obj: Dictionary containing serialized timing data
-            
+
         Returns:
             ExecutionTimes: New instance with the deserialized data
         """
@@ -78,10 +78,10 @@ class ExecutionTimes:
 class ProviderTimes:
     """
     Provider-reported timing measurements for function execution.
-    
+
     Stores timing measurements reported by the cloud provider,
     including initialization time and execution time.
-    
+
     Attributes:
         initialization: Function initialization time in microseconds
         execution: Function execution time in microseconds
@@ -99,10 +99,10 @@ class ProviderTimes:
     def deserialize(cached_obj: dict) -> "ProviderTimes":
         """
         Create a ProviderTimes instance from a dictionary.
-        
+
         Args:
             cached_obj: Dictionary containing serialized timing data
-            
+
         Returns:
             ProviderTimes: New instance with the deserialized data
         """
@@ -114,10 +114,10 @@ class ProviderTimes:
 class ExecutionStats:
     """
     Statistics for function execution.
-    
+
     Tracks execution statistics such as memory usage, cold start status,
     and execution failure.
-    
+
     Attributes:
         memory_used: Amount of memory used in MB (if available)
         cold_start: Whether this was a cold start execution
@@ -138,10 +138,10 @@ class ExecutionStats:
     def deserialize(cached_obj: dict) -> "ExecutionStats":
         """
         Create an ExecutionStats instance from a dictionary.
-        
+
         Args:
             cached_obj: Dictionary containing serialized statistics
-            
+
         Returns:
             ExecutionStats: New instance with the deserialized data
         """
@@ -153,10 +153,10 @@ class ExecutionStats:
 class ExecutionBilling:
     """
     Billing information for function execution.
-    
+
     Tracks billing-related metrics such as allocated memory,
     billed execution time, and GB-seconds consumed.
-    
+
     Attributes:
         memory: Allocated memory in MB
         billed_time: Billed execution time in milliseconds
@@ -177,7 +177,7 @@ class ExecutionBilling:
     def memory(self) -> Optional[int]:
         """
         Get the allocated memory in MB.
-        
+
         Returns:
             int: Memory allocation in MB, or None if not available
         """
@@ -187,7 +187,7 @@ class ExecutionBilling:
     def memory(self, val: int):
         """
         Set the allocated memory in MB.
-        
+
         Args:
             val: Memory allocation in MB
         """
@@ -197,7 +197,7 @@ class ExecutionBilling:
     def billed_time(self) -> Optional[int]:
         """
         Get the billed execution time in milliseconds.
-        
+
         Returns:
             int: Billed time in milliseconds, or None if not available
         """
@@ -207,7 +207,7 @@ class ExecutionBilling:
     def billed_time(self, val: int):
         """
         Set the billed execution time in milliseconds.
-        
+
         Args:
             val: Billed time in milliseconds
         """
@@ -217,7 +217,7 @@ class ExecutionBilling:
     def gb_seconds(self) -> int:
         """
         Get the GB-seconds consumed.
-        
+
         Returns:
             int: GB-seconds consumed
         """
@@ -227,7 +227,7 @@ class ExecutionBilling:
     def gb_seconds(self, val: int):
         """
         Set the GB-seconds consumed.
-        
+
         Args:
             val: GB-seconds consumed
         """
@@ -237,10 +237,10 @@ class ExecutionBilling:
     def deserialize(cached_obj: dict) -> "ExecutionBilling":
         """
         Create an ExecutionBilling instance from a dictionary.
-        
+
         Args:
             cached_obj: Dictionary containing serialized billing data
-            
+
         Returns:
             ExecutionBilling: New instance with the deserialized data
         """
@@ -252,11 +252,11 @@ class ExecutionBilling:
 class ExecutionResult:
     """
     Comprehensive result of a function execution.
-    
+
     This class captures all timing information, provider metrics, and function
     output from a single function invocation. It provides methods for parsing
     benchmark output and calculating metrics.
-    
+
     Attributes:
         output: Dictionary containing function output
         request_id: Unique identifier for the request
@@ -286,11 +286,11 @@ class ExecutionResult:
     def from_times(client_time_begin: datetime, client_time_end: datetime) -> "ExecutionResult":
         """
         Create an ExecutionResult with client-side timing information.
-        
+
         Args:
             client_time_begin: Timestamp when the request was initiated
             client_time_end: Timestamp when the response was received
-            
+
         Returns:
             ExecutionResult: New instance with calculated client-side timing
         """
@@ -303,12 +303,12 @@ class ExecutionResult:
     def parse_benchmark_output(self, output: dict):
         """
         Parse the output from a benchmark execution.
-        
+
         Extracts timing information and cold start status from the benchmark output.
-        
+
         Args:
             output: Dictionary containing benchmark output
-            
+
         Raises:
             RuntimeError: If the invocation failed (missing required fields)
         """
@@ -329,10 +329,10 @@ class ExecutionResult:
     def deserialize(cached_config: dict) -> "ExecutionResult":
         """
         Create an ExecutionResult instance from a cached configuration.
-        
+
         Args:
             cached_config: Dictionary containing serialized execution result
-            
+
         Returns:
             ExecutionResult: New instance with the deserialized data
         """
@@ -349,20 +349,22 @@ class ExecutionResult:
 class Trigger(ABC, LoggingBase):
     """
     Abstract base class for function triggers.
-    
+
     A trigger represents a mechanism for invoking a serverless function,
     such as HTTP requests, direct SDK invocations, or event-based triggers.
     Each trigger type implements synchronous and asynchronous invocation methods.
     """
+
     class TriggerType(Enum):
         """
         Enumeration of supported trigger types.
-        
+
         Defines the different mechanisms for invoking serverless functions:
         - HTTP: Invocation via HTTP requests
         - LIBRARY: Invocation via cloud provider SDK
         - STORAGE: Invocation via storage events
         """
+
         HTTP = "http"
         LIBRARY = "library"
         STORAGE = "storage"
@@ -371,13 +373,13 @@ class Trigger(ABC, LoggingBase):
         def get(name: str) -> "Trigger.TriggerType":
             """
             Get a TriggerType by name (case-insensitive).
-            
+
             Args:
                 name: Name of the trigger type
-                
+
             Returns:
                 TriggerType: The matching trigger type
-                
+
             Raises:
                 Exception: If no matching trigger type is found
             """
@@ -389,18 +391,18 @@ class Trigger(ABC, LoggingBase):
     def _http_invoke(self, payload: dict, url: str, verify_ssl: bool = True) -> ExecutionResult:
         """
         Invoke a function via HTTP request.
-        
+
         Makes a HTTP POST request to the given URL with the provided payload
         and processes the response into an ExecutionResult.
-        
+
         Args:
             payload: Dictionary containing the function input
             url: URL to invoke the function
             verify_ssl: Whether to verify SSL certificates
-            
+
         Returns:
             ExecutionResult: Result of the function execution
-            
+
         Raises:
             RuntimeError: If the invocation fails or produces invalid output
         """
@@ -457,7 +459,7 @@ class Trigger(ABC, LoggingBase):
     def trigger_type() -> "Trigger.TriggerType":
         """
         Get the type of this trigger.
-        
+
         Returns:
             TriggerType: The type of this trigger
         """
@@ -467,10 +469,10 @@ class Trigger(ABC, LoggingBase):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         """
         Synchronously invoke a function with the given payload.
-        
+
         Args:
             payload: Dictionary containing the function input
-            
+
         Returns:
             ExecutionResult: Result of the function execution
         """
@@ -480,10 +482,10 @@ class Trigger(ABC, LoggingBase):
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         """
         Asynchronously invoke a function with the given payload.
-        
+
         Args:
             payload: Dictionary containing the function input
-            
+
         Returns:
             Future: Future object representing the pending execution
         """
@@ -493,7 +495,7 @@ class Trigger(ABC, LoggingBase):
     def serialize(self) -> dict:
         """
         Serialize the trigger to a dictionary.
-        
+
         Returns:
             dict: Dictionary representation of the trigger
         """
@@ -504,10 +506,10 @@ class Trigger(ABC, LoggingBase):
     def deserialize(cached_config: dict) -> "Trigger":
         """
         Create a Trigger instance from a cached configuration.
-        
+
         Args:
             cached_config: Dictionary containing serialized trigger
-            
+
         Returns:
             Trigger: New instance with the deserialized data
         """
@@ -517,9 +519,10 @@ class Trigger(ABC, LoggingBase):
 class Language(Enum):
     """
     Enumeration of supported programming languages.
-    
+
     Currently supports Python and Node.js for serverless functions.
     """
+
     PYTHON = "python"
     NODEJS = "nodejs"
 
@@ -527,13 +530,13 @@ class Language(Enum):
     def deserialize(val: str) -> Language:
         """
         Get a Language by string value.
-        
+
         Args:
             val: String representation of the language
-            
+
         Returns:
             Language: The matching language enum
-            
+
         Raises:
             Exception: If no matching language is found
         """
@@ -546,16 +549,17 @@ class Language(Enum):
 class Architecture(Enum):
     """
     Enumeration of supported CPU architectures.
-    
+
     Defines the CPU architectures that can be targeted for function deployment.
     """
+
     X86 = "x64"
     ARM = "arm64"
 
     def serialize(self) -> str:
         """
         Serialize the architecture to a string.
-        
+
         Returns:
             str: String representation of the architecture
         """
@@ -565,13 +569,13 @@ class Architecture(Enum):
     def deserialize(val: str) -> Architecture:
         """
         Get an Architecture by string value.
-        
+
         Args:
             val: String representation of the architecture
-            
+
         Returns:
             Architecture: The matching architecture enum
-            
+
         Raises:
             Exception: If no matching architecture is found
         """
@@ -585,9 +589,9 @@ class Architecture(Enum):
 class Runtime:
     """
     Runtime configuration for a serverless function.
-    
+
     Defines the language and version for a function's runtime environment.
-    
+
     Attributes:
         language: Programming language (Python, Node.js)
         version: Version string of the language runtime
@@ -599,7 +603,7 @@ class Runtime:
     def serialize(self) -> dict:
         """
         Serialize the runtime to a dictionary.
-        
+
         Returns:
             dict: Dictionary representation of the runtime
         """
@@ -609,10 +613,10 @@ class Runtime:
     def deserialize(config: dict) -> Runtime:
         """
         Create a Runtime instance from a dictionary.
-        
+
         Args:
             config: Dictionary containing serialized runtime
-            
+
         Returns:
             Runtime: New instance with the deserialized data
         """
@@ -627,15 +631,16 @@ T = TypeVar("T", bound="FunctionConfig")
 class FunctionConfig:
     """
     Configuration for a serverless function.
-    
+
     Defines the resources, runtime, and architecture for a function deployment.
-    
+
     Attributes:
         timeout: Maximum execution time in seconds
         memory: Memory allocation in MB
         runtime: Runtime environment configuration
         architecture: CPU architecture for deployment
     """
+
     timeout: int
     memory: int
     runtime: Runtime
@@ -645,11 +650,11 @@ class FunctionConfig:
     def _from_benchmark(benchmark: Benchmark, obj_type: Type[T]) -> T:
         """
         Create a FunctionConfig subclass instance from a benchmark.
-        
+
         Args:
             benchmark: Benchmark to extract configuration from
             obj_type: Type of FunctionConfig to create
-            
+
         Returns:
             T: New instance of the specified FunctionConfig subclass
         """
@@ -667,10 +672,10 @@ class FunctionConfig:
     def from_benchmark(benchmark: Benchmark) -> FunctionConfig:
         """
         Create a FunctionConfig instance from a benchmark.
-        
+
         Args:
             benchmark: Benchmark to extract configuration from
-            
+
         Returns:
             FunctionConfig: New instance with the benchmark's configuration
         """
@@ -680,10 +685,10 @@ class FunctionConfig:
     def deserialize(data: dict) -> FunctionConfig:
         """
         Create a FunctionConfig instance from a dictionary.
-        
+
         Args:
             data: Dictionary containing serialized function configuration
-            
+
         Returns:
             FunctionConfig: New instance with the deserialized data
         """
@@ -695,7 +700,7 @@ class FunctionConfig:
     def serialize(self) -> dict:
         """
         Serialize the function configuration to a dictionary.
-        
+
         Returns:
             dict: Dictionary representation of the function configuration
         """
@@ -705,14 +710,14 @@ class FunctionConfig:
 class Function(LoggingBase):
     """
     Abstract base class for serverless functions.
-    
+
     This class represents a deployed serverless function with its configuration
     and associated triggers. It provides a unified interface for managing function
     deployments across different cloud providers.
-    
+
     Each cloud provider (AWS, Azure, GCP, etc.) implements a subclass with
     platform-specific functionality.
-    
+
     Attributes:
         config: Function configuration
         name: Name of the deployed function
@@ -720,11 +725,11 @@ class Function(LoggingBase):
         code_package_hash: Hash of the deployed code package
         updated_code: Whether the code has been updated since deployment
     """
-    
+
     def __init__(self, benchmark: str, name: str, code_hash: str, cfg: FunctionConfig):
         """
         Initialize a Function instance.
-        
+
         Args:
             benchmark: Name of the benchmark
             name: Name of the function
@@ -743,7 +748,7 @@ class Function(LoggingBase):
     def config(self) -> FunctionConfig:
         """
         Get the function configuration.
-        
+
         Returns:
             FunctionConfig: Configuration of the function
         """
@@ -753,7 +758,7 @@ class Function(LoggingBase):
     def name(self) -> str:
         """
         Get the name of the function.
-        
+
         Returns:
             str: Name of the function
         """
@@ -763,7 +768,7 @@ class Function(LoggingBase):
     def benchmark(self) -> str:
         """
         Get the name of the benchmark.
-        
+
         Returns:
             str: Name of the benchmark
         """
@@ -773,7 +778,7 @@ class Function(LoggingBase):
     def code_package_hash(self) -> str:
         """
         Get the hash of the code package.
-        
+
         Returns:
             str: Hash of the code package
         """
@@ -783,7 +788,7 @@ class Function(LoggingBase):
     def code_package_hash(self, new_hash: str):
         """
         Set the hash of the code package.
-        
+
         Args:
             new_hash: New hash of the code package
         """
@@ -793,7 +798,7 @@ class Function(LoggingBase):
     def updated_code(self) -> bool:
         """
         Check if the code has been updated since deployment.
-        
+
         Returns:
             bool: True if the code has been updated, False otherwise
         """
@@ -803,7 +808,7 @@ class Function(LoggingBase):
     def updated_code(self, val: bool):
         """
         Set whether the code has been updated since deployment.
-        
+
         Args:
             val: True if the code has been updated, False otherwise
         """
@@ -812,7 +817,7 @@ class Function(LoggingBase):
     def triggers_all(self) -> List[Trigger]:
         """
         Get all triggers associated with this function.
-        
+
         Returns:
             List[Trigger]: List of all triggers
         """
@@ -821,10 +826,10 @@ class Function(LoggingBase):
     def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
         """
         Get triggers of a specific type associated with this function.
-        
+
         Args:
             trigger_type: Type of triggers to get
-            
+
         Returns:
             List[Trigger]: List of triggers of the specified type
         """
@@ -836,7 +841,7 @@ class Function(LoggingBase):
     def add_trigger(self, trigger: Trigger):
         """
         Add a trigger to this function.
-        
+
         Args:
             trigger: Trigger to add
         """
@@ -848,7 +853,7 @@ class Function(LoggingBase):
     def serialize(self) -> dict:
         """
         Serialize the function to a dictionary.
-        
+
         Returns:
             dict: Dictionary representation of the function
         """
@@ -867,10 +872,10 @@ class Function(LoggingBase):
     def deserialize(cached_config: dict) -> "Function":
         """
         Create a Function instance from a cached configuration.
-        
+
         Args:
             cached_config: Dictionary containing serialized function
-            
+
         Returns:
             Function: New instance with the deserialized data
         """

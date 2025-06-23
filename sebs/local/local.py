@@ -40,17 +40,17 @@ from sebs.benchmark import Benchmark
 
 class Local(System):
     """Local execution platform implementation.
-    
+
     Implements the System interface for running serverless functions locally using
     Docker containers. Provides development and testing capabilities without requiring
     cloud platform deployment.
-    
+
     This platform supports:
     - HTTP-triggered function execution
     - Memory measurement and profiling
     - Multi-container deployment
     - Cross-platform operation (Linux, macOS, Windows)
-    
+
     Attributes:
         DEFAULT_PORT: Default port number for function containers (9000)
         _config: Local platform configuration
@@ -64,7 +64,7 @@ class Local(System):
     @staticmethod
     def name() -> str:
         """Get the platform name.
-        
+
         Returns:
             str: Platform name "local"
         """
@@ -73,7 +73,7 @@ class Local(System):
     @staticmethod
     def typename() -> str:
         """Get the platform type name.
-        
+
         Returns:
             str: Type name "Local"
         """
@@ -82,7 +82,7 @@ class Local(System):
     @staticmethod
     def function_type() -> "Type[Function]":
         """Get the function type for this platform.
-        
+
         Returns:
             Type[Function]: LocalFunction class
         """
@@ -91,7 +91,7 @@ class Local(System):
     @property
     def config(self) -> LocalConfig:
         """Get the local platform configuration.
-        
+
         Returns:
             LocalConfig: The platform configuration
         """
@@ -100,7 +100,7 @@ class Local(System):
     @property
     def remove_containers(self) -> bool:
         """Get whether containers are automatically removed.
-        
+
         Returns:
             bool: True if containers are removed after use
         """
@@ -109,7 +109,7 @@ class Local(System):
     @remove_containers.setter
     def remove_containers(self, val: bool) -> None:
         """Set whether containers are automatically removed.
-        
+
         Args:
             val: Whether to remove containers after use
         """
@@ -118,7 +118,7 @@ class Local(System):
     @property
     def measure_interval(self) -> int:
         """Get the memory measurement interval.
-        
+
         Returns:
             int: Measurement interval in milliseconds, -1 if disabled
         """
@@ -127,7 +127,7 @@ class Local(System):
     @property
     def measurements_enabled(self) -> bool:
         """Check if memory measurements are enabled.
-        
+
         Returns:
             bool: True if measurements are enabled
         """
@@ -136,7 +136,7 @@ class Local(System):
     @property
     def measurement_path(self) -> Optional[str]:
         """Get the path to the memory measurement file.
-        
+
         Returns:
             Optional[str]: Path to measurement file, or None if not set
         """
@@ -151,7 +151,7 @@ class Local(System):
         logger_handlers: LoggingHandlers,
     ):
         """Initialize the local execution platform.
-        
+
         Args:
             sebs_config: Global SeBS configuration
             config: Local platform configuration
@@ -178,7 +178,7 @@ class Local(System):
 
     def shutdown(self) -> None:
         """Shut down the local platform.
-        
+
         Performs cleanup operations including shutting down any storage instances.
         """
         super().shutdown()
@@ -194,18 +194,18 @@ class Local(System):
         container_deployment: bool,
     ) -> Tuple[str, int, str]:
         """Package function code for local execution.
-        
+
         Creates a compatible code package structure for local execution that
         maintains compatibility across cloud providers. Reorganizes files into
         a module structure to handle relative imports properly.
-        
+
         The packaging creates this structure:
         - function/
           - function.py
           - storage.py
           - resources/
         - handler.py
-        
+
         Args:
             directory: Directory containing the function code
             language_name: Programming language (e.g., "python", "nodejs")
@@ -214,7 +214,7 @@ class Local(System):
             benchmark: Benchmark name
             is_cached: Whether the package is from cache
             container_deployment: Whether using container deployment
-            
+
         Returns:
             Tuple[str, int, str]: (package_path, size_bytes, deployment_package_uri)
         """
@@ -242,19 +242,19 @@ class Local(System):
         self, code_package: Benchmark, func_name: str, func: Optional[LocalFunction]
     ) -> LocalFunction:
         """Start a Docker container for function execution.
-        
+
         Creates and starts a Docker container running the function code. Handles
         port allocation, environment setup, volume mounting, and health checking.
         Optionally starts memory measurement processes.
-        
+
         Args:
             code_package: Benchmark code package to deploy
             func_name: Name of the function
             func: Optional existing function to update (for restarts)
-            
+
         Returns:
             LocalFunction: Running function instance
-            
+
         Raises:
             RuntimeError: If port allocation fails or container won't start
         """
@@ -402,16 +402,16 @@ class Local(System):
         container_uri: str,
     ) -> "LocalFunction":
         """Create a new function deployment.
-        
+
         Args:
             code_package: Benchmark code package to deploy
             func_name: Name for the function
             container_deployment: Whether to use container deployment (unsupported)
             container_uri: Container URI (unused for local)
-            
+
         Returns:
             LocalFunction: Created function instance
-            
+
         Raises:
             NotImplementedError: If container deployment is requested
         """
@@ -427,9 +427,9 @@ class Local(System):
         container_uri: str,
     ) -> None:
         """Update an existing function with new code.
-        
+
         Stops the existing container and starts a new one with updated code.
-        
+
         Args:
             function: Existing function to update
             code_package: New benchmark code package
@@ -443,16 +443,16 @@ class Local(System):
 
     def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """Create a trigger for function invocation.
-        
+
         For local functions, only HTTP triggers are supported.
-        
+
         Args:
             func: Function to create trigger for
             trigger_type: Type of trigger to create
-            
+
         Returns:
             Trigger: Created trigger instance
-            
+
         Raises:
             RuntimeError: If trigger type is not HTTP
         """
@@ -471,9 +471,9 @@ class Local(System):
 
     def cached_function(self, function: Function) -> None:
         """Handle cached function setup.
-        
+
         For local functions, no special handling is needed for cached functions.
-        
+
         Args:
             function: Cached function instance
         """
@@ -481,11 +481,11 @@ class Local(System):
 
     def update_function_configuration(self, function: Function, code_package: Benchmark) -> None:
         """Update function configuration.
-        
+
         Args:
             function: Function to update
             code_package: Benchmark code package
-            
+
         Raises:
             RuntimeError: Always raised as configuration updates are not supported
         """
@@ -501,9 +501,9 @@ class Local(System):
         metrics: dict,
     ) -> None:
         """Download execution metrics.
-        
+
         For local execution, metrics are not available from the platform.
-        
+
         Args:
             function_name: Name of the function
             start_time: Start time for metrics collection
@@ -515,11 +515,11 @@ class Local(System):
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark) -> None:
         """Enforce cold start for functions.
-        
+
         Args:
             functions: List of functions to enforce cold start on
             code_package: Benchmark code package
-            
+
         Raises:
             NotImplementedError: Cold start enforcement is not implemented for local
         """
@@ -530,13 +530,13 @@ class Local(System):
         code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
         """Generate default function name.
-        
+
         Creates a standardized function name based on the code package and resources.
-        
+
         Args:
             code_package: Benchmark code package
             resources: Optional resources instance for ID inclusion
-            
+
         Returns:
             str: Generated function name
         """
@@ -559,12 +559,12 @@ class Local(System):
     @staticmethod
     def format_function_name(func_name: str) -> str:
         """Format function name for platform requirements.
-        
+
         For local execution, no formatting is needed.
-        
+
         Args:
             func_name: Function name to format
-            
+
         Returns:
             str: Formatted function name (unchanged for local)
         """
@@ -572,13 +572,13 @@ class Local(System):
 
     def start_measurements(self, measure_interval: int) -> Optional[str]:
         """Start memory measurements for function containers.
-        
+
         Creates a temporary file for storing memory measurements and enables
         measurement collection at the specified interval.
-        
+
         Args:
             measure_interval: Measurement interval in milliseconds
-            
+
         Returns:
             Optional[str]: Path to measurement file, or None if measurements disabled
         """

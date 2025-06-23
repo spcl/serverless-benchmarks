@@ -31,12 +31,12 @@ from sebs.utils import project_absolute_path
 
 class ScyllaDB(NoSQLStorage):
     """ScyllaDB implementation for DynamoDB-compatible NoSQL storage.
-    
+
     This class manages a ScyllaDB instance running in a Docker container,
     providing DynamoDB-compatible NoSQL storage through ScyllaDB's Alternator
     interface. It handles table creation, data operations, and container
     lifecycle management.
-    
+
     Attributes:
         _docker_client: Docker client for container management
         _storage_container: Docker container running ScyllaDB
@@ -45,11 +45,11 @@ class ScyllaDB(NoSQLStorage):
         _serializer: DynamoDB type serializer for data conversion
         client: Boto3 DynamoDB client configured for ScyllaDB
     """
-    
+
     @staticmethod
     def typename() -> str:
         """Get the qualified type name of this class.
-        
+
         Returns:
             str: Full type name including deployment name
         """
@@ -58,7 +58,7 @@ class ScyllaDB(NoSQLStorage):
     @staticmethod
     def deployment_name() -> str:
         """Get the deployment platform name.
-        
+
         Returns:
             str: Deployment name ('scylladb')
         """
@@ -67,7 +67,7 @@ class ScyllaDB(NoSQLStorage):
     @property
     def config(self) -> ScyllaDBConfig:
         """Get the ScyllaDB configuration.
-        
+
         Returns:
             ScyllaDBConfig: The configuration object
         """
@@ -84,7 +84,7 @@ class ScyllaDB(NoSQLStorage):
         resources: Optional[Resources] = None,
     ):
         """Initialize a ScyllaDB storage instance.
-        
+
         Args:
             docker_client: Docker client for managing the ScyllaDB container
             cache_client: Cache client for storing storage configuration
@@ -111,14 +111,14 @@ class ScyllaDB(NoSQLStorage):
 
     def start(self) -> None:
         """Start a ScyllaDB storage container.
-        
+
         Creates and runs a Docker container with ScyllaDB, configuring it with
         the specified CPU and memory resources. The container runs in detached
         mode and exposes the Alternator DynamoDB-compatible API on the configured port.
-        
+
         The method waits for ScyllaDB to fully initialize by checking the nodetool
         status until the service is ready.
-        
+
         Raises:
             RuntimeError: If starting the ScyllaDB container fails or if ScyllaDB
                          fails to initialize within the timeout period
@@ -189,14 +189,14 @@ class ScyllaDB(NoSQLStorage):
 
     def configure_connection(self) -> None:
         """Configure the connection to the ScyllaDB container.
-        
+
         Determines the appropriate address to connect to the ScyllaDB container
         based on the host platform. For Linux, it uses the container's IP address,
         while for Windows, macOS, or WSL it uses localhost with the mapped port.
-        
+
         Creates a boto3 DynamoDB client configured to connect to ScyllaDB's
         Alternator interface.
-        
+
         Raises:
             RuntimeError: If the ScyllaDB container is not available or if the IP address
                           cannot be detected
@@ -229,7 +229,7 @@ class ScyllaDB(NoSQLStorage):
                     f"Incorrect detection of IP address for container with id {self._cfg.instance_id}"
                 )
             self.logging.info("Starting ScyllaDB instance at {}".format(self._cfg.address))
-        
+
         # Create the DynamoDB client for ScyllaDB's Alternator interface
         self.client = boto3.client(
             "dynamodb",
@@ -241,7 +241,7 @@ class ScyllaDB(NoSQLStorage):
 
     def stop(self) -> None:
         """Stop the ScyllaDB container.
-        
+
         Gracefully stops the running ScyllaDB container if it exists.
         Logs an error if the container is not known.
         """
@@ -254,10 +254,10 @@ class ScyllaDB(NoSQLStorage):
 
     def envs(self) -> Dict[str, str]:
         """Generate environment variables for ScyllaDB configuration.
-        
+
         Creates environment variables that can be used by benchmark functions
         to connect to the ScyllaDB storage instance.
-        
+
         Returns:
             Dict[str, str]: Environment variables for ScyllaDB connection
         """
@@ -265,7 +265,7 @@ class ScyllaDB(NoSQLStorage):
 
     def serialize(self) -> Tuple[StorageType, Dict[str, Any]]:
         """Serialize ScyllaDB configuration to a tuple.
-        
+
         Returns:
             Tuple[StorageType, Dict[str, Any]]: Storage type and serialized configuration
         """
@@ -285,20 +285,20 @@ class ScyllaDB(NoSQLStorage):
         cached_config: ScyllaDBConfig, cache_client: Cache, resources: Resources, obj_type: Type[T]
     ) -> T:
         """Deserialize a ScyllaDB instance from cached configuration with custom type.
-        
+
         Creates a new instance of the specified class type from cached configuration
         data. This allows platform-specific versions to be deserialized correctly
         while sharing the core implementation.
-        
+
         Args:
             cached_config: Cached ScyllaDB configuration
             cache_client: Cache client
             resources: Resources configuration
             obj_type: Type of object to create (a ScyllaDB subclass)
-            
+
         Returns:
             T: Deserialized instance of the specified type
-            
+
         Raises:
             RuntimeError: If the storage container does not exist
         """
@@ -320,14 +320,14 @@ class ScyllaDB(NoSQLStorage):
         cached_config: ScyllaDBConfig, cache_client: Cache, resources: Resources
     ) -> "ScyllaDB":
         """Deserialize a ScyllaDB instance from cached configuration.
-        
+
         Creates a new ScyllaDB instance from cached configuration data.
-        
+
         Args:
             cached_config: Cached ScyllaDB configuration
             cache_client: Cache client
             resources: Resources configuration
-            
+
         Returns:
             ScyllaDB: Deserialized ScyllaDB instance
         """
@@ -335,13 +335,13 @@ class ScyllaDB(NoSQLStorage):
 
     def retrieve_cache(self, benchmark: str) -> bool:
         """Retrieve cached table configuration for a benchmark.
-        
+
         Checks if table configuration for the given benchmark is already loaded
         in memory, and if not, attempts to load it from the cache.
-        
+
         Args:
             benchmark: Name of the benchmark
-            
+
         Returns:
             bool: True if table configuration was found, False otherwise
         """
@@ -357,10 +357,10 @@ class ScyllaDB(NoSQLStorage):
 
     def update_cache(self, benchmark: str) -> None:
         """Update the cache with table configuration for a benchmark.
-        
+
         Stores the table configuration for the specified benchmark in the cache
         for future retrieval.
-        
+
         Args:
             benchmark: Name of the benchmark
         """
@@ -374,10 +374,10 @@ class ScyllaDB(NoSQLStorage):
 
     def get_tables(self, benchmark: str) -> Dict[str, str]:
         """Get the table name mappings for a benchmark.
-        
+
         Args:
             benchmark: Name of the benchmark
-            
+
         Returns:
             Dict[str, str]: Mapping from original table names to actual table names
         """
@@ -385,11 +385,11 @@ class ScyllaDB(NoSQLStorage):
 
     def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
         """Get the actual table name for a benchmark's logical table name.
-        
+
         Args:
             benchmark: Name of the benchmark
             table: Logical table name
-            
+
         Returns:
             Optional[str]: Actual table name or None if not found
         """
@@ -410,17 +410,17 @@ class ScyllaDB(NoSQLStorage):
         secondary_key: Optional[Tuple[str, str]] = None,
     ) -> None:
         """Write data to a DynamoDB table in ScyllaDB.
-        
+
         Serializes the data using DynamoDB type serialization and writes it
         to the specified table with the provided primary and optional secondary keys.
-        
+
         Args:
             benchmark: Name of the benchmark
             table: Logical table name
             data: Data to write to the table
             primary_key: Tuple of (key_name, key_value) for the primary key
             secondary_key: Optional tuple of (key_name, key_value) for the secondary key
-            
+
         Raises:
             AssertionError: If the table name is not found
         """
@@ -434,28 +434,27 @@ class ScyllaDB(NoSQLStorage):
         serialized_data = {k: self._serializer.serialize(v) for k, v in data.items()}
         self.client.put_item(TableName=table_name, Item=serialized_data)
 
-
     def create_table(
         self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
     ) -> str:
         """Create a DynamoDB table in ScyllaDB.
-        
+
         Creates a new DynamoDB table with the specified primary key and optional
         secondary key. The table name is constructed to be unique across benchmarks
         and resource groups.
-        
+
         Note: Unlike cloud providers with hierarchical database structures,
         ScyllaDB requires unique table names at the cluster level.
-        
+
         Args:
             benchmark: Name of the benchmark
             name: Logical table name
             primary_key: Name of the primary key attribute
             secondary_key: Optional name of the secondary key attribute
-            
+
         Returns:
             str: The actual table name that was created
-            
+
         Raises:
             RuntimeError: If table creation fails for unknown reasons
         """
@@ -498,13 +497,13 @@ class ScyllaDB(NoSQLStorage):
 
     def clear_table(self, name: str) -> str:
         """Clear all data from a table.
-        
+
         Args:
             name: Name of the table to clear
-            
+
         Returns:
             str: Table name
-            
+
         Raises:
             NotImplementedError: This method is not yet implemented
         """
@@ -512,13 +511,13 @@ class ScyllaDB(NoSQLStorage):
 
     def remove_table(self, name: str) -> str:
         """Remove a table completely.
-        
+
         Args:
             name: Name of the table to remove
-            
+
         Returns:
             str: Table name
-            
+
         Raises:
             NotImplementedError: This method is not yet implemented
         """

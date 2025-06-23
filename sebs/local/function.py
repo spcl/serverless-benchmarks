@@ -20,17 +20,17 @@ from sebs.faas.function import ExecutionResult, Function, FunctionConfig, Trigge
 
 class HTTPTrigger(Trigger):
     """HTTP trigger for local function invocation.
-    
+
     Provides HTTP-based triggering for functions running in local Docker containers.
     Supports both synchronous and asynchronous invocation patterns.
-    
+
     Attributes:
         url: HTTP URL endpoint for function invocation
     """
-    
+
     def __init__(self, url: str):
         """Initialize HTTP trigger.
-        
+
         Args:
             url: HTTP URL endpoint for the function
         """
@@ -40,7 +40,7 @@ class HTTPTrigger(Trigger):
     @staticmethod
     def typename() -> str:
         """Get the type name for this trigger.
-        
+
         Returns:
             str: Type name "Local.HTTPTrigger"
         """
@@ -49,7 +49,7 @@ class HTTPTrigger(Trigger):
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
         """Get the trigger type.
-        
+
         Returns:
             Trigger.TriggerType: HTTP trigger type
         """
@@ -57,10 +57,10 @@ class HTTPTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         """Synchronously invoke the function via HTTP.
-        
+
         Args:
             payload: Function input payload as dictionary
-            
+
         Returns:
             ExecutionResult: Result of the function execution
         """
@@ -69,10 +69,10 @@ class HTTPTrigger(Trigger):
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         """Asynchronously invoke the function via HTTP.
-        
+
         Args:
             payload: Function input payload as dictionary
-            
+
         Returns:
             concurrent.futures.Future: Future object for the execution result
         """
@@ -82,7 +82,7 @@ class HTTPTrigger(Trigger):
 
     def serialize(self) -> dict:
         """Serialize trigger configuration to dictionary.
-        
+
         Returns:
             dict: Dictionary containing trigger type and URL
         """
@@ -91,10 +91,10 @@ class HTTPTrigger(Trigger):
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
         """Deserialize trigger from dictionary.
-        
+
         Args:
             obj: Dictionary containing trigger configuration
-            
+
         Returns:
             HTTPTrigger: Deserialized HTTP trigger instance
         """
@@ -103,11 +103,11 @@ class HTTPTrigger(Trigger):
 
 class LocalFunction(Function):
     """Function implementation for local execution platform.
-    
+
     Represents a serverless function running locally in a Docker container.
     Handles container management, URL resolution, and memory measurement
     process tracking.
-    
+
     Attributes:
         _instance: Docker container running the function
         _instance_id: Container ID for the function
@@ -115,7 +115,7 @@ class LocalFunction(Function):
         _url: Complete URL for function invocation
         _measurement_pid: Optional PID of memory measurement process
     """
-    
+
     def __init__(
         self,
         docker_container,
@@ -127,7 +127,7 @@ class LocalFunction(Function):
         measurement_pid: Optional[int] = None,
     ):
         """Initialize local function.
-        
+
         Args:
             docker_container: Docker container instance running the function
             port: Port number the function is listening on
@@ -136,7 +136,7 @@ class LocalFunction(Function):
             code_package_hash: Hash of the function code package
             config: Function configuration
             measurement_pid: Optional PID of memory measurement process
-            
+
         Raises:
             RuntimeError: If container IP address cannot be determined
         """
@@ -167,7 +167,7 @@ class LocalFunction(Function):
     @property
     def container(self) -> docker.models.containers.Container:
         """Get the Docker container running this function.
-        
+
         Returns:
             docker.models.containers.Container: The Docker container instance
         """
@@ -176,7 +176,7 @@ class LocalFunction(Function):
     @container.setter
     def container(self, instance: docker.models.containers.Container) -> None:
         """Set the Docker container for this function.
-        
+
         Args:
             instance: New Docker container instance
         """
@@ -185,7 +185,7 @@ class LocalFunction(Function):
     @property
     def url(self) -> str:
         """Get the URL for function invocation.
-        
+
         Returns:
             str: HTTP URL for invoking the function
         """
@@ -194,7 +194,7 @@ class LocalFunction(Function):
     @property
     def memory_measurement_pid(self) -> Optional[int]:
         """Get the PID of the memory measurement process.
-        
+
         Returns:
             Optional[int]: PID of memory measurement process, or None if not measuring
         """
@@ -203,7 +203,7 @@ class LocalFunction(Function):
     @staticmethod
     def typename() -> str:
         """Get the type name for this function.
-        
+
         Returns:
             str: Type name "Local.LocalFunction"
         """
@@ -211,7 +211,7 @@ class LocalFunction(Function):
 
     def serialize(self) -> dict:
         """Serialize function configuration to dictionary.
-        
+
         Returns:
             dict: Dictionary containing function configuration including container details
         """
@@ -225,13 +225,13 @@ class LocalFunction(Function):
     @staticmethod
     def deserialize(cached_config: dict) -> "LocalFunction":
         """Deserialize function from cached configuration.
-        
+
         Args:
             cached_config: Dictionary containing cached function configuration
-            
+
         Returns:
             LocalFunction: Deserialized function instance
-            
+
         Raises:
             RuntimeError: If cached container is no longer available
         """
@@ -252,7 +252,7 @@ class LocalFunction(Function):
 
     def stop(self) -> None:
         """Stop the function container.
-        
+
         Stops the Docker container running this function with immediate timeout.
         """
         self.logging.info(f"Stopping function container {self._instance_id}")

@@ -16,18 +16,18 @@ from sebs.faas.function import Function, FunctionConfig
 class LambdaFunction(Function):
     """
     AWS Lambda function implementation for the SeBs framework.
-    
+
     This class represents an AWS Lambda function in the serverless benchmarking
     suite. It extends the base Function class with AWS-specific attributes and
     functionality.
-    
+
     Attributes:
         arn: Amazon Resource Name of the Lambda function
         role: IAM role ARN used by the function
         runtime: Runtime environment for the function (e.g., 'python3.8')
         bucket: S3 bucket name where the function code is stored
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -41,7 +41,7 @@ class LambdaFunction(Function):
     ):
         """
         Initialize an AWS Lambda function.
-        
+
         Args:
             name: Name of the function
             benchmark: Name of the benchmark
@@ -62,7 +62,7 @@ class LambdaFunction(Function):
     def typename() -> str:
         """
         Get the type name of this class.
-        
+
         Returns:
             str: The type name
         """
@@ -71,7 +71,7 @@ class LambdaFunction(Function):
     def serialize(self) -> dict:
         """
         Serialize the Lambda function to a dictionary.
-        
+
         Returns:
             dict: Dictionary representation of the Lambda function
         """
@@ -87,13 +87,13 @@ class LambdaFunction(Function):
     def deserialize(cached_config: dict) -> "LambdaFunction":
         """
         Create a LambdaFunction instance from a cached configuration.
-        
+
         Args:
             cached_config: Dictionary containing the cached function configuration
-            
+
         Returns:
             LambdaFunction: A new instance with the deserialized data
-            
+
         Raises:
             AssertionError: If an unknown trigger type is encountered
         """
@@ -123,11 +123,11 @@ class LambdaFunction(Function):
     def code_bucket(self, benchmark: str, storage_client: S3) -> str:
         """
         Get the S3 bucket for the function code.
-        
+
         Args:
             benchmark: Name of the benchmark
             storage_client: S3 storage client
-            
+
         Returns:
             str: Name of the S3 bucket
         """

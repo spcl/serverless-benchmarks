@@ -32,15 +32,15 @@ from sebs.faas.function import Function, FunctionConfig
 
 class AzureFunction(Function):
     """Azure Function implementation for SeBS benchmarking.
-    
+
     This class represents an Azure Function with Azure-specific attributes
     and configuration. It includes storage account information and supports
     Azure-specific triggers like HTTP triggers.
-    
+
     Attributes:
         function_storage: Azure Storage account used for function code storage
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -50,7 +50,7 @@ class AzureFunction(Function):
         cfg: FunctionConfig,
     ) -> None:
         """Initialize Azure Function.
-        
+
         Args:
             name: Name of the Azure Function
             benchmark: Name of the benchmark this function implements
@@ -63,7 +63,7 @@ class AzureFunction(Function):
 
     def serialize(self) -> dict:
         """Serialize function to dictionary.
-        
+
         Returns:
             Dictionary containing function data including Azure-specific storage.
         """
@@ -75,16 +75,16 @@ class AzureFunction(Function):
     @staticmethod
     def deserialize(cached_config: dict) -> Function:
         """Deserialize function from cached configuration.
-        
+
         Recreates an AzureFunction instance from cached data including
         function configuration, storage account, and triggers.
-        
+
         Args:
             cached_config: Dictionary containing cached function data
-            
+
         Returns:
             AzureFunction instance with restored configuration.
-            
+
         Raises:
             AssertionError: If unknown trigger type is encountered.
         """

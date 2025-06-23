@@ -19,23 +19,23 @@ from sebs.utils import LoggingBase
 class NoSQLStorage(ABC, LoggingBase):
     """
     Abstract base class for NoSQL database storage implementations.
-    
+
     This class defines the interface for NoSQL database operations across different
     cloud platforms and local environments. Concrete implementations handle the
     platform-specific details of creating tables, writing data, and managing
     resources.
-    
+
     Attributes:
         cache_client: Client for caching database information
         region: Cloud region where the database is deployed
     """
-    
+
     @staticmethod
     @abstractmethod
     def deployment_name() -> str:
         """
         Get the name of the deployment platform.
-        
+
         Returns:
             str: Name of the deployment platform (e.g., 'aws', 'azure', 'gcp')
         """
@@ -45,7 +45,7 @@ class NoSQLStorage(ABC, LoggingBase):
     def cache_client(self) -> Cache:
         """
         Get the cache client.
-        
+
         Returns:
             Cache: The cache client for database information
         """
@@ -55,7 +55,7 @@ class NoSQLStorage(ABC, LoggingBase):
     def region(self) -> str:
         """
         Get the cloud region.
-        
+
         Returns:
             str: The cloud region where the database is deployed
         """
@@ -64,7 +64,7 @@ class NoSQLStorage(ABC, LoggingBase):
     def __init__(self, region: str, cache_client: Cache, resources: Resources):
         """
         Initialize a NoSQL storage instance.
-        
+
         Args:
             region: Cloud region where the database is deployed
             cache_client: Client for caching database information
@@ -80,10 +80,10 @@ class NoSQLStorage(ABC, LoggingBase):
     def get_tables(self, benchmark: str) -> Dict[str, str]:
         """
         Get all tables associated with a benchmark.
-        
+
         Args:
             benchmark: Name of the benchmark
-            
+
         Returns:
             Dict[str, str]: Dictionary mapping table logical names to physical table names
         """
@@ -93,11 +93,11 @@ class NoSQLStorage(ABC, LoggingBase):
     def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
         """
         Get the physical table name for a benchmark's logical table.
-        
+
         Args:
             benchmark: Name of the benchmark
             table: Logical name of the table
-            
+
         Returns:
             Optional[str]: Physical table name if it exists, None otherwise
         """
@@ -107,10 +107,10 @@ class NoSQLStorage(ABC, LoggingBase):
     def retrieve_cache(self, benchmark: str) -> bool:
         """
         Retrieve cached table information for a benchmark.
-        
+
         Args:
             benchmark: Name of the benchmark
-            
+
         Returns:
             bool: True if cache was successfully retrieved, False otherwise
         """
@@ -120,7 +120,7 @@ class NoSQLStorage(ABC, LoggingBase):
     def update_cache(self, benchmark: str):
         """
         Update the cache with the latest table information for a benchmark.
-        
+
         Args:
             benchmark: Name of the benchmark
         """
@@ -129,7 +129,7 @@ class NoSQLStorage(ABC, LoggingBase):
     def envs(self) -> dict:
         """
         Get environment variables required for connecting to the NoSQL storage.
-        
+
         Returns:
             dict: Dictionary of environment variables
         """
@@ -153,10 +153,10 @@ class NoSQLStorage(ABC, LoggingBase):
     ):
         """
         Create a table for a benchmark if it doesn't exist in the cache.
-        
+
         Checks if the table already exists in the cache. If not, creates a new table
         with the specified keys.
-        
+
         Args:
             benchmark: Name of the benchmark
             name: Logical name of the table
@@ -188,13 +188,13 @@ class NoSQLStorage(ABC, LoggingBase):
     ) -> str:
         """
         Create a new table for a benchmark.
-        
+
         Args:
             benchmark: Name of the benchmark
             name: Logical name of the table
             primary_key: Primary key field name
             secondary_key: Optional secondary key field name
-            
+
         Returns:
             str: Physical name of the created table
         """
@@ -211,7 +211,7 @@ class NoSQLStorage(ABC, LoggingBase):
     ):
         """
         Write data to a table.
-        
+
         Args:
             benchmark: Name of the benchmark
             table: Logical name of the table
@@ -233,10 +233,10 @@ class NoSQLStorage(ABC, LoggingBase):
     def clear_table(self, name: str) -> str:
         """
         Clear all data from a table.
-        
+
         Args:
             name: Name of the table to clear
-            
+
         Returns:
             str: Result message or status
         """
@@ -246,10 +246,10 @@ class NoSQLStorage(ABC, LoggingBase):
     def remove_table(self, name: str) -> str:
         """
         Remove a table completely.
-        
+
         Args:
             name: Name of the table to remove
-            
+
         Returns:
             str: Result message or status
         """

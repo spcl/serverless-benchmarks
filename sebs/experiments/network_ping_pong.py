@@ -34,12 +34,12 @@ if TYPE_CHECKING:
 
 class NetworkPingPong(Experiment):
     """Network latency and throughput measurement experiment.
-    
+
     This experiment measures the network performance characteristics
     between the client, serverless functions, and storage services.
     It can measure ping-pong latency and throughput with different
     payload sizes and concurrency levels.
-    
+
     Attributes:
         benchmark_input: Input configuration for the benchmark
         _storage: Storage service to use for testing
@@ -49,10 +49,10 @@ class NetworkPingPong(Experiment):
         _deployment_client: Deployment client to use
         _sebs_client: SeBS client
     """
-    
+
     def __init__(self, config: ExperimentConfig):
         """Initialize a new NetworkPingPong experiment.
-        
+
         Args:
             config: Experiment configuration
         """
@@ -60,11 +60,11 @@ class NetworkPingPong(Experiment):
 
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem) -> None:
         """Prepare the experiment for execution.
-        
+
         This method sets up the benchmark, function, triggers, storage, and output
         directory for the experiment. It creates or gets the function and
         its HTTP trigger, and prepares the input data for the benchmark.
-        
+
         Args:
             sebs_client: The SeBS client to use
             deployment_client: The deployment client to use
@@ -78,7 +78,7 @@ class NetworkPingPong(Experiment):
         self.benchmark_input = benchmark.prepare_input(
             deployment_client.system_resources, size="test", replace_existing=True
         )
-        
+
         # Get storage for testing storage latency
         self._storage = deployment_client.system_resources.get_storage(replace_existing=True)
 
@@ -98,8 +98,8 @@ class NetworkPingPong(Experiment):
 
     def run(self) -> None:
         """Run the network ping-pong experiment.
-        
-        This method executes the experiment, measuring network latency and 
+
+        This method executes the experiment, measuring network latency and
         throughput between the client and the serverless function. It first
         determines the client's public IP address to include in the results.
         """
@@ -125,11 +125,11 @@ class NetworkPingPong(Experiment):
 
     def process(self, directory: str) -> None:
         """Process the experiment results.
-        
+
         This method processes the CSV files generated during the experiment
         execution, computes round-trip times (RTT), and generates summary
         statistics and a histogram of the RTT distribution.
-        
+
         Args:
             directory: Directory containing the experiment results
         """
@@ -160,11 +160,11 @@ class NetworkPingPong(Experiment):
 
     def receive_datagrams(self, repetitions: int, port: int, ip: str) -> None:
         """Receive UDP datagrams from the function and respond to them.
-        
+
         This method acts as a UDP server, receiving datagrams from the function
         and responding to them. It measures the timestamps of packet reception
         and response, and records them for later analysis.
-        
+
         Args:
             repetitions: Number of repetitions to execute
             port: UDP port to listen on
@@ -219,7 +219,7 @@ class NetworkPingPong(Experiment):
     @staticmethod
     def name() -> str:
         """Get the name of the experiment.
-        
+
         Returns:
             The name "network-ping-pong"
         """
@@ -228,7 +228,7 @@ class NetworkPingPong(Experiment):
     @staticmethod
     def typename() -> str:
         """Get the type name of the experiment.
-        
+
         Returns:
             The type name "Experiment.NetworkPingPong"
         """

@@ -37,28 +37,28 @@ from sebs.utils import LoggingHandlers
 
 class GCPCredentials(Credentials):
     """Credentials manager for Google Cloud Platform authentication.
-    
+
     Handles authentication to GCP services using service account JSON files.
     Automatically extracts project ID from credentials and manages environment
     variable setup for Google Cloud SDK authentication.
-    
+
     The class supports multiple credential sources in priority order:
     1. User-provided credentials file path
     2. Cached credentials from previous sessions
     3. GOOGLE_APPLICATION_CREDENTIALS environment variable
     4. GCP_SECRET_APPLICATION_CREDENTIALS environment variable
-    
+
     Attributes:
         _gcp_credentials: Path to the service account JSON file
         _project_id: GCP project ID extracted from credentials
     """
-    
+
     def __init__(self, gcp_credentials: str) -> None:
         """Initialize GCP credentials with service account file.
-        
+
         Args:
             gcp_credentials: Path to the GCP service account JSON file
-            
+
         Raises:
             FileNotFoundError: If the credentials file doesn't exist
             json.JSONDecodeError: If the credentials file is not valid JSON
@@ -74,7 +74,7 @@ class GCPCredentials(Credentials):
     @property
     def gcp_credentials(self) -> str:
         """Get the path to the GCP service account credentials file.
-        
+
         Returns:
             Path to the service account JSON file
         """
@@ -83,7 +83,7 @@ class GCPCredentials(Credentials):
     @property
     def project_name(self) -> str:
         """Get the GCP project ID from the credentials.
-        
+
         Returns:
             The GCP project ID string
         """
@@ -92,10 +92,10 @@ class GCPCredentials(Credentials):
     @staticmethod
     def initialize(gcp_credentials: str) -> "GCPCredentials":
         """Create a new GCPCredentials instance.
-        
+
         Args:
             gcp_credentials: Path to the GCP service account JSON file
-            
+
         Returns:
             A new GCPCredentials instance
         """
@@ -104,21 +104,21 @@ class GCPCredentials(Credentials):
     @staticmethod
     def deserialize(config: Dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
         """Deserialize GCP credentials from configuration and cache.
-        
+
         Loads credentials from multiple sources in priority order:
         1. User-provided config with credentials-json path
         2. Cached credentials from previous sessions
         3. GOOGLE_APPLICATION_CREDENTIALS environment variable
         4. GCP_SECRET_APPLICATION_CREDENTIALS environment variable
-        
+
         Args:
             config: Configuration dictionary potentially containing credentials
             cache: Cache instance for storing/retrieving credentials
             handlers: Logging handlers for error reporting
-            
+
         Returns:
             Initialized GCPCredentials instance
-            
+
         Raises:
             RuntimeError: If no valid credentials are found or if project ID
                          mismatch occurs between cache and new credentials
@@ -165,7 +165,7 @@ class GCPCredentials(Credentials):
 
     def serialize(self) -> Dict:
         """Serialize credentials to dictionary for cache storage.
-        
+
         Returns:
             Dictionary containing project_id for cache storage
         """
@@ -174,7 +174,7 @@ class GCPCredentials(Credentials):
 
     def update_cache(self, cache: Cache) -> None:
         """Update the cache with current credential information.
-        
+
         Args:
             cache: Cache instance to update with project ID
         """
@@ -183,18 +183,19 @@ class GCPCredentials(Credentials):
 
 class GCPResources(Resources):
     """Resource manager for Google Cloud Platform serverless resources.
-    
+
     Manages cloud resources allocated for function execution and deployment,
     such as IAM roles, API gateways for HTTP triggers, and other GCP-specific
     infrastructure components. Storage resources are handled separately.
-    
+
     This class extends the base Resources class with GCP-specific resource
     management capabilities and handles serialization/deserialization for
     cache persistence.
-    
+
     Attributes:
         Inherits all attributes from the base Resources class
     """
+
     def __init__(self) -> None:
         """Initialize GCP resources manager."""
         super().__init__(name="gcp")
@@ -202,11 +203,11 @@ class GCPResources(Resources):
     @staticmethod
     def initialize(res: Resources, dct: Dict) -> "GCPResources":
         """Initialize GCP resources from a dictionary configuration.
-        
+
         Args:
             res: Base Resources instance to initialize
             dct: Dictionary containing resource configuration
-            
+
         Returns:
             Initialized GCPResources instance
         """
@@ -216,7 +217,7 @@ class GCPResources(Resources):
 
     def serialize(self) -> Dict:
         """Serialize resources to dictionary for cache storage.
-        
+
         Returns:
             Dictionary representation of resources for cache storage
         """
@@ -225,15 +226,15 @@ class GCPResources(Resources):
     @staticmethod
     def deserialize(config: Dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
         """Deserialize GCP resources from configuration and cache.
-        
+
         Loads resources from cache if available, otherwise initializes from
         user configuration or creates empty resource set.
-        
+
         Args:
             config: Configuration dictionary potentially containing resources
             cache: Cache instance for storing/retrieving resources
             handlers: Logging handlers for status reporting
-            
+
         Returns:
             Initialized GCPResources instance
         """
@@ -259,7 +260,7 @@ class GCPResources(Resources):
 
     def update_cache(self, cache: Cache) -> None:
         """Update the cache with current resource information.
-        
+
         Args:
             cache: Cache instance to update with resource data
         """
@@ -268,14 +269,14 @@ class GCPResources(Resources):
 
 class GCPConfig(Config):
     """Main configuration class for Google Cloud Platform deployment.
-    
+
     Combines credentials and resources into a complete configuration for
     GCP serverless function deployment. Manages cloud region settings,
     authentication, and resource allocation for the benchmarking suite.
-    
+
     This class handles serialization/deserialization for cache persistence
     and provides validation for configuration consistency across sessions.
-    
+
     Attributes:
         _project_name: GCP project identifier
         _region: GCP region for resource deployment
@@ -287,7 +288,7 @@ class GCPConfig(Config):
 
     def __init__(self, credentials: GCPCredentials, resources: GCPResources) -> None:
         """Initialize GCP configuration with credentials and resources.
-        
+
         Args:
             credentials: GCP authentication credentials
             resources: GCP resource allocation settings
@@ -299,7 +300,7 @@ class GCPConfig(Config):
     @property
     def region(self) -> str:
         """Get the GCP region for resource deployment.
-        
+
         Returns:
             GCP region identifier (e.g., 'us-central1')
         """
@@ -308,7 +309,7 @@ class GCPConfig(Config):
     @property
     def project_name(self) -> str:
         """Get the GCP project name from credentials.
-        
+
         Returns:
             GCP project identifier string
         """
@@ -317,7 +318,7 @@ class GCPConfig(Config):
     @property
     def credentials(self) -> GCPCredentials:
         """Get the GCP credentials instance.
-        
+
         Returns:
             GCP authentication credentials
         """
@@ -326,7 +327,7 @@ class GCPConfig(Config):
     @property
     def resources(self) -> GCPResources:
         """Get the GCP resources instance.
-        
+
         Returns:
             GCP resource allocation settings
         """
@@ -335,16 +336,16 @@ class GCPConfig(Config):
     @staticmethod
     def deserialize(config: Dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         """Deserialize GCP configuration from dictionary and cache.
-        
+
         Loads complete GCP configuration including credentials and resources.
         Validates consistency between cached and provided configuration values,
         updating cache with new user-provided values when they differ.
-        
+
         Args:
             config: Configuration dictionary with GCP settings
             cache: Cache instance for storing/retrieving configuration
             handlers: Logging handlers for status reporting
-            
+
         Returns:
             Initialized GCPConfig instance
         """
@@ -382,7 +383,7 @@ class GCPConfig(Config):
     @staticmethod
     def initialize(cfg: Config, dct: Dict) -> None:
         """Initialize GCP configuration from dictionary.
-        
+
         Args:
             cfg: Config instance to initialize (will be cast to GCPConfig)
             dct: Dictionary containing configuration values including region
@@ -392,7 +393,7 @@ class GCPConfig(Config):
 
     def serialize(self) -> Dict:
         """Serialize configuration to dictionary for cache storage.
-        
+
         Returns:
             Dictionary containing complete GCP configuration including
             name, region, credentials, and resources
@@ -407,9 +408,9 @@ class GCPConfig(Config):
 
     def update_cache(self, cache: Cache) -> None:
         """Update cache with current configuration values.
-        
+
         Updates region, credentials, and resources in the cache.
-        
+
         Args:
             cache: Cache instance to update with configuration data
         """
