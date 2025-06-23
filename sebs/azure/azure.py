@@ -323,8 +323,8 @@ class Azure(System):
                     )
                 )
                 url = ""
-                for line in ret.split(b"\n"):
-                    line = line.decode("utf-8")
+                ret_str = ret.decode("utf-8")
+                for line in ret_str.split("\n"):
                     if "Invoke url:" in line:
                         url = line.split("Invoke url:")[1].strip()
                         break
@@ -761,7 +761,7 @@ class Azure(System):
         invocations_to_process = set(requests.keys())
         # while len(invocations_processed) < len(requests.keys()):
         self.logging.info("Azure: Running App Insights query.")
-        ret = self.cli_instance.execute(
+        ret_bytes = self.cli_instance.execute(
             (
                 'az monitor app-insights query --app {} --analytics-query "{}" '
                 "--start-time {} {} --end-time {} {}"
@@ -773,11 +773,12 @@ class Azure(System):
                 end_time_str,
                 timezone_str,
             )
-        ).decode("utf-8")
-        ret = json.loads(ret)
-        ret = ret["tables"][0]
+        )
+        ret_str = ret_bytes.decode("utf-8")
+        json_data = json.loads(ret_str)
+        table_data = json_data["tables"][0]
         # time is last, invocation is second to last
-        for request in ret["rows"]:
+        for request in table_data["rows"]:
             invocation_id = request[-2]
             # might happen that we get invocation from another experiment
             if invocation_id not in requests:

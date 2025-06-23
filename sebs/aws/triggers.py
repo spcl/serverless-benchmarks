@@ -128,7 +128,7 @@ class LibraryTrigger(Trigger):
             aws_result.parse_benchmark_output(json.loads(function_output["body"]))
         return aws_result
 
-    def async_invoke(self, payload: dict) -> dict:
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         """Asynchronously invoke the Lambda function.
 
         Triggers the Lambda function asynchronously without waiting for
@@ -138,13 +138,16 @@ class LibraryTrigger(Trigger):
             payload: Dictionary payload to send to the function
 
         Returns:
-            dict: AWS Lambda invocation response
+            concurrent.futures.Future: Future object representing the async invocation
 
         Raises:
             RuntimeError: If the async invocation fails
         """
 
         # FIXME: proper return type
+        self.logging.warning(
+            "Async invoke for AWS Lambda library trigger does not wait for completion!"
+        )
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
         ret = client.invoke(
@@ -157,7 +160,11 @@ class LibraryTrigger(Trigger):
             self.logging.error("Async invocation of {} failed!".format(self.name))
             self.logging.error("Input: {}".format(serialized_payload.decode("utf-8")))
             raise RuntimeError()
-        return ret
+
+        # Create a completed future with the result
+        future: concurrent.futures.Future = concurrent.futures.Future()
+        future.set_result(ret)
+        return future
 
     def serialize(self) -> dict:
         """Serialize the trigger to a dictionary.

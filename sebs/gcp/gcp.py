@@ -19,7 +19,7 @@ Classes:
 
 Example:
     Basic GCP system initialization:
-    
+
         config = GCPConfig(credentials, resources)
         gcp_system = GCP(system_config, config, cache, docker_client, logging_handlers)
         gcp_system.initialize()
@@ -735,22 +735,6 @@ class GCP(System):
             Fully qualified function name in GCP format
         """
         return f"projects/{project_name}/locations/{location}/functions/{func_name}"
-
-    def prepare_experiment(self, benchmark: str) -> str:
-        """Prepare storage resources for benchmark experiment.
-
-        Creates a dedicated storage bucket for experiment logs and outputs.
-
-        Args:
-            benchmark: Name of the benchmark being prepared
-
-        Returns:
-            Name of the created logs storage bucket
-        """
-        logs_bucket = self._system_resources.get_storage().add_output_bucket(
-            benchmark, suffix="logs"
-        )
-        return logs_bucket
 
     def shutdown(self) -> None:
         """Shutdown the GCP system and clean up resources.

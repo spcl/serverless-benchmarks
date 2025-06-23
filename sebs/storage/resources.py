@@ -18,7 +18,7 @@ The module supports:
 """
 
 import docker
-from typing import cast, Dict, Optional, Tuple
+from typing import cast, Dict, Optional, Tuple, Any
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Resources
@@ -84,13 +84,13 @@ class SelfHostedResources(Resources):
         """
         return self._nosql_storage
 
-    def serialize(self) -> Dict[str, any]:
+    def serialize(self) -> Dict[str, Any]:
         """Serialize the resource configuration to a dictionary.
 
         Returns:
-            Dict[str, any]: Serialized configuration containing storage and/or nosql sections
+            Dict[str, Any]: Serialized configuration containing storage and/or nosql sections
         """
-        out: Dict[str, any] = {}
+        out: Dict[str, Any] = {}
 
         if self._object_storage is not None:
             out = {**out, "storage": self._object_storage.serialize()}
@@ -120,8 +120,8 @@ class SelfHostedResources(Resources):
             )
 
     def _deserialize_storage(
-        self, config: Dict[str, any], cached_config: Optional[Dict[str, any]], storage_type: str
-    ) -> Tuple[str, Dict[str, any]]:
+        self, config: Dict[str, Any], cached_config: Optional[Dict[str, Any]], storage_type: str
+    ) -> Tuple[str, Dict[str, Any]]:
         """Deserialize storage configuration from config or cache.
 
         Attempts to load storage configuration from the provided config first,
@@ -133,10 +133,10 @@ class SelfHostedResources(Resources):
             storage_type: Type of storage to deserialize ('object' or 'nosql')
 
         Returns:
-            Tuple[str, Dict[str, any]]: Storage implementation name and configuration
+            Tuple[str, Dict[str, Any]]: Storage implementation name and configuration
         """
         storage_impl = ""
-        storage_config: Dict[str, any] = {}
+        storage_config: Dict[str, Any] = {}
 
         # Check for new config
         if "storage" in config and storage_type in config["storage"]:
@@ -165,7 +165,7 @@ class SelfHostedResources(Resources):
 
     @staticmethod
     def _deserialize(
-        ret: "SelfHostedResources", config: Dict[str, any], cached_config: Dict[str, any]
+        ret: "SelfHostedResources", config: Dict[str, Any], cached_config: Optional[Dict[str, Any]]
     ) -> None:
         """Deserialize storage configurations from config and cache data.
 

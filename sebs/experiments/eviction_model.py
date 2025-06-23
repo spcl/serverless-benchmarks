@@ -14,9 +14,10 @@ import logging
 import os
 import time
 from datetime import datetime
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING, Dict, Any
 import multiprocessing
 from multiprocessing.pool import AsyncResult, ThreadPool
+from typing import cast
 
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.function import Function, Trigger
@@ -341,7 +342,7 @@ class EvictionModel(Experiment):
         # flake8 issue
         # https://github.com/PyCQA/pycodestyle/issues/373
         functions = self.functions[invocation_idx :: self.function_copies_per_time]  # noqa
-        results = {}
+        results: Dict[int, List[List[Dict[str, Any]]]] = {}
 
         # Disable logging - otherwise we have RLock that can't get be pickled
         for func in functions:
@@ -374,8 +375,8 @@ class EvictionModel(Experiment):
                 # time.sleep(5)
                 for _, t in enumerate(self.times):
                     results[t].append([])
-                local_results = []
-                servers_results = []
+                local_results: List[AsyncResult] = []
+                servers_results: List[AsyncResult] = []
 
                 """
                     Start M server instances. Each one handles one set of invocations.
@@ -406,11 +407,11 @@ class EvictionModel(Experiment):
                     Rethrow exceptions if appear
                 """
                 for result in servers_results:
-                    ret = result.get()
+                    servers_ret = result.get()
 
                 for result in local_results:
-                    ret = result.get()
-                    for i, val in enumerate(ret):
+                    local_ret = result.get()
+                    for i, val in enumerate(local_ret):
                         results[self.times[i]][-1].append(val)
 
                 """

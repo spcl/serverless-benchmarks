@@ -18,7 +18,7 @@ import os
 import random
 import time
 from datetime import datetime
-from typing import Dict, List, TYPE_CHECKING
+from typing import Dict, List, TYPE_CHECKING, Union
 
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
@@ -220,6 +220,7 @@ class InvocationOverhead(Experiment):
         repetitions = self.settings["repetitions"]
         N = self.settings["N"]
 
+        experiment: Union[CodePackageSize, PayloadSize]
         if self.settings["type"] == "code":
             experiment = CodePackageSize(self._deployment_client, self._benchmark, self.settings)
         else:

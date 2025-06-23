@@ -179,6 +179,8 @@ class Benchmark(LoggingBase):
 
     """
 
+    _hash_value: Optional[str]
+
     @staticmethod
     def typename() -> str:
         """
@@ -207,6 +209,7 @@ class Benchmark(LoggingBase):
         Returns:
             str: Path to the benchmark directory
         """
+        assert self._benchmark_path is not None
         return self._benchmark_path
 
     @property
@@ -220,13 +223,14 @@ class Benchmark(LoggingBase):
         return self._benchmark_config
 
     @property
-    def code_package(self) -> dict:
+    def code_package(self) -> Dict[str, Any]:
         """
         Get the code package information.
 
         Returns:
-            dict: Dictionary with code package information
+            Dict[str, Any]: Dictionary with code package information
         """
+        assert self._code_package is not None
         return self._code_package
 
     @property
@@ -237,6 +241,7 @@ class Benchmark(LoggingBase):
         Returns:
             Dict[str, Any]: Dictionary of functions
         """
+        assert self._functions is not None
         return self._functions
 
     @property
@@ -250,6 +255,7 @@ class Benchmark(LoggingBase):
         if self.code_package:
             return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
         else:
+            assert self._code_location is not None
             return self._code_location
 
     @property
@@ -474,7 +480,7 @@ class Benchmark(LoggingBase):
         self._cache_client = cache_client
         self._docker_client = docker_client
         self._system_config = system_config
-        self._hash_value = None
+        self._code_location: Optional[str] = None
         self._output_dir = os.path.join(
             output_dir,
             f"{benchmark}_code",
@@ -980,6 +986,7 @@ class Benchmark(LoggingBase):
         # buckets = mod.buckets_count()
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
+        assert self._benchmark_data_path is not None
         input_config = self._benchmark_input_module.generate_input(
             self._benchmark_data_path, size, bucket, input, output, storage_func, nosql_func
         )

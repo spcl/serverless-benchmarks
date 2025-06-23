@@ -363,7 +363,7 @@ class GCPConfig(Config):
             GCPConfig.initialize(config_obj, config)
 
         # mypy makes a mistake here
-        updated_keys: List[Tuple[str, Tuple[str]]] = [["region", ["gcp", "region"]]]  # type: ignore
+        updated_keys: List[Tuple[str, List[str]]] = [("region", ["gcp", "region"])]  # type: ignore
         # for each attribute here, check if its version is different than the one provided by
         # user; if yes, then update the value
         for config_key, keys in updated_keys:
