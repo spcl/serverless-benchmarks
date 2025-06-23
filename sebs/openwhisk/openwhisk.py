@@ -12,7 +12,7 @@ and library-based invocations.
 
 import os
 import subprocess
-from typing import cast, Dict, List, Optional, Tuple, Type, Any
+from typing import cast, Dict, List, Optional, Tuple, Type
 
 import docker
 

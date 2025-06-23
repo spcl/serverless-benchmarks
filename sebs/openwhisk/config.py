@@ -13,7 +13,7 @@ Classes:
 
 from __future__ import annotations
 
-from typing import Optional, cast, Dict
+from typing import Optional, cast, Dict, Any
 
 from sebs.cache import Cache
 from sebs.faas.config import Credentials, Resources, Config
