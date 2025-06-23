@@ -195,7 +195,7 @@ class OpenWhiskResources(SelfHostedResources):
                 ret, cached_config["resources"]
             )
 
-        ret._deserialize(ret, config, cached_config)
+        ret._deserialize(ret, config, cached_config or {})
 
         # Check for new config - overrides but check if it's different
         if "docker_registry" in config:
@@ -293,7 +293,9 @@ class OpenWhiskConfig(Config):
     experimentalManifest: bool
     cache: Cache
 
-    def __init__(self, config: Dict[str, Any], cache: Cache) -> None:
+    def __init__(
+        self, resources: OpenWhiskResources, credentials: OpenWhiskCredentials, cache: Cache
+    ) -> None:
         """
         Initialize OpenWhisk configuration.
 
@@ -302,13 +304,8 @@ class OpenWhiskConfig(Config):
             cache: Cache instance for configuration persistence
         """
         super().__init__(name="openwhisk")
-        self._credentials = OpenWhiskCredentials()
-        self._resources = OpenWhiskResources()
-        self.shutdownStorage = config["shutdownStorage"]
-        self.removeCluster = config["removeCluster"]
-        self.wsk_exec = config["wskExec"]
-        self.wsk_bypass_security = config["wskBypassSecurity"]
-        self.experimentalManifest = config["experimentalManifest"]
+        self._credentials = credentials
+        self._resources = resources
         self.cache = cache
 
     @property
@@ -334,13 +331,21 @@ class OpenWhiskConfig(Config):
     @staticmethod
     def initialize(cfg: Config, dct: Dict[str, Any]) -> None:
         """
-        Initialize configuration from dictionary (currently no-op).
+        Initialize configuration from dictionary.
 
         Args:
             cfg: Configuration instance to initialize
             dct: Dictionary containing initialization data
         """
-        pass
+
+        config = cast(OpenWhiskConfig, cfg)
+        config._region = dct["region"]
+
+        config.shutdownStorage = dct["shutdownStorage"]
+        config.removeCluster = dct["removeCluster"]
+        config.wsk_exec = dct["wskExec"]
+        config.wsk_bypass_security = dct["wskBypassSecurity"]
+        config.experimentalManifest = dct["experimentalManifest"]
 
     def serialize(self) -> Dict[str, Any]:
         """
@@ -374,14 +379,22 @@ class OpenWhiskConfig(Config):
         Returns:
             OpenWhiskConfig instance with deserialized configuration
         """
-        cached_config = cache.get_config("openwhisk")
         resources = cast(
             OpenWhiskResources, OpenWhiskResources.deserialize(config, cache, handlers)
         )
 
-        res = OpenWhiskConfig(config, cached_config)
+        res = OpenWhiskConfig(resources, OpenWhiskCredentials(), cache)
         res.logging_handlers = handlers
-        res._resources = resources
+
+        cached_config = cache.get_config("openwhisk")
+
+        if cached_config:
+            res.logging.info("Loading cached config for OpenWhisk")
+            OpenWhiskConfig.initialize(res, cached_config)
+        else:
+            res.logging.info("Using user-provided config for GCP")
+            OpenWhiskConfig.initialize(res, config)
+
         return res
 
     def update_cache(self, cache: Cache) -> None:
