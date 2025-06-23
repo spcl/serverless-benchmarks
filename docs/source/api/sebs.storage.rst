@@ -9,21 +9,37 @@ sebs.storage.config module
 
 .. automodule:: sebs.storage.config
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.storage.minio module
 -------------------------
 
 .. automodule:: sebs.storage.minio
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
+
+sebs.storage.resources module
+-----------------------------
+
+.. automodule:: sebs.storage.resources
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+sebs.storage.scylladb module
+----------------------------
+
+.. automodule:: sebs.storage.scylladb
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: sebs.storage
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

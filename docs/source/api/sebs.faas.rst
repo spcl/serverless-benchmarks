@@ -9,45 +9,61 @@ sebs.faas.config module
 
 .. automodule:: sebs.faas.config
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.faas.container module
 --------------------------
 
 .. automodule:: sebs.faas.container
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.faas.function module
 -------------------------
 
 .. automodule:: sebs.faas.function
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
+
+sebs.faas.nosql module
+----------------------
+
+.. automodule:: sebs.faas.nosql
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+sebs.faas.resources module
+--------------------------
+
+.. automodule:: sebs.faas.resources
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 sebs.faas.storage module
 ------------------------
 
 .. automodule:: sebs.faas.storage
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.faas.system module
 -----------------------
 
 .. automodule:: sebs.faas.system
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: sebs.faas
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

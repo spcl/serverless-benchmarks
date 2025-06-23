@@ -24,77 +24,69 @@ sebs.benchmark module
 
 .. automodule:: sebs.benchmark
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.cache module
 -----------------
 
 .. automodule:: sebs.cache
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.config module
 ------------------
 
 .. automodule:: sebs.config
    :members:
-   :undoc-members:
    :show-inheritance:
-
-sebs.regression module
-----------------------
-
-.. automodule:: sebs.regression
-   :members:
    :undoc-members:
-   :show-inheritance:
 
 sebs.sebs module
 ----------------
 
 .. automodule:: sebs.sebs
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.statistics module
 ----------------------
 
 .. automodule:: sebs.statistics
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.types module
 -----------------
 
 .. automodule:: sebs.types
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.utils module
 -----------------
 
 .. automodule:: sebs.utils
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 sebs.version module
 -------------------
 
 .. automodule:: sebs.version
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: sebs
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
