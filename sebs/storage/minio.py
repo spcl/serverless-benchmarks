@@ -231,7 +231,8 @@ class Minio(PersistentStorage):
                     f"{json.dumps(self._storage_container.attrs, indent=2)}"
                 )
                 raise RuntimeError(
-                    f"Incorrect detection of IP address for container with id {self._cfg.instance_id}"
+                    f"Incorrect detection of IP address for container with id "
+                    f"{self._cfg.instance_id}"
                 )
             self.logging.info("Starting minio instance at {}".format(self._cfg.address))
 
@@ -497,9 +498,9 @@ class Minio(PersistentStorage):
 
     """
     Deserialization and inheritance support
-    
+
     This implementation supports overriding this class. The main Minio class
-    is used to start/stop deployments. When overriding the implementation in 
+    is used to start/stop deployments. When overriding the implementation in
     Local/OpenWhisk/..., we call the _deserialize method and provide an
     alternative implementation type.
     """

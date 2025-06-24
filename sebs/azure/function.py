@@ -9,16 +9,16 @@ attributes like function storage accounts and Azure trigger configurations.
 
 Example:
     Basic usage for creating an Azure Function:
-    
+
     ```python
     from sebs.azure.function import AzureFunction
     from sebs.azure.config import AzureResources
     from sebs.faas.function import FunctionConfig
-    
+
     # Create function with Azure-specific storage
     function = AzureFunction(
         name="my-function",
-        benchmark="test-benchmark", 
+        benchmark="test-benchmark",
         code_hash="abc123",
         function_storage=storage_account,
         cfg=function_config

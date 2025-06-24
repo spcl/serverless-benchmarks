@@ -9,7 +9,7 @@ Classes:
 
 Example:
     Creating a GCP function instance:
-    
+
         config = FunctionConfig(memory=256, timeout=60, runtime="python39")
         function = GCPFunction("my-function", "benchmark-name", "hash123", config)
 """

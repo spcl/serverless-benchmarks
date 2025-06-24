@@ -137,7 +137,7 @@ class NoSQLStorage(ABC, LoggingBase):
 
     """
     Table naming convention and implementation requirements.
-    
+
     Each table name follows this pattern:
     sebs-benchmarks-{resource_id}-{benchmark-name}-{table-name}
 
@@ -176,7 +176,7 @@ class NoSQLStorage(ABC, LoggingBase):
 
     """
     Platform-specific table implementations:
-    
+
     - AWS: DynamoDB Table
     - Azure: CosmosDB Container
     - Google Cloud: Firestore in Datastore Mode, Database
@@ -223,7 +223,7 @@ class NoSQLStorage(ABC, LoggingBase):
 
     """
     Table management operations:
-    
+
     - AWS DynamoDB: Removing & recreating table is the cheapest & fastest option
     - Azure CosmosDB: Recreate container
     - Google Cloud: Also likely recreate

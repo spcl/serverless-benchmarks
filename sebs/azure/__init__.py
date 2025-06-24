@@ -20,17 +20,16 @@ The package handles:
 
 Example:
     Basic usage for Azure benchmarking:
-    
     ```python
     from sebs.azure import Azure, AzureConfig
-    
+
     # Load configuration
     config = AzureConfig.deserialize(config_dict, cache, handlers)
-    
+
     # Initialize Azure system
     azure = Azure(sebs_config, config, cache, docker_client, handlers)
     azure.initialize()
-    
+
     # Deploy and benchmark functions
     function = azure.create_function(code_package, func_name, False, "")
     result = function.invoke(payload)

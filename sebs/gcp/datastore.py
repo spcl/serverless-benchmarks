@@ -10,7 +10,7 @@ Classes:
 
 Example:
     Using Datastore for benchmark NoSQL operations:
-    
+
         datastore = Datastore(cli_instance, cache, resources, region)
         table_name = datastore.create_table("benchmark-name", "user-data", "user_id")
         datastore.write_to_table("benchmark-name", table_name, data, primary_key, secondary_key)

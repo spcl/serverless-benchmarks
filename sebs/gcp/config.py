@@ -17,7 +17,7 @@ Classes:
 
 Example:
     Basic GCP configuration setup:
-    
+
         credentials = GCPCredentials("/path/to/service-account.json")
         resources = GCPResources()
         config = GCPConfig(credentials, resources)

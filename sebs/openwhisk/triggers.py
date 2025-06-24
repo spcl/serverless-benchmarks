@@ -200,7 +200,10 @@ class HTTPTrigger(Trigger):
         url: HTTP URL for the web action endpoint
 
     Example:
-        >>> trigger = HTTPTrigger("my-function", "https://openwhisk.example.com/api/v1/web/guest/default/my-function.json")
+        >>> trigger = HTTPTrigger(
+        ...     "my-function",
+        ...     "https://openwhisk.example.com/api/v1/web/guest/default/my-function.json"
+        ... )
         >>> result = trigger.sync_invoke({"key": "value"})
     """
 

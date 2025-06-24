@@ -751,7 +751,8 @@ class OpenWhiskTestSequenceNodejs(
 
 
 # Stream result handler for concurrent test execution
-# Based on https://stackoverflow.com/questions/22484805/a-simple-working-example-for-testtools-concurrentstreamtestsuite
+# Based on https://stackoverflow.com/questions/22484805/
+# a-simple-working-example-for-testtools-concurrentstreamtestsuite
 class TracingStreamResult(testtools.StreamResult):
     """Stream result handler for concurrent test execution.
 

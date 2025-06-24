@@ -13,17 +13,17 @@ across different deployment environments while maintaining consistent interfaces
 
 Key Components:
     - config: Configuration dataclasses for storage backends
-    - minio: MinIO-based object storage implementation  
+    - minio: MinIO-based object storage implementation
     - scylladb: ScyllaDB-based NoSQL storage implementation
     - resources: Resource management for self-hosted storage deployments
 
 Example:
     To use MinIO object storage in a benchmark:
-    
+
     ```python
     from sebs.storage.minio import Minio
     from sebs.storage.config import MinioConfig
-    
+
     # Configure and start MinIO
     config = MinioConfig(mapped_port=9000, version="latest")
     storage = Minio(docker_client, cache_client, resources, False)

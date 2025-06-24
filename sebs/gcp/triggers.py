@@ -10,12 +10,11 @@ Classes:
 
 Example:
     Using a library trigger for direct invocation:
-    
+
         trigger = LibraryTrigger("my-function", gcp_client)
         result = trigger.sync_invoke({"input": "data"})
-        
     Using an HTTP trigger:
-    
+
         trigger = HTTPTrigger("https://region-project.cloudfunctions.net/my-function")
         result = trigger.sync_invoke({"input": "data"})
 """

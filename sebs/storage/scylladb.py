@@ -226,7 +226,8 @@ class ScyllaDB(NoSQLStorage):
                     f"{json.dumps(self._storage_container.attrs, indent=2)}"
                 )
                 raise RuntimeError(
-                    f"Incorrect detection of IP address for container with id {self._cfg.instance_id}"
+                    f"Incorrect detection of IP address for container with id "
+                    f"{self._cfg.instance_id}"
                 )
             self.logging.info("Starting ScyllaDB instance at {}".format(self._cfg.address))
 

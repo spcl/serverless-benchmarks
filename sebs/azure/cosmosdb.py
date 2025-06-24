@@ -10,17 +10,17 @@ The module includes:
 
 Example:
     Basic usage for CosmosDB operations:
-    
+
     ```python
     from sebs.azure.cosmosdb import CosmosDB
-    
+
     # Initialize CosmosDB with account
     cosmosdb = CosmosDB(cache, resources, cosmosdb_account)
-    
+
     # Set up benchmark database and containers
     db_name = cosmosdb.benchmark_database("my-benchmark")
     tables = cosmosdb.get_tables("my-benchmark")
-    
+
     # Perform operations
     credentials = cosmosdb.credentials()
     ```

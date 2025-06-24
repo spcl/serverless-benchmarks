@@ -9,7 +9,7 @@ Classes:
 
 Example:
     Using the gcloud CLI interface:
-    
+
         cli = GCloudCLI(credentials, system_config, docker_client)
         cli.login(project_name)
         result = cli.execute("gcloud functions list")
@@ -18,7 +18,6 @@ Example:
 
 import logging
 import os
-from typing import Union
 
 import docker
 

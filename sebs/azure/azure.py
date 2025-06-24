@@ -17,15 +17,15 @@ functionality for serverless function benchmarking.
 
 Example:
     Basic usage for Azure benchmarking:
-    
+
     ```python
     from sebs.azure.azure import Azure
     from sebs.azure.config import AzureConfig
-    
+
     # Initialize Azure system with configuration
     azure_system = Azure(sebs_config, azure_config, cache, docker_client, handlers)
     azure_system.initialize()
-    
+
     # Deploy and benchmark functions
     function = azure_system.create_function(code_package, func_name, False, "")
     result = function.invoke(payload)
@@ -729,7 +729,7 @@ class Azure(System):
 
         resource_group = self.config.resources.resource_group(self.cli_instance)
         # Avoid warnings in the next step
-        ret = self.cli_instance.execute(
+        self.cli_instance.execute(
             "az feature register --name AIWorkspacePreview " "--namespace microsoft.insights"
         )
         app_id_query = self.cli_instance.execute(

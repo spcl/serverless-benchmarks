@@ -25,16 +25,16 @@ Modules:
 
 Example:
     Basic GCP system setup:
-    
+
         from sebs.gcp import GCP, GCPConfig
-        
+
         # Configure GCP with credentials
         config = GCPConfig.deserialize(config_dict, cache, handlers)
-        
+
         # Initialize GCP system
         gcp_system = GCP(system_config, config, cache, docker_client, handlers)
         gcp_system.initialize()
-        
+
         # Deploy a function
         function = gcp_system.create_function(benchmark, "my-function", False, "")
 """

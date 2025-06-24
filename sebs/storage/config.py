@@ -7,7 +7,7 @@ specific storage systems.
 
 Key Classes:
     PersistentStorageConfig: Abstract base for object storage configurations
-    MinioConfig: Configuration for MinIO S3-compatible object storage  
+    MinioConfig: Configuration for MinIO S3-compatible object storage
     NoSQLStorageConfig: Abstract base for NoSQL database configurations
     ScyllaDBConfig: Configuration for ScyllaDB DynamoDB-compatible storage
 

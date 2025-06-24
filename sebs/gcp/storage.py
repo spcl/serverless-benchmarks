@@ -9,7 +9,7 @@ Classes:
 
 Example:
     Using GCP storage for benchmark files:
-    
+
         storage = GCPStorage(region, cache, resources, replace_existing=False)
         bucket = storage.add_benchmark_bucket("my-benchmark")
         storage.upload(bucket, "/path/to/file.zip", "benchmark-code.zip")

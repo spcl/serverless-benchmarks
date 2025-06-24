@@ -29,8 +29,12 @@ class OpenWhiskContainer(DockerContainer):
         config: OpenWhisk configuration containing registry settings
 
     Example:
-        >>> container = OpenWhiskContainer(sys_config, ow_config, docker_client, True)
-        >>> registry, repo, tag, uri = container.registry_name("benchmark", "python", "3.8", "x86_64")
+        >>> container = OpenWhiskContainer(
+        ...     sys_config, ow_config, docker_client, True
+        ... )
+        >>> registry, repo, tag, uri = container.registry_name(
+        ...     "benchmark", "python", "3.8", "x86_64"
+        ... )
     """
 
     @staticmethod
@@ -96,8 +100,11 @@ class OpenWhiskContainer(DockerContainer):
                 - Complete image URI
 
         Example:
-            >>> registry, repo, tag, uri = container.registry_name("test", "python", "3.8", "x86_64")
-            >>> # Returns: ("Docker Hub", "sebs", "openwhisk-test-python-3.8-x86_64", "sebs:openwhisk-test-python-3.8-x86_64")
+            >>> registry, repo, tag, uri = container.registry_name(
+            ...     "test", "python", "3.8", "x86_64"
+            ... )
+            >>> # Returns: ("Docker Hub", "sebs", "openwhisk-test-python-3.8-x86_64",
+            ...           "sebs:openwhisk-test-python-3.8-x86_64")
         """
         registry_name = self.config.resources.docker_registry
 

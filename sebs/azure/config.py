@@ -12,11 +12,11 @@ Key classes:
 
 Example:
     Basic usage for setting up Azure configuration:
-    
+
     ```python
     from sebs.azure.config import AzureConfig, AzureCredentials, AzureResources
     from sebs.cache import Cache
-    
+
     # Load configuration from config dict and cache
     config = AzureConfig.deserialize(config_dict, cache, handlers)
     credentials = config.credentials

@@ -17,7 +17,6 @@ from datetime import datetime
 from typing import List, Optional, Tuple, TYPE_CHECKING, Dict, Any
 import multiprocessing
 from multiprocessing.pool import AsyncResult, ThreadPool
-from typing import cast
 
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.function import Function, Trigger
@@ -407,7 +406,7 @@ class EvictionModel(Experiment):
                     Rethrow exceptions if appear
                 """
                 for result in servers_results:
-                    servers_ret = result.get()
+                    result.get()
 
                 for result in local_results:
                     local_ret = result.get()

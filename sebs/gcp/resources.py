@@ -10,7 +10,7 @@ Classes:
 
 Example:
     Creating and using GCP system resources:
-    
+
         resources = GCPSystemResources(system_config, gcp_config, cache, docker_client, handlers)
         storage = resources.get_storage(replace_existing=False)
         datastore = resources.get_nosql_storage()
