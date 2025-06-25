@@ -19,7 +19,7 @@ class LambdaFunction(Function):
 
     This class represents an AWS Lambda function in the serverless benchmarking
     suite. It extends the base Function class with AWS-specific attributes and
-    functionality.
+    functionality, like resource ARN, role, and optional bucket for code deployment.
 
     Attributes:
         arn: Amazon Resource Name of the Lambda function

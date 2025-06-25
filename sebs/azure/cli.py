@@ -166,8 +166,14 @@ class AzureCLI(LoggingBase):
 
         Note:
             This implementation loads the entire archive into memory,
-            which may not be efficient for very large function packages.
-            For large packages, consider using docker cp directly.
+            This is an inefficient and memory-intensive implementation.
+            So far, we didn't have very large functions that require many gigabytes.
+            docker-py does not support a straightforward copy and we can't
+            call put_archive with chunks.
+
+            For large packages, there are two potential solutions:
+            (1) manually call docker cp and decompress
+            (2) commit the docker container and restart with a new mounted volume.
 
         Args:
             directory: Local directory containing function package

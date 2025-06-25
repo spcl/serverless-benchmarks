@@ -86,7 +86,7 @@ class BlobStorage(PersistentStorage):
         self.client: BlobServiceClient = BlobServiceClient.from_connection_string(conn_string)
 
     def _create_bucket(
-        self, name: str, containers: List[str] = [], randomize_name: bool = False
+        self, name: str, containers: Optional[List[str]] = None, randomize_name: bool = False
     ) -> str:
         """Create new Azure Blob Storage container.
 
@@ -101,6 +101,10 @@ class BlobStorage(PersistentStorage):
         Returns:
             Name of the created or existing container.
         """
+
+        if containers is None:
+            containers = []
+
         for c in containers:
             if name in c:
                 self.logging.info("Container {} for {} already exists, skipping.".format(c, name))

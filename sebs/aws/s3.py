@@ -98,7 +98,7 @@ class S3(PersistentStorage):
         self.cached = False
 
     def correct_name(self, name: str) -> str:
-        """Correct bucket name for S3 naming requirements.
+        """No correction is needed for S3 bucket name.
 
         Args:
             name: Original bucket name
@@ -109,7 +109,7 @@ class S3(PersistentStorage):
         return name
 
     def _create_bucket(
-        self, name: str, buckets: List[str] = [], randomize_name: bool = False
+        self, name: str, buckets: Optional[List[str]] = None, randomize_name: bool = False
     ) -> str:
         """Create an S3 bucket with the specified name.
 
@@ -129,6 +129,9 @@ class S3(PersistentStorage):
             ClientError: If bucket creation fails for other reasons
             RuntimeError: If bucket already exists in us-east-1 region
         """
+        if buckets is None:
+            buckets = []
+
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
@@ -179,8 +182,9 @@ class S3(PersistentStorage):
     def uploader_func(self, path_idx: int, key: str, filepath: str) -> None:
         """Upload a file to S3 with caching and replacement logic.
 
-        Handles the upload of benchmark files with appropriate caching behavior
-        and replacement logic based on configuration.
+        Handles the upload of benchmark files with appropriate caching behavior:
+        skips upload if using cached buckets and not replacing existing files,
+        and we know that the file is already uploaded.
 
         Args:
             path_idx: Index of the input path configuration

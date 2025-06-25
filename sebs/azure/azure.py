@@ -172,7 +172,8 @@ class Azure(System):
         """Find existing SeBS deployments by scanning resource groups.
 
         Looks for Azure resource groups matching the SeBS naming pattern
-        to identify existing deployments that can be reused.
+        - sebs_resource_group_(.*) - to identify existing deployments
+        that can be reused.
 
         Returns:
             List of deployment identifiers found in resource groups.
@@ -296,6 +297,8 @@ class Azure(System):
 
         Deploys the packaged function code to Azure Functions using the
         Azure Functions CLI tools. Handles retries and URL extraction.
+        Will repeat on failure, which is useful to handle delays in
+        Azure cache updates - it can take between 30 and 60 seconds.
 
         Args:
             function: Function instance to publish
@@ -378,6 +381,8 @@ class Azure(System):
 
         Updates an existing Azure Function with new code package,
         including environment variables and function configuration.
+        It also ensures an HTTP trigger is correctly associated with
+        the function's URL.
 
         Args:
             function: Function instance to update
@@ -813,7 +818,8 @@ class Azure(System):
         """Enforce cold start for multiple functions.
 
         Forces cold start behavior for all provided functions by updating
-        environment variables and waiting for changes to propagate.
+        environment variables and waiting for changes to propagate:
+        sleep is added to allow changes to propagate.
 
         Args:
             functions: List of functions to enforce cold start for

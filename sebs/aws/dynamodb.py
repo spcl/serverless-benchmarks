@@ -180,9 +180,12 @@ class DynamoDB(NoSQLStorage):
     ) -> str:
         """Create a DynamoDB table for benchmark data.
 
-        Creates a DynamoDB table with a unique name for the benchmark. Unlike
-        Azure (account -> database -> container) and GCP (database per benchmark),
+        Creates a unique DynamoDB table name using resource ID, benchmark name, and provided name.
+        Unlike Azure (account -> database -> container) and GCP (database per benchmark),
         AWS requires unique table names across the account.
+
+        The function handles cases where the table already exists or is being created.
+        Uses PAY_PER_REQUEST billing mode.
 
         Args:
             benchmark: Name of the benchmark
