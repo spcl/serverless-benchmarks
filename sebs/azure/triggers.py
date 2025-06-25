@@ -10,19 +10,19 @@ integration with Azure-specific services like Blob Storage.
 Example:
     Basic usage for HTTP trigger:
 
-    ```python
-    from sebs.azure.triggers import HTTPTrigger
+    ::
 
-    # Create HTTP trigger with function URL
-    trigger = HTTPTrigger(function_url, data_storage_account)
+        from sebs.azure.triggers import HTTPTrigger
 
-    # Synchronous invocation
-    result = trigger.sync_invoke(payload)
+        # Create HTTP trigger with function URL
+        trigger = HTTPTrigger(function_url, data_storage_account)
 
-    # Asynchronous invocation
-    future = trigger.async_invoke(payload)
-    result = future.result()
-    ```
+        # Synchronous invocation
+        result = trigger.sync_invoke(payload)
+
+        # Asynchronous invocation
+        future = trigger.async_invoke(payload)
+        result = future.result()
 """
 
 import concurrent.futures

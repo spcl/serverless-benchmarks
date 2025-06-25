@@ -16,20 +16,18 @@ The main class Azure extends the base System class to provide Azure-specific
 functionality for serverless function benchmarking.
 
 Example:
-    Basic usage for Azure benchmarking:
+    Basic usage for Azure benchmarking::
 
-    ```python
-    from sebs.azure.azure import Azure
-    from sebs.azure.config import AzureConfig
+        from sebs.azure.azure import Azure
+        from sebs.azure.config import AzureConfig
 
-    # Initialize Azure system with configuration
-    azure_system = Azure(sebs_config, azure_config, cache, docker_client, handlers)
-    azure_system.initialize()
+        # Initialize Azure system with configuration
+        azure_system = Azure(sebs_config, azure_config, cache, docker_client, handlers)
+        azure_system.initialize()
 
-    # Deploy and benchmark functions
-    function = azure_system.create_function(code_package, func_name, False, "")
-    result = function.invoke(payload)
-    ```
+        # Deploy and benchmark functions
+        function = azure_system.create_function(code_package, func_name, False, "")
+        result = function.invoke(payload)
 """
 
 import datetime

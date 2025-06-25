@@ -11,20 +11,20 @@ authentication.
 Example:
     Basic usage for Azure CLI operations:
 
-    ```python
-    from sebs.azure.cli import AzureCLI
+    ::
 
-    # Initialize CLI container
-    cli = AzureCLI(system_config, docker_client)
+        from sebs.azure.cli import AzureCLI
 
-    # Login to Azure
-    cli.login(app_id, tenant, password)
-    # Execute Azure CLI commands
-    result = cli.execute("az group list")
+        # Initialize CLI container
+        cli = AzureCLI(system_config, docker_client)
 
-    # Upload function package
-    cli.upload_package(local_dir, container_dest)
-    ```
+        # Login to Azure
+        cli.login(app_id, tenant, password)
+        # Execute Azure CLI commands
+        result = cli.execute("az group list")
+
+        # Upload function package
+        cli.upload_package(local_dir, container_dest)
 """
 
 import io

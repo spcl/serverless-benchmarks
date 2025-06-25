@@ -11,17 +11,17 @@ and cleanup operations.
 Example:
     Basic usage for Azure Blob Storage:
 
-    ```python
-    from sebs.azure.blob_storage import BlobStorage
+    ::
 
-    # Initialize with connection string
-    storage = BlobStorage(region, cache, resources, connection_string, False)
+        from sebs.azure.blob_storage import BlobStorage
 
-    # Upload benchmark data
-    storage.upload(container_name, filepath, key)
-    # Download results
-    storage.download(container_name, key, local_filepath)
-    ```
+        # Initialize with connection string
+        storage = BlobStorage(region, cache, resources, connection_string, False)
+
+        # Upload benchmark data
+        storage.upload(container_name, filepath, key)
+        # Download results
+        storage.download(container_name, key, local_filepath)
 """
 
 import os

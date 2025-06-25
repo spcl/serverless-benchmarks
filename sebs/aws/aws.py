@@ -180,13 +180,13 @@ class AWS(System):
         """
         Package code for deployment to AWS Lambda.
 
-        Creates a suitable deployment package with the following structure:
+        Creates a suitable deployment package with the following structure::
 
-        function/
-          - function.py
-          - storage.py
-          - resources/
-        handler.py
+            function/
+              - function.py
+              - storage.py
+              - resources/
+            handler.py
 
         It would be sufficient to just pack the code and ship it as zip to AWS.
         However, to have a compatible function implementation across providers,
