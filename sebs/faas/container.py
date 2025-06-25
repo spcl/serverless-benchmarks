@@ -81,7 +81,7 @@ class DockerContainer(LoggingBase):
     def __init__(
         self,
         system_config: SeBSConfig,
-        docker_client,
+        docker_client: docker.client,
         experimental_manifest: bool = False,
     ):
         """Initialize the Docker container manager.
@@ -246,15 +246,28 @@ class DockerContainer(LoggingBase):
         benchmark: str,
         is_cached: bool,
     ) -> Tuple[bool, str]:
-        """
-        When building function for the first time (according to SeBS cache),
-        check if Docker image is available in the registry.
-        If yes, then skip building.
-        If no, then continue building.
 
-        For every subsequent build, we rebuild image and push it to the
-        registry. These are triggered by users modifying code and enforcing
-        a build.
+        """
+            Build benchmark Docker image.
+            When building function for the first time (according to SeBS cache),
+            check if Docker image is available in the registry.
+            If yes, then skip building.
+            If no, then continue building.
+
+            For every subsequent build, we rebuild image and push it to the
+            registry. These are triggered by users modifying code and enforcing
+            a build.
+
+        Args:
+            directory: build directory
+            language_name: benchmark language
+            language_version: benchmark language version
+            architecture: CPU architecture
+            benchmark: benchmark name
+            is_cached: true if it the image is currently cached
+
+        Returns:
+            Tuple[bool, str]: True if image was rebuilt, and image URI
         """
 
         registry_name, repository_name, image_tag, image_uri = self.registry_name(

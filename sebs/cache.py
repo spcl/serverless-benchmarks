@@ -8,6 +8,12 @@ The Cache class manages persistent storage of benchmark configurations, compiled
 code packages, Docker containers, deployed functions, and cloud resource
 configurations to optimize repeated benchmark executions and deployments.
 
+This class is essential for efficient benchmarking - we avoid regenerating
+cloud resources, and we do not have to keeep querying them every time
+we start the benchmark. This is particularly important for cloud platforms
+like Azure, where queries require CLI tool running in a container and can
+take long time to resolve.
+
 Example:
     Basic cache usage:
         cache = Cache("/path/to/cache", docker_client)
@@ -15,7 +21,6 @@ Example:
         cache.add_code_package("aws", benchmark_instance)
 """
 
-# https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
 import collections.abc
 import docker
 import datetime
@@ -35,8 +40,9 @@ if TYPE_CHECKING:
 def update(d: Dict[str, Any], u: Mapping[str, Any]) -> Dict[str, Any]:
     """Recursively update nested dictionary with another dictionary.
 
-    This function performs deep merge of two dictionaries, updating nested
+    This function performs deep merge of two dictionaries, merging nested
     dictionary values rather than replacing them entirely.
+
 
     Args:
         d (Dict[str, Any]): The target dictionary to update.
@@ -45,6 +51,8 @@ def update(d: Dict[str, Any], u: Mapping[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: The updated dictionary.
     """
+
+    # https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
     for k, v in u.items():
         if isinstance(v, collections.abc.Mapping):
             d[k] = update(d.get(k, {}), v)
@@ -87,7 +95,7 @@ class Cache(LoggingBase):
         config_updated (bool): Flag indicating if configuration needs to be saved.
         cache_dir (str): Absolute path to the cache directory.
         ignore_functions (bool): Flag to skip function caching operations.
-        ignore_storage (bool): Flag to skip storage resource caching.
+        ignore_storage (bool): Flag to skip storage resoyrce caching.
         docker_client (docker.DockerClient): Docker client for container operations.
     """
 
@@ -123,7 +131,7 @@ class Cache(LoggingBase):
         Returns:
             str: The cache type name.
         """
-        return "Benchmark"
+        return "Cache"
 
     def load_config(self) -> None:
         """Load cached cloud configurations from disk.
@@ -307,7 +315,8 @@ class Cache(LoggingBase):
     def _get_resource_config(
         self, deployment: str, benchmark: str, resource: str
     ) -> Optional[Dict[str, Any]]:
-        """Get cached resource configuration for a benchmark.
+        """Helper to retrieve a specific type of resource
+        configuration from the benchmark's cache.
 
         Args:
             deployment (str): Deployment platform name.
@@ -348,11 +357,12 @@ class Cache(LoggingBase):
     def _update_resources(
         self, deployment: str, benchmark: str, resource: str, config: Dict[str, Any]
     ) -> None:
-        """Update cached resource configuration for a benchmark.
+        """Internal helper to update a resource configuration (storage or NoSQL) in the cache.
 
-        This method handles caching of resource configurations (storage, nosql)
-        for benchmarks. It creates the benchmark directory if it doesn't exist
-        and updates the configuration file.
+
+        Since the benchmark data is prepared before creating and caching a function,
+        it ensures the benchmark's cache directory exists and updates the `config.json` file
+        within it.
 
         Args:
             deployment (str): Deployment platform name.
@@ -389,8 +399,10 @@ class Cache(LoggingBase):
     ) -> None:
         """Add a new code package to the cache.
 
-        Caches a compiled benchmark code package (either directory or ZIP file)
-        along with its configuration. Handles both package and container deployments.
+        Copies the code package (directory or zip file) into the cache structure.
+        Records metadata (hash, size, location, timestamps, image details if container)
+        in the benchmark's `config.json` within the cache.
+        Handles both package and container deployments.
 
         Args:
             deployment_name (str): Name of the deployment platform.
@@ -509,8 +521,9 @@ class Cache(LoggingBase):
     ) -> None:
         """Update an existing code package in the cache.
 
-        Updates cached code package with new content and metadata. If the
-        cached package doesn't exist, adds it as a new package.
+        Copies the new code package version over the old one. Updates metadata
+        (hash, size, modification timestamp, image details if container) in the
+        benchmark's `config.json`. If the cached package doesn't exist, adds it as a new package.
 
         Args:
             deployment_name (str): Name of the deployment platform.

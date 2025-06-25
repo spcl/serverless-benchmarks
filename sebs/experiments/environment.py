@@ -1,7 +1,8 @@
 """Environment management for experiment execution.
 
 This module provides the ExperimentEnvironment class for managing CPU settings
-and system configuration during benchmark experiments. It handles:
+and system configuration during benchmark experiments. This is useful for local,
+Docker-based executions. It handles:
 
 - CPU frequency scaling and governor management
 - Hyperthreading control (enable/disable)

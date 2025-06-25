@@ -672,6 +672,8 @@ class Benchmark(LoggingBase):
         integrate the benchmark code with the target FaaS platform's
         execution environment.
 
+        Files are sourced from `benchmarks/wrappers/{deployment_name}/{language_name}/`.
+
         Args:
             output_dir: Directory where deployment files should be added
         """
@@ -692,6 +694,8 @@ class Benchmark(LoggingBase):
 
         Appends platform-specific Python packages and benchmark module
         dependencies to the requirements.txt file for the deployment.
+
+        Handles versioned requirements files (e.g., requirements.txt.3.8).
 
         Args:
             output_dir: Directory containing the requirements file to modify
@@ -723,6 +727,7 @@ class Benchmark(LoggingBase):
 
         Modifies the package.json file to include platform-specific
         Node.js dependencies required for deployment.
+        Handles versioned package.json files (e.g., package.json.12).
 
         Args:
             output_dir: Directory containing the package.json file to modify
@@ -789,8 +794,14 @@ class Benchmark(LoggingBase):
 
         Uses Docker containers to install language-specific dependencies
         (pip packages for Python, npm packages for Node.js) in an environment
-        matching the target deployment platform. Handles both volume mounting
-        and file copying approaches for Docker compatibility.
+        matching the target deployment platform.
+        Pulls a pre-built Docker image specific to the deployment, language, and
+        runtime version. Mounts the output directory into the container and runs
+        an installer script (`/sebs/installer.sh`) within the container.
+        Handles fallbacks to unversioned Docker images if versioned ones are not found.
+
+        Supports copying files to/from Docker for environments where volume mounting
+        is problematic (e.g., CircleCI).
 
         Args:
             output_dir: Directory containing the code package to build
@@ -976,9 +987,11 @@ class Benchmark(LoggingBase):
         """Build the complete benchmark deployment package.
 
         Orchestrates the entire build process for a benchmark, including:
-        - Cache validation and reuse if possible
         - Code copying and dependency installation
-        - Platform-specific build steps
+        - Adding benchmark data and deployment-specific files
+        - Running platform-specific build and packaging steps
+          (e.g., zipping, creating container image).
+        - Cache validation and reuse if possible
         - Cache updates after successful build
 
         Args:
@@ -1069,9 +1082,12 @@ class Benchmark(LoggingBase):
     ) -> Dict[str, str]:
         """Prepare benchmark input data and allocate cloud resources.
 
-        Handles the setup of cloud storage buckets and NoSQL databases
-        required by the benchmark. Generates benchmark-specific input data
-        and uploads it to the appropriate cloud storage systems.
+        Locates the benchmark's input generator module (`input.py`), determines
+        storage requirements (object storage buckets, NoSQL tables), and invokes
+        the `generate_input` function from the module to create and upload
+        input data. Handles the setup of cloud storage buckets and NoSQL databases
+        required by the benchmark.
+        Updates the cache with storage details after successful preparation.
 
         Args:
             system_resources: Cloud system resources manager
@@ -1150,16 +1166,12 @@ class Benchmark(LoggingBase):
 
         return input_config
 
-    """
-        This is used in experiments that modify the size of input package.
-        This step allows to modify code package without going through the entire pipeline.
-    """
-
     def code_package_modify(self, filename: str, data: bytes) -> None:
         """Modify a file within the deployed code package.
 
         Updates a specific file within the code package without rebuilding
         the entire package. Currently only supports ZIP archive packages.
+        This is used in experiments that modify the size of input package.
 
         Args:
             filename: Name of the file to modify within the package
@@ -1208,13 +1220,18 @@ class Benchmark(LoggingBase):
         self._code_size = bytes_size
         return bytes_size
 
-    #  https://stackoverflow.com/questions/25738523/how-to-update-one-file-inside-zip-file-using-python
     @staticmethod
     def _update_zip(zipname: str, filename: str, data: bytes) -> None:
         """Update a file within a ZIP archive.
 
         Replaces the content of a specific file within a ZIP archive
         while preserving all other files and archive metadata.
+
+        Creates a temporary zip file, copies all items from the original except
+        the target file (if it exists), and adds/replaces the target file with
+        new data. Finally, replaces the original zip with the temporary one.
+        Based on method from:
+        https://stackoverflow.com/questions/25738523/how-to-update-one-file-inside-zip-file-using-python
 
         Args:
             zipname: Path to the ZIP archive to modify
@@ -1245,16 +1262,11 @@ class Benchmark(LoggingBase):
             zf.writestr(filename, data)
 
 
-"""
-    The interface of `input` module of each benchmark.
-    Useful for static type hinting with mypy.
-"""
-
-
 class BenchmarkModuleInterface:
     """Interface definition for benchmark input modules.
+    Useful for static type hinting with mypy and documentation.
 
-    This abstract class defines the interface that benchmark input modules
+    This class defines the interface that benchmark input modules
     must implement to provide input data generation, storage allocation,
     and NoSQL database setup for benchmarks.
 

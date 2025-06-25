@@ -69,6 +69,7 @@ class SeBSConfig:
 
     def deployment_packages(self, deployment_name: str, language_name: str) -> Dict[str, str]:
         """Get deployment packages for a specific deployment and language.
+        These are packages added by SeBS to the benchmark's list of dependencies.
 
         Args:
             deployment_name (str): Name of the deployment platform (e.g., 'aws', 'azure').
@@ -84,7 +85,8 @@ class SeBSConfig:
     def deployment_module_packages(
         self, deployment_name: str, language_name: str
     ) -> Dict[str, str]:
-        """Get deployment module packages for a specific deployment and language.
+        """Get deployment module packages for a specific deployment and language, e.g.,
+        packages specific to object or NoSQL storage.
 
         Args:
             deployment_name (str): Name of the deployment platform (e.g., 'aws', 'azure').
@@ -237,10 +239,13 @@ class SeBSConfig:
         language_version: str,
         architecture: str,
     ) -> str:
-        """Generate Docker image tag for a benchmark.
+        """Generate Docker image tag for a benchmark container.
 
         Creates a standardized tag format that includes system, benchmark, language,
         version, architecture, optional prefix, and SeBS version.
+
+        Format: function.{system}.{benchmark}.{language_name}-{language_version}-
+                {architecture}[-{image_prefix}]-{sebs_version}
 
         Args:
             system (str): Deployment system name (e.g., 'aws', 'azure').

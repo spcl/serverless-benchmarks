@@ -20,10 +20,9 @@ Classes:
     Config: Abstract base for complete platform configuration
 
 The credentials initialization follows this precedence order:
-1. Load credentials from cache
-2. Override with any new values provided in config
-3. Fall back to environment variables
-4. Report failure if no credentials are available
+1. Load credentials with values provided in config
+2. Fall back to environment variables
+3. Report failure if no credentials are available
 """
 
 from __future__ import annotations
@@ -45,12 +44,6 @@ class Credentials(ABC, LoggingBase):
     specific credential types (API keys, service account files, connection
     strings, etc.) while following the common serialization and caching
     patterns defined here.
-
-    Platform implementations must handle:
-    - Loading credentials from user configuration
-    - Fallback to environment variables
-    - Secure storage in cache
-    - Credential validation and refresh
     """
 
     def __init__(self):
@@ -64,9 +57,10 @@ class Credentials(ABC, LoggingBase):
 
         This method implements the credential loading hierarchy:
         1. Use new config values if provided
-        2. Fall back to cached credentials
-        3. Load from environment variables
-        4. Fail if no credentials available
+        2. Load from environment variables
+        3. Fail if no credentials available
+
+        Credentials are NOT cached.
 
         Args:
             config: User-provided configuration dictionary
@@ -278,6 +272,9 @@ class Resources(ABC, LoggingBase):
     def serialize(self) -> dict:
         """Serialize resources to dictionary for cache storage.
 
+        Subclasses should call `super().serialize()` and extend the dictionary.
+        This base implementation serializes `resources_id` and `storage_buckets`.
+
         Returns:
             dict: Serialized resource data including resource ID and bucket mappings
         """
@@ -382,7 +379,8 @@ class Config(ABC, LoggingBase):
 
         This method serves as a factory for platform-specific configurations,
         dynamically loading the appropriate implementation based on the platform
-        name specified in the configuration.
+        name specified in the configuration. To do that, it calls
+        the appropriate subclass's deserialize method.
 
         Args:
             config: User-provided configuration dictionary
@@ -422,6 +420,9 @@ class Config(ABC, LoggingBase):
     @abstractmethod
     def serialize(self) -> dict:
         """Serialize configuration to dictionary for cache storage.
+
+        Subclasses should call `super().serialize()` and extend the dictionary.
+        This base implementation serializes `name` and `region`.
 
         Returns:
             dict: Serialized configuration including platform name and region

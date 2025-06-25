@@ -74,7 +74,10 @@ class Config:
         return self._update_storage
 
     def check_flag(self, key: str) -> bool:
-        """Check if a flag is set.
+        """Check if a specific experiment flag is set.
+
+        Currently it is only used to let benchmark know that Docker
+        volumes are disabled (e.g., in CircleCI environment).
 
         Args:
             key: Name of the flag to check

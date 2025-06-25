@@ -2,13 +2,8 @@
 
 This module provides the NetworkPingPong experiment implementation, which
 measures network latency and throughput characteristics between client and
-serverless functions, as well as between serverless functions and storage
-services. It can determine:
-
-- Client-to-function latency
-- Function-to-storage latency
-- Network throughput for different payload sizes
-- Variation in network performance over time
+serverless functions. It determines various latency characteristics of the network
+connection in the cloud.
 """
 
 import csv
@@ -35,10 +30,12 @@ if TYPE_CHECKING:
 class NetworkPingPong(Experiment):
     """Network latency and throughput measurement experiment.
 
-    This experiment measures the network performance characteristics
-    between the client, serverless functions, and storage services.
-    It can measure ping-pong latency and throughput with different
-    payload sizes and concurrency levels.
+    This experiment measures the network RTT (Round-Trip Time) using a ping-pong mechanism.
+    Deploys the '020.network-benchmark' which echoes back UDP datagrams.
+    The experiment sends a series of datagrams and measures the time taken
+    for each to return. This experiment measures the network performance characteristics
+    between the client and serverless functions.
+
 
     Attributes:
         benchmark_input: Input configuration for the benchmark
@@ -61,8 +58,8 @@ class NetworkPingPong(Experiment):
     def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem) -> None:
         """Prepare the experiment for execution.
 
-        This method sets up the benchmark, function, triggers, storage, and output
-        directory for the experiment. It creates or gets the function and
+        This method sets up the '020.network-benchmark' benchmark, triggers, storage,
+        and output directory for the experiment. It creates or gets the function and
         its HTTP trigger, and prepares the input data for the benchmark.
 
         Args:

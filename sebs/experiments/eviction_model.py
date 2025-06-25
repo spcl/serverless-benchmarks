@@ -8,6 +8,11 @@ recycled by the platform, which affects cold start frequency.
 The experiment involves invoking functions at increasing time intervals
 and observing when cold starts occur, thus inferring the platform's
 container caching and eviction policies.
+
+This implemnetation is slightly different than the original one,
+which used the 010.sleep benchmark. Here, we use the 040.server-reply
+to double check that all functions are "alive" at the same time.
+However, the sleep logic is not currently implemented in 040.server-reply.
 """
 
 import logging
@@ -52,24 +57,24 @@ class EvictionModel(Experiment):
     # Time intervals (in seconds) between invocations
     # Uncomment additional intervals as needed for longer tests
     times = [
-        1,  # 1 second
-        # 2,     # 2 seconds
-        # 4,     # 4 seconds
-        # 8,     # 8 seconds
-        # 15,    # 15 seconds
-        # 30,    # 30 seconds
-        # 60,    # 1 minute
-        # 120,   # 2 minutes
-        # 180,   # 3 minutes
-        # 240,   # 4 minutes
-        # 300,   # 5 minutes
-        # 360,   # 6 minutes
-        # 480,   # 8 minutes
-        # 600,   # 10 minutes
-        # 720,   # 12 minutes
-        # 900,   # 15 minutes
-        # 1080,  # 18 minutes
-        # 1200,  # 20 minutes
+        1,
+        # 2,
+        # 4,
+        # 8,
+        # 15,
+        # 30,
+        # 60,
+        # 120,
+        # 180,
+        # 240,
+        # 300,
+        # 360,
+        # 480,
+        # 600,
+        # 720,
+        # 900,
+        # 1080,
+        # 1200,
     ]
     # TODO: temporal fix
     # function_copies_per_time = 5
@@ -109,6 +114,8 @@ class EvictionModel(Experiment):
         functions and responding to them. It runs two rounds of connection
         acceptance to ensure functions receive a response. The method logs
         all activity to a file.
+
+        This is used by the '040.server-reply' benchmark to confirm function execution.
 
         Args:
             port: TCP port to listen on
@@ -161,6 +168,9 @@ class EvictionModel(Experiment):
         This method performs two invocations of a function with a sleep interval
         between them. The first invocation should be a cold start, and the second
         will indicate whether the container was evicted during the sleep period.
+
+        This function is intended to be run in a separate thread; it performs two
+        synchronous HTTP invocations of the given function.
 
         Args:
             sleep_time: Time to sleep between invocations (seconds)
@@ -279,9 +289,10 @@ class EvictionModel(Experiment):
         """Prepare the experiment for execution.
 
         This method sets up the benchmark, functions, and output directory for
-        the experiment. It creates a separate function for each time interval
-        and copy combination, allowing for parallel testing of different
-        eviction times.
+        the experiment. Retrieves the '040.server-reply' benchmark, sets up result storage,
+        and creates a separate function for each time interval and copy combination,
+        allowing for parallel testing of different eviction times.
+
 
         Args:
             sebs_client: The SeBS client to use
@@ -310,9 +321,6 @@ class EvictionModel(Experiment):
         self.functions = []
 
         for fname in self.functions_names:
-            # if self._benchmark.functions and fname in self._benchmark.functions:
-            # self.logging.info(f"Skip {fname}, exists already.")
-            #    continue
             self.functions.append(deployment_client.get_function(self._benchmark, func_name=fname))
 
     def run(self) -> None:
@@ -420,15 +428,5 @@ class EvictionModel(Experiment):
                 # verify_results(results)
 
             with open(os.path.join(self._out_dir, fname), "w") as out_f:
-                # print(results)
                 print(f"Write results to {os.path.join(self._out_dir, fname)}")
                 out_f.write(serialize(results))
-        # func = self._deployment_client.get_function(
-        #    self._benchmark, self.functions_names[0]
-        # )
-        # self._deployment_client.enforce_cold_start(func)
-        # ret = func.triggers[0].async_invoke(payload)
-        # result = ret.result()
-        # print(result.stats.cold_start)
-        # self._result.add_invocation(func, result)
-        # print(serialize(self._result))

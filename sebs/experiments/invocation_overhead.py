@@ -11,6 +11,8 @@ measure:
 
 The experiment is designed to help identify performance bottlenecks and
 optimize function deployment and invocation.
+We deploy microbenchmark 030.clock-synchronization to exactly measure the
+network latency between client and function.
 """
 
 import csv
@@ -79,6 +81,9 @@ class CodePackageSize:
     def before_sample(self, size: int, input_benchmark: dict) -> None:
         """Prepare the benchmark with a specific code package size.
 
+        Creates a file named 'randomdata.bin' with the specified size of random bytes
+        within the benchmark's code package. Then, updates the function on the deployment.
+
         Args:
             size: Size of the code package to create
             input_benchmark: Benchmark input configuration (unused)
@@ -117,6 +122,8 @@ class PayloadSize:
 
     def before_sample(self, size: int, input_benchmark: dict) -> None:
         """Prepare the benchmark input with a specific payload size.
+
+        Generates different payload sizes by creating base64 encoded byte arrays.
 
         Args:
             size: Size of the payload to create
@@ -211,7 +218,10 @@ class InvocationOverhead(Experiment):
         1. Setting up either code package size or payload size experiments
         2. Running warm-up and cold start invocations
         3. Measuring invocation overhead for different sizes
-        4. Collecting and storing results in CSV format
+            (either code package or payload, based on settings)
+        4. Collecting and storing results in CSV format,
+            including client-side and server-side timestamps
+
         """
 
         from requests import get
@@ -290,8 +300,9 @@ class InvocationOverhead(Experiment):
         """Process experiment results and generate summary statistics.
 
         This method processes the raw experiment results by:
-        1. Loading timing data from CSV files
-        2. Computing clock drift and round-trip time
+        1. Loading client-side timing data from CSV files
+            and server-side UDP datagram timestamps
+        2. Computing clock drift and Round-Trip Time (RTT)
         3. Creating a processed results file with invocation times
 
         Args:
@@ -367,9 +378,12 @@ class InvocationOverhead(Experiment):
         """Receive UDP datagrams from the function for clock synchronization.
 
         This method implements a UDP server that communicates with the function
-        to measure clock synchronization and network timing. It receives
-        datagrams from the function and responds to them, measuring timing
-        information.
+        to measure clock synchronization and network timing.
+        It opens a UDP socket, triggers an asynchronous function invocation, and then
+        listens for a specified number of datagrams, recording timestamps for
+        received and sent datagrams.
+
+        Saves server-side timestamps to a CSV file named `server-{request_id}.csv`.
 
         Args:
             input_benchmark: Benchmark input configuration
