@@ -20,11 +20,16 @@ release = "1.2"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-# extensions = ["sphinx.ext.napoleon", "sphinx.ext.autodoc", "sphinx.ext.viewcode"]
-extensions = ["sphinx.ext.napoleon", "sphinx.ext.viewcode"]
+extensions = ["sphinx.ext.napoleon", "sphinx.ext.autodoc", "sphinx.ext.viewcode"]
 
 templates_path = ["_templates"]
 exclude_patterns = []
+
+# -- Autodoc configuration --------------------------------------------------
+# Let RST files control documentation generation explicitly to avoid duplicates
+
+# Suppress duplicate object warnings
+suppress_warnings = ['autosectionlabel.*']
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

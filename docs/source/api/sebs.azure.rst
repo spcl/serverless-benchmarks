@@ -11,6 +11,7 @@ sebs.azure.azure module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.azure.blob\_storage module
 -------------------------------
@@ -19,6 +20,7 @@ sebs.azure.blob\_storage module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.azure.cli module
 ---------------------
@@ -27,6 +29,7 @@ sebs.azure.cli module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.azure.cloud\_resources module
 ----------------------------------
@@ -35,6 +38,7 @@ sebs.azure.cloud\_resources module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.azure.config module
 ------------------------
@@ -43,6 +47,7 @@ sebs.azure.config module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.azure.cosmosdb module
 --------------------------
@@ -51,6 +56,7 @@ sebs.azure.cosmosdb module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.azure.function module
 --------------------------
@@ -59,6 +65,7 @@ sebs.azure.function module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.azure.system\_resources module
 -----------------------------------
@@ -67,6 +74,7 @@ sebs.azure.system\_resources module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.azure.triggers module
 --------------------------
@@ -75,6 +83,7 @@ sebs.azure.triggers module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 Module contents
 ---------------

@@ -11,6 +11,7 @@ sebs.faas.config module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.faas.container module
 --------------------------
@@ -19,6 +20,7 @@ sebs.faas.container module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.faas.function module
 -------------------------
@@ -27,6 +29,7 @@ sebs.faas.function module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.faas.nosql module
 ----------------------
@@ -35,6 +38,7 @@ sebs.faas.nosql module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.faas.resources module
 --------------------------
@@ -43,6 +47,7 @@ sebs.faas.resources module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.faas.storage module
 ------------------------
@@ -51,6 +56,7 @@ sebs.faas.storage module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.faas.system module
 -----------------------
@@ -59,6 +65,7 @@ sebs.faas.system module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 Module contents
 ---------------

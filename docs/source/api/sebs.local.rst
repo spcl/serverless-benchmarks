@@ -11,6 +11,7 @@ sebs.local.config module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.local.deployment module
 ----------------------------
@@ -19,6 +20,7 @@ sebs.local.deployment module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.local.function module
 --------------------------
@@ -27,6 +29,7 @@ sebs.local.function module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.local.local module
 -----------------------
@@ -35,6 +38,7 @@ sebs.local.local module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.local.measureMem module
 ----------------------------
@@ -43,6 +47,7 @@ sebs.local.measureMem module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 Module contents
 ---------------

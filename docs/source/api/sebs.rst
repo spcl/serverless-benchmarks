@@ -24,8 +24,9 @@ sebs.benchmark module
 
 .. automodule:: sebs.benchmark
    :members:
-   :show-inheritance:
    :undoc-members:
+   :show-inheritance:
+   :no-index:
 
 sebs.cache module
 -----------------
@@ -34,6 +35,7 @@ sebs.cache module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.config module
 ------------------
@@ -50,6 +52,7 @@ sebs.sebs module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.statistics module
 ----------------------
@@ -74,6 +77,7 @@ sebs.utils module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.version module
 -------------------

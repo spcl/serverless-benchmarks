@@ -11,6 +11,7 @@ sebs.openwhisk.config module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.openwhisk.container module
 -------------------------------
@@ -19,6 +20,7 @@ sebs.openwhisk.container module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.openwhisk.function module
 ------------------------------
@@ -27,6 +29,7 @@ sebs.openwhisk.function module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.openwhisk.openwhisk module
 -------------------------------
@@ -35,6 +38,7 @@ sebs.openwhisk.openwhisk module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.openwhisk.triggers module
 ------------------------------
@@ -43,6 +47,7 @@ sebs.openwhisk.triggers module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 Module contents
 ---------------

@@ -11,6 +11,7 @@ sebs.aws.aws module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.aws.config module
 ----------------------
@@ -19,6 +20,7 @@ sebs.aws.config module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.aws.container module
 -------------------------
@@ -27,6 +29,7 @@ sebs.aws.container module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.aws.dynamodb module
 ------------------------
@@ -35,6 +38,7 @@ sebs.aws.dynamodb module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.aws.function module
 ------------------------
@@ -43,6 +47,7 @@ sebs.aws.function module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.aws.resources module
 -------------------------
@@ -51,6 +56,7 @@ sebs.aws.resources module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.aws.s3 module
 ------------------
@@ -59,6 +65,7 @@ sebs.aws.s3 module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.aws.triggers module
 ------------------------
@@ -67,6 +74,7 @@ sebs.aws.triggers module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 Module contents
 ---------------

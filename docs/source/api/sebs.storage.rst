@@ -11,6 +11,7 @@ sebs.storage.config module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.storage.minio module
 -------------------------
@@ -19,6 +20,7 @@ sebs.storage.minio module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.storage.resources module
 -----------------------------
@@ -27,6 +29,7 @@ sebs.storage.resources module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 sebs.storage.scylladb module
 ----------------------------
@@ -35,6 +38,7 @@ sebs.storage.scylladb module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 Module contents
 ---------------
