@@ -1,3 +1,19 @@
+"""Docker container management for serverless function deployments.
+
+This module provides the DockerContainer class for building and managing
+Docker containers for serverless function deployments. It handles:
+
+- Building benchmark Docker images for different platforms
+- Cross-architecture container compilation with emulation
+- Container registry operations (push/pull)
+- Progress tracking for container operations
+- Platform-specific container naming and tagging
+
+The module supports container-based deployments across different serverless
+platforms, with automatic detection of the host architecture and appropriate
+configuration for cross-compilation when needed.
+"""
+
 from abc import abstractmethod
 import docker
 import json
@@ -13,17 +29,53 @@ from sebs.utils import LoggingBase, execute, DOCKER_DIR
 
 
 class DockerContainer(LoggingBase):
+    """Abstract base class for Docker container management in serverless deployments.
+
+    This class provides common functionality for building, pushing, and managing
+    Docker containers for serverless function deployments. Each platform
+    implementation (AWS, Azure, GCP, etc.) extends this class to provide
+    platform-specific container handling.
+
+    Key features:
+    - Container image building with cross-architecture support
+    - Container registry operations (push/pull/inspect)
+    - Progress tracking for long-running operations
+    - Platform-specific image naming and tagging
+    - Caching and optimization for repeated builds
+
+    Attributes:
+        docker_client: Docker client for container operations
+        experimental_manifest: Whether to use experimental manifest inspection
+        system_config: SeBS configuration for image management
+        _disable_rich_output: Flag to disable rich progress output
+    """
+
     @staticmethod
     @abstractmethod
     def name() -> str:
+        """Get the platform name for this container implementation.
+
+        Returns:
+            str: Platform name (e.g., 'aws', 'azure', 'gcp')
+        """
         pass
 
     @property
     def disable_rich_output(self) -> bool:
+        """Get whether rich output is disabled.
+
+        Returns:
+            bool: True if rich output is disabled, False otherwise
+        """
         return self._disable_rich_output
 
     @disable_rich_output.setter
     def disable_rich_output(self, val: bool):
+        """Set whether to disable rich output.
+
+        Args:
+            val: True to disable rich output, False to enable
+        """
         self._disable_rich_output = val
 
     def __init__(
@@ -32,6 +84,13 @@ class DockerContainer(LoggingBase):
         docker_client,
         experimental_manifest: bool = False,
     ):
+        """Initialize the Docker container manager.
+
+        Args:
+            system_config: SeBS configuration for container management
+            docker_client: Docker client for container operations
+            experimental_manifest: Whether to use experimental manifest features
+        """
         super().__init__()
 
         self.docker_client = docker_client
@@ -40,7 +99,18 @@ class DockerContainer(LoggingBase):
         self._disable_rich_output = False
 
     def find_image(self, repository_name, image_tag) -> bool:
+        """Check if a Docker image exists in the registry.
 
+        Attempts to find an image in the registry using either experimental
+        manifest inspection (if enabled) or by attempting to pull the image.
+
+        Args:
+            repository_name: Name of the repository (e.g., 'my-repo/my-image')
+            image_tag: Tag of the image to find
+
+        Returns:
+            bool: True if the image exists, False otherwise
+        """
         if self.experimental_manifest:
             try:
                 # This requires enabling experimental Docker features
@@ -58,7 +128,20 @@ class DockerContainer(LoggingBase):
                 return False
 
     def show_progress(self, txt: str, progress: Progress, layer_tasks: dict):
+        """Update progress display for Docker operations.
 
+        Parses Docker API output and updates the rich progress display for
+        operations like image pushing. Tracks individual layer progress and
+        handles completion events.
+
+        Args:
+            txt: Docker API output line (JSON string or dict)
+            progress: Rich progress instance to update
+            layer_tasks: Dictionary tracking progress tasks for each layer
+
+        Raises:
+            Exception: If an error is reported in the Docker output
+        """
         if isinstance(txt, str):
             line = json.loads(txt)
         else:
@@ -89,6 +172,20 @@ class DockerContainer(LoggingBase):
             raise Exception(line["error"])
 
     def push_image(self, repository_uri, image_tag):
+        """Push a Docker image to a container registry.
+
+        Pushes the specified image to the container registry with optional
+        progress tracking. Handles errors and provides informative logging
+        throughout the process.
+
+        Args:
+            repository_uri: URI of the container registry repository
+            image_tag: Tag of the image to push
+
+        Raises:
+            docker.errors.APIError: If the push operation fails
+            RuntimeError: If an error occurs during the push stream
+        """
         try:
 
             if not self.disable_rich_output:
@@ -124,6 +221,20 @@ class DockerContainer(LoggingBase):
     def registry_name(
         self, benchmark: str, language_name: str, language_version: str, architecture: str
     ) -> Tuple[str, str, str, str]:
+        """Generate registry name and image URI for a benchmark.
+
+        Creates platform-specific naming for container images including
+        registry URL, repository name, image tag, and complete image URI.
+
+        Args:
+            benchmark: Name of the benchmark (e.g., '110.dynamic-html')
+            language_name: Programming language (e.g., 'python', 'nodejs')
+            language_version: Language version (e.g., '3.8', '14')
+            architecture: Target architecture (e.g., 'x64', 'arm64')
+
+        Returns:
+            Tuple[str, str, str, str]: Registry name, repository name, image tag, full image URI
+        """
         pass
 
     def build_base_image(

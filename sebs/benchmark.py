@@ -149,15 +149,21 @@ class Benchmark(LoggingBase):
     Creates code package representing a benchmark with all code and assets.
 
     This class handles building, packaging, and deploying benchmark code for
-    serverless platforms. It manages dependencies installation within Docker
-    images corresponding to the target cloud deployment.
+    serverless platforms.
+    This includes copying source files, adding deployment-specific wrappers,
+    adding deployment-specific dependencies, and installing application dependencies
+    within Docker images corresponding to the target cloud deployment.
+    Code packages are cached.
 
-    The behavior of the class depends on cache state:
+    The behavior of this class, particularly the `build` method, depends on the
+    state of the SeBS cache:
 
-    1. If there's no cache entry, a code package is built
-    2. Otherwise, the hash of the entire benchmark is computed and compared
-       with the cached value. If changed, it rebuilds the benchmark
-    3. Otherwise, it returns the path to cached code
+    1. If no cache entry exists for the benchmark (for the current language, deployment, etc.),
+       a new code package is built.
+    2. If a cache entry exists, the hash of the benchmark's source directory is computed
+       and compared with the hash of cached package. If they differ, or if an update is forced,
+       the package is rebuilt.
+    3. Otherwise (cache entry exists and hash matches), the cached code package is used.
 
     Attributes:
         benchmark: Name of the benchmark
@@ -227,7 +233,8 @@ class Benchmark(LoggingBase):
     @property
     def code_package(self) -> Dict[str, Any]:
         """
-        Get the code package information.
+        Get the cached code package information, if available.
+        This typically includes 'location' (relative to cache_dir), 'hash', and 'size'.
 
         Returns:
             Dict[str, Any]: Dictionary with code package information
@@ -238,7 +245,8 @@ class Benchmark(LoggingBase):
     @property
     def functions(self) -> Dict[str, Any]:
         """
-        Get the functions for this benchmark.
+        Get the cached information about deployed functions associated
+        with this benchmark for the current deployment, keyed by function name.
 
         Returns:
             Dict[str, Any]: Dictionary of functions
@@ -249,7 +257,9 @@ class Benchmark(LoggingBase):
     @property
     def code_location(self) -> str:
         """
-        Get the location of the code package.
+        Get the absolute path to the prepared code package.
+        If cached, it points to the location within the SeBS cache directory.
+        Otherwise, it points to the build output directory.
 
         Returns:
             str: Path to the code package
@@ -283,7 +293,8 @@ class Benchmark(LoggingBase):
     @property
     def is_cached_valid(self) -> bool:
         """
-        Check if the cached benchmark is valid.
+        True if a cached code package exists and its hash matches the current
+        benchmark source code hash.
 
         Returns:
             bool: True if valid, False otherwise
@@ -337,7 +348,7 @@ class Benchmark(LoggingBase):
     @property
     def language_name(self) -> str:
         """
-        Get the name of the programming language.
+        Get the name of the programming language, e.g., "python".
 
         Returns:
             str: Name of the language
@@ -347,7 +358,7 @@ class Benchmark(LoggingBase):
     @property
     def language_version(self) -> str:
         """
-        Get the version of the programming language.
+        Get the version of the programming language, e.g. "3.8".
 
         Returns:
             str: Version of the language
@@ -468,9 +479,12 @@ class Benchmark(LoggingBase):
         self._language_version = config.runtime.version
         self._architecture = self._experiment_config.architecture
         self._container_deployment = config.container_deployment
-        self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
-        if not self._benchmark_path:
+
+        benchmark_path = find_benchmark(self.benchmark, "benchmarks")
+        if not benchmark_path:
             raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
+        self._benchmark_path = benchmark_path
+
         with open(os.path.join(self.benchmark_path, "config.json")) as json_file:
             self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
                 json.load(json_file)
@@ -600,7 +614,16 @@ class Benchmark(LoggingBase):
             self._is_cached = False
             self._is_cached_valid = False
 
-    def copy_code(self, output_dir):
+    def copy_code(self, output_dir: str) -> None:
+        """Copy benchmark source code to output directory.
+
+        Copies language-specific source files and dependency files from the
+        benchmark directory to the output directory for deployment preparation.
+        Handles both Python requirements files and Node.js package.json files.
+
+        Args:
+            output_dir: Destination directory for copied files
+        """
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
@@ -614,7 +637,16 @@ class Benchmark(LoggingBase):
         if os.path.exists(nodejs_package_json):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
 
-    def add_benchmark_data(self, output_dir):
+    def add_benchmark_data(self, output_dir: str) -> None:
+        """Add benchmark-specific data and assets to output directory.
+
+        Executes benchmark initialization scripts (init.sh) if present in
+        the benchmark directory. These scripts typically download or generate
+        additional data files required by the benchmark.
+
+        Args:
+            output_dir: Directory where benchmark data should be added
+        """
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false {architecture}"
         paths = [
             self.benchmark_path,
@@ -633,7 +665,16 @@ class Benchmark(LoggingBase):
                     stderr=subprocess.STDOUT,
                 )
 
-    def add_deployment_files(self, output_dir):
+    def add_deployment_files(self, output_dir: str) -> None:
+        """Add deployment-specific wrapper files to output directory.
+
+        Copies platform-specific wrapper files (handlers, adapters) that
+        integrate the benchmark code with the target FaaS platform's
+        execution environment.
+
+        Args:
+            output_dir: Directory where deployment files should be added
+        """
         handlers_dir = project_absolute_path(
             "benchmarks", "wrappers", self._deployment_name, self.language_name
         )
@@ -646,7 +687,15 @@ class Benchmark(LoggingBase):
         for file in handlers:
             shutil.copy2(file, os.path.join(output_dir))
 
-    def add_deployment_package_python(self, output_dir):
+    def add_deployment_package_python(self, output_dir: str) -> None:
+        """Add Python deployment packages to requirements file.
+
+        Appends platform-specific Python packages and benchmark module
+        dependencies to the requirements.txt file for the deployment.
+
+        Args:
+            output_dir: Directory containing the requirements file to modify
+        """
 
         destination_file = f"requirements.txt.{self._language_version}"
         if not os.path.exists(os.path.join(output_dir, destination_file)):
@@ -669,7 +718,15 @@ class Benchmark(LoggingBase):
                     for package in module_packages[bench_module.value]:
                         out.write(package)
 
-    def add_deployment_package_nodejs(self, output_dir):
+    def add_deployment_package_nodejs(self, output_dir: str) -> None:
+        """Add Node.js deployment packages to package.json.
+
+        Modifies the package.json file to include platform-specific
+        Node.js dependencies required for deployment.
+
+        Args:
+            output_dir: Directory containing the package.json file to modify
+        """
         # modify package.json
         packages = self._system_config.deployment_packages(
             self._deployment_name, self.language_name
@@ -687,7 +744,18 @@ class Benchmark(LoggingBase):
             with open(package_config, "w") as package_file:
                 json.dump(package_json, package_file, indent=2)
 
-    def add_deployment_package(self, output_dir):
+    def add_deployment_package(self, output_dir: str) -> None:
+        """Add deployment packages based on programming language.
+
+        Delegates to language-specific package addition methods to include
+        platform-specific dependencies in the deployment package.
+
+        Args:
+            output_dir: Directory where deployment packages should be added
+
+        Raises:
+            NotImplementedError: If the language is not supported
+        """
         from sebs.faas.function import Language
 
         if self.language == Language.PYTHON:
@@ -698,14 +766,39 @@ class Benchmark(LoggingBase):
             raise NotImplementedError
 
     @staticmethod
-    def directory_size(directory: str):
+    def directory_size(directory: str) -> int:
+        """Calculate total size of all files in a directory.
+
+        Recursively calculates the total size in bytes of all files
+        within the specified directory and its subdirectories.
+
+        Args:
+            directory: Path to the directory to measure
+
+        Returns:
+            int: Total size in bytes of all files in the directory
+        """
         from pathlib import Path
 
         root = Path(directory)
         sizes = [f.stat().st_size for f in root.glob("**/*") if f.is_file()]
         return sum(sizes)
 
-    def install_dependencies(self, output_dir):
+    def install_dependencies(self, output_dir: str) -> None:
+        """Install benchmark dependencies using Docker.
+
+        Uses Docker containers to install language-specific dependencies
+        (pip packages for Python, npm packages for Node.js) in an environment
+        matching the target deployment platform. Handles both volume mounting
+        and file copying approaches for Docker compatibility.
+
+        Args:
+            output_dir: Directory containing the code package to build
+
+        Raises:
+            RuntimeError: If Docker image pull fails
+            docker.errors.ContainerError: If dependency installation fails
+        """
         # do we have docker image for this run and language?
         if "build" not in self._system_config.docker_image_types(
             self._deployment_name, self.language_name
@@ -837,9 +930,9 @@ class Benchmark(LoggingBase):
                         )
                         # copy updated code with package
                         data, stat = container.get_archive("/mnt/function")
-                        with open(tar_archive, "wb") as f:
+                        with open(tar_archive, "wb") as output_filef:
                             for chunk in data:
-                                f.write(chunk)
+                                output_filef.write(chunk)
                         with tarfile.open(tar_archive, "r") as tar:
                             tar.extractall(output_dir)
                             # docker packs the entire directory with basename function
@@ -862,7 +955,15 @@ class Benchmark(LoggingBase):
                     self.logging.error(f"Docker mount volumes: {volumes}")
                     raise e
 
-    def recalculate_code_size(self):
+    def recalculate_code_size(self) -> int:
+        """Recalculate and update the code package size.
+
+        Measures the current size of the output directory and updates
+        the internal code size tracking.
+
+        Returns:
+            int: Updated code package size in bytes
+        """
         self._code_size = Benchmark.directory_size(self._output_dir)
         return self._code_size
 
@@ -872,6 +973,27 @@ class Benchmark(LoggingBase):
             [str, str, str, str, str, bool, bool], Tuple[str, int, str]
         ],
     ) -> Tuple[bool, str, bool, str]:
+        """Build the complete benchmark deployment package.
+
+        Orchestrates the entire build process for a benchmark, including:
+        - Cache validation and reuse if possible
+        - Code copying and dependency installation
+        - Platform-specific build steps
+        - Cache updates after successful build
+
+        Args:
+            deployment_build_step: Platform-specific build function that takes
+                (output_dir, language, version, architecture, benchmark_name,
+                is_cached_valid, container_deployment) and returns
+                (code_location, code_size, container_uri)
+
+        Returns:
+            Tuple containing:
+                - bool: Whether a new build was performed (False if cached)
+                - str: Path to the built code package
+                - bool: Whether this is a container deployment
+                - str: Container URI (empty string if not container deployment)
+        """
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
@@ -944,7 +1066,21 @@ class Benchmark(LoggingBase):
 
     def prepare_input(
         self, system_resources: SystemResources, size: str, replace_existing: bool = False
-    ):
+    ) -> Dict[str, str]:
+        """Prepare benchmark input data and allocate cloud resources.
+
+        Handles the setup of cloud storage buckets and NoSQL databases
+        required by the benchmark. Generates benchmark-specific input data
+        and uploads it to the appropriate cloud storage systems.
+
+        Args:
+            system_resources: Cloud system resources manager
+            size: Benchmark workload size ('small', 'medium', 'large')
+            replace_existing: Whether to replace existing input data
+
+        Returns:
+            Dict[str, str]: Input configuration for the benchmark function
+        """
 
         """
         Handle object storage buckets.
@@ -1019,7 +1155,19 @@ class Benchmark(LoggingBase):
         This step allows to modify code package without going through the entire pipeline.
     """
 
-    def code_package_modify(self, filename: str, data: bytes):
+    def code_package_modify(self, filename: str, data: bytes) -> None:
+        """Modify a file within the deployed code package.
+
+        Updates a specific file within the code package without rebuilding
+        the entire package. Currently only supports ZIP archive packages.
+
+        Args:
+            filename: Name of the file to modify within the package
+            data: New content for the file as bytes
+
+        Raises:
+            NotImplementedError: If the code package is not a ZIP archive
+        """
 
         if self.code_package_is_archive():
             self._update_zip(self.code_location, filename, data)
@@ -1034,19 +1182,45 @@ class Benchmark(LoggingBase):
     """
 
     def code_package_is_archive(self) -> bool:
+        """Check if the code package is an archive file.
+
+        Determines whether the code package is stored as an archive file
+        (ZIP) rather than a directory structure.
+
+        Returns:
+            bool: True if package is a ZIP archive, False if it's a directory
+        """
         if os.path.isfile(self.code_location):
             extension = os.path.splitext(self.code_location)[1]
             return extension in [".zip"]
         return False
 
     def code_package_recompute_size(self) -> float:
+        """Recalculate the size of the code package file.
+
+        Updates the internal size tracking after modifications to the
+        code package file.
+
+        Returns:
+            float: Updated package size in bytes
+        """
         bytes_size = os.path.getsize(self.code_location)
         self._code_size = bytes_size
         return bytes_size
 
     #  https://stackoverflow.com/questions/25738523/how-to-update-one-file-inside-zip-file-using-python
     @staticmethod
-    def _update_zip(zipname: str, filename: str, data: bytes):
+    def _update_zip(zipname: str, filename: str, data: bytes) -> None:
+        """Update a file within a ZIP archive.
+
+        Replaces the content of a specific file within a ZIP archive
+        while preserving all other files and archive metadata.
+
+        Args:
+            zipname: Path to the ZIP archive to modify
+            filename: Name of the file to update within the archive
+            data: New content for the file as bytes
+        """
         import zipfile
         import tempfile
 
@@ -1078,14 +1252,41 @@ class Benchmark(LoggingBase):
 
 
 class BenchmarkModuleInterface:
+    """Interface definition for benchmark input modules.
+
+    This abstract class defines the interface that benchmark input modules
+    must implement to provide input data generation, storage allocation,
+    and NoSQL database setup for benchmarks.
+
+    All methods are static as they operate on benchmark data rather than
+    instance state. Benchmark modules are dynamically loaded from the
+    input.py file in each benchmark directory.
+    """
+
     @staticmethod
     @abstractmethod
     def buckets_count() -> Tuple[int, int]:
+        """Get the number of storage buckets required by the benchmark.
+
+        Returns:
+            Tuple[int, int]: Number of (input_buckets, output_buckets) needed
+        """
         pass
 
     @staticmethod
     @abstractmethod
-    def allocate_nosql() -> dict:
+    def allocate_nosql() -> Dict[str, Dict[str, str]]:
+        """Define NoSQL table requirements for the benchmark.
+
+        Returns:
+            Dict containing table definitions with primary and secondary keys:
+            {
+                'table_name': {
+                    'primary_key': 'key_field_name',
+                    'secondary_key': 'optional_secondary_key_name'
+                }
+            }
+        """
         pass
 
     @staticmethod
@@ -1101,10 +1302,43 @@ class BenchmarkModuleInterface:
             Callable[[str, str, dict, Tuple[str, str], Optional[Tuple[str, str]]], None]
         ],
     ) -> Dict[str, str]:
+        """Generate benchmark input data and configuration.
+
+        Creates the input data files and configuration needed for benchmark
+        execution, uploading data to cloud storage and NoSQL databases as needed.
+
+        Args:
+            data_dir: Directory containing benchmark data files
+            size: Benchmark workload size ('small', 'medium', 'large')
+            benchmarks_bucket: Name of the cloud storage bucket for data
+            input_paths: List of input data paths in cloud storage
+            output_paths: List of output data paths in cloud storage
+            upload_func: Function for uploading files to cloud storage
+            nosql_func: Function for writing data to NoSQL databases
+
+        Returns:
+            Dict[str, str]: Input configuration dictionary for the benchmark
+        """
         pass
 
 
 def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
+    """Dynamically load the input module for a benchmark.
+
+    Loads the input.py file from the benchmark directory and returns it
+    as a module interface for generating benchmark input data.
+
+    Args:
+        benchmark_path: Path to the benchmark directory containing input.py
+
+    Returns:
+        BenchmarkModuleInterface: Loaded input module with benchmark-specific
+            input generation functions
+
+    Raises:
+        FileNotFoundError: If input.py is not found in the benchmark directory
+        ImportError: If the input module cannot be loaded
+    """
     # Look for input generator file in the directory containing benchmark
     import importlib.machinery
     import importlib.util

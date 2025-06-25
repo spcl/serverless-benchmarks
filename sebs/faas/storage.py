@@ -1,3 +1,20 @@
+"""Object storage abstraction for serverless benchmarks.
+
+This module provides the PersistentStorage abstract base class for managing
+object storage across different cloud platforms and local deployments. It
+handles bucket management, file operations, and benchmark data organization.
+
+The storage abstraction supports:
+- Cross-platform object storage (S3, Azure Blob, GCS, MinIO)
+- Benchmark data organization with input/output separation
+- Bucket lifecycle management and naming conventions
+- File upload/download operations with caching
+- Deployment discovery and resource management
+
+Each platform provides concrete implementations that handle platform-specific
+API calls while following the common interface defined here.
+"""
+
 import os
 import re
 
@@ -9,36 +26,89 @@ from sebs.faas.config import Resources
 from sebs.cache import Cache
 from sebs.utils import LoggingBase
 
-"""
-    Abstract class
-"""
-
 
 class PersistentStorage(ABC, LoggingBase):
+    """Abstract base class for persistent object storage implementations.
+
+    This class defines the interface for object storage services across different
+    cloud platforms. It manages buckets, files, and benchmark data organization
+    while providing a consistent API regardless of the underlying storage service.
+
+    Key responsibilities:
+    - Bucket lifecycle management (create, list, delete)
+    - File operations (upload, download, list)
+    - Benchmark data organization with input/output separation
+    - Storage configuration caching and management
+    - Cross-platform deployment discovery
+
+    Attributes:
+        cached: Whether bucket configuration is cached
+        _cache_client: Cache client for storing configuration
+        _input_prefixes: List of input data prefixes for benchmarks
+        _output_prefixes: List of output data prefixes for benchmarks
+        input_prefixes_files: Files associated with input prefixes
+        _replace_existing: Whether to replace existing files during uploads
+        _region: Cloud region for storage operations
+        _cloud_resources: Resource configuration for the platform
+    """
+
     @staticmethod
     @abstractmethod
     def deployment_name() -> str:
+        """Get the deployment platform name.
+
+        Returns:
+            str: Platform name (e.g., 'aws', 'azure', 'gcp', 'minio')
+        """
         pass
 
     @property
     def cache_client(self) -> Cache:
+        """Get the cache client for configuration storage.
+
+        Returns:
+            Cache: Cache client instance
+        """
         return self._cache_client
 
     @property
     def replace_existing(self):
+        """Get whether to replace existing files during operations.
+
+        Returns:
+            bool: True if existing files should be replaced, False otherwise
+        """
         return self._replace_existing
 
     @replace_existing.setter
     def replace_existing(self, val: bool):
+        """Set whether to replace existing files during operations.
+
+        Args:
+            val: True to replace existing files, False to skip
+        """
         self._replace_existing = val
 
     @property
     def region(self):
+        """Get the cloud region for storage operations.
+
+        Returns:
+            str: Cloud region identifier
+        """
         return self._region
 
     def __init__(
         self, region: str, cache_client: Cache, resources: Resources, replace_existing: bool
     ):
+        """Initialize the persistent storage instance.
+
+        Args:
+            region: Cloud region for storage operations
+            cache_client: Cache client for configuration persistence
+            resources: Resource configuration for the platform
+            replace_existing: Whether to replace existing files during uploads
+        """
         super().__init__()
         self._cache_client = cache_client
         self.cached = False
@@ -51,18 +121,47 @@ class PersistentStorage(ABC, LoggingBase):
 
     @property
     def input_prefixes(self) -> List[str]:
+        """Get the list of input data prefixes for benchmarks.
+
+        Returns:
+            List[str]: List of input prefix names
+        """
         return self._input_prefixes
 
     @property
     def output_prefixes(self) -> List[str]:
+        """Get the list of output data prefixes for benchmarks.
+
+        Returns:
+            List[str]: List of output prefix names
+        """
         return self._output_prefixes
 
     @abstractmethod
     def correct_name(self, name: str) -> str:
+        """Correct a bucket name to comply with platform naming requirements.
+
+        Different platforms have different naming restrictions (character sets,
+        length limits, etc.). This method applies platform-specific corrections.
+
+        Args:
+            name: Original bucket name
+
+        Returns:
+            str: Corrected bucket name that complies with platform requirements
+        """
         pass
 
     def find_deployments(self) -> List[str]:
+        """Find existing SeBS deployments by scanning bucket names.
 
+        Scans all buckets in the storage service and extracts deployment IDs
+        from bucket names that follow the SeBS naming convention. This helps
+        identify existing deployments that can be reused.
+
+        Returns:
+            List[str]: List of deployment resource IDs found in bucket names
+        """
         deployments = []
         buckets = self.list_buckets()
         for bucket in buckets:
