@@ -94,7 +94,7 @@ class GCPStorage(PersistentStorage):
         return name
 
     def _create_bucket(
-        self, name: str, buckets: List[str] = [], randomize_name: bool = False
+        self, name: str, buckets: Optional[List[str]] = None, randomize_name: bool = False
     ) -> str:
         """Create a new Cloud Storage bucket or return existing one.
 
@@ -106,6 +106,10 @@ class GCPStorage(PersistentStorage):
         Returns:
             Name of the created or existing bucket
         """
+
+        if buckets is None:
+            buckets = []
+
         found_bucket = False
         for bucket_name in buckets:
             if name in bucket_name:

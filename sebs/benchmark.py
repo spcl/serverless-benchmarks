@@ -153,7 +153,7 @@ class Benchmark(LoggingBase):
     images corresponding to the target cloud deployment.
 
     The behavior of the class depends on cache state:
-    
+
     1. If there's no cache entry, a code package is built
     2. Otherwise, the hash of the entire benchmark is computed and compared
        with the cached value. If changed, it rebuilds the benchmark

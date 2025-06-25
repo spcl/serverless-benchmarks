@@ -75,7 +75,7 @@ class PersistentStorage(ABC, LoggingBase):
 
     @abstractmethod
     def _create_bucket(
-        self, name: str, buckets: List[str] = [], randomize_name: bool = False
+        self, name: str, buckets: Optional[List[str]] = None, randomize_name: bool = False
     ) -> str:
         pass
 

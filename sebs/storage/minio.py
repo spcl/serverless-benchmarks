@@ -272,7 +272,7 @@ class Minio(PersistentStorage):
         )
 
     def _create_bucket(
-        self, name: str, buckets: List[str] = [], randomize_name: bool = False
+        self, name: str, buckets: Optional[List[str]] = None, randomize_name: bool = False
     ) -> str:
         """
         Create a new bucket if it doesn't already exist.
@@ -291,6 +291,10 @@ class Minio(PersistentStorage):
         Raises:
             minio.error.ResponseError: If bucket creation fails
         """
+
+        if buckets is None:
+            buckets = []
+
         # Check if bucket already exists
         for bucket_name in buckets:
             if name in bucket_name:
