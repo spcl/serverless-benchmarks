@@ -1,6 +1,10 @@
 sebs package
 ============
 
+.. contents:: Table of Contents
+   :local:
+   :depth: 2
+
 Subpackages
 -----------
 
