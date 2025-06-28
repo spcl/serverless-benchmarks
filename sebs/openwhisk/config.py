@@ -1,8 +1,7 @@
 """
 Configuration management for Apache OpenWhisk deployments in SeBS.
 
-This module provides configuration classes for managing OpenWhisk-specific settings,
-credentials, and resources. It handles Docker registry configuration, storage settings,
+It handles Docker registry configuration, storage settings,
 and deployment parameters for OpenWhisk serverless functions.
 
 Classes:
@@ -25,8 +24,8 @@ class OpenWhiskCredentials(Credentials):
     """
     Manages authentication credentials for OpenWhisk deployments.
 
-    This class handles credential serialization and deserialization for OpenWhisk
-    platforms. Currently implements a minimal credential system.
+    Since we do not use extra credentials there, it just implements
+    the expected interface.
 
     Note:
         OpenWhisk deployments typically rely on local authentication through
@@ -62,9 +61,7 @@ class OpenWhiskResources(SelfHostedResources):
     """
     Manages Docker registry and storage resources for OpenWhisk deployments.
 
-    This class handles configuration of Docker registries, authentication credentials,
-    and storage resources needed for OpenWhisk function deployments. It supports
-    both user-provided and cached configurations.
+    This class handles configuration of Docker registry.
 
     Attributes:
         _docker_registry: Docker registry URL for storing function images
@@ -269,9 +266,8 @@ class OpenWhiskConfig(Config):
     """
     Main configuration class for OpenWhisk deployments.
 
-    This class manages all OpenWhisk-specific configuration settings including
-    cluster management, WSK CLI settings, and experimental features. It integrates
-    with the broader SeBS configuration system.
+    This class focuses on OpenWhisk-specific configuration settings:
+    cluster management, WSK CLI settings, and experimental features.
 
     Attributes:
         name: Platform name identifier ('openwhisk')

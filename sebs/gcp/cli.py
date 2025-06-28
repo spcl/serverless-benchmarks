@@ -1,8 +1,8 @@
 """Google Cloud CLI integration for SeBS.
 
-This module provides a Docker-based Google Cloud CLI interface for performing
-administrative operations that require the gcloud command-line tool. It manages
-a containerized gcloud environment with proper authentication and project setup.
+This module provides a Docker-based Google Cloud CLI interface.
+Currently, we use it mostly to allocate and manage Datastore accounts.
+There's no API or Python library for that.
 
 Classes:
     GCloudCLI: Docker-based gcloud CLI interface for GCP operations
@@ -54,6 +54,11 @@ class GCloudCLI(LoggingBase):
         Sets up a Docker container with the gcloud CLI, pulling the image if needed
         and mounting the GCP credentials file for authentication.
 
+        Initialize GCloudCLI and start the Docker container.
+        Pulls the gcloud CLI Docker image if not found locally, then runs a
+        container in detached mode with credentials mounted.
+
+
         Args:
             credentials: GCP credentials with service account file path
             system_config: SeBS system configuration
@@ -94,13 +99,6 @@ class GCloudCLI(LoggingBase):
             tty=True,
         )
         self.logging.info(f"Started gcloud CLI container: {self.docker_instance.id}.")
-        # while True:
-        #    try:
-        #        dkg = self.docker_instance.logs(stream=True, follow=True)
-        #        next(dkg).decode("utf-8")
-        #        break
-        #    except StopIteration:
-        #        pass
 
     def execute(self, cmd: str) -> bytes:
         """Execute a command in the gcloud CLI container.
@@ -126,9 +124,14 @@ class GCloudCLI(LoggingBase):
     def login(self, project_name: str) -> None:
         """Authenticate gcloud CLI and set the active project.
 
-        Performs service account authentication using the mounted credentials file
-        and sets the specified project as the active project. Automatically confirms
-        any prompts that may appear during project setup.
+        Authenticates using the mounted credentials file (`/credentials.json` in
+        the container) and then sets the active Google Cloud project.
+        Automatically confirms any prompts that may appear during project setup.
+        Important:
+            - `gcloud init` is not used as it requires browser-based authentication.
+              Instead, we authenticate as a service account.
+            - Setting the project might show warnings about Cloud Resource Manager API
+              permissions, which are generally not needed for SeBS operations.
 
         Args:
             project_name: GCP project ID to set as active

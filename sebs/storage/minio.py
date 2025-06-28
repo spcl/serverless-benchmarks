@@ -1,10 +1,9 @@
 """
 Module for MinIO S3-compatible storage in the Serverless Benchmarking Suite.
 
-This module implements local object storage using MinIO, which provides an
-S3-compatible API. MinIO runs in a Docker container and provides persistent
+MinIO runs in a Docker container and provides persistent
 storage for benchmark data and results. It is primarily used for local
-testing and development of S3-dependent serverless functions.
+testing and on cloud platforms with no object storage, e.g., OpenWhisk.
 """
 
 import copy
@@ -27,11 +26,9 @@ from sebs.utils import is_linux
 
 class Minio(PersistentStorage):
     """
-    S3-compatible object storage implementation using MinIO.
-
-    This class manages a MinIO storage instance running in a Docker container,
-    providing S3-compatible object storage for local benchmarking. It handles
-    bucket creation, file uploads/downloads, and container lifecycle management.
+    This class manages a self-hosted MinIO storage instance running
+    in a Docker container. It handles bucket creation, file uploads/downloads,
+    and container lifecycle management.
 
     Attributes:
         config: MinIO configuration settings
@@ -194,8 +191,9 @@ class Minio(PersistentStorage):
         Configure the connection to the MinIO container.
 
         Determines the appropriate address to connect to the MinIO container
-        based on the host platform. For Linux, it uses the container's IP address,
-        while for Windows, macOS, or WSL it uses localhost with the mapped port.
+        based on the host platform. For Linux, it uses the container's
+        bridge IP address, hile for Windows, macOS, or WSL it uses
+        localhost with the mapped port.
 
         Raises:
             RuntimeError: If the MinIO container is not available or if the IP address
@@ -500,15 +498,6 @@ class Minio(PersistentStorage):
         """
         return self._cfg.serialize()
 
-    """
-    Deserialization and inheritance support
-
-    This implementation supports overriding this class. The main Minio class
-    is used to start/stop deployments. When overriding the implementation in
-    Local/OpenWhisk/..., we call the _deserialize method and provide an
-    alternative implementation type.
-    """
-
     T = TypeVar("T", bound="Minio")
 
     @staticmethod
@@ -523,7 +512,12 @@ class Minio(PersistentStorage):
 
         Creates a new instance of the specified class type from cached configuration
         data. This allows platform-specific versions to be deserialized correctly
-        while sharing the core implementation.
+        while sharing the core implementation. When overriding the implementation in
+        Local/OpenWhisk/..., we call the _deserialize method and provide an
+        alternative implementation type.
+
+        FIXME: is this still needed? It looks like we stopped using
+        platform-specific implementations.
 
         Args:
             cached_config: Cached MinIO configuration

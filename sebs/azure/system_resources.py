@@ -83,10 +83,6 @@ class AzureSystemResources(SystemResources):
     def get_storage(self, replace_existing: Optional[bool] = None) -> BlobStorage:
         """Get or create Azure Blob Storage instance.
 
-        Creates wrapper object for Azure blob storage with proper authentication.
-        First ensures that storage account is created and connection string
-        is known, then creates wrapper and creates requested number of buckets.
-
         Requires Azure CLI instance in Docker to obtain storage account details.
 
         Args:
@@ -114,6 +110,8 @@ class AzureSystemResources(SystemResources):
 
         Creates and configures CosmosDB instance for NoSQL benchmark operations.
         Handles authentication and database/container creation as needed.
+
+        Requires Azure CLI instance in Docker.
 
         Returns:
             CosmosDB: Azure CosmosDB instance for NoSQL operations.
@@ -190,6 +188,7 @@ class AzureSystemResources(SystemResources):
 
         Cleans up Azure CLI Docker container and other resources.
         Only shuts down CLI if it was created by this instance.
+        Does not terminate CLI instance attached to the class.
         """
         if self._cli_instance and self._cli_instance_stop:
             self._cli_instance.shutdown()

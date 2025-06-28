@@ -29,9 +29,8 @@ from ..faas.storage import PersistentStorage
 
 
 class GCPStorage(PersistentStorage):
-    """Google Cloud Storage implementation for SeBS persistent storage.
+    """Google Cloud Storage implementation providing persistent storage.
 
-    Provides object storage capabilities using Google Cloud Storage buckets.
     Handles bucket creation, file operations, and storage resource management
     for benchmarks, deployment artifacts, and experiment outputs.
 
@@ -60,10 +59,12 @@ class GCPStorage(PersistentStorage):
 
     @property
     def replace_existing(self) -> bool:
+        """Flag indicating whether to replace existing files in buckets."""
         return self._replace_existing
 
     @replace_existing.setter
     def replace_existing(self, val: bool):
+        """Set the flag for replacing existing files."""
         self._replace_existing = val
 
     def __init__(
@@ -84,6 +85,7 @@ class GCPStorage(PersistentStorage):
 
     def correct_name(self, name: str) -> str:
         """Correct bucket name to meet GCP naming requirements.
+        Currently it does nothing - no special requirements on GCP.
 
         Args:
             name: Original bucket name
@@ -97,6 +99,10 @@ class GCPStorage(PersistentStorage):
         self, name: str, buckets: Optional[List[str]] = None, randomize_name: bool = False
     ) -> str:
         """Create a new Cloud Storage bucket or return existing one.
+
+        Checks if a bucket with a similar name (if `name` is a prefix) already exists
+        in the provided `buckets` list. If `randomize_name` is True, appends a
+        random string to make the name unique.
 
         Args:
             name: Base name for the bucket
@@ -160,6 +166,10 @@ class GCPStorage(PersistentStorage):
 
     def exists_bucket(self, bucket_name: str) -> bool:
         """Check if a Cloud Storage bucket exists.
+
+        Handles `exceptions.Forbidden` which can occur if the bucket exists
+        but is not accessible by the current credentials (treated as not existing
+        for SeBS purposes).
 
         Args:
             bucket_name: Name of the bucket to check
@@ -228,6 +238,8 @@ class GCPStorage(PersistentStorage):
 
         Uploads a file to the appropriate benchmark bucket, respecting cache
         settings and replace_existing configuration.
+
+        This is primarily used by benchmarks to upload input data.
 
         Args:
             path_idx: Index of the input path prefix

@@ -1,7 +1,6 @@
 """Local execution platform for SeBS.
 
-This module implements the local execution platform for the Serverless Benchmarking
-Suite. It runs serverless functions locally using Docker containers, providing a
+It runs serverless functions locally using Docker containers, providing a
 development and testing environment that mimics serverless execution without requiring
 cloud platform deployment.
 
@@ -40,16 +39,6 @@ from sebs.benchmark import Benchmark
 
 class Local(System):
     """Local execution platform implementation.
-
-    Implements the System interface for running serverless functions locally using
-    Docker containers. Provides development and testing capabilities without requiring
-    cloud platform deployment.
-
-    This platform supports:
-    - HTTP-triggered function execution
-    - Memory measurement and profiling
-    - Multi-container deployment
-    - Cross-platform operation (Linux, macOS, Windows)
 
     Attributes:
         DEFAULT_PORT: Default port number for function containers (9000)
@@ -401,7 +390,7 @@ class Local(System):
         container_deployment: bool,
         container_uri: str,
     ) -> "LocalFunction":
-        """Create a new function deployment.
+        """Create a new function deployment. In practice, it starts a new Docker container.
 
         Args:
             code_package: Benchmark code package to deploy

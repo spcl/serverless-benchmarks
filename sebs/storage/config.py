@@ -1,16 +1,5 @@
 """Configuration classes for storage backends in the Serverless Benchmarking Suite.
 
-This module provides dataclass-based configuration objects for different storage
-backends supported by SeBS. It includes abstract base classes that define the
-interface for storage configurations, as well as concrete implementations for
-specific storage systems.
-
-Key Classes:
-    PersistentStorageConfig: Abstract base for object storage configurations
-    MinioConfig: Configuration for MinIO S3-compatible object storage
-    NoSQLStorageConfig: Abstract base for NoSQL database configurations
-    ScyllaDBConfig: Configuration for ScyllaDB DynamoDB-compatible storage
-
 All configuration classes support serialization/deserialization for caching
 and provide environment variable mappings for runtime configuration.
 """
@@ -29,6 +18,8 @@ class PersistentStorageConfig(ABC):
     This class defines the interface that all object storage configurations
     must implement. It provides methods for serialization and environment
     variable generation that are used for caching and runtime configuration.
+
+    This is used by MinioStorage in different deployments.
 
     Subclasses must implement:
         - serialize(): Convert configuration to dictionary for caching
@@ -56,7 +47,7 @@ class PersistentStorageConfig(ABC):
 
 @dataclass
 class MinioConfig(PersistentStorageConfig):
-    """Configuration for MinIO S3-compatible object storage.
+    """Configuration for MinIO object storage.
 
     MinIO provides a local S3-compatible object storage service that runs in
     a Docker container. This configuration class stores all the necessary
@@ -154,6 +145,9 @@ class NoSQLStorageConfig(ABC):
     This class defines the interface that all NoSQL storage configurations
     must implement. It provides serialization methods used for caching
     and configuration management.
+
+    This class will be overidden by specific implementations for different
+    FaaS systems.
 
     Subclasses must implement:
         - serialize(): Convert configuration to dictionary for caching

@@ -11,8 +11,8 @@ from enum import Enum
 class BenchmarkModule(str, Enum):
     """Types of benchmark modules.
 
-    This enum defines the different types of benchmark modules that can
-    be used by benchmark functions:
+    Benchmark modules indicate which additional packages and configuration
+    are needed for the benchmark to work correctly.
 
     - STORAGE: Object storage module for storing and retrieving files
     - NOSQL: NoSQL database module for storing and retrieving structured data

@@ -1,11 +1,7 @@
 """Azure Function triggers for SeBS benchmarking.
 
 This module provides Azure-specific trigger implementations for invoking
-serverless functions during benchmarking. It supports HTTP triggers and
-integrates with Azure storage for data handling.
-
-The trigger classes handle function invocation, result processing, and
-integration with Azure-specific services like Blob Storage.
+serverless functions.
 
 Example:
     Basic usage for HTTP trigger:
@@ -38,6 +34,8 @@ class AzureTrigger(Trigger):
     This abstract base class provides common functionality for Azure Function
     triggers, including data storage account management for benchmark data
     handling.
+
+    FIXME: do we still need to know the data storage account?
 
     Attributes:
         _data_storage_account: Azure storage account for benchmark data

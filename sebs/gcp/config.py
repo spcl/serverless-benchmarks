@@ -1,14 +1,9 @@
 """Configuration classes for Google Cloud Platform (GCP) integration.
 
-This module provides configuration classes for GCP serverless benchmarking,
+This module provides configuration classes for GCP,
 including credentials management, resource allocation, and cloud region configuration.
 It handles authentication through service account JSON files and manages project-specific
 settings required for Cloud Functions deployment and execution.
-
-The module supports multiple credential sources in priority order:
-1. User-provided credentials in configuration
-2. Cached credentials from previous sessions
-3. Environment variables (GOOGLE_APPLICATION_CREDENTIALS, GCP_SECRET_APPLICATION_CREDENTIALS)
 
 Classes:
     GCPCredentials: Handles authentication and project identification
@@ -31,9 +26,6 @@ from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
 from sebs.utils import LoggingHandlers
 
-# FIXME: Replace type hints for static generators after migration to 3.7
-# https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
-
 
 class GCPCredentials(Credentials):
     """Credentials manager for Google Cloud Platform authentication.
@@ -44,9 +36,8 @@ class GCPCredentials(Credentials):
 
     The class supports multiple credential sources in priority order:
     1. User-provided credentials file path
-    2. Cached credentials from previous sessions
-    3. GOOGLE_APPLICATION_CREDENTIALS environment variable
-    4. GCP_SECRET_APPLICATION_CREDENTIALS environment variable
+    2. GOOGLE_APPLICATION_CREDENTIALS environment variable
+    3. GCP_SECRET_APPLICATION_CREDENTIALS environment variable
 
     Attributes:
         _gcp_credentials: Path to the service account JSON file
@@ -107,9 +98,11 @@ class GCPCredentials(Credentials):
 
         Loads credentials from multiple sources in priority order:
         1. User-provided config with credentials-json path
-        2. Cached credentials from previous sessions
-        3. GOOGLE_APPLICATION_CREDENTIALS environment variable
-        4. GCP_SECRET_APPLICATION_CREDENTIALS environment variable
+        2. GOOGLE_APPLICATION_CREDENTIALS environment variable
+        3. GCP_SECRET_APPLICATION_CREDENTIALS environment variable
+
+        Sets the `GOOGLE_APPLICATION_CREDENTIALS` environment variable if credentials
+        are loaded from SeBS config or SeBS-specific environment variables.
 
         Args:
             config: Configuration dictionary potentially containing credentials
@@ -166,6 +159,9 @@ class GCPCredentials(Credentials):
     def serialize(self) -> Dict:
         """Serialize credentials to dictionary for cache storage.
 
+        Only stores the project_id, as the path to credentials might change or be
+        environment-dependent. It also avoids any potential security issues.
+
         Returns:
             Dictionary containing project_id for cache storage
         """
@@ -173,7 +169,7 @@ class GCPCredentials(Credentials):
         return out
 
     def update_cache(self, cache: Cache) -> None:
-        """Update the cache with current credential information.
+        """Update the cache with current GCP project id.
 
         Args:
             cache: Cache instance to update with project ID
@@ -182,15 +178,10 @@ class GCPCredentials(Credentials):
 
 
 class GCPResources(Resources):
-    """Resource manager for Google Cloud Platform serverless resources.
+    """Resource manager for serverless resources on Google Cloud Platform.
 
-    Manages cloud resources allocated for function execution and deployment,
-    such as IAM roles, API gateways for HTTP triggers, and other GCP-specific
-    infrastructure components. Storage resources are handled separately.
-
-    This class extends the base Resources class with GCP-specific resource
-    management capabilities and handles serialization/deserialization for
-    cache persistence.
+    Currently, this class primarily inherits functionality from the base `Resources`
+    class, as we do not need more GCP-specific resources beyond standard storage buckets.
 
     Attributes:
         Inherits all attributes from the base Resources class

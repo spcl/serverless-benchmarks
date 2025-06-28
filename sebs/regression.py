@@ -50,20 +50,20 @@ benchmarks_python = [
 benchmarks_nodejs = ["110.dynamic-html", "120.uploader", "210.thumbnailer"]
 
 # AWS-specific configurations
-architectures_aws = ["x64", "arm64"]  # Supported architectures
-deployments_aws = ["package", "container"]  # Deployment types
+architectures_aws = ["x64", "arm64"]
+deployments_aws = ["package", "container"]
 
 # GCP-specific configurations
-architectures_gcp = ["x64"]  # Supported architectures
-deployments_gcp = ["package"]  # Deployment types
+architectures_gcp = ["x64"]
+deployments_gcp = ["package"]
 
 # Azure-specific configurations
-architectures_azure = ["x64"]  # Supported architectures
-deployments_azure = ["package"]  # Deployment types
+architectures_azure = ["x64"]
+deployments_azure = ["package"]
 
 # OpenWhisk-specific configurations
-architectures_openwhisk = ["x64"]  # Supported architectures
-deployments_openwhisk = ["container"]  # Deployment types
+architectures_openwhisk = ["x64"]
+deployments_openwhisk = ["container"]
 
 # User-defined config passed during initialization, set in regression_suite()
 cloud_config: Optional[dict] = None
@@ -263,10 +263,6 @@ class AWSTestSequencePython(
 ):
     """Test suite for Python benchmarks on AWS Lambda.
 
-    This test class runs all Python benchmarks on AWS Lambda,
-    using various architectures (x64, arm64) and deployment types
-    (package, container). Each test uses both library and HTTP triggers.
-
     Attributes:
         benchmarks: List of Python benchmarks to test
         architectures: List of AWS architectures to test (x64, arm64)
@@ -325,10 +321,6 @@ class AWSTestSequenceNodejs(
 ):
     """Test suite for Node.js benchmarks on AWS Lambda.
 
-    This test class runs all Node.js benchmarks on AWS Lambda,
-    using various architectures (x64, arm64) and deployment types
-    (package, container). Each test uses both library and HTTP triggers.
-
     Attributes:
         benchmarks: List of Node.js benchmarks to test
         architectures: List of AWS architectures to test (x64, arm64)
@@ -377,10 +369,6 @@ class AzureTestSequencePython(
     triggers=[Trigger.TriggerType.HTTP],
 ):
     """Test suite for Python benchmarks on Azure Functions.
-
-    This test class runs all Python benchmarks on Azure Functions,
-    using x64 architecture and package deployment. Each test uses
-    HTTP triggers.
 
     Attributes:
         benchmarks: List of Python benchmarks to test
@@ -457,10 +445,6 @@ class AzureTestSequenceNodejs(
 ):
     """Test suite for Node.js benchmarks on Azure Functions.
 
-    This test class runs all Node.js benchmarks on Azure Functions,
-    using x64 architecture and package deployment. Each test uses
-    HTTP triggers.
-
     Attributes:
         benchmarks: List of Node.js benchmarks to test
         architectures: List of Azure architectures to test (x64)
@@ -531,10 +515,6 @@ class GCPTestSequencePython(
 ):
     """Test suite for Python benchmarks on Google Cloud Functions.
 
-    This test class runs all Python benchmarks on Google Cloud Functions,
-    using x64 architecture and package deployment. Each test uses
-    HTTP triggers.
-
     Attributes:
         benchmarks: List of Python benchmarks to test
         architectures: List of GCP architectures to test (x64)
@@ -584,10 +564,6 @@ class GCPTestSequenceNodejs(
 ):
     """Test suite for Node.js benchmarks on Google Cloud Functions.
 
-    This test class runs all Node.js benchmarks on Google Cloud Functions,
-    using x64 architecture and package deployment. Each test uses
-    HTTP triggers.
-
     Attributes:
         benchmarks: List of Node.js benchmarks to test
         architectures: List of GCP architectures to test (x64)
@@ -636,10 +612,6 @@ class OpenWhiskTestSequencePython(
     triggers=[Trigger.TriggerType.HTTP],
 ):
     """Test suite for Python benchmarks on OpenWhisk.
-
-    This test class runs all Python benchmarks on OpenWhisk,
-    using x64 architecture and container deployment. Each test uses
-    HTTP triggers.
 
     Attributes:
         benchmarks: List of Python benchmarks to test
@@ -698,10 +670,6 @@ class OpenWhiskTestSequenceNodejs(
     triggers=[Trigger.TriggerType.HTTP],
 ):
     """Test suite for Node.js benchmarks on OpenWhisk.
-
-    This test class runs all Node.js benchmarks on OpenWhisk,
-    using x64 architecture and container deployment. Each test uses
-    HTTP triggers.
 
     Attributes:
         benchmarks: List of Node.js benchmarks to test

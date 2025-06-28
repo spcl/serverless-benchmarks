@@ -33,7 +33,7 @@ class ExecutionTimes:
 
     Stores various timing measurements from the client's perspective,
     including total execution time, HTTP connection times, and benchmark
-    runtime.
+    runtime. All times are reported in microseconds unless otherwise specified.
 
     Attributes:
         client: Total client-side execution time in microseconds
@@ -353,6 +353,8 @@ class Trigger(ABC, LoggingBase):
     A trigger represents a mechanism for invoking a serverless function,
     such as HTTP requests, direct SDK invocations, or event-based triggers.
     Each trigger type implements synchronous and asynchronous invocation methods.
+
+    Includes a helper method for HTTP invocations using pycurl.
     """
 
     class TriggerType(Enum):
@@ -392,7 +394,7 @@ class Trigger(ABC, LoggingBase):
         """
         Invoke a function via HTTP request.
 
-        Makes a HTTP POST request to the given URL with the provided payload
+        Makes a HTTP POST request using pycurl to the given URL, with the provided payload,
         and processes the response into an ExecutionResult.
 
         Args:
@@ -712,11 +714,13 @@ class Function(LoggingBase):
     Abstract base class for serverless functions.
 
     This class represents a deployed serverless function with its configuration
-    and associated triggers. It provides a unified interface for managing function
-    deployments across different cloud providers.
-
+    and contains a list of associated triggers.
     Each cloud provider (AWS, Azure, GCP, etc.) implements a subclass with
     platform-specific functionality.
+
+    Represents a deployable unit of code on a FaaS platform. Contains details
+    about the benchmark it belongs to, its name, code hash, configuration,
+    and associated triggers. Subclasses implement provider-specific details.
 
     Attributes:
         config: Function configuration

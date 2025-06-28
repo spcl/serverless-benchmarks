@@ -1,11 +1,7 @@
 """Apache OpenWhisk integration module for SeBS.
 
-This module provides the complete OpenWhisk integration for the Serverless
-Benchmarking Suite (SeBS), including platform-specific implementations for
-function deployment, configuration management, and execution.
-
-The module includes:
-- OpenWhisk system integration and function management
+This module provides the complete OpenWhisk integration:
+- OpenWhisk system and function management
 - Configuration classes for credentials and resources
 - Function and trigger implementations
 - Docker container management

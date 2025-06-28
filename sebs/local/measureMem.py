@@ -1,8 +1,8 @@
 """Memory measurement utility for Docker containers.
 
-This module provides functionality to measure memory consumption of Docker containers
-running local serverless functions. It reads memory usage from the cgroup filesystem
-at regular intervals and writes the measurements to a file for later analysis.
+This script periodically reads the `memory.current` file from the container's
+cgroup to record its memory usage. The measurements
+are appended to a specified output file.
 
 The measurement process:
 1. Reads memory.current from the container's cgroup

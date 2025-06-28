@@ -1,20 +1,11 @@
 """Resource management for self-hosted storage deployments in SeBS.
 
-This module provides resource management classes for self-hosted storage
-deployments, including both object storage (MinIO) and NoSQL storage (ScyllaDB).
-It handles configuration deserialization, container lifecycle management, and
-provides unified interfaces for accessing storage services.
+Its main responsibility is providing consistent interface and cache
+behavior of self-hosted storage for the entire SeBS system.
 
 Key Classes:
     SelfHostedResources: Configuration management for self-hosted storage resources
     SelfHostedSystemResources: System-level resource management and service provisioning
-
-The module supports:
-    - MinIO for S3-compatible object storage
-    - ScyllaDB for DynamoDB-compatible NoSQL storage
-    - Configuration caching and deserialization
-    - Docker container lifecycle management
-    - Dynamic service discovery and connection configuration
 """
 
 import docker
@@ -38,11 +29,6 @@ from sebs.utils import LoggingHandlers
 
 class SelfHostedResources(Resources):
     """Resource configuration for self-hosted storage deployments.
-
-    This class manages configuration for self-hosted storage services,
-    including object storage (MinIO) and NoSQL storage (ScyllaDB). It provides
-    serialization, caching, and deserialization capabilities for storage
-    configurations.
 
     Attributes:
         _object_storage: Configuration for object storage (MinIO)
@@ -205,11 +191,6 @@ class SelfHostedResources(Resources):
 class SelfHostedSystemResources(SystemResources):
     """System-level resource management for self-hosted storage deployments.
 
-    This class manages the lifecycle and provisioning of self-hosted storage
-    services, including MinIO object storage and ScyllaDB NoSQL storage. It
-    handles container management, service initialization, and provides unified
-    access to storage services.
-
     Attributes:
         _name: Name of the deployment
         _logging_handlers: Logging configuration handlers
@@ -245,8 +226,8 @@ class SelfHostedSystemResources(SystemResources):
         """Get or create a persistent storage instance.
 
         Creates a MinIO storage instance if one doesn't exist, or returns the
-        existing instance. The storage is configured using the deployment's
-        storage configuration.
+        existing instance. The storage is deserialized from a serialized
+        config of an existing storage deployment.
 
         Args:
             replace_existing: Whether to replace existing buckets (optional)
@@ -288,8 +269,9 @@ class SelfHostedSystemResources(SystemResources):
         """Get or create a NoSQL storage instance.
 
         Creates a ScyllaDB storage instance if one doesn't exist, or returns the
-        existing instance. The storage is configured using the deployment's
-        NoSQL storage configuration.
+        existing instance. The storage is deserialized from a serialized
+        config of an existing storage deployment.
+
 
         Returns:
             NoSQLStorage: ScyllaDB storage instance

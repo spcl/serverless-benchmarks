@@ -1,9 +1,5 @@
 """OpenWhisk function and configuration classes for SeBS.
 
-This module provides OpenWhisk-specific implementations of function configuration
-and function management for the SeBS benchmarking framework. It handles function
-configuration serialization, Docker image management, and storage integration.
-
 Classes:
     OpenWhiskFunctionConfig: Configuration data class for OpenWhisk functions
     OpenWhiskFunction: OpenWhisk-specific function implementation
@@ -36,10 +32,10 @@ class OpenWhiskFunctionConfig(FunctionConfig):
 
     Note:
         The docker_image attribute should be merged with higher-level
-        image abstraction in future refactoring.
+        image abstraction in future refactoring. This is quite similar
+        to AWS deployments.
     """
 
-    # FIXME: merge with higher level abstraction for images
     docker_image: str = ""
     namespace: str = "_"
     object_storage: Optional[MinioConfig] = None
@@ -92,9 +88,8 @@ class OpenWhiskFunction(Function):
     """
     OpenWhisk-specific function implementation for SeBS.
 
-    This class provides OpenWhisk-specific function management including
-    configuration handling, serialization, and trigger management. It integrates
-    with OpenWhisk actions and maintains Docker image information.
+    It does not implemnet anything non-standard, just implements
+    trigger and config types specific to OpenWhisk.
 
     Attributes:
         _cfg: OpenWhisk-specific function configuration
@@ -105,7 +100,11 @@ class OpenWhiskFunction(Function):
     """
 
     def __init__(
-        self, name: str, benchmark: str, code_package_hash: str, cfg: OpenWhiskFunctionConfig
+        self,
+        name: str,
+        benchmark: str,
+        code_package_hash: str,
+        cfg: OpenWhiskFunctionConfig,
     ) -> None:
         """
         Initialize OpenWhisk function.
@@ -167,7 +166,10 @@ class OpenWhiskFunction(Function):
 
         cfg = OpenWhiskFunctionConfig.deserialize(cached_config["config"])
         ret = OpenWhiskFunction(
-            cached_config["name"], cached_config["benchmark"], cached_config["hash"], cfg
+            cached_config["name"],
+            cached_config["benchmark"],
+            cached_config["hash"],
+            cfg,
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(

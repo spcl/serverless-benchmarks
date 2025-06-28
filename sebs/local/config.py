@@ -51,18 +51,14 @@ class LocalCredentials(Credentials):
         return LocalCredentials()
 
 
-"""
-    No need to cache and store - we prepare the benchmark and finish.
-    The rest is used later by the user.
-"""
-
-
 class LocalResources(SelfHostedResources):
     """Resource management for local execution platform.
 
     Manages resources for local function execution, including port allocation
     for Docker containers and storage configurations. Tracks allocated ports
     to avoid conflicts when running multiple functions.
+
+    In local deployments, caching and storing resource details is minimal.
 
     Attributes:
         _path: Path for local resource storage
@@ -161,9 +157,7 @@ class LocalResources(SelfHostedResources):
 class LocalConfig(Config):
     """Configuration class for local execution platform.
 
-    Provides the main configuration interface for the local platform,
-    combining credentials and resources. The local platform requires
-    minimal configuration since it runs functions locally.
+    No extra configuration - just implementation of the required interfaces.
 
     Attributes:
         _credentials: Local credentials instance (empty)

@@ -1,8 +1,8 @@
 """Docker container management for OpenWhisk functions in SeBS.
 
-This module provides OpenWhisk-specific Docker container management functionality,
-handling Docker image registry configuration, image tagging, and repository naming
-for OpenWhisk function deployments.
+Its primary focus is supporting both DockerHub and custom, local Docker registries.
+The latter make development and prototyping much faster and easier.
+They also allow users to push new images.
 
 Classes:
     OpenWhiskContainer: OpenWhisk-specific Docker container management
@@ -19,11 +19,6 @@ from sebs.openwhisk.config import OpenWhiskConfig
 class OpenWhiskContainer(DockerContainer):
     """
     OpenWhisk-specific Docker container management.
-
-    This class extends the base DockerContainer to provide OpenWhisk-specific
-    functionality for managing Docker images, registries, and container deployment.
-    It handles Docker registry authentication and image URI generation for
-    OpenWhisk function deployments.
 
     Attributes:
         config: OpenWhisk configuration containing registry settings
@@ -98,13 +93,6 @@ class OpenWhiskContainer(DockerContainer):
                 - Full repository name with registry prefix
                 - Image tag
                 - Complete image URI
-
-        Example:
-            >>> registry, repo, tag, uri = container.registry_name(
-            ...     "test", "python", "3.8", "x86_64"
-            ... )
-            >>> # Returns: ("Docker Hub", "sebs", "openwhisk-test-python-3.8-x86_64",
-            ...           "sebs:openwhisk-test-python-3.8-x86_64")
         """
         registry_name = self.config.resources.docker_registry
 

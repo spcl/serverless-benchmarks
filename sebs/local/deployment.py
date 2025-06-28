@@ -4,13 +4,6 @@ This module provides the Deployment class for managing local function deployment
 including memory measurement collection, function lifecycle management, and
 resource cleanup.
 
-The Deployment class handles:
-- Function container management
-- Memory measurement process coordination
-- Input/output serialization
-- Storage configuration
-- Resource cleanup and shutdown
-
 Classes:
     Deployment: Main deployment management class for local functions
 """
@@ -30,10 +23,6 @@ from sebs.utils import serialize, LoggingBase
 
 class Deployment(LoggingBase):
     """Manages local function deployments and memory measurements.
-
-    Coordinates the lifecycle of locally deployed functions, including container
-    management, memory measurement collection, and resource cleanup. Handles
-    serialization of deployment state for persistence and recovery.
 
     Attributes:
         _functions: List of deployed local functions
@@ -73,6 +62,8 @@ class Deployment(LoggingBase):
     def add_function(self, func: LocalFunction) -> None:
         """Add a function to the deployment.
 
+        If the function has a memory measurement PID, it's also recorded.
+
         Args:
             func: Local function to add to the deployment
         """
@@ -98,6 +89,8 @@ class Deployment(LoggingBase):
 
     def serialize(self, path: str) -> None:
         """Serialize deployment configuration to file.
+
+        Includes details about functions, storage, inputs, and memory measurements.
 
         Args:
             path: File path to write serialized deployment configuration

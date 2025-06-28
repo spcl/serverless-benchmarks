@@ -75,6 +75,7 @@ class JSONSerializer(json.JSONEncoder):
 def serialize(obj) -> str:
     """
     Serialize an object to a JSON string.
+    Applies `serialize` method when defined by the object.
 
     Args:
         obj: Object to serialize

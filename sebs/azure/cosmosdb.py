@@ -86,7 +86,7 @@ class CosmosDB(NoSQLStorage):
     resource lifecycle. It supports benchmark-specific database allocation
     and container creation with proper caching and error handling.
 
-    Azure CosmosDB uses a different model than traditional NoSQL databases:
+    Azure CosmosDB has the following model:
     - Each benchmark gets its own database
     - Container names match benchmark table names directly
     - No table mappings are required
@@ -341,13 +341,11 @@ class CosmosDB(NoSQLStorage):
         if benchmark_resources is not None and name in benchmark_resources.containers:
             self.logging.info(f"Using cached CosmosDB container {name}")
 
-        # For some reason, creating the client is enough to verify existence of db/container.
-        # We need to force the client to make some actions; that's why we call read.
-
-        # Each benchmark receives its own CosmosDB database
         if benchmark_resources is None:
 
-            # Get or allocate database
+            # For some reason, creating the client is not enough to verify existence
+            # of db/container.
+            # We need to force the client to make some actions; that's why we call read.
             try:
                 db_client = self.cosmos_client().get_database_client(benchmark)
                 db_client.read()

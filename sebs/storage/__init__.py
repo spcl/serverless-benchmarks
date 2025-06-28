@@ -1,8 +1,7 @@
-"""Storage module for the Serverless Benchmarking Suite (SeBS).
+"""This module provides storage abstractions and implementations for SeBS,
+supporting both object storage (S3-compatible) and NoSQL database storage.
 
-This module provides storage abstractions and implementations for SeBS, supporting
-both object storage (S3-compatible) and NoSQL database storage. It includes:
-
+It includes:
 - Configuration classes for different storage backends
 - MinIO implementation for local S3-compatible object storage
 - ScyllaDB implementation for local DynamoDB-compatible NoSQL storage
@@ -10,6 +9,8 @@ both object storage (S3-compatible) and NoSQL database storage. It includes:
 
 The storage module enables benchmarks to work with persistent data storage
 across different deployment environments while maintaining consistent interfaces.
+Thus, we can seamlessly port benchmarks between clouds and open-source
+serverless platforms.
 
 Key Components:
     - config: Configuration dataclasses for storage backends

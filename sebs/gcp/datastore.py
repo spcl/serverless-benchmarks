@@ -3,6 +3,8 @@
 This module provides NoSQL database functionality using Google Cloud Firestore
 in Datastore mode. It manages database allocation, table creation, and data
 operations for benchmarks requiring NoSQL storage capabilities.
+To create databases, we use the gcloud CLI instance since there is no API
+that we could access directly.
 
 Classes:
     BenchmarkResources: Resource configuration for benchmark databases
@@ -132,6 +134,9 @@ class Datastore(NoSQLStorage):
     def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
         """Get the actual table name for a benchmark table.
 
+        In Datastore's case, the table alias is the kind name if it's registered
+        for the benchmark.
+
         Args:
             benchmark: Name of the benchmark
             table: Logical table name
@@ -239,8 +244,11 @@ class Datastore(NoSQLStorage):
     ) -> str:
         """Create a new entity kind (table) in Datastore.
 
-        Creates a new Firestore database in Datastore mode if needed, and adds
-        the specified entity kind to the benchmark's resource configuration.
+        Creates a new Firestore database in Datastore mode if needed using gloud CLI.
+        Datastore kinds are schemaless and created implicitly when an entity of that
+        kind is first written. This method primarily ensures the database exists and
+        registers the kind name for the benchmark. The `primary_key` is noted but
+        not directly used to create schema for the kind itself, as Datastore is schemaless.
 
         Args:
             benchmark: Name of the benchmark

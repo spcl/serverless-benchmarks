@@ -4,12 +4,6 @@ This module provides the abstract base class for managing system-level resources
 across different serverless platforms. It coordinates access to storage services,
 NoSQL databases, and other cloud resources needed for benchmark execution.
 
-The SystemResources class serves as the resource factory and manager, handling:
-- Storage service provisioning and access
-- NoSQL database provisioning and access
-- Resource lifecycle management
-- Platform-specific resource configuration
-
 Each platform implementation (AWS, Azure, GCP, Local, etc.) provides concrete
 implementations that handle platform-specific resource management while
 following the common interface defined here.
@@ -34,10 +28,6 @@ class SystemResources(ABC, LoggingBase):
     by benchmark functions across different serverless platforms. It handles the
     provisioning and access to storage services, NoSQL databases, and other
     platform-specific resources.
-
-    The class serves as a factory and coordinator for different types of storage
-    and database services, ensuring they are properly configured and accessible
-    to benchmark functions during execution.
 
     Attributes:
         _config: Platform configuration containing credentials and settings
@@ -86,6 +76,7 @@ class SystemResources(ABC, LoggingBase):
         Provides access to NoSQL database services (DynamoDB, CosmosDB,
         Datastore, ScyllaDB) for benchmarks that require structured data
         storage with key-value or document-based operations.
+        The storage instance may be a cloud service or a locally deployed container.
 
         Returns:
             NoSQLStorage: Configured NoSQL storage instance ready for use

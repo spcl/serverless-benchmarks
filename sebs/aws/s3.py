@@ -149,9 +149,11 @@ class S3(PersistentStorage):
             # this is incredible
             # https://github.com/boto/boto3/issues/125
             if self.region != "us-east-1":
+                from typing import cast, Any
+
                 self.client.create_bucket(
                     Bucket=bucket_name,
-                    CreateBucketConfiguration={"LocationConstraint": self.region},
+                    CreateBucketConfiguration={"LocationConstraint": cast(Any, self.region)},
                 )
             else:
                 # This is incredible x2 - boto3 will not throw exception if you recreate

@@ -79,7 +79,7 @@ class NoSQLStorage(ABC, LoggingBase):
     @abstractmethod
     def get_tables(self, benchmark: str) -> Dict[str, str]:
         """
-        Get all tables associated with a benchmark.
+        Get a mapping of benchmark-defined table names to actual cloud provider table names.
 
         Args:
             benchmark: Name of the benchmark
@@ -107,6 +107,7 @@ class NoSQLStorage(ABC, LoggingBase):
     def retrieve_cache(self, benchmark: str) -> bool:
         """
         Retrieve cached table information for a benchmark.
+        Implementations should populate internal structures with cached table names/details.
 
         Args:
             benchmark: Name of the benchmark
@@ -128,34 +129,35 @@ class NoSQLStorage(ABC, LoggingBase):
 
     def envs(self) -> dict:
         """
-        Get environment variables required for connecting to the NoSQL storage.
+        Return a dictionary of environment variables that are required by functions
+        to access this NoSQL storage (e.g., connection strings, table names).
+        Default implementation returns an empty dictionary. Subclasses should override
+        if they need to expose environment variables.
 
         Returns:
             dict: Dictionary of environment variables
         """
         return {}
 
-    """
-    Table naming convention and implementation requirements.
-
-    Each table name follows this pattern:
-    sebs-benchmarks-{resource_id}-{benchmark-name}-{table-name}
-
-    Each implementation should do the following:
-    1. Retrieve cached data
-    2. Create missing tables that do not exist
-    3. Update cached data if anything new was created (done separately
-       in benchmark.py once the data is uploaded by the benchmark)
-    """
-
     def create_benchmark_tables(
-        self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
+        self,
+        benchmark: str,
+        name: str,
+        primary_key: str,
+        secondary_key: Optional[str] = None,
     ):
         """
-        Create a table for a benchmark if it doesn't exist in the cache.
-
         Checks if the table already exists in the cache. If not, creates a new table
         with the specified keys.
+
+        Each table name follows this pattern:
+        sebs-benchmarks-{resource_id}-{benchmark-name}-{table-name}
+
+        Each implementation should do the following:
+        1. Retrieve cached data
+        2. Create missing tables that do not exist
+        3. Update cached data if anything new was created (done separately
+        in benchmark.py once the data is uploaded by the benchmark)
 
         Args:
             benchmark: Name of the benchmark
@@ -174,20 +176,21 @@ class NoSQLStorage(ABC, LoggingBase):
         self.logging.info(f"Preparing to create a NoSQL table {name} for benchmark {benchmark}")
         self.create_table(benchmark, name, primary_key, secondary_key)
 
-    """
-    Platform-specific table implementations:
-
-    - AWS: DynamoDB Table
-    - Azure: CosmosDB Container
-    - Google Cloud: Firestore in Datastore Mode, Database
-    """
-
     @abstractmethod
     def create_table(
-        self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
+        self,
+        benchmark: str,
+        name: str,
+        primary_key: str,
+        secondary_key: Optional[str] = None,
     ) -> str:
         """
         Create a new table for a benchmark.
+
+        Provider-specific implementation details:
+        - AWS: DynamoDB Table
+        - Azure: CosmosDB Container
+        - Google Cloud: Firestore in Datastore Mode, Database/Collection
 
         Args:
             benchmark: Name of the benchmark
@@ -210,9 +213,12 @@ class NoSQLStorage(ABC, LoggingBase):
         secondary_key: Optional[Tuple[str, str]] = None,
     ):
         """
-        Write data to a table.
+        Write an item/document to the specified table/container.
+        This is used by benchmarks to populate tables with test data.
 
         Args:
+        Write data to a table.
+
             benchmark: Name of the benchmark
             table: Logical name of the table
             data: Dictionary of data to write
@@ -221,18 +227,16 @@ class NoSQLStorage(ABC, LoggingBase):
         """
         pass
 
-    """
-    Table management operations:
-
-    - AWS DynamoDB: Removing & recreating table is the cheapest & fastest option
-    - Azure CosmosDB: Recreate container
-    - Google Cloud: Also likely recreate
-    """
-
     @abstractmethod
     def clear_table(self, name: str) -> str:
         """
-        Clear all data from a table.
+        Clear all items from a table/container.
+        Currently not implemented for any of hte proivders.
+
+        Provider-specific implementation details:
+        - AWS DynamoDB: Removing & recreating table looks like the cheapest & fastest option.
+        - Azure CosmosDB: Recreate container or use specific API to delete items.
+        - Google Cloud: Likely recreate collection or use specific API.
 
         Args:
             name: Name of the table to clear

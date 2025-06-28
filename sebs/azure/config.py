@@ -3,25 +3,12 @@
 This module provides configuration classes for Azure resources, credentials,
 and deployment settings. It handles Azure-specific configuration including
 service principal authentication, resource group management, storage accounts,
-and CosmosDB setup for the SeBS benchmarking suite.
+and CosmosDB setup.
 
 Key classes:
     AzureCredentials: Manages Azure service principal authentication
     AzureResources: Manages Azure resource allocation and lifecycle
     AzureConfig: Combines credentials and resources for Azure deployment
-
-Example:
-    Basic usage for setting up Azure configuration:
-
-    ::
-
-        from sebs.azure.config import AzureConfig, AzureCredentials, AzureResources
-        from sebs.cache import Cache
-
-        # Load configuration from config dict and cache
-        config = AzureConfig.deserialize(config_dict, cache, handlers)
-        credentials = config.credentials
-        resources = config.resources
 """
 
 import json
@@ -208,6 +195,8 @@ class AzureCredentials(Credentials):
     def serialize(self) -> dict:
         """Serialize credentials to dictionary.
 
+        We store only subscription ID to avoid unsecure storage of sensitive data.
+
         Returns:
             Dictionary containing serialized credential data.
         """
@@ -227,8 +216,7 @@ class AzureResources(Resources):
     """Azure resource management for SeBS benchmarking.
 
     This class manages Azure cloud resources including storage accounts,
-    resource groups, and CosmosDB accounts required for serverless function
-    benchmarking. It handles resource allocation, caching, and lifecycle management.
+    resource groups, and CosmosDB accounts.
 
     Attributes:
         _resource_group: Name of the Azure resource group
@@ -607,6 +595,7 @@ class AzureResources(Resources):
         """Internal method to create storage account.
 
         Creates a new Azure storage account with the specified name.
+        This one can be usedboth for data storage and function storage.
         This method does NOT update cache or add to resource collections.
 
         Args:
@@ -695,6 +684,7 @@ class AzureResources(Resources):
         """Deserialize resources from config and cache.
 
         Loads Azure resources from cache if available, otherwise from configuration.
+        If no data is present, then we initialize an empty resources object.
 
         Args:
             config: Configuration dictionary

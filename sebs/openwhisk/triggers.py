@@ -1,8 +1,7 @@
 """Trigger implementations for OpenWhisk function invocation in SeBS.
 
 This module provides different trigger types for invoking OpenWhisk functions,
-including library-based (CLI) triggers and HTTP-based triggers. Each trigger
-type handles the specific invocation method and result parsing for OpenWhisk.
+including library-based (CLI) triggers and HTTP-based triggers.
 
 Classes:
     LibraryTrigger: CLI-based function invocation using wsk tool

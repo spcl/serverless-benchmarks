@@ -2,12 +2,8 @@
 
 This module implements NoSQL database storage using ScyllaDB, which provides a
 DynamoDB-compatible API through its Alternator interface. ScyllaDB runs in a
-Docker container and provides high-performance NoSQL storage for benchmark data
-that requires DynamoDB-compatible operations.
-
-The implementation uses boto3 with ScyllaDB's Alternator API to provide seamless
-compatibility with DynamoDB operations while running locally for development
-and testing purposes.
+Docker container, and the implementation uses boto3 while running locally
+for development and testing purposes.
 """
 
 import json
@@ -84,6 +80,9 @@ class ScyllaDB(NoSQLStorage):
         resources: Optional[Resources] = None,
     ):
         """Initialize a ScyllaDB storage instance.
+
+        It will initialize a boto3 client if the ScyllaDB
+        address is provided in the configuration.
 
         Args:
             docker_client: Docker client for managing the ScyllaDB container
@@ -244,7 +243,6 @@ class ScyllaDB(NoSQLStorage):
         """Stop the ScyllaDB container.
 
         Gracefully stops the running ScyllaDB container if it exists.
-        Logs an error if the container is not known.
         """
         if self._storage_container is not None:
             self.logging.info(f"Stopping ScyllaDB container at {self._cfg.address}.")
@@ -272,13 +270,6 @@ class ScyllaDB(NoSQLStorage):
         """
         return StorageType.SCYLLADB, self._cfg.serialize()
 
-    # Deserialization and inheritance support
-    #
-    # This implementation supports overriding this class. The main ScyllaDB class
-    # is used to start/stop deployments. When overriding the implementation in
-    # Local/OpenWhisk/..., we call the _deserialize method and provide an
-    # alternative implementation type.
-
     T = TypeVar("T", bound="ScyllaDB")
 
     @staticmethod
@@ -290,6 +281,9 @@ class ScyllaDB(NoSQLStorage):
         Creates a new instance of the specified class type from cached configuration
         data. This allows platform-specific versions to be deserialized correctly
         while sharing the core implementation.
+
+        FIXME: is this still needed? It looks like we stopped using
+        platform-specific implementations.
 
         Args:
             cached_config: Cached ScyllaDB configuration
@@ -446,6 +440,8 @@ class ScyllaDB(NoSQLStorage):
 
         Note: Unlike cloud providers with hierarchical database structures,
         ScyllaDB requires unique table names at the cluster level.
+
+        Note: PAY_PER_REQUEST billing mode has no effect here.
 
         Args:
             benchmark: Name of the benchmark

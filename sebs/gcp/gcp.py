@@ -1,9 +1,8 @@
 """Google Cloud Platform (GCP) serverless system implementation.
 
-This module provides the main GCP implementation for the Serverless Benchmarking Suite,
-including function deployment, management, monitoring, and resource allocation.
-It integrates with Google Cloud Functions, Cloud Storage, Cloud Monitoring, and
-Cloud Logging to provide comprehensive serverless benchmarking capabilities.
+This module provides the main GCP implementation wiht function deployment, management,
+monitoring, and resource allocation. It integrates with Google Cloud Functions,
+Cloud Storage, Cloud Monitoring, and Cloud Logging.
 
 The module handles:
 - Function creation, updating, and lifecycle management
@@ -138,6 +137,8 @@ class GCP(System):
 
         Sets up the Cloud Functions API client and initializes system resources
         including storage buckets and other required infrastructure.
+        After this call, the GCP system should be ready to allocate functions,
+        manage storage, and invoke functions.
 
         Args:
             config: Additional system-specific configuration parameters
@@ -148,6 +149,8 @@ class GCP(System):
 
     def get_function_client(self):
         """Get the Google Cloud Functions API client.
+
+        The client is initialized during the `initialize` call.
 
         Returns:
             Initialized Cloud Functions API client
@@ -271,8 +274,8 @@ class GCP(System):
             Note that the function GCP.recursive_zip is slower than the use of e.g.
             `utils.execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True)`
             or `shutil.make_archive(benchmark_archive, direcory, directory)`
-            But both of the two alternatives need a chance of directory
-            (shutil.make_archive does the directorychange internaly)
+            But both of the two alternatives need a change of directory
+            (shutil.make_archive does the directory change internaly)
             which leads to a "race condition" when running several benchmarks
             in parallel, since a change of the current directory is NOT Thread specfic.
         """
@@ -300,7 +303,8 @@ class GCP(System):
 
         Deploys a benchmark as a Cloud Function, handling code upload to Cloud Storage,
         function creation with proper configuration, and IAM policy setup for
-        unauthenticated invocations. If the function already exists, updates it instead.
+        unauthenticated invocations (HTTP triggers).
+        If the function already exists, updates it instead.
 
         Args:
             code_package: Benchmark package with code and configuration
@@ -440,6 +444,8 @@ class GCP(System):
 
         Creates HTTP triggers for Cloud Functions, waiting for function deployment
         to complete before extracting the trigger URL.
+        Only HTTP triggers are supported here; Library triggers are added by
+        default during function creation.
 
         Args:
             function: Function instance to create trigger for
@@ -973,8 +979,8 @@ class GCP(System):
         return functions
 
     def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
-        """Check if a function is deployed and optionally verify version.
 
+        """Check if a function is deployed and optionally verify its version.
         Args:
             func_name: Name of the function to check
             versionId: Optional specific version ID to verify (-1 to check any)

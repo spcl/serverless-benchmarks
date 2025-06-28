@@ -2,8 +2,7 @@
 
 This module provides the GCPSystemResources class that manages all GCP resources
 required for serverless benchmarking, including storage, NoSQL databases, and
-CLI tools. It coordinates resource allocation and provides unified access to
-GCP services.
+CLI tools.
 
 Classes:
     GCPSystemResources: Main resource manager for GCP services
@@ -33,8 +32,6 @@ import docker
 class GCPSystemResources(SystemResources):
     """System resource manager for Google Cloud Platform services.
 
-    Manages and provides access to all GCP services required for serverless
-    benchmarking including Cloud Storage, Firestore/Datastore, and gcloud CLI.
     Handles resource initialization, configuration, and cleanup.
 
     Attributes:

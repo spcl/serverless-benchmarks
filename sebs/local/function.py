@@ -1,8 +1,6 @@
 """Function and trigger implementations for local execution platform.
 
-This module provides classes for managing functions and triggers in the local
-execution environment. Functions run as Docker containers with HTTP triggers
-for invocation.
+Functions run as Docker containers with HTTP triggers for invocation.
 
 Classes:
     HTTPTrigger: HTTP-based trigger for local function invocation
@@ -105,8 +103,7 @@ class LocalFunction(Function):
     """Function implementation for local execution platform.
 
     Represents a serverless function running locally in a Docker container.
-    Handles container management, URL resolution, and memory measurement
-    process tracking.
+    Handles container management and URL resolution.
 
     Attributes:
         _instance: Docker container running the function
@@ -127,6 +124,8 @@ class LocalFunction(Function):
         measurement_pid: Optional[int] = None,
     ):
         """Initialize local function.
+
+        Determines the invocation URL based on the Docker container's network settings.
 
         Args:
             docker_container: Docker container instance running the function

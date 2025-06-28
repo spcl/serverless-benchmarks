@@ -1,9 +1,8 @@
 """SeBS local execution platform module.
 
-This module provides the local execution platform for the Serverless Benchmarking Suite.
-It enables running serverless functions locally using Docker containers, providing a
-development and testing environment that mimics serverless execution without requiring
-cloud platform deployment.
+This module provides the local execution platform by running serverless functions
+locally using Docker containers, providing a development and testing environment
+that mimics serverless execution without requiring cloud platform deployment.
 
 Key components:
 - Local: Main system class for local function execution
@@ -11,7 +10,7 @@ Key components:
 - Deployment: Manages deployments and memory measurements for local functions
 
 The local platform supports HTTP triggers and provides memory profiling capabilities
-for performance analysis.
+for performance analysis. It can also be integrated with local object and NoSQL storage.
 """
 
 from .local import Local  # noqa

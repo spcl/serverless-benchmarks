@@ -1,7 +1,7 @@
 """Google Cloud Platform (GCP) integration for SeBS.
 
-This package provides comprehensive Google Cloud Platform support for the
-Serverless Benchmarking Suite, including Cloud Functions deployment, Cloud Storage
+This package provides comprehensive Google Cloud Platform support,
+including Cloud Functions deployment, Cloud Storage
 for object storage, Firestore/Datastore for NoSQL operations, and Cloud Monitoring
 for performance metrics collection.
 
@@ -11,7 +11,7 @@ The package includes:
 - NoSQL database operations using Firestore in Datastore mode
 - Performance monitoring via Cloud Monitoring and Cloud Logging
 - Docker-based gcloud CLI integration for administrative operations
-- Comprehensive credential and resource management
+- Credential and resource management
 
 Modules:
     gcp: Main GCP system implementation

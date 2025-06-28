@@ -146,6 +146,10 @@ class LibraryTrigger(Trigger):
     def async_invoke(self, payload: Dict):
         """Asynchronously invoke the Cloud Function.
 
+        Note: This method is not currently implemented for GCP's LibraryTrigger.
+        GCP's `functions.call` API is synchronous. Asynchronous behavior could
+        need to be implemented using a thread pool or similar mechanism if desired.
+
         Args:
             payload: Input data to send to the function
 

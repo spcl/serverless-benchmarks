@@ -1,29 +1,7 @@
 """Azure Function implementation for SeBS benchmarking.
 
-This module provides the Azure-specific implementation of serverless functions
-for the SeBS benchmarking suite. It handles Azure Function representation,
-serialization, and deserialization with Azure-specific storage configuration.
-
-The AzureFunction class extends the base Function class to include Azure-specific
-attributes like function storage accounts and Azure trigger configurations.
-
-Example:
-    Basic usage for creating an Azure Function:
-
-    ::
-
-        from sebs.azure.function import AzureFunction
-        from sebs.azure.config import AzureResources
-        from sebs.faas.function import FunctionConfig
-
-        # Create function with Azure-specific storage
-        function = AzureFunction(
-            name="my-function",
-            benchmark="test-benchmark",
-            code_hash="abc123",
-            function_storage=storage_account,
-            cfg=function_config
-        )
+The AzureFunction class extends the base Function class and adds
+one Azure-specific property: storage account associated with this function.
 """
 
 from sebs.azure.config import AzureResources
@@ -31,11 +9,7 @@ from sebs.faas.function import Function, FunctionConfig
 
 
 class AzureFunction(Function):
-    """Azure Function implementation for SeBS benchmarking.
-
-    This class represents an Azure Function with Azure-specific attributes
-    and configuration. It includes storage account information and supports
-    Azure-specific triggers like HTTP triggers.
+    """Azure Function implementation.
 
     Attributes:
         function_storage: Azure Storage account used for function code storage

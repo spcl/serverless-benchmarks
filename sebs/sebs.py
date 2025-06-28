@@ -1,9 +1,6 @@
 """Main SeBS (Serverless Benchmarking Suite) client implementation.
 
-This module provides the main interface for the Serverless Benchmarking Suite,
-offering a unified API for deploying, executing, and benchmarking serverless
-functions across multiple cloud providers and locally. It manages:
-
+This module provides the main interface for SeBS:
 - Deployment client creation for different platforms (AWS, Azure, GCP, OpenWhisk, local)
 - Benchmark execution and configuration
 - Experiment setup and execution
@@ -38,11 +35,6 @@ from sebs.experiments import Experiment
 class SeBS(LoggingBase):
     """Main client for the Serverless Benchmarking Suite.
 
-    This class provides the primary interface for interacting with the benchmarking
-    suite. It manages deployment clients, benchmarks, experiments, and resources.
-    It handles caching, logging, and provides factory methods for creating the
-    various components needed for benchmarking.
-
     Attributes:
         cache_client: Client for managing cached artifacts (code packages, etc.)
         docker_client: Docker client for container operations
@@ -62,7 +54,7 @@ class SeBS(LoggingBase):
         return self._cache_client
 
     @property
-    def docker_client(self) -> docker.client:
+    def docker_client(self) -> docker.client.DockerClient:
         """Get the Docker client.
 
         Returns:

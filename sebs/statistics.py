@@ -39,9 +39,7 @@ def basic_stats(times: List[float]) -> BasicStats:
 def ci_tstudents(alpha: float, times: List[float]) -> Tuple[float, float]:
     """Compute parametric confidence interval using Student's t-distribution.
 
-    This function computes a confidence interval for the mean of the given
-    measurement times using Student's t-distribution. This is a parametric
-    method that assumes the data follows a normal distribution.
+    This is a parametric method that assumes the data follows a normal distribution.
 
     Args:
         alpha: Confidence level (e.g., 0.95 for 95% confidence)
@@ -57,15 +55,12 @@ def ci_tstudents(alpha: float, times: List[float]) -> Tuple[float, float]:
 def ci_le_boudec(alpha: float, times: List[float]) -> Tuple[float, float]:
     """Compute non-parametric confidence interval using Le Boudec's method.
 
-    This function computes a confidence interval for the median of the given
-    measurement times using the method described by Le Boudec. This is a
-    non-parametric method that does not assume any particular distribution
-    of the data.
+    It requires a sufficient number of samples but it is a non-parametric
+    method that does not assume that data follows the normal distribution.
 
     Reference:
-        J.-Y. Le Boudec, "Methods for the Estimation of the Accuracy of
-        Measurements in Computer Performance Evaluation",
-        Performance Evaluation Review, 2010
+        J.-Y. Le Boudec, "Performance Evaluation of Computer and
+        Communication Systems", 2010.
 
     Args:
         alpha: Confidence level (e.g., 0.95 for 95% confidence)

@@ -62,6 +62,7 @@ class GCPFunction(Function):
 
     def serialize(self) -> Dict:
         """Serialize function to dictionary for cache storage.
+        Adds code bucket in cloud storage.
 
         Returns:
             Dictionary containing function state including bucket information

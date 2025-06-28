@@ -111,8 +111,8 @@ class System(ABC, LoggingBase):
         """
         Get the cold start counter.
 
-        This counter is used in function name generation to help force cold starts
-        by creating new function instances with different names.
+        A counter used in attempts to enforce cold starts.
+        Its value might be incorporated into function environment variables.
 
         Returns:
             int: The current cold start counter value
@@ -180,8 +180,9 @@ class System(ABC, LoggingBase):
 
         This method either:
         1. Uses an existing resource ID from configuration
-        2. Finds and reuses an existing deployment matching the prefix
-        3. Creates a new unique resource ID and initializes resources
+        2. Finds existing deployment in the cloud and reuses it, matching the optional prefix
+        3. If no suitable existing deployment is found or specified,
+            a new unique resource ID is generated.
 
         Args:
             select_prefix: Optional prefix to match when looking for existing deployments
@@ -234,6 +235,7 @@ class System(ABC, LoggingBase):
 
         After this call completes, the local or remote FaaS system should be ready
         to allocate functions, manage storage resources, and invoke functions.
+        Subclasses should override this to perform provider-specific initialization.
 
         Args:
             config: System-specific parameters
@@ -257,9 +259,9 @@ class System(ABC, LoggingBase):
 
         The benchmark creates a code directory with the following structure:
         - [benchmark sources]
-        - [benchmark resources]
+        - [benchmark resources], e.g., HTML template or ffmpeg binary
         - [dependence specification], e.g. requirements.txt or package.json
-        - [handlers implementation for the language and deployment]
+        - [language-speicifc wrappers implementation for the specific system]
 
         This step transforms that structure to fit platform-specific deployment
         requirements, such as creating a zip file for AWS or container image.
@@ -316,7 +318,8 @@ class System(ABC, LoggingBase):
 
         This method is called when a function is found in the cache. It may perform
         platform-specific operations such as checking if the function still exists
-        in the cloud, updating permissions, etc.
+        in the cloud, updating permissions, re-initializing transient client objects,
+        or ensuring associated resources (like triggers) are correctly configured.
 
         Args:
             function: The cached function instance
@@ -332,7 +335,7 @@ class System(ABC, LoggingBase):
         container_uri: str,
     ):
         """
-        Update an existing function in the FaaS platform.
+        Update an existing function in the FaaS platform with new code and/or configuration.
 
         Args:
             function: Existing function instance to update
@@ -352,10 +355,13 @@ class System(ABC, LoggingBase):
         This method handles the complete function creation/update workflow:
 
         1. If a cached function with the given name exists and code has not changed,
-           returns the existing function
-        2. If a cached function exists but the code has changed, updates the
-           function with the new code
+           returns the cached function (after potential configuration checks/updates)
+        2. If a cached function exists but the code hash differs or rebuild is foreced,
+           update the function code in the cloud.
         3. If no cached function exists, creates a new function
+
+        Benchmark code is built (via `code_package.build`) before these steps.
+        The build might be skipped if source code hasn't changed and no update is forced.
 
         Args:
             code_package: The benchmark containing the function code
@@ -471,10 +477,10 @@ class System(ABC, LoggingBase):
     @abstractmethod
     def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
         """
-        Update the configuration of an existing function.
+        Update the configuration of an existing function on the FaaS plaform.
 
         This method is called when a function's code is up-to-date but its
-        configuration (memory, timeout, etc.) needs to be updated.
+        configuration (memory, timeout, environment variable, etc.) needs to be updated.
 
         Args:
             cached_function: The function to update
@@ -549,6 +555,7 @@ class System(ABC, LoggingBase):
 
         This method implements platform-specific techniques to ensure that
         subsequent invocations of the functions will be cold starts.
+        In practice, this usually uses an update of environment variables with new values.
 
         Args:
             functions: List of functions to enforce cold starts for
@@ -566,7 +573,11 @@ class System(ABC, LoggingBase):
         metrics: dict,
     ):
         """
-        Download function metrics from the cloud platform.
+        Download provider-specific performance metrics from the cloud platform.
+
+        This typically involves querying a logging or monitoring service (e.g., CloudWatch,
+        Application Insights) for details like actual execution duration, memory usage, etc.,
+        and populating the `requests` (ExecutionResult objects) and `metrics` dictionaries.
 
         Args:
             function_name: Name of the function to get metrics for
@@ -593,7 +604,7 @@ class System(ABC, LoggingBase):
 
     def disable_rich_output(self):
         """
-        Disable rich output for platforms that support it.
+        Disable rich output for platforms that support it, e.g, progress of pushing Docker images.
 
         This is mostly used in testing environments or CI pipelines.
         """
@@ -604,7 +615,9 @@ class System(ABC, LoggingBase):
         """
         Shutdown the FaaS system.
 
-        Closes connections, stops local instances, and updates the cache.
+        This should release any acquired resources, stop any running local services
+        (like Docker containers started by SeBS for CLI interactions), and update
+        the cache with the final system configuration.
         This should be called when the system is no longer needed.
         """
         try:

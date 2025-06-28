@@ -4,10 +4,6 @@ Apache OpenWhisk serverless platform implementation for SeBS.
 This module provides the main OpenWhisk system class that integrates OpenWhisk
 serverless platform with the SeBS benchmarking framework. It handles function
 deployment, execution, monitoring, and resource management for OpenWhisk clusters.
-
-The implementation supports both local and remote OpenWhisk deployments,
-Docker-based function packaging, and various trigger types including HTTP
-and library-based invocations.
 """
 
 import os
@@ -38,8 +34,10 @@ class OpenWhisk(System):
 
     This class provides the main integration between SeBS and Apache OpenWhisk,
     handling function deployment, execution, container management, and resource
-    allocation. It supports both local and remote OpenWhisk deployments with
-    Docker-based function packaging.
+    management (primarily self-hosted storage like Minio/ScyllaDB via SelfHostedSystemResources),
+    and interaction with the `wsk` CLI.
+    It supports OpenWhisk deployments with Docker-based function packaging.
+    We do not use code packages due to low package size limits.
 
     Attributes:
         _config: OpenWhisk-specific configuration settings
@@ -63,6 +61,7 @@ class OpenWhisk(System):
     ) -> None:
         """
         Initialize OpenWhisk system with configuration and clients.
+        Will log in to Docker registry.
 
         Args:
             system_config: Global SeBS system configuration
@@ -193,7 +192,9 @@ class OpenWhisk(System):
 
         Creates both a Docker image and a ZIP archive containing the benchmark code.
         The ZIP archive is required for OpenWhisk function registration even when
-        using Docker-based deployment.
+        using Docker-based deployment. It contains only the main handlers
+        (`__main__.py` or `index.js`). The Docker image URI is returned,
+        which will be used when creating the action.
 
         Args:
             directory: Path to the benchmark code directory
