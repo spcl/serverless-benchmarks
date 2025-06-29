@@ -4,6 +4,7 @@ ARG BASE_IMAGE
 FROM ${BASE_REPOSITORY}:dependencies-sdk.aws.cpp.all as sdk
 FROM ${BASE_REPOSITORY}:dependencies-boost.aws.cpp.all as boost
 FROM ${BASE_REPOSITORY}:dependencies-hiredis.aws.cpp.all as hiredis
+FROM ${BASE_REPOSITORY}:dependencies-opencv.aws.cpp.all as opencv
 FROM ${BASE_REPOSITORY}:dependencies-runtime.aws.cpp.all as runtime
 
 FROM ${BASE_IMAGE} as builder
@@ -24,6 +25,7 @@ COPY --from=sdk /opt /opt
 COPY --from=boost /opt /opt
 COPY --from=runtime /opt /opt
 COPY --from=hiredis /opt /opt
+COPY --from=opencv /opt/opencv /opt/opencv
 
 # useradd and groupmod is installed in /usr/sbin which is not in PATH
 ENV PATH=/usr/sbin:$PATH

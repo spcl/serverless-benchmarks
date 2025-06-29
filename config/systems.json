@@ -129,7 +129,7 @@
           }
         },
         "dependencies": [
-            "runtime", "sdk", "boost", "hiredis"
+            "runtime", "sdk", "boost", "hiredis", "opencv"
         ],
         "versions": ["all"],
         "images": ["build"],
