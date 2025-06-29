@@ -434,6 +434,10 @@ class Benchmark(LoggingBase):
         find_package(Boost REQUIRED)
         target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
         target_link_libraries(${PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
+        
+        find_package(OpenCV REQUIRED)
+        include_directories(${OpenCV_INCLUDE_DIRS})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})
 
         find_package(AWSSDK COMPONENTS s3 dynamodb core)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${AWSSDK_LINK_LIBRARIES})

@@ -15,7 +15,6 @@
 
 Storage Storage::get_client() {
   Aws::Client::ClientConfiguration config;
-  config.caFile = "/etc/pki/tls/certs/ca-bundle.crt";
 
   char const TAG[] = "LAMBDA_ALLOC";
   auto credentialsProvider =
@@ -26,8 +25,8 @@ Storage Storage::get_client() {
 
 uint64_t Storage::download_file(Aws::String const &bucket,
                                 Aws::String const &key, int &required_retries,
-                                bool report_dl_time) {
-
+                                bool report_dl_time,
+                                Aws::IOStream &output_stream) {
   Aws::S3::Model::GetObjectRequest request;
   request.WithBucket(bucket).WithKey(key);
   auto bef = timeSinceEpochMicrosec();
@@ -40,11 +39,10 @@ uint64_t Storage::download_file(Aws::String const &bucket,
     if (outcome.IsSuccess()) {
       auto &s = outcome.GetResult().GetBody();
       uint64_t finishedTime = timeSinceEpochMicrosec();
-      // Perform NOP on result to prevent optimizations
-      std::stringstream ss;
-      ss << s.rdbuf();
-      std::string first(" ");
-      ss.get(&first[0], 1);
+
+      output_stream.clear();
+      output_stream << s.rdbuf();
+
       required_retries = retries;
       if (report_dl_time) {
         return finishedTime - bef;
@@ -63,9 +61,30 @@ uint64_t Storage::download_file(Aws::String const &bucket,
   return 0;
 }
 
+std::tuple<std::string, uint64_t> Storage::download_file(
+    Aws::String const &bucket, Aws::String const &key) {
+  Aws::S3::Model::GetObjectRequest request;
+  request.WithBucket(bucket).WithKey(key);
+  auto bef = timeSinceEpochMicrosec();
+
+  Aws::S3::Model::GetObjectOutcome outcome = this->_client.GetObject(request);
+  if (!outcome.IsSuccess()) {
+    std::cerr << "Error: GetObject: " << outcome.GetError().GetMessage()
+              << std::endl;
+    return {"", 0};
+  }
+  auto &s = outcome.GetResult().GetBody();
+  uint64_t finishedTime = timeSinceEpochMicrosec();
+
+  std::string content((std::istreambuf_iterator<char>(s)),
+                      std::istreambuf_iterator<char>());
+  return {content, finishedTime - bef};
+}
+
 uint64_t Storage::upload_random_file(Aws::String const &bucket,
-                                     Aws::String const &key, int size,
-                                     char *pBuf) {
+                                     Aws::String const &key, 
+                                     bool report_dl_time,
+                                     Aws::String data) {
   /**
    * We use Boost's bufferstream to wrap the array as an IOStream. Usign a
    * light-weight streambuf wrapper, as many solutions (e.g.
@@ -74,16 +93,19 @@ uint64_t Storage::upload_random_file(Aws::String const &bucket,
    * functioning tellp(), etc... (for instance to get the body length).
    */
   const std::shared_ptr<Aws::IOStream> input_data =
-      std::make_shared<boost::interprocess::bufferstream>(pBuf, size);
+      Aws::MakeShared<Aws::StringStream>("LAMBDA_ALLOC", std::move(data));
 
   Aws::S3::Model::PutObjectRequest request;
   request.WithBucket(bucket).WithKey(key);
   request.SetBody(input_data);
   uint64_t bef_upload = timeSinceEpochMicrosec();
   Aws::S3::Model::PutObjectOutcome outcome = this->_client.PutObject(request);
+  int64_t finishedTime = timeSinceEpochMicrosec();
   if (!outcome.IsSuccess()) {
     std::cerr << "Error: PutObject: " << outcome.GetError().GetMessage()
               << std::endl;
+    return 0;
   }
-  return bef_upload;
+  return report_dl_time ? finishedTime - bef_upload
+                 : finishedTime;
 }
