@@ -88,7 +88,8 @@ Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
   Aws::String upload_data(out_buffer.begin(), out_buffer.end());
 
   uint64_t upload_time = client_.upload_random_file(
-      bucket_name, key_name, true, upload_data);
+      bucket_name, key_name, true,
+      reinterpret_cast<char *>(out_buffer.data()), out_buffer.size());
 
   if (upload_time == 0)
   {
