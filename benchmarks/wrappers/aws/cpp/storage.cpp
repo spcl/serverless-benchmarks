@@ -84,7 +84,13 @@ std::tuple<std::string, uint64_t> Storage::download_file(
 uint64_t Storage::upload_random_file(Aws::String const &bucket,
                                      Aws::String const &key, 
                                      bool report_dl_time,
-                                     Aws::String data) {
+                                     char * data,
+                                     size_t data_size) {
+  if (data == nullptr || data_size == 0) {
+    std::cerr << "Error: upload_random_file called with null data or zero size."
+              << std::endl;
+    return 0;
+  }
   /**
    * We use Boost's bufferstream to wrap the array as an IOStream. Usign a
    * light-weight streambuf wrapper, as many solutions (e.g.
@@ -93,7 +99,8 @@ uint64_t Storage::upload_random_file(Aws::String const &bucket,
    * functioning tellp(), etc... (for instance to get the body length).
    */
   const std::shared_ptr<Aws::IOStream> input_data =
-      Aws::MakeShared<Aws::StringStream>("LAMBDA_ALLOC", std::move(data));
+      std::make_shared<boost::interprocess::bufferstream>(
+          data, data_size);
 
   Aws::S3::Model::PutObjectRequest request;
   request.WithBucket(bucket).WithKey(key);

@@ -35,7 +35,8 @@ public:
   uint64_t upload_random_file(Aws::String const &bucket,
                           Aws::String const &key,
                           bool report_dl_time,
-                          Aws::String data);
+                          char * data,
+                          size_t data_size);
 
 };
 
