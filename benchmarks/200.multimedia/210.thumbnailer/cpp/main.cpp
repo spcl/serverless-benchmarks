@@ -9,7 +9,6 @@
 #include <iostream>
 #include <vector>
 
-#include "Base64.hpp"
 #include "function.hpp"
 #include "storage.hpp"
 #include "utils.hpp"
