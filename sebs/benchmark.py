@@ -438,6 +438,9 @@ class Benchmark(LoggingBase):
         find_package(OpenCV REQUIRED)
         include_directories(${OpenCV_INCLUDE_DIRS})
         target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})
+        
+        find_package(igraph REQUIRED)
+        target_link_libraries(${PROJECT_NAME} PRIVATE igraph::igraph)
 
         find_package(AWSSDK COMPONENTS s3 dynamodb core)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${AWSSDK_LINK_LIBRARIES})
