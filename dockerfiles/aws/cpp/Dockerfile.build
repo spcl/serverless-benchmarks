@@ -6,7 +6,6 @@ FROM ${BASE_REPOSITORY}:dependencies-boost.aws.cpp.all as boost
 FROM ${BASE_REPOSITORY}:dependencies-hiredis.aws.cpp.all as hiredis
 FROM ${BASE_REPOSITORY}:dependencies-runtime.aws.cpp.all as runtime
 FROM ${BASE_REPOSITORY}:dependencies-opencv.aws.cpp.all as opencv
-FROM ${BASE_REPOSITORY}:dependencies-torch.aws.cpp.all as torch
 FROM ${BASE_REPOSITORY}:dependencies-igraph.aws.cpp.all as igraph
 
 FROM ${BASE_IMAGE} as builder
@@ -28,7 +27,6 @@ COPY --from=boost /opt /opt
 COPY --from=runtime /opt /opt
 COPY --from=hiredis /opt /opt
 COPY --from=opencv /opt/opencv /opt/opencv
-COPY --from=torch /opt /opt
 COPY --from=igraph /opt /opt
 
 # useradd and groupmod is installed in /usr/sbin which is not in PATH

@@ -2,5 +2,6 @@
   "timeout": 60,
   "memory": 256,
   "languages": ["python", "nodejs", "cpp"],
-  "modules": ["storage"]
+  "modules": ["storage"],
+  "cpp_dependencies": ["opencv", "boost"]
 }
