@@ -1,6 +1,7 @@
 {
   "timeout": 120,
   "memory": 512,
-  "languages": ["python"],
-  "modules": []
+  "languages": ["python", "cpp"],
+  "modules": [],
+  "cpp_dependencies": ["igraph"]
 }
