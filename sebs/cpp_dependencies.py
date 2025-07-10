@@ -25,7 +25,7 @@ class CppDependencies(str, Enum):
             CppDependencies.TORCH: CppDependencyConfig(
                 docker_img="dependencies-torch.aws.cpp.all",
                 cmake_package="Torch",
-                cmake_libs="${TORCH_LIBRARIES}",
+                cmake_libs="${TORCH_LIBRARIES} -lm",
                 cmake_dir="${TORCH_INCLUDE_DIRS}"
             ),
             CppDependencies.OPENCV: CppDependencyConfig(

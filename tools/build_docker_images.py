@@ -45,7 +45,8 @@ def build(image_type, system, language=None, version=None, version_name=None):
     if version:
         target += "." + version
     sebs_version = config["general"].get("SeBS_version", "unknown")
-    target += "-" + sebs_version # This should not be appended for dependencies' images
+    if not (args.type == "dependencies"):
+        target += "-" + sebs_version # This should not be appended for dependencies' images
 
     # if we pass an integer, the build will fail with 'connection reset by peer'
     buildargs = {
