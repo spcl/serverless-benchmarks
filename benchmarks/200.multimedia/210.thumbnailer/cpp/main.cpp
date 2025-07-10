@@ -15,7 +15,7 @@
 
 Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
 {
-  Storage client_ = Storage::get_client();
+  sebs::Storage client_ = sebs::Storage::get_client();
 
   auto bucket_obj = request.GetObject("bucket");
   if (!bucket_obj.IsObject())

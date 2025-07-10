@@ -129,7 +129,7 @@
           }
         },
         "dependencies": [
-            "runtime", "sdk", "boost", "hiredis", "opencv", "igraph"
+            "runtime", "sdk", "boost", "hiredis", "opencv", "igraph", "torch"
         ],
         "versions": ["all"],
         "images": ["build"],

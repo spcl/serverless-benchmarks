@@ -13,17 +13,17 @@
 #include "storage.hpp"
 #include "utils.hpp"
 
-Storage Storage::get_client() {
+sebs::Storage sebs::Storage::get_client() {
   Aws::Client::ClientConfiguration config;
 
   char const TAG[] = "LAMBDA_ALLOC";
   auto credentialsProvider =
       Aws::MakeShared<Aws::Auth::EnvironmentAWSCredentialsProvider>(TAG);
-  Aws::S3::S3Client client(credentialsProvider, config);
+  Aws::S3::S3Client client(credentialsProvider, nullptr, config);
   return Storage(std::move(client));
 }
 
-uint64_t Storage::download_file(Aws::String const &bucket,
+uint64_t sebs::Storage::download_file(Aws::String const &bucket,
                                 Aws::String const &key, int &required_retries,
                                 bool report_dl_time,
                                 Aws::IOStream &output_stream) {
@@ -61,7 +61,7 @@ uint64_t Storage::download_file(Aws::String const &bucket,
   return 0;
 }
 
-std::tuple<std::string, uint64_t> Storage::download_file(
+std::tuple<std::string, uint64_t> sebs::Storage::download_file(
     Aws::String const &bucket, Aws::String const &key) {
   Aws::S3::Model::GetObjectRequest request;
   request.WithBucket(bucket).WithKey(key);
@@ -81,7 +81,7 @@ std::tuple<std::string, uint64_t> Storage::download_file(
   return {content, finishedTime - bef};
 }
 
-uint64_t Storage::upload_random_file(Aws::String const &bucket,
+uint64_t sebs::Storage::upload_random_file(Aws::String const &bucket,
                                      Aws::String const &key, 
                                      bool report_dl_time,
                                      char * data,

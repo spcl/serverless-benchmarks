@@ -425,7 +425,8 @@ class Benchmark(LoggingBase):
         
         cmake_script = """
         cmake_minimum_required(VERSION 3.9)
-        set(CMAKE_CXX_STANDARD 11)
+        set(CMAKE_CXX_STANDARD 14)
+        set(CMAKE_CXX_FLAGS "-Os")
         project(benchmark LANGUAGES CXX)
         add_executable(
             ${PROJECT_NAME} "handler.cpp" "key-value.cpp"
@@ -433,7 +434,7 @@ class Benchmark(LoggingBase):
         )
         target_include_directories(${PROJECT_NAME} PRIVATE ".")
 
-        target_compile_features(${PROJECT_NAME} PRIVATE "cxx_std_11")
+        target_compile_features(${PROJECT_NAME} PRIVATE "cxx_std_14")
         target_compile_options(${PROJECT_NAME} PRIVATE "-Wall" "-Wextra")
 
         find_package(aws-lambda-runtime)

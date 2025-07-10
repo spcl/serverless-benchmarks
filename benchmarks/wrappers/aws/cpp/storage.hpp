@@ -4,6 +4,8 @@
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/s3/S3Client.h>
 
+namespace sebs {
+
 class Storage
 {
 public:
@@ -37,6 +39,8 @@ public:
                           bool report_dl_time,
                           char * data,
                           size_t data_size);
+
+};
 
 };
 
