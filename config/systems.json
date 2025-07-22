@@ -196,7 +196,6 @@
       "python": {
         "base_images": {
           "x64": {
-            "3.7": "ubuntu:22.04",
             "3.8": "ubuntu:22.04",
             "3.9": "ubuntu:22.04",
             "3.10": "ubuntu:22.04",
@@ -228,10 +227,6 @@
       "nodejs": {
         "base_images": {
           "x64": {
-            "10": "ubuntu:18.04",
-            "12": "ubuntu:18.04",
-            "14": "ubuntu:18.04",
-            "16": "ubuntu:18.04",
             "18": "ubuntu:22.04",
             "20": "ubuntu:22.04"
           }
