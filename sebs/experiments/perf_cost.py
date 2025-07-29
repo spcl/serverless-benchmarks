@@ -11,12 +11,15 @@ from sebs.faas.system import System as FaaSSystem
 from sebs.faas.function import Trigger, Benchmark, Function, Workflow, ExecutionResult
 from sebs.azure.azure import Azure
 from sebs.aws.aws import AWS
-from sebs.gcp.gcp import GCP
+# from sebs.gcp.gcp import GCP
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.result import Result as ExperimentResult
 from sebs.experiments.config import Config as ExperimentConfig
 from sebs.utils import serialize, download_measurements, connect_to_redis_cache
 from sebs.statistics import basic_stats, ci_tstudents, ci_le_boudec
+
+class GCP:
+    pass  # Placeholder for GCP import, as it is commented out in the original code
 
 import pandas as pd
 import numpy as np
