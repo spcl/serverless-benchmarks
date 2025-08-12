@@ -437,24 +437,44 @@ class Benchmark(LoggingBase):
             )
         else:
             repo_name = self._system_config.docker_repository()
-            image_name = "build.{deployment}.{language}.{runtime}-{version}".format(
+            unversioned_image_name = "build.{deployment}.{language}.{runtime}".format(
                 deployment=self._deployment_name,
                 language=self.language_name,
                 runtime=self.language_version,
-                version=self._system_config.version(),
             )
-            try:
-                self._docker_client.images.get(repo_name + ":" + image_name)
-            except docker.errors.ImageNotFound:
+            image_name = "{base_image_name}-{sebs_version}".format(
+                base_image_name=unversioned_image_name,
+                sebs_version=self._system_config.version(),
+            )
+
+            def ensure_image(name: str) -> None:
                 try:
-                    self.logging.info(
-                        "Docker pull of image {repo}:{image}".format(
-                            repo=repo_name, image=image_name
+                    self._docker_client.images.get(repo_name + ":" + name)
+                except docker.errors.ImageNotFound:
+                    try:
+                        self.logging.info(
+                            "Docker pull of image {repo}:{image}".format(repo=repo_name, image=name)
                         )
+                        self._docker_client.images.pull(repo_name, name)
+                    except docker.errors.APIError:
+                        raise RuntimeError(
+                            "Docker pull of image {}:{} failed!".format(repo_name, name)
+                        )
+
+            try:
+                ensure_image(image_name)
+            except RuntimeError as e:
+                self.logging.warning(
+                    "Failed to ensure image {}, falling back to {}: {}".format(
+                        image_name, unversioned_image_name, e
                     )
-                    self._docker_client.images.pull(repo_name, image_name)
-                except docker.errors.APIError:
-                    raise RuntimeError("Docker pull of image {} failed!".format(image_name))
+                )
+                try:
+                    ensure_image(unversioned_image_name)
+                except RuntimeError:
+                    raise
+                # update `image_name` in the context to the fallback image name
+                image_name = unversioned_image_name
 
             # Create set of mounted volumes unless Docker volumes are disabled
             if not self._experiment_config.check_flag("docker_copy_build_files"):
