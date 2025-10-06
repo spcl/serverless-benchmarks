@@ -201,7 +201,6 @@ class Trigger(ABC, LoggingBase):
     def _http_invoke(self, payload: dict, url: str, verify_ssl: bool = True) -> ExecutionResult:
         import pycurl
         from io import BytesIO
-        import time
 
         c = pycurl.Curl()
         c.setopt(pycurl.HTTPHEADER, ["Content-Type: application/json"])
@@ -217,50 +216,24 @@ class Trigger(ABC, LoggingBase):
 
         begin = datetime.now()
         c.perform()
+        end = datetime.now()
 
         status_code = c.getinfo(pycurl.RESPONSE_CODE)
         conn_time = c.getinfo(pycurl.PRETRANSFER_TIME)
         receive_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
 
+        if status_code != 200:
+            self.logging.error(
+                "Invocation on URL {} failed with status code {}!".format(url, status_code)
+            )
+            if len(data.getvalue()) > 0:
+                self.logging.error("Output: {}".format(data.getvalue().decode()))
+            else:
+                self.logging.error("No output provided!")
+            raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
+
         try:
             output = json.loads(data.getvalue())
-
-            # FIXME: this only works for Azure.
-
-            statusQuery = output["statusQueryGetUri"]
-            print("status query: ", statusQuery)
-            myQuery = pycurl.Curl()
-            myQuery.setopt(pycurl.URL, statusQuery)
-            if not verify_ssl:
-                myQuery.setopt(pycurl.SSL_VERIFYHOST, 0)
-                myQuery.setopt(pycurl.SSL_VERIFYPEER, 0)
-
-            # poll for result here.
-            # should be runtimeStatus Completed when finished.
-            finished = False
-            while not finished:
-                data2 = BytesIO()
-                myQuery.setopt(pycurl.WRITEFUNCTION, data2.write)
-                myQuery.perform()
-                response = json.loads(data2.getvalue())
-                if response["runtimeStatus"] == "Running" or response["runtimeStatus"] == "Pending":
-                    time.sleep(4)
-                elif response["runtimeStatus"] == "Completed":
-                    status_code = myQuery.getinfo(pycurl.RESPONSE_CODE)
-                    finished = True
-                else:
-                    print("failed, request_id = ", output["request_id"])
-                    status_code = 500
-                    finished = True
-
-            end = datetime.now()
-            if status_code != 200:
-                self.logging.error(
-                    "Invocation on URL {} failed with status code {}!".format(url, status_code)
-                )
-                self.logging.error("Output: {}".format(output))
-                raise RuntimeError(f"Failed invocation of function! Output: {output}")
-
             self.logging.debug("Invoke of function was successful")
             result = ExecutionResult.from_times(begin, end)
             result.times.http_startup = conn_time
@@ -269,11 +242,8 @@ class Trigger(ABC, LoggingBase):
             if "request_id" not in output:
                 raise RuntimeError(f"Cannot process allocation with output: {output}")
             result.request_id = output["request_id"]
-            print("request_id: ", result.request_id, "end time: ", end)
             # General benchmark output parsing
             result.parse_benchmark_output(output)
-            if "output" in response:
-                result.output = response["output"]
             return result
         except json.decoder.JSONDecodeError:
             self.logging.error(
