@@ -50,17 +50,20 @@ class TestSequenceMeta(type):
                 logging_wrapper.info(
                     f"Begin regression test of {benchmark_name} on {deployment_client.name()}."
                 )
-                experiment_config = self.client.get_experiment_config(self.experiment_config)
+                experiment_config = self.client.get_experiment_config(
+                    self.experiment_config
+                )
                 benchmark = self.client.get_benchmark(
                     benchmark_name, deployment_client, experiment_config
                 )
-                storage = deployment_client.get_storage(
-                    replace_existing=experiment_config.update_storage
+
+                input_config = benchmark.prepare_input(
+                    deployment_client.system_resources, size="test"
                 )
+
                 func = deployment_client.get_function(
                     benchmark, deployment_client.default_function_name(benchmark)
                 )
-                input_config = benchmark.prepare_input(storage=storage, size="test")
 
                 failure = False
                 for trigger_type in triggers:
@@ -89,7 +92,9 @@ class TestSequenceMeta(type):
                             )
                     except RuntimeError:
                         failure = True
-                        logging_wrapper.error(f"{benchmark_name} fail on trigger: {trigger_type}")
+                        logging_wrapper.error(
+                            f"{benchmark_name} fail on trigger: {trigger_type}"
+                        )
                 deployment_client.shutdown()
                 if failure:
                     raise RuntimeError(f"Test of {benchmark_name} failed!")
@@ -123,7 +128,8 @@ class AWSTestSequencePython(
         deployment_client = self.client.get_deployment(
             cloud_config,
             logging_filename=os.path.join(
-                self.client.output_dir, f"regression_{deployment_name}_{benchmark_name}.log"
+                self.client.output_dir,
+                f"regression_{deployment_name}_{benchmark_name}.log",
             ),
         )
 
@@ -304,7 +310,9 @@ class TracingStreamResult(testtools.StreamResult):
 
     # no way to directly access test instance from here
     def status(self, *args, **kwargs):
-        self.all_correct = self.all_correct and (kwargs["test_status"] in ["inprogress", "success"])
+        self.all_correct = self.all_correct and (
+            kwargs["test_status"] in ["inprogress", "success"]
+        )
         test_name = kwargs["test_id"].split("_")[-1]
         if not kwargs["test_status"]:
             test_id = kwargs["test_id"]
@@ -314,7 +322,11 @@ class TracingStreamResult(testtools.StreamResult):
         elif kwargs["test_status"] == "fail":
             print("\n-------------\n")
             print("{0[test_id]}: {0[test_status]}".format(kwargs))
-            print("{0[test_id]}: {1}".format(kwargs, self.output[kwargs["test_id"]].decode()))
+            print(
+                "{0[test_id]}: {1}".format(
+                    kwargs, self.output[kwargs["test_id"]].decode()
+                )
+            )
             print("\n-------------\n")
             self.failures.add(test_name)
         elif kwargs["test_status"] == "success":
@@ -355,30 +367,50 @@ def regression_suite(
     if "aws" in providers:
         assert "aws" in cloud_config
         if language == "python":
-            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequencePython))
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequencePython)
+            )
         elif language == "nodejs":
-            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceNodejs))
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceNodejs)
+            )
     if "gcp" in providers:
         assert "gcp" in cloud_config
         if language == "python":
-            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequencePython))
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequencePython)
+            )
         elif language == "nodejs":
-            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceNodejs))
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceNodejs)
+            )
     if "azure" in providers:
         assert "azure" in cloud_config
         if language == "python":
-            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequencePython))
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(
+                    AzureTestSequencePython
+                )
+            )
         elif language == "nodejs":
-            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceNodejs))
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(
+                    AzureTestSequenceNodejs
+                )
+            )
     if "openwhisk" in providers:
         assert "openwhisk" in cloud_config
         if language == "python":
             suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequencePython)
+                unittest.defaultTestLoader.loadTestsFromTestCase(
+                    OpenWhiskTestSequencePython
+                )
             )
         elif language == "nodejs":
             suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequenceNodejs)
+                unittest.defaultTestLoader.loadTestsFromTestCase(
+                    OpenWhiskTestSequenceNodejs
+                )
             )
 
     tests = []
@@ -404,7 +436,9 @@ def regression_suite(
             else:
                 print(f"Skip test {test_name}")
 
-    concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
+    concurrent_suite = testtools.ConcurrentStreamTestSuite(
+        lambda: ((test, None) for test in tests)
+    )
     result = TracingStreamResult()
     result.startTestRun()
     concurrent_suite.run(result)
@@ -413,7 +447,9 @@ def regression_suite(
     for suc in result.success:
         print(f"- {suc}")
     if len(result.failures):
-        print(f"Failures when executing {len(result.failures)} out of {len(tests)} functions")
+        print(
+            f"Failures when executing {len(result.failures)} out of {len(tests)} functions"
+        )
         for failure in result.failures:
             print(f"- {failure}")
 
