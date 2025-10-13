@@ -10,6 +10,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import docker
 
+from sebs.cpp_dependencies import CppDependencies
+
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.faas.config import Resources
@@ -29,11 +31,13 @@ class BenchmarkConfig:
         memory: int,
         languages: List["Language"],
         modules: List[BenchmarkModule],
+        cpp_dependencies: Optional[List[CppDependencies]] = None,
     ):
         self._timeout = timeout
         self._memory = memory
         self._languages = languages
         self._modules = modules
+        self._cpp_dependencies = cpp_dependencies or []
 
     @property
     def timeout(self) -> int:
@@ -69,6 +73,9 @@ class BenchmarkConfig:
             json_object["memory"],
             [Language.deserialize(x) for x in json_object["languages"]],
             [BenchmarkModule(x) for x in json_object["modules"]],
+            cpp_dependencies=[
+                CppDependencies.deserialize(x) for x in json_object.get("cpp_dependencies", [])
+            ],
         )
 
 
@@ -415,9 +422,11 @@ class Benchmark(LoggingBase):
         # FIXME: Configure CMakeLists.txt dependencies
         # FIXME: Configure for AWS - this should be generic
         # FIXME: optional hiredis
+        
         cmake_script = """
         cmake_minimum_required(VERSION 3.9)
-        set(CMAKE_CXX_STANDARD 11)
+        set(CMAKE_CXX_STANDARD 14)
+        set(CMAKE_CXX_FLAGS "-Os")
         project(benchmark LANGUAGES CXX)
         add_executable(
             ${PROJECT_NAME} "handler.cpp" "key-value.cpp"
@@ -425,16 +434,17 @@ class Benchmark(LoggingBase):
         )
         target_include_directories(${PROJECT_NAME} PRIVATE ".")
 
-        target_compile_features(${PROJECT_NAME} PRIVATE "cxx_std_11")
+        target_compile_features(${PROJECT_NAME} PRIVATE "cxx_std_14")
         target_compile_options(${PROJECT_NAME} PRIVATE "-Wall" "-Wextra")
 
         find_package(aws-lambda-runtime)
         target_link_libraries(${PROJECT_NAME} PRIVATE AWS::aws-lambda-runtime)
-
-        find_package(Boost REQUIRED)
-        target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
-        target_link_libraries(${PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
-
+        """
+        
+        for dependency in self._benchmark_config._cpp_dependencies:
+            cmake_script += CppDependencies.to_cmake_list(dependency)
+        
+        cmake_script += """
         find_package(AWSSDK COMPONENTS s3 dynamodb core)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${AWSSDK_LINK_LIBRARIES})
 
@@ -448,6 +458,12 @@ class Benchmark(LoggingBase):
         # this line creates a target that packages your binary and zips it up
         aws_lambda_package_target(${PROJECT_NAME})
         """
+
+        self.logging.info(
+            "Dependencies for CPP benchmark {benchmark} are " + 
+                str(len(self._benchmark_config._cpp_dependencies)) + " dependencies."
+        )
+        
         build_script = os.path.join(output_dir, "CMakeLists.txt")
         with open(build_script, "w") as script_file:
             script_file.write(textwrap.dedent(cmake_script))

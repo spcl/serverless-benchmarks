@@ -124,10 +124,12 @@
       },
       "cpp": {
         "base_images": {
-          "all": "amazon/aws-lambda-provided:al2.2022.04.27.09"
+          "x64":{
+            "all": "amazon/aws-lambda-provided:al2.2022.04.27.09"
+          }
         },
         "dependencies": [
-            "runtime", "sdk", "boost", "hiredis"
+            "runtime", "sdk", "boost", "hiredis", "opencv", "igraph", "torch"
         ],
         "versions": ["all"],
         "images": ["build"],

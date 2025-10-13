@@ -1,0 +1,41 @@
+ARG BASE_IMAGE
+
+FROM ${BASE_IMAGE} as builder
+
+ARG WORKERS
+ENV WORKERS=${WORKERS}
+
+WORKDIR /app/builder
+
+RUN yum update -y && \
+    yum install -y cmake3 wget unzip curl git gcc gcc-c++ \
+                    make tar gzip libpng-devel zlib-devel \
+                    libjpeg-turbo-devel python3-devel python3-pip && \
+    yum clean all && \
+    rm -rf /var/cache/yum
+
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.25.2/cmake-3.25.2-linux-x86_64.tar.gz && \
+    tar -xzf cmake-3.25.2-linux-x86_64.tar.gz && \
+    cp -r cmake-3.25.2-linux-x86_64/* /usr/local/ && \
+    rm -rf cmake-3.25.2-linux-x86_64*
+
+# Verify CMake version
+RUN cmake --version
+
+# Download and extract igraph
+RUN wget https://github.com/igraph/igraph/releases/download/0.10.15/igraph-0.10.15.tar.gz && \
+    tar -xzf igraph-0.10.15.tar.gz
+
+RUN mkdir build_igraph && \
+    cd build_igraph && \
+    cmake -DCMAKE_INSTALL_PREFIX=/app/builder/install \
+          -DIGRAPH_OPENMP_SUPPORT=OFF \
+          ../igraph-0.10.15 && \
+    make -j${WORKERS} && \
+    make install
+
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+
+COPY --from=builder /app/builder/install /opt

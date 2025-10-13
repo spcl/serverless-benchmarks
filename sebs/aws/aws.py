@@ -179,7 +179,7 @@ class AWS(System):
             raise NotImplementedError()
 
         return (
-            os.path.join(directory, "{}.zip".format(benchmark)),
+            benchmark_archive,
             bytes_size,
             container_uri,
         )

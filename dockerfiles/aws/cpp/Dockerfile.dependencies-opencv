@@ -1,0 +1,15 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} as builder
+ARG WORKERS
+ENV WORKERS=${WORKERS}
+
+
+RUN yum install -y  unzip cmake3 curl libcurl libcurl-devel git gcc gcc-c++ make tar gzip zip zlib-devel openssl-devel openssl-static
+RUN curl -LO https://github.com/opencv/opencv/archive/refs/tags/4.5.0.zip
+RUN unzip 4.5.0.zip
+RUN mkdir build && cd build && cmake3 -D CMAKE_BUILD_TYPE=RELEASE  -D BUILD_EXAMPLES=Off -D OPENCV_GENERATE_PKGCONFIG=ON -DCMAKE_INSTALL_PREFIX=/opt/opencv -DBUILD_LIST=core,imgproc,imgcodecs ../opencv-4.5.0
+RUN cd build && make -j8 && make install
+
+FROM ${BASE_IMAGE}
+
+COPY --from=builder /opt /opt
