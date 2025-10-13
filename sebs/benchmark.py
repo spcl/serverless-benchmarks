@@ -24,7 +24,11 @@ if TYPE_CHECKING:
 
 class BenchmarkConfig:
     def __init__(
-        self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
+        self,
+        timeout: int,
+        memory: int,
+        languages: List["Language"],
+        modules: List[BenchmarkModule],
     ):
         self._timeout = timeout
         self._memory = memory
@@ -109,7 +113,9 @@ class Benchmark(LoggingBase):
     @property
     def code_location(self):
         if self.code_package:
-            return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
+            return os.path.join(
+                self._cache_client.cache_dir, self.code_package["location"]
+            )
         else:
             return self._code_location
 
@@ -132,6 +138,11 @@ class Benchmark(LoggingBase):
     @property
     def code_size(self):
         return self._code_size
+
+    @property
+    def container_uri(self) -> str:
+        assert self._container_uri is not None
+        return self._container_uri
 
     @property
     def language(self) -> "Language":
@@ -157,10 +168,20 @@ class Benchmark(LoggingBase):
     def uses_nosql(self) -> bool:
         return self._uses_nosql
 
+    @property
+    def architecture(self) -> str:
+        return self._architecture
+
+    @property
+    def container_deployment(self):
+        return self._container_deployment
+
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
-        self._hash_value = Benchmark.hash_directory(path, self._deployment_name, self.language_name)
+        self._hash_value = Benchmark.hash_directory(
+            path, self._deployment_name, self.language_name
+        )
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -186,24 +207,36 @@ class Benchmark(LoggingBase):
         self._experiment_config = config
         self._language = config.runtime.language
         self._language_version = config.runtime.version
+        self._architecture = self._experiment_config.architecture
+        self._container_deployment = config.container_deployment
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not self._benchmark_path:
-            raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
+            raise RuntimeError(
+                "Benchmark {benchmark} not found!".format(benchmark=self._benchmark)
+            )
         with open(os.path.join(self.benchmark_path, "config.json")) as json_file:
             self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
                 json.load(json_file)
             )
         if self.language not in self.benchmark_config.languages:
             raise RuntimeError(
-                "Benchmark {} not available for language {}".format(self.benchmark, self.language)
+                "Benchmark {} not available for language {}".format(
+                    self.benchmark, self.language
+                )
             )
         self._cache_client = cache_client
         self._docker_client = docker_client
         self._system_config = system_config
         self._hash_value = None
         self._output_dir = os.path.join(
-            output_dir, f"{benchmark}_code", self._language.value, self._language_version
+            output_dir,
+            f"{benchmark}_code",
+            self._language.value,
+            self._language_version,
+            self._architecture,
+            "container" if self._container_deployment else "package",
         )
+        self._container_uri: Optional[str] = None
 
         # verify existence of function in cache
         self.query_cache()
@@ -261,12 +294,26 @@ class Benchmark(LoggingBase):
         return {"size": self.code_size, "hash": self.hash}
 
     def query_cache(self):
-        self._code_package = self._cache_client.get_code_package(
-            deployment=self._deployment_name,
-            benchmark=self._benchmark,
-            language=self.language_name,
-            language_version=self.language_version,
-        )
+
+        if self.container_deployment:
+            self._code_package = self._cache_client.get_container(
+                deployment=self._deployment_name,
+                benchmark=self._benchmark,
+                language=self.language_name,
+                language_version=self.language_version,
+                architecture=self.architecture,
+            )
+            if self._code_package is not None:
+                self._container_uri = self._code_package["image-uri"]
+        else:
+            self._code_package = self._cache_client.get_code_package(
+                deployment=self._deployment_name,
+                benchmark=self._benchmark,
+                language=self.language_name,
+                language_version=self.language_version,
+                architecture=self.architecture,
+            )
+
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
             benchmark=self._benchmark,
@@ -303,7 +350,7 @@ class Benchmark(LoggingBase):
             shutil.copy2(path, output_dir)
 
     def add_benchmark_data(self, output_dir):
-        cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"
+        cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false {architecture}"
         paths = [
             self.benchmark_path,
             os.path.join(self.benchmark_path, self.language_name),
@@ -311,7 +358,11 @@ class Benchmark(LoggingBase):
         for path in paths:
             if os.path.exists(os.path.join(path, "init.sh")):
                 subprocess.run(
-                    cmd.format(benchmark_path=path, output_dir=output_dir),
+                    cmd.format(
+                        benchmark_path=path,
+                        output_dir=output_dir,
+                        architecture=self._experiment_config._architecture,
+                    ),
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
@@ -343,8 +394,12 @@ class Benchmark(LoggingBase):
 
     def add_deployment_package_python(self, output_dir):
 
+        destination_file = f"requirements.txt.{self._language_version}"
+        if not os.path.exists(os.path.join(output_dir, destination_file)):
+            destination_file = "requirements.txt"
+
         # append to the end of requirements file
-        with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
+        with open(os.path.join(output_dir, destination_file), "a") as out:
 
             packages = self._system_config.deployment_packages(
                 self._deployment_name, self.language_name
@@ -368,7 +423,13 @@ class Benchmark(LoggingBase):
             self._deployment_name, self.language_name
         )
         if len(packages):
-            package_config = os.path.join(output_dir, "package.json")
+
+            package_config = os.path.join(
+                output_dir, f"package.json.{self._language_version}"
+            )
+            if not os.path.exists(package_config):
+                package_config = os.path.join(output_dir, "package.json")
+
             with open(package_config, "r") as package_file:
                 package_json = json.load(package_file)
             for key, val in packages.items():
@@ -407,27 +468,52 @@ class Benchmark(LoggingBase):
             )
         else:
             repo_name = self._system_config.docker_repository()
-            image_name = "build.{deployment}.{language}.{runtime}".format(
+            unversioned_image_name = "build.{deployment}.{language}.{runtime}".format(
                 deployment=self._deployment_name,
                 language=self.language_name,
                 runtime=self.language_version,
             )
-            try:
-                self._docker_client.images.get(repo_name + ":" + image_name)
-            except docker.errors.ImageNotFound:
+            image_name = "{base_image_name}-{sebs_version}".format(
+                base_image_name=unversioned_image_name,
+                sebs_version=self._system_config.version(),
+            )
+
+            def ensure_image(name: str) -> None:
                 try:
-                    self.logging.info(
-                        "Docker pull of image {repo}:{image}".format(
-                            repo=repo_name, image=image_name
+                    self._docker_client.images.get(repo_name + ":" + name)
+                except docker.errors.ImageNotFound:
+                    try:
+                        self.logging.info(
+                            "Docker pull of image {repo}:{image}".format(
+                                repo=repo_name, image=name
+                            )
                         )
+                        self._docker_client.images.pull(repo_name, name)
+                    except docker.errors.APIError:
+                        raise RuntimeError(
+                            "Docker pull of image {}:{} failed!".format(repo_name, name)
+                        )
+
+            try:
+                ensure_image(image_name)
+            except RuntimeError as e:
+                self.logging.warning(
+                    "Failed to ensure image {}, falling back to {}: {}".format(
+                        image_name, unversioned_image_name, e
                     )
-                    self._docker_client.images.pull(repo_name, image_name)
-                except docker.errors.APIError:
-                    raise RuntimeError("Docker pull of image {} failed!".format(image_name))
+                )
+                try:
+                    ensure_image(unversioned_image_name)
+                except RuntimeError:
+                    raise
+                # update `image_name` in the context to the fallback image name
+                image_name = unversioned_image_name
 
             # Create set of mounted volumes unless Docker volumes are disabled
             if not self._experiment_config.check_flag("docker_copy_build_files"):
-                volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
+                volumes = {
+                    os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}
+                }
                 package_script = os.path.abspath(
                     os.path.join(self._benchmark_path, self.language_name, "package.sh")
                 )
@@ -445,11 +531,15 @@ class Benchmark(LoggingBase):
                 try:
                     self.logging.info(
                         "Docker build of benchmark dependencies in container "
-                        "of image {repo}:{image}".format(repo=repo_name, image=image_name)
+                        "of image {repo}:{image}".format(
+                            repo=repo_name, image=image_name
+                        )
                     )
                     uid = os.getuid()
                     # Standard, simplest build
-                    if not self._experiment_config.check_flag("docker_copy_build_files"):
+                    if not self._experiment_config.check_flag(
+                        "docker_copy_build_files"
+                    ):
                         self.logging.info(
                             "Docker mount of benchmark code from path {path}".format(
                                 path=os.path.abspath(output_dir)
@@ -464,6 +554,7 @@ class Benchmark(LoggingBase):
                                 "CONTAINER_USER": "docker_user",
                                 "APP": self.benchmark,
                                 "PLATFORM": self._deployment_name.upper(),
+                                "TARGET_ARCHITECTURE": self._experiment_config._architecture,
                             },
                             remove=True,
                             stdout=True,
@@ -477,7 +568,7 @@ class Benchmark(LoggingBase):
                             environment={"APP": self.benchmark},
                             # user="1000:1000",
                             user=uid,
-                            # remove=True,
+                            remove=True,
                             detach=True,
                             tty=True,
                             command="/bin/bash",
@@ -489,7 +580,9 @@ class Benchmark(LoggingBase):
                             "Send benchmark code from path {path} to "
                             "Docker instance".format(path=os.path.abspath(output_dir))
                         )
-                        tar_archive = os.path.join(output_dir, os.path.pardir, "function.tar")
+                        tar_archive = os.path.join(
+                            output_dir, os.path.pardir, "function.tar"
+                        )
                         with tarfile.open(tar_archive, "w") as tar:
                             for f in os.listdir(output_dir):
                                 tar.add(os.path.join(output_dir, f), arcname=f)
@@ -535,23 +628,37 @@ class Benchmark(LoggingBase):
 
     def build(
         self,
-        deployment_build_step: Callable[["Benchmark", str, bool, bool], Tuple[str, int]],
+        deployment_build_step: Callable[
+            ["Benchmark", str, bool, bool], Tuple[str, int, str]
+        ],
         is_workflow: bool,
-    ) -> Tuple[bool, str]:
+    ) -> Tuple[bool, str, bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info(
-                "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
+                "Using cached benchmark {} at {}".format(
+                    self.benchmark, self.code_location
+                )
             )
-            return False, self.code_location
+            if self.container_deployment:
+                return (
+                    False,
+                    self.code_location,
+                    self.container_deployment,
+                    self.container_uri,
+                )
+
+            return False, self.code_location, self.container_deployment, ""
 
         msg = (
             "no cached code package."
             if not self.is_cached
             else "cached code package is not up to date/build enforced."
         )
-        self.logging.info("Building benchmark {}. Reason: {}".format(self.benchmark, msg))
+        self.logging.info(
+            "Building benchmark {}. Reason: {}".format(self.benchmark, msg)
+        )
         # clear existing cache information
         self._code_package = None
 
@@ -565,8 +672,14 @@ class Benchmark(LoggingBase):
         self.add_deployment_files(self._output_dir, is_workflow)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
-        self._code_location, self._code_size = deployment_build_step(
-            self, os.path.abspath(self._output_dir), is_workflow, self.is_cached_valid
+
+        self._code_location, self._code_size, self._container_uri = (
+            deployment_build_step(
+                self,
+                os.path.abspath(self._output_dir),
+                is_workflow,
+                self.is_cached_valid,
+            )
         )
         self.logging.info(
             (
@@ -580,14 +693,18 @@ class Benchmark(LoggingBase):
             )
         )
 
-        # package already exists
         if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.update_code_package(self._deployment_name, self)
         else:
-            self._cache_client.add_code_package(self._deployment_name, self.language_name, self)
+            self._cache_client.add_code_package(self._deployment_name, self)
         self.query_cache()
 
-        return True, self._code_location
+        return (
+            True,
+            self._code_location,
+            self._container_deployment,
+            self._container_uri,
+        )
 
     """
         Locates benchmark input generator, inspect how many storage buckets
@@ -600,9 +717,11 @@ class Benchmark(LoggingBase):
     """
 
     def prepare_input(
-        self, system_resources: SystemResources, size: str, replace_existing: bool = False
+        self,
+        system_resources: SystemResources,
+        size: str,
+        replace_existing: bool = False,
     ):
-
         """
         Handle object storage buckets.
         """
@@ -613,18 +732,6 @@ class Benchmark(LoggingBase):
             input, output = storage.benchmark_data(self.benchmark, buckets)
 
             self._uses_storage = len(input) > 0 or len(output) > 0
-
-            self._cache_client.update_storage(
-                storage.deployment_name(),
-                self._benchmark,
-                {
-                    "buckets": {
-                        "input": storage.input_prefixes,
-                        "output": storage.output_prefixes,
-                        "input_uploaded": True,
-                    }
-                },
-            )
 
             storage_func = storage.uploader_func
             bucket = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
@@ -641,7 +748,10 @@ class Benchmark(LoggingBase):
         if hasattr(self._benchmark_input_module, "allocate_nosql"):
 
             nosql_storage = system_resources.get_nosql_storage()
-            for name, table_properties in self._benchmark_input_module.allocate_nosql().items():
+            for (
+                name,
+                table_properties,
+            ) in self._benchmark_input_module.allocate_nosql().items():
                 nosql_storage.create_benchmark_tables(
                     self._benchmark,
                     name,
@@ -650,7 +760,7 @@ class Benchmark(LoggingBase):
                 )
 
             self._uses_nosql = True
-            nosql_func = nosql_storage.writer_func
+            nosql_func = nosql_storage.write_to_table
         else:
             nosql_func = None
 
@@ -658,8 +768,31 @@ class Benchmark(LoggingBase):
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = self._benchmark_input_module.generate_input(
-            self._benchmark_data_path, size, bucket, input, output, storage_func, nosql_func
+            self._benchmark_data_path,
+            size,
+            bucket,
+            input,
+            output,
+            storage_func,
+            nosql_func,
         )
+
+        # Cache only once we data is in the cloud.
+        if hasattr(self._benchmark_input_module, "buckets_count"):
+            self._cache_client.update_storage(
+                storage.deployment_name(),
+                self._benchmark,
+                {
+                    "buckets": {
+                        "input": storage.input_prefixes,
+                        "output": storage.output_prefixes,
+                        "input_uploaded": True,
+                    }
+                },
+            )
+
+        if hasattr(self._benchmark_input_module, "allocate_nosql"):
+            nosql_storage.update_cache(self._benchmark)
 
         self._input_processed = True
 
@@ -675,7 +808,9 @@ class Benchmark(LoggingBase):
         if self.code_package_is_archive():
             self._update_zip(self.code_location, filename, data)
             new_size = self.code_package_recompute_size() / 1024.0 / 1024.0
-            self.logging.info(f"Modified zip package {self.code_location}, new size {new_size} MB")
+            self.logging.info(
+                f"Modified zip package {self.code_location}, new size {new_size} MB"
+            )
         else:
             raise NotImplementedError()
 
@@ -760,7 +895,9 @@ def load_benchmark_input(path: str) -> BenchmarkModuleInterface:
     import importlib.machinery
     import importlib.util
 
-    loader = importlib.machinery.SourceFileLoader("input", os.path.join(path, "input.py"))
+    loader = importlib.machinery.SourceFileLoader(
+        "input", os.path.join(path, "input.py")
+    )
     spec = importlib.util.spec_from_loader(loader.name, loader)
     assert spec
     mod = importlib.util.module_from_spec(spec)

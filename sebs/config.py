@@ -41,13 +41,31 @@ class SeBSConfig:
     def docker_image_types(self, deployment_name: str, language_name: str) -> List[str]:
         return self._system_config[deployment_name]["languages"][language_name]["images"]
 
-    def supported_language_versions(self, deployment_name: str, language_name: str) -> List[str]:
-        return self._system_config[deployment_name]["languages"][language_name][
-            "base_images"
-        ].keys()
+    def supported_language_versions(
+        self, deployment_name: str, language_name: str, architecture: str
+    ) -> List[str]:
+        languages = self._system_config.get(deployment_name, {}).get("languages", {})
+        base_images = languages.get(language_name, {}).get("base_images", {})
+        return list(base_images.get(architecture, {}).keys())
 
-    def benchmark_base_images(self, deployment_name: str, language_name: str) -> Dict[str, str]:
-        return self._system_config[deployment_name]["languages"][language_name]["base_images"]
+    def supported_architecture(self, deployment_name: str) -> List[str]:
+        return self._system_config[deployment_name]["architecture"]
+
+    def supported_package_deployment(self, deployment_name: str) -> bool:
+        return "package" in self._system_config[deployment_name]["deployments"]
+
+    def supported_container_deployment(self, deployment_name: str) -> bool:
+        return "container" in self._system_config[deployment_name]["deployments"]
+
+    def benchmark_base_images(
+        self, deployment_name: str, language_name: str, architecture: str
+    ) -> Dict[str, str]:
+        return self._system_config[deployment_name]["languages"][language_name]["base_images"][
+            architecture
+        ]
+
+    def version(self) -> str:
+        return self._system_config["general"].get("SeBS_version", "unknown")
 
     def benchmark_image_name(
         self,
@@ -55,10 +73,13 @@ class SeBSConfig:
         benchmark: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         registry: Optional[str] = None,
     ) -> str:
 
-        tag = self.benchmark_image_tag(system, benchmark, language_name, language_version)
+        tag = self.benchmark_image_tag(
+            system, benchmark, language_name, language_version, architecture
+        )
         repo_name = self.docker_repository()
         if registry is not None:
             return f"{registry}/{repo_name}:{tag}"
@@ -66,11 +87,18 @@ class SeBSConfig:
             return f"{repo_name}:{tag}"
 
     def benchmark_image_tag(
-        self, system: str, benchmark: str, language_name: str, language_version: str
+        self,
+        system: str,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
     ) -> str:
-        tag = f"function.{system}.{benchmark}.{language_name}-{language_version}"
+        tag = f"function.{system}.{benchmark}.{language_name}-{language_version}-{architecture}"
         if self.image_tag_prefix:
             tag = f"{tag}-{self.image_tag_prefix}"
+        sebs_version = self._system_config["general"].get("SeBS_version", "unknown")
+        tag = f"{tag}-{sebs_version}"
         return tag
 
     def username(self, deployment_name: str, language_name: str) -> str:

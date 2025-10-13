@@ -76,7 +76,7 @@ class CosmosDB(NoSQLStorage):
 
     def update_cache(self, benchmark: str):
 
-        self._cache_client.update_nosql(
+        self.cache_client.update_nosql(
             self.deployment_name(), benchmark, self._benchmark_resources[benchmark].serialize()
         )
 
@@ -116,7 +116,7 @@ class CosmosDB(NoSQLStorage):
             self._cosmosdb_account.credential,
         )
 
-    def writer_func(
+    def write_to_table(
         self,
         benchmark: str,
         table: str,

@@ -154,19 +154,55 @@ class System(ABC, LoggingBase):
 
         This step allows us to change the structure above to fit different
         deployment requirements, Example: a zip file for AWS or a specific
-        directory structure for Azure.
 
-        :return: path to packaged code and its size
+        Args:
+            directory: Path to the code directory
+            language_name: Programming language name
+            language_version: Programming language version
+            architecture: Target architecture (e.g., 'x64', 'arm64')
+            benchmark: Benchmark name
+            is_cached: Whether the code is cached
+            container_deployment: Whether to package for container deployment
+
+        Returns:
+            Tuple containing:
+            - Path to packaged code
+            - Size of the package
+            - Container URI
     """
 
     @abstractmethod
     def package_code(
         self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, str]:
         pass
 
     @abstractmethod
-    def create_function(self, code_package: Benchmark, func_name: str) -> Function:
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> Function:
+
+        """
+        Create a new function in the FaaS platform.
+        The implementation is responsible for creating all necessary
+        cloud resources.
+
+        Args:
+            code_package: Benchmark containing the function code
+            func_name: Name of the function
+            container_deployment: Whether to deploy as a container
+            container_uri: URI of the container image
+
+        Returns:
+            Function: Created function instance
+
+        Raises:
+            NotImplementedError: If container deployment is requested but not supported
+        """
         pass
 
     @abstractmethod
@@ -178,7 +214,25 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
+        """
+        Update an existing function in the FaaS platform.
+
+        Args:
+            function: Existing function instance to update
+            code_package: New benchmark containing the function code
+            container_deployment: Whether to deploy as a container
+            container_uri: URI of the container image
+
+        Raises:
+            NotImplementedError: If container deployment is requested but not supported
+        """
         pass
 
     """
@@ -197,7 +251,7 @@ class System(ABC, LoggingBase):
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
 
         if code_package.language_version not in self.system_config.supported_language_versions(
-            self.name(), code_package.language_name
+            self.name(), code_package.language_name, code_package.architecture
         ):
             raise Exception(
                 "Unsupported {language} version {version} in {system}!".format(
@@ -209,7 +263,8 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
-        rebuilt, _ = code_package.build(self.package_code, False)
+
+        rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code, False)
 
         """
             There's no function with that name?
@@ -219,14 +274,33 @@ class System(ABC, LoggingBase):
             be updated if the local version is different.
         """
         functions = code_package.functions
-        if not functions or func_name not in functions:
+
+        is_function_cached = not (not functions or func_name not in functions)
+        if is_function_cached:
+            # retrieve function
+            cached_function = functions[func_name]
+            code_location = code_package.code_location
+
+            try:
+                function = self.function_type().deserialize(cached_function)
+            except RuntimeError as e:
+
+                self.logging.error(
+                    f"Cached function {cached_function['name']} is no longer available."
+                )
+                self.logging.error(e)
+                is_function_cached = False
+
+        if not is_function_cached:
             msg = (
                 "function name not provided."
                 if not func_name
                 else "function {} not found in cache.".format(func_name)
             )
             self.logging.info("Creating new function! Reason: " + msg)
-            function = self.create_function(code_package, func_name)
+            function = self.create_function(
+                code_package, func_name, container_deployment, container_uri
+            )
             self.cache_client.add_benchmark(
                 deployment_name=self.name(),
                 language_name=code_package.language_name,
@@ -240,7 +314,9 @@ class System(ABC, LoggingBase):
             cached_function = functions[func_name]
             code_location = code_package.code_location
             function = self.function_type().deserialize(cached_function)
+            assert function is not None
             self.cached_benchmark(function)
+
             self.logging.info(
                 "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
             )
@@ -258,7 +334,7 @@ class System(ABC, LoggingBase):
                         f"Enforcing rebuild and update of of cached function "
                         f"{func_name} with hash {function.code_package_hash}."
                     )
-                self.update_function(function, code_package)
+                self.update_function(function, code_package, container_deployment, container_uri)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
                 self.cache_client.add_benchmark(
@@ -391,7 +467,9 @@ class System(ABC, LoggingBase):
         return changed
 
     @abstractmethod
-    def default_function_name(self, code_package: Benchmark) -> str:
+    def default_function_name(
+        self, code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
         pass
 
     @abstractmethod
@@ -427,6 +505,9 @@ class System(ABC, LoggingBase):
     def create_workflow_trigger(
         self, workflow: Workflow, trigger_type: Trigger.TriggerType
     ) -> Trigger:
+        pass
+
+    def disable_rich_output(self):
         pass
 
     # @abstractmethod

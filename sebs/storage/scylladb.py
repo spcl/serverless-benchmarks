@@ -1,8 +1,9 @@
+import json
 import os
 import platform
 import time
 from collections import defaultdict
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple, Type, TypeVar
 
 from sebs.cache import Cache
 from sebs.faas.config import Resources
@@ -12,6 +13,7 @@ from sebs.storage.config import ScyllaDBConfig
 from sebs.utils import project_absolute_path
 
 import boto3
+from boto3.dynamodb.types import TypeSerializer
 import docker
 
 
@@ -31,16 +33,36 @@ class ScyllaDB(NoSQLStorage):
     # the location does not matter
     SCYLLADB_REGION = "None"
 
-    def __init__(self, docker_client: docker.client, cache_client: Cache, config: ScyllaDBConfig):
-        super().__init__(self.SCYLLADB_REGION, cache_client, None)
+    def __init__(
+        self,
+        docker_client: docker.client,
+        cache_client: Cache,
+        config: ScyllaDBConfig,
+        resources: Optional[Resources] = None,
+    ):
+
+        super().__init__(self.SCYLLADB_REGION, cache_client, resources)  # type: ignore
         self._docker_client = docker_client
         self._storage_container: Optional[docker.container] = None
         self._cfg = config
 
+        # Map benchmark -> orig_name -> table_name
+        self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
+        self._serializer = TypeSerializer()
+
+        if config.address != "":
+            self.client = boto3.client(
+                "dynamodb",
+                region_name="None",
+                aws_access_key_id="None",
+                aws_secret_access_key="None",
+                endpoint_url=f"http://{config.address}",
+            )
+
     def start(self):
 
         if self._cfg.data_volume == "":
-            scylladb_volume = os.path.join(project_absolute_path(), "scylladb_volume")
+            scylladb_volume = os.path.join(project_absolute_path(), "scylladb-volume")
         else:
             scylladb_volume = self._cfg.data_volume
         scylladb_volume = os.path.abspath(scylladb_volume)
@@ -58,9 +80,9 @@ class ScyllaDB(NoSQLStorage):
             scylladb_args = ""
             scylladb_args += f"--smp {self._cfg.cpus} "
             scylladb_args += f"--memory {self._cfg.memory}M "
-            scylladb_args += f"--overprovisioned 1 "
-            scylladb_args += f"--alternator-port 8000 "
-            scylladb_args += f"--alternator-write-isolation=only_rmw_uses_lwt "
+            scylladb_args += "--overprovisioned 1 "
+            scylladb_args += "--alternator-port 8000 "
+            scylladb_args += "--alternator-write-isolation=only_rmw_uses_lwt "
 
             self.logging.info("Starting ScyllaDB storage")
             self._storage_container = self._docker_client.containers.run(
@@ -122,7 +144,7 @@ class ScyllaDB(NoSQLStorage):
             if platform.system() == "Linux" and "microsoft" not in platform.release().lower():
                 networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
                 self._cfg.address = "{IPAddress}:{Port}".format(
-                    IPAddress=networks["bridge"]["IPAddress"], Port=9000
+                    IPAddress=networks["bridge"]["IPAddress"], Port=self._cfg.alternator_port
                 )
             else:
                 # System is either WSL, Windows, or Mac
@@ -146,13 +168,28 @@ class ScyllaDB(NoSQLStorage):
         else:
             self.logging.error("Stopping ScyllaDB was not succesful, storage container not known!")
 
-    def serialize(self) -> dict:
+    def envs(self) -> dict:
+        return {"NOSQL_STORAGE_TYPE": "scylladb", "NOSQL_STORAGE_ENDPOINT": self._cfg.address}
+
+    def serialize(self) -> Tuple[StorageType, dict]:
         return StorageType.SCYLLADB, self._cfg.serialize()
 
+    """
+        This implementation supports overriding this class.
+        The main ScyllaDB class is used to start/stop deployments.
+
+        When overriding the implementation in Local/OpenWhisk/...,
+        we call the _deserialize and provide an alternative implementation.
+    """
+
+    T = TypeVar("T", bound="ScyllaDB")
+
     @staticmethod
-    def deserialize(cached_config: ScyllaDBConfig, cache_client: Cache) -> "ScyllaDB":
+    def _deserialize(
+        cached_config: ScyllaDBConfig, cache_client: Cache, resources: Resources, obj_type: Type[T]
+    ) -> T:
         docker_client = docker.from_env()
-        obj = ScyllaDB(docker_client, cache_client, cached_config)
+        obj = obj_type(docker_client, cache_client, cached_config, resources)
 
         if cached_config.instance_id:
             instance_id = cached_config.instance_id
@@ -162,28 +199,13 @@ class ScyllaDB(NoSQLStorage):
                 raise RuntimeError(f"Storage container {instance_id} does not exist!")
         else:
             obj._storage_container = None
-        obj.configure_connection()
         return obj
 
-    # def __init__(
-    #    self,
-    #    session: boto3.session.Session,
-    #    cache_client: Cache,
-    #    resources: Resources,
-    #    region: str,
-    #    access_key: str,
-    #    secret_key: str,
-    # ):
-    #    super().__init__(region, cache_client, resources)
-    #    self.client = session.client(
-    #        "dynamodb",
-    #        region_name=region,
-    #        aws_access_key_id=access_key,
-    #        aws_secret_access_key=secret_key,
-    #    )
-
-    #    # Map benchmark -> orig_name -> table_name
-    #    self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
+    @staticmethod
+    def deserialize(
+        cached_config: ScyllaDBConfig, cache_client: Cache, resources: Resources
+    ) -> "ScyllaDB":
+        return ScyllaDB._deserialize(cached_config, cache_client, resources, ScyllaDB)
 
     def retrieve_cache(self, benchmark: str) -> bool:
 
@@ -220,6 +242,25 @@ class ScyllaDB(NoSQLStorage):
 
         return self._tables[benchmark][table]
 
+    def write_to_table(
+        self,
+        benchmark: str,
+        table: str,
+        data: dict,
+        primary_key: Tuple[str, str],
+        secondary_key: Optional[Tuple[str, str]] = None,
+    ):
+
+        table_name = self._get_table_name(benchmark, table)
+        assert table_name is not None
+
+        for key in (primary_key, secondary_key):
+            if key is not None:
+                data[key[0]] = key[1]
+
+        serialized_data = {k: self._serializer.serialize(v) for k, v in data.items()}
+        self.client.put_item(TableName=table_name, Item=serialized_data)
+
     """
        AWS: create a DynamoDB Table
 
@@ -245,12 +286,11 @@ class ScyllaDB(NoSQLStorage):
             ret = self.client.create_table(
                 TableName=table_name,
                 BillingMode="PAY_PER_REQUEST",
-                AttributeDefinitions=definitions,
-                KeySchema=key_schema,
+                AttributeDefinitions=definitions,  # type: ignore
+                KeySchema=key_schema,  # type: ignore
             )
 
             if ret["TableDescription"]["TableStatus"] == "CREATING":
-
                 self.logging.info(f"Waiting for creation of DynamoDB table {name}")
                 waiter = self.client.get_waiter("table_exists")
                 waiter.wait(TableName=name)

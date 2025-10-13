@@ -30,6 +30,7 @@ from sebs.faas.function import (
     Trigger,
 )
 from sebs.faas.system import System
+from sebs.faas.config import Resources
 
 
 class Azure(System):
@@ -127,7 +128,12 @@ class Azure(System):
     # requirements.txt/package.json
     def package_code(
         self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, str]:
+
+        container_uri = ""
+
+        if code_package.container_deployment:
+            raise NotImplementedError("Container Deployment is not supported in Azure")
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
@@ -297,12 +303,8 @@ class Azure(System):
         json.dump(host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
-        execute(
-            "zip -qu -r9 {}.zip * .".format(code_package.benchmark),
-            shell=True,
-            cwd=directory,
-        )
-        return directory, code_size
+        execute("zip -qu -r9 {}.zip * .".format(code_package.benchmark), shell=True, cwd=directory)
+        return directory, code_size, container_uri
 
     def publish_function(
         self,
@@ -356,7 +358,8 @@ class Azure(System):
                 error = str(e)
                 print(error)
                 # app not found
-                if "find app with name" in error and repeat_on_failure:
+                # Azure changed the description as some point
+                if ("find app with name" in error or "NotFound" in error) and repeat_on_failure:
                     # Sleep because of problems when publishing immediately
                     # after creating function app.
                     time.sleep(30)
@@ -381,7 +384,16 @@ class Azure(System):
         :return: URL to reach HTTP-triggered function
     """
 
-    def update_benchmark(self, function: CloudBenchmark, code_package: Benchmark):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Azure")
 
         assert code_package.has_input_processed
 
@@ -414,6 +426,7 @@ class Azure(System):
     ):
 
         envs = env_variables.copy()
+
         if code_package.uses_nosql:
 
             nosql_storage = cast(CosmosDB, self._system_resources.get_nosql_storage())
@@ -486,10 +499,10 @@ class Azure(System):
 
                 # if we don't do that, next invocation might still see old values
                 # Disabled since we swapped the order - we first update envs, then we publish.
-                #self.logging.info(
+                # self.logging.info(
                 #    "Sleeping for 10 seconds - Azure needs more time to propagate changes. "
                 #    "Otherwise, functions might not see new variables and fail unexpectedly."
-                #)
+                # )
 
             except RuntimeError as e:
                 self.logging.error("Failed to set environment variable!")
@@ -507,16 +520,18 @@ class Azure(System):
         self.cli_instance.upload_package(code_package.code_location, dest)
         return dest
 
-    def default_function_name(self, code_package: Benchmark) -> str:
+    def default_function_name(
+        self, code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
         """
         Functionapp names must be globally unique in Azure.
         """
         func_name = (
-            "{}-{}-{}-{}".format(
+            "sebs-{}-{}-{}-{}".format(
+                self.config.resources.resources_id,
                 code_package.benchmark,
                 code_package.language_name,
                 code_package.language_version,
-                self.config.resources.resources_id,
             )
             .replace(".", "-")
             .replace("_", "-")
@@ -524,12 +539,15 @@ class Azure(System):
         return func_name
 
     from sebs import azure
-
     B = TypeVar("B", bound=azure.function.Function)
 
     def create_benchmark(
-        self, code_package: Benchmark, func_name: str, benchmark_cls: Type[B]
+        self, code_package: Benchmark, func_name: str, benchmark_cls: Type[B], container_deployment: bool, container_uri: str
     ) -> B:
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Azure")
+
         language = code_package.language_name
         language_runtime = code_package.language_version
         resource_group = self.config.resources.resource_group(self.cli_instance)
@@ -599,7 +617,7 @@ class Azure(System):
         )
 
         # update existing function app
-        self.update_benchmark(function, code_package)
+        self.update_benchmark(function, code_package, container_deployment, container_uri)
 
         self.cache_client.add_benchmark(
             deployment_name=self.name(),
@@ -617,14 +635,14 @@ class Azure(System):
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> AzureFunction:
-        return self.create_benchmark(code_package, func_name, AzureFunction)
+    def create_function(self, code_package: Benchmark, func_name: str, container_deployment: bool, container_uri: str) -> AzureFunction:
+        return self.create_benchmark(code_package, func_name, AzureFunction, container_deployment, container_uri)
 
-    def update_function(self, function: Function, code_package: Benchmark):
-        self.update_benchmark(function, code_package)
+    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
+        self.update_benchmark(function, code_package, container_deployment, container_uri)
 
-    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> AzureWorkflow:
-        return self.create_benchmark(code_package, workflow_name, AzureWorkflow)
+    def create_workflow(self, code_package: Benchmark, workflow_name: str, container_deployment: bool, container_uri: str) -> AzureWorkflow:
+        return self.create_benchmark(code_package, workflow_name, AzureWorkflow, container_deployment, container_uri)
 
     def update_workflow(self, workflow: Workflow, code_package: Benchmark):
         self.update_benchmark(workflow, code_package)
@@ -729,7 +747,7 @@ class Azure(System):
         self.update_envs(function, code_package, {"ForceColdStart": str(self.cold_start_counter)})
 
         # FIXME: is this sufficient to enforce cold starts?
-        # self.update_function(function, code_package)
+        # self.update_function(function, code_package, False, "")
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         self.cold_start_counter += 1

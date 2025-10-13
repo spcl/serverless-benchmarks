@@ -4,8 +4,7 @@ For each command you can pass `--verbose` flag to increase the verbosity of the 
 By default, all scripts will create a cache in the directory `cache` to store code with
 dependencies and information on allocated cloud resources.
 Benchmarks will be rebuilt after a change in source code is detected.
-To enforce redeployment of code and benchmark inputs please use flags `--update-code`
-and `--update-storage`, respectively.
+To enforce redeployment of code, benchmark inputs, container deployment (supported in AWS) please use flags `--update-code`, `--update-storage` and `--container-deployment` respectively.
 
 **Note:** The cache does not support updating the cloud region. If you want to deploy benchmarks
 to a new cloud region, then use a new cache directory.
@@ -72,11 +71,11 @@ In addition to the cloud deployment, we provide an opportunity to launch benchma
 This allows us to conduct debugging and a local characterization of the benchmarks.
 
 First, launch a storage instance. The command below is going to deploy a Docker container,
-map the container's port to port `9011` on host network, and write storage instance configuration
-to file `out_storage.json`
+map the container's port to port defined in the configuration on host network, and write storage 
+instance configuration to file `out_storage.json`
 
-```
-./sebs.py storage start minio --port 9011 --output-json out_storage.json
+```bash
+./sebs.py storage start all config/storage.json --output-json out_storage.json
 ```
 
 Then, we need to update the configuration of `local` deployment with information on the storage 
@@ -84,34 +83,59 @@ instance. The `.deployment.local` object in the configuration JSON must contain 
 `storage`, with the data provided in the `out_storage.json` file. Fortunately, we can achieve
 this automatically with a single command by using `jq`:
 
-```
+```bash
 jq '.deployment.local.storage = input' config/example.json out_storage.json > config/local_deployment.json
 ```
 
 The output file will contain a JSON object that should look similar to this one:
 
 ```json
-"deployment": {
-  "name": "local",
-  "local": {
-    "storage": {
-      "address": "172.17.0.2:9000",
-      "mapped_port": 9011,
-      "access_key": "XXXXX",
-      "secret_key": "XXXXX",
-      "instance_id": "XXXXX",
-      "input_buckets": [],
-      "output_buckets": [],
-      "type": "minio"
-    }
+{
+  "deployment": {
+    "name": "local",
+    "local": {
+      "storage": {
+        "object": {
+          "type": "minio",
+          "minio": {
+            "address": "172.17.0.3:9000",
+            "mapped_port": 9011,
+            "access_key": "xxx",
+            "secret_key": "xxx",
+            "instance_id": "xxx",
+            "output_buckets": [],
+            "input_buckets": [],
+            "version": "xxx",
+            "data_volume": "minio-volume",
+            "type": "minio"
+          }
+        },
+        "nosql": {
+          "type": "scylladb",
+          "scylladb": {
+            "address": "172.17.0.4:8000",
+            "mapped_port": 9012,
+            "alternator_port": 8000,
+            "access_key": "xxx",
+            "secret_key": "xxx",
+            "instance_id": "xxx",
+            "region": "xxx",
+            "cpus": 1,
+            "memory": "xxx",
+            "version": "xxx",
+            "data_volume": "scylladb-volume"
+          }
+        }
+      }
+    },
   }
 }
 ```
 
 To launch Docker containers, use the following command - this example launches benchmark `110.dynamic-html` with size `test`:
 
-```
-./sebs.py local start 110.dynamic-html test out_benchmark.json --config config/local_deployment.json --deployments 1
+```bash
+./sebs.py local start 110.dynamic-html test out_benchmark.json --config config/local_deployment.json --deployments 1 --remove-containers --architecture=x64
 ```
 
 The output file `out_benchmark.json` will contain the information on containers deployed and the endpoints that can be used to invoke functions:
@@ -143,18 +167,22 @@ The output file `out_benchmark.json` will contain the information on containers 
 
 In our example, we can use `curl` to invoke the function with provided input:
 
-```
-curl 172.17.0.3:9000 --request POST --data '{"random_len": 10,"username": "testname"}' --header 'Content-Type: application/json'
+```bash
+curl $(jq -rc ".functions[0].url" out_benchmark.json) \
+    --request POST \
+    --data $(jq -rc ".inputs[0]" out_benchmark.json) \
+    --header 'Content-Type: application/json'
 ```
 
 To stop containers, you can use the following command:
 
 ```
 ./sebs.py local stop out_benchmark.json
-./sebs.py storage stop out_storage.json
+./sebs.py storage stop all out_storage.json
 ```
 
-The stopped containers won't be automatically removed unless the option `--remove-containers` has been passed to the `start` command.
+Note: The stopped benchmark containers won't be automatically removed 
+unless the option `--remove-containers` has been passed to the `local start` command.
 
 #### Memory Measurements
 

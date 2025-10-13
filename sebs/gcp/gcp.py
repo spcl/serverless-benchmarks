@@ -97,20 +97,26 @@ class GCP(System):
     def get_workflow_client(self):
         return self.workflow_client
 
-    @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(
+        self, code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
         # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.benchmark, code_package.language_name, code_package.language_version
+        resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        func_name = "sebs-{}-{}-{}-{}".format(
+            resource_id,
+            code_package.benchmark,
+            code_package.language_name,
+            code_package.language_version,
         )
         return GCP.format_function_name(func_name)
 
     @staticmethod
     def format_function_name(func_name: str) -> str:
         # GCP functions must begin with a letter
+        # however, we now add by default `sebs` in the beginning
         func_name = func_name.replace("-", "_")
         func_name = func_name.replace(".", "_")
-        return f"function-{func_name}"
+        return func_name
 
     """
         Apply the system-specific code packaging routine to build benchmark.
@@ -129,7 +135,12 @@ class GCP(System):
 
     def package_code(
         self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, str]:
+
+        container_uri = ""
+
+        if code_package.container_deployment:
+            raise NotImplementedError("Container Deployment is not supported in GCP")
 
         CONFIG_FILES = {
             "python": ["handler.py", ".python_packages"],
@@ -185,9 +196,18 @@ class GCP(System):
         # rename the main.py back to handler.py
         shutil.move(new_path, old_path)
 
-        return os.path.join(directory, "{}.zip".format(code_package.benchmark)), bytes_size
+        return os.path.join(directory, "{}.zip".format(code_package.benchmark)), bytes_size, container_uri
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "GCPFunction":
+    def create_function(
+        self,
+        code_package: Benchmark,
+        func_name: str,
+        container_deployment: bool,
+        container_uri: str,
+    ) -> "GCPFunction":
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in GCP")
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -199,8 +219,10 @@ class GCP(System):
         location = self.config.region
         project_name = self.config.project_name
         function_cfg = FunctionConfig.from_benchmark(code_package)
+        architecture = function_cfg.architecture.value
 
         code_package_name = cast(str, os.path.basename(package))
+        code_package_name = f"{architecture}-{code_package_name}"
         code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
         code_prefix = os.path.join(benchmark, code_package_name)
         storage_client.upload(code_bucket, package, code_prefix)
@@ -239,6 +261,7 @@ class GCP(System):
             create_req.execute()
             self.logging.info(f"Function {func_name} has been created!")
             time.sleep(5)
+
             allow_unauthenticated_req = (
                 self.function_client.projects()
                 .locations()
@@ -254,7 +277,27 @@ class GCP(System):
                     },
                 )
             )
-            allow_unauthenticated_req.execute()
+
+            # Avoid infinite loop
+            MAX_RETRIES = 5
+            counter = 0
+            while counter < MAX_RETRIES:
+                try:
+                    allow_unauthenticated_req.execute()
+                    break
+                except HttpError:
+
+                    self.logging.info(
+                        "Sleeping for 5 seconds because the created functions is not yet available!"
+                    )
+                    time.sleep(5)
+                    counter += 1
+            else:
+                raise RuntimeError(
+                    f"Failed to configure function {full_func_name} "
+                    "for unauthenticated invocations!"
+                )
+
             self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
 
             function = GCPFunction(
@@ -271,7 +314,7 @@ class GCP(System):
                 cfg=function_cfg,
                 bucket=code_bucket,
             )
-            self.update_function(function, code_package)
+            self.update_function(function, code_package, container_deployment, container_uri)
 
         # Add LibraryFunctionTrigger to a new function
         from sebs.gcp.triggers import FunctionLibraryTrigger
@@ -325,12 +368,25 @@ class GCP(System):
             gcp_trigger.logging_handlers = self.logging_handlers
             gcp_trigger.deployment_client = self
 
-    def update_function(self, function: Function, code_package: Benchmark):
+    def update_function(
+        self,
+        function: Function,
+        code_package: Benchmark,
+        container_deployment: bool,
+        container_uri: str,
+    ):
+
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in GCP")
 
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version
+
+        function_cfg = FunctionConfig.from_benchmark(code_package)
+        architecture = function_cfg.architecture.value
         code_package_name = os.path.basename(code_package.code_location)
         storage = cast(GCPStorage, self._system_resources.get_storage())
+        code_package_name = f"{architecture}-{code_package_name}"
 
         bucket = function.code_bucket(code_package.benchmark, storage)
         storage.upload(bucket, code_package.code_location, code_package_name)

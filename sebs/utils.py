@@ -6,6 +6,7 @@ import subprocess
 import uuid
 import click
 import datetime
+import platform
 
 from typing import List, Optional
 
@@ -55,11 +56,19 @@ def execute(cmd, shell=False, cwd=None):
 
 
 def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
-    if value:
+    if value is not None:
         # make sure parent keys exist
         for key in keys[:-1]:
             cfg = cfg.setdefault(key, {})
         cfg[keys[-1]] = value
+
+
+def append_nested_dict(cfg: dict, keys: List[str], value: Optional[dict]):
+    if value:
+        # make sure parent keys exist
+        for key in keys[:-1]:
+            cfg = cfg.setdefault(key, {})
+        cfg[keys[-1]] = {**cfg[keys[-1]], **value}
 
 
 def find(name, path):
@@ -312,6 +321,11 @@ class LoggingBase:
 
 def has_platform(name: str) -> bool:
     return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "true"
+
+
+# Check if the system is Linux and that it's not WSL
+def is_linux() -> bool:
+    return platform.system() == "Linux" and "microsoft" not in platform.release().lower()
 
 
 def catch_interrupt():

@@ -32,11 +32,10 @@ class SystemResources(ABC, LoggingBase):
         pass
 
     """
-        Access persistent storage instance.
-        It might be a remote and truly persistent service (AWS S3, Azure Blob..),
-        or a dynamically allocated local instance.
+        Access instance of NoSQL storage.
+        It might be a remote and truly persistent service (AWS DynamoDB, Azure CosmosDB..),
+        or a dynamically allocated local instance (ScyllaDB).
 
-        :param replace_existing: replace benchmark input data if exists already
     """
 
     @abstractmethod

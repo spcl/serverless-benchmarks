@@ -101,7 +101,7 @@ class PerfCost(Experiment):
             if self.is_workflow and platform != "azure":
                 for func in self._function.functions:
                     func.memory = memory
-                    self._deployment_client.update_function(func, self._benchmark)
+                    self._deployment_client.update_function(func, self._benchmark, self._benchmark.container_deployment, self._benchmark.container_uri)
             self._sebs_client.cache_client.update_benchmark(self._function)
 
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))

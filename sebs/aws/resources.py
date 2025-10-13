@@ -44,8 +44,6 @@ class AWSSystemResources(SystemResources):
         parameters are passed, then storage is initialized with required number
         of buckets. Buckets may be created or retrieved from cache.
 
-        :param benchmark: benchmark name
-        :param buckets: tuple of required input/output buckets
         :param replace_existing: replace existing files in cached buckets?
         :return: storage client
     """

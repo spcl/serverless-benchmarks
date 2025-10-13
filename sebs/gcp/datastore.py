@@ -82,7 +82,7 @@ class Datastore(NoSQLStorage):
     def benchmark_database(self, benchmark: str) -> str:
         return self._benchmark_resources[benchmark].database
 
-    def writer_func(
+    def write_to_table(
         self,
         benchmark: str,
         table: str,

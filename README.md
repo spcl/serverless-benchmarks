@@ -4,6 +4,7 @@
 ![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
 ![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/spcl/serverless-benchmarks)
+[![Slack](https://img.shields.io/badge/Slack-Join%20%23serverless--benchmark-purple?logo=Slack)](https://join.slack.com/t/serverlessbenchmark/shared_invite/zt-30622ov74-_S9QeDjAJLZSe9bJC8tStw)
 
 # SeBS: Serverless Benchmark Suite
 
@@ -35,11 +36,10 @@ tool](docs/design.md), and see the [modularity](docs/modularity.md)
 section to learn how SeBS can be extended with new platforms, benchmarks, and experiments.
 Find out more about our project in [a paper summary](https://mcopik.github.io/projects/sebs/).
 
-Do you have further questions not answered by our documentation?
-Did you encounter troubles with installing and using SeBS?
+Do you have further questions that were not answered by our documentation?
+Did you encounter trouble installing and using SeBS?
 Or do you want to use SeBS in your work and you need new features?
-Feel free to reach us through GitHub issues or by writing to <marcin.copik@inf.ethz.ch>.
-
+[Join our community on Slack](https://join.slack.com/t/serverlessbenchmark/shared_invite/zt-30622ov74-_S9QeDjAJLZSe9bJC8tStw) or open a GitHub issue.
 
 For more information on how to configure, use, and extend SeBS, see our
 documentation:
@@ -114,10 +114,10 @@ local environment.
 To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
 
 > [!WARNING]
-> We use libcurl to make HTTP requests. `pycurl` will attempt to build its bindings and needs headers for that - make sure you have all development packages installed. If you see an error like this one: `src/pycurl.h:206:13: fatal error: gnutls/gnutls.h: No such file or directory`, it means that you are missing some of the dependencies.
+> Please do not use SeBS with `sudo`. There is no requirement to use any superuser permissions. **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it (see [Docker documentation](https://docs.docker.com/engine/install/linux-postinstall/) on configuring your user to have non-sudo access to containers). Otherwise, you might see many "Connection refused" and "Permission denied" errors when using SeBS.
 
 > [!WARNING]
-> **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it. Otherwise, you might see many "Connection refused" and "Permission denied" errors when using SeBS.
+> We use libcurl to make HTTP requests. `pycurl` will attempt to build its bindings and needs headers for that - make sure you have all development packages installed. If you see an error like this one: `src/pycurl.h:206:13: fatal error: gnutls/gnutls.h: No such file or directory`, it means that you are missing some of the dependencies.
 
 ## Authors
 
@@ -132,4 +132,4 @@ To verify the correctness of installation, you can use [our regression testing](
 * [Kaleab](https://github.com/Kaleab-git) - contributed to SeBS local backend to make it portable between platforms and more robust on non-Linux systems.
 * [lawrence910426](https://github.com/lawrence910426) - contributed color-coded output to SeBS CLI.
 * [Abhishek Kumar](https://github.com/octonawish-akcodes) - contributed new language versions and Knative support.
-* [Prajin Khadka](https://github.com/octonawish-akcodes) - contributed new language versions, container support, and ARM builds.
+* [Prajin Khadka](https://github.com/prajinkhadka) - contributed new language versions, container support, and ARM builds.

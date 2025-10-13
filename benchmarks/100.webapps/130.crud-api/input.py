@@ -6,7 +6,7 @@ def allocate_nosql() -> dict:
 
 
 def generate_input(
-    data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func
+    data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_upload
 ):
 
     input_config = {}
@@ -16,28 +16,28 @@ def generate_input(
 
     # Set initial data
 
-    nosql_func(
+    nosql_upload(
         "130.crud-api",
         "shopping_cart",
         {"name": "Gothic Game", "price": 42, "quantity": 2},
         ("cart_id", cart_id),
         ("product_id", "game-gothic"),
     )
-    nosql_func(
+    nosql_upload(
         "130.crud-api",
         "shopping_cart",
         {"name": "Gothic 2", "price": 142, "quantity": 3},
         ("cart_id", cart_id),
         ("product_id", "game-gothic-2"),
     )
-    nosql_func(
+    nosql_upload(
         "130.crud-api",
         "shopping_cart",
         {"name": "SeBS Benchmark", "price": 1000, "quantity": 1},
         ("cart_id", cart_id),
         ("product_id", "sebs-benchmark"),
     )
-    nosql_func(
+    nosql_upload(
         "130.crud-api",
         "shopping_cart",
         {"name": "Mint Linux", "price": 0, "quantity": 5},

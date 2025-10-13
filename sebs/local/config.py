@@ -1,8 +1,9 @@
-from typing import cast, Optional
+from typing import cast, Optional, Set
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
-from sebs.storage.minio import MinioConfig
+from sebs.storage.resources import SelfHostedResources
+from sebs.storage.config import NoSQLStorageConfig, PersistentStorageConfig
 from sebs.utils import LoggingHandlers
 
 
@@ -21,29 +22,57 @@ class LocalCredentials(Credentials):
 """
 
 
-class LocalResources(Resources):
-    def __init__(self, storage_cfg: Optional[MinioConfig] = None):
-        super().__init__(name="local")
-        self._storage = storage_cfg
+class LocalResources(SelfHostedResources):
+    def __init__(
+        self,
+        storage_cfg: Optional[PersistentStorageConfig] = None,
+        nosql_storage_cfg: Optional[NoSQLStorageConfig] = None,
+    ):
+        self._path: str = ""
+        super().__init__("local", storage_cfg, nosql_storage_cfg)
+        self._allocated_ports: Set[int] = set()
 
     @property
-    def storage_config(self) -> Optional[MinioConfig]:
-        return self._storage
+    def allocated_ports(self) -> set:
+        return self._allocated_ports
 
     def serialize(self) -> dict:
-        return {}
+        out = super().serialize()
+
+        out["allocated_ports"] = list(self._allocated_ports)
+        return out
 
     @staticmethod
-    def initialize(res: Resources, cfg: dict):
-        pass
+    def initialize(res: Resources, config: dict):
+
+        resources = cast(LocalResources, res)
+
+        if "allocated_ports" in config:
+            resources._allocated_ports = set(config["allocated_ports"])
+
+    def update_cache(self, cache: Cache):
+        super().update_cache(cache)
+        cache.update_config(
+            val=list(self._allocated_ports), keys=["local", "resources", "allocated_ports"]
+        )
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
         ret = LocalResources()
-        # Check for new config
-        if "storage" in config and config["storage"]["object"]["type"] == "minio":
-            ret._storage = MinioConfig.deserialize(config["storage"]["object"]["minio"])
-            ret.logging.info("Using user-provided configuration of storage for local containers.")
+
+        cached_config = cache.get_config("local")
+        ret._deserialize(ret, config, cached_config)
+
+        # Load cached values
+        if cached_config and "resources" in cached_config:
+            LocalResources.initialize(ret, cached_config["resources"])
+            ret.logging_handlers = handlers
+            ret.logging.info("Using cached resources for Local")
+        else:
+            # Check for new config
+            ret.logging_handlers = handlers
+            LocalResources.initialize(ret, config)
+
         return ret
 
 
@@ -84,7 +113,8 @@ class LocalConfig(Config):
         return config_obj
 
     def serialize(self) -> dict:
-        return {}
+        out = {"name": "local", "region": self._region, "resources": self._resources.serialize()}
+        return out
 
     def update_cache(self, cache: Cache):
-        pass
+        self.resources.update_cache(cache)

@@ -42,7 +42,7 @@ JSON configuration files are needed.
 
 **Build Docker Image** - in this step, we create a new image `function.{platform}.{benchmark}.{language}-{version}`.
 Benchmark and all of its dependencies are installed there, and the image can be deployed directly
-to the serverless platform. At the moment, this step is used only in OpenWhisk.
+to the serverless platform. At the moment, this step is used only on AWS and in OpenWhisk.
 
 ## Docker Image Build
 

@@ -1,6 +1,7 @@
 {
   "general": {
-    "docker_repository": "spcleth/serverless-benchmarks"
+    "docker_repository": "spcleth/serverless-benchmarks",
+    "SeBS_version": "1.2.0"
   },
   "local": {
     "experiments": {
@@ -17,11 +18,13 @@
     "languages": {
       "python": {
         "base_images": {
-          "3.7": "python:3.7-slim",
-          "3.8": "python:3.8-slim",
-          "3.9": "python:3.9-slim",
-          "3.10": "python:3.10-slim",
-          "3.11": "python:3.11-slim"
+          "x64": {
+            "3.7": "python:3.7-slim",
+            "3.8": "python:3.8-slim",
+            "3.9": "python:3.9-slim",
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim"
+          }
         },
         "images": [
           "run",
@@ -30,18 +33,25 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
           "packages": [],
-          "module_packages": {}
+          "module_packages": {
+            "nosql": [
+              "boto3==1.28.3"
+            ]
+          }
         }
       },
       "nodejs": {
         "base_images": {
-          "14": "node:14-slim",
-          "16": "node:16-slim",
-          "18": "node:18-slim",
-          "20": "node:20-slim"
+          "x64": {
+            "14": "node:14-slim",
+            "16": "node:16-slim",
+            "18": "node:18-slim",
+            "20": "node:20-slim"
+          }
         },
         "images": [
           "run",
@@ -55,16 +65,26 @@
           "packages": []
         }
       }
-    }
+    },
+    "architecture": ["x64"],
+    "deployments": ["package"]
   },
   "aws": {
     "languages": {
       "python": {
         "base_images": {
-          "3.11": "amazon/aws-lambda-python:3.11",
-          "3.10": "amazon/aws-lambda-python:3.10",
-          "3.9": "amazon/aws-lambda-python:3.9",
-          "3.8": "amazon/aws-lambda-python:3.8"
+          "x64": {
+            "3.11": "amazon/aws-lambda-python:3.11",
+            "3.10": "amazon/aws-lambda-python:3.10",
+            "3.9": "amazon/aws-lambda-python:3.9",
+            "3.8": "amazon/aws-lambda-python:3.8"
+          },
+          "arm64": {
+            "3.11": "amazon/aws-lambda-python:3.11.2024.05.23.17",
+            "3.10": "amazon/aws-lambda-python:3.10.2024.06.19.11",
+            "3.9": "amazon/aws-lambda-python:3.9.2024.05.20.23",
+            "3.8": "amazon/aws-lambda-python:3.8.2024.09.05.16"
+          }
         },
         "images": [
           "build"
@@ -74,7 +94,8 @@
             "handler_function.py",
             "handler_workflow.py",
             "storage.py",
-            "nosql.py"
+            "nosql.py",
+            "setup.py"
           ],
           "packages": [
             "redis"
@@ -84,7 +105,12 @@
       },
       "nodejs": {
         "base_images": {
-          "16": "amazon/aws-lambda-nodejs:16"
+          "x64": {
+            "16": "amazon/aws-lambda-nodejs:16"
+          },
+          "arm64": {
+            "16": "amazon/aws-lambda-nodejs:16.2024.09.06.13"
+          }
         },
         "images": [
           "build"
@@ -99,17 +125,21 @@
           }
         }
       }
-    }
+    },
+    "architecture": ["x64", "arm64"],
+    "deployments": ["package", "container"]
   },
   "azure": {
     "languages": {
       "python": {
         "base_images": {
-          "3.7": "mcr.microsoft.com/azure-functions/python:3.0-python3.7",
-          "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8",
-          "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9",
-          "3.10": "mcr.microsoft.com/azure-functions/python:4-python3.10",
-          "3.11": "mcr.microsoft.com/azure-functions/python:4-python3.11"
+          "x64": {
+            "3.7": "mcr.microsoft.com/azure-functions/python:3.0-python3.7",
+            "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8",
+            "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9",
+            "3.10": "mcr.microsoft.com/azure-functions/python:4-python3.10",
+            "3.11": "mcr.microsoft.com/azure-functions/python:4-python3.11"
+          }
         },
         "images": [
           "build"
@@ -143,9 +173,11 @@
       },
       "nodejs": {
         "base_images": {
-          "16": "mcr.microsoft.com/azure-functions/node:4-node16",
-          "18": "mcr.microsoft.com/azure-functions/node:4-node18",
-          "20": "mcr.microsoft.com/azure-functions/node:4-node20"
+          "x64": {
+            "16": "mcr.microsoft.com/azure-functions/node:4-node16",
+            "18": "mcr.microsoft.com/azure-functions/node:4-node18",
+            "20": "mcr.microsoft.com/azure-functions/node:4-node20"
+          }
         },
         "images": [
           "build"
@@ -167,18 +199,22 @@
       "manage": {
         "username": "docker_user"
       }
-    }
+    },
+    "architecture": ["x64"],
+    "deployments": ["package"]
   },
   "gcp": {
     "languages": {
       "python": {
         "base_images": {
-          "3.7": "ubuntu:22.04",
-          "3.8": "ubuntu:22.04",
-          "3.9": "ubuntu:22.04",
-          "3.10": "ubuntu:22.04",
-          "3.11": "ubuntu:22.04",
-          "3.12": "ubuntu:22.04"
+          "x64": {
+            "3.7": "ubuntu:22.04",
+            "3.8": "ubuntu:22.04",
+            "3.9": "ubuntu:22.04",
+            "3.10": "ubuntu:22.04",
+            "3.11": "ubuntu:22.04",
+            "3.12": "ubuntu:22.04"
+          }
         },
         "images": [
           "build"
@@ -206,12 +242,14 @@
       },
       "nodejs": {
         "base_images": {
-          "10": "ubuntu:18.04",
-          "12": "ubuntu:18.04",
-          "14": "ubuntu:18.04",
-          "16": "ubuntu:18.04",
-          "18": "ubuntu:22.04",
-          "20": "ubuntu:22.04"
+          "x64": {
+            "10": "ubuntu:18.04",
+            "12": "ubuntu:18.04",
+            "14": "ubuntu:18.04",
+            "16": "ubuntu:18.04",
+            "18": "ubuntu:22.04",
+            "20": "ubuntu:22.04"
+          }
         },
         "images": [
           "build"
@@ -233,16 +271,20 @@
       "manage": {
         "username": "docker_user"
       }
-    }
+    },
+    "architecture": ["x64"],
+    "deployments": ["package"]
   },
   "openwhisk": {
     "languages": {
       "python": {
         "base_images": {
-          "3.7": "openwhisk/action-python-v3.7",
-          "3.9": "openwhisk/action-python-v3.9",
-          "3.10": "openwhisk/action-python-v3.10",
-          "3.11": "openwhisk/action-python-v3.11"
+          "x64": {
+            "3.7": "openwhisk/action-python-v3.7",
+            "3.9": "openwhisk/action-python-v3.9",
+            "3.10": "openwhisk/action-python-v3.10",
+            "3.11": "openwhisk/action-python-v3.11"
+          }
         },
         "images": [
           "function"
@@ -252,24 +294,29 @@
           "files": [
             "__main__.py",
             "storage.py",
-            "setup.py"
+            "setup.py",
+            "nosql.py"
           ],
           "packages": [],
           "module_packages": {
             "storage": {
               "minio": "^5.0.10"
             },
-            "nosql": []
+            "nosql": [
+              "boto3==1.28.3"
+            ]
           }
         }
       },
       "nodejs": {
         "base_images": {
-          "10": "openwhisk/action-nodejs-v10",
-          "12": "openwhisk/action-nodejs-v12",
-          "14": "openwhisk/action-nodejs-v14",
-          "18": "openwhisk/action-nodejs-v18",
-          "20": "openwhisk/action-nodejs-v20"
+          "x64": {
+            "10": "openwhisk/action-nodejs-v10",
+            "12": "openwhisk/action-nodejs-v12",
+            "14": "openwhisk/action-nodejs-v14",
+            "18": "openwhisk/action-nodejs-v18",
+            "20": "openwhisk/action-nodejs-v20"
+          }
         },
         "images": [
           "function"
@@ -285,6 +332,8 @@
           }
         }
       }
-    }
+    },
+    "architecture": ["x64"],
+    "deployments": ["container"]
   }
 }

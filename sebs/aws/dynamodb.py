@@ -35,7 +35,8 @@ class DynamoDB(NoSQLStorage):
             aws_secret_access_key=secret_key,
         )
 
-        # Map benchmark -> orig_name -> table_name
+        # Map benchmark -> name used by benchmark -> actual table_name in AWS
+        # Example "shopping_cart" -> "sebs-benchmarks-<resource-id>-130.crud-api-shopping_cart"
         self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
 
         self._serializer = TypeSerializer()
@@ -75,7 +76,7 @@ class DynamoDB(NoSQLStorage):
 
         return self._tables[benchmark][table]
 
-    def writer_func(
+    def write_to_table(
         self,
         benchmark: str,
         table: str,
@@ -85,6 +86,7 @@ class DynamoDB(NoSQLStorage):
     ):
 
         table_name = self._get_table_name(benchmark, table)
+        assert table_name is not None
 
         for key in (primary_key, secondary_key):
             if key is not None:
@@ -118,8 +120,8 @@ class DynamoDB(NoSQLStorage):
             ret = self.client.create_table(
                 TableName=table_name,
                 BillingMode="PAY_PER_REQUEST",
-                AttributeDefinitions=definitions,
-                KeySchema=key_schema,
+                AttributeDefinitions=definitions,  # type: ignore
+                KeySchema=key_schema,  # type: ignore
             )
 
             if ret["TableDescription"]["TableStatus"] == "CREATING":
@@ -136,6 +138,28 @@ class DynamoDB(NoSQLStorage):
         except self.client.exceptions.ResourceInUseException as e:
 
             if "already exists" in e.response["Error"]["Message"]:
+
+                # We need this waiter.
+                # Otheriwise, we still might get later `ResourceNotFoundException`
+                # when uploading benchmark data.
+                self.logging.info(f"Waiting for the existing table {table_name} to be created")
+                waiter = self.client.get_waiter("table_exists")
+                waiter.wait(TableName=table_name, WaiterConfig={"Delay": 1})
+                ret = self.client.describe_table(TableName=table_name)
+
+                self.logging.info(
+                    f"Using existing DynamoDB table {table_name} for benchmark {benchmark}"
+                )
+                self._tables[benchmark][name] = table_name
+                return name
+
+            if "being created" in e.response["Error"]["Message"]:
+
+                self.logging.info(f"Waiting for the existing table {table_name} to be created")
+                waiter = self.client.get_waiter("table_exists")
+                waiter.wait(TableName=table_name, WaiterConfig={"Delay": 1})
+                ret = self.client.describe_table(TableName=table_name)
+
                 self.logging.info(
                     f"Using existing DynamoDB table {table_name} for benchmark {benchmark}"
                 )

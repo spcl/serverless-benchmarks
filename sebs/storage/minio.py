@@ -3,18 +3,17 @@ import json
 import os
 import secrets
 import uuid
-import platform
 from typing import List, Optional, Type, TypeVar
 
 import docker
 import minio
 
 from sebs.cache import Cache
-from sebs.types import Storage as StorageTypes
 from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
 from sebs.utils import project_absolute_path
+from sebs.utils import is_linux
 
 
 class Minio(PersistentStorage):
@@ -71,7 +70,7 @@ class Minio(PersistentStorage):
     def start(self):
 
         if self._cfg.data_volume == "":
-            minio_volume = os.path.join(project_absolute_path(), "minio_volume")
+            minio_volume = os.path.join(project_absolute_path(), "minio-volume")
         else:
             minio_volume = self._cfg.data_volume
         minio_volume = os.path.abspath(minio_volume)
@@ -128,7 +127,7 @@ class Minio(PersistentStorage):
             self._storage_container.reload()
 
             # Check if the system is Linux and that it's not WSL
-            if platform.system() == "Linux" and "microsoft" not in platform.release().lower():
+            if is_linux():
                 networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
                 self._cfg.address = "{IPAddress}:{Port}".format(
                     IPAddress=networks["bridge"]["IPAddress"], Port=9000
@@ -238,7 +237,6 @@ class Minio(PersistentStorage):
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         try:
             objects_list = self.connection.list_objects(bucket_name)
-            objects: List[str]
             return [obj.object_name for obj in objects_list if prefix in obj.object_name]
         except minio.error.NoSuchBucket:
             raise RuntimeError(f"Attempting to access a non-existing bucket {bucket_name}!")
@@ -254,19 +252,27 @@ class Minio(PersistentStorage):
         raise NotImplementedError()
 
     def serialize(self) -> dict:
-        return {
-            **self._cfg.serialize(),
-            "type": StorageTypes.MINIO,
-        }
+        return self._cfg.serialize()
+
+    """
+        This implementation supports overriding this class.
+        The main Minio class is used to start/stop deployments.
+
+        When overriding the implementation in Local/OpenWhisk/...,
+        we call the _deserialize and provide an alternative implementation.
+    """
 
     T = TypeVar("T", bound="Minio")
 
     @staticmethod
     def _deserialize(
-        cached_config: MinioConfig, cache_client: Cache, res: Resources, obj_type: Type[T]
+        cached_config: MinioConfig,
+        cache_client: Cache,
+        resources: Resources,
+        obj_type: Type[T],
     ) -> T:
         docker_client = docker.from_env()
-        obj = obj_type(docker_client, cache_client, res, False)
+        obj = obj_type(docker_client, cache_client, resources, False)
         obj._cfg = cached_config
         if cached_config.instance_id:
             instance_id = cached_config.instance_id
