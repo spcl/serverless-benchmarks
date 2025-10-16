@@ -449,7 +449,6 @@ class Cache(LoggingBase):
             #if isinstance(benchmark, Workflow):
             #FIXME will break for functions. 
             #print("benchmark name: ", benchmark.functions[0].benchmark)
-            print("benchmark: ", benchmark)
             if hasattr(benchmark, "functions"):
                 benchmark_dir = os.path.join(self.cache_dir, benchmark.functions[0].benchmark)
             else:
