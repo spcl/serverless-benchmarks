@@ -11,7 +11,6 @@ cache*
 minio-volume
 scylladb-volume
 
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -188,3 +187,6 @@ cache
 # IntelliJ IDEA files
 .idea
 *.iml
+
+# MacOS Finder
+**/.DS_Store

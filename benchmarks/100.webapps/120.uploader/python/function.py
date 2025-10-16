@@ -1,7 +1,6 @@
 
 import datetime
 import os
-import uuid
 
 import urllib.request
 
