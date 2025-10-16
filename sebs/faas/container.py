@@ -111,7 +111,11 @@ class DockerContainer(LoggingBase):
 
                 for val in ret:
                     if "error" in val:
-                        self.logging.error(f"Failed to push the image to registry {repository_uri}")
+
+                        if "Your authorization token has expired" in val['error']:
+                            self.logging.error("Failed to push the image to repository due to expired credentials!")
+                        else:
+                            self.logging.error(f"Failed to push the image to registry {repository_uri}")
                         raise RuntimeError(val)
 
         except docker.errors.APIError as e:
