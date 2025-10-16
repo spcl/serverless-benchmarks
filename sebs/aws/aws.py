@@ -141,22 +141,43 @@ class AWS(System):
     """
 
     def package_code(
-        self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
+        self,
+        code_package: Benchmark,
+        directory: str,
+        is_workflow: bool,
+        is_cached: bool,
     ) -> Tuple[str, int, str]:
 
         container_uri = ""
-
-        # if the containerized deployment is set to True
-        if code_package.container_deployment:
-            # build base image and upload to ECR
-            _, container_uri = self.ecr_client.build_base_image(
-                directory, code_package.language_name, code_package.language_version, code_package.architecture, code_package.benchmark, is_cached
-            )
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
+        handler_path = os.path.join(directory, CONFIG_FILES[code_package.language_name][0])
+        if self.config.resources.redis_host is not None:
+            replace_string_in_file(
+                handler_path, "{{REDIS_HOST}}", f'"{self.config.resources.redis_host}"'
+            )
+        if self.config.resources.redis_password is not None:
+            replace_string_in_file(
+                handler_path,
+                "{{REDIS_PASSWORD}}",
+                f'"{self.config.resources.redis_password}"',
+            )
+
+        # if the containerized deployment is set to True
+        if code_package.container_deployment:
+            # build base image and upload to ECR
+            _, container_uri = self.ecr_client.build_base_image(
+                directory,
+                code_package.language_name,
+                code_package.language_version,
+                code_package.architecture,
+                code_package.benchmark,
+                is_cached,
+            )
+
         package_config = CONFIG_FILES[code_package.language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
@@ -165,16 +186,6 @@ class AWS(System):
             if file not in package_config:
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
-
-        handler_path = os.path.join(directory, CONFIG_FILES[code_package.language_name][0])
-        if self.config.resources.redis_host is not None:
-            replace_string_in_file(
-                handler_path, "{{REDIS_HOST}}", f'"{self.config.resources.redis_host}"'
-            )
-        if self.config.resources.redis_password is not None:
-            replace_string_in_file(
-                handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.resources.redis_password}"'
-            )
 
         # For python, add an __init__ file
         if code_package.language_name == "python":
@@ -359,7 +370,7 @@ class AWS(System):
         function = cast(LambdaFunction, function)
 
         if container_deployment:
-            self.client.update_function_code(FunctionName=name, ImageUri=container_uri)
+            self.lambda_client.update_function_code(FunctionName=name, ImageUri=container_uri)
         else:
             code_size = code_package.code_size
             package = code_package.code_location
@@ -484,7 +495,12 @@ class AWS(System):
 
             # Here we assume a single Lambda role
             workflow = SFNWorkflow(
-                workflow_name, funcs, code_package.benchmark, arn, code_package.hash, function_cfg
+                workflow_name,
+                funcs,
+                code_package.benchmark,
+                arn,
+                code_package.hash,
+                function_cfg,
             )
 
             self.update_workflow(workflow, code_package)
