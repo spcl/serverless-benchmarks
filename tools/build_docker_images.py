@@ -13,7 +13,7 @@ parser.add_argument(
     "--deployment", default=None, choices=["local", "aws", "azure", "gcp"], action="store"
 )
 parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
-parser.add_argument("--language", default=None, choices=["python", "nodejs"], action="store")
+parser.add_argument("--language", default=None, choices=["python", "nodejs", "golang"], action="store")
 parser.add_argument("--language-version", default=None, type=str, action="store")
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
