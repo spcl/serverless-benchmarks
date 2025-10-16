@@ -1,3 +1,17 @@
+"""
+Function and execution model for the serverless benchmarking framework.
+
+This module defines the core abstractions for serverless functions, including:
+- Function class: Represents a deployed serverless function
+- Trigger class: Represents invocation mechanisms for functions
+- Runtime and FunctionConfig: Configuration parameters for functions
+- ExecutionResult and related classes: Data model for capturing measurements
+
+These abstractions provide a unified interface for handling functions across
+different FaaS platforms, allowing for consistent deployment, invocation,
+and measurement collection.
+"""
+
 from __future__ import annotations
 
 import json
@@ -12,12 +26,24 @@ from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 
-"""
-    Times are reported in microseconds.
-"""
-
 
 class ExecutionTimes:
+    """
+    Client-side timing measurements for function execution.
+
+    Stores various timing measurements from the client's perspective,
+    including total execution time, HTTP connection times, and benchmark
+    runtime. All times are reported in microseconds unless otherwise specified.
+
+    Attributes:
+        client: Total client-side execution time in microseconds
+        client_begin: Timestamp when the request was initiated
+        client_end: Timestamp when the response was received
+        benchmark: Benchmark execution time in microseconds
+        initialization: Function initialization time in microseconds
+        http_startup: Time to establish HTTP connection in seconds
+        http_first_byte_return: Time to first byte in seconds
+    """
 
     client: int
     client_begin: datetime
@@ -28,94 +54,217 @@ class ExecutionTimes:
     http_first_byte_return: int
 
     def __init__(self):
+        """Initialize with default values."""
         self.client = 0
         self.initialization = 0
         self.benchmark = 0
 
     @staticmethod
     def deserialize(cached_obj: dict) -> "ExecutionTimes":
+        """
+        Create an ExecutionTimes instance from a dictionary.
+
+        Args:
+            cached_obj: Dictionary containing serialized timing data
+
+        Returns:
+            ExecutionTimes: New instance with the deserialized data
+        """
         ret = ExecutionTimes()
         ret.__dict__.update(cached_obj)
         return ret
 
 
 class ProviderTimes:
+    """
+    Provider-reported timing measurements for function execution.
+
+    Stores timing measurements reported by the cloud provider,
+    including initialization time and execution time.
+
+    Attributes:
+        initialization: Function initialization time in microseconds
+        execution: Function execution time in microseconds
+    """
 
     initialization: int
     execution: int
 
     def __init__(self):
+        """Initialize with default values."""
         self.execution = 0
         self.initialization = 0
 
     @staticmethod
     def deserialize(cached_obj: dict) -> "ProviderTimes":
+        """
+        Create a ProviderTimes instance from a dictionary.
+
+        Args:
+            cached_obj: Dictionary containing serialized timing data
+
+        Returns:
+            ProviderTimes: New instance with the deserialized data
+        """
         ret = ProviderTimes()
         ret.__dict__.update(cached_obj)
         return ret
 
 
 class ExecutionStats:
+    """
+    Statistics for function execution.
+
+    Tracks execution statistics such as memory usage, cold start status,
+    and execution failure.
+
+    Attributes:
+        memory_used: Amount of memory used in MB (if available)
+        cold_start: Whether this was a cold start execution
+        failure: Whether the execution failed
+    """
 
     memory_used: Optional[float]
     cold_start: bool
     failure: bool
 
     def __init__(self):
+        """Initialize with default values."""
         self.memory_used = None
         self.cold_start = False
         self.failure = False
 
     @staticmethod
     def deserialize(cached_obj: dict) -> "ExecutionStats":
+        """
+        Create an ExecutionStats instance from a dictionary.
+
+        Args:
+            cached_obj: Dictionary containing serialized statistics
+
+        Returns:
+            ExecutionStats: New instance with the deserialized data
+        """
         ret = ExecutionStats()
         ret.__dict__.update(cached_obj)
         return ret
 
 
 class ExecutionBilling:
+    """
+    Billing information for function execution.
+
+    Tracks billing-related metrics such as allocated memory,
+    billed execution time, and GB-seconds consumed.
+
+    Attributes:
+        memory: Allocated memory in MB
+        billed_time: Billed execution time in milliseconds
+        gb_seconds: GB-seconds consumed (memory/1024 * billed_time/1000)
+    """
 
     _memory: Optional[int]
     _billed_time: Optional[int]
     _gb_seconds: int
 
     def __init__(self):
+        """Initialize with default values."""
         self.memory = None
         self.billed_time = None
         self.gb_seconds = 0
 
     @property
     def memory(self) -> Optional[int]:
+        """
+        Get the allocated memory in MB.
+
+        Returns:
+            int: Memory allocation in MB, or None if not available
+        """
         return self._memory
 
     @memory.setter
     def memory(self, val: int):
+        """
+        Set the allocated memory in MB.
+
+        Args:
+            val: Memory allocation in MB
+        """
         self._memory = val
 
     @property
     def billed_time(self) -> Optional[int]:
+        """
+        Get the billed execution time in milliseconds.
+
+        Returns:
+            int: Billed time in milliseconds, or None if not available
+        """
         return self._billed_time
 
     @billed_time.setter
     def billed_time(self, val: int):
+        """
+        Set the billed execution time in milliseconds.
+
+        Args:
+            val: Billed time in milliseconds
+        """
         self._billed_time = val
 
     @property
     def gb_seconds(self) -> int:
+        """
+        Get the GB-seconds consumed.
+
+        Returns:
+            int: GB-seconds consumed
+        """
         return self._gb_seconds
 
     @gb_seconds.setter
     def gb_seconds(self, val: int):
+        """
+        Set the GB-seconds consumed.
+
+        Args:
+            val: GB-seconds consumed
+        """
         self._gb_seconds = val
 
     @staticmethod
     def deserialize(cached_obj: dict) -> "ExecutionBilling":
+        """
+        Create an ExecutionBilling instance from a dictionary.
+
+        Args:
+            cached_obj: Dictionary containing serialized billing data
+
+        Returns:
+            ExecutionBilling: New instance with the deserialized data
+        """
         ret = ExecutionBilling()
         ret.__dict__.update(cached_obj)
         return ret
 
 
 class ExecutionResult:
+    """
+    Comprehensive result of a function execution.
+
+    This class captures all timing information, provider metrics, and function
+    output from a single function invocation. It provides methods for parsing
+    benchmark output and calculating metrics.
+
+    Attributes:
+        output: Dictionary containing function output
+        request_id: Unique identifier for the request
+        times: ExecutionTimes containing client-side timing measurements
+        provider_times: ProviderTimes containing platform-reported timings
+        stats: ExecutionStats containing resource usage statistics
+        billing: ExecutionBilling containing cost-related information
+    """
 
     output: dict
     request_id: str
@@ -125,6 +274,7 @@ class ExecutionResult:
     billing: ExecutionBilling
 
     def __init__(self):
+        """Initialize with default values for all components."""
         self.output = {}
         self.request_id = ""
         self.times = ExecutionTimes()
@@ -134,6 +284,16 @@ class ExecutionResult:
 
     @staticmethod
     def from_times(client_time_begin: datetime, client_time_end: datetime) -> "ExecutionResult":
+        """
+        Create an ExecutionResult with client-side timing information.
+
+        Args:
+            client_time_begin: Timestamp when the request was initiated
+            client_time_end: Timestamp when the response was received
+
+        Returns:
+            ExecutionResult: New instance with calculated client-side timing
+        """
         ret = ExecutionResult()
         ret.times.client_begin = client_time_begin
         ret.times.client_end = client_time_end
@@ -141,6 +301,17 @@ class ExecutionResult:
         return ret
 
     def parse_benchmark_output(self, output: dict):
+        """
+        Parse the output from a benchmark execution.
+
+        Extracts timing information and cold start status from the benchmark output.
+
+        Args:
+            output: Dictionary containing benchmark output
+
+        Raises:
+            RuntimeError: If the invocation failed (missing required fields)
+        """
         self.output = output
         # FIXME: temporary handling of errorenous invocation
         if "is_cold" not in self.output:
@@ -156,6 +327,15 @@ class ExecutionResult:
 
     @staticmethod
     def deserialize(cached_config: dict) -> "ExecutionResult":
+        """
+        Create an ExecutionResult instance from a cached configuration.
+
+        Args:
+            cached_config: Dictionary containing serialized execution result
+
+        Returns:
+            ExecutionResult: New instance with the deserialized data
+        """
         ret = ExecutionResult()
         ret.times = ExecutionTimes.deserialize(cached_config["times"])
         ret.billing = ExecutionBilling.deserialize(cached_config["billing"])
@@ -166,28 +346,68 @@ class ExecutionResult:
         return ret
 
 
-"""
-    Function trigger and implementation of invocation.
-
-    FIXME: implement a generic HTTP invocation and specialize input and output
-    processing in classes.
-"""
-
-
 class Trigger(ABC, LoggingBase):
+    """
+    Abstract base class for function triggers.
+
+    A trigger represents a mechanism for invoking a serverless function,
+    such as HTTP requests, direct SDK invocations, or event-based triggers.
+    Each trigger type implements synchronous and asynchronous invocation methods.
+
+    Includes a helper method for HTTP invocations using pycurl.
+    """
+
     class TriggerType(Enum):
+        """
+        Enumeration of supported trigger types.
+
+        Defines the different mechanisms for invoking serverless functions:
+        - HTTP: Invocation via HTTP requests
+        - LIBRARY: Invocation via cloud provider SDK
+        - STORAGE: Invocation via storage events
+        """
+
         HTTP = "http"
         LIBRARY = "library"
         STORAGE = "storage"
 
         @staticmethod
         def get(name: str) -> "Trigger.TriggerType":
+            """
+            Get a TriggerType by name (case-insensitive).
+
+            Args:
+                name: Name of the trigger type
+
+            Returns:
+                TriggerType: The matching trigger type
+
+            Raises:
+                Exception: If no matching trigger type is found
+            """
             for member in Trigger.TriggerType:
                 if member.value.lower() == name.lower():
                     return member
-            raise Exception("Unknown trigger type {}".format(member))
+            raise Exception("Unknown trigger type {}".format(name))
 
     def _http_invoke(self, payload: dict, url: str, verify_ssl: bool = True) -> ExecutionResult:
+        """
+        Invoke a function via HTTP request.
+
+        Makes a HTTP POST request using pycurl to the given URL, with the provided payload,
+        and processes the response into an ExecutionResult.
+
+        Args:
+            payload: Dictionary containing the function input
+            url: URL to invoke the function
+            verify_ssl: Whether to verify SSL certificates
+
+        Returns:
+            ExecutionResult: Result of the function execution
+
+        Raises:
+            RuntimeError: If the invocation fails or produces invalid output
+        """
         import pycurl
         from io import BytesIO
 
@@ -236,69 +456,172 @@ class Trigger(ABC, LoggingBase):
                 self.logging.error("No output provided!")
             raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
 
-    # FIXME: 3.7+, future annotations
     @staticmethod
     @abstractmethod
     def trigger_type() -> "Trigger.TriggerType":
+        """
+        Get the type of this trigger.
+
+        Returns:
+            TriggerType: The type of this trigger
+        """
         pass
 
     @abstractmethod
     def sync_invoke(self, payload: dict) -> ExecutionResult:
+        """
+        Synchronously invoke a function with the given payload.
+
+        Args:
+            payload: Dictionary containing the function input
+
+        Returns:
+            ExecutionResult: Result of the function execution
+        """
         pass
 
     @abstractmethod
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
+        """
+        Asynchronously invoke a function with the given payload.
+
+        Args:
+            payload: Dictionary containing the function input
+
+        Returns:
+            Future: Future object representing the pending execution
+        """
         pass
 
     @abstractmethod
     def serialize(self) -> dict:
+        """
+        Serialize the trigger to a dictionary.
+
+        Returns:
+            dict: Dictionary representation of the trigger
+        """
         pass
 
     @staticmethod
     @abstractmethod
     def deserialize(cached_config: dict) -> "Trigger":
+        """
+        Create a Trigger instance from a cached configuration.
+
+        Args:
+            cached_config: Dictionary containing serialized trigger
+
+        Returns:
+            Trigger: New instance with the deserialized data
+        """
         pass
 
 
 class Language(Enum):
+    """
+    Enumeration of supported programming languages.
+
+    Currently supports Python and Node.js for serverless functions.
+    """
+
     PYTHON = "python"
     NODEJS = "nodejs"
 
-    # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(val: str) -> Language:
+        """
+        Get a Language by string value.
+
+        Args:
+            val: String representation of the language
+
+        Returns:
+            Language: The matching language enum
+
+        Raises:
+            Exception: If no matching language is found
+        """
         for member in Language:
             if member.value == val:
                 return member
-        raise Exception(f"Unknown language type {member}")
+        raise Exception(f"Unknown language type {val}")
 
 
 class Architecture(Enum):
+    """
+    Enumeration of supported CPU architectures.
+
+    Defines the CPU architectures that can be targeted for function deployment.
+    """
+
     X86 = "x64"
     ARM = "arm64"
 
     def serialize(self) -> str:
+        """
+        Serialize the architecture to a string.
+
+        Returns:
+            str: String representation of the architecture
+        """
         return self.value
 
     @staticmethod
     def deserialize(val: str) -> Architecture:
+        """
+        Get an Architecture by string value.
+
+        Args:
+            val: String representation of the architecture
+
+        Returns:
+            Architecture: The matching architecture enum
+
+        Raises:
+            Exception: If no matching architecture is found
+        """
         for member in Architecture:
             if member.value == val:
                 return member
-        raise Exception(f"Unknown architecture type {member}")
+        raise Exception(f"Unknown architecture type {val}")
 
 
 @dataclass
 class Runtime:
+    """
+    Runtime configuration for a serverless function.
+
+    Defines the language and version for a function's runtime environment.
+
+    Attributes:
+        language: Programming language (Python, Node.js)
+        version: Version string of the language runtime
+    """
 
     language: Language
     version: str
 
     def serialize(self) -> dict:
+        """
+        Serialize the runtime to a dictionary.
+
+        Returns:
+            dict: Dictionary representation of the runtime
+        """
         return {"language": self.language.value, "version": self.version}
 
     @staticmethod
     def deserialize(config: dict) -> Runtime:
+        """
+        Create a Runtime instance from a dictionary.
+
+        Args:
+            config: Dictionary containing serialized runtime
+
+        Returns:
+            Runtime: New instance with the deserialized data
+        """
         languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS}
         return Runtime(language=languages[config["language"]], version=config["version"])
 
@@ -308,6 +631,18 @@ T = TypeVar("T", bound="FunctionConfig")
 
 @dataclass
 class FunctionConfig:
+    """
+    Configuration for a serverless function.
+
+    Defines the resources, runtime, and architecture for a function deployment.
+
+    Attributes:
+        timeout: Maximum execution time in seconds
+        memory: Memory allocation in MB
+        runtime: Runtime environment configuration
+        architecture: CPU architecture for deployment
+    """
+
     timeout: int
     memory: int
     runtime: Runtime
@@ -315,6 +650,16 @@ class FunctionConfig:
 
     @staticmethod
     def _from_benchmark(benchmark: Benchmark, obj_type: Type[T]) -> T:
+        """
+        Create a FunctionConfig subclass instance from a benchmark.
+
+        Args:
+            benchmark: Benchmark to extract configuration from
+            obj_type: Type of FunctionConfig to create
+
+        Returns:
+            T: New instance of the specified FunctionConfig subclass
+        """
         runtime = Runtime(language=benchmark.language, version=benchmark.language_version)
         architecture = Architecture.deserialize(benchmark._experiment_config._architecture)
         cfg = obj_type(
@@ -327,28 +672,74 @@ class FunctionConfig:
 
     @staticmethod
     def from_benchmark(benchmark: Benchmark) -> FunctionConfig:
+        """
+        Create a FunctionConfig instance from a benchmark.
+
+        Args:
+            benchmark: Benchmark to extract configuration from
+
+        Returns:
+            FunctionConfig: New instance with the benchmark's configuration
+        """
         return FunctionConfig._from_benchmark(benchmark, FunctionConfig)
 
     @staticmethod
     def deserialize(data: dict) -> FunctionConfig:
+        """
+        Create a FunctionConfig instance from a dictionary.
+
+        Args:
+            data: Dictionary containing serialized function configuration
+
+        Returns:
+            FunctionConfig: New instance with the deserialized data
+        """
         keys = list(FunctionConfig.__dataclass_fields__.keys())
         data = {k: v for k, v in data.items() if k in keys}
         data["runtime"] = Runtime.deserialize(data["runtime"])
         return FunctionConfig(**data)
 
     def serialize(self) -> dict:
+        """
+        Serialize the function configuration to a dictionary.
+
+        Returns:
+            dict: Dictionary representation of the function configuration
+        """
         return self.__dict__
 
 
-"""
-    Abstraction base class for FaaS function. Contains a list of associated triggers
-    and might implement non-trigger execution if supported by the SDK.
-    Example: direct function invocation through AWS boto3 SDK.
-"""
-
-
 class Function(LoggingBase):
+    """
+    Abstract base class for serverless functions.
+
+    This class represents a deployed serverless function with its configuration
+    and contains a list of associated triggers.
+    Each cloud provider (AWS, Azure, GCP, etc.) implements a subclass with
+    platform-specific functionality.
+
+    Represents a deployable unit of code on a FaaS platform. Contains details
+    about the benchmark it belongs to, its name, code hash, configuration,
+    and associated triggers. Subclasses implement provider-specific details.
+
+    Attributes:
+        config: Function configuration
+        name: Name of the deployed function
+        benchmark: Name of the benchmark implemented by this function
+        code_package_hash: Hash of the deployed code package
+        updated_code: Whether the code has been updated since deployment
+    """
+
     def __init__(self, benchmark: str, name: str, code_hash: str, cfg: FunctionConfig):
+        """
+        Initialize a Function instance.
+
+        Args:
+            benchmark: Name of the benchmark
+            name: Name of the function
+            code_hash: Hash of the code package
+            cfg: Function configuration
+        """
         super().__init__()
         self._benchmark = benchmark
         self._name = name
@@ -359,48 +750,117 @@ class Function(LoggingBase):
 
     @property
     def config(self) -> FunctionConfig:
+        """
+        Get the function configuration.
+
+        Returns:
+            FunctionConfig: Configuration of the function
+        """
         return self._cfg
 
     @property
-    def name(self):
+    def name(self) -> str:
+        """
+        Get the name of the function.
+
+        Returns:
+            str: Name of the function
+        """
         return self._name
 
     @property
-    def benchmark(self):
+    def benchmark(self) -> str:
+        """
+        Get the name of the benchmark.
+
+        Returns:
+            str: Name of the benchmark
+        """
         return self._benchmark
 
     @property
-    def code_package_hash(self):
+    def code_package_hash(self) -> str:
+        """
+        Get the hash of the code package.
+
+        Returns:
+            str: Hash of the code package
+        """
         return self._code_package_hash
 
     @code_package_hash.setter
     def code_package_hash(self, new_hash: str):
+        """
+        Set the hash of the code package.
+
+        Args:
+            new_hash: New hash of the code package
+        """
         self._code_package_hash = new_hash
 
     @property
     def updated_code(self) -> bool:
+        """
+        Check if the code has been updated since deployment.
+
+        Returns:
+            bool: True if the code has been updated, False otherwise
+        """
         return self._updated_code
 
     @updated_code.setter
     def updated_code(self, val: bool):
+        """
+        Set whether the code has been updated since deployment.
+
+        Args:
+            val: True if the code has been updated, False otherwise
+        """
         self._updated_code = val
 
     def triggers_all(self) -> List[Trigger]:
+        """
+        Get all triggers associated with this function.
+
+        Returns:
+            List[Trigger]: List of all triggers
+        """
         return [trig for trigger_type, triggers in self._triggers.items() for trig in triggers]
 
     def triggers(self, trigger_type: Trigger.TriggerType) -> List[Trigger]:
+        """
+        Get triggers of a specific type associated with this function.
+
+        Args:
+            trigger_type: Type of triggers to get
+
+        Returns:
+            List[Trigger]: List of triggers of the specified type
+        """
         try:
             return self._triggers[trigger_type]
         except KeyError:
             return []
 
     def add_trigger(self, trigger: Trigger):
+        """
+        Add a trigger to this function.
+
+        Args:
+            trigger: Trigger to add
+        """
         if trigger.trigger_type() not in self._triggers:
             self._triggers[trigger.trigger_type()] = [trigger]
         else:
             self._triggers[trigger.trigger_type()].append(trigger)
 
     def serialize(self) -> dict:
+        """
+        Serialize the function to a dictionary.
+
+        Returns:
+            dict: Dictionary representation of the function
+        """
         return {
             "name": self._name,
             "hash": self._code_package_hash,
@@ -414,4 +874,13 @@ class Function(LoggingBase):
     @staticmethod
     @abstractmethod
     def deserialize(cached_config: dict) -> "Function":
+        """
+        Create a Function instance from a cached configuration.
+
+        Args:
+            cached_config: Dictionary containing serialized function
+
+        Returns:
+            Function: New instance with the deserialized data
+        """
         pass

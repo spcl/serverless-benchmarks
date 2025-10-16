@@ -1,3 +1,18 @@
+"""Performance and cost measurement experiment implementation.
+
+This module provides the PerfCost experiment implementation, which measures
+the performance characteristics and execution costs of serverless functions.
+It can run several experiment types:
+
+- Cold: Measures cold start performance by enforcing container recreation
+- Warm: Measures warm execution performance with reused containers
+- Burst: Measures performance under concurrent burst load
+- Sequential: Measures performance with sequential invocations
+
+The experiment collects detailed metrics about execution time, memory usage,
+and costs, and provides statistical analysis of the results.
+"""
+
 import json
 import os
 import time
@@ -19,44 +34,103 @@ if TYPE_CHECKING:
 
 
 class PerfCost(Experiment):
+    """Performance and cost measurement experiment.
+
+    This experiment measures the performance characteristics and execution
+    costs of serverless functions under different execution conditions.
+    It can measure cold starts, warm execution, burst load, and sequential
+    execution patterns.
+
+    The experiment can be configured to run with different memory sizes,
+    allowing for comparison of performance across different resource allocations.
+
+    Attributes:
+        _benchmark: The benchmark to execute
+        _benchmark_input: The input data for the benchmark
+        _function: The function to invoke
+        _trigger: The trigger to use for invocation
+        _out_dir: Directory for storing results
+        _deployment_client: The deployment client to use
+        _sebs_client: The SeBS client
+    """
+
     def __init__(self, config: ExperimentConfig):
+        """Initialize a new PerfCost experiment.
+
+        Args:
+            config: Experiment configuration
+        """
         super().__init__(config)
 
     @staticmethod
     def name() -> str:
+        """Get the name of the experiment.
+
+        Returns:
+            The name "perf-cost"
+        """
         return "perf-cost"
 
     @staticmethod
     def typename() -> str:
+        """Get the type name of the experiment.
+
+        Returns:
+            The type name "Experiment.PerfCost"
+        """
         return "Experiment.PerfCost"
 
     class RunType(Enum):
+        """Types of experiment runs.
+
+        This enum defines the different types of experiment runs:
+        - WARM: Measure warm execution performance (reused containers)
+        - COLD: Measure cold start performance (new containers)
+        - BURST: Measure performance under concurrent burst load
+        - SEQUENTIAL: Measure performance with sequential invocations
+        """
+
         WARM = 0
         COLD = 1
         BURST = 2
         SEQUENTIAL = 3
 
         def str(self) -> str:
+            """Get the string representation of the run type.
+
+            Returns:
+                The lowercase name of the run type
+            """
             return self.name.lower()
 
-    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
+    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem) -> None:
+        """Prepare the experiment for execution.
 
-        # create benchmark instance
+        This method sets up the benchmark, function, trigger, and output
+        directory for the experiment. It creates or gets the function and
+        its HTTP trigger, and prepares the input data for the benchmark.
+
+        Args:
+            sebs_client: The SeBS client to use
+            deployment_client: The deployment client to use
+        """
+        # Create benchmark instance
         settings = self.config.experiment_settings(self.name())
         self._benchmark = sebs_client.get_benchmark(
             settings["benchmark"], deployment_client, self.config
         )
 
-        # prepare benchmark input
+        # Prepare benchmark input
         self._benchmark_input = self._benchmark.prepare_input(
             deployment_client.system_resources,
             size=settings["input-size"],
             replace_existing=self.config.update_storage,
         )
 
+        # Get or create function
         self._function = deployment_client.get_function(self._benchmark)
 
-        # add HTTP trigger
+        # Add HTTP trigger if not already present
         triggers = self._function.triggers(Trigger.TriggerType.HTTP)
         if len(triggers) == 0:
             self._trigger = deployment_client.create_trigger(
@@ -65,33 +139,67 @@ class PerfCost(Experiment):
         else:
             self._trigger = triggers[0]
 
+        # Create output directory
         self._out_dir = os.path.join(sebs_client.output_dir, "perf-cost")
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
+
+        # Save clients for later use
         self._deployment_client = deployment_client
         self._sebs_client = sebs_client
 
-    def run(self):
+    def run(self) -> None:
+        """Run the experiment.
 
+        This method runs the experiment with the configured settings.
+        If memory sizes are specified, it runs the experiment for each
+        memory size, updating the function configuration accordingly.
+        Otherwise, it runs the experiment once with the default memory
+        configuration.
+        """
         settings = self.config.experiment_settings(self.name())
 
-        # Execution on systems where memory configuration is not provided
+        # Get memory sizes to test
         memory_sizes = settings["memory-sizes"]
+
+        # Run with default memory if no specific sizes are provided
         if len(memory_sizes) == 0:
-            self.logging.info("Begin experiment")
+            self.logging.info("Begin experiment with default memory configuration")
             self.run_configuration(settings, settings["repetitions"])
+
+        # Run for each specified memory size
         for memory in memory_sizes:
             self.logging.info(f"Begin experiment on memory size {memory}")
+            # Update function memory configuration
             self._function.config.memory = memory
-            self._deployment_client.update_function(self._function, self._benchmark, False, "")
+            self._deployment_client.update_function(
+                self._function,
+                self._benchmark,
+                self._benchmark.container_deployment,
+                self._benchmark.container_uri if self._benchmark.container_deployment else "",
+            )
             self._sebs_client.cache_client.update_function(self._function)
+            # Run experiment with this memory configuration
             self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
 
-    def compute_statistics(self, times: List[float]):
+    def compute_statistics(self, times: List[float]) -> None:
+        """Compute statistical analysis of execution times.
 
+        This method computes basic statistics (mean, median, standard deviation,
+        coefficient of variation) and confidence intervals for the given times.
+        It computes both parametric (Student's t-distribution) and non-parametric
+        confidence intervals.
+
+        Args:
+            times: List of execution times in milliseconds
+        """
+        # Compute basic statistics
         mean, median, std, cv = basic_stats(times)
         self.logging.info(f"Mean {mean} [ms], median {median} [ms], std {std}, CV {cv}")
+
+        # Compute confidence intervals for different confidence levels
         for alpha in [0.95, 0.99]:
+            # Parametric confidence interval (Student's t-distribution)
             ci_interval = ci_tstudents(alpha, times)
             interval_width = ci_interval[1] - ci_interval[0]
             ratio = 100 * interval_width / mean / 2.0
@@ -100,6 +208,8 @@ class PerfCost(Experiment):
                 f"{ci_interval[0]} to {ci_interval[1]}, within {ratio}% of mean"
             )
 
+            # Non-parametric confidence interval (Le Boudec's method)
+            # Only compute if we have enough samples (> 20)
             if len(times) > 20:
                 ci_interval = ci_le_boudec(alpha, times)
                 interval_width = ci_interval[1] - ci_interval[0]
@@ -116,7 +226,21 @@ class PerfCost(Experiment):
         invocations: int,
         repetitions: int,
         suffix: str = "",
-    ):
+    ) -> None:
+        """Run a specific experiment configuration.
+
+        This method executes the experiment with the specified run type,
+        collecting and recording the results. It handles different run types
+        (cold, warm, burst, sequential) appropriately, enforcing cold starts
+        when needed and collecting execution statistics.
+
+        Args:
+            run_type: Type of run (cold, warm, burst, sequential)
+            settings: Experiment settings
+            invocations: Number of concurrent invocations
+            repetitions: Total number of repetitions to run
+            suffix: Optional suffix for output file names (e.g., memory size)
+        """
 
         # Randomize starting value to ensure that it's not the same
         # as in the previous run.
@@ -226,10 +350,25 @@ class PerfCost(Experiment):
                     )
                 )
 
-    def run_configuration(self, settings: dict, repetitions: int, suffix: str = ""):
+    def run_configuration(self, settings: dict, repetitions: int, suffix: str = "") -> None:
+        """Run experiments for each configured experiment type.
 
+        This method runs the experiment for each experiment type specified
+        in the settings. It dispatches to the appropriate run type handler
+        for each experiment type.
+
+        Args:
+            settings: Experiment settings
+            repetitions: Number of repetitions to run
+            suffix: Optional suffix for output file names (e.g., memory size)
+
+        Raises:
+            RuntimeError: If an unknown experiment type is specified
+        """
+        # Run each configured experiment type
         for experiment_type in settings["experiments"]:
             if experiment_type == "cold":
+                # Cold start experiments - enforce container recreation
                 self._run_configuration(
                     PerfCost.RunType.COLD,
                     settings,
@@ -238,6 +377,7 @@ class PerfCost(Experiment):
                     suffix,
                 )
             elif experiment_type == "warm":
+                # Warm execution experiments - reuse containers
                 self._run_configuration(
                     PerfCost.RunType.WARM,
                     settings,
@@ -246,6 +386,7 @@ class PerfCost(Experiment):
                     suffix,
                 )
             elif experiment_type == "burst":
+                # Burst load experiments - concurrent invocations
                 self._run_configuration(
                     PerfCost.RunType.BURST,
                     settings,
@@ -254,6 +395,7 @@ class PerfCost(Experiment):
                     suffix,
                 )
             elif experiment_type == "sequential":
+                # Sequential invocation experiments - one at a time
                 self._run_configuration(
                     PerfCost.RunType.SEQUENTIAL, settings, 1, repetitions, suffix
                 )
@@ -267,7 +409,21 @@ class PerfCost(Experiment):
         directory: str,
         logging_filename: str,
         extend_time_interval: int,
-    ):
+    ) -> None:
+        """Process experiment results and generate a CSV report.
+
+        This method processes the experiment results, downloads additional
+        metrics if needed, and generates a CSV report with the results.
+        The report includes memory usage, execution times, and other metrics
+        for each experiment type and invocation.
+
+        Args:
+            sebs_client: The SeBS client to use
+            deployment_client: The deployment client to use
+            directory: Directory where results are stored
+            logging_filename: Filename for logs
+            extend_time_interval: Time interval to extend metrics retrieval by (in minutes)
+        """
 
         import glob
         import csv
@@ -334,7 +490,8 @@ class PerfCost(Experiment):
                                 times = experiments.times()
                             deployment_client.download_metrics(
                                 func,
-                                *times,
+                                int(times[0]),
+                                int(times[1]),
                                 experiments.invocations(func),
                                 experiments.metrics(func),
                             )
