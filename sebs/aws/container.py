@@ -70,7 +70,11 @@ class ECRContainer(DockerContainer):
         )
 
         try:
-            self.docker_client.login(username=username, password=password, registry=registry_url)
+            # $HOME.docker/config.json is not updated automatically
+            # https://github.com/docker/docker-py/issues/2256
+            self.docker_client.login(
+                username=username, password=password, registry=registry_url, reauth=True
+            )
             super().push_image(repository_uri, image_tag)
             self.logging.info(f"Successfully pushed the image to registry {repository_uri}.")
         except docker.errors.APIError as e:
