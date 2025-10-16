@@ -452,6 +452,7 @@ def process(**kwargs):
     help="Output directory for results.",
 )
 def regression(benchmark_input_size, benchmark_name, **kwargs):
+
     # for regression, deployment client is initialized locally
     # disable default initialization
     (config, output_dir, logging_filename, sebs_client, _) = parse_common_params(
@@ -462,7 +463,8 @@ def regression(benchmark_input_size, benchmark_name, **kwargs):
         config["experiments"],
         set((config["deployment"]["name"],)),
         config,
-        benchmark_name,
+        config["experiments"]["container_deployment"],
+        benchmark_name
     )
 
 

@@ -84,6 +84,7 @@ class TestSequenceMeta(type):
                 self.experiment_config["container_deployment"] = (
                     deployment_type == "container"
                 )
+                self.deployment_type = deployment_type
 
                 deployment_client = self.get_deployment(
                     benchmark_name, architecture, deployment_type
@@ -435,7 +436,12 @@ def filter_out_benchmarks(
     language: str,
     language_version: str,
     architecture: str,
+    with_containers: bool
 ) -> bool:
+
+    if not with_containers and "container" in benchmark:
+        return False
+
     # fmt: off
     if (deployment_name == "aws" and language == "python"
             and language_version in ["3.9", "3.10", "3.11"]):
@@ -457,6 +463,7 @@ def regression_suite(
     experiment_config: dict,
     providers: Set[str],
     deployment_config: dict,
+    with_containers: bool = True,
     benchmark_name: Optional[str] = None,
 ):
     suite = unittest.TestSuite()
@@ -466,6 +473,20 @@ def regression_suite(
     language = experiment_config["runtime"]["language"]
     language_version = experiment_config["runtime"]["version"]
     architecture = experiment_config["architecture"]
+
+    log_name = "Regression-main"
+    main_logger = logging.getLogger(log_name)
+    main_logger.setLevel(logging.INFO)
+    logging_wrapper = ColoredWrapper(log_name, main_logger)
+
+    if not with_containers:
+        logging_wrapper.info(
+            "Skip container-based deployments; enable it with --container-deployment"
+        )
+    else:
+        logging_wrapper.info(
+            "Enabling container-based deployments; disable it with --no-container-deployment"
+        )
 
     if "aws" in providers:
         assert "aws" in cloud_config["deployment"]
@@ -530,8 +551,9 @@ def regression_suite(
                 language,  # type: ignore
                 language_version,
                 architecture,  # type: ignore
+                with_containers
             ):
-                print(f"Skip test {test_name} - not supported.")
+                logging_wrapper.info(f"Skip test {test_name} - not supported.")
                 continue
 
             # Use only a selected benchmark
@@ -540,7 +562,7 @@ def regression_suite(
                 test.experiment_config = experiment_config.copy()  # type: ignore
                 tests.append(test)
             else:
-                print(f"Skip test {test_name}")
+                logging_wrapper.info(f"Skip test {test_name}")
 
     concurrent_suite = testtools.ConcurrentStreamTestSuite(
         lambda: ((test, None) for test in tests)
@@ -549,15 +571,17 @@ def regression_suite(
     result.startTestRun()
     concurrent_suite.run(result)
     result.stopTestRun()
-    print(f"Succesfully executed {len(result.success)} out of {len(tests)} functions")
+    logging_wrapper.info(
+        f"Succesfully executed {len(result.success)} out of {len(tests)} functions"
+    )
     for suc in result.success:
-        print(f"- {suc}")
+        logging_wrapper.info(f"- {suc}")
     if len(result.failures):
-        print(
+        logging_wrapper.error(
             f"Failures when executing {len(result.failures)} out of {len(tests)} functions"
         )
         for failure in result.failures:
-            print(f"- {failure}")
+            logging_wrapper.error(f"- {failure}")
 
     if hasattr(AzureTestSequenceNodejs, "cli"):
         AzureTestSequenceNodejs.cli.shutdown()
