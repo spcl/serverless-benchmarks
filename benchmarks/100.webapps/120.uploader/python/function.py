@@ -22,7 +22,8 @@ def handler(event):
     req = urllib.request.Request(url)
     req.add_header('User-Agent', SEBS_USER_AGENT)
     with open(download_path, 'wb') as f:
-        f.write(urllib.request.urlopen(req).read())
+        with urllib.request.urlopen(req) as response:
+            f.write(response.read())
     size = os.path.getsize(download_path)
     process_end = datetime.datetime.now()
 
