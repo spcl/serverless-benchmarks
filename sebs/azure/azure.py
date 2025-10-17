@@ -384,9 +384,9 @@ class Azure(System):
         :return: URL to reach HTTP-triggered function
     """
 
-    def update_function(
+    def update_benchmark(
         self,
-        function: Function,
+        function: CloudBenchmark,
         code_package: Benchmark,
         container_deployment: bool,
         container_uri: str,
@@ -509,7 +509,7 @@ class Azure(System):
                 self.logging.error(e)
                 raise e
 
-    def update_function_configuration(self, function: Function, code_package: Benchmark):
+    def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout
         self.logging.warning(
             "Updating function's memory and timeout configuration is not supported."
@@ -564,6 +564,7 @@ class Azure(System):
 
         # check if function does not exist
         # no API to verify existence
+        function_storage_account: AzureResources.Storage | None = None
         try:
             ret = self.cli_instance.execute(
                 (
@@ -580,6 +581,7 @@ class Azure(System):
                     function_storage_account = AzureResources.Storage.from_cache(
                         account_name, connection_string
                     )
+            assert function_storage_account is not None
             self.logging.info("Azure: Selected {} function app".format(func_name))
         except RuntimeError:
             function_storage_account = self.config.resources.add_storage_account(self.cli_instance)
@@ -641,11 +643,12 @@ class Azure(System):
     def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
         self.update_benchmark(function, code_package, container_deployment, container_uri)
 
-    def create_workflow(self, code_package: Benchmark, workflow_name: str, container_deployment: bool, container_uri: str) -> AzureWorkflow:
-        return self.create_benchmark(code_package, workflow_name, AzureWorkflow, container_deployment, container_uri)
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> AzureWorkflow:
+        return self.create_benchmark(code_package, workflow_name, AzureWorkflow, code_package.container_deployment, code_package.container_uri)
 
     def update_workflow(self, workflow: Workflow, code_package: Benchmark):
-        self.update_benchmark(workflow, code_package)
+        # Azure does not support containers
+        self.update_benchmark(workflow, code_package, code_package.container_deployment, code_package.container_uri)
 
     """
         Prepare Azure resources to store experiment results.
