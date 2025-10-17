@@ -51,6 +51,7 @@ class HTTPTrigger(AzureTrigger):
 
         begin = datetime.now()
         c.perform()
+        end = datetime.now()
 
         status_code = c.getinfo(pycurl.RESPONSE_CODE)
         conn_time = c.getinfo(pycurl.PRETRANSFER_TIME)
@@ -59,34 +60,39 @@ class HTTPTrigger(AzureTrigger):
         try:
             output = json.loads(data.getvalue())
 
-            # Azure-specific status query logic
-            statusQuery = output["statusQueryGetUri"]
-            print("status query: ", statusQuery)
-            myQuery = pycurl.Curl()
-            myQuery.setopt(pycurl.URL, statusQuery)
-            if not verify_ssl:
-                myQuery.setopt(pycurl.SSL_VERIFYHOST, 0)
-                myQuery.setopt(pycurl.SSL_VERIFYPEER, 0)
+            response: Dict[str, Any] = {}
+            if "statusQueryGetUri" in output:
 
-            # poll for result here.
-            # should be runtimeStatus Completed when finished.
-            finished = False
-            while not finished:
-                data2 = BytesIO()
-                myQuery.setopt(pycurl.WRITEFUNCTION, data2.write)
-                myQuery.perform()
-                response = json.loads(data2.getvalue())
-                if response["runtimeStatus"] == "Running" or response["runtimeStatus"] == "Pending":
-                    time.sleep(4)
-                elif response["runtimeStatus"] == "Completed":
-                    status_code = myQuery.getinfo(pycurl.RESPONSE_CODE)
-                    finished = True
-                else:
-                    print("failed, request_id = ", output["request_id"])
-                    status_code = 500
-                    finished = True
+                # Azure-specific status query logic
+                statusQuery = output["statusQueryGetUri"]
+                self.logging.debug(f"Azure status query: {statusQuery}")
+                myQuery = pycurl.Curl()
+                myQuery.setopt(pycurl.URL, statusQuery)
+                if not verify_ssl:
+                    myQuery.setopt(pycurl.SSL_VERIFYHOST, 0)
+                    myQuery.setopt(pycurl.SSL_VERIFYPEER, 0)
 
-            end = datetime.now()
+                # poll for result here.
+                # should be runtimeStatus Completed when finished.
+                finished = False
+                while not finished:
+                    data2 = BytesIO()
+                    myQuery.setopt(pycurl.WRITEFUNCTION, data2.write)
+                    myQuery.perform()
+
+                    response = json.loads(data2.getvalue())
+                    if response["runtimeStatus"] == "Running" or response["runtimeStatus"] == "Pending":
+                        time.sleep(4)
+                    elif response["runtimeStatus"] == "Completed":
+                        # for Azure durable, this is the end of processing.
+                        end = datetime.now()
+                        status_code = myQuery.getinfo(pycurl.RESPONSE_CODE)
+                        finished = True
+                    else:
+                        self.logging.error(f"failed, request_id = {output['request_id']}")
+                        status_code = 500
+                        finished = True
+
             if status_code != 200:
                 self.logging.error(
                     "Invocation on URL {} failed with status code {}!".format(url, status_code)
@@ -98,15 +104,20 @@ class HTTPTrigger(AzureTrigger):
             result = ExecutionResult.from_times(begin, end)
             result.times.http_startup = conn_time
             result.times.http_first_byte_return = receive_time
+
             # OpenWhisk will not return id on a failure
             if "request_id" not in output:
                 raise RuntimeError(f"Cannot process allocation with output: {output}")
             result.request_id = output["request_id"]
-            print("request_id: ", result.request_id, "end time: ", end)
+            self.logging.debug("Request_id: {result.request_id}, end time: {end}")
+
             # General benchmark output parsing
             result.parse_benchmark_output(output)
+
+            # Azure Durable specific 
             if "output" in response:
                 result.output = response["output"]
+
             return result
         except json.decoder.JSONDecodeError:
             self.logging.error(
