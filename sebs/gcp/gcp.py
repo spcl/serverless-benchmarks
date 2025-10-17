@@ -340,12 +340,16 @@ class GCP(System):
             )
 
             deployed = False
+            begin = time.time()
             while not deployed:
                 status_res = our_function_req.execute()
                 if status_res["status"] == "ACTIVE":
                     deployed = True
                 else:
                     time.sleep(3)
+                if time.time() - begin > 300:  # wait 5 minutes; TODO: make it configurable
+                    self.logging.error(f"Failed to deploy function: {function.name}")
+                    raise RuntimeError("Deployment timeout!")
             self.logging.info(f"Function {function.name} - deployed!")
             invoke_url = status_res["httpsTrigger"]["url"]
 
