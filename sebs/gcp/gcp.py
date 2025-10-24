@@ -24,6 +24,7 @@ from sebs.gcp.resources import GCPSystemResources
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
 from sebs.utils import LoggingHandlers
+from sebs.types import Language
 
 """
     This class provides basic abstractions for the FaaS system.
@@ -124,7 +125,7 @@ class GCP(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
@@ -138,14 +139,14 @@ class GCP(System):
             raise NotImplementedError("Container Deployment is not supported in GCP")
 
         CONFIG_FILES = {
-            "python": ["handler.py", ".python_packages"],
-            "nodejs": ["handler.js", "node_modules"],
+            Language.PYTHON: ["handler.py", ".python_packages"],
+            Language.NODEJS: ["handler.js", "node_modules"],
         }
         HANDLER = {
-            "python": ("handler.py", "main.py"),
-            "nodejs": ("handler.js", "index.js"),
+            Language.PYTHON: ("handler.py", "main.py"),
+            Language.NODEJS: ("handler.js", "index.js"),
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[language]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         for file in os.listdir(directory):
@@ -154,7 +155,7 @@ class GCP(System):
                 shutil.move(file, function_dir)
 
         # rename handler function.py since in gcp it has to be caled main.py
-        old_name, new_name = HANDLER[language_name]
+        old_name, new_name = HANDLER[language]
         old_path = os.path.join(directory, old_name)
         new_path = os.path.join(directory, new_name)
         shutil.move(old_path, new_path)
