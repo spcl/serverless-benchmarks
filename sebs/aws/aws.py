@@ -22,6 +22,7 @@ from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.system import System
+from sebs.types import Language
 
 
 class AWS(System):
@@ -117,7 +118,7 @@ class AWS(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
@@ -131,33 +132,54 @@ class AWS(System):
         if container_deployment:
             # build base image and upload to ECR
             _, container_uri = self.ecr_client.build_base_image(
-                directory, language_name, language_version, architecture, benchmark, is_cached
+                directory,
+                language,
+                language_version,
+                architecture,
+                benchmark,
+                is_cached,
             )
 
         CONFIG_FILES = {
-            "python": ["handler.py", "requirements.txt", ".python_packages"],
-            "nodejs": ["handler.js", "package.json", "node_modules"],
+            Language.PYTHON: ["handler.py", "requirements.txt", ".python_packages"],
+            Language.NODEJS: ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[language_name]
-        function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)
-        # move all files to 'function' except handler.py
-        for file in os.listdir(directory):
-            if file not in package_config:
-                file = os.path.join(directory, file)
-                shutil.move(file, function_dir)
-        # FIXME: use zipfile
-        # create zip with hidden directory but without parent directory
-        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
-        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
-        self.logging.info("Created {} archive".format(benchmark_archive))
 
-        bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
-        mbytes = bytes_size / 1024.0 / 1024.0
-        self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+        if language in [Language.PYTHON, Language.NODEJS]:
+            package_config = CONFIG_FILES[language]
+            function_dir = os.path.join(directory, "function")
+            os.makedirs(function_dir)
+            # move all files to 'function' except handler.py
+            for file in os.listdir(directory):
+                if file not in package_config:
+                    file = os.path.join(directory, file)
+                    shutil.move(file, function_dir)
+
+            # FIXME: use zipfile
+            # create zip with hidden directory but without parent directory
+            execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+            benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+            self.logging.info("Created {} archive".format(benchmark_archive))
+
+            bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+        elif language == Language.CPP:
+
+            # lambda C++ runtime build scripts create the .zip file in build directory
+            benchmark_archive = os.path.join(directory, "build", "benchmark.zip")
+            self.logging.info("Created {} archive".format(benchmark_archive))
+
+            bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+        else:
+            raise NotImplementedError()
 
         return (
-            os.path.join(directory, "{}.zip".format(benchmark)),
+            benchmark_archive,
             bytes_size,
             container_uri,
         )
@@ -168,13 +190,18 @@ class AWS(System):
             return "x86_64"
         return architecture
 
-    def _map_language_runtime(self, language: str, runtime: str):
+    def cloud_runtime(self, language: Language, language_version: str):
 
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
-        if language == "nodejs":
-            return f"{runtime}.x"
-        return runtime
+        if language == Language.NODEJS:
+            return f"{language}{language_version}.x"
+        elif language == Language.CPP:
+            return "provided.al2"
+        elif language in [Language.PYTHON]:
+            return f"{language}{language_version}"
+        else:
+            raise NotImplementedError()
 
     def create_function(
         self,
@@ -186,7 +213,7 @@ class AWS(System):
 
         package = code_package.code_location
         benchmark = code_package.benchmark
-        language = code_package.language_name
+        language = code_package.language
         language_runtime = code_package.language_version
         timeout = code_package.benchmark_config.timeout
         memory = code_package.benchmark_config.memory
@@ -251,9 +278,7 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                create_function_params["Runtime"] = "{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
-                )
+                create_function_params["Runtime"] = self.cloud_runtime(language, language_runtime)
                 create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {

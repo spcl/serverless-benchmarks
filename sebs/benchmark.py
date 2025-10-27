@@ -4,32 +4,40 @@ import json
 import os
 import shutil
 import subprocess
+import textwrap
 from abc import abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import docker
+
+from sebs.cpp_dependencies import CppDependencies
 
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.resources import SystemResources
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
-from sebs.types import BenchmarkModule
+from sebs.types import BenchmarkModule, Language
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sebs.experiments.config import Config as ExperimentConfig
-    from sebs.faas.function import Language
 
 
 class BenchmarkConfig:
     def __init__(
-        self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
+        self,
+        timeout: int,
+        memory: int,
+        languages: List["Language"],
+        modules: List[BenchmarkModule],
+        cpp_dependencies: Optional[List[CppDependencies]] = None,
     ):
         self._timeout = timeout
         self._memory = memory
         self._languages = languages
         self._modules = modules
+        self._cpp_dependencies = cpp_dependencies or []
 
     @property
     def timeout(self) -> int:
@@ -65,6 +73,9 @@ class BenchmarkConfig:
             json_object["memory"],
             [Language.deserialize(x) for x in json_object["languages"]],
             [BenchmarkModule(x) for x in json_object["modules"]],
+            cpp_dependencies=[
+                CppDependencies.deserialize(x) for x in json_object.get("cpp_dependencies", [])
+            ],
         )
 
 
@@ -173,7 +184,7 @@ class Benchmark(LoggingBase):
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
-        self._hash_value = Benchmark.hash_directory(path, self._deployment_name, self.language_name)
+        self._hash_value = Benchmark.hash_directory(path, self._deployment_name, self.language)
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -246,14 +257,19 @@ class Benchmark(LoggingBase):
     """
 
     @staticmethod
-    def hash_directory(directory: str, deployment: str, language: str):
+    def hash_directory(directory: str, deployment: str, language: Language):
 
         hash_sum = hashlib.md5()
         FILES = {
-            "python": ["*.py", "requirements.txt*"],
-            "nodejs": ["*.js", "package.json"],
+            Language.PYTHON: ["*.py", "requirements.txt*"],
+            Language.NODEJS: ["*.js", "package.json"],
+            Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
         }
-        WRAPPERS = {"python": "*.py", "nodejs": "*.js"}
+        WRAPPERS = {
+            Language.PYTHON: ["*.py"],
+            Language.NODEJS: ["*.js"],
+            Language.CPP: ["*.cpp", "*.hpp"],
+        }
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
@@ -262,13 +278,14 @@ class Benchmark(LoggingBase):
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
         # wrappers
-        wrappers = project_absolute_path(
-            "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
-        )
-        for f in glob.glob(wrappers):
-            path = os.path.join(directory, f)
-            with open(path, "rb") as opened_file:
-                hash_sum.update(opened_file.read())
+        for wrapper in WRAPPERS[language]:
+            wrappers = project_absolute_path(
+                "benchmarks", "wrappers", deployment, language.value, wrapper
+            )
+            for f in glob.glob(wrappers):
+                path = os.path.join(directory, f)
+                with open(path, "rb") as opened_file:
+                    hash_sum.update(opened_file.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:
@@ -314,11 +331,12 @@ class Benchmark(LoggingBase):
 
     def copy_code(self, output_dir):
         FILES = {
-            "python": ["*.py", "requirements.txt*"],
-            "nodejs": ["*.js", "package.json"],
+            Language.PYTHON: ["*.py", "requirements.txt*"],
+            Language.NODEJS: ["*.js", "package.json"],
+            Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
-        for file_type in FILES[self.language_name]:
+        for file_type in FILES[self.language]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
         # support node.js benchmarks with language specific packages
@@ -399,6 +417,57 @@ class Benchmark(LoggingBase):
             with open(package_config, "w") as package_file:
                 json.dump(package_json, package_file, indent=2)
 
+    def add_deployment_package_cpp(self, output_dir):
+
+        # FIXME: Configure CMakeLists.txt dependencies
+        # FIXME: Configure for AWS - this should be generic
+        # FIXME: optional hiredis
+        
+        cmake_script = """
+        cmake_minimum_required(VERSION 3.9)
+        set(CMAKE_CXX_STANDARD 14)
+        set(CMAKE_CXX_FLAGS "-Os")
+        project(benchmark LANGUAGES CXX)
+        add_executable(
+            ${PROJECT_NAME} "handler.cpp" "key-value.cpp"
+            "storage.cpp" "redis.cpp" "utils.cpp" "main.cpp"
+        )
+        target_include_directories(${PROJECT_NAME} PRIVATE ".")
+
+        target_compile_features(${PROJECT_NAME} PRIVATE "cxx_std_14")
+        target_compile_options(${PROJECT_NAME} PRIVATE "-Wall" "-Wextra")
+
+        find_package(aws-lambda-runtime)
+        target_link_libraries(${PROJECT_NAME} PRIVATE AWS::aws-lambda-runtime)
+        """
+        
+        for dependency in self._benchmark_config._cpp_dependencies:
+            cmake_script += CppDependencies.to_cmake_list(dependency)
+        
+        cmake_script += """
+        find_package(AWSSDK COMPONENTS s3 dynamodb core)
+        target_link_libraries(${PROJECT_NAME} PUBLIC ${AWSSDK_LINK_LIBRARIES})
+
+        find_package(PkgConfig REQUIRED)
+        set(ENV{PKG_CONFIG_PATH} "/opt/lib/pkgconfig")
+        pkg_check_modules(HIREDIS REQUIRED IMPORTED_TARGET hiredis)
+
+        target_include_directories(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
+        target_link_libraries(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
+
+        # this line creates a target that packages your binary and zips it up
+        aws_lambda_package_target(${PROJECT_NAME})
+        """
+
+        self.logging.info(
+            "Dependencies for CPP benchmark {benchmark} are " + 
+                str(len(self._benchmark_config._cpp_dependencies)) + " dependencies."
+        )
+        
+        build_script = os.path.join(output_dir, "CMakeLists.txt")
+        with open(build_script, "w") as script_file:
+            script_file.write(textwrap.dedent(cmake_script))
+
     def add_deployment_package(self, output_dir):
         from sebs.faas.function import Language
 
@@ -406,6 +475,8 @@ class Benchmark(LoggingBase):
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
+        elif self.language == Language.CPP:
+            self.add_deployment_package_cpp(output_dir)
         else:
             raise NotImplementedError
 
@@ -483,8 +554,12 @@ class Benchmark(LoggingBase):
                     }
 
             # run Docker container to install packages
-            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
-            file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
+            PACKAGE_FILES = {
+                Language.PYTHON: "requirements.txt",
+                Language.NODEJS: "package.json",
+                Language.CPP: "CMakeLists.txt",
+            }
+            file = os.path.join(output_dir, PACKAGE_FILES[self.language])
             if os.path.exists(file):
                 try:
                     self.logging.info(
@@ -570,7 +645,7 @@ class Benchmark(LoggingBase):
                             self.logging.info("Docker build: {}".format(line))
                 except docker.errors.ContainerError as e:
                     self.logging.error("Package build failed!")
-                    self.logging.error(e)
+                    self.logging.error(f"Stderr: {e.stderr.decode()}")
                     self.logging.error(f"Docker mount volumes: {volumes}")
                     raise e
 
@@ -581,7 +656,7 @@ class Benchmark(LoggingBase):
     def build(
         self,
         deployment_build_step: Callable[
-            [str, str, str, str, str, bool, bool], Tuple[str, int, str]
+            [str, Language, str, str, str, bool, bool], Tuple[str, int, str]
         ],
     ) -> Tuple[bool, str, bool, str]:
 
@@ -591,7 +666,12 @@ class Benchmark(LoggingBase):
                 "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
             )
             if self.container_deployment:
-                return False, self.code_location, self.container_deployment, self.container_uri
+                return (
+                    False,
+                    self.code_location,
+                    self.container_deployment,
+                    self.container_uri,
+                )
 
             return False, self.code_location, self.container_deployment, ""
 
@@ -617,7 +697,7 @@ class Benchmark(LoggingBase):
 
         self._code_location, self._code_size, self._container_uri = deployment_build_step(
             os.path.abspath(self._output_dir),
-            self.language_name,
+            self.language,
             self.language_version,
             self.architecture,
             self.benchmark,
@@ -642,7 +722,12 @@ class Benchmark(LoggingBase):
             self._cache_client.add_code_package(self._deployment_name, self)
         self.query_cache()
 
-        return True, self._code_location, self._container_deployment, self._container_uri
+        return (
+            True,
+            self._code_location,
+            self._container_deployment,
+            self._container_uri,
+        )
 
     """
         Locates benchmark input generator, inspect how many storage buckets
@@ -655,9 +740,11 @@ class Benchmark(LoggingBase):
     """
 
     def prepare_input(
-        self, system_resources: SystemResources, size: str, replace_existing: bool = False
+        self,
+        system_resources: SystemResources,
+        size: str,
+        replace_existing: bool = False,
     ):
-
         """
         Handle object storage buckets.
         """
@@ -684,7 +771,10 @@ class Benchmark(LoggingBase):
         if hasattr(self._benchmark_input_module, "allocate_nosql"):
 
             nosql_storage = system_resources.get_nosql_storage()
-            for name, table_properties in self._benchmark_input_module.allocate_nosql().items():
+            for (
+                name,
+                table_properties,
+            ) in self._benchmark_input_module.allocate_nosql().items():
                 nosql_storage.create_benchmark_tables(
                     self._benchmark,
                     name,
@@ -701,7 +791,13 @@ class Benchmark(LoggingBase):
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = self._benchmark_input_module.generate_input(
-            self._benchmark_data_path, size, bucket, input, output, storage_func, nosql_func
+            self._benchmark_data_path,
+            size,
+            bucket,
+            input,
+            output,
+            storage_func,
+            nosql_func,
         )
 
         # Cache only once we data is in the cloud.

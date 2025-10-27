@@ -24,6 +24,7 @@ from sebs.utils import LoggingHandlers, execute
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult
 from sebs.faas.system import System
 from sebs.faas.config import Resources
+from sebs.types import Language
 
 
 class Azure(System):
@@ -118,7 +119,7 @@ class Azure(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
@@ -133,12 +134,12 @@ class Azure(System):
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
-        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js"}
+        EXEC_FILES = {Language.PYTHON: "handler.py", Language.NODEJS: "handler.js"}
         CONFIG_FILES = {
-            "python": ["requirements.txt", ".python_packages"],
-            "nodejs": ["package.json", "node_modules"],
+            Language.PYTHON: ["requirements.txt", ".python_packages"],
+            Language.NODEJS: ["package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[language]
 
         handler_dir = os.path.join(directory, "handler")
         os.makedirs(handler_dir)
@@ -151,7 +152,7 @@ class Azure(System):
         # generate function.json
         # TODO: extension to other triggers than HTTP
         default_function_json = {
-            "scriptFile": EXEC_FILES[language_name],
+            "scriptFile": EXEC_FILES[language],
             "bindings": [
                 {
                     "authLevel": "anonymous",
