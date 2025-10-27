@@ -1,9 +1,26 @@
+"""Invocation overhead measurement experiment implementation.
+
+This module provides the InvocationOverhead experiment implementation, which
+measures the overhead associated with invoking serverless functions. It can
+measure:
+
+- Overhead of different invocation methods (HTTP, SDK)
+- Impact of code package size on deployment and invocation time
+- Overhead of different input data sizes
+- Cold vs. warm start invocation times
+
+The experiment is designed to help identify performance bottlenecks and
+optimize function deployment and invocation.
+We deploy microbenchmark 030.clock-synchronization to exactly measure the
+network latency between client and function.
+"""
+
 import csv
 import os
 import random
 import time
 from datetime import datetime
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, List, TYPE_CHECKING, Union
 
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
@@ -15,10 +32,33 @@ if TYPE_CHECKING:
 
 
 class CodePackageSize:
+    """Helper class for code package size experiments.
+
+    This class handles creating and deploying functions with different code
+    package sizes to measure the impact of package size on deployment and
+    invocation overhead.
+
+    Attributes:
+        _benchmark_path: Path to the benchmark code
+        _benchmark: Benchmark instance
+        _deployment_client: Deployment client to use
+        sizes: List of code package sizes to test
+        functions: Dictionary mapping size to function instances
+    """
+
     def __init__(self, deployment_client: FaaSSystem, benchmark: Benchmark, settings: dict):
+        """Initialize a new code package size experiment.
+
+        Args:
+            deployment_client: Deployment client to use
+            benchmark: Benchmark instance
+            settings: Experiment settings with code_package_begin, code_package_end,
+                     and code_package_points values
+        """
         import math
         from numpy import linspace
 
+        # Generate code package sizes to test
         points = linspace(
             settings["code_package_begin"],
             settings["code_package_end"],
@@ -26,6 +66,7 @@ class CodePackageSize:
         )
         from sebs.utils import find_benchmark
 
+        # Use the clock synchronization benchmark as a base
         self._benchmark_path = find_benchmark("030.clock-synchronization", "benchmarks")
         self._benchmark = benchmark
         random.seed(1410)
@@ -37,7 +78,16 @@ class CodePackageSize:
         self._deployment_client = deployment_client
         self._benchmark = benchmark
 
-    def before_sample(self, size: int, input_benchmark: dict):
+    def before_sample(self, size: int, input_benchmark: dict) -> None:
+        """Prepare the benchmark with a specific code package size.
+
+        Creates a file named 'randomdata.bin' with the specified size of random bytes
+        within the benchmark's code package. Then, updates the function on the deployment.
+
+        Args:
+            size: Size of the code package to create
+            input_benchmark: Benchmark input configuration (unused)
+        """
         arr = bytearray((random.getrandbits(8) for i in range(size)))
         self._benchmark.code_package_modify("randomdata.bin", bytes(arr))
         function = self._deployment_client.get_function(self._benchmark)
@@ -45,7 +95,22 @@ class CodePackageSize:
 
 
 class PayloadSize:
-    def __init__(self, settings: dict):
+    """Helper class for payload size experiments.
+
+    This class handles creating different payload sizes to measure the impact
+    of input data size on function invocation overhead.
+
+    Attributes:
+        pts: List of payload sizes to test
+    """
+
+    def __init__(self, settings: dict) -> None:
+        """Initialize a new payload size experiment.
+
+        Args:
+            settings: Experiment settings with payload_begin, payload_end,
+                     and payload_points values
+        """
         from numpy import linspace
 
         points = linspace(
@@ -55,7 +120,15 @@ class PayloadSize:
         )
         self.pts = [int(pt) for pt in points]
 
-    def before_sample(self, size: int, input_benchmark: dict):
+    def before_sample(self, size: int, input_benchmark: dict) -> None:
+        """Prepare the benchmark input with a specific payload size.
+
+        Generates different payload sizes by creating base64 encoded byte arrays.
+
+        Args:
+            size: Size of the payload to create
+            input_benchmark: Benchmark input configuration to modify
+        """
         import base64
         from io import BytesIO
 
@@ -65,23 +138,59 @@ class PayloadSize:
 
 
 class InvocationOverhead(Experiment):
+    """Invocation overhead measurement experiment.
+
+    This experiment measures the overhead associated with invoking serverless
+    functions. It can measure the impact of code package size, input data size,
+    and different invocation methods on performance.
+
+    Attributes:
+        settings: Experiment-specific settings
+        _benchmark: Benchmark to use
+        benchmark_input: Input data for the benchmark
+        _storage: Storage service to use
+        _function: Function to invoke
+        _code_package: Code package size experiment helper
+        _out_dir: Directory for storing results
+        _deployment_client: Deployment client to use
+        _sebs_client: SeBS client
+    """
+
     def __init__(self, config: ExperimentConfig):
+        """Initialize a new InvocationOverhead experiment.
+
+        Args:
+            config: Experiment configuration
+        """
         super().__init__(config)
         self.settings = self.config.experiment_settings(self.name())
 
-    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem):
+    def prepare(self, sebs_client: "SeBS", deployment_client: FaaSSystem) -> None:
+        """Prepare the experiment for execution.
 
-        # deploy network test function
+        This method sets up the benchmark, function, storage, and output directory
+        for the experiment. It uses the clock-synchronization benchmark as a base
+        and prepares the necessary resources for measuring invocation overhead.
+
+        Args:
+            sebs_client: The SeBS client to use
+            deployment_client: The deployment client to use
+        """
+        # Import needed modules
         from sebs import SeBS  # noqa
         from sebs.faas.function import Trigger
 
+        # Get the clock-synchronization benchmark
         self._benchmark = sebs_client.get_benchmark(
             "030.clock-synchronization", deployment_client, self.config
         )
 
+        # Prepare benchmark input
         self.benchmark_input = self._benchmark.prepare_input(
             deployment_client.system_resources, size="test", replace_existing=True
         )
+
+        # Get storage for testing
         self._storage = deployment_client.system_resources.get_storage(replace_existing=True)
 
         self._function = deployment_client.get_function(self._benchmark)
@@ -102,7 +211,18 @@ class InvocationOverhead(Experiment):
 
         self._deployment_client = deployment_client
 
-    def run(self):
+    def run(self) -> None:
+        """Execute the invocation overhead experiment.
+
+        This method runs the main experiment by:
+        1. Setting up either code package size or payload size experiments
+        2. Running warm-up and cold start invocations
+        3. Measuring invocation overhead for different sizes
+            (either code package or payload, based on settings)
+        4. Collecting and storing results in CSV format,
+            including client-side and server-side timestamps
+
+        """
 
         from requests import get
 
@@ -110,6 +230,7 @@ class InvocationOverhead(Experiment):
         repetitions = self.settings["repetitions"]
         N = self.settings["N"]
 
+        experiment: Union[CodePackageSize, PayloadSize]
         if self.settings["type"] == "code":
             experiment = CodePackageSize(self._deployment_client, self._benchmark, self.settings)
         else:
@@ -175,7 +296,21 @@ class InvocationOverhead(Experiment):
         directory: str,
         logging_filename: str,
         extend_time_interval: int,
-    ):
+    ) -> None:
+        """Process experiment results and generate summary statistics.
+
+        This method processes the raw experiment results by:
+        1. Loading client-side timing data from CSV files
+            and server-side UDP datagram timestamps
+        2. Computing clock drift and Round-Trip Time (RTT)
+        3. Creating a processed results file with invocation times
+
+        Args:
+            sebs_client: SeBS client instance
+            deployment_client: Deployment client instance
+            directory: Directory containing experiment results
+            logging_filename: Name of the logging file (unused)
+        """
         import pandas as pd
         import glob
         from sebs import SeBS  # noqa
@@ -237,7 +372,32 @@ class InvocationOverhead(Experiment):
                     invocation_time = float(row[5]) - float(row[4]) - float(row[3]) + clock_drift
                     writer.writerow(row + [clock_drift, clock_drift_std, invocation_time])
 
-    def receive_datagrams(self, input_benchmark: dict, repetitions: int, port: int, ip: str):
+    def receive_datagrams(
+        self, input_benchmark: dict, repetitions: int, port: int, ip: str
+    ) -> List:
+        """Receive UDP datagrams from the function for clock synchronization.
+
+        This method implements a UDP server that communicates with the function
+        to measure clock synchronization and network timing.
+        It opens a UDP socket, triggers an asynchronous function invocation, and then
+        listens for a specified number of datagrams, recording timestamps for
+        received and sent datagrams.
+
+        Saves server-side timestamps to a CSV file named `server-{request_id}.csv`.
+
+        Args:
+            input_benchmark: Benchmark input configuration
+            repetitions: Number of repetitions to perform
+            port: UDP port to listen on
+            ip: IP address of the client
+
+        Returns:
+            List containing invocation results: [is_cold, connection_time,
+            start_timestamp, finish_timestamp, request_id]
+
+        Raises:
+            RuntimeError: If function invocation fails
+        """
 
         import socket
 
@@ -306,8 +466,18 @@ class InvocationOverhead(Experiment):
 
     @staticmethod
     def name() -> str:
+        """Get the name of the experiment.
+
+        Returns:
+            The name "invocation-overhead"
+        """
         return "invocation-overhead"
 
     @staticmethod
     def typename() -> str:
+        """Get the type name of the experiment.
+
+        Returns:
+            The type name "Experiment.InvocOverhead"
+        """
         return "Experiment.InvocOverhead"

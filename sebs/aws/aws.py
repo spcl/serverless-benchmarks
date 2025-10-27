@@ -1,3 +1,12 @@
+"""
+AWS Lambda implementation for the SeBs framework.
+
+This module provides the AWS implementation of the FaaS System interface.
+It handles deploying and managing serverless functions on AWS Lambda,
+including code packaging, function creation, trigger management, and
+metrics collection.
+"""
+
 import math
 import os
 import shutil
@@ -25,35 +34,71 @@ from sebs.faas.system import System
 
 
 class AWS(System):
+    """
+    AWS Lambda implementation of the System interface.
+
+    This class implements the FaaS System interface for AWS Lambda,
+    providing methods for deploying, invoking, and managing Lambda functions.
+
+    Attributes:
+        logs_client: AWS CloudWatch Logs client
+        cached: Whether AWS resources have been cached
+        _config: AWS-specific configuration
+    """
+
     logs_client = None
     cached = False
     _config: AWSConfig
 
     @staticmethod
-    def name():
+    def name() -> str:
+        """
+        Get the name of this system.
+
+        Returns:
+            str: System name ('aws')
+        """
         return "aws"
 
     @staticmethod
-    def typename():
+    def typename() -> str:
+        """
+        Get the type name of this system.
+
+        Returns:
+            str: Type name ('AWS')
+        """
         return "AWS"
 
     @staticmethod
     def function_type() -> "Type[Function]":
+        """
+        Get the function type for this system.
+
+        Returns:
+            Type[Function]: LambdaFunction class
+        """
         return LambdaFunction
 
     @property
     def config(self) -> AWSConfig:
+        """
+        Get the AWS-specific configuration.
+
+        Returns:
+            AWSConfig: AWS configuration
+        """
         return self._config
 
     @property
     def system_resources(self) -> AWSSystemResources:
-        return cast(AWSSystemResources, self._system_resources)
+        """
+        Get the AWS system resources manager.
 
-    """
-        :param cache_client: Function cache instance
-        :param config: Experiments config
-        :param docker_client: Docker instance
-    """
+        Returns:
+            AWSSystemResources: AWS resource manager
+        """
+        return cast(AWSSystemResources, self._system_resources)
 
     def __init__(
         self,
@@ -63,6 +108,16 @@ class AWS(System):
         docker_client: docker.client,
         logger_handlers: LoggingHandlers,
     ):
+        """
+        Initialize the AWS system.
+
+        Args:
+            sebs_config: SeBs system configuration
+            config: AWS-specific configuration
+            cache_client: Cache client for caching resources
+            docker_client: Docker client for building images
+            logger_handlers: Logging configuration
+        """
         super().__init__(
             sebs_config,
             cache_client,
@@ -75,6 +130,16 @@ class AWS(System):
         self.nosql_storage: Optional[DynamoDB] = None
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+        """
+        Initialize AWS resources.
+
+        Creates a boto3 session, initializes Lambda client, and prepares
+        system resources and ECR client.
+
+        Args:
+            config: Additional configuration parameters
+            resource_prefix: Optional prefix for resource names
+        """
         # thread-safe
         self.session = boto3.session.Session(
             aws_access_key_id=self.config.credentials.access_key,
@@ -89,30 +154,18 @@ class AWS(System):
         )
 
     def get_lambda_client(self):
+        """
+        Get or create an AWS Lambda client.
+
+        Returns:
+            boto3.client: Lambda client
+        """
         if not hasattr(self, "client"):
             self.client = self.session.client(
                 service_name="lambda",
                 region_name=self.config.region,
             )
         return self.client
-
-    """
-        It would be sufficient to just pack the code and ship it as zip to AWS.
-        However, to have a compatible function implementation across providers,
-        we create a small module.
-        Issue: relative imports in Python when using storage wrapper.
-        Azure expects a relative import inside a module thus it's easier
-        to always create a module.
-
-        Structure:
-        function
-        - function.py
-        - storage.py
-        - resources
-        handler.py
-
-        benchmark: benchmark name
-    """
 
     def package_code(
         self,
@@ -124,6 +177,42 @@ class AWS(System):
         is_cached: bool,
         container_deployment: bool,
     ) -> Tuple[str, int, str]:
+        """
+        Package code for deployment to AWS Lambda.
+
+        Creates a suitable deployment package with the following structure::
+
+            function/
+              - function.py
+              - storage.py
+              - resources/
+            handler.py
+
+        It would be sufficient to just pack the code and ship it as zip to AWS.
+        However, to have a compatible function implementation across providers,
+        we create a small module.
+        Issue: relative imports in Python when using storage wrapper.
+        Azure expects a relative import inside a module thus it's easier
+        to always create a module.
+
+        For container deployments, builds a Docker image and pushes it to ECR.
+        For ZIP deployments, creates a ZIP package compatible with Lambda.
+
+        Args:
+            directory: Path to the code directory
+            language_name: Programming language name (e.g., 'python', 'nodejs')
+            language_version: Language version (e.g., '3.8', '14')
+            architecture: Target CPU architecture (e.g., 'x64', 'arm64')
+            benchmark: Benchmark name
+            is_cached: Whether code is already cached
+            container_deployment: Whether to use container deployment
+
+        Returns:
+            Tuple containing:
+            - Path to the packaged code (ZIP file)
+            - Size of the package in bytes
+            - Container URI (if container_deployment=True, otherwise empty string)
+        """
 
         container_uri = ""
 
@@ -131,7 +220,12 @@ class AWS(System):
         if container_deployment:
             # build base image and upload to ECR
             _, container_uri = self.ecr_client.build_base_image(
-                directory, language_name, language_version, architecture, benchmark, is_cached
+                directory,
+                language_name,
+                language_version,
+                architecture,
+                benchmark,
+                is_cached,
             )
 
         CONFIG_FILES = {
@@ -163,13 +257,33 @@ class AWS(System):
         )
 
     def _map_architecture(self, architecture: str) -> str:
+        """
+        Map architecture name to AWS Lambda-compatible format.
 
+        Args:
+            architecture: Architecture name from SeBs (e.g., 'x64')
+
+        Returns:
+            str: AWS Lambda-compatible architecture name (e.g., 'x86_64')
+        """
         if architecture == "x64":
             return "x86_64"
         return architecture
 
-    def _map_language_runtime(self, language: str, runtime: str):
+    def _map_language_runtime(self, language: str, runtime: str) -> str:
+        """
+        Map language runtime to AWS Lambda-compatible format.
 
+        AWS uses different naming schemes for runtime versions.
+        For example, Node.js uses '12.x' instead of '12'.
+
+        Args:
+            language: Language name (e.g., 'nodejs', 'python')
+            runtime: Runtime version (e.g., '12', '3.8')
+
+        Returns:
+            str: AWS Lambda-compatible runtime version
+        """
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
         if language == "nodejs":
@@ -183,6 +297,21 @@ class AWS(System):
         container_deployment: bool,
         container_uri: str,
     ) -> "LambdaFunction":
+        """
+        Create or update an AWS Lambda function.
+
+        If the function already exists, it updates the code and configuration.
+        Otherwise, it creates a new function with the specified parameters.
+
+        Args:
+            code_package: Benchmark code package
+            func_name: Name of the function
+            container_deployment: Whether to use container deployment
+            container_uri: URI of the container image (if container_deployment=True)
+
+        Returns:
+            LambdaFunction: The created or updated Lambda function
+        """
 
         package = code_package.code_location
         benchmark = code_package.benchmark
@@ -286,7 +415,15 @@ class AWS(System):
 
         return lambda_function
 
-    def cached_function(self, function: Function):
+    def cached_function(self, function: Function) -> None:
+        """Set up triggers for a cached function.
+
+        Configures triggers for a function that was loaded from cache,
+        ensuring they have proper logging handlers and deployment client references.
+
+        Args:
+            function: Function instance to configure triggers for
+        """
 
         from sebs.aws.triggers import LibraryTrigger
 
@@ -296,17 +433,6 @@ class AWS(System):
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
 
-    """
-        Update function code and configuration on AWS.
-
-        :param benchmark: benchmark name
-        :param name: function name
-        :param code_package: path to code package
-        :param code_size: size of code package in bytes
-        :param timeout: function timeout in seconds
-        :param memory: memory limit for function
-    """
-
     def update_function(
         self,
         function: Function,
@@ -314,6 +440,19 @@ class AWS(System):
         container_deployment: bool,
         container_uri: str,
     ):
+        """
+        Update an existing AWS Lambda function.
+
+        Updates the function code and waits for the update to complete.
+        For container deployments, updates the container image.
+        For ZIP deployments, uploads the code package directly or via S3.
+
+        Args:
+            function: The function to update
+            code_package: Benchmark code package
+            container_deployment: Whether to use container deployment
+            container_uri: URI of the container image (if container_deployment=True)
+        """
         name = function.name
         function = cast(LambdaFunction, function)
 
@@ -359,7 +498,21 @@ class AWS(System):
 
     def update_function_configuration(
         self, function: Function, code_package: Benchmark, env_variables: dict = {}
-    ):
+    ) -> None:
+        """Update Lambda function configuration.
+
+        Updates the function's timeout, memory, and environment variables.
+        Automatically adds environment variables for NoSQL storage table names
+        if the benchmark uses NoSQL storage.
+
+        Args:
+            function: Function to update
+            code_package: Benchmark code package with configuration
+            env_variables: Additional environment variables to set
+
+        Raises:
+            AssertionError: If code package input has not been processed
+        """
 
         # We can only update storage configuration once it has been processed for this benchmark
         assert code_package.has_input_processed
@@ -405,6 +558,19 @@ class AWS(System):
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
+        """Generate default function name for a benchmark.
+
+        Creates a standardized function name based on resource ID, benchmark name,
+        language, version, and architecture. Ensures the name is compatible with
+        AWS Lambda naming requirements.
+
+        Args:
+            code_package: Benchmark code package
+            resources: Optional resources object (uses default if not provided)
+
+        Returns:
+            str: Formatted function name suitable for AWS Lambda
+        """
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
         func_name = "sebs-{}-{}-{}-{}-{}".format(
@@ -420,47 +586,59 @@ class AWS(System):
 
     @staticmethod
     def format_function_name(func_name: str) -> str:
+        """Format function name for AWS Lambda compatibility.
+
+        AWS Lambda has specific naming requirements. This method ensures
+        the function name complies with AWS Lambda naming rules.
+
+        Args:
+            func_name: Raw function name
+
+        Returns:
+            str: Formatted function name with illegal characters replaced
+        """
         # AWS Lambda does not allow hyphens in function names
         func_name = func_name.replace("-", "_")
         func_name = func_name.replace(".", "_")
         return func_name
 
-    """
-        FIXME: does not clean the cache
-    """
+    def delete_function(self, func_name: Optional[str]) -> None:
+        """Delete an AWS Lambda function.
 
-    def delete_function(self, func_name: Optional[str]):
+        Args:
+            func_name: Name of the function to delete
+
+        Note:
+            FIXME: does not clean the cache in SeBS.
+        """
         self.logging.debug("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
         except Exception:
             self.logging.debug("Function {} does not exist!".format(func_name))
 
-    """
-        Prepare AWS resources to store experiment results.
-        Allocate one bucket.
-
-        :param benchmark: benchmark name
-        :return: name of bucket to store experiment results
-    """
-
-    # def prepare_experiment(self, benchmark: str):
-    #    logs_bucket = self.get_storage().add_output_bucket(benchmark, suffix="logs")
-    #    return logs_bucket
-
-    """
-        Accepts AWS report after function invocation.
-        Returns a dictionary filled with values with various metrics such as
-        time, invocation time and memory consumed.
-
-        :param log: decoded log from CloudWatch or from synchronuous invocation
-        :return: dictionary with parsed values
-    """
-
     @staticmethod
     def parse_aws_report(
         log: str, requests: Union[ExecutionResult, Dict[str, ExecutionResult]]
     ) -> str:
+        """Parse AWS Lambda execution report from CloudWatch logs.
+
+        Extracts execution metrics from AWS Lambda log entries and updates
+        the corresponding ExecutionResult objects with timing, memory,
+        billing information, and init duration (when provided).
+
+        Args:
+            log: Raw log string from CloudWatch or synchronous invocation
+            requests: Either a single ExecutionResult or dictionary mapping
+                     request IDs to ExecutionResult objects
+
+        Returns:
+            str: Request ID of the parsed execution
+
+        Example:
+            The log format expected is tab-separated AWS Lambda report format:
+            "REPORT RequestId: abc123\tDuration: 100.00 ms\tBilled Duration: 100 ms\t..."
+        """
         aws_vals = {}
         for line in log.split("\t"):
             if not line.isspace():
@@ -487,9 +665,26 @@ class AWS(System):
         return request_id
 
     def shutdown(self) -> None:
+        """Shutdown the AWS system and clean up resources.
+
+        Calls the parent shutdown method to perform standard cleanup.
+        """
         super().shutdown()
 
-    def get_invocation_error(self, function_name: str, start_time: int, end_time: int):
+    def get_invocation_error(self, function_name: str, start_time: int, end_time: int) -> None:
+        """Retrieve and log invocation errors from CloudWatch Logs.
+
+        Queries CloudWatch Logs for error messages during the specified time range
+        and logs them for debugging purposes.
+
+        Args:
+            function_name: Name of the Lambda function
+            start_time: Start time for log query (Unix timestamp)
+            end_time: End time for log query (Unix timestamp)
+
+        Note:
+            It is unclear at the moment if this function is always working correctly.
+        """
         if not self.logs_client:
             self.logs_client = boto3.client(
                 service_name="logs",
@@ -532,7 +727,19 @@ class AWS(System):
         end_time: int,
         requests: Dict[str, ExecutionResult],
         metrics: dict,
-    ):
+    ) -> None:
+        """Download execution metrics from CloudWatch Logs.
+
+        Queries CloudWatch Logs for Lambda execution reports and parses them
+        to extract performance metrics for each request.
+
+        Args:
+            function_name: Name of the Lambda function
+            start_time: Start time for metrics collection (Unix timestamp)
+            end_time: End time for metrics collection (Unix timestamp)
+            requests: Dictionary mapping request IDs to ExecutionResult objects
+            metrics: Dictionary to store collected metrics
+        """
 
         if not self.logs_client:
             self.logs_client = boto3.client(
@@ -576,6 +783,21 @@ class AWS(System):
         )
 
     def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+        """Create a trigger for the specified function.
+
+        Creates and configures a trigger based on the specified type. Currently
+        supports HTTP triggers (via API Gateway) and library triggers.
+
+        Args:
+            func: Function to create trigger for
+            trigger_type: Type of trigger to create (HTTP or LIBRARY)
+
+        Returns:
+            Trigger: The created trigger instance
+
+        Raises:
+            RuntimeError: If trigger type is not supported
+        """
         from sebs.aws.triggers import HTTPTrigger
 
         function = cast(LambdaFunction, func)
@@ -610,13 +832,31 @@ class AWS(System):
         self.cache_client.update_function(function)
         return trigger
 
-    def _enforce_cold_start(self, function: Function, code_package: Benchmark):
+    def _enforce_cold_start(self, function: Function, code_package: Benchmark) -> None:
+        """Enforce cold start for a single function.
+
+        Updates the function's environment variables to force a cold start
+        on the next invocation.
+
+        Args:
+            function: Function to enforce cold start for
+            code_package: Benchmark code package with configuration
+        """
         func = cast(LambdaFunction, function)
         self.update_function_configuration(
             func, code_package, {"ForceColdStart": str(self.cold_start_counter)}
         )
 
-    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
+    def enforce_cold_start(self, functions: List[Function], code_package: Benchmark) -> None:
+        """Enforce cold start for multiple functions.
+
+        Updates all specified functions to force cold starts on their next invocations.
+        This is useful for ensuring consistent performance measurements.
+
+        Args:
+            functions: List of functions to enforce cold start for
+            code_package: Benchmark code package with configuration
+        """
         self.cold_start_counter += 1
         for func in functions:
             self._enforce_cold_start(func, code_package)
@@ -626,19 +866,40 @@ class AWS(System):
             self.wait_function_updated(lambda_function)
         self.logging.info("Finished function updates enforcing cold starts.")
 
-    def wait_function_active(self, func: LambdaFunction):
+    def wait_function_active(self, func: LambdaFunction) -> None:
+        """Wait for Lambda function to become active after creation.
+
+        Uses AWS Lambda waiter to wait until the function is in Active state
+        and ready to be invoked.
+
+        Args:
+            func: Lambda function to wait for
+        """
 
         self.logging.info("Waiting for Lambda function to be created...")
         waiter = self.client.get_waiter("function_active_v2")
         waiter.wait(FunctionName=func.name)
         self.logging.info("Lambda function has been created.")
 
-    def wait_function_updated(self, func: LambdaFunction):
+    def wait_function_updated(self, func: LambdaFunction) -> None:
+        """Wait for Lambda function to complete update process.
+
+        Uses AWS Lambda waiter to wait until the function update is complete
+        and the function is ready to be invoked with new configuration.
+
+        Args:
+            func: Lambda function to wait for
+        """
 
         self.logging.info("Waiting for Lambda function to be updated...")
         waiter = self.client.get_waiter("function_updated_v2")
         waiter.wait(FunctionName=func.name)
         self.logging.info("Lambda function has been updated.")
 
-    def disable_rich_output(self):
+    def disable_rich_output(self) -> None:
+        """Disable rich output formatting for ECR operations.
+
+        Disables colored/formatted output in the ECR container client,
+        useful for CI/CD environments or when plain text output is preferred.
+        """
         self.ecr_client.disable_rich_output = True
