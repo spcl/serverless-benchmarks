@@ -418,5 +418,32 @@
     },
     "architecture": ["x64"],
     "deployments": ["container"]
+  }, 
+  "cloudflare": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "x64": {
+            "3.8": "ubuntu:22.04",
+            "3.9": "ubuntu:22.04",
+            "3.10": "ubuntu:22.04",
+            "3.11": "ubuntu:22.04",
+            "3.12": "ubuntu:22.04"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py"
+          ],
+          "packages": [],
+          "module_packages": {}
+        }
+      }
+    }
   }
 }
