@@ -24,6 +24,13 @@
             "3.9": "python:3.9-slim",
             "3.10": "python:3.10-slim",
             "3.11": "python:3.11-slim"
+          },
+          "arm64": {
+            "3.7": "python:3.7-slim",
+            "3.8": "python:3.8-slim",
+            "3.9": "python:3.9-slim",
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim"
           }
         },
         "images": [
@@ -66,7 +73,7 @@
         }
       }
     },
-    "architecture": ["x64"],
+    "architecture": ["x64", "arm64"],
     "deployments": ["package"]
   },
   "aws": {
