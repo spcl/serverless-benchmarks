@@ -4,8 +4,9 @@ repos:
     hooks:
       - id: flake8-local
         name: flake8 (project env)
+        language: python
+        additional_dependencies: ["flake8==7.1.1"]
         entry: flake8
-        language: system
         args: ["--config=.flake8.cfg"]
         types: [python]
         files: ^sebs/
@@ -13,8 +14,9 @@ repos:
     hooks:
       - id: black-check-local
         name: black --check (project env)
+        language: python
+        additional_dependencies: ["black==22.8.0"]
         entry: black
-        language: system
         args: ["--config=.black.toml", "--check", "--diff"]
         types: [python]
         files: ^sebs/
