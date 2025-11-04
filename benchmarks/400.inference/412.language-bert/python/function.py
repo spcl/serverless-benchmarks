@@ -58,7 +58,11 @@ def _ensure_model(bucket: str, model_prefix: str):
         _labels = {int(idx): label for idx, label in raw_labels.items()}
 
         onnx_path = os.path.join(model_path, "model.onnx")
-        _session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
+        available_providers = ort.get_available_providers()
+        execution_providers = ["CUDAExecutionProvider"] if "CUDAExecutionProvider" in available_providers else []
+        execution_providers.append("CPUExecutionProvider")
+        # Prefer GPU execution when available, otherwise fall back to CPU.
+        _session = ort.InferenceSession(onnx_path, providers=execution_providers)
         model_process_end = datetime.datetime.now()
     else:
         model_process_begin = datetime.datetime.now()

@@ -15,7 +15,9 @@ def upload_files(data_root, data_dir, upload_func):
             upload_func(0, relative_key, filepath)
 
 
-def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
+def generate_input(
+    data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func
+):
     model_archive = "bert-tiny-onnx.tar.gz"
     upload_func(0, model_archive, os.path.join(data_dir, "model", model_archive))
 
