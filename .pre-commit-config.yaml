@@ -1,0 +1,21 @@
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: flake8-local
+        name: flake8 (project env)
+        entry: flake8
+        language: system
+        args: ["--config=.flake8.cfg"]
+        types: [python]
+        files: ^sebs/
+  - repo: local
+    hooks:
+      - id: black-check-local
+        name: black --check (project env)
+        entry: black
+        language: system
+        args: ["--config=.black.toml", "--check", "--diff"]
+        types: [python]
+        files: ^sebs/
+
