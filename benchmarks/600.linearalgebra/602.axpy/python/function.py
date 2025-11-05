@@ -1,59 +1,58 @@
 #!/usr/bin/env python3
-import sys, json, math, torch
-import datetime
+import sys, json, torch, datetime
 
 
-def initialize_torch(NI, NJ, NK, dtype=torch.float32, device="cuda"):
-    alpha = torch.tensor(1.5, dtype=dtype, device=device)
-    beta = torch.tensor(1.2, dtype=dtype, device=device)
-    i = torch.arange(NI, device=device)
-    j = torch.arange(NJ, device=device)
-    k = torch.arange(NK, device=device)
-    C = ((i[:, None] * j[None, :] + 1) % NI).to(dtype) / NI
-    A = ((i[:, None] * (k[None, :] + 1)) % NK).to(dtype) / NK
-    B = ((k[:, None] * (j[None, :] + 2)) % NJ).to(dtype) / NJ
-    return alpha, beta, C, A, B
+def initialize_torch(N, dtype=torch.float32, device="cuda", seed=42):
+    if seed is not None:
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    alpha = torch.randn((), dtype=dtype, device=device)
+    x = torch.randn(N, dtype=dtype, device=device)
+    y = torch.randn(N, dtype=dtype, device=device)
+    return alpha, x, y
 
 
-def kernel_gemm(alpha, beta, C, A, B, reps=1):
+def kernel_axpy(alpha, x, y, reps=100):
     torch.cuda.synchronize()
-    _ = alpha * (A @ B) + beta * C  # warmup
+    _ = alpha * x + y  # warmup
     torch.cuda.synchronize()
-    start = torch.cuda.Event(enable_timing=True)
-    end = torch.cuda.Event(enable_timing=True)
-    start.record()
+
+    start_evt = torch.cuda.Event(enable_timing=True)
+    end_evt = torch.cuda.Event(enable_timing=True)
+    start_evt.record()
     for _ in range(reps):
-        C = alpha * (A @ B) + beta * C
-    end.record()
+        y = alpha * x + y
+    end_evt.record()
     torch.cuda.synchronize()
-    return C, float(start.elapsed_time(end))  # ms for all reps
+    gpu_ms = float(start_evt.elapsed_time(end_evt))
+    return y, gpu_ms
 
 
 def handler(event):
-
     size = event.get("size")
     if "seed" in event:
         import random
 
         random.seed(event["seed"])
 
-    matrix_generating_begin = datetime.datetime.now()
-    alpha, beta, C, A, B = initialize_torch(size, size, size, dtype=torch.float32, device="cuda")
-    matrix_generating_end = datetime.datetime.now()
+        seed = event.get("seed", 42)
+        seed = int(seed)
 
-    matmul_begin = datetime.datetime.now()
-    C_out, gpu_ms = kernel_gemm(alpha, beta, C, A, B, reps=1)
-    matmul_end = datetime.datetime.now()
+    gen_begin = datetime.datetime.now()
+    alpha, x, y = initialize_torch(size, dtype=torch.float32, device="cuda", seed=seed)
+    gen_end = datetime.datetime.now()
 
-    matrix_generating_time = (matrix_generating_end - matrix_generating_begin) / datetime.timedelta(
-        microseconds=1
-    )
-    matmul_time = (matmul_end - matmul_begin) / datetime.timedelta(microseconds=1)
+    comp_begin = datetime.datetime.now()
+    y_out, gpu_ms = kernel_axpy(alpha, x, y, reps=100)
+    comp_end = datetime.datetime.now()
+
+    gen_us = (gen_end - gen_begin) / datetime.timedelta(microseconds=1)
+    comp_us = (comp_end - comp_begin) / datetime.timedelta(microseconds=1)
 
     return {
-        # "result": result[0],
         "measurement": {
-            "graph_generating_time": matrix_generating_time,
-            "compute_time": matmul_time,
-        },
+            "graph_generating_time": gen_us,
+            "compute_time": comp_us,
+            "gpu_time": gpu_ms,
+        }
     }

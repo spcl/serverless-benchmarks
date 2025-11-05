@@ -46,6 +46,9 @@ def handler(event):
 
         random.seed(event["seed"])
 
+        seed = event.get("seed", 42)
+        seed = int(seed)
+
     matrix_generating_begin = datetime.datetime.now()
     A, B = initialize_torch(size, dtype=torch.float32, device="cuda")
     matrix_generating_end = datetime.datetime.now()

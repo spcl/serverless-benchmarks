@@ -37,6 +37,9 @@ def handler(event):
 
         random.seed(event["seed"])
 
+        seed = event.get("seed", 42)
+        seed = int(seed)
+
     gen_begin = datetime.datetime.now()
     A = initialize_torch(size, dtype=torch.float32, device="cuda")
     gen_end = datetime.datetime.now()
