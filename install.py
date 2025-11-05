@@ -5,28 +5,46 @@ import os
 import subprocess
 
 parser = argparse.ArgumentParser(description="Install SeBS and dependencies.")
-parser.add_argument('--venv', metavar='DIR', type=str, default="python-venv", help='destination of local Python virtual environment')
-parser.add_argument('--python-path', metavar='DIR', type=str, default="python3", help='Path to local Python installation.')
+parser.add_argument(
+    "--venv",
+    metavar="DIR",
+    type=str,
+    default="python-venv",
+    help="destination of local Python virtual environment",
+)
+parser.add_argument(
+    "--python-path",
+    metavar="DIR",
+    type=str,
+    default="python3",
+    help="Path to local Python installation.",
+)
 for deployment in ["aws", "azure", "gcp", "openwhisk"]:
-    parser.add_argument(f"--{deployment}", action="store_const", const=True, default=True, dest=deployment)
-    parser.add_argument(f"--no-{deployment}", action="store_const", const=False, default=True, dest=deployment)
+    parser.add_argument(
+        f"--{deployment}", action="store_const", const=True, default=True, dest=deployment
+    )
+    parser.add_argument(
+        f"--no-{deployment}", action="store_const", const=False, default=True, dest=deployment
+    )
 for deployment in ["local"]:
-    parser.add_argument(f"--{deployment}", action="store_const", default=True, const=True, dest=deployment)
+    parser.add_argument(
+        f"--{deployment}", action="store_const", default=True, const=True, dest=deployment
+    )
     parser.add_argument(f"--no-{deployment}", action="store_const", const=False, dest=deployment)
 parser.add_argument("--with-pypapi", action="store_true")
 args = parser.parse_args()
 
+
 def execute(cmd, cwd=None):
-    ret = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True, cwd=cwd
-    )
+    ret = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True, cwd=cwd)
     if ret.returncode:
         raise RuntimeError(
             "Running {} failed!\n Output: {}".format(cmd, ret.stdout.decode("utf-8"))
         )
     return ret.stdout.decode("utf-8")
 
-env_dir=args.venv
+
+env_dir = args.venv
 
 if not os.path.exists(env_dir):
     print("Creating Python virtualenv at {}".format(env_dir))
@@ -86,7 +104,9 @@ except RuntimeError as error:
             execute(f"git pull", cwd=data_dir)
         # clone
         else:
-            execute(f"git clone https://github.com/spcl/serverless-benchmarks-data.git {data_dir}")
+            execute(
+                f"git clone https://github.com/McLavish/serverless-benchmarks-data-dphpc.git {data_dir}"
+            )
     else:
         raise error
 
@@ -99,4 +119,3 @@ if args.with_pypapi:
     execute("python3 setup.py build")
     execute("python3 pypapi/papi_build.py")
     os.chdir(cur_dir)
-
