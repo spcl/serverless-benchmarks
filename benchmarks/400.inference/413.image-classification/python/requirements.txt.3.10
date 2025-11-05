@@ -1,0 +1,5 @@
+pillow==10.3.0
+https://download.pytorch.org/whl/cpu/torch-1.11.0%2Bcpu-cp310-cp310-linux_x86_64.whl
+torchvision==0.12
+# prevent installing numpy 2.0
+numpy==1.22.0
