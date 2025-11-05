@@ -1,0 +1,7 @@
+matplotlib
+numpy
+pandas
+pygount
+scipy
+cupy-cuda12x
+jax[cuda12]
