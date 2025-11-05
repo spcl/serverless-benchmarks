@@ -10,6 +10,7 @@
 | Multimedia      | 220.video-processing    | Python    | x64, arm64 | Add a watermark and generate gif of a video file. |
 | Utilities      | 311.compression    | Python   | x64, arm64 | Create a .zip file for a group of files in storage and return to user to download. |
 | Inference      | 411.image-recognition    | Python    | x64 | Image recognition with ResNet and pytorch. |
+| Inference      | 412.language-bert    | Python    | x64 | Sentence classification with a compact BERT model served via ONNX Runtime. |
 | Scientific      | 501.graph-pagerank    | Python    | x64, arm64 | PageRank implementation with igraph. |
 | Scientific      | 502.graph-mst    | Python    | x64, arm64 | Minimum spanning tree (MST)  implementation with igraph. |
 | Scientific      | 503.graph-bfs    | Python    | x64, arm64 | Breadth-first search (BFS) implementation with igraph. |
@@ -70,6 +71,10 @@ It implements the .zip file creation with the help of the `shutil` standard libr
 
 The benchmark is inspired by MLPerf and implements image recognition with Resnet50. It downloads the input and model from the storage and uses the CPU-only `pytorch` library in Python.
 
+### Language Inference
+
+This benchmark runs sequence classification with a compact BERT model exported to ONNX. The function downloads the model archive and text samples from storage, tokenizes the sentences, executes the ONNX Runtime session, and returns the predicted labels together with confidences.
+
 ## Scientific
 
 ### Graph PageRank, BFS, MST
@@ -87,4 +92,3 @@ This benchmark is inspired by the [DNAVisualization](https://github.com/Benjamin
 ## Applications
 
 **(WiP)** Coming soon!
-
