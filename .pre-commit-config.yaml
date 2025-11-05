@@ -20,4 +20,11 @@ repos:
         args: ["--config=.black.toml", "--check", "--diff"]
         types: [python]
         files: ^(sebs/|benchmarks/)
+  # - repo: local
+  #   hooks:
+  #     - id: mypy-local
+  #       name: mypy (project venv)
+  #       language: system
+  #       entry: bash -lc 'python -m mypy --config-file=.mypy.ini sebs'
+  #       types: [python]
 
