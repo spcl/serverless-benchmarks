@@ -34,7 +34,7 @@ jobs:
 
       - name: Install Python dependencies (via install.py)
         run: |
-          python3 install.py --aws --azure --gcp --no-local
+          python3 install.py --no-aws --no-azure --no-gcp --no-openwhisk --no-local
 
       - name: Black (check)
         run: |
