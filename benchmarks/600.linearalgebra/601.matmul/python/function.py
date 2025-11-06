@@ -56,7 +56,7 @@ def handler(event):
     return {
         # "result": result[0],
         "measurement": {
-            "graph_generating_time": matrix_generating_time,
+            "generating_time": matrix_generating_time,
             "compute_time": matmul_time,
         },
     }

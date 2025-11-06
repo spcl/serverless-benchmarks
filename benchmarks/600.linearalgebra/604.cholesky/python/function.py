@@ -53,7 +53,7 @@ def handler(event):
 
     return {
         "measurement": {
-            "graph_generating_time": gen_us,
+            "generating_time": gen_us,
             "compute_time": comp_us,
             "gpu_time": gpu_ms,
         }
