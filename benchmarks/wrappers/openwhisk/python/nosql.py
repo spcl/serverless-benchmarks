@@ -5,6 +5,7 @@ from typing import List, Optional, Union, Tuple
 import boto3
 from botocore.client import Config
 
+
 class nosql:
 
     instance: Optional["nosql"] = None
@@ -14,14 +15,14 @@ class nosql:
         if environ["NOSQL_STORAGE_TYPE"] != "scylladb":
             raise RuntimeError(f"Unsupported NoSQL storage type: {environ['NOSQL_STORAGE_TYPE']}!")
 
-        config = Config(connect_timeout=5, retries={'max_attempts': 0})
+        config = Config(connect_timeout=5, retries={"max_attempts": 0})
         self.client = boto3.resource(
             "dynamodb",
             region_name="None",
             aws_access_key_id="None",
             aws_secret_access_key="None",
             endpoint_url=f"http://{environ['NOSQL_STORAGE_ENDPOINT']}",
-            config=config
+            config=config,
         )
         self._tables = {}
 

@@ -15,11 +15,9 @@ class storage:
     @staticmethod
     def unique_name(name):
         name, extension = os.path.splitext(name)
-        return '{name}.{random}{extension}'.format(
-                    name=name,
-                    extension=extension,
-                    random=str(uuid.uuid4()).split('-')[0]
-                )
+        return "{name}.{random}{extension}".format(
+            name=name, extension=extension, random=str(uuid.uuid4()).split("-")[0]
+        )
 
     def upload(self, bucket, file, filepath):
         key_name = storage.unique_name(file)
