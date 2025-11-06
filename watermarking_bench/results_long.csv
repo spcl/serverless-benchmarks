@@ -1,0 +1,136 @@
+trial_index,codec,bitrate,preset,scale_filter,fps,speed_x,frames,compute_time_us,output_size_bytes,stdout_tail,argv
+0,h264_nvenc,5M,p5,,77.0,2.57,600,10411441.0,6064925,"frame=  121 fps= 76 q=12.0 size=     768kB time=00:00:04.13 bitrate=1520.3kbits/s speed= 2.6x    
+frame=  161 fps= 77 q=12.0 size=    1024kB time=00:00:05.48 bitrate=1530.1kbits/s speed=2.62x    
+frame=  201 fps= 77 q=13.0 size=    1536kB time=00:00:06.80 bitrate=1849.0kbits/s speed=2.62x    
+frame=  241 fps= 78 q=12.0 size=    2048kB time=00:00:08.14 bitrate=2058.8kbits/s speed=2.63x    
+frame=  281 fps= 78 q=13.0 size=    2304kB time=00:00:09.47 bitrate=1992.7kbits/s speed=2.63x    
+frame=  321 fps= 78 q=12.0 size=    2816kB time=00:00:10.81 bitrate=2132.9kbits/s speed=2.64x    
+frame=  361 fps= 78 q=12.0 size=    3072kB time=00:00:12.13 bitrate=2073.2kbits/s speed=2.64x    
+frame=  401 fps= 79 q=12.0 size=    3584kB time=00:00:13.48 bitrate=2177.6kbits/s speed=2.64x    
+frame=  441 fps= 79 q=13.0 size=    4096kB time=00:00:14.80 bitrate=2266.4kbits/s speed=2.64x    
+frame=  481 fps= 79 q=13.0 size=    4352kB time=00:00:16.14 bitrate=2207.6kbits/s speed=2.64x    
+frame=  521 fps= 79 q=14.0 size=    4864kB time=00:00:17.47 bitrate=2280.6kbits/s speed=2.64x    
+frame=  561 fps= 79 q=12.0 size=    5120kB time=00:00:18.81 bitrate=2229.1kbits/s speed=2.65x    
+[mp4 @ 0x62a7ce754b00] Starting second pass: moving the moov atom to the beginning of the file
+frame=  600 fps= 77 q=12.0 Lsize=    5923kB time=00:00:19.98 bitrate=2427.3kbits/s speed=2.57x    
+video:5733kB audio:170kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.348635%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 30.0 -c:v h264_nvenc -b:v 5M -preset p5 -rc vbr -movflags +faststart -c:a copy /tmp/tmpzb_ed9aq.mp4
+1,h264_nvenc,5M,p5,,76.0,2.52,600,10294387.0,6064925,"frame=  150 fps= 71 q=12.0 size=    1024kB time=00:00:05.12 bitrate=1638.5kbits/s speed=2.44x    
+frame=  190 fps= 73 q=12.0 size=    1280kB time=00:00:06.44 bitrate=1627.6kbits/s speed=2.48x    
+frame=  230 fps= 74 q=13.0 size=    1792kB time=00:00:07.78 bitrate=1885.3kbits/s speed=2.51x    
+frame=  270 fps= 75 q=9.0 size=    2304kB time=00:00:09.10 bitrate=2072.0kbits/s speed=2.53x    
+frame=  310 fps= 75 q=9.0 size=    2560kB time=00:00:10.45 bitrate=2006.2kbits/s speed=2.54x    
+frame=  350 fps= 76 q=9.0 size=    3072kB time=00:00:11.77 bitrate=2137.1kbits/s speed=2.55x    
+frame=  390 fps= 76 q=9.0 size=    3584kB time=00:00:13.12 bitrate=2237.8kbits/s speed=2.57x    
+frame=  430 fps= 77 q=9.0 size=    3840kB time=00:00:14.44 bitrate=2178.1kbits/s speed=2.57x    
+frame=  470 fps= 77 q=9.0 size=    4352kB time=00:00:15.78 bitrate=2258.4kbits/s speed=2.58x    
+frame=  510 fps= 77 q=9.0 size=    4608kB time=00:00:17.10 bitrate=2206.3kbits/s speed=2.59x    
+frame=  550 fps= 77 q=12.0 size=    5120kB time=00:00:18.45 bitrate=2272.9kbits/s speed=2.59x    
+frame=  590 fps= 77 q=12.0 size=    5632kB time=00:00:19.77 bitrate=2333.0kbits/s speed=2.59x    
+[mp4 @ 0x60d928a16bc0] Starting second pass: moving the moov atom to the beginning of the file
+frame=  600 fps= 76 q=12.0 Lsize=    5923kB time=00:00:19.98 bitrate=2427.3kbits/s speed=2.52x    
+video:5733kB audio:170kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.348635%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 30.0 -c:v h264_nvenc -b:v 5M -preset p5 -rc vbr -movflags +faststart -c:a copy /tmp/tmpy9va1dr6.mp4
+2,h264_nvenc,5M,p5,,77.0,2.57,600,10306400.0,6064925,"frame=  121 fps= 76 q=12.0 size=     768kB time=00:00:04.13 bitrate=1520.3kbits/s speed=2.59x    
+frame=  161 fps= 77 q=12.0 size=    1024kB time=00:00:05.48 bitrate=1530.1kbits/s speed=2.61x    
+frame=  201 fps= 77 q=13.0 size=    1536kB time=00:00:06.80 bitrate=1849.0kbits/s speed=2.62x    
+frame=  241 fps= 78 q=12.0 size=    2048kB time=00:00:08.14 bitrate=2058.8kbits/s speed=2.63x    
+frame=  281 fps= 78 q=13.0 size=    2304kB time=00:00:09.47 bitrate=1992.7kbits/s speed=2.63x    
+frame=  321 fps= 78 q=12.0 size=    2816kB time=00:00:10.81 bitrate=2132.9kbits/s speed=2.63x    
+frame=  361 fps= 78 q=12.0 size=    3072kB time=00:00:12.13 bitrate=2073.2kbits/s speed=2.63x    
+frame=  401 fps= 78 q=12.0 size=    3584kB time=00:00:13.48 bitrate=2177.6kbits/s speed=2.64x    
+frame=  441 fps= 79 q=13.0 size=    4096kB time=00:00:14.80 bitrate=2266.4kbits/s speed=2.64x    
+frame=  481 fps= 79 q=13.0 size=    4352kB time=00:00:16.14 bitrate=2207.6kbits/s speed=2.64x    
+frame=  521 fps= 79 q=14.0 size=    4864kB time=00:00:17.47 bitrate=2280.6kbits/s speed=2.64x    
+frame=  561 fps= 79 q=12.0 size=    5120kB time=00:00:18.81 bitrate=2229.1kbits/s speed=2.64x    
+[mp4 @ 0x5c30462b0640] Starting second pass: moving the moov atom to the beginning of the file
+frame=  600 fps= 77 q=12.0 Lsize=    5923kB time=00:00:19.98 bitrate=2427.3kbits/s speed=2.57x    
+video:5733kB audio:170kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.348635%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 30.0 -c:v h264_nvenc -b:v 5M -preset p5 -rc vbr -movflags +faststart -c:a copy /tmp/tmp8540g4_n.mp4
+3,h264_nvenc,12M,p1,scale_cuda,195.0,6.48,600,5529076.0,8430659,"    Side data:
+      cpb: bitrate max/min/avg: 0/0/12000000 buffer size: 24000000 vbv_delay: N/A
+  Stream #0:1(und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, mono, fltp, 69 kb/s (default)
+    Metadata:
+      handler_name    : SoundHandler
+      vendor_id       : [0][0][0][0]
+frame=    1 fps=0.0 q=0.0 size=       0kB time=00:00:00.12 bitrate=   3.0kbits/s speed=1.48x    
+frame=  102 fps=0.0 q=7.0 size=     768kB time=00:00:03.52 bitrate=1787.5kbits/s speed=5.92x    
+frame=  209 fps=191 q=7.0 size=    2304kB time=00:00:07.08 bitrate=2664.9kbits/s speed=6.46x    
+frame=  290 fps=181 q=7.0 size=    3584kB time=00:00:09.77 bitrate=3005.0kbits/s speed=6.11x    
+frame=  396 fps=188 q=7.0 size=    5120kB time=00:00:13.31 bitrate=3150.8kbits/s speed=6.32x    
+frame=  502 fps=192 q=7.0 size=    6656kB time=00:00:16.85 bitrate=3235.3kbits/s speed=6.46x    
+[mp4 @ 0x587cfb879b80] Starting second pass: moving the moov atom to the beginning of the file
+frame=  600 fps=195 q=7.0 Lsize=    8233kB time=00:00:19.98 bitrate=3374.1kbits/s speed=6.48x    
+video:8045kB audio:170kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.222219%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 30.0 -vf scale_cuda=1920:1080 -c:v h264_nvenc -b:v 12M -preset p1 -rc vbr -movflags +faststart -c:a copy /tmp/tmp5_mf5dkd.mp4
+4,h264_nvenc,12M,p1,scale_cuda,203.0,6.75,600,5264378.0,8430659,"    Side data:
+      cpb: bitrate max/min/avg: 0/0/12000000 buffer size: 24000000 vbv_delay: N/A
+  Stream #0:1(und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, mono, fltp, 69 kb/s (default)
+    Metadata:
+      handler_name    : SoundHandler
+      vendor_id       : [0][0][0][0]
+frame=    1 fps=0.0 q=0.0 size=       0kB time=00:00:00.12 bitrate=   3.0kbits/s speed= 1.5x    
+frame=  102 fps=0.0 q=7.0 size=     768kB time=00:00:03.52 bitrate=1787.5kbits/s speed=5.95x    
+frame=  209 fps=191 q=7.0 size=    2304kB time=00:00:07.08 bitrate=2664.9kbits/s speed=6.48x    
+frame=  315 fps=197 q=7.0 size=    3840kB time=00:00:10.60 bitrate=2967.0kbits/s speed=6.65x    
+frame=  420 fps=200 q=7.0 size=    5376kB time=00:00:14.10 bitrate=3123.1kbits/s speed=6.72x    
+frame=  526 fps=202 q=7.0 size=    6912kB time=00:00:17.64 bitrate=3209.5kbits/s speed=6.79x    
+[mp4 @ 0x64e038e965c0] Starting second pass: moving the moov atom to the beginning of the file
+frame=  600 fps=203 q=7.0 Lsize=    8233kB time=00:00:19.98 bitrate=3374.1kbits/s speed=6.75x    
+video:8045kB audio:170kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.222219%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 30.0 -vf scale_cuda=1920:1080 -c:v h264_nvenc -b:v 12M -preset p1 -rc vbr -movflags +faststart -c:a copy /tmp/tmp7t8tpliz.mp4
+5,h264_nvenc,12M,p1,scale_cuda,203.0,6.75,600,5273983.0,8430659,"    Side data:
+      cpb: bitrate max/min/avg: 0/0/12000000 buffer size: 24000000 vbv_delay: N/A
+  Stream #0:1(und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, mono, fltp, 69 kb/s (default)
+    Metadata:
+      handler_name    : SoundHandler
+      vendor_id       : [0][0][0][0]
+frame=    1 fps=0.0 q=0.0 size=       0kB time=00:00:00.12 bitrate=   3.0kbits/s speed=1.51x    
+frame=  102 fps=0.0 q=7.0 size=     768kB time=00:00:03.52 bitrate=1787.5kbits/s speed=5.95x    
+frame=  209 fps=191 q=7.0 size=    2304kB time=00:00:07.08 bitrate=2664.9kbits/s speed=6.47x    
+frame=  315 fps=197 q=7.0 size=    3840kB time=00:00:10.60 bitrate=2967.0kbits/s speed=6.64x    
+frame=  420 fps=200 q=7.0 size=    5376kB time=00:00:14.10 bitrate=3123.1kbits/s speed=6.72x    
+frame=  526 fps=202 q=7.0 size=    6912kB time=00:00:17.64 bitrate=3209.5kbits/s speed=6.79x    
+[mp4 @ 0x5d9076a76740] Starting second pass: moving the moov atom to the beginning of the file
+frame=  600 fps=203 q=7.0 Lsize=    8233kB time=00:00:19.98 bitrate=3374.1kbits/s speed=6.75x    
+video:8045kB audio:170kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.222219%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 30.0 -vf scale_cuda=1920:1080 -c:v h264_nvenc -b:v 12M -preset p1 -rc vbr -movflags +faststart -c:a copy /tmp/tmpe5tfql7r.mp4
+6,hevc_nvenc,6M,p4,,110.0,3.67,600,7783224.0,6248386,"      vendor_id       : [0][0][0][0]
+frame=    1 fps=0.0 q=0.0 size=       0kB time=00:00:00.12 bitrate=   2.8kbits/s speed=1.52x    
+frame=   55 fps=0.0 q=18.0 size=       0kB time=00:00:01.94 bitrate=   0.2kbits/s speed=3.29x    
+frame=  113 fps=103 q=12.0 size=     768kB time=00:00:03.88 bitrate=1620.5kbits/s speed=3.54x    
+frame=  171 fps=107 q=12.0 size=    1280kB time=00:00:05.80 bitrate=1807.1kbits/s speed=3.63x    
+frame=  229 fps=109 q=12.0 size=    1792kB time=00:00:07.74 bitrate=1895.7kbits/s speed=3.69x    
+frame=  287 fps=110 q=12.0 size=    2560kB time=00:00:09.68 bitrate=2165.3kbits/s speed=3.72x    
+frame=  345 fps=111 q=12.0 size=    3072kB time=00:00:11.60 bitrate=2168.5kbits/s speed=3.74x    
+frame=  403 fps=112 q=12.0 size=    3840kB time=00:00:13.54 bitrate=2322.2kbits/s speed=3.76x    
+frame=  461 fps=112 q=12.0 size=    4352kB time=00:00:15.46 bitrate=2305.1kbits/s speed=3.77x    
+frame=  519 fps=113 q=12.0 size=    5120kB time=00:00:17.40 bitrate=2409.4kbits/s speed=3.78x    
+frame=  577 fps=113 q=12.0 size=    5632kB time=00:00:19.34 bitrate=2384.5kbits/s speed=3.79x    
+[mp4 @ 0x5dbdbab92440] Starting second pass: moving the moov atom to the beginning of the file
+frame=  600 fps=110 q=12.0 Lsize=    6102kB time=00:00:19.98 bitrate=2500.7kbits/s speed=3.67x    
+video:5912kB audio:170kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.339750%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 30.0 -c:v hevc_nvenc -b:v 6M -preset p4 -rc vbr -movflags +faststart -c:a copy /tmp/tmph3v5xk4u.mp4
+7,hevc_nvenc,6M,p4,,110.0,3.67,600,7939115.0,6248386,"      vendor_id       : [0][0][0][0]
+frame=    1 fps=0.0 q=0.0 size=       0kB time=00:00:00.12 bitrate=   2.8kbits/s speed=1.49x    
+frame=   55 fps=0.0 q=18.0 size=       0kB time=00:00:01.94 bitrate=   0.2kbits/s speed=3.28x    
+frame=  113 fps=103 q=12.0 size=     768kB time=00:00:03.88 bitrate=1620.5kbits/s speed=3.54x    
+frame=  171 fps=107 q=12.0 size=    1280kB time=00:00:05.80 bitrate=1807.1kbits/s speed=3.63x    
+frame=  229 fps=109 q=12.0 size=    1792kB time=00:00:07.74 bitrate=1895.7kbits/s speed=3.68x    
+frame=  287 fps=110 q=12.0 size=    2560kB time=00:00:09.68 bitrate=2165.3kbits/s speed=3.72x    
+frame=  345 fps=111 q=12.0 size=    3072kB time=00:00:11.60 bitrate=2168.5kbits/s speed=3.74x    
+frame=  403 fps=112 q=12.0 size=    3840kB time=00:00:13.54 bitrate=2322.2kbits/s speed=3.76x    
+frame=  461 fps=112 q=12.0 size=    4352kB time=00:00:15.46 bitrate=2305.1kbits/s speed=3.76x    
+frame=  519 fps=113 q=12.0 size=    5120kB time=00:00:17.40 bitrate=2409.4kbits/s speed=3.77x    
+frame=  577 fps=113 q=12.0 size=    5632kB time=00:00:19.34 bitrate=2384.5kbits/s speed=3.78x    
+[mp4 @ 0x56aa54a3cb00] Starting second pass: moving the moov atom to the beginning of the file
+frame=  600 fps=110 q=12.0 Lsize=    6102kB time=00:00:19.98 bitrate=2500.7kbits/s speed=3.67x    
+video:5912kB audio:170kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.339750%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 30.0 -c:v hevc_nvenc -b:v 6M -preset p4 -rc vbr -movflags +faststart -c:a copy /tmp/tmpbo93lv7k.mp4
+8,hevc_nvenc,6M,p4,,110.0,3.67,600,8011795.0,6248386,"      vendor_id       : [0][0][0][0]
+frame=    1 fps=0.0 q=0.0 size=       0kB time=00:00:00.12 bitrate=   2.8kbits/s speed=1.51x    
+frame=   55 fps=0.0 q=18.0 size=       0kB time=00:00:01.94 bitrate=   0.2kbits/s speed=3.28x    
+frame=  113 fps=103 q=12.0 size=     768kB time=00:00:03.88 bitrate=1620.5kbits/s speed=3.54x    
+frame=  171 fps=107 q=12.0 size=    1280kB time=00:00:05.80 bitrate=1807.1kbits/s speed=3.63x    
+frame=  229 fps=109 q=12.0 size=    1792kB time=00:00:07.74 bitrate=1895.7kbits/s speed=3.69x    
+frame=  287 fps=110 q=12.0 size=    2560kB time=00:00:09.68 bitrate=2165.3kbits/s speed=3.72x    
+frame=  345 fps=111 q=12.0 size=    3072kB time=00:00:11.60 bitrate=2168.5kbits/s speed=3.74x    
+frame=  403 fps=112 q=12.0 size=    3840kB time=00:00:13.54 bitrate=2322.2kbits/s speed=3.76x    
+frame=  461 fps=112 q=12.0 size=    4352kB time=00:00:15.46 bitrate=2305.1kbits/s speed=3.76x    
+frame=  519 fps=113 q=12.0 size=    5120kB time=00:00:17.40 bitrate=2409.4kbits/s speed=3.78x    
+frame=  577 fps=113 q=12.0 size=    5632kB time=00:00:19.34 bitrate=2384.5kbits/s speed=3.78x    
+[mp4 @ 0x55882f1e1400] Starting second pass: moving the moov atom to the beginning of the file
+frame=  600 fps=110 q=12.0 Lsize=    6102kB time=00:00:19.98 bitrate=2500.7kbits/s speed=3.67x    
+video:5912kB audio:170kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.339750%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 30.0 -c:v hevc_nvenc -b:v 6M -preset p4 -rc vbr -movflags +faststart -c:a copy /tmp/tmpehv_nft4.mp4

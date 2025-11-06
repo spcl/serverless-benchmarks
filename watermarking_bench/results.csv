@@ -1,0 +1,46 @@
+trial_index,codec,bitrate,preset,scale_filter,fps,speed_x,frames,compute_time_us,output_size_bytes,stdout_tail,argv
+0,h264_nvenc,5M,p5,,73.0,2.44,240,5879259.0,2272623,"    Side data:
+      cpb: bitrate max/min/avg: 0/0/5000000 buffer size: 10000000 vbv_delay: N/A
+  Stream #0:1(und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, mono, fltp, 69 kb/s (default)
+    Metadata:
+      handler_name    : SoundHandler
+      vendor_id       : [0][0][0][0]
+frame=    1 fps=0.0 q=0.0 size=       0kB time=00:00:00.12 bitrate=   3.0kbits/s speed=1.44x    
+frame=   41 fps=0.0 q=22.0 size=       0kB time=00:00:01.47 bitrate=   0.3kbits/s speed=2.49x    
+frame=   81 fps= 74 q=12.0 size=     256kB time=00:00:02.81 bitrate= 744.9kbits/s speed=2.58x    
+frame=  121 fps= 76 q=12.0 size=     768kB time=00:00:04.13 bitrate=1520.3kbits/s speed=2.59x    
+frame=  161 fps= 77 q=12.0 size=    1024kB time=00:00:05.48 bitrate=1530.1kbits/s speed=2.61x    
+frame=  201 fps= 77 q=13.0 size=    1536kB time=00:00:06.80 bitrate=1849.0kbits/s speed=2.62x    
+[mp4 @ 0x601c5da3d280] Starting second pass: moving the moov atom to the beginning of the file
+frame=  240 fps= 73 q=13.0 Lsize=    2219kB time=00:00:07.97 bitrate=2278.7kbits/s speed=2.44x    
+video:2142kB audio:68kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.409259%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 8.0 -c:v h264_nvenc -b:v 5M -preset p5 -rc vbr -movflags +faststart -c:a copy /tmp/tmpy5hxojjv.mp4
+1,h264_nvenc,12M,p1,scale_cuda,191.0,6.34,240,3748632.0,3041922,"      handler_name    : VideoHandler
+      vendor_id       : [0][0][0][0]
+      encoder         : Lavc58.134.100 h264_nvenc
+    Side data:
+      cpb: bitrate max/min/avg: 0/0/12000000 buffer size: 24000000 vbv_delay: N/A
+  Stream #0:1(und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, mono, fltp, 69 kb/s (default)
+    Metadata:
+      handler_name    : SoundHandler
+      vendor_id       : [0][0][0][0]
+frame=    1 fps=0.0 q=0.0 size=       0kB time=00:00:00.12 bitrate=   3.0kbits/s speed=1.51x    
+frame=  102 fps=0.0 q=7.0 size=     768kB time=00:00:03.52 bitrate=1787.5kbits/s speed=5.93x    
+frame=  209 fps=191 q=7.0 size=    2304kB time=00:00:07.08 bitrate=2664.9kbits/s speed=6.46x    
+[mp4 @ 0x5c6c573cf740] Starting second pass: moving the moov atom to the beginning of the file
+frame=  240 fps=191 q=7.0 Lsize=    2971kB time=00:00:07.97 bitrate=3050.1kbits/s speed=6.34x    
+video:2895kB audio:68kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.274427%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 8.0 -vf scale_cuda=1920:1080 -c:v h264_nvenc -b:v 12M -preset p1 -rc vbr -movflags +faststart -c:a copy /tmp/tmp68ay0l6q.mp4
+2,hevc_nvenc,6M,p4,,101.0,3.37,240,4821593.0,2393406,"      encoder         : Lavc58.134.100 hevc_nvenc
+    Side data:
+      cpb: bitrate max/min/avg: 0/0/6000000 buffer size: 12000000 vbv_delay: N/A
+  Stream #0:1(und): Audio: aac (LC) (mp4a / 0x6134706D), 48000 Hz, mono, fltp, 69 kb/s (default)
+    Metadata:
+      handler_name    : SoundHandler
+      vendor_id       : [0][0][0][0]
+frame=    1 fps=0.0 q=0.0 size=       0kB time=00:00:00.12 bitrate=   2.8kbits/s speed=1.18x    
+frame=   52 fps=0.0 q=17.0 size=       0kB time=00:00:01.83 bitrate=   0.2kbits/s speed=2.98x    
+frame=  110 fps= 98 q=12.0 size=     512kB time=00:00:03.77 bitrate=1110.9kbits/s speed=3.36x    
+frame=  168 fps=103 q=9.0 size=    1280kB time=00:00:05.71 bitrate=1834.1kbits/s speed=3.52x    
+frame=  226 fps=106 q=12.0 size=    1792kB time=00:00:07.63 bitrate=1922.2kbits/s speed=3.59x    
+[mp4 @ 0x62016db565c0] Starting second pass: moving the moov atom to the beginning of the file
+frame=  240 fps=101 q=12.0 Lsize=    2337kB time=00:00:07.97 bitrate=2399.8kbits/s speed=3.37x    
+video:2260kB audio:68kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.392147%",/usr/bin/ffmpeg -hide_banner -y -vsync 0 -hwaccel cuda -hwaccel_output_format cuda -extra_hw_frames 16 -init_hw_device cuda=cuda -filter_hw_device cuda -i ./sample.mp4 -t 8.0 -c:v hevc_nvenc -b:v 6M -preset p4 -rc vbr -movflags +faststart -c:a copy /tmp/tmpkjy5g24f.mp4
