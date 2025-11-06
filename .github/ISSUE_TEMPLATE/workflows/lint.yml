@@ -1,0 +1,55 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linting:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: python-venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}-${{ github.ref_name }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}-
+            venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Install Python dependencies (via install.py)
+        run: |
+          python3 install.py --aws --azure --gcp --no-local
+
+      - name: Black (check)
+        run: |
+          . python-venv/bin/activate
+          black benchmarks --check --config .black.toml
+
+      - name: Flake8 (lint)
+        run: |
+          . python-venv/bin/activate
+          # write to file and echo to stdout (requires flake8 with --tee support)
+          flake8 benchmarks --config=.flake8.cfg --tee --output-file flake-reports
+
+      - name: Upload flake report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flake-reports
+          path: flake-reports
