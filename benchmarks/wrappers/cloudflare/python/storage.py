@@ -45,9 +45,12 @@ class storage:
     def download(self, __bucket, key, filepath):
         data = self.download_stream(__bucket, key)
         # should only allow writes to tmp dir. so do have to edit the filepath here?
-        tmp_fp = "/tmp" + os.path.abspath(filepath)
+        real_fp = filepath
+        if not filepath.startswith("/tmp"):
+            real_fp = "/tmp" + os.path.abspath(filepath)
+        
         self.written_files.append(filepath)
-        with open(tmp_fp, "wb") as f:
+        with open(real_fp, "wb") as f:
             f.write(data)
         return
 
