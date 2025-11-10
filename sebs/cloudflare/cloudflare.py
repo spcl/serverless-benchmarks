@@ -457,226 +457,107 @@ class Cloudflare(System):
         metrics: dict,
     ):
         """
-        Download per-invocation metrics from Cloudflare Analytics Engine.
+        Extract per-invocation metrics from ExecutionResult objects.
         
-        Queries Analytics Engine SQL API to retrieve performance data for each
-        invocation and enriches the ExecutionResult objects with provider metrics.
-        
-        Note: Requires Analytics Engine binding to be configured on the worker
-        and benchmark code to write data points during execution.
+        The metrics are extracted from the 'measurement' field in the benchmark
+        response, which is populated by the Cloudflare Worker handler during execution.
+        This approach avoids dependency on Analytics Engine and provides immediate,
+        accurate metrics for each invocation.
         
         Args:
             function_name: Name of the worker
-            start_time: Start time (Unix timestamp in seconds)
-            end_time: End time (Unix timestamp in seconds)
+            start_time: Start time (Unix timestamp in seconds) - not used
+            end_time: End time (Unix timestamp in seconds) - not used
             requests: Dict mapping request_id -> ExecutionResult
             metrics: Dict to store aggregated metrics
         """
         if not requests:
-            self.logging.warning("No requests to download metrics for")
-            return
-        
-        account_id = self.config.credentials.account_id
-        if not account_id:
-            self.logging.error("Account ID required to download metrics")
+            self.logging.warning("No requests to extract metrics from")
             return
         
         self.logging.info(
-            f"Downloading Analytics Engine metrics for {len(requests)} invocations "
+            f"Extracting metrics from {len(requests)} invocations "
             f"of worker {function_name}"
         )
         
-        try:
-            # Query Analytics Engine for per-invocation metrics
-            metrics_data = self._query_analytics_engine(
-                account_id, start_time, end_time, function_name
-            )
-            
-            if not metrics_data:
-                self.logging.warning(
-                    "No metrics data returned from Analytics Engine. "
-                    "Ensure the worker has Analytics Engine binding configured "
-                    "and is writing data points during execution."
-                )
-                return
-            
-            # Match metrics with invocation requests
-            matched = 0
-            unmatched_metrics = 0
-            
-            for row in metrics_data:
-                request_id = row.get('request_id')
-                
-                if request_id and request_id in requests:
-                    result = requests[request_id]
-                    
-                    # Populate provider times (convert ms to microseconds)
-                    wall_time_ms = row.get('wall_time_ms', 0)
-                    cpu_time_ms = row.get('cpu_time_ms', 0)
-                    
-                    result.provider_times.execution = int(cpu_time_ms * 1000)  # μs
-                    result.provider_times.initialization = 0  # Not separately tracked
-                    
-                    # Populate stats
-                    result.stats.cold_start = (row.get('cold_warm') == 'cold')
-                    result.stats.memory_used = 128.0  # Cloudflare Workers: fixed 128MB
-                    
-                    # Populate billing info
-                    # Cloudflare billing: $0.50 per million requests + 
-                    # $12.50 per million GB-seconds of CPU time
-                    result.billing.memory = 128
-                    result.billing.billed_time = int(cpu_time_ms * 1000)  # μs
-                    
-                    # GB-seconds calculation: (128MB / 1024MB/GB) * (cpu_time_ms / 1000ms/s)
-                    gb_seconds = (128.0 / 1024.0) * (cpu_time_ms / 1000.0)
-                    result.billing.gb_seconds = int(gb_seconds * 1000000)  # micro GB-seconds
-                    
-                    matched += 1
-                elif request_id:
-                    unmatched_metrics += 1
-            
-            # Calculate statistics from matched metrics
-            if matched > 0:
-                cpu_times = [
-                    requests[rid].provider_times.execution 
-                    for rid in requests 
-                    if requests[rid].provider_times.execution > 0
-                ]
-                cold_starts = sum(
-                    1 for rid in requests if requests[rid].stats.cold_start
-                )
-                
-                metrics['cloudflare'] = {
-                    'total_invocations': len(metrics_data),
-                    'matched_invocations': matched,
-                    'unmatched_invocations': len(requests) - matched,
-                    'unmatched_metrics': unmatched_metrics,
-                    'cold_starts': cold_starts,
-                    'warm_starts': matched - cold_starts,
-                    'data_source': 'analytics_engine',
-                    'note': 'Per-invocation metrics from Analytics Engine'
-                }
-                
-                if cpu_times:
-                    metrics['cloudflare']['avg_cpu_time_us'] = sum(cpu_times) // len(cpu_times)
-                    metrics['cloudflare']['min_cpu_time_us'] = min(cpu_times)
-                    metrics['cloudflare']['max_cpu_time_us'] = max(cpu_times)
-            
-            self.logging.info(
-                f"Analytics Engine metrics: matched {matched}/{len(requests)} invocations"
-            )
-            
-            if matched < len(requests):
-                missing = len(requests) - matched
-                self.logging.warning(
-                    f"{missing} invocations not found in Analytics Engine. "
-                    "This may be due to:\n"
-                    "  - Analytics Engine ingestion delay (typically <60s)\n"
-                    "  - Worker not writing data points correctly\n"
-                    "  - Analytics Engine binding not configured"
-                )
-            
-            if unmatched_metrics > 0:
-                self.logging.warning(
-                    f"{unmatched_metrics} metrics found in Analytics Engine "
-                    "that don't match tracked request IDs (possibly from other sources)"
-                )
+        # Aggregate statistics from all requests
+        total_invocations = len(requests)
+        cold_starts = 0
+        warm_starts = 0
+        cpu_times = []
+        wall_times = []
+        memory_values = []
         
-        except Exception as e:
-            self.logging.error(f"Failed to download metrics: {e}")
-            self.logging.warning(
-                "Continuing without Analytics Engine metrics. "
-                "Client-side timing data is still available."
-            )
-
-    def _query_analytics_engine(
-        self, 
-        account_id: str, 
-        start_time: int, 
-        end_time: int,
-        script_name: str
-    ) -> List[dict]:
-        """
-        Query Analytics Engine SQL API for worker metrics.
-        
-        Retrieves per-invocation metrics written by the worker during execution.
-        The worker must write data points with the following schema:
-        - index1: request_id (unique identifier)
-        - index2: cold_warm ("cold" or "warm")
-        - double1: wall_time_ms (wall clock time in milliseconds)
-        - double2: cpu_time_ms (CPU time in milliseconds)
-        - blob1: url (request URL)
-        - blob2: status ("success" or "error")
-        - blob3: error_message (if applicable)
-        
-        Args:
-            account_id: Cloudflare account ID
-            start_time: Unix timestamp (seconds)
-            end_time: Unix timestamp (seconds)
-            script_name: Worker script name
-            
-        Returns:
-            List of metric data points, one per invocation
-        """
-        headers = self._get_auth_headers()
-        url = f"{self._api_base_url}/accounts/{account_id}/analytics_engine/sql"
-        
-        # Convert Unix timestamps to DateTime format for ClickHouse
-        from datetime import datetime
-        start_dt = datetime.utcfromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S')
-        end_dt = datetime.utcfromtimestamp(end_time).strftime('%Y-%m-%d %H:%M:%S')
-        
-        # SQL query for Analytics Engine
-        # Note: Analytics Engine uses ClickHouse SQL syntax
-        sql_query = f"""
-        SELECT 
-          index1 as request_id,
-          index2 as cold_warm,
-          double1 as wall_time_ms,
-          double2 as cpu_time_ms,
-          blob1 as url,
-          blob2 as status,
-          blob3 as error_message,
-          timestamp
-        FROM ANALYTICS_DATASET
-        WHERE timestamp >= toDateTime('{start_dt}')
-          AND timestamp <= toDateTime('{end_dt}')
-          AND blob1 LIKE '%{script_name}%'
-        ORDER BY timestamp ASC
-        """
-        
-        try:
-            # Analytics Engine SQL API returns newline-delimited JSON
-            response = requests.post(
-                url, 
-                headers=headers, 
-                data=sql_query,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                # Parse newline-delimited JSON response
-                results = []
-                for line in response.text.strip().split('\n'):
-                    if line:
-                        try:
-                            results.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            self.logging.warning(f"Failed to parse Analytics Engine line: {line}")
-                
-                self.logging.info(f"Retrieved {len(results)} data points from Analytics Engine")
-                return results
+        for request_id, result in requests.items():
+            # Count cold/warm starts
+            if result.stats.cold_start:
+                cold_starts += 1
             else:
-                raise RuntimeError(
-                    f"Analytics Engine query failed: {response.status_code} - {response.text}"
-                )
+                warm_starts += 1
+            
+            # Collect CPU times
+            if result.provider_times.execution > 0:
+                cpu_times.append(result.provider_times.execution)
+            
+            # Collect wall times (benchmark times)
+            if result.times.benchmark > 0:
+                wall_times.append(result.times.benchmark)
+            
+            # Collect memory usage
+            if result.stats.memory_used > 0:
+                memory_values.append(result.stats.memory_used)
+            
+            # Set billing info for Cloudflare Workers
+            # Cloudflare billing: $0.50 per million requests + 
+            # $12.50 per million GB-seconds of CPU time
+            if result.provider_times.execution > 0:
+                result.billing.memory = 128  # Cloudflare Workers: fixed 128MB
+                result.billing.billed_time = result.provider_times.execution  # μs
+                
+                # GB-seconds calculation: (128MB / 1024MB/GB) * (cpu_time_us / 1000000 us/s)
+                cpu_time_seconds = result.provider_times.execution / 1_000_000.0
+                gb_seconds = (128.0 / 1024.0) * cpu_time_seconds
+                result.billing.gb_seconds = int(gb_seconds * 1_000_000)  # micro GB-seconds
         
-        except requests.exceptions.Timeout:
-            self.logging.error("Analytics Engine query timed out")
-            return []
-        except Exception as e:
-            self.logging.error(f"Analytics Engine query error: {e}")
-            return []
+        # Calculate statistics
+        metrics['cloudflare'] = {
+            'total_invocations': total_invocations,
+            'cold_starts': cold_starts,
+            'warm_starts': warm_starts,
+            'data_source': 'response_measurements',
+            'note': 'Per-invocation metrics extracted from benchmark response'
+        }
+        
+        if cpu_times:
+            metrics['cloudflare']['avg_cpu_time_us'] = sum(cpu_times) // len(cpu_times)
+            metrics['cloudflare']['min_cpu_time_us'] = min(cpu_times)
+            metrics['cloudflare']['max_cpu_time_us'] = max(cpu_times)
+            metrics['cloudflare']['cpu_time_measurements'] = len(cpu_times)
+        
+        if wall_times:
+            metrics['cloudflare']['avg_wall_time_us'] = sum(wall_times) // len(wall_times)
+            metrics['cloudflare']['min_wall_time_us'] = min(wall_times)
+            metrics['cloudflare']['max_wall_time_us'] = max(wall_times)
+            metrics['cloudflare']['wall_time_measurements'] = len(wall_times)
+        
+        if memory_values:
+            metrics['cloudflare']['avg_memory_mb'] = sum(memory_values) / len(memory_values)
+            metrics['cloudflare']['min_memory_mb'] = min(memory_values)
+            metrics['cloudflare']['max_memory_mb'] = max(memory_values)
+            metrics['cloudflare']['memory_measurements'] = len(memory_values)
+        
+        self.logging.info(
+            f"Extracted metrics from {total_invocations} invocations: "
+            f"{cold_starts} cold starts, {warm_starts} warm starts"
+        )
+        
+        if cpu_times:
+            avg_cpu_ms = sum(cpu_times) / len(cpu_times) / 1000.0
+            self.logging.info(f"Average CPU time: {avg_cpu_ms:.2f} ms")
+        
+        if wall_times:
+            avg_wall_ms = sum(wall_times) / len(wall_times) / 1000.0
+            self.logging.info(f"Average wall time: {avg_wall_ms:.2f} ms")
 
     def create_trigger(
         self, function: Function, trigger_type: Trigger.TriggerType
