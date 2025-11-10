@@ -6,7 +6,7 @@ from sebs.faas.storage import PersistentStorage
 from sebs.faas.config import Resources
 from sebs.cache import Cache
 
-
+from typing import List, Optional
 class R2(PersistentStorage):
     @staticmethod
     def typename() -> str:

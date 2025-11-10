@@ -75,12 +75,34 @@ class Cloudflare(System):
 
     def _verify_credentials(self):
         """Verify that the Cloudflare API credentials are valid."""
+        # Check if credentials are set
+        if not self.config.credentials.api_token and not (self.config.credentials.email and self.config.credentials.api_key):
+            raise RuntimeError(
+                "Cloudflare API credentials are not set. Please set CLOUDFLARE_API_TOKEN "
+                "and CLOUDFLARE_ACCOUNT_ID environment variables."
+            )
+        
+        if not self.config.credentials.account_id:
+            raise RuntimeError(
+                "Cloudflare Account ID is not set. Please set CLOUDFLARE_ACCOUNT_ID "
+                "environment variable."
+            )
+        
         headers = self._get_auth_headers()
+        
+        # Log credential type being used (without exposing the actual token)
+        if self.config.credentials.api_token:
+            token_preview = self.config.credentials.api_token[:8] + "..." if len(self.config.credentials.api_token) > 8 else "***"
+            self.logging.info(f"Using API Token authentication (starts with: {token_preview})")
+        else:
+            self.logging.info(f"Using Email + API Key authentication (email: {self.config.credentials.email})")
+        
         response = requests.get(f"{self._api_base_url}/user/tokens/verify", headers=headers)
         
         if response.status_code != 200:
             raise RuntimeError(
-                f"Failed to verify Cloudflare credentials: {response.status_code} - {response.text}"
+                f"Failed to verify Cloudflare credentials: {response.status_code} - {response.text}\n"
+                f"Please check that your CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are correct."
             )
         
         self.logging.info("Cloudflare credentials verified successfully")

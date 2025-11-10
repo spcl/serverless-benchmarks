@@ -450,7 +450,29 @@
           "packages": [],
           "module_packages": {}
         }
+      },
+      "nodejs": {
+        "base_images": {
+          "x64": {
+            "18": "ubuntu:22.04",
+            "20": "ubuntu:22.04"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "handler.js",
+            "storage.js"
+          ],
+          "packages": {
+            "uuid": "3.4.0"
+          }
+        }
       }
-    }
+    },
+    "architecture": ["x64"],
+    "deployments": ["package"]
   }
 }

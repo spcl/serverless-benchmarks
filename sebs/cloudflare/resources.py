@@ -28,8 +28,9 @@ class CloudflareSystemResources(SystemResources):
         docker_client: docker.client,
         logging_handlers: LoggingHandlers,
     ):
-        super().__init__(config, cache_client, docker_client, logging_handlers)
+        super().__init__(config, cache_client, docker_client)
         self._config = config
+        self.logging_handlers = logging_handlers
 
     @property
     def config(self) -> CloudflareConfig:
