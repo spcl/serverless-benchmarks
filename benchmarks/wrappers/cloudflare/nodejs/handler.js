@@ -53,6 +53,10 @@ export default {
         return new Response('None');
       }
 
+    // Start timing measurements
+    const begin = Date.now() / 1000;
+    const start = performance.now();
+
     const req_text = await request.text();
     let event = {};
     if (req_text && req_text.length > 0) {
@@ -126,11 +130,17 @@ export default {
         throw new Error('benchmark handler function not found');
       }
     } catch (err) {
+      // Calculate timing even for errors
+      const end = Date.now() / 1000;
+      const elapsed = performance.now() - start;
+      const micro = elapsed * 1000; // Convert milliseconds to microseconds
+      
       // Mirror Python behavior: return structured error payload
       const errorPayload = JSON.stringify({
-        begin: '0',
-        end: '0',
-        results_time: '0',
+        begin: begin,
+        end: end,
+        compute_time: micro,
+        results_time: 0,
         result: { output: null },
         is_cold: false,
         is_cold_worker: false,
@@ -141,6 +151,11 @@ export default {
       });
       return new Response(errorPayload, { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
+
+    // Calculate elapsed time
+    const end = Date.now() / 1000;
+    const elapsed = performance.now() - start;
+    const micro = elapsed * 1000; // Convert milliseconds to microseconds
 
     // Build log_data similar to Python handler
     const log_data = { output: ret && ret.result !== undefined ? ret.result : ret };
@@ -158,9 +173,10 @@ export default {
     }
 
     const responseBody = JSON.stringify({
-      begin: '0',
-      end: '0',
-      results_time: '0',
+      begin: begin,
+      end: end,
+      compute_time: micro,
+      results_time: 0,
       result: log_data,
       is_cold: false,
       is_cold_worker: false,
@@ -172,10 +188,26 @@ export default {
     return new Response(responseBody, { headers: { 'Content-Type': 'application/json' } });
     } catch (topLevelError) {
       // Catch any uncaught errors (module loading, syntax errors, etc.)
+      // Try to include timing if available
+      let errorBegin = 0;
+      let errorEnd = 0;
+      let errorMicro = 0;
+      try {
+        errorEnd = Date.now() / 1000;
+        if (typeof begin !== 'undefined' && typeof start !== 'undefined') {
+          errorBegin = begin;
+          const elapsed = performance.now() - start;
+          errorMicro = elapsed * 1000;
+        }
+      } catch (e) {
+        // Ignore timing errors in error handler
+      }
+      
       const errorPayload = JSON.stringify({
-        begin: '0',
-        end: '0',
-        results_time: '0',
+        begin: errorBegin,
+        end: errorEnd,
+        compute_time: errorMicro,
+        results_time: 0,
         result: { output: null },
         is_cold: false,
         is_cold_worker: false,
