@@ -453,7 +453,7 @@ class AWS(System):
         code_files = list(code_package.get_code_files(include_config=False))
         func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
         funcs = [
-            self.create_function(code_package, workflow_name + "___" + fn) for fn in func_names
+            self.create_function(code_package, workflow_name + "___" + fn, code_package.container_deployment,code_package.container_uri if code_package.container_deployment else None) for fn in func_names
         ]
 
         # Generate workflow definition.json
