@@ -11,7 +11,8 @@ class LibraryTrigger(Trigger):
     """
     
     def __init__(self, worker_name: str, deployment_client=None):
-        super().__init__(worker_name)
+        super().__init__()
+        self.worker_name = worker_name
         self.deployment_client = deployment_client
 
     @staticmethod
@@ -43,11 +44,17 @@ class LibraryTrigger(Trigger):
         raise NotImplementedError("Cloudflare Workers do not support async invocation")
 
     def serialize(self) -> dict:
-        return {**super().serialize()}
+        """Serialize the LibraryTrigger."""
+        return {
+            "type": self.typename(),
+            "worker_name": self.worker_name,
+        }
 
     @staticmethod
-    def deserialize(obj: dict) -> "LibraryTrigger":
-        return LibraryTrigger(obj["name"])
+    def deserialize(cached_config: dict) -> "LibraryTrigger":
+        """Deserialize a LibraryTrigger from cached config."""
+        from sebs.cloudflare.triggers import LibraryTrigger
+        return LibraryTrigger(cached_config["worker_name"])
 
 
 class HTTPTrigger(Trigger):
@@ -57,7 +64,8 @@ class HTTPTrigger(Trigger):
     """
     
     def __init__(self, worker_name: str, url: Optional[str] = None):
-        super().__init__(worker_name)
+        super().__init__()
+        self.worker_name = worker_name
         self._url = url
 
     @staticmethod
@@ -135,13 +143,12 @@ class HTTPTrigger(Trigger):
 
     def serialize(self) -> dict:
         return {
-            **super().serialize(),
+            "type": self.typename(),
+            "worker_name": self.worker_name,
             "url": self._url,
         }
 
     @staticmethod
     def deserialize(obj: dict) -> "HTTPTrigger":
-        trigger = HTTPTrigger(obj["name"])
-        if "url" in obj:
-            trigger.url = obj["url"]
+        trigger = HTTPTrigger(obj["worker_name"], obj.get("url"))
         return trigger

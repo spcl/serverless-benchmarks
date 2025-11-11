@@ -1,6 +1,8 @@
 import os
 import shutil
 import json
+import uuid
+import subprocess
 from typing import cast, Dict, List, Optional, Tuple, Type
 
 import docker
@@ -15,6 +17,7 @@ from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.system import System
+from sebs.faas.config import Resources
 
 
 class Cloudflare(System):
@@ -60,6 +63,10 @@ class Cloudflare(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._api_base_url = "https://api.cloudflare.com/client/v4"
+        # cached workers.dev subdomain for the account (e.g. 'marcin-copik')
+        # This is different from the account ID and is required to build
+        # public worker URLs like <name>.<subdomain>.workers.dev
+        self._workers_dev_subdomain: Optional[str] = None
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         """
@@ -72,6 +79,45 @@ class Cloudflare(System):
         # Verify credentials are valid
         self._verify_credentials()
         self.initialize_resources(select_prefix=resource_prefix)
+    
+    def initialize_resources(self, select_prefix: Optional[str] = None):
+        """
+        Initialize Cloudflare resources.
+        
+        Overrides the base class method to handle R2 storage gracefully.
+        Cloudflare Workers can operate without R2 storage for many benchmarks.
+        
+        Args:
+            select_prefix: Optional prefix for resource naming
+        """
+        deployments = self.find_deployments()
+
+        # Check if we have an existing deployment
+        if deployments:
+            res_id = deployments[0]
+            self.config.resources.resources_id = res_id
+            self.logging.info(f"Using existing resource deployment {res_id}")
+            return
+
+        # Create new resource ID
+        if select_prefix is not None:
+            res_id = f"{select_prefix}-{str(uuid.uuid1())[0:8]}"
+        else:
+            res_id = str(uuid.uuid1())[0:8]
+        
+        self.config.resources.resources_id = res_id
+        self.logging.info(f"Generating unique resource name {res_id}")
+        
+        # Try to create R2 bucket, but don't fail if R2 is not enabled
+        try:
+            self.system_resources.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
+            self.logging.info("R2 storage initialized successfully")
+        except Exception as e:
+            self.logging.warning(
+                f"R2 storage initialization failed: {e}. "
+                f"R2 must be enabled in your Cloudflare dashboard to use storage-dependent benchmarks. "
+                f"Continuing without R2 storage - only benchmarks that don't require storage will work."
+            )
 
     def _verify_credentials(self):
         """Verify that the Cloudflare API credentials are valid."""
@@ -107,6 +153,117 @@ class Cloudflare(System):
         
         self.logging.info("Cloudflare credentials verified successfully")
 
+    def _ensure_wrangler_installed(self):
+        """Ensure Wrangler CLI is installed and available."""
+        try:
+            result = subprocess.run(
+                ["wrangler", "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10
+            )
+            version = result.stdout.strip()
+            self.logging.info(f"Wrangler is installed: {version}")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.logging.info("Wrangler not found, installing globally via npm...")
+            try:
+                result = subprocess.run(
+                    ["npm", "install", "-g", "wrangler"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=120
+                )
+                self.logging.info("Wrangler installed successfully")
+                if result.stdout:
+                    self.logging.debug(f"npm install wrangler output: {result.stdout}")
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"Failed to install Wrangler: {e.stderr}")
+            except FileNotFoundError:
+                raise RuntimeError(
+                    "npm not found. Please install Node.js and npm to use Wrangler for deployment."
+                )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Wrangler version check timed out")
+
+    def _generate_wrangler_toml(self, worker_name: str, package_dir: str, language: str, account_id: str, benchmark_name: Optional[str] = None) -> str:
+        """
+        Generate a wrangler.toml configuration file for the worker.
+        
+        Args:
+            worker_name: Name of the worker
+            package_dir: Directory containing the worker code
+            language: Programming language (nodejs or python)
+            account_id: Cloudflare account ID
+            benchmark_name: Optional benchmark name for R2 file path prefix
+            
+        Returns:
+            Path to the generated wrangler.toml file
+        """
+        main_file = "handler.js" if language == "nodejs" else "handler.py"
+        
+        # Build wrangler.toml content
+        toml_content = f"""name = "{worker_name}"
+main = "{main_file}"
+compatibility_date = "2024-11-01"
+account_id = "{account_id}"
+
+"""
+        
+        # Add environment variable for benchmark name (used by fs-polyfill for R2 paths)
+        if benchmark_name:
+            toml_content += f"""# Benchmark name used for R2 file path prefix
+[vars]
+BENCHMARK_NAME = "{benchmark_name}"
+
+"""
+        
+        # Add R2 bucket binding for benchmarking files (required for fs/path polyfills)
+        r2_bucket_configured = False
+        try:
+            storage = self.system_resources.get_storage()
+            bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+            if bucket_name:
+                toml_content += f"""# R2 bucket binding for benchmarking files
+# This bucket is used by fs and path polyfills to read benchmark data
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "{bucket_name}"
+
+"""
+                r2_bucket_configured = True
+                self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
+        except Exception as e:
+            self.logging.warning(
+                f"R2 bucket binding not configured: {e}. "
+                f"Benchmarks requiring file access will not work properly."
+            )
+        
+        # Add compatibility flags based on language
+        if language == "nodejs":
+            toml_content += """# Custom polyfills for fs and path that read from R2 bucket
+[alias]
+"fs" = "./fs-polyfill"
+"path" = "./path-polyfill"
+"""
+            if r2_bucket_configured:
+                self.logging.info(
+                    "fs and path polyfills configured to use R2 bucket for file operations"
+                )
+        elif language == "python":
+            toml_content += """# Enable Python Workers runtime
+compatibility_flags = ["python_workers"]
+"""
+        
+        # Write wrangler.toml to package directory
+        toml_path = os.path.join(package_dir, "wrangler.toml")
+        with open(toml_path, 'w') as f:
+            f.write(toml_content)
+        
+        self.logging.info(f"Generated wrangler.toml at {toml_path}")
+        return toml_path
+
     def _get_auth_headers(self) -> Dict[str, str]:
         """Get authentication headers for Cloudflare API requests."""
         if self.config.credentials.api_token:
@@ -123,6 +280,112 @@ class Cloudflare(System):
         else:
             raise RuntimeError("Invalid Cloudflare credentials configuration")
 
+    def _convert_templates_to_modules(self, directory: str):
+        """
+        Convert template files to JavaScript modules for bundling.
+        
+        Searches for template directories and converts HTML/text files
+        to JavaScript modules that can be imported.
+        
+        Args:
+            directory: Package directory to search for templates
+        """
+        templates_dir = os.path.join(directory, "templates")
+        if not os.path.exists(templates_dir):
+            return
+        
+        self.logging.info(f"Converting template files in {templates_dir} to JavaScript modules")
+        
+        for root, dirs, files in os.walk(templates_dir):
+            for file in files:
+                if file.endswith(('.html', '.txt', '.xml', '.csv')):
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, directory)
+                    
+                    # Read the template content
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # Escape for JavaScript string
+                    content_escaped = (content
+                        .replace('\\', '\\\\')
+                        .replace('`', '\\`')
+                        .replace('$', '\\$'))
+                    
+                    # Create a .js module file next to the template
+                    module_path = file_path + '.js'
+                    with open(module_path, 'w', encoding='utf-8') as f:
+                        f.write(f'export default `{content_escaped}`;\n')
+                    
+                    self.logging.debug(f"Created template module: {module_path}")
+
+    def _upload_benchmark_files_to_r2(self, directory: str, benchmark_name: str) -> int:
+        """
+        Upload benchmark data files to R2 bucket for fs-polyfill access.
+        
+        This allows the fs-polyfill to read files from R2 instead of trying
+        to bundle them with the worker code.
+        
+        Args:
+            directory: Package directory containing files to upload
+            benchmark_name: Name of the benchmark (used as prefix in R2)
+            
+        Returns:
+            Number of files uploaded
+        """
+        try:
+            storage = self.system_resources.get_storage()
+            bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+            
+            if not bucket_name:
+                self.logging.warning("R2 bucket not configured, skipping file upload")
+                return 0
+            
+            uploaded_count = 0
+            
+            # Upload template files
+            templates_dir = os.path.join(directory, "templates")
+            if os.path.exists(templates_dir):
+                for root, dirs, files in os.walk(templates_dir):
+                    for file in files:
+                        # Skip the .js module files we created
+                        if file.endswith('.js'):
+                            continue
+                            
+                        file_path = os.path.join(root, file)
+                        # Create R2 key: benchmark_name/templates/filename
+                        rel_path = os.path.relpath(file_path, directory)
+                        r2_key = f"{benchmark_name}/{rel_path}"
+                        
+                        try:
+                            with open(file_path, 'rb') as f:
+                                file_content = f.read()
+                            
+                            self.logging.info(f"Uploading {rel_path} to R2 as {r2_key}...")
+                            storage.upload_bytes(
+                                bucket_name,
+                                r2_key,
+                                file_content
+                            )
+                            uploaded_count += 1
+                            self.logging.info(f"✓ Uploaded {rel_path} ({len(file_content)} bytes)")
+                        except Exception as e:
+                            self.logging.error(f"✗ Failed to upload {rel_path} to R2: {e}")
+            
+            if uploaded_count > 0:
+                self.logging.info(
+                    f"Uploaded {uploaded_count} benchmark files to R2 bucket '{bucket_name}'"
+                )
+            
+            return uploaded_count
+            
+        except Exception as e:
+            self.logging.warning(
+                f"Could not upload benchmark files to R2: {e}. "
+                f"fs-polyfill will not be able to read files from R2."
+            )
+            return 0
+
     def package_code(
         self,
         directory: str,
@@ -134,10 +397,9 @@ class Cloudflare(System):
         container_deployment: bool,
     ) -> Tuple[str, int, str]:
         """
-        Package code for Cloudflare Workers deployment.
+        Package code for Cloudflare Workers deployment using Wrangler.
         
-        Cloudflare Workers support JavaScript/TypeScript and use a bundler
-        to create a single JavaScript file for deployment.
+        Uses Wrangler CLI to bundle dependencies and prepare for deployment.
         
         Args:
             directory: Path to the code directory
@@ -156,13 +418,82 @@ class Cloudflare(System):
                 "Container deployment is not supported for Cloudflare Workers"
             )
 
-        # For now, we'll create a simple package structure
-        # In a full implementation, you'd use a bundler like esbuild or webpack
+        # Ensure Wrangler is installed
+        self._ensure_wrangler_installed()
+
+        # Upload benchmark files to R2 for fs-polyfill access
+        if language_name == "nodejs":
+            uploaded = self._upload_benchmark_files_to_r2(directory, benchmark)
+            if uploaded > 0:
+                self.logging.info(f"Successfully uploaded {uploaded} files to R2")
+            else:
+                self.logging.warning(
+                    "No files were uploaded to R2. Benchmarks requiring file access may fail. "
+                    "Ensure R2 API credentials are configured."
+                )
+
+        # Install dependencies
+        if language_name == "nodejs":
+            package_file = os.path.join(directory, "package.json")
+            node_modules = os.path.join(directory, "node_modules")
+            
+            # Only install if package.json exists and node_modules doesn't
+            if os.path.exists(package_file) and not os.path.exists(node_modules):
+                self.logging.info(f"Installing Node.js dependencies in {directory}")
+                try:
+                    result = subprocess.run(
+                        ["npm", "install", "--production"],
+                        cwd=directory,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=120
+                    )
+                    self.logging.info("npm install completed successfully")
+                    if result.stdout:
+                        self.logging.debug(f"npm output: {result.stdout}")
+                except subprocess.TimeoutExpired:
+                    self.logging.error("npm install timed out")
+                    raise RuntimeError("Failed to install Node.js dependencies: timeout")
+                except subprocess.CalledProcessError as e:
+                    self.logging.error(f"npm install failed: {e.stderr}")
+                    raise RuntimeError(f"Failed to install Node.js dependencies: {e.stderr}")
+                except FileNotFoundError:
+                    raise RuntimeError(
+                        "npm not found. Please install Node.js and npm to deploy Node.js benchmarks."
+                    )
+            elif os.path.exists(node_modules):
+                self.logging.info(f"Node.js dependencies already installed in {directory}")
+
+        elif language_name == "python":
+            requirements_file = os.path.join(directory, "requirements.txt")
+            if os.path.exists(requirements_file):
+                self.logging.info(f"Installing Python dependencies in {directory}")
+                try:
+                    # Install to a local directory that can be bundled
+                    target_dir = os.path.join(directory, "python_modules")
+                    result = subprocess.run(
+                        ["pip", "install", "-r", "requirements.txt", "-t", target_dir],
+                        cwd=directory,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    self.logging.info("pip install completed successfully")
+                    if result.stdout:
+                        self.logging.debug(f"pip output: {result.stdout}")
+                except subprocess.CalledProcessError as e:
+                    self.logging.error(f"pip install failed: {e.stderr}")
+                    raise RuntimeError(f"Failed to install Python dependencies: {e.stderr}")
+                except FileNotFoundError:
+                    raise RuntimeError(
+                        "pip not found. Please install Python and pip to deploy Python benchmarks."
+                    )
         
+        # Create package structure
         CONFIG_FILES = {
             "nodejs": ["handler.js", "package.json", "node_modules"],
-            # Python support via Python Workers is limited
-            "python": ["handler.py", "requirements.txt"],
+            "python": ["handler.py", "requirements.txt", "python_modules"],
         }
         
         if language_name not in CONFIG_FILES:
@@ -170,34 +501,32 @@ class Cloudflare(System):
                 f"Language {language_name} is not yet supported for Cloudflare Workers"
             )
 
-        package_config = CONFIG_FILES[language_name]
-        
-        # Create a worker directory with the necessary files
-        worker_dir = os.path.join(directory, "worker")
-        os.makedirs(worker_dir, exist_ok=True)
-        
-        # Copy all files to worker directory
-        for file in os.listdir(directory):
-            if file not in package_config and file != "worker":
-                src = os.path.join(directory, file)
-                dst = os.path.join(worker_dir, file)
-                if os.path.isfile(src):
-                    shutil.copy2(src, dst)
-                elif os.path.isdir(src):
-                    shutil.copytree(src, dst, dirs_exist_ok=True)
-        
-        # For now, return the main handler file as the package
+        # Verify the handler exists
         handler_file = "handler.js" if language_name == "nodejs" else "handler.py"
         package_path = os.path.join(directory, handler_file)
         
         if not os.path.exists(package_path):
-            raise RuntimeError(f"Handler file {handler_file} not found in {directory}")
+            if not os.path.exists(directory):
+                raise RuntimeError(
+                    f"Package directory {directory} does not exist. "
+                    "The benchmark build process may have failed to create the deployment package."
+                )
+            raise RuntimeError(
+                f"Handler file {handler_file} not found in {directory}. "
+                f"Available files: {', '.join(os.listdir(directory)) if os.path.exists(directory) else 'none'}"
+            )
         
-        bytes_size = os.path.getsize(package_path)
-        mbytes = bytes_size / 1024.0 / 1024.0
+        # Calculate total size of the package directory
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(directory):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                total_size += os.path.getsize(filepath)
+        
+        mbytes = total_size / 1024.0 / 1024.0
         self.logging.info(f"Worker package size: {mbytes:.2f} MB")
 
-        return (package_path, bytes_size, "")
+        return (directory, total_size, "")
 
     def create_function(
         self,
@@ -256,12 +585,8 @@ class Cloudflare(System):
         else:
             self.logging.info(f"Creating new worker {func_name}")
             
-            # Read the worker script
-            with open(package, 'r') as f:
-                script_content = f.read()
-            
-            # Create the worker
-            self._create_or_update_worker(func_name, script_content, account_id)
+            # Create the worker with all package files
+            self._create_or_update_worker(func_name, package, account_id, language, benchmark)
             
             worker = CloudflareWorker(
                 func_name,
@@ -279,9 +604,10 @@ class Cloudflare(System):
         library_trigger = LibraryTrigger(func_name, self)
         library_trigger.logging_handlers = self.logging_handlers
         worker.add_trigger(library_trigger)
-        
-        # Cloudflare Workers are automatically accessible via HTTPS
-        worker_url = f"https://{func_name}.{account_id}.workers.dev"
+
+        # Build worker URL using the account's workers.dev subdomain when possible.
+        # Falls back to account_id-based host or plain workers.dev with warnings.
+        worker_url = self._build_workers_dev_url(func_name, account_id)
         http_trigger = HTTPTrigger(func_name, worker_url)
         http_trigger.logging_handlers = self.logging_handlers
         worker.add_trigger(http_trigger)
@@ -296,37 +622,141 @@ class Cloudflare(System):
         response = requests.get(url, headers=headers)
         
         if response.status_code == 200:
-            return response.json().get("result")
+            try:
+                return response.json().get("result")
+            except:
+                return None
         elif response.status_code == 404:
             return None
         else:
-            raise RuntimeError(
-                f"Failed to check worker existence: {response.status_code} - {response.text}"
-            )
+            self.logging.warning(f"Unexpected response checking worker: {response.status_code}")
+            return None
 
     def _create_or_update_worker(
-        self, worker_name: str, script_content: str, account_id: str
+        self, worker_name: str, package_dir: str, account_id: str, language: str, benchmark_name: Optional[str] = None
     ) -> dict:
-        """Create or update a Cloudflare Worker."""
-        headers = self._get_auth_headers()
-        # Remove Content-Type as we're sending form data
-        headers.pop("Content-Type", None)
+        """Create or update a Cloudflare Worker using Wrangler CLI.
         
-        url = f"{self._api_base_url}/accounts/{account_id}/workers/scripts/{worker_name}"
+        Args:
+            worker_name: Name of the worker
+            package_dir: Directory containing handler and all benchmark files
+            account_id: Cloudflare account ID
+            language: Programming language (nodejs or python)
+            benchmark_name: Optional benchmark name for R2 file path prefix
         
-        # Cloudflare Workers API expects the script as form data
-        files = {
-            'script': ('worker.js', script_content, 'application/javascript'),
-        }
+        Returns:
+            Worker deployment result
+        """
+        # Generate wrangler.toml for this worker
+        self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name)
         
-        response = requests.put(url, headers=headers, files=files)
+        # Set up environment for Wrangler
+        env = os.environ.copy()
+        if self.config.credentials.api_token:
+            env['CLOUDFLARE_API_TOKEN'] = self.config.credentials.api_token
+        elif self.config.credentials.email and self.config.credentials.api_key:
+            env['CLOUDFLARE_EMAIL'] = self.config.credentials.email
+            env['CLOUDFLARE_API_KEY'] = self.config.credentials.api_key
         
-        if response.status_code not in [200, 201]:
-            raise RuntimeError(
-                f"Failed to create/update worker: {response.status_code} - {response.text}"
+        env['CLOUDFLARE_ACCOUNT_ID'] = account_id
+        
+        # Deploy using Wrangler
+        self.logging.info(f"Deploying worker {worker_name} using Wrangler...")
+        
+        try:
+            result = subprocess.run(
+                ["wrangler", "deploy"],
+                cwd=package_dir,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=180  # 3 minutes for deployment
             )
-        
-        return response.json().get("result", {})
+            
+            self.logging.info(f"Worker {worker_name} deployed successfully")
+            if result.stdout:
+                self.logging.debug(f"Wrangler deploy output: {result.stdout}")
+            
+            # Parse the output to get worker URL
+            # Wrangler typically outputs: "Published <worker-name> (<version>)"
+            # and "https://<worker-name>.<subdomain>.workers.dev"
+            
+            return {"success": True, "output": result.stdout}
+            
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Wrangler deployment timed out for worker {worker_name}")
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Wrangler deployment failed for worker {worker_name}"
+            if e.stderr:
+                error_msg += f": {e.stderr}"
+            self.logging.error(error_msg)
+            raise RuntimeError(error_msg)
+
+    def _get_workers_dev_subdomain(self, account_id: str) -> Optional[str]:
+        """Fetch the workers.dev subdomain for the given account.
+
+        Cloudflare exposes an endpoint that returns the account-level workers
+        subdomain (the readable name used in *.workers.dev), e.g.
+        GET /accounts/{account_id}/workers/subdomain
+
+        Returns the subdomain string (e.g. 'marcin-copik') or None on failure.
+        """
+        if self._workers_dev_subdomain:
+            return self._workers_dev_subdomain
+
+        try:
+            headers = self._get_auth_headers()
+            url = f"{self._api_base_url}/accounts/{account_id}/workers/subdomain"
+            resp = requests.get(url, headers=headers)
+            if resp.status_code == 200:
+                body = resp.json()
+                sub = None
+                # result may contain 'subdomain' or nested structure
+                if isinstance(body, dict):
+                    sub = body.get("result", {}).get("subdomain")
+
+                if sub:
+                    self._workers_dev_subdomain = sub
+                    return sub
+                else:
+                    self.logging.warning(
+                        "Could not find workers.dev subdomain in API response; "
+                        "please enable the workers.dev subdomain in your Cloudflare dashboard."
+                    )
+                    return None
+            else:
+                self.logging.warning(
+                    f"Failed to fetch workers.dev subdomain: {resp.status_code} - {resp.text}"
+                )
+                return None
+        except Exception as e:
+            self.logging.warning(f"Error fetching workers.dev subdomain: {e}")
+            return None
+
+    def _build_workers_dev_url(self, worker_name: str, account_id: Optional[str]) -> str:
+        """Build a best-effort public URL for a worker.
+
+        Prefer using the account's readable workers.dev subdomain when available
+        (e.g. <name>.<subdomain>.workers.dev). If we can't obtain that, fall
+        back to using the account_id as a last resort and log a warning.
+        """
+        if account_id:
+            sub = self._get_workers_dev_subdomain(account_id)
+            if sub:
+                return f"https://{worker_name}.{sub}.workers.dev"
+            else:
+                # fallback: some code historically used account_id in the host
+                self.logging.warning(
+                    "Using account ID in workers.dev URL as a fallback. "
+                    "Enable the workers.dev subdomain in Cloudflare for proper URLs."
+                )
+                return f"https://{worker_name}.{account_id}.workers.dev"
+        # Last fallback: plain workers.dev (may not resolve without a subdomain)
+        self.logging.warning(
+            "No account ID available; using https://{name}.workers.dev which may not be reachable."
+        )
+        return f"https://{worker_name}.workers.dev"
 
     def cached_function(self, function: Function):
         """
@@ -369,17 +799,15 @@ class Cloudflare(System):
 
         worker = cast(CloudflareWorker, function)
         package = code_package.code_location
+        language = code_package.language_name
+        benchmark = code_package.benchmark
         
-        # Read the updated script
-        with open(package, 'r') as f:
-            script_content = f.read()
-        
-        # Update the worker
+        # Update the worker with all package files
         account_id = worker.account_id or self.config.credentials.account_id
         if not account_id:
             raise RuntimeError("Account ID is required to update worker")
         
-        self._create_or_update_worker(worker.name, script_content, account_id)
+        self._create_or_update_worker(worker.name, package, account_id, language, benchmark)
         self.logging.info(f"Updated worker {worker.name}")
         
         # Update configuration if needed
@@ -604,7 +1032,7 @@ class Cloudflare(System):
             return trigger
         elif trigger_type == Trigger.TriggerType.HTTP:
             account_id = worker.account_id or self.config.credentials.account_id
-            worker_url = f"https://{worker.name}.{account_id}.workers.dev"
+            worker_url = self._build_workers_dev_url(worker.name, account_id)
             trigger = HTTPTrigger(worker.name, worker_url)
             trigger.logging_handlers = self.logging_handlers
             return trigger

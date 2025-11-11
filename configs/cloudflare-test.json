@@ -1,0 +1,19 @@
+{
+  "experiments": {
+    "deployment": "cloudflare",
+    "update_code": false,
+    "update_storage": false,
+    "download_results": false,
+    "architecture": "x64",
+    "container_deployment": false,
+    "runtime": {
+      "language": "nodejs",
+      "version": "18"
+    }
+  },
+  "deployment": {
+    "name": "cloudflare",
+    "cloudflare": {
+    }
+  }
+}

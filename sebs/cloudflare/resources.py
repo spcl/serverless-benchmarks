@@ -5,6 +5,7 @@ from typing import Optional
 from sebs.cache import Cache
 from sebs.cloudflare.config import CloudflareConfig
 from sebs.cloudflare.r2 import R2
+from sebs.cloudflare.durable_objects import DurableObjects
 from sebs.faas.resources import SystemResources
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.nosql import NoSQLStorage
@@ -62,13 +63,15 @@ class CloudflareSystemResources(SystemResources):
         Args:
             replace_existing: Whether to replace existing files in storage
 
-        Raises:
-            NotImplementedError: R2 storage support not yet implemented
+        Returns:
+            R2 storage instance
         """
+        if replace_existing is None:
+            replace_existing = False
 
         return R2(
             region=self._config.region,
-            cache_client=None,
+            cache_client=self._cache_client,
             resources=self._config.resources,
             replace_existing=replace_existing,
             credentials=self._config.credentials,
@@ -76,15 +79,17 @@ class CloudflareSystemResources(SystemResources):
 
     def get_nosql_storage(self) -> NoSQLStorage:
         """
-        Get Cloudflare NoSQL storage instance.
+        Get Cloudflare Durable Objects storage instance.
 
-        This could use Cloudflare D1 (SQLite) or Durable Objects for NoSQL storage.
+        Durable Objects provide stateful storage for Workers.
+        Note: This is a minimal implementation to satisfy SeBS requirements.
 
-        Raises:
-            NotImplementedError: NoSQL storage support not yet implemented
+        Returns:
+            DurableObjects storage instance
         """
-        raise NotImplementedError(
-            "Cloudflare NoSQL storage (D1/Durable Objects) is not yet implemented. "
-            "To add support, implement a NoSQLStorage subclass "
-            "similar to sebs/aws/dynamodb.py or sebs/azure/cosmosdb.py"
+        return DurableObjects(
+            region=self._config.region,
+            cache_client=self._cache_client,
+            resources=self._config.resources,
+            credentials=self._config.credentials,
         )
