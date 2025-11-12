@@ -1,18 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Pass through common args; provide sensible defaults
-INPUT="${INPUT:-/data/sample.mp4}"
+# Default paths (mounted by SeBS local backend)
+DATA_DIR="${DATA_DIR:-/data}"
+OUT_DIR="${OUT_DIR:-/out}"
+
+INPUT="${INPUT:-${DATA_DIR}/sample.mp4}"
+WATERMARK="${WATERMARK:-${DATA_DIR}/watermark.png}"  # new line
 DURATION="${DURATION:-8}"
 REPEAT="${REPEAT:-1}"
-CSV="${CSV:-/out/results.csv}"
+CSV="${CSV:-${OUT_DIR}/results.csv}"
 DECODE="${DECODE:-gpu}"   # 'gpu' or 'cpu'
 
-mkdir -p /out
+mkdir -p "$OUT_DIR"
+
+echo "==[ Video Watermarking GPU Benchmark ]=="
+echo "Input:      $INPUT"
+echo "Watermark:  $WATERMARK"
+echo "Duration:   $DURATION s"
+echo "Repeat:     $REPEAT"
+echo "Decode:     $DECODE"
+echo "Output CSV: $CSV"
+echo
 
 # If INPUT is missing, let gpu_bench synthesize one
 /app/gpu_bench.py \
   --input "$INPUT" \
+  --watermark "$WATERMARK" \        # ✅ new arg
   --duration "$DURATION" \
   --repeat "$REPEAT" \
   --decode "$DECODE" \
