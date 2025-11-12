@@ -50,41 +50,50 @@ def build_vf_or_complex(
 ) -> Tuple[List[str], str]:
     """
     Returns (ffmpeg_args_for_filters, filter_used_string).
-
-    Priority:
-      - Prefer GPU filters: scale_npp, then scale_cuda, then CPU scale with explicit bridges.
-      - Prefer overlay_cuda; else CPU overlay with explicit bridges.
-      - Never place 'format=nv12' *after* 'hwupload_cuda'.
+    CPU path: never uses hw* or *_cuda filters.
+    GPU path: prefer scale_npp -> scale_cuda -> CPU scale with bridges; prefer overlay_cuda.
     """
-    used = []
+    used: List[str] = []
     vf_args: List[str] = []
     complex_graph = ""
 
-    have_scale_npp   = has_filter(ffmpeg, "scale_npp")
-    have_scale_cuda  = has_filter(ffmpeg, "scale_cuda")
-    have_overlay_cuda= has_filter(ffmpeg, "overlay_cuda")
+    # ---------- CPU-ONLY SHORT-CIRCUIT ----------
+    if not want_gpu_decode:
+        if not wm_path:
+            if scale:
+                return (["-vf", f"scale={scale}"], "scale(cpu)")
+            return ([], "")
+        # watermark present
+        if scale:
+            complex_graph = f"[0:v]scale={scale}[v0];[v0][1:v]overlay={overlay}[vout]"
+            used = ["scale(cpu)", "overlay(cpu)"]
+        else:
+            complex_graph = f"[0:v][1:v]overlay={overlay}[vout]"
+            used = ["overlay(cpu)"]
+        return (["-filter_complex", complex_graph, "-map", "[vout]"], "+".join(used))
+    # -------------------------------------------
+
+    # From here on: GPU-preferred path
+    have_scale_npp    = has_filter(ffmpeg, "scale_npp")
+    have_scale_cuda   = has_filter(ffmpeg, "scale_cuda")
+    have_overlay_cuda = has_filter(ffmpeg, "overlay_cuda")
 
     # No watermark case
     if not wm_path:
         if scale:
-            if want_gpu_decode and have_scale_npp:
-                vf_args = ["-vf", f"scale_npp={scale}"]
-                used.append("scale_npp")
-            elif want_gpu_decode and have_scale_cuda:
-                vf_args = ["-vf", f"scale_cuda={scale}"]
-                used.append("scale_cuda")
+            if have_scale_npp:
+                vf_args = ["-vf", f"scale_npp={scale}"]; used.append("scale_npp")
+            elif have_scale_cuda:
+                vf_args = ["-vf", f"scale_cuda={scale}"]; used.append("scale_cuda")
             else:
-                # CPU scale with explicit bridges
-                # hw frames -> CPU: hwdownload,format=nv12
-                # CPU scale -> back to GPU: hwupload_cuda
                 vf_args = ["-vf", f"hwdownload,format=nv12,scale={scale},hwupload_cuda"]
                 used.append("scale(cpu)+hwdownload+hwupload_cuda")
         else:
             vf_args = []
         return (vf_args, "+".join(used))
 
-    # Watermark case
-    if want_gpu_decode and have_overlay_cuda:
+    # Watermark case with GPU overlay if available
+    if have_overlay_cuda:
         if scale and have_scale_npp:
             complex_graph = f"[0:v]scale_npp={scale}[v0];[v0][1:v]overlay_cuda={overlay}[vout]"
             used += ["scale_npp","overlay_cuda"]
@@ -102,8 +111,8 @@ def build_vf_or_complex(
             used += ["overlay_cuda"]
         return (["-filter_complex", complex_graph, "-map", "[vout]"], "+".join(used))
 
-    # CPU overlay fallback
-    if scale and want_gpu_decode and (have_scale_npp or have_scale_cuda):
+    # GPU decode + CPU overlay fallback (bridged)
+    if scale and (have_scale_npp or have_scale_cuda):
         scaler = "scale_npp" if have_scale_npp else "scale_cuda"
         complex_graph = (
             f"[0:v]{scaler}={scale}[v0gpu];"
@@ -171,7 +180,12 @@ def transcode_once(
     args += filt_args
 
     # encoder params
-    args += ["-c:v", codec, "-b:v", bitrate, "-preset", preset, "-rc", "vbr", "-movflags", "+faststart"]
+    args += ["-c:v", codec, "-b:v", bitrate, "-preset", preset]
+    # Only NVENC supports -rc vbr
+    if codec.endswith("_nvenc"):
+        args += ["-rc", "vbr"]
+    args += ["-movflags", "+faststart"]
+
     # audio: copy if present
     args += ["-c:a", "copy"]
 
@@ -213,7 +227,7 @@ def main():
         "codec=h264_nvenc,bitrate=5M,preset=p5",
         "codec=h264_nvenc,bitrate=12M,preset=p1,scale=1920:1080",
         "codec=hevc_nvenc,bitrate=6M,preset=p4",
-        "codec=av1_nvenc,bitrate=3M,preset=p5"
+        # "codec=av1_nvenc,bitrate=3M,preset=p5",  # include only if available
     ], help="List like codec=h264_nvenc,bitrate=5M,preset=p5[,scale=WxH]")
     args = ap.parse_args()
 
@@ -229,8 +243,8 @@ def main():
 
     trial_specs = [parse_trial(s) for s in args.trials]
 
-    # optional warmup
-    if args.warmup:
+    # optional warmup (uses first trial spec)
+    if args.warmup and trial_specs:
         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as tmp:
             _ = transcode_once(ffmpeg, args.input, tmp.name,
                                trial_specs[0].get("codec","h264_nvenc"),
@@ -242,7 +256,7 @@ def main():
                                args.overlay,
                                args.decode)
 
-    results = []
+    results: List[Dict[str, Any]] = []
     idx = 0
     for spec in trial_specs:
         for _ in range(args.repeat):

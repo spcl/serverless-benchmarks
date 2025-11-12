@@ -26,7 +26,7 @@ echo
 # If INPUT is missing, let gpu_bench synthesize one
 /app/gpu_bench.py \
   --input "$INPUT" \
-  --watermark "$WATERMARK" \     
+  --watermark "$WATERMARK" \
   --duration "$DURATION" \
   --repeat "$REPEAT" \
   --decode "$DECODE" \
@@ -34,4 +34,5 @@ echo
   --trials \
     "codec=h264_nvenc,bitrate=5M,preset=p5" \
     "codec=h264_nvenc,bitrate=12M,preset=p1,scale=1920:1080" \
-    "codec=hevc_nvenc,bitrate=6M,preset=p4"
+    "codec=hevc_nvenc,bitrate=6M,preset=p4" \
+    "codec=libx264,bitrate=5M,preset=medium,scale=1280:720"
