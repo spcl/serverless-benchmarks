@@ -1,0 +1,47 @@
+{
+  "functions": [
+    {
+      "benchmark": "413.image-classification",
+      "config": {
+        "architecture": "x64",
+        "memory": 512,
+        "runtime": {
+          "language": "python",
+          "version": "3.8"
+        },
+        "timeout": 60
+      },
+      "hash": "445383b434f036f9520743532c7bc0b1",
+      "instance_id": "a59d2b025927d6350363787bfbab3e7d44b90e0575cd72b939dd9cee291dd63c",
+      "name": "sebs-local-f2033fb2-413.image-classification-python-3.8",
+      "port": 9000,
+      "triggers": [],
+      "url": "172.17.0.4:9000"
+    }
+  ],
+  "inputs": [
+    {
+      "bucket": {
+        "bucket": "sebs-benchmarks-local-f2033fb2",
+        "input": "413.image-classification-1-input",
+        "model": "413.image-classification-0-input"
+      },
+      "object": {
+        "input": "800px-Porsche_991_silver_IAA.jpg",
+        "model": "resnet50.tar.gz"
+      }
+    }
+  ],
+  "storage": {
+    "access_key": "-5X8s-Wf3pQfjnc7kMAlr9HYX96jIMx3P7GSd55IBAY",
+    "address": "192.168.1.101:9011",
+    "data_volume": "minio-volume",
+    "input_buckets": [],
+    "instance_id": "26785ccd17e17e72255c255d00756a9eaa14b1aeb60a52527b97cfb33eece9e5",
+    "mapped_port": 9011,
+    "output_buckets": [],
+    "secret_key": "c9e3b900a8d363f9907af7057fb5a8e35cb14ad24e9e474e75b8139323717fdc",
+    "type": "minio",
+    "version": "RELEASE.2024-07-16T23-46-41Z"
+  }
+}

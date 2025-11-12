@@ -1,18 +1,18 @@
 {
   "experiments": {
-    "deployment": "local",
+    "deployment": "aws",
     "update_code": false,
     "update_storage": false,
     "download_results": false,
-    "architecture": "x64",
+    "architecture": "arm64",
     "container_deployment": true,
     "runtime": {
       "language": "python",
-      "version": "3.11"
+      "version": "3.8"
     },
     "type": "invocation-overhead",
     "perf-cost": {
-      "benchmark": "601.matmul",
+      "benchmark": "110.dynamic-html",
       "experiments": [
         "cold",
         "warm",
@@ -51,7 +51,7 @@
     }
   },
   "deployment": {
-    "name": "local",
+    "name": "aws",
     "aws": {
       "region": "us-east-1",
       "lambda-role": ""
@@ -71,9 +71,9 @@
           "minio": {
             "address": "192.168.1.101:9011",
             "mapped_port": 9011,
-            "access_key": "Ux22nOcFoUaZAnmg-kULuIzvXmiFNVRiZkzcOaDawpU",
-            "secret_key": "9bb8b39326b0fde8bdfa5d013f743c03e57d146f10433fe2fe3ccce7225078d5",
-            "instance_id": "f337f509c0375ca4457f815cc0f67352088f6093053ba33c1e45aca0012e0a9f",
+            "access_key": "-5X8s-Wf3pQfjnc7kMAlr9HYX96jIMx3P7GSd55IBAY",
+            "secret_key": "c9e3b900a8d363f9907af7057fb5a8e35cb14ad24e9e474e75b8139323717fdc",
+            "instance_id": "26785ccd17e17e72255c255d00756a9eaa14b1aeb60a52527b97cfb33eece9e5",
             "output_buckets": [],
             "input_buckets": [],
             "version": "RELEASE.2024-07-16T23-46-41Z",
@@ -89,7 +89,7 @@
             "alternator_port": 8000,
             "access_key": "None",
             "secret_key": "None",
-            "instance_id": "c7be7d211bb211b92f41afb073f75635d9f5f2a222abeb6d9b17673b02d079ca",
+            "instance_id": "28fb7af28043b633b33b4b5999b48c14767f717ed76a73515ff8c68f253baeb1",
             "region": "None",
             "cpus": 1,
             "memory": "750",
