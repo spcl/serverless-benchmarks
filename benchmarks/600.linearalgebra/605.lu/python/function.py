@@ -14,20 +14,37 @@ def initialize_torch(N, dtype=torch.float32, device="cuda"):
     return A
 
 
-def kernel_cholesky(A):
+def _kernel_lu(B: torch.Tensor) -> torch.Tensor:
+    n = B.shape[0]
+    for i in range(n):
+        for j in range(i):
+            B[i, j] = B[i, j] - (B[i, :j] @ B[:j, j])
+            B[i, j] = B[i, j] / B[j, j]
+        for j in range(i, n):
+            B[i, j] = B[i, j] - (B[i, :i] @ B[:i, j])
+    return B
+
+
+def kernel(A: torch.Tensor):
     torch.cuda.synchronize()
-    _ = torch.linalg.cholesky(A)  # warmup
+
+    _ = _kernel_lu(A.clone())  # Warm-up
+
     torch.cuda.synchronize()
 
     start_evt = torch.cuda.Event(enable_timing=True)
     end_evt = torch.cuda.Event(enable_timing=True)
+
     start_evt.record()
+    B = None
     for _ in range(A.size(0)):
-        L = torch.linalg.cholesky(A)
+        B = _kernel_lu(A.clone())
     end_evt.record()
+
     torch.cuda.synchronize()
+
     gpu_ms = float(start_evt.elapsed_time(end_evt))
-    return L, gpu_ms
+    return B, gpu_ms
 
 
 def handler(event):
@@ -45,7 +62,7 @@ def handler(event):
     gen_end = datetime.datetime.now()
 
     comp_begin = datetime.datetime.now()
-    L, gpu_ms = kernel_cholesky(A)
+    B, gpu_ms = kernel(A)
     comp_end = datetime.datetime.now()
 
     gen_us = (gen_end - gen_begin) / datetime.timedelta(microseconds=1)
