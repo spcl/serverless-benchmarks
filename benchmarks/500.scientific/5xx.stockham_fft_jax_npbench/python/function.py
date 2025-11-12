@@ -1,6 +1,5 @@
 import datetime
 
-import cupy as np
 import jax
 import jax.numpy as jnp
 from functools import partial
@@ -16,7 +15,7 @@ def initialize(R, K):
 
     N = R**K
     X = rng_complex((N, ), rng)
-    Y = np.zeros_like(X, dtype=np.complex128)
+    Y = jnp.zeros_like(X, dtype=jnp.complex128)
 
     return N, R, K, X, Y
 
@@ -49,25 +48,33 @@ def stockham_fft(N, R, K, x, y):
 
 def handler(event):
 
-    if "seed" in event:
-        import random
+    if "size" in event:
+        size = event["size"]
 
-        random.seed(event["seed"])
+    
+    generate_begin = datetime.datetime.now()
 
+    N, R, K, X, Y = initialize(2, size)
 
+    generate_end = datetime.datetime.now()
+    
     process_begin = datetime.datetime.now()
     
-    N, R, K, X, Y = initialize(2, 13)
     result = stockham_fft(N, R, K, X, Y)
-
+    
     process_end = datetime.datetime.now()
+
     y_re_im = jnp.stack([jnp.real(result), jnp.imag(result)], axis=-1).tolist()
-    #graph_generating_time = (graph_generating_end - graph_generating_begin) / datetime.timedelta(microseconds=1)
+    
+
     process_time = (process_end - process_begin) / datetime.timedelta(milliseconds=1)
+    generate_time = (generate_end - generate_begin) / datetime.timedelta(milliseconds=1)    
 
     return {
+            'size': size,
             'result': y_re_im,
             'measurement': {
-                'compute_time': process_time
+                'compute_time': process_time,
+                'generate_time': generate_time
             }
     }
