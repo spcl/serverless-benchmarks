@@ -1,5 +1,6 @@
 import json
 import requests
+from collections import defaultdict
 from typing import Dict, Optional, Tuple
 
 from sebs.cloudflare.config import CloudflareCredentials
@@ -35,7 +36,7 @@ class DurableObjects(NoSQLStorage):
     ):
         super().__init__(region, cache_client, resources)
         self._credentials = credentials
-        self._tables: Dict[str, str] = {}
+        self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
 
     def _get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers for Cloudflare API requests."""
@@ -60,9 +61,7 @@ class DurableObjects(NoSQLStorage):
         :param benchmark: benchmark name
         :return: dictionary mapping table names to their IDs
         """
-        # For Durable Objects, we don't have traditional tables
-        # Return cached tables if any
-        return self._tables.copy()
+        return self._tables[benchmark]
 
     def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
         """
@@ -72,8 +71,13 @@ class DurableObjects(NoSQLStorage):
         :param table: table name
         :return: full table name or None if not found
         """
-        key = f"{benchmark}:{table}"
-        return self._tables.get(key)
+        if benchmark not in self._tables:
+            return None
+
+        if table not in self._tables[benchmark]:
+            return None
+
+        return self._tables[benchmark][table]
 
     def retrieve_cache(self, benchmark: str) -> bool:
         """
@@ -82,11 +86,12 @@ class DurableObjects(NoSQLStorage):
         :param benchmark: benchmark name
         :return: True if cache was found and loaded
         """
-        cache_key = f"cloudflare.durable_objects.{benchmark}"
-        cached = self.cache_client.get(cache_key)
-        
-        if cached:
-            self._tables.update(cached)
+        if benchmark in self._tables:
+            return True
+
+        cached_storage = self.cache_client.get_nosql_config(self.deployment_name(), benchmark)
+        if cached_storage is not None:
+            self._tables[benchmark] = cached_storage["tables"]
             self.logging.info(f"Retrieved cached Durable Objects tables for {benchmark}")
             return True
         
@@ -98,14 +103,13 @@ class DurableObjects(NoSQLStorage):
         
         :param benchmark: benchmark name
         """
-        cache_key = f"cloudflare.durable_objects.{benchmark}"
-        
-        # Filter tables for this benchmark
-        benchmark_tables = {
-            k: v for k, v in self._tables.items() if k.startswith(f"{benchmark}:")
-        }
-        
-        self.cache_client.update(cache_key, benchmark_tables)
+        self._cache_client.update_nosql(
+            self.deployment_name(),
+            benchmark,
+            {
+                "tables": self._tables[benchmark],
+            },
+        )
         self.logging.info(f"Updated cache for Durable Objects tables for {benchmark}")
 
     def create_table(
@@ -124,11 +128,10 @@ class DurableObjects(NoSQLStorage):
         :param secondary_key: optional secondary key field name
         :return: table name
         """
-        resource_id = self._cloud_resources.get_resource_id()
+        resource_id = self._cloud_resources.resources_id
         table_name = f"sebs-benchmarks-{resource_id}-{benchmark}-{name}"
         
-        key = f"{benchmark}:{name}"
-        self._tables[key] = table_name
+        self._tables[benchmark][name] = table_name
         
         self.logging.info(
             f"Registered Durable Objects table {table_name} for benchmark {benchmark}"
@@ -183,9 +186,14 @@ class DurableObjects(NoSQLStorage):
         :return: table name
         """
         # Remove from internal tracking
-        keys_to_remove = [k for k, v in self._tables.items() if v == name]
-        for key in keys_to_remove:
-            del self._tables[key]
+        for benchmark, tables in self._tables.items():
+            if name in tables.values():
+                # Find the table key
+                for table_key, table_name in tables.items():
+                    if table_name == name:
+                        del self._tables[benchmark][table_key]
+                        break
+                break
         
         self.logging.info(f"Removed Durable Objects table {name} from tracking")
         return name

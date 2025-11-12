@@ -1,0 +1,9 @@
+{
+  "name": "clock-synchronization",
+  "version": "1.0.0",
+  "description": "Clock synchronization benchmark",
+  "author": "",
+  "license": "",
+  "dependencies": {
+  }
+}

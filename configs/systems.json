@@ -461,7 +461,9 @@
           "files": [
             "handler.js",
             "storage.js",
-            "fs-polyfill.js"
+            "nosql.js",
+            "fs-polyfill.js",
+            "request-polyfill.js"
           ],
           "packages": {
             "uuid": "3.4.0"

@@ -30,17 +30,49 @@ class storage {
   // Upload a file given a local filepath. In Workers env this is not available
   // so callers should use upload_stream or pass raw data. For Node.js we read
   // the file from disk and put it into R2 if available, otherwise throw.
-  async upload(__bucket, key, filepath) {
+  upload(__bucket, key, filepath) {
     // If file was previously written during this invocation, use /tmp absolute
     let realPath = filepath;
     if (this.written_files.has(filepath)) {
       realPath = path.join('/tmp', path.resolve(filepath));
     }
 
-    // Read file content
+    // In Workers environment with R2, check if file exists in R2
+    // (it may have been written by fs-polyfill's createWriteStream)
+    if (this.handle) {
+      // Normalize the path to match what fs-polyfill would use
+      let normalizedPath = realPath.replace(/^\.?\//, '').replace(/^tmp\//, '');
+      
+      // Add benchmark name prefix if available (matching fs-polyfill behavior)
+      if (typeof globalThis !== 'undefined' && globalThis.BENCHMARK_NAME && 
+          !normalizedPath.startsWith(globalThis.BENCHMARK_NAME + '/')) {
+        normalizedPath = globalThis.BENCHMARK_NAME + '/' + normalizedPath;
+      }
+      
+      const unique_key = storage.unique_name(key);
+      
+      // Read from R2 and re-upload with unique key
+      const uploadPromise = this.handle.get(normalizedPath).then(async (obj) => {
+        if (obj) {
+          const data = await obj.arrayBuffer();
+          return this.handle.put(unique_key, data);
+        } else {
+          throw new Error(`File not found in R2: ${normalizedPath} (original path: ${filepath})`);
+        }
+      });
+      
+      return [unique_key, uploadPromise];
+    }
+
+    // Fallback: Read file content from local filesystem (Node.js environment)
     if (fs && fs.existsSync(realPath)) {
       const data = fs.readFileSync(realPath);
-      return await this.upload_stream(__bucket, key, data);
+      const unique_key = storage.unique_name(key);
+      
+      // Return [uniqueName, promise] to match Azure storage API
+      const uploadPromise = Promise.resolve();
+      
+      return [unique_key, uploadPromise];
     }
 
     // If running in Workers (no fs) and caller provided Buffer/Stream, they
@@ -131,6 +163,84 @@ class storage {
     }
 
     throw new Error('download_stream(): object not found');
+  }
+
+  // Additional stream methods for compatibility with Azure storage API
+  // These provide a stream-based interface similar to Azure's uploadStream/downloadStream
+  uploadStream(__bucket, key) {
+    const unique_key = storage.unique_name(key);
+    
+    if (this.handle) {
+      // For R2, we create a PassThrough stream that collects data
+      // then uploads when ended
+      const stream = require('stream');
+      const passThrough = new stream.PassThrough();
+      const chunks = [];
+      
+      passThrough.on('data', (chunk) => chunks.push(chunk));
+      
+      const upload = new Promise((resolve, reject) => {
+        passThrough.on('end', async () => {
+          try {
+            const buffer = Buffer.concat(chunks);
+            await this.handle.put(unique_key, buffer);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+        passThrough.on('error', reject);
+      });
+      
+      return [passThrough, upload, unique_key];
+    }
+    
+    // Fallback to filesystem
+    if (fs) {
+      const stream = require('stream');
+      const outPath = path.join('/tmp', unique_key);
+      fs.mkdirSync(path.dirname(outPath), { recursive: true });
+      const writeStream = fs.createWriteStream(outPath);
+      const upload = new Promise((resolve, reject) => {
+        writeStream.on('finish', resolve);
+        writeStream.on('error', reject);
+      });
+      return [writeStream, upload, unique_key];
+    }
+    
+    throw new Error('uploadStream(): no storage backend available');
+  }
+
+  async downloadStream(__bucket, key) {
+    if (this.handle) {
+      const obj = await this.handle.get(key);
+      if (!obj) return null;
+      
+      // R2 object has a body ReadableStream
+      if (obj.body) {
+        return obj.body;
+      }
+      
+      // Fallback: convert to buffer then to stream
+      if (typeof obj.arrayBuffer === 'function') {
+        const stream = require('stream');
+        const ab = await obj.arrayBuffer();
+        const buffer = Buffer.from(ab);
+        const readable = new stream.PassThrough();
+        readable.end(buffer);
+        return readable;
+      }
+      
+      return null;
+    }
+
+    // Fallback to local filesystem
+    const localPath = path.join('/tmp', key);
+    if (fs && fs.existsSync(localPath)) {
+      return fs.createReadStream(localPath);
+    }
+
+    throw new Error('downloadStream(): object not found');
   }
 
   static get_instance() {

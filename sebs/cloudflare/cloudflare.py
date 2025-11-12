@@ -220,6 +220,7 @@ account_id = "{account_id}"
 compatibility_flags = ["nodejs_compat"]
 [alias]
 "fs" = "./fs-polyfill"
+"request" = "./request-polyfill"
 """
         elif language == "python":
             toml_content += """# Enable Python Workers runtime

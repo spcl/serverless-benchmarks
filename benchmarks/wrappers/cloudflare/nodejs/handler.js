@@ -1,4 +1,3 @@
-
 // Simple CommonJS polyfill for Cloudflare Workers
 // This allows us to load CommonJS modules that use require() and module.exports
 const moduleCache = {};
@@ -33,7 +32,6 @@ if (typeof globalThis.require === 'undefined') {
 }
 
 
-
 export default {
   async fetch(request, env) {
     try {
@@ -57,6 +55,7 @@ export default {
     const begin = Date.now() / 1000;
     const start = performance.now();
 
+    // Parse JSON body first (similar to Azure handler which uses req.body)
     const req_text = await request.text();
     let event = {};
     if (req_text && req_text.length > 0) {
@@ -68,7 +67,8 @@ export default {
       }
     }
 
-    // Parse query string into event (simple parsing, mirrors Python logic)
+    // Parse query string into event (URL parameters override/merge with body)
+    // This makes it compatible with both input formats
     const urlParts = request.url.split('?');
     if (urlParts.length > 1) {
       const query = urlParts[1];
@@ -148,6 +148,9 @@ export default {
         environ_container_id: 'no_id',
         request_id: '0',
         error: String(err && err.message ? err.message : err),
+        stack: err && err.stack ? err.stack : undefined,
+        event: event,
+        env: env,
       });
       return new Response(errorPayload, { status: 500, headers: { 'Content-Type': 'application/json' } });
     }

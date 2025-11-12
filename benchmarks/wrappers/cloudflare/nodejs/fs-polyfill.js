@@ -1,6 +1,25 @@
 import * as nodeFs from 'node:fs';
 import { Writable } from 'node:stream';
 
+// Global cache for files written/read during this request
+// This allows sync operations to work within a single request context
+if (!globalThis.FS_CACHE) {
+  globalThis.FS_CACHE = new Map();
+}
+
+/**
+ * Normalize a file path for R2
+ */
+function normalizePath(path) {
+  let normalizedPath = path.replace(/^\.?\//, '').replace(/^tmp\//, '');
+  
+  if (globalThis.BENCHMARK_NAME && !normalizedPath.startsWith(globalThis.BENCHMARK_NAME + '/')) {
+    normalizedPath = globalThis.BENCHMARK_NAME + '/' + normalizedPath;
+  }
+  
+  return normalizedPath;
+}
+
 /**
  * Read a file from R2 bucket
  * @param {string} path - File path in R2 bucket (e.g., 'templates/index.html')
@@ -27,13 +46,7 @@ export async function readFile(path, encoding, callback) {
       throw new Error('R2 bucket not available. Ensure R2 binding is configured in wrangler.toml');
     }
 
-    // Normalize path: remove leading './' or '/'
-    let normalizedPath = path.replace(/^\.?\//, '');
-    
-    // Prepend benchmark name if available
-    if (globalThis.BENCHMARK_NAME && !normalizedPath.startsWith(globalThis.BENCHMARK_NAME + '/')) {
-      normalizedPath = globalThis.BENCHMARK_NAME + '/' + normalizedPath;
-    }
+    const normalizedPath = normalizePath(path);
     
     // Get object from R2
     const object = await globalThis.R2_BUCKET.get(normalizedPath);
@@ -47,10 +60,16 @@ export async function readFile(path, encoding, callback) {
     if (actualEncoding === 'utf8' || actualEncoding === 'utf-8') {
       content = await object.text();
     } else if (actualEncoding === 'buffer' || actualEncoding === null) {
-      content = await object.arrayBuffer();
+      const arrayBuffer = await object.arrayBuffer();
+      content = Buffer.from(arrayBuffer);
     } else {
       // For other encodings, get text and let caller handle conversion
       content = await object.text();
+    }
+    
+    // Store in cache for potential synchronous access
+    if (globalThis.FS_CACHE) {
+      globalThis.FS_CACHE.set(normalizedPath, content);
     }
 
     if (actualCallback) {
@@ -67,16 +86,26 @@ export async function readFile(path, encoding, callback) {
 }
 
 /**
- * Synchronous version of readFile (not truly sync in Workers, but returns a Promise)
- * Note: This is a compatibility shim - it still returns a Promise
+ * Synchronous version of readFile
+ * Reads from cache if available, otherwise throws error
  */
 export function readFileSync(path, encoding) {
-  return new Promise((resolve, reject) => {
-    readFile(path, encoding || 'utf8', (err, data) => {
-      if (err) reject(err);
-      else resolve(data);
-    });
-  });
+  const normalizedPath = normalizePath(path);
+  
+  // Check cache first
+  if (globalThis.FS_CACHE && globalThis.FS_CACHE.has(normalizedPath)) {
+    const data = globalThis.FS_CACHE.get(normalizedPath);
+    
+    if (encoding === 'utf8' || encoding === 'utf-8') {
+      return typeof data === 'string' ? data : Buffer.from(data).toString('utf8');
+    } else if (encoding === null || encoding === 'buffer') {
+      return Buffer.isBuffer(data) ? data : Buffer.from(data);
+    }
+    return data;
+  }
+  
+  // File not in cache - in Workers we can't do sync I/O
+  throw new Error(`ENOENT: no such file or directory, open '${path}'. File not in cache. In Cloudflare Workers, files must be written in the same request before being read synchronously.`);
 }
 
 /**
@@ -104,6 +133,26 @@ export async function exists(path, callback) {
     if (callback) callback(false);
     return false;
   }
+}
+
+/**
+ * Synchronous version of exists
+ * Checks cache for file existence
+ */
+export function existsSync(path) {
+  if (!globalThis.R2_BUCKET) {
+    return false;
+  }
+
+  const normalizedPath = normalizePath(path);
+  
+  // Check if file is in cache
+  if (globalThis.FS_CACHE && globalThis.FS_CACHE.has(normalizedPath)) {
+    return true;
+  }
+  
+  // File not in cache
+  return false;
 }
 
 /**
@@ -161,13 +210,15 @@ export function createWriteStream(path, options) {
             throw new Error('R2 bucket not available');
           }
 
-          let normalizedPath = path.replace(/^\.?\//, '');
-          
-          if (globalThis.BENCHMARK_NAME && !normalizedPath.startsWith(globalThis.BENCHMARK_NAME + '/')) {
-            normalizedPath = globalThis.BENCHMARK_NAME + '/' + normalizedPath;
-          }
+          const normalizedPath = normalizePath(path);
           
           const buffer = Buffer.concat(chunks);
+          
+          // Store in cache for synchronous access
+          if (globalThis.FS_CACHE) {
+            globalThis.FS_CACHE.set(normalizedPath, buffer);
+          }
+          
           await globalThis.R2_BUCKET.put(normalizedPath, buffer);
           callback();
         } catch (err) {
@@ -230,11 +281,9 @@ export default {
   readFile,
   readFileSync,
   exists,
+  existsSync,
   stat,
   createWriteStream,
   writeFile,
   writeFileSync,
 };
-
-// Also re-export all named exports from node:fs
-export * from 'node:fs';
