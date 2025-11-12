@@ -35,7 +35,7 @@ def generate_input(
     upload_func(0, model_name, os.path.join(data_dir, "model", model_name))
 
     input_images = []
-    resnet_path = os.path.join(data_dir, "fake-resnet")
+    resnet_path = os.path.join(data_dir, "data")
     with open(os.path.join(resnet_path, "val_map.txt"), "r") as f:
         for line in f:
             img, img_class = line.split()

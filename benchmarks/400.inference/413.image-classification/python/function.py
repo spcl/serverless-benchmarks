@@ -1,22 +1,14 @@
 import datetime
 import json
 import os
+import shutil
+import tarfile
 import uuid
 from typing import List, Optional, Tuple
 
-# Extract zipped torch model - used in Python 3.8 and 3.9
-# if os.path.exists("function/torch.zip"):
-#     import zipfile, sys
-
-#     zipfile.ZipFile("function/torch.zip").extractall("/tmp/")
-#     sys.path.append(
-#         os.path.join(os.path.dirname(__file__), "/tmp/.python_packages/lib/site-packages")
-#     )
-
+import numpy as np
+import onnxruntime as ort
 from PIL import Image
-import torch
-from torchvision import transforms
-from torchvision.models import resnet50
 
 from . import storage
 
@@ -26,92 +18,122 @@ SCRIPT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 class_idx = json.load(open(os.path.join(SCRIPT_DIR, "imagenet_class_index.json"), "r"))
 idx2label = [class_idx[str(k)][1] for k in range(len(class_idx))]
 
-MODEL_DIRECTORY = "resnet50.tar.gz"
-_model: Optional[torch.nn.Module] = None
-_model_key: Optional[str] = None
-_device = "cuda" if torch.cuda.is_available() else "cpu"
-_preprocess = transforms.Compose(
-    [
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ]
-)
+MODEL_ARCHIVE = "resnet50.tar.gz"
+MODEL_DIRECTORY = "/tmp/image_classification_model"
+MODEL_SUBDIR = "resnet50"
+
+_session: Optional[ort.InferenceSession] = None
+_session_input: Optional[str] = None
+_session_output: Optional[str] = None
+_cached_model_key: Optional[str] = None
+
+_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
 def _ensure_model(bucket: str, model_prefix: str, model_key: str) -> Tuple[float, float]:
     """
-    Lazily download and load the ResNet model so repeated invocations stay warm.
+    Lazily download, extract, and initialize the ONNX ResNet model.
     """
-    global _model, _model_key
+    global _session, _session_input, _session_output, _cached_model_key
 
+    effective_model_key = model_key or MODEL_ARCHIVE
     model_download_begin = datetime.datetime.now()
     model_download_end = model_download_begin
-    model_process_begin = datetime.datetime.now()
-    model_process_end = model_process_begin
 
-    if _model is None or _model_key != model_key:
+    if _session is None or _cached_model_key != effective_model_key:
+        archive_basename = os.path.basename(effective_model_key)
+        archive_path = os.path.join("/tmp", f"{uuid.uuid4()}-{archive_basename}")
+        model_dir = os.path.join(MODEL_DIRECTORY, MODEL_SUBDIR)
+
+        if os.path.exists(model_dir):
+            shutil.rmtree(model_dir)
         os.makedirs(MODEL_DIRECTORY, exist_ok=True)
-        weights_name = os.path.basename(model_key)
-        weights_path = os.path.join(MODEL_DIRECTORY, weights_name)
 
-        if not os.path.exists(weights_path):
-            client.download(bucket, os.path.join(model_prefix, model_key), weights_path)
-            model_download_end = datetime.datetime.now()
-        else:
-            model_download_begin = datetime.datetime.now()
-            model_download_end = model_download_begin
+        client.download(bucket, os.path.join(model_prefix, effective_model_key), archive_path)
+        model_download_end = datetime.datetime.now()
+
+        with tarfile.open(archive_path, "r:gz") as tar:
+            tar.extractall(MODEL_DIRECTORY)
+        os.remove(archive_path)
 
         model_process_begin = datetime.datetime.now()
-        model = resnet50(pretrained=False)
-        state = torch.load(weights_path, map_location="cpu")
-        state = state.get("state_dict", state)
-        model.load_state_dict(state)
-        model.eval()
-        model.to(_device)
-        if _device == "cuda":
-            torch.backends.cudnn.benchmark = True
-        _model = model
-        _model_key = model_key
-        model_process_end = datetime.datetime.now()
+        onnx_path = os.path.join(model_dir, "model.onnx")
+        if not os.path.exists(onnx_path):
+            raise FileNotFoundError(f"Expected ONNX model at {onnx_path}")
 
-    return (
-        (model_download_end - model_download_begin) / datetime.timedelta(microseconds=1),
-        (model_process_end - model_process_begin) / datetime.timedelta(microseconds=1),
+        available = ort.get_available_providers()
+        if "CUDAExecutionProvider" not in available:
+            raise RuntimeError(f"CUDAExecutionProvider unavailable (providers: {available})")
+
+        _session = ort.InferenceSession(onnx_path, providers=["CUDAExecutionProvider"])
+        _session_input = _session.get_inputs()[0].name
+        _session_output = _session.get_outputs()[0].name
+        _cached_model_key = effective_model_key
+        model_process_end = datetime.datetime.now()
+    else:
+        model_process_begin = datetime.datetime.now()
+        model_process_end = model_process_begin
+
+    model_download_time = (model_download_end - model_download_begin) / datetime.timedelta(
+        microseconds=1
+    )
+    model_process_time = (model_process_end - model_process_begin) / datetime.timedelta(
+        microseconds=1
     )
 
+    return model_download_time, model_process_time
 
-def _prepare_tensor(image_path: str) -> torch.Tensor:
+
+def _resize_shorter_side(image: Image.Image, size: int) -> Image.Image:
+    width, height = image.size
+    if width < height:
+        new_width = size
+        new_height = int(round(size * height / width))
+    else:
+        new_height = size
+        new_width = int(round(size * width / height))
+    resample = getattr(Image, "Resampling", Image).BILINEAR
+    return image.resize((new_width, new_height), resample=resample)
+
+
+def _center_crop(image: Image.Image, size: int) -> Image.Image:
+    width, height = image.size
+    left = max(0, int(round((width - size) / 2)))
+    top = max(0, int(round((height - size) / 2)))
+    right = left + size
+    bottom = top + size
+    return image.crop((left, top, right, bottom))
+
+
+def _prepare_tensor(image_path: str) -> np.ndarray:
     image = Image.open(image_path).convert("RGB")
-    tensor = _preprocess(image).unsqueeze(0)
-    return tensor.to(_device, non_blocking=True)
+    image = _resize_shorter_side(image, 256)
+    image = _center_crop(image, 224)
+
+    np_image = np.asarray(image).astype(np.float32) / 255.0
+    np_image = (np_image - _MEAN) / _STD
+    np_image = np.transpose(np_image, (2, 0, 1))
+    return np_image[np.newaxis, :]
 
 
-def _run_inference(batch: torch.Tensor) -> Tuple[int, float, List[int], float]:
-    assert _model is not None
+def _softmax(logits: np.ndarray) -> np.ndarray:
+    shifted = logits - np.max(logits, axis=1, keepdims=True)
+    exp = np.exp(shifted)
+    return exp / np.sum(exp, axis=1, keepdims=True)
 
-    gpu_time_ms = 0.0
-    start_evt = end_evt = None
-    if _device == "cuda":
-        torch.cuda.synchronize()
-        start_evt = torch.cuda.Event(enable_timing=True)
-        end_evt = torch.cuda.Event(enable_timing=True)
-        start_evt.record()
 
-    with torch.no_grad():
-        output = _model(batch)
+def _run_inference(batch: np.ndarray) -> Tuple[int, float, List[int]]:
+    assert _session is not None and _session_input is not None and _session_output is not None
 
-    if _device == "cuda" and start_evt and end_evt:
-        end_evt.record()
-        torch.cuda.synchronize()
-        gpu_time_ms = float(start_evt.elapsed_time(end_evt))
+    outputs = _session.run([_session_output], {_session_input: batch})
+    logits = outputs[0]
+    probs = _softmax(logits)
+    top1_idx = int(np.argmax(probs, axis=1)[0])
+    top1_conf = float(probs[0, top1_idx])
+    top5_idx = np.argsort(probs[0])[::-1][:5].tolist()
 
-    probs = torch.nn.functional.softmax(output, dim=1)
-    conf, index = torch.max(probs, 1)
-    _, top5_idx = torch.topk(probs, k=5, dim=1)
-
-    return index.item(), float(conf.item()), top5_idx[0].tolist(), gpu_time_ms
+    return top1_idx, top1_conf, top5_idx
 
 
 def handler(event):
@@ -130,13 +152,14 @@ def handler(event):
 
     inference_begin = datetime.datetime.now()
     input_batch = _prepare_tensor(download_path)
-    top1_idx, top1_conf, top5_idx, gpu_time_ms = _run_inference(input_batch)
+    top1_idx, top1_conf, top5_idx = _run_inference(input_batch)
     inference_end = datetime.datetime.now()
 
     os.remove(download_path)
 
     download_time = (image_download_end - image_download_begin) / datetime.timedelta(microseconds=1)
     compute_time = (inference_end - inference_begin) / datetime.timedelta(microseconds=1)
+    #gpu_time_ms = 0.0
 
     return {
         "result": {
@@ -150,6 +173,6 @@ def handler(event):
             "compute_time": compute_time + model_process_time,
             "model_time": model_process_time,
             "model_download_time": model_download_time,
-            "gpu_time_ms": round(gpu_time_ms, 3),
+            #"gpu_time_ms": round(gpu_time_ms, 3),
         },
     }
