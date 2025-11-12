@@ -211,6 +211,22 @@ account_id = "{account_id}"
 
 """
         
+
+        
+       
+        # Add compatibility flags based on language
+        if language == "nodejs":
+            toml_content += """# Custom polyfills for fs and path that read from R2 bucket
+compatibility_flags = ["nodejs_compat"]
+[alias]
+"fs" = "./fs-polyfill"
+"""
+        elif language == "python":
+            toml_content += """# Enable Python Workers runtime
+compatibility_flags = ["python_workers"]
+"""
+
+
         # Add environment variable for benchmark name (used by fs-polyfill for R2 paths)
         if benchmark_name:
             toml_content += f"""# Benchmark name used for R2 file path prefix
@@ -218,8 +234,8 @@ account_id = "{account_id}"
 BENCHMARK_NAME = "{benchmark_name}"
 
 """
-        
-        # Add R2 bucket binding for benchmarking files (required for fs/path polyfills)
+
+ # Add R2 bucket binding for benchmarking files (required for fs/path polyfills)
         r2_bucket_configured = False
         try:
             storage = self.system_resources.get_storage()
@@ -240,21 +256,6 @@ bucket_name = "{bucket_name}"
                 f"Benchmarks requiring file access will not work properly."
             )
         
-        # Add compatibility flags based on language
-        if language == "nodejs":
-            toml_content += """# Custom polyfills for fs and path that read from R2 bucket
-[alias]
-"fs" = "./fs-polyfill"
-"path" = "./path-polyfill"
-"""
-            if r2_bucket_configured:
-                self.logging.info(
-                    "fs and path polyfills configured to use R2 bucket for file operations"
-                )
-        elif language == "python":
-            toml_content += """# Enable Python Workers runtime
-compatibility_flags = ["python_workers"]
-"""
         
         # Write wrangler.toml to package directory
         toml_path = os.path.join(package_dir, "wrangler.toml")

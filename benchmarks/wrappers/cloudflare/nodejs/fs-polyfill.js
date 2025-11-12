@@ -1,10 +1,5 @@
-/**
- * fs polyfill for Cloudflare Workers that reads files from R2 bucket
- * 
- * This polyfill provides a subset of Node.js fs API for reading files
- * stored in an R2 bucket. The R2 bucket binding is accessed via
- * globalThis.R2_BUCKET which is set by the handler.
- */
+import * as nodeFs from 'node:fs';
+import { Writable } from 'node:stream';
 
 /**
  * Read a file from R2 bucket
@@ -147,10 +142,99 @@ export async function stat(path, callback) {
   }
 }
 
-// Export default object with all methods for CommonJS-style usage
+/**
+ * Create a write stream (memory-buffered, writes to R2 on close)
+ */
+export function createWriteStream(path, options) {
+  const chunks = [];
+  
+  const stream = new Writable({
+    write(chunk, encoding, callback) {
+      chunks.push(chunk);
+      callback();
+    },
+    final(callback) {
+      // Write to R2 when stream is closed
+      (async () => {
+        try {
+          if (!globalThis.R2_BUCKET) {
+            throw new Error('R2 bucket not available');
+          }
+
+          let normalizedPath = path.replace(/^\.?\//, '');
+          
+          if (globalThis.BENCHMARK_NAME && !normalizedPath.startsWith(globalThis.BENCHMARK_NAME + '/')) {
+            normalizedPath = globalThis.BENCHMARK_NAME + '/' + normalizedPath;
+          }
+          
+          const buffer = Buffer.concat(chunks);
+          await globalThis.R2_BUCKET.put(normalizedPath, buffer);
+          callback();
+        } catch (err) {
+          callback(err);
+        }
+      })();
+    }
+  });
+
+  return stream;
+}
+
+/**
+ * Write file to R2
+ */
+export async function writeFile(path, data, options, callback) {
+  let actualCallback = callback;
+  let actualOptions = options;
+  
+  if (typeof options === 'function') {
+    actualCallback = options;
+    actualOptions = {};
+  }
+
+  try {
+    if (!globalThis.R2_BUCKET) {
+      throw new Error('R2 bucket not available');
+    }
+
+    let normalizedPath = path.replace(/^\.?\//, '');
+    
+    if (globalThis.BENCHMARK_NAME && !normalizedPath.startsWith(globalThis.BENCHMARK_NAME + '/')) {
+      normalizedPath = globalThis.BENCHMARK_NAME + '/' + normalizedPath;
+    }
+    
+    await globalThis.R2_BUCKET.put(normalizedPath, data);
+    
+    if (actualCallback) actualCallback(null);
+  } catch (err) {
+    if (actualCallback) actualCallback(err);
+    else throw err;
+  }
+}
+
+/**
+ * Synchronous write file to R2
+ */
+export function writeFileSync(path, data, options) {
+  return new Promise((resolve, reject) => {
+    writeFile(path, data, options, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+// Export everything from node:fs (what's available), but override specific methods
 export default {
+  ...nodeFs,
   readFile,
   readFileSync,
   exists,
   stat,
+  createWriteStream,
+  writeFile,
+  writeFileSync,
 };
+
+// Also re-export all named exports from node:fs
+export * from 'node:fs';
