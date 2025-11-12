@@ -26,7 +26,7 @@ echo
 # If INPUT is missing, let gpu_bench synthesize one
 /app/gpu_bench.py \
   --input "$INPUT" \
-  --watermark "$WATERMARK" \        # ✅ new arg
+  --watermark "$WATERMARK" \     
   --duration "$DURATION" \
   --repeat "$REPEAT" \
   --decode "$DECODE" \
