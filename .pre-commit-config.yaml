@@ -9,7 +9,7 @@ repos:
         entry: flake8
         args: ["--config=.flake8.cfg"]
         types: [python]
-        files: ^sebs/
+        files: ^(sebs/|benchmarks/)
   - repo: local
     hooks:
       - id: black-check-local
@@ -19,5 +19,12 @@ repos:
         entry: black
         args: ["--config=.black.toml", "--check", "--diff"]
         types: [python]
-        files: ^sebs/
+        files: ^(sebs/|benchmarks/)
+  # - repo: local
+  #   hooks:
+  #     - id: mypy-local
+  #       name: mypy (project venv)
+  #       language: system
+  #       entry: bash -lc 'python -m mypy --config-file=.mypy.ini sebs'
+  #       types: [python]
 
