@@ -11,6 +11,7 @@
 | Utilities      | 311.compression    | Python   | x64, arm64 | Create a .zip file for a group of files in storage and return to user to download. |
 | Inference      | 411.image-recognition    | Python    | x64 | Image recognition with ResNet and pytorch. |
 | Inference      | 412.language-bert    | Python    | x64 | Sentence classification with a compact BERT model served via ONNX Runtime. |
+| Inference      | 413.recommendation    | Python    | x64 | GPU DLRM-inspired recommender scoring implemented in PyTorch. |
 | Scientific      | 501.graph-pagerank    | Python    | x64, arm64 | PageRank implementation with igraph. |
 | Scientific      | 502.graph-mst    | Python    | x64, arm64 | Minimum spanning tree (MST)  implementation with igraph. |
 | Scientific      | 503.graph-bfs    | Python    | x64, arm64 | Breadth-first search (BFS) implementation with igraph. |
@@ -74,6 +75,10 @@ The benchmark is inspired by MLPerf and implements image recognition with Resnet
 ### Language Inference
 
 This benchmark runs sequence classification with a compact BERT model exported to ONNX. The function downloads the model archive and text samples from storage, tokenizes the sentences, executes the ONNX Runtime session, and returns the predicted labels together with confidences.
+
+### Recommendation
+
+Inspired by MLPerf’s DLRM v2, this benchmark ships a tiny PyTorch DLRM model that optionally runs on CUDA when available. The function downloads the model and request batch, moves the network to GPU if possible, performs batched inference, and reports recommendation scores alongside timing measurements.
 
 ## Scientific
 
