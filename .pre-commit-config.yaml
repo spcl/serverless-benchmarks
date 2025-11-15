@@ -17,7 +17,7 @@ repos:
         language: python
         additional_dependencies: ["black==22.8.0"]
         entry: black
-        args: ["--config=.black.toml", "--check", "--diff"]
+        args: ["--config=.black.toml"]
         types: [python]
         files: ^(sebs/|benchmarks/)
   # - repo: local
