@@ -5,7 +5,7 @@
             "type": "map",
             "root": "individuals",
             "array": "blob",
-            "common_params": "bucket,columns,columns_bucket,populations,sifting_input,individuals_file",
+            "common_params": "benchmark_bucket,bucket,columns,columns_bucket,populations,sifting_input,individuals_file",
             "states": {
               "individuals": {
                 "type": "task",

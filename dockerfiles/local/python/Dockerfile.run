@@ -6,7 +6,7 @@ RUN deps=''\
   # for route and sudo
   && apt-get install --no-install-recommends -y curl gosu net-tools sudo ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
-  && pip3 install cffi minio bottle
+  && pip3 install cffi minio bottle redis
 
 RUN mkdir -p /sebs
 COPY dockerfiles/local/run.sh /sebs/
