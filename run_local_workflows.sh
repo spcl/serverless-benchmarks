@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+if [ ! -f config/local_workflows.json ]; then
+  cp config/example.json config/local_workflows.json
+fi
+if [ ! -f config/local_deployment.json ]; then
+  cp config/example.json config/local_deployment.json
+fi
+
 ./sebs.py storage start all config/storage.json --output-json out_storage.json
 
 MINIO_ADDRESS=$(jq -r '.object.minio.address' out_storage.json)

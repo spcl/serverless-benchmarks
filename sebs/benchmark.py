@@ -325,7 +325,7 @@ class Benchmark(LoggingBase):
 
     def get_code_files(self, include_config=True):
         FILES = {
-            "python": ["*.py"],
+            "python": ["*.py", "*.sh", "*.c", "*.h", "*.so", "*.so.*"],
             "nodejs": ["*.js"],
         }
         if include_config:
