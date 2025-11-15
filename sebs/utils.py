@@ -110,8 +110,21 @@ def replace_string_in_file(path: str, from_str: str, to_str: str):
 
 
 def connect_to_redis_cache(host: str, password: str):
+    if ":" in host:
+        redis_host, redis_port = host.split(":", 1)
+        port = int(redis_port)
+    else:
+        redis_host = host
+        port = 6379
+
     redis = Redis(
-        host=host, port=6379, decode_responses=True, socket_keepalive=True, socket_timeout=10, socket_connect_timeout=10, password=password
+        host=redis_host,
+        port=port,
+        decode_responses=True,
+        socket_keepalive=True,
+        socket_timeout=10,
+        socket_connect_timeout=10,
+        password=password,
     )
     redis.ping()
 
@@ -119,7 +132,11 @@ def connect_to_redis_cache(host: str, password: str):
 
 
 def download_measurements(
-    redis: Redis, workflow_name: str, after: float, request_id: Optional[str], **static_args
+    redis: Redis,
+    workflow_name: str,
+    after: float,
+    request_id: Optional[str],
+    **static_args,
 ):
     payloads = []
     pattern = f"{workflow_name}/*/{request_id}/*" if request_id else f"{workflow_name}/*"

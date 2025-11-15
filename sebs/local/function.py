@@ -52,24 +52,7 @@ class LocalFunction(Function):
         self._instance = docker_container
         self._instance_id = docker_container.id
         self._instance.reload()
-        networks = self._instance.attrs["NetworkSettings"]["Networks"]
-        self._port = port
-
-        if is_linux():
-            self._url = "{IPAddress}:{Port}".format(
-                IPAddress=networks["bridge"]["IPAddress"], Port=port
-            )
-            if not self._url:
-                self.logging.error(
-                    f"Couldn't read the IP address of container from attributes "
-                    f"{json.dumps(self._instance.attrs, indent=2)}"
-                )
-                raise RuntimeError(
-                    f"Incorrect detection of IP address for container with id {self._instance_id}"
-                )
-        else:
-            self._url = f"localhost:{port}"
-
+        self._configure_endpoint(port)
         self._measurement_pid = measurement_pid
 
     @property
@@ -91,6 +74,28 @@ class LocalFunction(Function):
     @staticmethod
     def typename() -> str:
         return "Local.LocalFunction"
+
+    def refresh_endpoint(self, port: int):
+        self._configure_endpoint(port)
+
+    def _configure_endpoint(self, port: int):
+        self._instance.reload()
+        networks = self._instance.attrs["NetworkSettings"]["Networks"]
+        self._port = port
+        if is_linux():
+            self._url = "{IPAddress}:{Port}".format(
+                IPAddress=networks["bridge"]["IPAddress"], Port=port
+            )
+            if not self._url:
+                self.logging.error(
+                    f"Couldn't read the IP address of container from attributes "
+                    f"{json.dumps(self._instance.attrs, indent=2)}"
+                )
+                raise RuntimeError(
+                    f"Incorrect detection of IP address for container with id {self._instance_id}"
+                )
+        else:
+            self._url = f"localhost:{port}"
 
     def serialize(self) -> dict:
         return {
