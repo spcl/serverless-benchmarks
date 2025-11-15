@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
+# Prepare local configuration files
 if [ ! -f config/local_workflows.json ]; then
   cp config/example.json config/local_workflows.json
 fi
@@ -46,6 +47,17 @@ if docker ps -a --format '{{.Names}}' | grep -q '^sebs-redis$'; then
   docker rm -f sebs-redis >/dev/null
 fi
 docker run -d --name sebs-redis -p 6380:6379 redis:7
+
+# Ensure native helper for selfish-detour is built before packaging
+SELFISH_DIR="benchmarks/600.workflows/640.selfish-detour/python"
+SELFISH_SRC="$SELFISH_DIR/selfish-detour.c"
+SELFISH_SO="$SELFISH_DIR/selfish-detour.so"
+if [ -f "$SELFISH_SRC" ]; then
+  if [ ! -f "$SELFISH_SO" ] || [ "$SELFISH_SRC" -nt "$SELFISH_SO" ]; then
+    echo "Compiling selfish-detour shared object..."
+    gcc -O2 -shared -fPIC -o "$SELFISH_SO" "$SELFISH_SRC"
+  fi
+fi
 
 WORKFLOWS=(
   "610.gen"
