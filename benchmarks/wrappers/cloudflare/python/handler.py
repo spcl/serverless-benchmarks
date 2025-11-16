@@ -56,9 +56,9 @@ def make_benchmark_func():
     module = ast.fix_missing_locations(MakeAsync().visit(module))
     module = ast.fix_missing_locations(AddAwait().visit(module))
     new_source = ast.unparse(module)
-    print("new_source:")
-    print(new_source)
-    print()
+    ##print("new_source:")
+    ##print(new_source)
+    ##print()
     with open("/tmp/function.py", "w") as wf:
         wf.write(new_source)
         
@@ -106,9 +106,17 @@ class Default(WorkerEntrypoint):
         event['request-id'] = req_id
         event['income-timestamp'] = income_timestamp
 
+
+
         from function import storage
 
         storage.storage.init_instance(self)
+
+        from function import nosql
+
+        nosql.nosql.init_instance(self)
+
+
 
         print("event:", event)
 
