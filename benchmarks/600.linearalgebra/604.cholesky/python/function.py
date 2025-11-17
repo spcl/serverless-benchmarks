@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import sys, json, torch, datetime
+import torch
+import datetime
 
 
 def initialize_torch(N, dtype=torch.float32, device="cuda"):

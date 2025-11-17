@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, json, math, torch
+import torch
 import datetime
 
 
@@ -45,14 +45,14 @@ def handler(event):
     alpha, beta, C, A, B = initialize_torch(size, size, size, dtype=torch.float32, device="cuda")
     matrix_generating_end = datetime.datetime.now()
 
-    matmul_begin = datetime.datetime.now()
+    # matmul_begin = datetime.datetime.now()
     C_out, gpu_ms = kernel_gemm(alpha, beta, C, A, B, reps=reps)
-    matmul_end = datetime.datetime.now()
+    # matmul_end = datetime.datetime.now()
 
     matrix_generating_time = (matrix_generating_end - matrix_generating_begin) / datetime.timedelta(
         microseconds=1
     )
-    matmul_time = (matmul_end - matmul_begin) / datetime.timedelta(microseconds=1)
+    # matmul_time = (matmul_end - matmul_begin) / datetime.timedelta(microseconds=1)
 
     return {
         "result": C_out,

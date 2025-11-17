@@ -1,4 +1,4 @@
-import glob, os
+import os
 
 
 def buckets_count():
