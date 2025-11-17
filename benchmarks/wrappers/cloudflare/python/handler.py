@@ -121,12 +121,13 @@ class Default(WorkerEntrypoint):
 
         print("event:", event)
 
-        make_benchmark_func()
-        function = import_from_path("function.function", "/tmp/function.py")
-        async def run_handler():
-            return function.handler(event)
-        ret = await asyncio.to_thread(run_handler())
 
+##        make_benchmark_func()
+##        function = import_from_path("function.function", "/tmp/function.py")
+
+        from function import function
+        
+        ret = function.handler(event)
 
         log_data = {
             'output': ret['result']

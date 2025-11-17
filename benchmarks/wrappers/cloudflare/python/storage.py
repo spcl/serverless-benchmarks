@@ -2,7 +2,7 @@ import io
 import os
 import uuid
 import asyncio
-from pyodide.ffi import to_js, jsnull
+from pyodide.ffi import to_js, jsnull, run_sync
 from pyodide.webloop import WebLoop
 
 from workers import WorkerEntrypoint
@@ -38,16 +38,16 @@ class storage:
         storage.instance = storage()
         storage.instance.entry_env = entry.env
         storage.instance.written_files = set()
-
-    async def upload(self, bucket, key, filepath):
+        
+    def upload(self, bucket, key, filepath):
         if filepath in self.written_files:
             filepath = "/tmp" + os.path.abspath(filepath)
         with open(filepath, "rb") as f:
-            unique_key = await self.upload_stream(bucket, key, f.read())
+            unique_key = self.upload_stream(bucket, key, f.read())
         return unique_key
 
     def download(self, bucket, key, filepath):
-        data = asyncio.run(self.download_stream(bucket, key))
+        data = self.download_stream(bucket, key)
         # should only allow writes to tmp dir. so do have to edit the filepath here?
         real_fp = filepath
         if not filepath.startswith("/tmp"):
@@ -58,17 +58,20 @@ class storage:
             f.write(data)
         return
 
-    async def download_directory(self, bucket, prefix, out_path):
+    def download_directory(self, bucket, prefix, out_path):
         bobj = self.get_bucket(bucket)
-        list_res = await bobj.list(prefix = prefix) ## gives only first 1000?
+        list_res = run_sync(bobj.list(prefix = prefix)) ## gives only first 1000?
         for obj in list_res.objects:
             file_nameß = obj.key
             path_to_file = os.path.dirname(file_name)
             os.makedirs(os.path.join(path, path_to_file), exist_ok=True)
-            await self.download(bucket, file_name, os.path.join(out_path, file_name))
+            self.download(bucket, file_name, os.path.join(out_path, file_name))
         return
 
-    async def upload_stream(self, bucket, key, data):
+    def upload_stream(self, bucket, key, data):
+        return run_sync(self.aupload_stream(bucket, key, data))
+
+    async def aupload_stream(self, bucket, key, data):
         unique_key = storage.unique_name(key)
         data_js = to_js(data)
         bobj = self.get_bucket(bucket)
@@ -76,7 +79,10 @@ class storage:
         ##print(put_res)
         return unique_key
 
-    async def download_stream(self, bucket, key):
+    def download_stream(self, bucket, key):
+        return run_sync(self.adownload_stream(bucket, key))
+
+    async def adownload_stream(self, bucket, key):
         bobj = self.get_bucket(bucket)
         get_res = await bobj.get(key)
         if get_res == jsnull:
