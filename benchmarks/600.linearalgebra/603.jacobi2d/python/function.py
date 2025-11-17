@@ -54,7 +54,7 @@ def handler(event):
     matrix_generating_end = datetime.datetime.now()
 
     matmul_begin = datetime.datetime.now()
-    A_out, B_out, gpu_ms = kernel_jacobi2d(A, B, reps=50)
+    A_out, B_out, gpu_ms = kernel_jacobi2d(A, B, iters=50)
     matmul_end = datetime.datetime.now()
 
     matrix_generating_time = (matrix_generating_end - matrix_generating_begin) / datetime.timedelta(
