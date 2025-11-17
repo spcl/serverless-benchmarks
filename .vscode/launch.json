@@ -5,12 +5,29 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File with Arguments",
-            "type": "debugpy",
+            "name": "SeBS Benchmark Workflow",
+            "type": "python",
             "request": "launch",
-            "program": "sebs.py",
+            "program": "${workspaceFolder}/sebs.py",
+            "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
-            "args": "benchmark workflow 610.gen  test --config config/example.json --deployment aws --trigger library --repetitions 1"
+            "args": [
+                "benchmark",
+                "workflow",
+                "610.gen",
+                "test",
+                "--config",
+                "config/config.json",
+                "--deployment",
+                "aws",
+                "--trigger",
+                "library",
+                "--repetitions",
+                "1"
+            ],
+            "justMyCode": true,
+            "pythonPath": "${workspaceFolder}/python-venv/bin/python",
+            "envFile": "${workspaceFolder}/.env"
         }
     ]
 }
