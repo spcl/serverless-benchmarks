@@ -104,7 +104,9 @@ except RuntimeError as error:
             execute(f"git pull", cwd=data_dir)
         # clone
         else:
-            execute(f"git clone https://github.com/spcl/serverless-benchmarks-data.git {data_dir}")
+            execute(
+                f"git clone https://github.com/McLavish/serverless-benchmarks-data-dphpc.git {data_dir}"
+            )
     else:
         raise error
 
