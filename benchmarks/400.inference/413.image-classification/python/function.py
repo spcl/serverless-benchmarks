@@ -159,7 +159,7 @@ def handler(event):
 
     download_time = (image_download_end - image_download_begin) / datetime.timedelta(microseconds=1)
     compute_time = (inference_end - inference_begin) / datetime.timedelta(microseconds=1)
-    #gpu_time_ms = 0.0
+    # gpu_time_ms = 0.0
 
     return {
         "result": {
@@ -173,6 +173,6 @@ def handler(event):
             "compute_time": compute_time + model_process_time,
             "model_time": model_process_time,
             "model_download_time": model_download_time,
-            #"gpu_time_ms": round(gpu_time_ms, 3),
+            # "gpu_time_ms": round(gpu_time_ms, 3),
         },
     }
