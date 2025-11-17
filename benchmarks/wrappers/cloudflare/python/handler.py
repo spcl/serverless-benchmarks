@@ -1,4 +1,5 @@
 import datetime, io, json, os, uuid, sys, ast
+import asyncio
 import importlib.util
 import traceback
 from workers import WorkerEntrypoint, Response
@@ -122,8 +123,10 @@ class Default(WorkerEntrypoint):
 
         make_benchmark_func()
         function = import_from_path("function.function", "/tmp/function.py")
-        ret = await function.handler(event)
-        
+        async def run_handler():
+            return function.handler(event)
+        ret = await asyncio.to_thread(run_handler())
+
 
         log_data = {
             'output': ret['result']

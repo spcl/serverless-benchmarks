@@ -46,8 +46,8 @@ class storage:
             unique_key = await self.upload_stream(bucket, key, f.read())
         return unique_key
 
-    async def download(self, bucket, key, filepath):
-        data = await self.download_stream(bucket, key)
+    def download(self, bucket, key, filepath):
+        data = asyncio.run(self.download_stream(bucket, key))
         # should only allow writes to tmp dir. so do have to edit the filepath here?
         real_fp = filepath
         if not filepath.startswith("/tmp"):
