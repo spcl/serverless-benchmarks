@@ -3,4 +3,4 @@
   url = https://github.com/mcopik/pypapi.git
 [submodule "benchmarks-data"]
 	path = benchmarks-data
-  url = git@github.com:McLavish/serverless-benchmarks-data-dphpc.git
+  url = https://github.com/McLavish/serverless-benchmarks-data-dphpc.git
