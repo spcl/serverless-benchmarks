@@ -9,6 +9,20 @@ if [ ! -f config/local_deployment.json ]; then
   cp config/example.json config/local_deployment.json
 fi
 
+DATA_FLAG="benchmarks-data/600.workflows/6100.1000-genome/ALL.chr21.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.annotation.vcf"
+if [ ! -f "$DATA_FLAG" ]; then
+  echo "Workflow datasets missing, running download_datasets.sh..."
+  (cd benchmarks-data/600.workflows && ./download_datasets.sh)
+else
+  echo "Workflow datasets present, skipping download."
+fi
+
+cleanup() {
+  echo "Stopping all running Docker containers..."
+  docker ps -q | xargs -r docker stop >/dev/null || true
+}
+trap cleanup EXIT
+
 ./sebs.py storage start all config/storage.json --output-json out_storage.json
 
 MINIO_ADDRESS=$(jq -r '.object.minio.address' out_storage.json)
@@ -31,14 +45,20 @@ for cfg in config/local_workflows.json config/local_deployment.json; do
     --arg saddr "$SCYLLA_ADDRESS" \
     --argjson sport "$SCYLLA_PORT" \
     --arg sinst "$SCYLLA_INSTANCE" \
+    --arg redis_host "localhost:6380" \
+    --arg redis_pass "" \
     '(.deployment.local.storage.object.minio.address = $addr)
      | (.deployment.local.storage.object.minio.mapped_port = $port)
      | (.deployment.local.storage.object.minio.access_key = $access)
      | (.deployment.local.storage.object.minio.secret_key = $secret)
      | (.deployment.local.storage.object.minio.instance_id = $inst)
+     | (.deployment.local.storage.object.type = "minio")
      | (.deployment.local.storage.nosql.scylladb.address = $saddr)
      | (.deployment.local.storage.nosql.scylladb.mapped_port = $sport)
      | (.deployment.local.storage.nosql.scylladb.instance_id = $sinst)
+     | (.deployment.local.storage.nosql.type = "scylladb")
+     | (.deployment.local.resources.redis.host = $redis_host)
+     | (.deployment.local.resources.redis.password = $redis_pass)
     ' "$cfg" > "$tmp"
   mv "$tmp" "$cfg"
 done
@@ -47,6 +67,8 @@ if docker ps -a --format '{{.Names}}' | grep -q '^sebs-redis$'; then
   docker rm -f sebs-redis >/dev/null
 fi
 docker run -d --name sebs-redis -p 6380:6379 redis:7
+
+# docker run --network=host --name redis -d redis redis-server --save 60 1 --loglevel warning --requirepass {yourpassword}
 
 # Ensure native helper for selfish-detour is built before packaging
 SELFISH_DIR="benchmarks/600.workflows/640.selfish-detour/python"
