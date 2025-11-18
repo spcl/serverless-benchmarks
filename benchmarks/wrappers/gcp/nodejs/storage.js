@@ -20,7 +20,7 @@ class gcp_storage {
   upload(container, file, filepath) {
     let bucket = this.storage.bucket(container);
     let uniqueName = this.unique_name(file);
-    let options = {destination: uniqueName};
+    let options = {destination: uniqueName, resumable: false};
     return [uniqueName, bucket.upload(filepath, options)];
   };
 

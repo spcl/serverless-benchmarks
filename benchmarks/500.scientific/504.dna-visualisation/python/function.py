@@ -1,17 +1,23 @@
-import datetime, io, json, os
+import datetime
+import io
+import json
+import os
+
 # using https://squiggle.readthedocs.io/en/latest/
 from squiggle import transform
 
 from . import storage
+
 client = storage.storage.get_instance()
+
 
 def handler(event):
 
-    bucket = event.get('bucket').get('bucket')
-    input_prefix = event.get('bucket').get('input')
-    output_prefix = event.get('bucket').get('output')
-    key = event.get('object').get('key')
-    download_path = '/tmp/{}'.format(key)
+    bucket = event.get("bucket").get("bucket")
+    input_prefix = event.get("bucket").get("input")
+    output_prefix = event.get("bucket").get("output")
+    key = event.get("object").get("key")
+    download_path = "/tmp/{}".format(key)
 
     download_begin = datetime.datetime.now()
     client.download(bucket, os.path.join(input_prefix, key), download_path)
@@ -34,13 +40,10 @@ def handler(event):
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
 
     return {
-            'result': {
-                'bucket': bucket,
-                'key': key_name
-            },
-            'measurement': {
-                'download_time': download_time,
-                'compute_time': process_time,
-                'upload_time': process_time
-            }
+        "result": {"bucket": bucket, "key": key_name},
+        "measurement": {
+            "download_time": download_time,
+            "compute_time": process_time,
+            "upload_time": upload_time,
+        },
     }

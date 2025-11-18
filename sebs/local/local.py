@@ -406,7 +406,12 @@ class Local(System):
         else:
             port = self.DEFAULT_PORT
 
-        container = self._docker_client.containers.run(**container_kwargs)
+        from docker.types import DeviceRequest
+
+        container = self._docker_client.containers.run(
+            **container_kwargs,
+            device_requests=[DeviceRequest(driver="nvidia", count=-1, capabilities=[["gpu"]])],
+        )
 
         pid: Optional[int] = None
         if self.measurements_enabled and self._memory_measurement_path is not None:

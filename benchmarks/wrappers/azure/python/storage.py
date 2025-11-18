@@ -1,4 +1,3 @@
-
 import os
 import uuid
 from typing import Optional
@@ -26,20 +25,18 @@ class storage:
     @staticmethod
     def unique_name(name):
         name, extension = os.path.splitext(name)
-        return '{name}.{random}{extension}'.format(
-                    name=name,
-                    extension=extension,
-                    random=str(uuid.uuid4()).split('-')[0]
-                )
+        return "{name}.{random}{extension}".format(
+            name=name, extension=extension, random=str(uuid.uuid4()).split("-")[0]
+        )
 
     def upload(self, container, file, filepath, unique_name=True):
         incr_io_env_file(filepath, "STORAGE_UPLOAD_BYTES")
-        with open(filepath, 'rb') as data:
+        with open(filepath, "rb") as data:
             return self.upload_stream(container, file, data, unique_name=unique_name)
 
     def download(self, container, file, filepath):
-        with open(filepath, 'wb') as download_file:
-            download_file.write( self.download_stream(container, file) )
+        with open(filepath, "wb") as download_file:
+            download_file.write(self.download_stream(container, file))
         incr_io_env_file(filepath, "STORAGE_DOWNLOAD_BYTES")
 
     def download_directory(self, container, prefix, path):
@@ -57,10 +54,7 @@ class storage:
         incr_io_env(size, "STORAGE_UPLOAD_BYTES")
         data.seek(0)
         key_name = storage.unique_name(file) if unique_name else file
-        client = self.client.get_blob_client(
-                container=container,
-                blob=key_name
-        )
+        client = self.client.get_blob_client(container=container, blob=key_name)
         overwrite = not unique_name
         client.upload_blob(data, overwrite=overwrite)
         return key_name
@@ -74,10 +68,12 @@ class storage:
 
     def download_within_range(self, container, file, start_byte, stop_byte):
         client = self.client.get_blob_client(container=container, blob=file)
-        data = client.download_blob(offset=start_byte, length=(stop_byte-start_byte), encoding='UTF-8').readall()
+        data = client.download_blob(
+            offset=start_byte, length=(stop_byte - start_byte), encoding="UTF-8"
+        ).readall()
         incr_io_env(len(data), "STORAGE_DOWNLOAD_BYTES")
 
-        return data #.decode('utf-8')
+        return data  # .decode('utf-8')
 
     def list_directory(self, container, prefix):
         client = self.client.get_container_client(container=container)
@@ -88,7 +84,7 @@ class storage:
     @staticmethod
     def get_instance():
         if storage.instance is None:
-            connection_string = os.environ['STORAGE_CONNECTION_STRING']
+            connection_string = os.environ["STORAGE_CONNECTION_STRING"]
             assert connection_string is not None
             storage.instance = storage(connection_string)
         return storage.instance
