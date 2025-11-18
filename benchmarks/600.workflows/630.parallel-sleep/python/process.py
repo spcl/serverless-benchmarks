@@ -1,7 +1,7 @@
 import time
 
-def handler(event):
-    time.sleep(event['sleep'])
 
+def handler(event):
+    time.sleep(event["sleep"])
 
     return "ok"

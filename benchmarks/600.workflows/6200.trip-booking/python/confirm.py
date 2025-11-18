@@ -6,7 +6,10 @@ nosql_client = nosql.nosql.get_instance()
 def handler(event):
 
     expected_result = event["expected_result"]
-    if expected_result["result"] == "failure" and expected_result["reason"] == "confirm":
+    if (
+        expected_result["result"] == "failure"
+        and expected_result["reason"] == "confirm"
+    ):
         raise RuntimeError("Failed to confirm the booking!")
 
     trip_id = event["trip_id"]

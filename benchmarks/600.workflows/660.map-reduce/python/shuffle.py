@@ -13,15 +13,15 @@ def handler(event):
     dirs = client.list_directory(benchmark_bucket, prefix)
     dirs = [p.split(os.sep)[1] for p in dirs]
     dirs = list(set(dirs))
-    lst = [{
-        "bucket": benchmark_bucket,
-        #"dir": os.path.join(bucket, prefix, path)
-        #TODO add word here.
-        "dir": os.path.join(prefix, path)
-        #"dir": os.path.join(bucket, prefix)
-    } for path in dirs]
+    lst = [
+        {
+            "bucket": benchmark_bucket,
+            # "dir": os.path.join(bucket, prefix, path)
+            # TODO add word here.
+            "dir": os.path.join(prefix, path)
+            # "dir": os.path.join(bucket, prefix)
+        }
+        for path in dirs
+    ]
 
-
-    return {
-        "list": lst
-    }
+    return {"list": lst}

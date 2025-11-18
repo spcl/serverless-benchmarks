@@ -1,18 +1,22 @@
 import random
 import os
 
-size_generators = {
-    "test" : (18, 6),
-    "small": (30, 6),
-    "large": (60, 6)
-}
+size_generators = {"test": (18, 6), "small": (30, 6), "large": (60, 6)}
 
 
 def buckets_count():
     return (1, 1)
 
 
-def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func):
+def generate_input(
+    data_dir,
+    size,
+    benchmarks_bucket,
+    input_buckets,
+    output_buckets,
+    upload_func,
+    nosql_func,
+):
     num_frames, batch_size = size_generators[size]
 
     for bin in os.listdir(data_dir):
@@ -32,7 +36,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buck
         new_vid_segs.append(name)
         upload_func(0, name, path)
 
-    assert(len(new_vid_segs) == num_frames)
+    assert len(new_vid_segs) == num_frames
 
     return {
         "segments": new_vid_segs,
@@ -40,5 +44,5 @@ def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buck
         "input_bucket": input_buckets[0],
         "output_bucket": output_buckets[0],
         "batch_size": batch_size,
-        "quality": 1
+        "quality": 1,
     }

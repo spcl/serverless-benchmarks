@@ -1,5 +1,2 @@
 def handler(arr):
-    return {
-        "astros": arr,
-        "done": True
-    }
+    return {"astros": arr, "done": True}

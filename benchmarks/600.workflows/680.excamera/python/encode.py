@@ -11,19 +11,22 @@ XC_DUMP_0 = "/tmp/xc-dump {input}.ivf {output}.state"
 
 client = storage.storage.get_instance()
 
+
 def download_bin(benchmark_bucket, bucket, name, dest_dir):
     path = os.path.join(dest_dir, name)
     if not os.path.exists(path):
-        client.download(benchmark_bucket, bucket + '/' + name, path)
-        subprocess.check_output(f"chmod +x {path}", stderr=subprocess.STDOUT, shell=True)
+        client.download(benchmark_bucket, bucket + "/" + name, path)
+        subprocess.check_output(
+            f"chmod +x {path}", stderr=subprocess.STDOUT, shell=True
+        )
 
 
 def upload_files(benchmark_bucket, bucket, paths, prefix):
     for path in paths:
         file = os.path.basename(path)
         file = prefix + file
-        #print("Uploading", file, "to", path)
-        client.upload(benchmark_bucket, bucket + '/' + file, path, unique_name=False)
+        # print("Uploading", file, "to", path)
+        client.upload(benchmark_bucket, bucket + "/" + file, path, unique_name=False)
 
 
 def run(cmd):
@@ -49,13 +52,13 @@ def encode(segs, data_dir, quality):
         output_path = os.path.join(data_dir, output)
         cmd = TERMINATE_CHUNK.format(input=input_path, output=output_path)
         run(cmd)
-        files.append(output_path+".ivf")
+        files.append(output_path + ".ivf")
 
         input_path = output_path
         output_path = os.path.join(data_dir, f"{name}-0")
         cmd = XC_DUMP_0.format(input=input_path, output=output_path)
         run(cmd)
-        files.append(output_path+".state")
+        files.append(output_path + ".state")
 
     return files
 
@@ -77,7 +80,7 @@ def handler(event):
     os.makedirs(data_dir, exist_ok=True)
     for seg in segs:
         path = os.path.join(data_dir, seg)
-        client.download(benchmark_bucket, input_bucket + '/' + seg, path)
+        client.download(benchmark_bucket, input_bucket + "/" + seg, path)
 
     segs = [os.path.splitext(seg)[0] for seg in segs]
     output_paths = encode(segs, data_dir, quality)

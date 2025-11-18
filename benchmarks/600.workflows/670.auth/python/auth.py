@@ -17,7 +17,7 @@ def AESModeCBC(plaintext):
     # random initialization vector of 16 bytes
     blocks_size = 16
     iv = "InitializationVe"
-    pad = 16 - len(plaintext)% blocks_size
+    pad = 16 - len(plaintext) % blocks_size
     plaintext = str("0" * pad) + plaintext
     aes = pyaes.AESModeOfOperationCBC(KEY, iv=iv)
     ciphertext = aes.encrypt(plaintext)
@@ -34,6 +34,4 @@ def handler(event):
         res = AESModeCTR(message)
         res = base64.b64encode(res).decode("ascii")
 
-    return {
-        "response": res
-    }
+    return {"response": res}

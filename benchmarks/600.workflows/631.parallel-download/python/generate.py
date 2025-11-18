@@ -2,7 +2,4 @@ def handler(event):
     count = int(event["count"])
     del event["count"]
 
-
-    return {
-        "buffer": count * [event]
-    }
+    return {"buffer": count * [event]}

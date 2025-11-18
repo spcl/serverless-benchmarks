@@ -11,8 +11,7 @@ def handler(event):
 
     logs = {}
     for xs in frames:
-      for key,value in xs.items():
-        logs[key] = value
+        for key, value in xs.items():
+            logs[key] = value
 
     return logs
-

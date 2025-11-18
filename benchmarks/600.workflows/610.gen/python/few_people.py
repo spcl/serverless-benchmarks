@@ -1,5 +1,2 @@
 def handler(event):
-    return {
-        "many_astros": False,
-        **event
-    }
+    return {"many_astros": False, **event}
