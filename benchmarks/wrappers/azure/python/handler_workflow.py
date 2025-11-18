@@ -9,6 +9,7 @@ import logging
 import azure.functions as func
 from redis import Redis
 
+
 def probe_cold_start():
     is_cold = False
     fname = os.path.join("/tmp", "cold_run")
@@ -23,6 +24,7 @@ def probe_cold_start():
 
     return is_cold, container_id
 
+
 def main(event, context: func.Context):
     start = datetime.datetime.now().timestamp()
     os.environ["STORAGE_UPLOAD_BYTES"] = "0"
@@ -32,7 +34,7 @@ def main(event, context: func.Context):
     func_name = os.path.basename(os.path.dirname(__file__))
 
     # FIXME: sort out workflow and function request id
-    #event["request-id"] = context.invocation_id
+    # event["request-id"] = context.invocation_id
     # this only works on benchmarks where payload is dict
     event["payload"]["request-id"] = context.invocation_id
 
@@ -53,7 +55,7 @@ def main(event, context: func.Context):
         "end": end,
         "is_cold": is_cold,
         "container_id": container_id,
-        "provider.request_id": context.invocation_id
+        "provider.request_id": context.invocation_id,
     }
 
     func_res = os.getenv("SEBS_FUNCTION_RESULT")
@@ -70,11 +72,13 @@ def main(event, context: func.Context):
 
     payload = json.dumps(payload)
 
-    redis = Redis(host={{REDIS_HOST}},
-          port=6379,
-          decode_responses=True,
-          socket_connect_timeout=10,
-          password={{REDIS_PASSWORD}})
+    redis = Redis(
+        host={{REDIS_HOST}},
+        port=6379,
+        decode_responses=True,
+        socket_connect_timeout=10,
+        password={{REDIS_PASSWORD}},
+    )
 
     req_id = event["request_id"]
     key = os.path.join(workflow_name, func_name, req_id, str(uuid.uuid4())[0:8])
