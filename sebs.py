@@ -334,8 +334,6 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    if isinstance(deployment_client, Local):
-        raise NotImplementedError("Local workflow deployment is currently not supported.")
 
     assert deployment_client.config.resources.redis_host is not None
 

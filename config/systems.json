@@ -34,9 +34,12 @@
         "deployment": {
           "files": [
             "storage.py",
-            "nosql.py"
+            "nosql.py",
+            "function_workflow.py"
           ],
-          "packages": [],
+          "packages": [
+            "redis"
+          ],
           "module_packages": {
             "nosql": [
               "boto3==1.28.3"
