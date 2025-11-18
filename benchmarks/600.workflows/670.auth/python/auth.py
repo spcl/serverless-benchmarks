@@ -1,5 +1,3 @@
-import random
-import string
 import pyaes
 import base64
 

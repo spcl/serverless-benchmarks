@@ -1,12 +1,11 @@
 import os
-import json
 from . import storage
 
 
 def handler(event):
     lst = event["list"]
     benchmark_bucket = lst[0]["benchmark_bucket"]
-    bucket = lst[0]["bucket"]
+    lst[0]["bucket"]
     prefix = lst[0]["prefix"]
 
     client = storage.storage.get_instance()

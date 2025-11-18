@@ -1,4 +1,3 @@
-import random
 import os
 
 size_generators = {"test": (18, 6), "small": (30, 6), "large": (60, 6)}

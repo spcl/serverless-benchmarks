@@ -4,7 +4,6 @@ import time
 import tarfile
 import tempfile
 import shutil
-import datetime
 
 
 def handler(event):
@@ -61,7 +60,7 @@ def writefile(filename, content):
 
 
 def merging(c, tar_files):
-    tic = time.perf_counter()
+    time.perf_counter()
 
     merged_dir = "merged_chr{}".format(c)
     merged_dir = os.path.join("/tmp", merged_dir)
@@ -70,7 +69,7 @@ def merging(c, tar_files):
     data = {}
 
     for tar in tar_files:
-        tic_iter = time.perf_counter()
+        time.perf_counter()
         os.makedirs("/tmp/temp_dir", exist_ok=True)
         with tempfile.TemporaryDirectory(dir="/tmp/temp_dir") as temp_dir:
             for filename in extract_all(os.path.join("/tmp", tar), temp_dir):

@@ -12,9 +12,6 @@ import matplotlib.pyplot as plt
 import itertools
 from matplotlib import pyplot
 import matplotlib as mpl
-import collections
-from collections import Counter
-import datetime
 
 import os
 from . import storage
@@ -22,7 +19,7 @@ from . import storage
 
 class ReadData:
     def read_names(self, POP, pop_dir, columns_file):
-        tic = time.perf_counter()
+        time.perf_counter()
         namefile = pop_dir + POP
         f = open(namefile, "r")
         text = f.read()
@@ -42,11 +39,9 @@ class ReadData:
     def read_rs_numbers(self, siftfile, SIFT):
         ## NB This file is in the format of:
         ## line number, rs number, ENSG number, SIFT, Phenotype
-        tic = time.perf_counter()
+        time.perf_counter()
         rs_numbers = []
-        variations = {}
         map_variations = {}
-        all_variations = []
         sift_file = open(siftfile, "r")
         for item in sift_file:
             item = item.split()
@@ -57,7 +52,7 @@ class ReadData:
         return rs_numbers, map_variations
 
     def read_individuals(self, ids, rs_numbers, data_dir, chrom, individuals_merge_filename):
-        tic = time.perf_counter()
+        time.perf_counter()
         mutation_index_array = []
         total_mutations = {}
         total_mutations_list = []
@@ -75,7 +70,7 @@ class ReadData:
         return mutation_index_array, total_mutations, total_mutations_list
 
     def read_pairs_overlap(self, indpairsfile):
-        tic = time.perf_counter()
+        time.perf_counter()
         pairs_overlap = np.loadtxt(indpairsfile, unpack=True)
         pairs_overlap = np.transpose(pairs_overlap)
 
@@ -84,7 +79,7 @@ class ReadData:
 
 class Results:
     def group_indivuals(self, total_mutations_list, n_runs):
-        tic = time.perf_counter()
+        time.perf_counter()
         n_group = 26
         random_mutations_list = []
         for run in range(n_runs):
@@ -92,7 +87,7 @@ class Results:
         return random_mutations_list
 
     def pair_individuals(self, mutation_index_array, n_runs):
-        tic = time.perf_counter()
+        time.perf_counter()
 
         n_p = len(mutation_index_array)
         n_pairs = int(round(n_p / 2))
@@ -110,7 +105,7 @@ class Results:
         return pairs_overlap
 
     def total_pair_individuals(self, mutation_index_array):
-        tic = time.perf_counter()
+        time.perf_counter()
         n_p = len(mutation_index_array)
         total_pairs_overlap = np.zeros((n_p, n_p))
         simetric_overlap = np.zeros((n_p, n_p))
@@ -127,7 +122,7 @@ class Results:
         return total_pairs_overlap, simetric_overlap
 
     def half_pair_individuals(self, mutation_index_array):
-        tic = time.perf_counter()
+        time.perf_counter()
         n_p = len(mutation_index_array)
         n_pairs = int(round(n_p / 2))
         pairs_overlap = np.zeros((n_pairs, n_pairs))
@@ -143,7 +138,7 @@ class Results:
 
     def gene_pairs(self, mutation_index_array):
 
-        tic = time.perf_counter()
+        time.perf_counter()
         n_p = len(mutation_index_array)
         gene_pair_list = {}
         for pp in range(n_p):
@@ -160,11 +155,11 @@ class Results:
 
 class PlotData:
     def individual_overlap(self, POP, pairs_overlap, outputFile, c, SIFT):
-        tic = time.perf_counter()
+        time.perf_counter()
 
         pairs_overlap = np.array(pairs_overlap)
 
-        min_p = np.min(pairs_overlap)
+        np.min(pairs_overlap)
         max_p = np.max(pairs_overlap)
         nbins = int(max_p) + 1
         n_runs = len(pairs_overlap)
@@ -175,7 +170,6 @@ class PlotData:
 
         fig = plt.figure(frameon=False, figsize=(10, 9))
         ax = fig.add_subplot(111)
-        hists = []
         max_h = 0
         for run in range(n_runs):
             h, edges = np.histogram(pairs_overlap[run], bins=bin_edges)
@@ -211,8 +205,8 @@ class PlotData:
         plt.close()
 
     def total_colormap_overlap(self, POP, total_pairs_overlap, outputFile):
-        tic = time.perf_counter()
-        fig = plt.figure()
+        time.perf_counter()
+        plt.figure()
         cmap = mpl.colors.ListedColormap(["blue", "black", "red", "green", "pink"])
         img = pyplot.imshow(total_pairs_overlap, interpolation="nearest", cmap=cmap, origin="lower")
         pyplot.colorbar(img, cmap=cmap)
@@ -223,18 +217,18 @@ class PlotData:
 
 class WriteData:
     def write_pair_individuals(self, indpairsfile, pairs_overlap):
-        tic = time.perf_counter()
+        time.perf_counter()
         np.savetxt(indpairsfile, pairs_overlap, fmt="%i")
 
     def write_gene_pairs(self, genepairsfile, gene_pair_list):
-        tic = time.perf_counter()
+        time.perf_counter()
         f = open(genepairsfile, "w")
         for key, count in gene_pair_list.items():
             f.write(key + "\t" + str(count) + "\n")
         f.close()
 
     def write_total_indiv(self, total_mutations_filename, total_mutations):
-        tic = time.perf_counter()
+        time.perf_counter()
         f = open(total_mutations_filename, "w")
         for key, count in total_mutations.items():
             f.write(key + "\t" + str(count) + "\n")
@@ -253,7 +247,7 @@ class WriteData:
         f.close()
 
     def write_map_variations(self, map_variations_file, map_variations):
-        tic = time.perf_counter()
+        time.perf_counter()
         f = open(map_variations_file, "w")
         for key, count in map_variations.items():
             f.write(key + "\t" + str(count) + "\n")
@@ -312,7 +306,7 @@ def handler(event):
     tar.extractall(path="/tmp/" + individuals_merge_filename)
     tar.close()
 
-    tic = time.perf_counter()
+    time.perf_counter()
 
     rd = ReadData()
     res = Results()
@@ -375,7 +369,7 @@ def handler(event):
     )
 
     ids = rd.read_names(POP, pop_dir, columns_file)
-    n_pairs = len(ids) / 2
+    len(ids) / 2
 
     rs_numbers, map_variations = rd.read_rs_numbers(siftfile, SIFT)
     mutation_index_array, total_mutations, total_mutations_list = rd.read_individuals(

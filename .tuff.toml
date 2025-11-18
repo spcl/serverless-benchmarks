@@ -1,0 +1,7 @@
+line-length = 100
+target-version = "py38"
+[lint]
+select = ["E", "F", "W"]
+
+[lint.isort]
+known-first-party = ["sebs"]

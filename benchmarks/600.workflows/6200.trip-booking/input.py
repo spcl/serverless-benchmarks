@@ -17,7 +17,6 @@ def generate_input(
     nosql_func,
 ):
 
-    input_config = {}
 
     # test - invoke a single trip, succeed
     # small - fail in the middle

@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import collections
 from collections import Counter
 
-import datetime
 
 import os
 from . import storage
@@ -19,7 +18,7 @@ from . import storage
 
 class ReadData:
     def read_names(self, POP, pop_dir, columns_file):
-        tic = time.perf_counter()
+        time.perf_counter()
         namefile = pop_dir + POP
         f = open(namefile, "r")
         text = f.read()
@@ -38,11 +37,10 @@ class ReadData:
     def read_rs_numbers(self, siftfile, SIFT):
         ## NB This file is in the format of:
         ## line number, rs number, ENSG number, SIFT, Phenotype
-        tic = time.perf_counter()
+        time.perf_counter()
         rs_numbers = []
         variations = {}
         map_variations = {}
-        all_variations = []
         sift_file = open(siftfile, "r")
         for item in sift_file:
             item = item.split()
@@ -54,7 +52,7 @@ class ReadData:
         return rs_numbers, map_variations
 
     def read_individuals(self, ids, rs_numbers, data_dir, chrom, individuals_merge_filename):
-        tic = time.perf_counter()
+        time.perf_counter()
         mutation_index_array = []
         for name in ids:
             filename = data_dir + individuals_merge_filename + "/" + chrom + "." + name
@@ -75,7 +73,7 @@ class ReadData:
 class Results:
     def overlap_ind(self, ids, mutation_index_array, n_runs, n_indiv):
         n_p = len(mutation_index_array)
-        tic = time.perf_counter()
+        time.perf_counter()
         list_p = np.linspace(0, n_p - 1, n_p).astype(int)
         mutation_overlap = []
         random_indiv = []
@@ -94,7 +92,7 @@ class Results:
         return mutation_overlap, random_indiv
 
     def histogram_overlap(self, mutation_overlap, n_runs):
-        tic = time.perf_counter()
+        time.perf_counter()
         histogram_overlap = []
         for run in range(n_runs):
             final_counts = [count for item, count in mutation_overlap[run].items()]
@@ -104,14 +102,14 @@ class Results:
 
 class PlotData:
     def plot_histogram_overlap(self, POP, histogram_overlap, outputFile, n_runs):
-        tic = time.perf_counter()
+        time.perf_counter()
         for run in range(n_runs):
             output = outputFile + str(run) + ".png"
             final_counts = [count for item, count in histogram_overlap[run].items()]
             N = len(final_counts)
             x = range(N)
             width = 1 / 1.5
-            bar1 = plt.bar(x, final_counts, width, color="grey")
+            plt.bar(x, final_counts, width, color="grey")
             plt.ylabel("Mutations")
             plt.xlabel("Individuals")
             plt.xticks(np.arange(1, N + 1))
@@ -121,7 +119,7 @@ class PlotData:
 
 class WriteData:
     def write_histogram_overlap(self, histogram_overlapfile, histogram_overlap, n_runs, n_indiv):
-        tic = time.perf_counter()
+        time.perf_counter()
         for run in range(n_runs):
             overlapfile = histogram_overlapfile + str(run) + ".txt"
             f = open(overlapfile, "w")
@@ -134,7 +132,7 @@ class WriteData:
             f.close()
 
     def write_mutation_overlap(self, mutation_overlapfile, mutation_overlap, n_runs):
-        tic = time.perf_counter()
+        time.perf_counter()
         for run in range(n_runs):
             overlapfile = mutation_overlapfile + str(run) + ".txt"
             f = open(overlapfile, "w")
@@ -144,7 +142,7 @@ class WriteData:
             f.close()
 
     def write_random_indiv(self, randomindiv_file, random_indiv, n_runs):
-        tic = time.perf_counter()
+        time.perf_counter()
         for run in range(n_runs):
             randomfile = randomindiv_file + str(run) + ".txt"
             f = open(randomfile, "w")
@@ -154,14 +152,14 @@ class WriteData:
             f.close()
 
     def write_mutation_index_array(self, mutation_index_array_file, mutation_index_array):
-        tic = time.perf_counter()
+        time.perf_counter()
         f = open(mutation_index_array_file, "w")
         for item in mutation_index_array:
             f.write("%s\n" % item)
         f.close()
 
     def write_map_variations(self, map_variations_file, map_variations):
-        tic = time.perf_counter()
+        time.perf_counter()
         f = open(map_variations_file, "w")
         for key, count in map_variations.items():
             f.write(key + "\t" + str(count) + "\n")
@@ -209,7 +207,6 @@ def handler(event):
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir, exist_ok=True)
 
-    OutputFormat = ".png"
     chrom = "chr" + str(c)
 
     font = {"family": "serif", "size": 14}
@@ -246,7 +243,7 @@ def handler(event):
     randomindiv_file = outdata_dir + "random_indiv" + str(c) + "_s" + str(SIFT) + "_" + POP + "_"
 
     ids = rd.read_names(POP, pop_dir, columns_file)
-    n_pairs = len(ids) / 2
+    len(ids) / 2
 
     rs_numbers, map_variations = rd.read_rs_numbers(siftfile, SIFT)
     mutation_index_array = rd.read_individuals(

@@ -1,7 +1,4 @@
 import os
-import io
-import json
-import sys
 from . import storage
 
 import cv2
@@ -112,8 +109,8 @@ def load_frames(benchmark_bucket, bucket, blobs, dest_dir):
 
 
 def detect(net, img):
-    rows = img.shape[0]
-    cols = img.shape[1]
+    img.shape[0]
+    img.shape[1]
     img = cv2.dnn.blobFromImage(img, size=(300, 300), swapRB=True, crop=False)
     net.setInput(img)
     out = net.forward()

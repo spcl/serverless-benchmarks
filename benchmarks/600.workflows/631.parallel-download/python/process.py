@@ -6,6 +6,6 @@ def handler(event):
     blob = event["blob"]
 
     client = storage.storage.get_instance()
-    buffer = client.download_stream(bucket, blob)
+    client.download_stream(bucket, blob)
 
     return "ok"

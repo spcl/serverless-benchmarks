@@ -1,11 +1,8 @@
 import os
 import uuid
-import sys
 from . import storage
 
 from sklearn.model_selection import train_test_split
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.preprocessing import StandardScaler
 import numpy as np
 

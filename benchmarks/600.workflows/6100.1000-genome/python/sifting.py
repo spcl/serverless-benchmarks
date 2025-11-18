@@ -2,7 +2,6 @@ import os
 import re
 from . import storage
 import subprocess
-import datetime
 
 
 def readfile(file):

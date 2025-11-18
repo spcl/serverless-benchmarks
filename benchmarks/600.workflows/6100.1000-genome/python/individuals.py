@@ -1,10 +1,8 @@
 import os
-import uuid
 import tarfile
 import shutil
 import re
 from . import storage
-import datetime
 
 client = storage.storage.get_instance()
 
