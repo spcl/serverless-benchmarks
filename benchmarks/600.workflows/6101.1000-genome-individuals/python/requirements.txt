@@ -1,3 +1,2 @@
-#numpy==1.17
-numpy==1.25 # 1.18 lacks wheels for py3.11, align with 6100 workflow
+numpy==1.17
 matplotlib
