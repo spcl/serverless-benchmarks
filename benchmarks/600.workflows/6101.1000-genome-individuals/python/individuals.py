@@ -83,9 +83,7 @@ def handler(event):
                 # second =`echo $l | cut -d -f 2, 3, 4, 5, 8 --output-delimiter = '   '`
                 second = line.split("\t")[0:8]
                 # We select the one we want
-                second = [
-                    elem for id, elem in enumerate(second) if id in [1, 2, 3, 4, 7]
-                ]
+                second = [elem for id, elem in enumerate(second) if id in [1, 2, 3, 4, 7]]
                 af_value = second[4].split(";")[8].split("=")[1]
                 # We replace with AF_Value
                 second[4] = af_value

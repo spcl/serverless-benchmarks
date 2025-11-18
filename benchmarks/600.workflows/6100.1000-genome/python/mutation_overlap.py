@@ -56,9 +56,7 @@ class ReadData:
 
         return rs_numbers, map_variations
 
-    def read_individuals(
-        self, ids, rs_numbers, data_dir, chrom, individuals_merge_filename
-    ):
+    def read_individuals(self, ids, rs_numbers, data_dir, chrom, individuals_merge_filename):
         tic = time.perf_counter()
         mutation_index_array = []
         total_mutations = {}
@@ -216,9 +214,7 @@ class PlotData:
         tic = time.perf_counter()
         fig = plt.figure()
         cmap = mpl.colors.ListedColormap(["blue", "black", "red", "green", "pink"])
-        img = pyplot.imshow(
-            total_pairs_overlap, interpolation="nearest", cmap=cmap, origin="lower"
-        )
+        img = pyplot.imshow(total_pairs_overlap, interpolation="nearest", cmap=cmap, origin="lower")
         pyplot.colorbar(img, cmap=cmap)
 
         plt.savefig(outputFile)
@@ -244,17 +240,13 @@ class WriteData:
             f.write(key + "\t" + str(count) + "\n")
         f.close()
 
-    def write_random_mutations_list(
-        self, random_mutations_filename, random_mutations_list, n_runs
-    ):
+    def write_random_mutations_list(self, random_mutations_filename, random_mutations_list, n_runs):
         for run in range(n_runs):
             filename = random_mutations_filename + "_run_" + str(run) + ".txt"
             f = open(filename, "w")
             f.writelines(["%s\n" % item for item in random_mutations_list[run]])
 
-    def write_mutation_index_array(
-        self, mutation_index_array_file, mutation_index_array
-    ):
+    def write_mutation_index_array(self, mutation_index_array_file, mutation_index_array):
         f = open(mutation_index_array_file, "w")
         for item in mutation_index_array:
             f.write("%s\n" % item)
@@ -348,96 +340,34 @@ def handler(event):
         + ".txt"
     )
     genepairsfile = (
-        outdata_dir
-        + "gene_pairs_count_chr"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + ".txt"
+        outdata_dir + "gene_pairs_count_chr" + str(c) + "_s" + str(SIFT) + "_" + POP + ".txt"
     )
     random_indpairsfile = (
-        outdata_dir
-        + "100_individual_overlap_chr"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + ".txt"
+        outdata_dir + "100_individual_overlap_chr" + str(c) + "_s" + str(SIFT) + "_" + POP + ".txt"
     )
 
     colormap = (
-        plots_dir
-        + "colormap_distribution_c"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + OutputFormat
+        plots_dir + "colormap_distribution_c" + str(c) + "_s" + str(SIFT) + "_" + POP + OutputFormat
     )
     half_overlap = (
-        plots_dir
-        + "half_distribution_c"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + OutputFormat
+        plots_dir + "half_distribution_c" + str(c) + "_s" + str(SIFT) + "_" + POP + OutputFormat
     )
     total_overlap = (
-        plots_dir
-        + "total_distribution_c"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + OutputFormat
+        plots_dir + "total_distribution_c" + str(c) + "_s" + str(SIFT) + "_" + POP + OutputFormat
     )
     random_overlap = (
-        plots_dir
-        + "100_distribution_c"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + OutputFormat
+        plots_dir + "100_distribution_c" + str(c) + "_s" + str(SIFT) + "_" + POP + OutputFormat
     )
 
     total_mutations_filename = (
-        outdata_dir
-        + "total_mutations_individual"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + ".txt"
+        outdata_dir + "total_mutations_individual" + str(c) + "_s" + str(SIFT) + "_" + POP + ".txt"
     )
     random_mutations_filename = (
-        outdata_dir
-        + "random_mutations_individual"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
+        outdata_dir + "random_mutations_individual" + str(c) + "_s" + str(SIFT) + "_" + POP
     )
 
     mutation_index_array_file = (
-        outdata_dir
-        + "mutation_index_array"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + ".txt"
+        outdata_dir + "mutation_index_array" + str(c) + "_s" + str(SIFT) + "_" + POP + ".txt"
     )
 
     map_variations_file = (
@@ -456,9 +386,7 @@ def handler(event):
 
     # cross-correlations mutations overlapping
     half_pairs_overlap = res.half_pair_individuals(mutation_index_array)
-    total_pairs_overlap, simetric_overlap = res.total_pair_individuals(
-        mutation_index_array
-    )
+    total_pairs_overlap, simetric_overlap = res.total_pair_individuals(mutation_index_array)
     random_pairs_overlap = res.pair_individuals(mutation_index_array, n_runs)
 
     wr.write_mutation_index_array(mutation_index_array_file, mutation_index_array)
@@ -476,9 +404,7 @@ def handler(event):
 
     # list of frecuency of mutations in 26 individuals
     random_mutations_list = res.group_indivuals(total_mutations_list, n_runs)
-    wr.write_random_mutations_list(
-        random_mutations_filename, random_mutations_list, n_runs
-    )
+    wr.write_random_mutations_list(random_mutations_filename, random_mutations_list, n_runs)
 
     # gen overlapping
     gene_pair_list = res.gene_pairs(mutation_index_array)

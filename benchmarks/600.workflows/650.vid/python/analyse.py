@@ -133,9 +133,7 @@ def handler(event):
 
     benchmark_bucket = event["benchmark_bucket"]
 
-    frames = list(
-        load_frames(benchmark_bucket, event["frames_bucket"], event["frames"], tmp_dir)
-    )
+    frames = list(load_frames(benchmark_bucket, event["frames_bucket"], event["frames"], tmp_dir))
     net = load_model(
         benchmark_bucket,
         event["model_bucket"] + "/" + event["model_weights"],

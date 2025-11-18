@@ -53,9 +53,7 @@ class ReadData:
 
         return rs_numbers, map_variations
 
-    def read_individuals(
-        self, ids, rs_numbers, data_dir, chrom, individuals_merge_filename
-    ):
+    def read_individuals(self, ids, rs_numbers, data_dir, chrom, individuals_merge_filename):
         tic = time.perf_counter()
         mutation_index_array = []
         for name in ids:
@@ -67,11 +65,7 @@ class ReadData:
                 try:
                     text.append(item[1])
                 except IndexError as e:
-                    print(
-                        "ERROR({}): while reading {}: (item: {})".format(
-                            str(e), filename, item
-                        )
-                    )
+                    print("ERROR({}): while reading {}: (item: {})".format(str(e), filename, item))
             sifted_mutations = list(set(rs_numbers).intersection(text))
             mutation_index_array.append(sifted_mutations)
 
@@ -92,9 +86,7 @@ class Results:
             for pq in range(n_indiv):
                 if 2 * pq >= len(randomized_list):
                     break
-                b_multiset = collections.Counter(
-                    mutation_index_array[randomized_list[2 * pq]]
-                )
+                b_multiset = collections.Counter(mutation_index_array[randomized_list[2 * pq]])
                 r_ids.append(ids[randomized_list[2 * pq]])
                 result = result + b_multiset
             random_indiv.append(r_ids)
@@ -128,9 +120,7 @@ class PlotData:
 
 
 class WriteData:
-    def write_histogram_overlap(
-        self, histogram_overlapfile, histogram_overlap, n_runs, n_indiv
-    ):
+    def write_histogram_overlap(self, histogram_overlapfile, histogram_overlap, n_runs, n_indiv):
         tic = time.perf_counter()
         for run in range(n_runs):
             overlapfile = histogram_overlapfile + str(run) + ".txt"
@@ -163,9 +153,7 @@ class WriteData:
                 f.write("%s\n" % item)
             f.close()
 
-    def write_mutation_index_array(
-        self, mutation_index_array_file, mutation_index_array
-    ):
+    def write_mutation_index_array(self, mutation_index_array_file, mutation_index_array):
         tic = time.perf_counter()
         f = open(mutation_index_array_file, "w")
         for item in mutation_index_array:
@@ -240,34 +228,13 @@ def handler(event):
     pd = PlotData()
 
     histogram_overlapfile = (
-        outdata_dir
-        + "Histogram_mutation_overlap_chr"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + "_"
+        outdata_dir + "Histogram_mutation_overlap_chr" + str(c) + "_s" + str(SIFT) + "_" + POP + "_"
     )
     mutation_overlapfile = (
-        outdata_dir
-        + "Mutation_overlap_chr"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + "_"
+        outdata_dir + "Mutation_overlap_chr" + str(c) + "_s" + str(SIFT) + "_" + POP + "_"
     )
     mutation_index_array_file = (
-        outdata_dir
-        + "mutation_index_array"
-        + str(c)
-        + "_s"
-        + str(SIFT)
-        + "_"
-        + POP
-        + ".txt"
+        outdata_dir + "mutation_index_array" + str(c) + "_s" + str(SIFT) + "_" + POP + ".txt"
     )
     histogram_overlap_plot = (
         plot_dir + "Frequency_mutations" + str(c) + "_s" + str(SIFT) + "_" + POP
@@ -276,9 +243,7 @@ def handler(event):
         outdata_dir + "map_variations" + str(c) + "_s" + str(SIFT) + "_" + POP + ".txt"
     )
 
-    randomindiv_file = (
-        outdata_dir + "random_indiv" + str(c) + "_s" + str(SIFT) + "_" + POP + "_"
-    )
+    randomindiv_file = outdata_dir + "random_indiv" + str(c) + "_s" + str(SIFT) + "_" + POP + "_"
 
     ids = rd.read_names(POP, pop_dir, columns_file)
     n_pairs = len(ids) / 2
@@ -291,15 +256,11 @@ def handler(event):
     wr.write_map_variations(map_variations_file, map_variations)
     wr.write_mutation_index_array(mutation_index_array_file, mutation_index_array)
 
-    mutation_overlap, random_indiv = res.overlap_ind(
-        ids, mutation_index_array, n_runs, n_indiv
-    )
+    mutation_overlap, random_indiv = res.overlap_ind(ids, mutation_index_array, n_runs, n_indiv)
     histogram_overlap = res.histogram_overlap(mutation_overlap, n_runs)
 
     wr.write_mutation_overlap(mutation_overlapfile, mutation_overlap, n_runs)
-    wr.write_histogram_overlap(
-        histogram_overlapfile, histogram_overlap, n_runs, n_indiv
-    )
+    wr.write_histogram_overlap(histogram_overlapfile, histogram_overlap, n_runs, n_indiv)
     wr.write_random_indiv(randomindiv_file, random_indiv, n_runs)
 
     pd.plot_histogram_overlap(POP, histogram_overlap, histogram_overlap_plot, n_runs)

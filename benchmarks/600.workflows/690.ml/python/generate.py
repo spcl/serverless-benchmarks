@@ -30,9 +30,7 @@ def upload_dataset(benchmark_bucket, bucket, X, y):
     np.save(labels_path, y)
 
     client = storage.storage.get_instance()
-    features = client.upload(
-        benchmark_bucket, bucket + "/" + "features.npy", features_path
-    )
+    features = client.upload(benchmark_bucket, bucket + "/" + "features.npy", features_path)
     features = features.replace(bucket + "/", "")
     labels = client.upload(benchmark_bucket, bucket + "/" + "labels.npy", labels_path)
     labels = labels.replace(bucket + "/", "")

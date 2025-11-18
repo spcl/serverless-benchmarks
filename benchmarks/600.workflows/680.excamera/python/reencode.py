@@ -14,9 +14,7 @@ def download_bin(benchmark_bucket, bucket, name, dest_dir):
     path = os.path.join(dest_dir, name)
     if not os.path.exists(path):
         client.download(benchmark_bucket, bucket + "/" + name, path)
-        subprocess.check_output(
-            f"chmod +x {path}", stderr=subprocess.STDOUT, shell=True
-        )
+        subprocess.check_output(f"chmod +x {path}", stderr=subprocess.STDOUT, shell=True)
 
 
 def upload_files(benchmark_bucket, bucket, paths, prefix):

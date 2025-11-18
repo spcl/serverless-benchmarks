@@ -62,16 +62,10 @@ def handler(event):
             elif temp[5] == "":
                 f.write("{} {} {} {}\n".format(temp[0], temp[1], temp[2], temp[4]))
             else:
-                f.write(
-                    "{} {} {} {} {}\n".format(
-                        temp[0], temp[1], temp[2], temp[4], temp[6]
-                    )
-                )
+                f.write("{} {} {} {} {}\n".format(temp[0], temp[1], temp[2], temp[4], temp[6]))
 
     os.remove(siftfile)
-    final_name = client.upload(
-        benchmark_bucket, output_bucket + "/" + final_name, final
-    )
+    final_name = client.upload(benchmark_bucket, output_bucket + "/" + final_name, final)
     final_name = final_name.replace(output_bucket + "/", "")
 
     return {
