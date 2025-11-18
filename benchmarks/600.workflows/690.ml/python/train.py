@@ -35,7 +35,9 @@ def load_dataset(benchmark_bucket, bucket, features, labels):
 def preprocess(X, y):
     X = StandardScaler().fit_transform(X)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=123)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.4, random_state=123
+    )
 
     return X_train, X_test, y_train, y_test
 
@@ -55,7 +57,6 @@ def handler(schedule):
     bucket = schedule.pop("bucket")
     benchmark_bucket = schedule.pop("benchmark_bucket")
     schedule.pop("request-id", None)
-    schedule.pop("request_id", None)
 
     clf = str_to_cls(name)(**schedule)
 
