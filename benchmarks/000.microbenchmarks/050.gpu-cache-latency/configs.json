@@ -1,0 +1,8 @@
+{
+  "name": "050.gpu-cache-latency",
+  "runtime": "python3",
+  "handler": "handler.handler",
+  "dockerfile": "Dockerfile",
+  "data_dir": "../../benchmarks-data/050.gpu-cache-latency",
+  "datasets": ["tiny", "small", "large"]
+}
