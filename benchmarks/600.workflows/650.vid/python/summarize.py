@@ -1,5 +1,3 @@
-
-
 def handler(event):
     frames = event["frames"]
 
