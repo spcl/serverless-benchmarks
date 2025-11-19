@@ -1,6 +1,6 @@
 {
   "_invocations": {
-    "110-dynamic-html-nodejs-18": {
+    "130-crud-api-nodejs-18": {
       "0": {
         "billing": {
           "_billed_time": null,
@@ -8,16 +8,18 @@
           "_memory": null
         },
         "output": {
-          "begin": 1763577748.037,
+          "begin": 1763584521.868,
           "compute_time": 0,
           "container_id": "0",
-          "end": 1763577748.037,
+          "end": 1763584521.868,
           "environ_container_id": "no_id",
           "is_cold": false,
           "is_cold_worker": false,
           "request_id": "0",
           "result": {
-            "output": "<!DOCTYPE html>\n<html>\n  <head>\n    <title>Randomly generated data.</title>\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <link href=\"http://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css\" rel=\"stylesheet\" media=\"screen\">\n    <style type=\"text/css\">\n      .container {\n        max-width: 500px;\n        padding-top: 100px;\n      }\n    </style>\n  </head>\n  <body>\n    <div class=\"container\">\n      <p>Welcome testname!</p>\n      <p>Data generated at: 11&#x2F;19&#x2F;2025, 6:42:28 PM!</p>\n      <p>Requested random numbers:</p>\n      <ul>\n        <li>65</li>\n        <li>64</li>\n        <li>7</li>\n        <li>8</li>\n        <li>11</li>\n        <li>80</li>\n        <li>28</li>\n        <li>82</li>\n        <li>90</li>\n        <li>50</li>\n      </ul>\n    </div>\n  </body>\n</html>\n"
+            "output": [
+              {}
+            ]
           },
           "results_time": 0
         },
@@ -33,18 +35,18 @@
         },
         "times": {
           "benchmark": 0,
-          "client": 27866,
-          "client_begin": "2025-11-19 19:42:27.957743",
-          "client_end": "2025-11-19 19:42:27.985609",
-          "http_first_byte_return": 0.027801,
-          "http_startup": 0.015255,
+          "client": 29638,
+          "client_begin": "2025-11-19 21:35:21.807697",
+          "client_end": "2025-11-19 21:35:21.837335",
+          "http_first_byte_return": 0.029473,
+          "http_startup": 0.00964,
           "initialization": 0
         }
       }
     }
   },
   "_metrics": {},
-  "begin_time": 1763577747.723884,
+  "begin_time": 1763584521.660329,
   "config": {
     "deployment": {
       "credentials": {
@@ -71,6 +73,6 @@
       "update_storage": false
     }
   },
-  "end_time": 1763577747.986338,
+  "end_time": 1763584521.838648,
   "result_bucket": null
 }

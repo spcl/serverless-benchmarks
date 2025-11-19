@@ -293,112 +293,6 @@ bucket_name = "{bucket_name}"
         else:
             raise RuntimeError("Invalid Cloudflare credentials configuration")
 
-    def _convert_templates_to_modules(self, directory: str):
-        """
-        Convert template files to JavaScript modules for bundling.
-        
-        Searches for template directories and converts HTML/text files
-        to JavaScript modules that can be imported.
-        
-        Args:
-            directory: Package directory to search for templates
-        """
-        templates_dir = os.path.join(directory, "templates")
-        if not os.path.exists(templates_dir):
-            return
-        
-        self.logging.info(f"Converting template files in {templates_dir} to JavaScript modules")
-        
-        for root, dirs, files in os.walk(templates_dir):
-            for file in files:
-                if file.endswith(('.html', '.txt', '.xml', '.csv')):
-                    file_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(file_path, directory)
-                    
-                    # Read the template content
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    # Escape for JavaScript string
-                    content_escaped = (content
-                        .replace('\\', '\\\\')
-                        .replace('`', '\\`')
-                        .replace('$', '\\$'))
-                    
-                    # Create a .js module file next to the template
-                    module_path = file_path + '.js'
-                    with open(module_path, 'w', encoding='utf-8') as f:
-                        f.write(f'export default `{content_escaped}`;\n')
-                    
-                    self.logging.debug(f"Created template module: {module_path}")
-
-    def _upload_benchmark_files_to_r2(self, directory: str, benchmark_name: str) -> int:
-        """
-        Upload benchmark data files to R2 bucket for fs-polyfill access.
-        
-        This allows the fs-polyfill to read files from R2 instead of trying
-        to bundle them with the worker code.
-        
-        Args:
-            directory: Package directory containing files to upload
-            benchmark_name: Name of the benchmark (used as prefix in R2)
-            
-        Returns:
-            Number of files uploaded
-        """
-        try:
-            storage = self.system_resources.get_storage()
-            bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
-            
-            if not bucket_name:
-                self.logging.warning("R2 bucket not configured, skipping file upload")
-                return 0
-            
-            uploaded_count = 0
-            
-            # Upload template files
-            templates_dir = os.path.join(directory, "templates")
-            if os.path.exists(templates_dir):
-                for root, dirs, files in os.walk(templates_dir):
-                    for file in files:
-                        # Skip the .js module files we created
-                        if file.endswith('.js'):
-                            continue
-                            
-                        file_path = os.path.join(root, file)
-                        # Create R2 key: benchmark_name/templates/filename
-                        rel_path = os.path.relpath(file_path, directory)
-                        r2_key = f"{benchmark_name}/{rel_path}"
-                        
-                        try:
-                            with open(file_path, 'rb') as f:
-                                file_content = f.read()
-                            
-                            self.logging.info(f"Uploading {rel_path} to R2 as {r2_key}...")
-                            storage.upload_bytes(
-                                bucket_name,
-                                r2_key,
-                                file_content
-                            )
-                            uploaded_count += 1
-                            self.logging.info(f"✓ Uploaded {rel_path} ({len(file_content)} bytes)")
-                        except Exception as e:
-                            self.logging.error(f"✗ Failed to upload {rel_path} to R2: {e}")
-            
-            if uploaded_count > 0:
-                self.logging.info(
-                    f"Uploaded {uploaded_count} benchmark files to R2 bucket '{bucket_name}'"
-                )
-            
-            return uploaded_count
-            
-        except Exception as e:
-            self.logging.warning(
-                f"Could not upload benchmark files to R2: {e}. "
-                f"fs-polyfill will not be able to read files from R2."
-            )
-            return 0
-
     def package_code(
         self,
         directory: str,
@@ -434,16 +328,6 @@ bucket_name = "{bucket_name}"
         # Ensure Wrangler is installed
         self._ensure_wrangler_installed()
 
-        # Upload benchmark files to R2 for fs-polyfill access
-        if language_name == "nodejs":
-            uploaded = self._upload_benchmark_files_to_r2(directory, benchmark)
-            if uploaded > 0:
-                self.logging.info(f"Successfully uploaded {uploaded} files to R2")
-            else:
-                self.logging.warning(
-                    "No files were uploaded to R2. Benchmarks requiring file access may fail. "
-                    "Ensure R2 API credentials are configured."
-                )
 
         # Install dependencies
         if language_name == "nodejs":
