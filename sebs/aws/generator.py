@@ -117,7 +117,7 @@ class SFNGenerator(Generator):
         }
         cond = type + comp[case.op]
 
-        return {"Variable": "$.payload" + case.var, cond: case.val, "Next": case.next}
+        return {"Variable": "$.payload." + case.var, cond: case.val, "Next": case.next}
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         states = {n: State.deserialize(n, s) for n, s in state.funcs.items()}
