@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple
 import json
-from pyodide.ffi import to_js
+from pyodide.ffi import to_js, run_sync
 from workers import WorkerEntrypoint
 
 class nosql:
@@ -21,50 +21,57 @@ class nosql:
     def get_table(self, table_name):
         return getattr(self.env, (table_name))
 
-    async def insert(
+    def insert(
         self,
         table_name: str,
         primary_key: Tuple[str, str],
         secondary_key: Tuple[str, str],
         data: dict,
     ):
-        put_res = await self.get_table(table_name).put(
-            self.key_maker(primary_key, secondary_key),
-            json.dumps(data))
+        put_res = (
+            run_sync(self.get_table(table_name).put(
+                self.key_maker(primary_key, secondary_key),
+                json.dumps(data))
+            ))
         return
 
-    async def update(
+    def update(
         self,
         table_name: str,
         primary_key: Tuple[str, str],
         secondary_key: Tuple[str, str],
         data: dict,
     ):
-        put_res = await self.get_table(table_name).put(
-            self.key_maker(primary_key, secondary_key),
-            data)
+        put_res = run_sync(
+            self.get_table(table_name).put(
+                self.key_maker(primary_key, secondary_key),
+                json.dumps(data)
+            ))
         return
 
-    async def get(
+    def get(
         self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
     ) -> Optional[dict]:
-        get_res = await self.get_table(table_name).get(self.key_maker(primary_key, secondary_key))
+        get_res = run_sync(
+            self.get_table(table_name).get(
+                self.key_maker(primary_key, secondary_key)
+            ))
         return get_res
 
     """
         This query must involve partition key - it does not scan across partitions.
     """
 
-    async def query(
+    def query(
         self, table_name: str, primary_key: Tuple[str, str], secondary_key_name: str
     ) -> List[dict]:
         _options = {"prefix" : self.key_maker_partial(primary_key, (secondary_key_name,) )}
-        list_res = await self.get_table(table_name).list(options=_options)
+        list_res = run_sync(self.get_table(table_name).list(options=_options))
 
         keys = []
         for key in list_res.keys:
             keys.append(key.name)
-        print("keys", keys)
+        ##print("keys", keys)
         assert len(keys) <= 100
 
 
@@ -72,15 +79,15 @@ class nosql:
         res = []
         for key in keys:
             
-            get_res = await self.get_table(table_name).get(key)
+            get_res = run_sync(self.get_table(table_name).get(key))
             get_res = get_res.replace("\'", "\"")
-            print("gr", get_res)
+            ##print("gr", get_res)
         
             res.append(json.loads(get_res))
         return res
 
-    async def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
-        self.get_table(table_name).delete(self.key_maker(primary_key, secondary_key))
+    def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
+        run_sync(self.get_table(table_name).delete(self.key_maker(primary_key, secondary_key)))
 
         return
 
