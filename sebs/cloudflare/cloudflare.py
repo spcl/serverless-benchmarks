@@ -187,6 +187,7 @@ class Cloudflare(System):
         except subprocess.TimeoutExpired:
             raise RuntimeError("Wrangler version check timed out")
 
+    
     def _generate_wrangler_toml(self, worker_name: str, package_dir: str, language: str, account_id: str, benchmark_name: Optional[str] = None) -> str:
         """
         Generate a wrangler.toml configuration file for the worker.
@@ -201,26 +202,36 @@ class Cloudflare(System):
         Returns:
             Path to the generated wrangler.toml file
         """
-        main_file = "handler.js" if language == "nodejs" else "handler.py"
-        
+        main_file = "dist/handler.js" if language == "nodejs" else "handler.py"
+
+
+
         # Build wrangler.toml content
         toml_content = f"""name = "{worker_name}"
 main = "{main_file}"
-compatibility_date = "2024-11-01"
+compatibility_date = "2025-11-18"
 account_id = "{account_id}"
-
 """
-        
 
-        
-       
-        # Add compatibility flags based on language
+
         if language == "nodejs":
-            toml_content += """# Custom polyfills for fs and path that read from R2 bucket
+            toml_content += """# Use nodejs_compat for Node.js built-in support
 compatibility_flags = ["nodejs_compat"]
-[alias]
-"fs" = "./fs-polyfill"
-"request" = "./request-polyfill"
+no_bundle = true
+
+[build]
+command = "node build.js"
+
+[[rules]]
+type = "ESModule"
+globs = ["**/*.js"]
+fallthrough = true
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
 """
         elif language == "python":
             toml_content += """# Enable Python Workers runtime
@@ -443,8 +454,9 @@ bucket_name = "{bucket_name}"
             if os.path.exists(package_file) and not os.path.exists(node_modules):
                 self.logging.info(f"Installing Node.js dependencies in {directory}")
                 try:
+                    # Install production dependencies
                     result = subprocess.run(
-                        ["npm", "install", "--production"],
+                        ["npm", "install"],
                         cwd=directory,
                         capture_output=True,
                         text=True,
@@ -454,6 +466,20 @@ bucket_name = "{bucket_name}"
                     self.logging.info("npm install completed successfully")
                     if result.stdout:
                         self.logging.debug(f"npm output: {result.stdout}")
+                    
+                    # Install esbuild as a dev dependency (needed by build.js)
+                    self.logging.info("Installing esbuild for custom build script...")
+                    result = subprocess.run(
+                        ["npm", "install", "--save-dev", "esbuild"],
+                        cwd=directory,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=60
+                    )
+                    self.logging.info("esbuild installed successfully")
+
+                    
                 except subprocess.TimeoutExpired:
                     self.logging.error("npm install timed out")
                     raise RuntimeError("Failed to install Node.js dependencies: timeout")
@@ -466,6 +492,23 @@ bucket_name = "{bucket_name}"
                     )
             elif os.path.exists(node_modules):
                 self.logging.info(f"Node.js dependencies already installed in {directory}")
+                
+                # Ensure esbuild is available even for cached installations
+                esbuild_path = os.path.join(node_modules, "esbuild")
+                if not os.path.exists(esbuild_path):
+                    self.logging.info("Installing esbuild for custom build script...")
+                    try:
+                        subprocess.run(
+                            ["npm", "install", "--save-dev", "esbuild"],
+                            cwd=directory,
+                            capture_output=True,
+                            text=True,
+                            check=True,
+                            timeout=60
+                        )
+                        self.logging.info("esbuild installed successfully")
+                    except Exception as e:
+                        self.logging.warning(f"Failed to install esbuild: {e}")
 
         elif language_name == "python":
             requirements_file = os.path.join(directory, "requirements.txt")
@@ -649,6 +692,19 @@ bucket_name = "{bucket_name}"
         Returns:
             Worker deployment result
         """
+        # # Convert CommonJS function.js to ESM if it exists
+        # if language == "nodejs":
+        #     function_js = os.path.join(package_dir, "function.js")
+        #     if os.path.exists(function_js):
+        #         self.logging.info(f"Converting function.js from CommonJS to ESM...")
+        #         try:
+        #             esm_content = self._convert_commonjs_to_esm(function_js)
+        #             with open(function_js, 'w') as f:
+        #                 f.write(esm_content)
+        #             self.logging.info("Successfully converted function.js to ESM")
+        #         except Exception as e:
+        #             self.logging.error(f"Failed to convert function.js to ESM: {e}")
+        #             raise
         # Generate wrangler.toml for this worker
         self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name)
         

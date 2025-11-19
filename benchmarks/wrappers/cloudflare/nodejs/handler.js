@@ -1,35 +1,3 @@
-// Simple CommonJS polyfill for Cloudflare Workers
-// This allows us to load CommonJS modules that use require() and module.exports
-const moduleCache = {};
-
-function createRequire(currentModule) {
-  return function require(modulePath) {
-    if (moduleCache[modulePath]) {
-      return moduleCache[modulePath].exports;
-    }
-    
-    // Create module object
-    const module = { exports: {} };
-    moduleCache[modulePath] = module;
-    
-    // This is a placeholder - actual module loading would happen here
-    // For our use case, we'll manually register modules below
-    throw new Error(`Module ${modulePath} not found in polyfill cache`);
-  };
-}
-
-// Polyfill for __dirname and __filename if not available
-if (typeof globalThis.__dirname === 'undefined') {
-  globalThis.__dirname = '.';
-}
-
-if (typeof globalThis.__filename === 'undefined') {
-  globalThis.__filename = './handler.js';
-}
-
-if (typeof globalThis.require === 'undefined') {
-  globalThis.require = createRequire(globalThis);
-}
 
 
 export default {
@@ -42,10 +10,6 @@ export default {
       if (env.BENCHMARK_NAME) {
         globalThis.BENCHMARK_NAME = env.BENCHMARK_NAME;
       }
-
-      // Match behavior of the Python handler: parse body, parse URL params,
-      // set request-id and income timestamp, call the benchmark function,
-      // and return a JSON response with the same fields.
 
       if (request.url.includes('favicon')) {
         return new Response('None');
