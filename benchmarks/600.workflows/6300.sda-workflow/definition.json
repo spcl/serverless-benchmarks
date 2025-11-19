@@ -1,0 +1,9 @@
+{
+    "root": "filter",
+    "states": {
+        "filter": {
+            "type": "task",
+            "func_name": "filter"
+        }
+    }
+}
