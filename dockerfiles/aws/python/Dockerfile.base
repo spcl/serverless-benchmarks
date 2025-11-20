@@ -2,6 +2,7 @@
 ARG BASE_IMAGE="python:3.12"
 
 FROM ${BASE_IMAGE} AS build-image
+RUN apt-get update && apt-get install -y python3-pip
 
 # Include global arg in this stage of the build
 ARG FUNCTION_DIR="./function"
@@ -15,6 +16,6 @@ RUN pip install \
     --target ${FUNCTION_DIR} \
         awslambdaric
 # Set runtime interface client as default command for the container runtime
-ENTRYPOINT [ "/usr/local/bin/python", "-m", "awslambdaric" ]
+ENTRYPOINT [ "/usr/bin/python", "-m", "awslambdaric" ]
 # Pass the name of the function handler as an argument to the runtime
-CMD [ "lambda_function.handler" ]
+CMD [ "function/handler.handler" ]
