@@ -81,3 +81,7 @@ class ECRContainer(DockerContainer):
             self.logging.error(f"Failed to push the image to registry {repository_uri}.")
             self.logging.error(f"Error: {str(e)}")
             raise RuntimeError("Couldn't push to Docker registry")
+        
+
+    def build_custom_image(self, image_tag):str
+        return ""

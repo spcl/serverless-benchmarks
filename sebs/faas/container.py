@@ -217,3 +217,7 @@ class DockerContainer(LoggingBase):
         self.push_image(image_uri, image_tag)
 
         return True, image_uri
+    
+    @abstractmethod
+    def build_custom_image(self, image_tag: str):
+        pass
