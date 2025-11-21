@@ -9,7 +9,7 @@ client = storage.storage.get_instance()
 
 def chunks(lst, n):
     for i in range(0, len(lst), n):
-        yield lst[i : i + n]
+        yield lst[i:i + n]
 
 
 def load_video(benchmark_bucket, bucket, blob, dest_dir):

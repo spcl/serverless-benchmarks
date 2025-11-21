@@ -5,7 +5,10 @@ from . import storage
 import logging
 import shutil
 
-XC_ENC_FIRST_FRAME = "/tmp/xc-enc -W -w 0.75 -i y4m -o {output}.ivf -r -I {source_state}.state -p {input_pred}.ivf {extra} {input}.y4m"
+XC_ENC_FIRST_FRAME = (
+    "/tmp/xc-enc -W -w 0.75 -i y4m -o {output}.ivf -r "
+    "-I {source_state}.state -p {input_pred}.ivf {extra} {input}.y4m"
+)
 
 client = storage.storage.get_instance()
 

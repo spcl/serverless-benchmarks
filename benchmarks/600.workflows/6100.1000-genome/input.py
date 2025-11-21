@@ -36,7 +36,6 @@ def generate_input(
         "SAS",
     ]
     for name in files:
-        # if name != "ALL.chr21.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.annotation.vcf":
         path = os.path.join(data_dir, name)
         upload_func(0, name, path)
 
@@ -54,10 +53,10 @@ def generate_input(
             # regex = re.compile('(?!#)')
             start = i * range_per_job
             end = i * range_per_job + range_per_job
-            # print("start: ", start, "end: ", end, "range_per_job: ", range_per_job, "num_individuals_jobs: ", num_individuals_jobs)
+            # print("start: ", start, "end: ", end, "range_per_job: ", range_per_job)
             # data = list(filter(regex.match, content[int(start):int(end)]))
-            data = content[int(start) : int(end)]
-            # name with start and end lines is not needed as all individuals jobs can just read their entire file.
+            data = content[int(start):int(end)]
+            # start/end line names not needed; jobs read entire file chunk.
             name = str(uuid.uuid4())[:8]
 
             upload_data = io.BytesIO()

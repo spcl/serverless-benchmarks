@@ -5,7 +5,13 @@ from . import storage
 import logging
 import shutil
 
-VPXENC = "/tmp/vpxenc --ivf --codec=vp8 --good --cpu-used=0 --end-usage=cq --min-q=0 --max-q=63 --cq-level={quality} --buf-initial-sz=10000 --buf-optimal-sz=20000 --buf-sz=40000 --undershoot-pct=100 --passes=2 --auto-alt-ref=1 --threads=1 --token-parts=0 --tune=ssim --target-bitrate=4294967295 -o {output}.ivf {input}.y4m"
+VPXENC = (
+    "/tmp/vpxenc --ivf --codec=vp8 --good --cpu-used=0 --end-usage=cq "
+    "--min-q=0 --max-q=63 --cq-level={quality} --buf-initial-sz=10000 "
+    "--buf-optimal-sz=20000 --buf-sz=40000 --undershoot-pct=100 --passes=2 "
+    "--auto-alt-ref=1 --threads=1 --token-parts=0 --tune=ssim "
+    "--target-bitrate=4294967295 -o {output}.ivf {input}.y4m"
+)
 TERMINATE_CHUNK = "/tmp/xc-terminate-chunk {input}.ivf {output}.ivf"
 XC_DUMP_0 = "/tmp/xc-dump {input}.ivf {output}.state"
 

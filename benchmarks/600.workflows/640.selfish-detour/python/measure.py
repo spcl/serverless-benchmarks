@@ -1,6 +1,6 @@
-import os
 import json
-from ctypes import *
+import os
+from ctypes import POINTER, c_double, c_int, c_ulonglong, cast, cdll
 
 
 def handler(event):

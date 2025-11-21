@@ -35,7 +35,7 @@ def handler(event):
     siftfile = os.path.join("/tmp", siftfile)
     with open(siftfile, "w") as f:
         subprocess.run(
-            ['grep -n "deleterious\|tolerated" {}'.format(inputfile)],
+            ['grep -n "deleterious\\\\|tolerated" {}'.format(inputfile)],
             shell=True,
             stdout=f,
         )
@@ -46,11 +46,11 @@ def handler(event):
     data = list(filter(r3.match, data_temp))
 
     with open(final, "w") as f:
-        for l in data:
-            line = str(int(l.split("\t")[0].split(":")[0]) - int(header))
-            id = l.split("\t")[2]
+        for line_data in data:
+            line = str(int(line_data.split("\t")[0].split(":")[0]) - int(header))
+            id = line_data.split("\t")[2]
 
-            sifts = l.split("\t")[7].split("|")
+            sifts = line_data.split("\t")[7].split("|")
             sifts = sifts[4] + " " + sifts[16] + " " + sifts[17]
             sifts = sifts.replace("(", " ").replace(")", "")
 

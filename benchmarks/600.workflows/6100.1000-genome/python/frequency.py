@@ -1,19 +1,16 @@
-import time
-
-tic = time.perf_counter()
-import numpy as np
-from random import sample
-import os.path
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import collections
-from collections import Counter
-
-
 import os
+import tarfile
+import time
+from collections import Counter
+from random import sample
+
+import matplotlib.pyplot as plt
+import numpy as np
+
 from . import storage
+
+plt.switch_backend("Agg")
 
 
 class ReadData:
@@ -35,8 +32,8 @@ class ReadData:
         return ids
 
     def read_rs_numbers(self, siftfile, SIFT):
-        ## NB This file is in the format of:
-        ## line number, rs number, ENSG number, SIFT, Phenotype
+        # NB This file is in the format of:
+        # line number, rs number, ENSG number, SIFT, Phenotype
         time.perf_counter()
         rs_numbers = []
         variations = {}
@@ -211,9 +208,6 @@ def handler(event):
 
     font = {"family": "serif", "size": 14}
     plt.rc("font", **font)
-
-    # untar input data
-    import tarfile
 
     tar = tarfile.open(individuals_merge_file)
     tar.extractall(path="/tmp/" + individuals_merge_filename)
