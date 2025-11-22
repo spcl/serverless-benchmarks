@@ -3,7 +3,8 @@ import uuid
 
 def chunks(lst, n):
     for i in range(0, len(lst), n):
-        yield lst[i : i + n]
+        idx = slice(i, i + n)
+        yield lst[idx]
 
 
 def handler(event):

@@ -56,7 +56,9 @@ def generate_input(
             end = i * range_per_job + range_per_job
             # print("start: ", start, "end: ", end, "range_per_job: ", range_per_job)
             # data = list(filter(regex.match, content[int(start):int(end)]))
-            data = content[int(start) : int(end)]
+            # data = content[int(start) : int(end)]
+            idx = slice(int(start), int(end))
+            data = content[idx]
             # start/end line names not needed; jobs read entire file chunk.
             name = str(uuid.uuid4())[:8]
 

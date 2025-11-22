@@ -7,8 +7,11 @@ from . import storage
 def chunks(lst, n):
     m = int(len(lst) / n)
     for i in range(n - 1):
-        yield lst[i * m : i * m + m]
-    tail = lst[(n - 1) * m :]
+        idx = slice(i * m, i * m + m)
+        yield lst[idx]
+
+    idx2 = slice((n - 1) * m, len(lst))
+    tail = lst[idx2]
     if len(tail) > 0:
         yield tail
 
