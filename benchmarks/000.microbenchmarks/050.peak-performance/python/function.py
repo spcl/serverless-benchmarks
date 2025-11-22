@@ -8,19 +8,21 @@ def initialize_torch(size, dtype=torch.float16, device="cuda"):
     B = torch.randn((size, size), dtype=dtype, device=device)
     return A, B
 
+
 def handler(event):
 
     size = event.get("size", 1000)
     reps = event.get("reps", 100)
-    
+
     if "seed" in event:
         import random
+
         random.seed(event["seed"])
         seed = event.get("seed")
         seed = int(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
-    
+
     sync = torch.cuda.synchronize
 
     matrix_generating_begin = datetime.datetime.now()
