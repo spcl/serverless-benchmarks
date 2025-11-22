@@ -85,8 +85,6 @@ class storage:
         return content
 
     def list_directory(self, bucket, prefix):
-        bucket_instance = self.client.bucket(bucket)
-        # objects = list(self.client.list_blobs(bucket_or_name=bucket_instance,prefix=prefix))
         objects = self.client.bucket(bucket).list_blobs(prefix=prefix)
         names = []
         for obj in objects:

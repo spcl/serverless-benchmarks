@@ -1,18 +1,10 @@
-import json
-import sys
-import os
-import uuid
-import operator
-import logging
 import datetime
+import logging
+import operator
 
 import azure.durable_functions as df
-from redis import Redis
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(dir_path, os.path.pardir))
-
-from .fsm import *
+from .fsm import Loop, Map, Parallel, Repeat, State, Switch, Task
 
 
 def get_var(obj, path: str):
@@ -37,7 +29,9 @@ def set_var(obj, val, path: str):
 def handler(context: df.DurableOrchestrationContext):
     start = datetime.datetime.now().timestamp()
     ts = start
-    now = lambda: datetime.datetime.now().timestamp()
+
+    def now():
+        return datetime.datetime.now().timestamp()
     duration = 0
 
     input = context.get_input()
@@ -141,12 +135,15 @@ def handler(context: df.DurableOrchestrationContext):
                 if isinstance(first_state, Task):
                     input = {"payload": res, "request_id": request_id}
 
-                    # task directly here if only one state, task within suborchestrator if multiple states.
+                    # task directly here if one state, otherwise suborchestrator
                     if first_state.next:
                         # call suborchestrator
                         # FIXME define other parameters.
                         parallel_task = context.call_sub_orchestrator(
-                            "run_subworkflow", input, subworkflow["root"], parallel_states
+                            "run_subworkflow",
+                            input,
+                            subworkflow["root"],
+                            parallel_states,
                         )
                         parallel_tasks.append(parallel_task)
                     else:
@@ -170,7 +167,10 @@ def handler(context: df.DurableOrchestrationContext):
                                 myinput = {"payload": payload, "request_id": request_id}
                                 # FIXME use right parameters for suborchestrator.
                                 parallel_task = context.call_sub_orchestrator(
-                                    "run_subworkflow", myinput, subworkflow["root"], parallel_states
+                                    "run_subworkflow",
+                                    myinput,
+                                    subworkflow["root"],
+                                    parallel_states,
                                 )
                                 parallel_tasks.append(parallel_task)
                                 state_to_result[first_state.func_name].append(
@@ -233,9 +233,6 @@ def handler(context: df.DurableOrchestrationContext):
 
         else:
             raise ValueError(f"Undefined state: {current}")
-
-    # workflow_name = os.getenv("APPSETTING_WEBSITE_SITE_NAME")
-    func_name = "run_subworkflow"
 
     return res
 

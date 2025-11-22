@@ -42,7 +42,9 @@ async def main(req: func.HttpRequest, starter: str, context: func.Context) -> fu
     instance_id = await client.start_new("run_workflow", None, event)
 
     res = client.create_check_status_response(req, instance_id)
-    # res = await client.wait_for_completion_or_create_check_status_response(req, instance_id, 1000000)
+    # res = await client.wait_for_completion_or_create_check_status_response(
+    #     req, instance_id, 1000000
+    # )
 
     end = datetime.datetime.now()
 

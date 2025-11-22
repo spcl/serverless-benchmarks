@@ -4,10 +4,11 @@ import os
 import uuid
 import importlib
 
-import logging
-
 import azure.functions as func
 from redis import Redis
+
+REDIS_HOST = os.getenv("REDIS_HOST", "{{REDIS_HOST}}")
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "{{REDIS_PASSWORD}}")
 
 
 def probe_cold_start():
@@ -73,11 +74,11 @@ def main(event, context: func.Context):
     payload = json.dumps(payload)
 
     redis = Redis(
-        host={{REDIS_HOST}},
+        host=REDIS_HOST,
         port=6379,
         decode_responses=True,
         socket_connect_timeout=10,
-        password={{REDIS_PASSWORD}},
+        password=REDIS_PASSWORD or None,
     )
 
     req_id = event["request_id"]

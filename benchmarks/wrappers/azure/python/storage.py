@@ -1,6 +1,5 @@
 import os
 import uuid
-from typing import Optional
 
 from azure.storage.blob import BlobServiceClient
 

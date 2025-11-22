@@ -1,18 +1,17 @@
+import datetime
 import json
-import sys
+import logging
+import operator
 import os
 import uuid
-import operator
-import logging
-import datetime
 
 import azure.durable_functions as df
 from redis import Redis
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(dir_path, os.path.pardir))
+from .fsm import Map, Loop, Parallel, Repeat, State, Switch, Task
 
-from .fsm import *
+REDIS_HOST = os.getenv("REDIS_HOST", "{{REDIS_HOST}}")
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "{{REDIS_PASSWORD}}")
 
 
 def get_var(obj, path: str):
@@ -37,7 +36,9 @@ def set_var(obj, val, path: str):
 def handler(context: df.DurableOrchestrationContext):
     start = datetime.datetime.now().timestamp()
     ts = start
-    now = lambda: datetime.datetime.now().timestamp()
+
+    def now():
+        return datetime.datetime.now().timestamp()
     duration = 0
 
     with open("definition.json") as f:
@@ -66,7 +67,7 @@ def handler(context: df.DurableOrchestrationContext):
                 try:
                     res = yield context.call_activity(current.func_name, input)
                     current = states.get(current.next, None)
-                except:
+                except Exception:
                     current = states.get(current.failure, None)
 
             ts = now()
@@ -99,7 +100,7 @@ def handler(context: df.DurableOrchestrationContext):
             array = get_var(res, current.array)
             tasks = []
             if first_state.next:
-                # call suborchestrator - each map task should proceed with next step directly after it finished.
+                # call suborchestrator - each map task continues with next step after finishing
                 if current.common_params:
                     for elem in array:
                         payload = {}
@@ -185,7 +186,7 @@ def handler(context: df.DurableOrchestrationContext):
                 if isinstance(first_state, Task):
                     input = {"payload": res, "request_id": request_id}
 
-                    # task directly here if only one state, task within suborchestrator if multiple states.
+                    # task directly here if one state, else run within suborchestrator
                     if first_state.next:
                         input["root"] = subworkflow["root"]
                         input["states"] = subworkflow["states"]  # parallel_states
@@ -288,11 +289,11 @@ def handler(context: df.DurableOrchestrationContext):
     payload = json.dumps(payload)
 
     redis = Redis(
-        host={{REDIS_HOST}},
+        host=REDIS_HOST,
         port=6379,
         decode_responses=True,
         socket_connect_timeout=10,
-        password={{REDIS_PASSWORD}},
+        password=REDIS_PASSWORD or None,
     )
 
     key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])

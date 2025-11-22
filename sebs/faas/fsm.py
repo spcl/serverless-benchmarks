@@ -1,6 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
-from typing import Optional, List, Callable, Union, Dict, Type, Tuple
+from typing import Optional, List, Callable, Union, Dict, Type
 import json
 
 
