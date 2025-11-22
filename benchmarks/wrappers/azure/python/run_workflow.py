@@ -39,6 +39,7 @@ def handler(context: df.DurableOrchestrationContext):
 
     def now():
         return datetime.datetime.now().timestamp()
+
     duration = 0
 
     with open("definition.json") as f:
