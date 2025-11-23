@@ -2,24 +2,30 @@ import logging
 import datetime
 import os
 
+
 def main(args):
     logging.getLogger().setLevel(logging.INFO)
     begin = datetime.datetime.now()
-    args['request-id'] = os.getenv('__OW_ACTIVATION_ID')
-    args['income-timestamp'] = begin.timestamp()
+    args["request-id"] = os.getenv("__OW_ACTIVATION_ID")
+    args["income-timestamp"] = begin.timestamp()
 
-    for arg in ["MINIO_STORAGE_CONNECTION_URL", "MINIO_STORAGE_ACCESS_KEY", "MINIO_STORAGE_SECRET_KEY"]:
+    for arg in [
+        "MINIO_STORAGE_CONNECTION_URL",
+        "MINIO_STORAGE_ACCESS_KEY",
+        "MINIO_STORAGE_SECRET_KEY",
+    ]:
         os.environ[arg] = args[arg]
         del args[arg]
 
     key_list = list(args.keys())
     for arg in key_list:
-        if 'NOSQL_STORAGE_' in arg:
+        if "NOSQL_STORAGE_" in arg:
             os.environ[arg] = args[arg]
             del args[arg]
 
     try:
         from function import function
+
         ret = function.handler(args)
         end = datetime.datetime.now()
         logging.info("Function result: {}".format(ret))
@@ -38,7 +44,7 @@ def main(args):
         return {
             "begin": begin.strftime("%s.%f"),
             "end": end.strftime("%s.%f"),
-            "request_id": os.getenv('__OW_ACTIVATION_ID'),
+            "request_id": os.getenv("__OW_ACTIVATION_ID"),
             "results_time": results_time,
             "is_cold": is_cold,
             "result": log_data,
@@ -49,7 +55,7 @@ def main(args):
         return {
             "begin": begin.strftime("%s.%f"),
             "end": end.strftime("%s.%f"),
-            "request_id": os.getenv('__OW_ACTIVATION_ID'),
+            "request_id": os.getenv("__OW_ACTIVATION_ID"),
             "results_time": results_time,
-            "result": f"Error - invocation failed! Reason: {e}"
+            "result": f"Error - invocation failed! Reason: {e}",
         }

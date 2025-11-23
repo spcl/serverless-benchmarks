@@ -1,0 +1,15 @@
+{
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  },
+
+  "black-formatter.importStrategy": "fromEnvironment",
+  "black-formatter.path": [],
+  "black-formatter.args": ["--config=.black.toml"],
+
+  "flake8.importStrategy": "fromEnvironment",
+  "flake8.path": [],
+  "flake8.args": ["--config=.flake8.cfg"],
+  "flake8.enabled": true
+}

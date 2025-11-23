@@ -1,0 +1,30 @@
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: flake8-local
+        name: flake8 (project env)
+        language: python
+        additional_dependencies: ["flake8==7.1.1"]
+        entry: flake8
+        args: ["--config=.flake8.cfg"]
+        types: [python]
+        files: ^(sebs/|benchmarks/)
+  - repo: local
+    hooks:
+      - id: black-check-local
+        name: black --check (project env)
+        language: python
+        additional_dependencies: ["black==22.8.0"]
+        entry: black
+        args: ["--config=.black.toml", "--check", "--diff"]
+        types: [python]
+        files: ^(sebs/|benchmarks/)
+  # - repo: local
+  #   hooks:
+  #     - id: mypy-local
+  #       name: mypy (project venv)
+  #       language: system
+  #       entry: bash -lc 'python -m mypy --config-file=.mypy.ini sebs'
+  #       types: [python]
+
