@@ -1,0 +1,3 @@
+torch
+opencv-python-headless
+numpy
