@@ -395,6 +395,14 @@ bucket_name = "{bucket_name}"
                         self.logging.warning(f"Failed to install esbuild: {e}")
 
         elif language_name == "python":
+            funcdir = os.path.join(directory, "function")
+            if not os.path.exists(funcdir):
+                os.makedirs(funcdir)
+
+            for thing in os.listdir(directory):
+                if thing.endswith(".py") and not thing.endswith("handler.py"):
+                    shutil.move(os.path.join(directory, thing),os.path.join(directory, "function", thing))
+
             requirements_file = os.path.join(directory, "requirements.txt")
             if os.path.exists(requirements_file):
                 self.logging.info(f"Installing Python dependencies in {directory}")
