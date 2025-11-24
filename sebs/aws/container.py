@@ -83,5 +83,5 @@ class ECRContainer(DockerContainer):
             raise RuntimeError("Couldn't push to Docker registry")
         
 
-    def build_custom_image(self, image_tag):str
-        return ""
+    # def build_custom_image(self, image_tag):str
+    #     return ""
