@@ -10,12 +10,12 @@ ARG LAMBDA_DIR="/lambda"
 # Copy function code
 RUN mkdir -p ${LAMBDA_DIR}
 RUN mkdir -p ${LAMBDA_DIR}/function
-COPY . ${LAMBDA_DIR}/function
-
 # Install the function's dependencies
 RUN pip install \
     --target ${LAMBDA_DIR} \
         awslambdaric
+
+COPY . ${LAMBDA_DIR}/function
 WORKDIR ${LAMBDA_DIR}
 # Set runtime interface client as default command for the container runtime
 ENTRYPOINT [ "/usr/bin/python", "-m", "awslambdaric" ]
