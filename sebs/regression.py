@@ -22,6 +22,7 @@ benchmarks_python = [
     "311.compression",
     "411.image-recognition",
     "412.language-bert",
+    "413.recommendation",
     "501.graph-pagerank",
     "502.graph-mst",
     "503.graph-bfs",
