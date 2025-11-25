@@ -1,3 +1,3 @@
 #!/bin/bash
 
-# No additional initialization required for the BERT inference benchmark.
+# No additional initialization required.
