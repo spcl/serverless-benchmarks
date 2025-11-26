@@ -38,17 +38,19 @@ class ECRContainer(DockerContainer):
     def registry_name(
         self, benchmark: str, language_name: str, language_version: str, architecture: str
     ) -> Tuple[str, str, str, str]:
-
-        account_id = self.config.credentials.account_id
-        region = self.config.region
-        registry_name = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
-
-        repository_name = self.config.resources.get_ecr_repository(self.client)
         image_tag = self.system_config.benchmark_image_tag(
             self.name(), benchmark, language_name, language_version, architecture
         )
-        image_uri = f"{registry_name}/{repository_name}:{image_tag}"
+        return self.registry(image_tag)
 
+    def registry(
+        self, image_tag: str
+    ) -> Tuple[str, str, str, str]:
+        account_id = self.config.credentials.account_id
+        region = self.config.region
+        registry_name = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
+        repository_name = self.config.resources.get_ecr_repository(self.client)
+        image_uri = f"{registry_name}/{repository_name}:{image_tag}"
         return registry_name, repository_name, image_tag, image_uri
 
     def find_image(self, repository_name, image_tag) -> bool:
@@ -81,7 +83,3 @@ class ECRContainer(DockerContainer):
             self.logging.error(f"Failed to push the image to registry {repository_uri}.")
             self.logging.error(f"Error: {str(e)}")
             raise RuntimeError("Couldn't push to Docker registry")
-        
-
-    # def build_custom_image(self, image_tag):str
-    #     return ""
