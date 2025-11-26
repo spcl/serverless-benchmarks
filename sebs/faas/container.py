@@ -130,6 +130,10 @@ class DockerContainer(LoggingBase):
     ) -> Tuple[str, str, str, str]:
         pass
 
+    @abstractmethod
+    def registry(image_tag:str) -> Tuple[str,str,str,str]:
+        pass
+
     def build_base_image(
         self,
         directory: str,
@@ -219,5 +223,51 @@ class DockerContainer(LoggingBase):
         return True, image_uri
     
     @abstractmethod
-    def build_custom_image(self, image_tag: str):
-        pass
+    def build_custom_image(self, base_image_tag: str, package_directory: str, language_name: str, language_version: str, architecture: str,benchmark:str) -> Tuple[bool, str]:
+        image_tag = f"sebs.{base_image_tag.replace(':','_').replace('/','.')}.{benchmark}.{language_name}.{language_version}.{architecture}"
+        registry_name, repository_name, image_tag, image_uri = self.registry(image_tag)
+        if self.find_image(registry_name,image_tag):
+            self.logging.info(
+                f"Skipping building custom Docker image for {benchmark}, using "
+                f"Docker image {image_uri} from registry: {registry_name}."
+            )
+            return False, image_uri
+        build_dir = os.path.join(package_directory, "build")
+        os.makedirs(build_dir, exist_ok=True)
+
+        shutil.copy(
+            os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.base"),
+            os.path.join(build_dir, "Dockerfile"),
+        )
+        for fn in os.listdir(package_directory):
+            if fn not in ("index.js", "__main__.py"):
+                file = os.path.join(package_directory, fn)
+                shutil.move(file, build_dir)
+
+        with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
+            f.write("Dockerfile")
+
+        self.logging.info(f"Building custom image from {base_image_tag}.")
+
+        isa = platform.processor()
+        if (isa == "x86_64" and architecture != "x64") or (
+            isa == "arm64" and architecture != "arm64"
+        ):
+            self.logging.warning(
+                f"Building image for architecture: {architecture} on CPU architecture: {isa}. "
+                "This step requires configured emulation. If the build fails, please consult "
+                "our documentation. We recommend QEMU as it can be configured to run automatically."
+            )
+
+        buildargs = {
+            "BASE_IMAGE": base_image_tag,
+        }
+        image, _ = self.docker_client.images.build(
+            tag=image_uri, path=build_dir, buildargs=buildargs
+        )
+        self.logging.info(
+            f"Push the custom benchmark image {repository_name}:{image_tag} "
+            f"to registry: {registry_name}."
+        )
+        self.push_image(image_uri, image_tag)
+        return True, image_uri
