@@ -2,6 +2,6 @@
   "timeout": 120,
   "memory": 128,
   "languages": ["python"],
-  "modules": [],
+  "modules": ["storage"],
   "container-image": "logru/sda:latest"
 }
