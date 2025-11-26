@@ -20,6 +20,7 @@
                 "config/config.json",
                 "--deployment",
                 "aws",
+                "--container-deployment",
                 "--trigger",
                 "library",
                 "--repetitions",
