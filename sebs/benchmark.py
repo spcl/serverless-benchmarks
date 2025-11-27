@@ -301,8 +301,7 @@ class Benchmark(LoggingBase):
         return {"size": self.code_size, "hash": self.hash}
 
     def query_cache(self):
-
-        if self.container_deployment:
+        if self.container_deployment or self.benchmark_config.container_image is not None:
             self._code_package = self._cache_client.get_container(
                 deployment=self._deployment_name,
                 benchmark=self._benchmark,
