@@ -34,6 +34,9 @@ class Language(str, Enum):
                 return member
         raise Exception(f"Unknown language type {val}")
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class NoSQLStorage(str, Enum):
     AWS_DYNAMODB = "aws-dynamodb"
