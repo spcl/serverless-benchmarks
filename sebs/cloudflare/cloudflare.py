@@ -396,6 +396,13 @@ bucket_name = "{bucket_name}"
 
         elif language_name == "python":
             requirements_file = os.path.join(directory, "requirements.txt")
+
+            if os.path.exists(f"{requirements_file}.{language_version}"):
+                src = f"{requirements_file}.{language_version}"
+                dest = requirements_file
+                shutil.move(src, dest)
+                self.logging.info(f"move {src} to {dest}")
+
             if os.path.exists(requirements_file):
                 self.logging.info(f"Installing Python dependencies in {directory}")
                 try:
