@@ -69,12 +69,12 @@ class Default(WorkerEntrypoint):
 
         storage.storage.init_instance(self)
 
-        from function import nosql
 
-        nosql.nosql.init_instance(self)
-
-
-
+        if 'NOSQL_STORAGE_DATABASE' in os.environ:
+            from function import nosql
+        
+            nosql.nosql.get_instance(self)
+        
         print("event:", event)
 
 

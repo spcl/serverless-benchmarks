@@ -23,11 +23,11 @@ from sebs.faas.config import Resources
 class Cloudflare(System):
     """
     Cloudflare Workers serverless platform implementation.
-    
+
     Cloudflare Workers run on Cloudflare's edge network, providing
     low-latency serverless execution globally.
     """
-    
+
     _config: CloudflareConfig
 
     @staticmethod
@@ -71,7 +71,7 @@ class Cloudflare(System):
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         """
         Initialize the Cloudflare Workers platform.
-        
+
         Args:
             config: Additional configuration parameters
             resource_prefix: Prefix for resource naming
@@ -79,14 +79,14 @@ class Cloudflare(System):
         # Verify credentials are valid
         self._verify_credentials()
         self.initialize_resources(select_prefix=resource_prefix)
-    
+
     def initialize_resources(self, select_prefix: Optional[str] = None):
         """
         Initialize Cloudflare resources.
-        
+
         Overrides the base class method to handle R2 storage gracefully.
         Cloudflare Workers can operate without R2 storage for many benchmarks.
-        
+
         Args:
             select_prefix: Optional prefix for resource naming
         """
@@ -104,10 +104,10 @@ class Cloudflare(System):
             res_id = f"{select_prefix}-{str(uuid.uuid1())[0:8]}"
         else:
             res_id = str(uuid.uuid1())[0:8]
-        
+
         self.config.resources.resources_id = res_id
         self.logging.info(f"Generating unique resource name {res_id}")
-        
+
         # Try to create R2 bucket, but don't fail if R2 is not enabled
         try:
             self.system_resources.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
@@ -127,30 +127,30 @@ class Cloudflare(System):
                 "Cloudflare API credentials are not set. Please set CLOUDFLARE_API_TOKEN "
                 "and CLOUDFLARE_ACCOUNT_ID environment variables."
             )
-        
+
         if not self.config.credentials.account_id:
             raise RuntimeError(
                 "Cloudflare Account ID is not set. Please set CLOUDFLARE_ACCOUNT_ID "
                 "environment variable."
             )
-        
+
         headers = self._get_auth_headers()
-        
+
         # Log credential type being used (without exposing the actual token)
         if self.config.credentials.api_token:
             token_preview = self.config.credentials.api_token[:8] + "..." if len(self.config.credentials.api_token) > 8 else "***"
             self.logging.info(f"Using API Token authentication (starts with: {token_preview})")
         else:
             self.logging.info(f"Using Email + API Key authentication (email: {self.config.credentials.email})")
-        
+
         response = requests.get(f"{self._api_base_url}/user/tokens/verify", headers=headers)
-        
+
         if response.status_code != 200:
             raise RuntimeError(
                 f"Failed to verify Cloudflare credentials: {response.status_code} - {response.text}\n"
                 f"Please check that your CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are correct."
             )
-        
+
         self.logging.info("Cloudflare credentials verified successfully")
 
     def _ensure_wrangler_installed(self):
@@ -187,18 +187,18 @@ class Cloudflare(System):
         except subprocess.TimeoutExpired:
             raise RuntimeError("Wrangler version check timed out")
 
-    
+
     def _generate_wrangler_toml(self, worker_name: str, package_dir: str, language: str, account_id: str, benchmark_name: Optional[str] = None) -> str:
         """
         Generate a wrangler.toml configuration file for the worker.
-        
+
         Args:
             worker_name: Name of the worker
             package_dir: Directory containing the worker code
             language: Programming language (nodejs or python)
             account_id: Cloudflare account ID
             benchmark_name: Optional benchmark name for R2 file path prefix
-            
+
         Returns:
             Path to the generated wrangler.toml file
         """
@@ -267,13 +267,13 @@ bucket_name = "{bucket_name}"
                 f"R2 bucket binding not configured: {e}. "
                 f"Benchmarks requiring file access will not work properly."
             )
-        
-        
+
+
         # Write wrangler.toml to package directory
         toml_path = os.path.join(package_dir, "wrangler.toml")
         with open(toml_path, 'w') as f:
             f.write(toml_content)
-        
+
         self.logging.info(f"Generated wrangler.toml at {toml_path}")
         return toml_path
 
@@ -305,9 +305,9 @@ bucket_name = "{bucket_name}"
     ) -> Tuple[str, int, str]:
         """
         Package code for Cloudflare Workers deployment using Wrangler.
-        
+
         Uses Wrangler CLI to bundle dependencies and prepare for deployment.
-        
+
         Args:
             directory: Path to the code directory
             language_name: Programming language name
@@ -316,7 +316,7 @@ bucket_name = "{bucket_name}"
             benchmark: Benchmark name
             is_cached: Whether the code is cached
             container_deployment: Whether to deploy as container (not supported)
-            
+
         Returns:
             Tuple of (package_path, package_size, container_uri)
         """
@@ -333,7 +333,7 @@ bucket_name = "{bucket_name}"
         if language_name == "nodejs":
             package_file = os.path.join(directory, "package.json")
             node_modules = os.path.join(directory, "node_modules")
-            
+
             # Only install if package.json exists and node_modules doesn't
             if os.path.exists(package_file) and not os.path.exists(node_modules):
                 self.logging.info(f"Installing Node.js dependencies in {directory}")
@@ -350,7 +350,7 @@ bucket_name = "{bucket_name}"
                     self.logging.info("npm install completed successfully")
                     if result.stdout:
                         self.logging.debug(f"npm output: {result.stdout}")
-                    
+
                     # Install esbuild as a dev dependency (needed by build.js)
                     self.logging.info("Installing esbuild for custom build script...")
                     result = subprocess.run(
@@ -363,7 +363,7 @@ bucket_name = "{bucket_name}"
                     )
                     self.logging.info("esbuild installed successfully")
 
-                    
+
                 except subprocess.TimeoutExpired:
                     self.logging.error("npm install timed out")
                     raise RuntimeError("Failed to install Node.js dependencies: timeout")
@@ -376,7 +376,7 @@ bucket_name = "{bucket_name}"
                     )
             elif os.path.exists(node_modules):
                 self.logging.info(f"Node.js dependencies already installed in {directory}")
-                
+
                 # Ensure esbuild is available even for cached installations
                 esbuild_path = os.path.join(node_modules, "esbuild")
                 if not os.path.exists(esbuild_path):
@@ -395,14 +395,6 @@ bucket_name = "{bucket_name}"
                         self.logging.warning(f"Failed to install esbuild: {e}")
 
         elif language_name == "python":
-            funcdir = os.path.join(directory, "function")
-            if not os.path.exists(funcdir):
-                os.makedirs(funcdir)
-
-            for thing in os.listdir(directory):
-                if thing.endswith(".py") and not thing.endswith("handler.py"):
-                    shutil.move(os.path.join(directory, thing),os.path.join(directory, "function", thing))
-
             requirements_file = os.path.join(directory, "requirements.txt")
             if os.path.exists(requirements_file):
                 self.logging.info(f"Installing Python dependencies in {directory}")
@@ -426,13 +418,24 @@ bucket_name = "{bucket_name}"
                     raise RuntimeError(
                         "pip not found. Please install Python and pip to deploy Python benchmarks."
                     )
-        
+            # move into function dir
+            funcdir = os.path.join(directory, "function")
+            if not os.path.exists(funcdir):
+                os.makedirs(funcdir)
+
+            for thing in os.listdir(directory):
+                if not (thing.endswith("handler.py") or thing.endswith("function") or thing.endswith("python_modules")):
+                    src = os.path.join(directory, thing)
+                    dest = os.path.join(directory, "function", thing)
+                    shutil.move(src, dest)
+                    self.logging.info(f"move {src} to {dest}")
+
         # Create package structure
         CONFIG_FILES = {
             "nodejs": ["handler.js", "package.json", "node_modules"],
             "python": ["handler.py", "requirements.txt", "python_modules"],
         }
-        
+
         if language_name not in CONFIG_FILES:
             raise NotImplementedError(
                 f"Language {language_name} is not yet supported for Cloudflare Workers"
@@ -441,7 +444,7 @@ bucket_name = "{bucket_name}"
         # Verify the handler exists
         handler_file = "handler.js" if language_name == "nodejs" else "handler.py"
         package_path = os.path.join(directory, handler_file)
-        
+
         if not os.path.exists(package_path):
             if not os.path.exists(directory):
                 raise RuntimeError(
@@ -452,14 +455,14 @@ bucket_name = "{bucket_name}"
                 f"Handler file {handler_file} not found in {directory}. "
                 f"Available files: {', '.join(os.listdir(directory)) if os.path.exists(directory) else 'none'}"
             )
-        
+
         # Calculate total size of the package directory
         total_size = 0
         for dirpath, dirnames, filenames in os.walk(directory):
             for filename in filenames:
                 filepath = os.path.join(dirpath, filename)
                 total_size += os.path.getsize(filepath)
-        
+
         mbytes = total_size / 1024.0 / 1024.0
         self.logging.info(f"Worker package size: {mbytes:.2f} MB")
 
@@ -474,15 +477,15 @@ bucket_name = "{bucket_name}"
     ) -> CloudflareWorker:
         """
         Create a new Cloudflare Worker.
-        
+
         If a worker with the same name already exists, it will be updated.
-        
+
         Args:
             code_package: Benchmark containing the function code
             func_name: Name of the worker
             container_deployment: Whether to deploy as container (not supported)
             container_uri: URI of container image (not used)
-            
+
         Returns:
             CloudflareWorker instance
         """
@@ -496,16 +499,16 @@ bucket_name = "{bucket_name}"
         language = code_package.language_name
         language_runtime = code_package.language_version
         function_cfg = FunctionConfig.from_benchmark(code_package)
-        
+
         func_name = self.format_function_name(func_name)
         account_id = self.config.credentials.account_id
-        
+
         if not account_id:
             raise RuntimeError("Cloudflare account ID is required to create workers")
 
         # Check if worker already exists
         existing_worker = self._get_worker(func_name, account_id)
-        
+
         if existing_worker:
             self.logging.info(f"Worker {func_name} already exists, updating it")
             worker = CloudflareWorker(
@@ -521,10 +524,10 @@ bucket_name = "{bucket_name}"
             worker.updated_code = True
         else:
             self.logging.info(f"Creating new worker {func_name}")
-            
+
             # Create the worker with all package files
             self._create_or_update_worker(func_name, package, account_id, language, benchmark)
-            
+
             worker = CloudflareWorker(
                 func_name,
                 code_package.benchmark,
@@ -537,7 +540,7 @@ bucket_name = "{bucket_name}"
 
         # Add LibraryTrigger and HTTPTrigger
         from sebs.cloudflare.triggers import LibraryTrigger, HTTPTrigger
-        
+
         library_trigger = LibraryTrigger(func_name, self)
         library_trigger.logging_handlers = self.logging_handlers
         worker.add_trigger(library_trigger)
@@ -555,9 +558,9 @@ bucket_name = "{bucket_name}"
         """Get information about an existing worker."""
         headers = self._get_auth_headers()
         url = f"{self._api_base_url}/accounts/{account_id}/workers/scripts/{worker_name}"
-        
+
         response = requests.get(url, headers=headers)
-        
+
         if response.status_code == 200:
             try:
                 return response.json().get("result")
@@ -573,14 +576,14 @@ bucket_name = "{bucket_name}"
         self, worker_name: str, package_dir: str, account_id: str, language: str, benchmark_name: Optional[str] = None
     ) -> dict:
         """Create or update a Cloudflare Worker using Wrangler CLI.
-        
+
         Args:
             worker_name: Name of the worker
             package_dir: Directory containing handler and all benchmark files
             account_id: Cloudflare account ID
             language: Programming language (nodejs or python)
             benchmark_name: Optional benchmark name for R2 file path prefix
-        
+
         Returns:
             Worker deployment result
         """
@@ -599,7 +602,7 @@ bucket_name = "{bucket_name}"
         #             raise
         # Generate wrangler.toml for this worker
         self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name)
-        
+
         # Set up environment for Wrangler
         env = os.environ.copy()
         if self.config.credentials.api_token:
@@ -607,12 +610,12 @@ bucket_name = "{bucket_name}"
         elif self.config.credentials.email and self.config.credentials.api_key:
             env['CLOUDFLARE_EMAIL'] = self.config.credentials.email
             env['CLOUDFLARE_API_KEY'] = self.config.credentials.api_key
-        
+
         env['CLOUDFLARE_ACCOUNT_ID'] = account_id
-        
+
         # Deploy using Wrangler
         self.logging.info(f"Deploying worker {worker_name} using Wrangler...")
-        
+
         try:
             result = subprocess.run(
                 ["wrangler", "deploy"],
@@ -623,17 +626,17 @@ bucket_name = "{bucket_name}"
                 check=True,
                 timeout=180  # 3 minutes for deployment
             )
-            
+
             self.logging.info(f"Worker {worker_name} deployed successfully")
             if result.stdout:
                 self.logging.debug(f"Wrangler deploy output: {result.stdout}")
-            
+
             # Parse the output to get worker URL
             # Wrangler typically outputs: "Published <worker-name> (<version>)"
             # and "https://<worker-name>.<subdomain>.workers.dev"
-            
+
             return {"success": True, "output": result.stdout}
-            
+
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"Wrangler deployment timed out for worker {worker_name}")
         except subprocess.CalledProcessError as e:
@@ -711,18 +714,18 @@ bucket_name = "{bucket_name}"
     def cached_function(self, function: Function):
         """
         Handle a function retrieved from cache.
-        
+
         Refreshes triggers and logging handlers.
-        
+
         Args:
             function: The cached function
         """
         from sebs.cloudflare.triggers import LibraryTrigger, HTTPTrigger
-        
+
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             trigger.logging_handlers = self.logging_handlers
             cast(LibraryTrigger, trigger).deployment_client = self
-            
+
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
 
@@ -735,7 +738,7 @@ bucket_name = "{bucket_name}"
     ):
         """
         Update an existing Cloudflare Worker.
-        
+
         Args:
             function: Existing function instance to update
             code_package: New benchmark containing the function code
@@ -751,15 +754,15 @@ bucket_name = "{bucket_name}"
         package = code_package.code_location
         language = code_package.language_name
         benchmark = code_package.benchmark
-        
+
         # Update the worker with all package files
         account_id = worker.account_id or self.config.credentials.account_id
         if not account_id:
             raise RuntimeError("Account ID is required to update worker")
-        
+
         self._create_or_update_worker(worker.name, package, account_id, language, benchmark)
         self.logging.info(f"Updated worker {worker.name}")
-        
+
         # Update configuration if needed
         self.update_function_configuration(worker, code_package)
 
@@ -768,10 +771,10 @@ bucket_name = "{bucket_name}"
     ):
         """
         Update the configuration of a Cloudflare Worker.
-        
+
         Note: Cloudflare Workers have limited configuration options compared
         to traditional FaaS platforms. Memory and timeout are managed by Cloudflare.
-        
+
         Args:
             cached_function: The function to update
             benchmark: The benchmark with new configuration
@@ -780,9 +783,9 @@ bucket_name = "{bucket_name}"
         # - CPU time: 50ms (free), 50ms-30s (paid)
         # - Memory: 128MB
         # Most configuration is handled via wrangler.toml or API settings
-        
+
         worker = cast(CloudflareWorker, cached_function)
-        
+
         # For environment variables or KV namespaces, we would use the API here
         # For now, we'll just log that configuration update was requested
         self.logging.info(
@@ -793,11 +796,11 @@ bucket_name = "{bucket_name}"
     def default_function_name(self, code_package: Benchmark, resources=None) -> str:
         """
         Generate a default function name for Cloudflare Workers.
-        
+
         Args:
             code_package: The benchmark package
             resources: Optional resources (not used)
-            
+
         Returns:
             Default function name
         """
@@ -811,15 +814,15 @@ bucket_name = "{bucket_name}"
     def format_function_name(name: str) -> str:
         """
         Format a function name to comply with Cloudflare Worker naming rules.
-        
+
         Worker names must:
         - Be lowercase
         - Contain only alphanumeric characters and hyphens
         - Not start or end with a hyphen
-        
+
         Args:
             name: The original name
-            
+
         Returns:
             Formatted name
         """
@@ -834,11 +837,11 @@ bucket_name = "{bucket_name}"
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         """
         Enforce cold start for Cloudflare Workers.
-        
+
         Note: Cloudflare Workers don't have a traditional cold start mechanism
         like AWS Lambda. Workers are instantiated on-demand at edge locations.
         We can't force a cold start, but we can update the worker to invalidate caches.
-        
+
         Args:
             functions: List of functions to enforce cold start on
             code_package: The benchmark package
@@ -858,12 +861,12 @@ bucket_name = "{bucket_name}"
     ):
         """
         Extract per-invocation metrics from ExecutionResult objects.
-        
+
         The metrics are extracted from the 'measurement' field in the benchmark
         response, which is populated by the Cloudflare Worker handler during execution.
         This approach avoids dependency on Analytics Engine and provides immediate,
         accurate metrics for each invocation.
-        
+
         Args:
             function_name: Name of the worker
             start_time: Start time (Unix timestamp in seconds) - not used
@@ -874,12 +877,12 @@ bucket_name = "{bucket_name}"
         if not requests:
             self.logging.warning("No requests to extract metrics from")
             return
-        
+
         self.logging.info(
             f"Extracting metrics from {len(requests)} invocations "
             f"of worker {function_name}"
         )
-        
+
         # Aggregate statistics from all requests
         total_invocations = len(requests)
         cold_starts = 0
@@ -887,38 +890,38 @@ bucket_name = "{bucket_name}"
         cpu_times = []
         wall_times = []
         memory_values = []
-        
+
         for request_id, result in requests.items():
             # Count cold/warm starts
             if result.stats.cold_start:
                 cold_starts += 1
             else:
                 warm_starts += 1
-            
+
             # Collect CPU times
             if result.provider_times.execution > 0:
                 cpu_times.append(result.provider_times.execution)
-            
+
             # Collect wall times (benchmark times)
             if result.times.benchmark > 0:
                 wall_times.append(result.times.benchmark)
-            
+
             # Collect memory usage
             if result.stats.memory_used > 0:
                 memory_values.append(result.stats.memory_used)
-            
+
             # Set billing info for Cloudflare Workers
-            # Cloudflare billing: $0.50 per million requests + 
+            # Cloudflare billing: $0.50 per million requests +
             # $12.50 per million GB-seconds of CPU time
             if result.provider_times.execution > 0:
                 result.billing.memory = 128  # Cloudflare Workers: fixed 128MB
                 result.billing.billed_time = result.provider_times.execution  # μs
-                
+
                 # GB-seconds calculation: (128MB / 1024MB/GB) * (cpu_time_us / 1000000 us/s)
                 cpu_time_seconds = result.provider_times.execution / 1_000_000.0
                 gb_seconds = (128.0 / 1024.0) * cpu_time_seconds
                 result.billing.gb_seconds = int(gb_seconds * 1_000_000)  # micro GB-seconds
-        
+
         # Calculate statistics
         metrics['cloudflare'] = {
             'total_invocations': total_invocations,
@@ -927,34 +930,34 @@ bucket_name = "{bucket_name}"
             'data_source': 'response_measurements',
             'note': 'Per-invocation metrics extracted from benchmark response'
         }
-        
+
         if cpu_times:
             metrics['cloudflare']['avg_cpu_time_us'] = sum(cpu_times) // len(cpu_times)
             metrics['cloudflare']['min_cpu_time_us'] = min(cpu_times)
             metrics['cloudflare']['max_cpu_time_us'] = max(cpu_times)
             metrics['cloudflare']['cpu_time_measurements'] = len(cpu_times)
-        
+
         if wall_times:
             metrics['cloudflare']['avg_wall_time_us'] = sum(wall_times) // len(wall_times)
             metrics['cloudflare']['min_wall_time_us'] = min(wall_times)
             metrics['cloudflare']['max_wall_time_us'] = max(wall_times)
             metrics['cloudflare']['wall_time_measurements'] = len(wall_times)
-        
+
         if memory_values:
             metrics['cloudflare']['avg_memory_mb'] = sum(memory_values) / len(memory_values)
             metrics['cloudflare']['min_memory_mb'] = min(memory_values)
             metrics['cloudflare']['max_memory_mb'] = max(memory_values)
             metrics['cloudflare']['memory_measurements'] = len(memory_values)
-        
+
         self.logging.info(
             f"Extracted metrics from {total_invocations} invocations: "
             f"{cold_starts} cold starts, {warm_starts} warm starts"
         )
-        
+
         if cpu_times:
             avg_cpu_ms = sum(cpu_times) / len(cpu_times) / 1000.0
             self.logging.info(f"Average CPU time: {avg_cpu_ms:.2f} ms")
-        
+
         if wall_times:
             avg_wall_ms = sum(wall_times) / len(wall_times) / 1000.0
             self.logging.info(f"Average wall time: {avg_wall_ms:.2f} ms")
@@ -964,18 +967,18 @@ bucket_name = "{bucket_name}"
     ) -> Trigger:
         """
         Create a trigger for a Cloudflare Worker.
-        
+
         Args:
             function: The function to create a trigger for
             trigger_type: Type of trigger to create
-            
+
         Returns:
             The created trigger
         """
         from sebs.cloudflare.triggers import LibraryTrigger, HTTPTrigger
-        
+
         worker = cast(CloudflareWorker, function)
-        
+
         if trigger_type == Trigger.TriggerType.LIBRARY:
             trigger = LibraryTrigger(worker.name, self)
             trigger.logging_handlers = self.logging_handlers
@@ -994,7 +997,7 @@ bucket_name = "{bucket_name}"
     def shutdown(self) -> None:
         """
         Shutdown the Cloudflare system.
-        
+
         Saves configuration to cache.
         """
         try:
