@@ -188,7 +188,7 @@ class Cloudflare(System):
             raise RuntimeError("Wrangler version check timed out")
 
 
-    def _generate_wrangler_toml(self, worker_name: str, package_dir: str, language: str, account_id: str, benchmark_name: Optional[str] = None) -> str:
+    def _generate_wrangler_toml(self, worker_name: str, package_dir: str, language: str, account_id: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None) -> str:
         """
         Generate a wrangler.toml configuration file for the worker.
 
@@ -198,6 +198,7 @@ class Cloudflare(System):
             language: Programming language (nodejs or python)
             account_id: Cloudflare account ID
             benchmark_name: Optional benchmark name for R2 file path prefix
+            code_package: Optional benchmark package for nosql configuration
 
         Returns:
             Path to the generated wrangler.toml file
@@ -238,13 +239,30 @@ fallthrough = true
 compatibility_flags = ["python_workers"]
 """
 
+        toml_content += """
+[[durable_objects.bindings]]
+name = "DURABLE_STORE"
+class_name = "KVApiObject"
 
-        # Add environment variable for benchmark name (used by fs-polyfill for R2 paths)
+[[migrations]]
+tag = "v1"
+new_classes = ["KVApiObject"]
+"""
+
+
+        # Add environment variables
+        vars_content = ""
         if benchmark_name:
-            toml_content += f"""# Benchmark name used for R2 file path prefix
+            vars_content += f'BENCHMARK_NAME = "{benchmark_name}"\n'
+        
+        # Add nosql configuration if benchmark uses it
+        if code_package and code_package.uses_nosql:
+            vars_content += 'NOSQL_STORAGE_DATABASE = "durable_objects"\n'
+        
+        if vars_content:
+            toml_content += f"""# Environment variables
 [vars]
-BENCHMARK_NAME = "{benchmark_name}"
-
+{vars_content}
 """
 
  # Add R2 bucket binding for benchmarking files (required for fs/path polyfills)
@@ -533,7 +551,7 @@ bucket_name = "{bucket_name}"
             self.logging.info(f"Creating new worker {func_name}")
 
             # Create the worker with all package files
-            self._create_or_update_worker(func_name, package, account_id, language, benchmark)
+            self._create_or_update_worker(func_name, package, account_id, language, benchmark, code_package)
 
             worker = CloudflareWorker(
                 func_name,
@@ -580,7 +598,7 @@ bucket_name = "{bucket_name}"
             return None
 
     def _create_or_update_worker(
-        self, worker_name: str, package_dir: str, account_id: str, language: str, benchmark_name: Optional[str] = None
+        self, worker_name: str, package_dir: str, account_id: str, language: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None
     ) -> dict:
         """Create or update a Cloudflare Worker using Wrangler CLI.
 
@@ -590,6 +608,7 @@ bucket_name = "{bucket_name}"
             account_id: Cloudflare account ID
             language: Programming language (nodejs or python)
             benchmark_name: Optional benchmark name for R2 file path prefix
+            code_package: Optional benchmark package for nosql configuration
 
         Returns:
             Worker deployment result
@@ -608,7 +627,7 @@ bucket_name = "{bucket_name}"
         #             self.logging.error(f"Failed to convert function.js to ESM: {e}")
         #             raise
         # Generate wrangler.toml for this worker
-        self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name)
+        self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name, code_package)
 
         # Set up environment for Wrangler
         env = os.environ.copy()
@@ -767,7 +786,7 @@ bucket_name = "{bucket_name}"
         if not account_id:
             raise RuntimeError("Account ID is required to update worker")
 
-        self._create_or_update_worker(worker.name, package, account_id, language, benchmark)
+        self._create_or_update_worker(worker.name, package, account_id, language, benchmark, code_package)
         self.logging.info(f"Updated worker {worker.name}")
 
         # Update configuration if needed

@@ -1,4 +1,29 @@
+import { DurableObject } from "cloudflare:workers";
 
+// Durable Object class for KV API compatibility
+export class KVApiObject extends DurableObject {
+  constructor(state, env) {
+    super(state, env);
+    this.storage = state.storage;
+  }
+  
+  // Proxy methods to make the storage API accessible from the stub
+  async put(key, value) {
+    return await this.storage.put(key, value);
+  }
+  
+  async get(key) {
+    return await this.storage.get(key);
+  }
+  
+  async delete(key) {
+    return await this.storage.delete(key);
+  }
+  
+  async list(options) {
+    return await this.storage.list(options);
+  }
+}
 
 export default {
   async fetch(request, env) {
@@ -82,14 +107,43 @@ export default {
       // don't fail the request if storage init isn't available
     }
 
+    // Initialize nosql if environment variable is set
+    if (env.NOSQL_STORAGE_DATABASE) {
+      try {
+        const nosqlModule = await import('./nosql.js');
+        if (nosqlModule && nosqlModule.nosql && typeof nosqlModule.nosql.init_instance === 'function') {
+          nosqlModule.nosql.init_instance({ env, request });
+        }
+      } catch (e) {
+        // nosql module might not exist for all benchmarks
+        console.log('Could not initialize nosql:', e.message);
+      }
+    }
+
     // Execute the benchmark handler
     let ret;
     try {
+      // Wrap the handler execution to handle sync-style async code
+      // The benchmark code calls async nosql methods but doesn't await them
+      // We need to serialize the execution
       if (funcModule && typeof funcModule.handler === 'function') {
-        // handler may be sync or return a promise
-        ret = await Promise.resolve(funcModule.handler(event));
+        // Create a promise-aware execution context
+        const handler = funcModule.handler;
+        
+        // Execute handler - it will return { result: [Promise, Promise, ...] }
+        ret = await Promise.resolve(handler(event));
+        
+        // Deeply resolve all promises in the result
+        if (ret && ret.result && Array.isArray(ret.result)) {
+          ret.result = await Promise.all(ret.result.map(async item => await Promise.resolve(item)));
+        }
       } else if (funcModule && funcModule.default && typeof funcModule.default.handler === 'function') {
-        ret = await Promise.resolve(funcModule.default.handler(event));
+        const handler = funcModule.default.handler;
+        ret = await Promise.resolve(handler(event));
+        
+        if (ret && ret.result && Array.isArray(ret.result)) {
+          ret.result = await Promise.all(ret.result.map(async item => await Promise.resolve(item)));
+        }
       } else {
         throw new Error('benchmark handler function not found');
       }

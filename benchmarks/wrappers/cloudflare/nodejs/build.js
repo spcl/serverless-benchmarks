@@ -39,13 +39,63 @@ const nodeBuiltinsPlugin = {
   name: 'node-builtins-external',
   setup(build) {
     // Keep node: prefixed modules external
-    build.onResolve({ filter: /^node:/ }, (args) => {
+    build.onResolve({ filter: /^(node:|cloudflare:)/ }, (args) => {
       return { path: args.path, external: true };
     });
     
     // Map bare node built-in names to node: versions and keep external
     build.onResolve({ filter: /^(fs|querystring|path|crypto|stream|buffer|util|events|http|https|net|tls|zlib|os|child_process|tty|assert|url)$/ }, (args) => {
       return { path: 'node:' + args.path, external: true };
+    });
+  }
+};
+
+const asyncNosqlPlugin = {
+  name: 'async-nosql-transformer',
+  setup(build) {
+    // Transform function.js to make it async-compatible
+    build.onLoad({ filter: /function\.js$/ }, async (args) => {
+      let contents = await fs.promises.readFile(args.path, 'utf8');
+      
+      console.log('🔧 Transforming function.js for async nosql...');
+      
+      // Step 1: Add await before nosqlClient method calls
+      contents = contents.replace(/(\s*)((?:const|let|var)\s+\w+\s*=\s*)?nosqlClient\.(insert|get|update|query|delete)\s*\(/g, 
+        '$1$2await nosqlClient.$3(');
+      
+      // Step 2: Make all function declarations async
+      contents = contents.replace(/\bfunction\s+(\w+)\s*\(/g, 'async function $1(');
+      
+      // Step 3: Make exported handler async if not already
+      contents = contents.replace(/exports\.handler\s*=\s*function\s*\(/g, 'exports.handler = async function(');
+      
+      // Step 4: Add await before specific function calls
+      // Split into lines to avoid matching function declarations
+      const lines = contents.split('\n');
+      const transformedLines = lines.map(line => {
+        // Skip lines that contain function declarations
+        if (line.match(/\b(async\s+)?function\s+\w+\s*\(/)) {
+          return line;
+        }
+        
+        // Transform function calls in this line
+        const functionNames = ['addProduct', 'getProducts', 'queryProducts', 'updateProducts', 'deleteProducts'];
+        for (const funcName of functionNames) {
+          // Match calls: spaces + optional assignment + functionName(
+          const callRegex = new RegExp(`(\\s*)((?:const|let|var)\\s+\\w+\\s*=\\s*)?(${funcName})\\s*\\(`, 'g');
+          line = line.replace(callRegex, '$1$2await $3(');
+        }
+        
+        return line;
+      });
+      contents = transformedLines.join('\n');
+      
+      console.log('✓ Transformed function.js for async nosql');
+      
+      return {
+        contents,
+        loader: 'js',
+      };
     });
   }
 };
@@ -83,7 +133,7 @@ async function customBuild() {
         target: 'es2020',
         sourcemap: true,
         allowOverwrite: true,
-        plugins: [nodeBuiltinsPlugin],
+        plugins: [nodeBuiltinsPlugin, asyncNosqlPlugin],
         define: {
           'process.env.NODE_ENV': '"production"',
           'global': 'globalThis',

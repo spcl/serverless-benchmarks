@@ -1,106 +1,90 @@
 // NoSQL wrapper for Cloudflare Workers
-// Supports Cloudflare KV or Durable Objects when available
+// Uses Durable Objects for storage
+// Returns Promises that the handler will resolve
 
 class nosql {
   constructor() {
-    this.handle = null; // KV or Durable Object binding
-    this._tables = {};
+    this.env = null;
   }
 
   static init_instance(entry) {
-    nosql.instance = new nosql();
+    // Reuse existing instance if it exists, otherwise create new one
+    if (!nosql.instance) {
+      nosql.instance = new nosql();
+    }
+    
     if (entry && entry.env) {
       nosql.instance.env = entry.env;
     }
   }
 
   _get_table(tableName) {
-    if (!(tableName in this._tables)) {
-      const envName = `NOSQL_STORAGE_TABLE_${tableName}`;
-      
-      if (this.env && this.env[envName]) {
-        this._tables[tableName] = this.env[envName];
-      } else if (this.env && this.env[tableName]) {
-        // Try direct table name
-        this._tables[tableName] = this.env[tableName];
-      } else {
-        throw new Error(
-          `Couldn't find an environment variable ${envName} for table ${tableName}`
-        );
-      }
+    // Don't cache stubs - they are request-scoped and cannot be reused
+    // Always create a fresh stub for each request
+    if (!this.env) {
+      throw new Error(`nosql env not initialized for table ${tableName}`);
     }
-
-    return this._tables[tableName];
+    
+    if (!this.env.DURABLE_STORE) {
+      // Debug: log what we have
+      const envKeys = Object.keys(this.env || {});
+      const durableStoreType = typeof this.env.DURABLE_STORE;
+      throw new Error(
+        `DURABLE_STORE binding not found. env keys: [${envKeys.join(', ')}], DURABLE_STORE type: ${durableStoreType}`
+      );
+    }
+    
+    // Get a Durable Object ID based on the table name and create a fresh stub
+    const id = this.env.DURABLE_STORE.idFromName(tableName);
+    return this.env.DURABLE_STORE.get(id);
   }
 
+  // Async methods - build.js will patch function.js to await these
   async insert(tableName, primaryKey, secondaryKey, data) {
     const keyData = { ...data };
     keyData[primaryKey[0]] = primaryKey[1];
     keyData[secondaryKey[0]] = secondaryKey[1];
 
-    const table = this._get_table(tableName);
+    const durableObjStub = this._get_table(tableName);
     const compositeKey = `${primaryKey[1]}#${secondaryKey[1]}`;
     
-    // For KV binding
-    if (table && typeof table.put === 'function') {
-      await table.put(compositeKey, JSON.stringify(keyData));
-    } else {
-      throw new Error('NoSQL table binding not properly configured');
-    }
+    await durableObjStub.put(compositeKey, keyData);
   }
 
   async get(tableName, primaryKey, secondaryKey) {
-    const table = this._get_table(tableName);
+    const durableObjStub = this._get_table(tableName);
     const compositeKey = `${primaryKey[1]}#${secondaryKey[1]}`;
 
-    if (table && typeof table.get === 'function') {
-      const result = await table.get(compositeKey);
-      if (result) {
-        return JSON.parse(result);
-      }
-      return null;
-    }
-    
-    throw new Error('NoSQL table binding not properly configured');
+    const result = await durableObjStub.get(compositeKey);
+    return result || null;
   }
 
   async update(tableName, primaryKey, secondaryKey, updates) {
-    // For simple KV, update is same as put with merged data
     const existing = await this.get(tableName, primaryKey, secondaryKey) || {};
     const merged = { ...existing, ...updates };
     await this.insert(tableName, primaryKey, secondaryKey, merged);
   }
 
   async query(tableName, primaryKey, secondaryKeyName) {
-    const table = this._get_table(tableName);
+    const durableObjStub = this._get_table(tableName);
     const prefix = `${primaryKey[1]}#`;
     
-    if (table && typeof table.list === 'function') {
-      const list = await table.list({ prefix });
-      const results = [];
-      
-      for (const key of list.keys) {
-        const value = await table.get(key.name);
-        if (value) {
-          results.push(JSON.parse(value));
-        }
-      }
-      
-      return results;
+    // List all keys with the prefix
+    const allEntries = await durableObjStub.list({ prefix });
+    const results = [];
+    
+    for (const [key, value] of allEntries) {
+      results.push(value);
     }
     
-    throw new Error('NoSQL table binding not properly configured');
+    return results;
   }
 
   async delete(tableName, primaryKey, secondaryKey) {
-    const table = this._get_table(tableName);
+    const durableObjStub = this._get_table(tableName);
     const compositeKey = `${primaryKey[1]}#${secondaryKey[1]}`;
 
-    if (table && typeof table.delete === 'function') {
-      await table.delete(compositeKey);
-    } else {
-      throw new Error('NoSQL table binding not properly configured');
-    }
+    await durableObjStub.delete(compositeKey);
   }
 
   static get_instance() {
@@ -111,4 +95,4 @@ class nosql {
   }
 }
 
-module.exports.nosql = nosql;
+export { nosql };
