@@ -462,7 +462,8 @@
             "handler.js",
             "storage.js",
             "nosql.js",
-            "build.js"
+            "build.js",
+            "request-polyfill.js"
           ],
           "packages": {
             "uuid": "3.4.0"

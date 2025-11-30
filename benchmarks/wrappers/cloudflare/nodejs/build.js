@@ -38,6 +38,8 @@ function copyFile(src, dest) {
 const nodeBuiltinsPlugin = {
   name: 'node-builtins-external',
   setup(build) {
+    const { resolve } = require('path');
+    
     // Keep node: prefixed modules external
     build.onResolve({ filter: /^(node:|cloudflare:)/ }, (args) => {
       return { path: args.path, external: true };
@@ -46,6 +48,15 @@ const nodeBuiltinsPlugin = {
     // Map bare node built-in names to node: versions and keep external
     build.onResolve({ filter: /^(fs|querystring|path|crypto|stream|buffer|util|events|http|https|net|tls|zlib|os|child_process|tty|assert|url)$/ }, (args) => {
       return { path: 'node:' + args.path, external: true };
+    });
+    
+    // Polyfill 'request' module with fetch-based implementation
+    build.onResolve({ filter: /^request$/ }, (args) => {
+      // Get the directory where build.js is located (wrapper directory)
+      const wrapperDir = __dirname;
+      return { 
+        path: resolve(wrapperDir, 'request-polyfill.js')
+      };
     });
   }
 };
