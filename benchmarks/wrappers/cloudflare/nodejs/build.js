@@ -57,34 +57,52 @@ const asyncNosqlPlugin = {
     build.onLoad({ filter: /function\.js$/ }, async (args) => {
       let contents = await fs.promises.readFile(args.path, 'utf8');
       
+      // Only transform if file uses nosql
+      if (!contents.includes('nosqlClient')) {
+        return { contents, loader: 'js' };
+      }
+      
       console.log('🔧 Transforming function.js for async nosql...');
       
       // Step 1: Add await before nosqlClient method calls
       contents = contents.replace(/(\s*)((?:const|let|var)\s+\w+\s*=\s*)?nosqlClient\.(insert|get|update|query|delete)\s*\(/g, 
         '$1$2await nosqlClient.$3(');
       
-      // Step 2: Make all function declarations async
-      contents = contents.replace(/\bfunction\s+(\w+)\s*\(/g, 'async function $1(');
+      // Step 2: Make all function declarations async (but not function expressions)
+      contents = contents.replace(/^(\s*)function\s+(\w+)\s*\(/gm, '$1async function $2(');
       
-      // Step 3: Make exported handler async if not already
-      contents = contents.replace(/exports\.handler\s*=\s*function\s*\(/g, 'exports.handler = async function(');
-      
-      // Step 4: Add await before specific function calls
-      // Split into lines to avoid matching function declarations
+      // Step 3: Add await before user-defined function calls
+      // Process line by line to handle specific patterns
       const lines = contents.split('\n');
       const transformedLines = lines.map(line => {
-        // Skip lines that contain function declarations
-        if (line.match(/\b(async\s+)?function\s+\w+\s*\(/)) {
+        // Skip lines with function declarations or function expressions
+        if (line.match(/\bfunction\s+\w+\s*\(/) || line.match(/=\s*(async\s+)?function\s*\(/)) {
           return line;
         }
         
-        // Transform function calls in this line
-        const functionNames = ['addProduct', 'getProducts', 'queryProducts', 'updateProducts', 'deleteProducts'];
-        for (const funcName of functionNames) {
-          // Match calls: spaces + optional assignment + functionName(
-          const callRegex = new RegExp(`(\\s*)((?:const|let|var)\\s+\\w+\\s*=\\s*)?(${funcName})\\s*\\(`, 'g');
-          line = line.replace(callRegex, '$1$2await $3(');
-        }
+        // Add await before function calls that look like user-defined functions
+        // Match: identifier followed by ( where identifier starts line or follows whitespace/operators
+        // but NOT if preceded by = (assignment), . (method call), or keywords
+        line = line.replace(/(^|\s+|;|,|\()((?:const|let|var)\s+\w+\s*=\s*)?(\w+)\s*\(/g, (match, prefix, assignment, funcName) => {
+          // Skip control flow keywords
+          const controlFlow = ['if', 'for', 'while', 'switch', 'catch', 'return'];
+          if (controlFlow.includes(funcName)) {
+            return match;
+          }
+          
+          // Skip built-in JavaScript functions and methods
+          const builtins = ['console', 'require', 'push', 'join', 'split', 
+                           'map', 'filter', 'reduce', 'forEach', 'find', 'findIndex',
+                           'some', 'every', 'includes', 'parseInt', 'parseFloat', 
+                           'isNaN', 'Array', 'Object', 'String', 'Number', 'Boolean',
+                           'Math', 'JSON', 'Date', 'RegExp', 'Error', 'Promise'];
+          if (builtins.includes(funcName)) {
+            return match;
+          }
+          
+          // Add await for everything else
+          return `${prefix}${assignment || ''}await ${funcName}(`;
+        });
         
         return line;
       });
