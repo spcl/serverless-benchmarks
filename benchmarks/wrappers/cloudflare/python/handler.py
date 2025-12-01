@@ -21,7 +21,7 @@ function/
 class KVApiObject(DurableObject):
     def __getattr__(self, name):
         return getattr(self.ctx.storage, name)
-        
+
 class Default(WorkerEntrypoint):
     async def fetch(self, request, env):
         try:
@@ -70,11 +70,11 @@ class Default(WorkerEntrypoint):
         storage.storage.init_instance(self)
 
 
-        if 'NOSQL_STORAGE_DATABASE' in os.environ:
+        if self.env.NOSQL_STORAGE_DATABASE:
             from function import nosql
-        
-            nosql.nosql.get_instance(self)
-        
+
+            nosql.nosql.init_instance(self)
+
         print("event:", event)
 
 
@@ -82,7 +82,7 @@ class Default(WorkerEntrypoint):
 ##        function = import_from_path("function.function", "/tmp/function.py")
 
         from function import function
-        
+
         ret = function.handler(event)
 
         log_data = {
@@ -136,14 +136,14 @@ class MakeAsync(ast.NodeTransformer):
 
 class AddAwait(ast.NodeTransformer):
     to_find = ["upload_stream", "download_stream", "upload", "download", "download_directory"]
-    
+
     def visit_Call(self, node):
         if isinstance(node.func, ast.Attribute) and node.func.attr in self.to_find:
             #print(ast.dump(node.func, indent=2))
             return ast.Await(value=node)
-        
+
         return node
-        
+
 def make_benchmark_func():
     with open(working_dir +"/function/function.py") as f:
         module = ast.parse(f.read())
@@ -155,5 +155,5 @@ def make_benchmark_func():
     ##print()
     with open("/tmp/function.py", "w") as wf:
         wf.write(new_source)
-        
+
 

@@ -187,6 +187,40 @@ class Cloudflare(System):
         except subprocess.TimeoutExpired:
             raise RuntimeError("Wrangler version check timed out")
 
+    def _ensure_pywrangler_installed(self):
+        """Necessary to download python dependencies"""
+        try:
+            result = subprocess.run(
+                ["pywrangler", "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10
+            )
+            version = result.stdout.strip()
+            self.logging.info(f"pywrangler is installed: {version}")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.logging.info("pywrangler not found, installing globally via uv tool install...")
+            try:
+                result = subprocess.run(
+                    ["uv", "tool", "install", "workers-py"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=120
+                )
+                self.logging.info("pywrangler installed successfully")
+                if result.stdout:
+                    self.logging.debug(f"uv tool install workers-py output: {result.stdout}")
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"Failed to install pywrangler: {e.stderr}")
+            except FileNotFoundError:
+                raise RuntimeError(
+                    "uv not found. Please install uv."
+                )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("pywrangler version check timed out")
+
 
     def _generate_wrangler_toml(self, worker_name: str, package_dir: str, language: str, account_id: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None) -> str:
         """
@@ -254,11 +288,11 @@ new_classes = ["KVApiObject"]
         vars_content = ""
         if benchmark_name:
             vars_content += f'BENCHMARK_NAME = "{benchmark_name}"\n'
-        
+
         # Add nosql configuration if benchmark uses it
         if code_package and code_package.uses_nosql:
             vars_content += 'NOSQL_STORAGE_DATABASE = "durable_objects"\n'
-        
+
         if vars_content:
             toml_content += f"""# Environment variables
 [vars]
@@ -274,12 +308,12 @@ new_classes = ["KVApiObject"]
                 toml_content += f"""# R2 bucket binding for benchmarking files
 # This bucket is used by fs and path polyfills to read benchmark data
 [[r2_buckets]]
-binding = "R2"
+binding = "{bucket_name}"
 bucket_name = "{bucket_name}"
 
 """
                 r2_bucket_configured = True
-                self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
+                self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as '{bucket_name}'")
         except Exception as e:
             self.logging.warning(
                 f"R2 bucket binding not configured: {e}. "
@@ -343,12 +377,12 @@ bucket_name = "{bucket_name}"
                 "Container deployment is not supported for Cloudflare Workers"
             )
 
-        # Ensure Wrangler is installed
-        self._ensure_wrangler_installed()
-
 
         # Install dependencies
         if language_name == "nodejs":
+            # Ensure Wrangler is installed
+            self._ensure_wrangler_installed()
+
             package_file = os.path.join(directory, "package.json")
             node_modules = os.path.join(directory, "node_modules")
 
@@ -413,43 +447,90 @@ bucket_name = "{bucket_name}"
                         self.logging.warning(f"Failed to install esbuild: {e}")
 
         elif language_name == "python":
-            requirements_file = os.path.join(directory, "requirements.txt")
+            # Ensure Wrangler is installed
+            self._ensure_pywrangler_installed()
 
+            requirements_file = os.path.join(directory, "requirements.txt")
             if os.path.exists(f"{requirements_file}.{language_version}"):
                 src = f"{requirements_file}.{language_version}"
                 dest = requirements_file
                 shutil.move(src, dest)
                 self.logging.info(f"move {src} to {dest}")
 
+
+
+            # move function_cloudflare.py into function.py
+            function_cloudflare_file = os.path.join(directory, "function_cloudflare.py")
+            if os.path.exists(function_cloudflare_file):
+                src = function_cloudflare_file
+                dest = os.path.join(directory, "function.py")
+                shutil.move(src, dest)
+                self.logging.info(f"move {src} to {dest}")
+
             if os.path.exists(requirements_file):
-                self.logging.info(f"Installing Python dependencies in {directory}")
-                try:
-                    # Install to a local directory that can be bundled
-                    target_dir = os.path.join(directory, "python_modules")
-                    result = subprocess.run(
-                        ["pip", "install", "-r", "requirements.txt", "-t", target_dir],
-                        cwd=directory,
-                        capture_output=True,
-                        text=True,
-                        check=True
-                    )
-                    self.logging.info("pip install completed successfully")
-                    if result.stdout:
-                        self.logging.debug(f"pip output: {result.stdout}")
-                except subprocess.CalledProcessError as e:
-                    self.logging.error(f"pip install failed: {e.stderr}")
-                    raise RuntimeError(f"Failed to install Python dependencies: {e.stderr}")
-                except FileNotFoundError:
-                    raise RuntimeError(
-                        "pip not found. Please install Python and pip to deploy Python benchmarks."
-                    )
+                with open(requirements_file, 'r') as reqf:
+                    reqtext = reqf.read()
+                supported_pkg = \
+['affine', 'aiohappyeyeballs', 'aiohttp', 'aiosignal', 'altair', 'annotated-types',\
+'anyio', 'apsw', 'argon2-cffi', 'argon2-cffi-bindings', 'asciitree', 'astropy', 'astropy_iers_data',\
+'asttokens', 'async-timeout', 'atomicwrites', 'attrs', 'audioop-lts', 'autograd', 'awkward-cpp', 'b2d',\
+'bcrypt', 'beautifulsoup4', 'bilby.cython', 'biopython', 'bitarray', 'bitstring', 'bleach', 'blosc2', 'bokeh',\
+'boost-histogram', 'brotli', 'cachetools', 'casadi', 'cbor-diag', 'certifi', 'cffi', 'cffi_example', 'cftime',\
+'charset-normalizer', 'clarabel', 'click', 'cligj', 'clingo', 'cloudpickle', 'cmyt', 'cobs', 'colorspacious',\
+'contourpy', 'coolprop', 'coverage', 'cramjam', 'crc32c', 'cryptography', 'css-inline', 'cssselect', 'cvxpy-base', 'cycler',\
+'cysignals', 'cytoolz', 'decorator', 'demes', 'deprecation', 'diskcache', 'distlib', 'distro', 'docutils', 'donfig',\
+'ewah_bool_utils', 'exceptiongroup', 'executing', 'fastapi', 'fastcan', 'fastparquet', 'fiona', 'fonttools', 'freesasa',\
+'frozenlist', 'fsspec', 'future', 'galpy', 'gmpy2', 'gsw', 'h11', 'h3', 'h5py', 'highspy', 'html5lib', 'httpcore',\
+'httpx', 'idna', 'igraph', 'imageio', 'imgui-bundle', 'iminuit', 'iniconfig', 'inspice', 'ipython', 'jedi', 'Jinja2',\
+'jiter', 'joblib', 'jsonpatch', 'jsonpointer', 'jsonschema', 'jsonschema_specifications', 'kiwisolver',\
+'lakers-python', 'lazy_loader', 'lazy-object-proxy', 'libcst', 'lightgbm', 'logbook', 'lxml', 'lz4', 'MarkupSafe',\
+'matplotlib', 'matplotlib-inline', 'memory-allocator', 'micropip', 'mmh3', 'more-itertools', 'mpmath',\
+'msgpack', 'msgspec', 'msprime', 'multidict', 'munch', 'mypy', 'narwhals', 'ndindex', 'netcdf4', 'networkx',\
+'newick', 'nh3', 'nlopt', 'nltk', 'numcodecs', 'numpy', 'openai', 'opencv-python', 'optlang', 'orjson',\
+'packaging', 'pandas', 'parso', 'patsy', 'pcodec', 'peewee', 'pi-heif', 'Pillow', 'pillow-heif', 'pkgconfig',\
+'platformdirs', 'pluggy', 'ply', 'pplpy', 'primecountpy', 'prompt_toolkit', 'propcache', 'protobuf', 'pure-eval',\
+'py', 'pyclipper', 'pycparser', 'pycryptodome', 'pydantic', 'pydantic_core', 'pyerfa', 'pygame-ce', 'Pygments',\
+'pyheif', 'pyiceberg', 'pyinstrument', 'pylimer-tools', 'PyMuPDF', 'pynacl', 'pyodide-http', 'pyodide-unix-timezones',\
+'pyparsing', 'pyrsistent', 'pysam', 'pyshp', 'pytaglib', 'pytest', 'pytest-asyncio', 'pytest-benchmark', 'pytest_httpx',\
+'python-calamine', 'python-dateutil', 'python-flint', 'python-magic', 'python-sat', 'python-solvespace', 'pytz', 'pywavelets',\
+'pyxel', 'pyxirr', 'pyyaml', 'rasterio', 'rateslib', 'rebound', 'reboundx', 'referencing', 'regex', 'requests',\
+'retrying', 'rich', 'river', 'RobotRaconteur', 'rpds-py', 'ruamel.yaml', 'rustworkx', 'scikit-image', 'scikit-learn',\
+'scipy', 'screed', 'setuptools', 'shapely', 'simplejson', 'sisl', 'six', 'smart-open', 'sniffio', 'sortedcontainers',\
+'soundfile', 'soupsieve', 'sourmash', 'soxr', 'sparseqr', 'sqlalchemy', 'stack-data', 'starlette', 'statsmodels', 'strictyaml',\
+'svgwrite', 'swiglpk', 'sympy', 'tblib', 'termcolor', 'texttable', 'texture2ddecoder', 'threadpoolctl', 'tiktoken', 'tomli',\
+'tomli-w', 'toolz', 'tqdm', 'traitlets', 'traits', 'tree-sitter', 'tree-sitter-go', 'tree-sitter-java', 'tree-sitter-python',\
+'tskit', 'typing-extensions', 'tzdata', 'ujson', 'uncertainties', 'unyt', 'urllib3', 'vega-datasets', 'vrplib', 'wcwidth',\
+'webencodings', 'wordcloud', 'wrapt', 'xarray', 'xgboost', 'xlrd', 'xxhash', 'xyzservices', 'yarl', 'yt', 'zengl', 'zfpy', 'zstandard']
+                needed_pkg = []
+                for pkg in supported_pkg:
+                    if pkg.lower() in reqtext.lower():
+                        needed_pkg.append(pkg)
+
+                project_file = os.path.join(directory, "pyproject.toml")
+                depstr = str(needed_pkg).replace("\'", "\"")
+                with open(project_file, 'w') as pf:
+                    pf.write(f"""
+[project]
+name = "{benchmark.replace(".", "-")}-python-{language_version.replace(".", "")}"
+version = "0.1.0"
+description = "dummy description"
+requires-python = ">={language_version}"
+dependencies = {depstr}
+
+[dependency-groups]
+dev = [
+  "workers-py",
+  "workers-runtime-sdk"
+]
+                    """)
             # move into function dir
             funcdir = os.path.join(directory, "function")
             if not os.path.exists(funcdir):
                 os.makedirs(funcdir)
 
+            dont_move = ["handler.py", "function", "python_modules", "pyproject.toml"]
             for thing in os.listdir(directory):
-                if not (thing.endswith("handler.py") or thing.endswith("function") or thing.endswith("python_modules")):
+                if thing not in dont_move:
                     src = os.path.join(directory, thing)
                     dest = os.path.join(directory, "function", thing)
                     shutil.move(src, dest)
@@ -489,7 +570,7 @@ bucket_name = "{bucket_name}"
                 total_size += os.path.getsize(filepath)
 
         mbytes = total_size / 1024.0 / 1024.0
-        self.logging.info(f"Worker package size: {mbytes:.2f} MB")
+        self.logging.info(f"Worker package size: {mbytes:.2f} MB (Python: missing vendored modules)")
 
         return (directory, total_size, "")
 
@@ -644,7 +725,7 @@ bucket_name = "{bucket_name}"
 
         try:
             result = subprocess.run(
-                ["wrangler", "deploy"],
+                ["wrangler" if language == "nodejs" else "pywrangler", "deploy"],
                 cwd=package_dir,
                 env=env,
                 capture_output=True,
