@@ -179,7 +179,7 @@ class AWS(System):
         elif language == "python":
             return f"{language}{runtime}"
         elif language == "pypy":
-            return "provided.al2"
+            return "provided.al2023"
         return runtime
 
     def create_function(
