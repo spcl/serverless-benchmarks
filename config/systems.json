@@ -152,10 +152,10 @@
       "pypy": {
         "base_images": {
           "x64": {
-            "3.11": "amazon/aws-lambda-provided:al2-x86_64"
+            "3.11": "amazon/aws-lambda-provided:al2023-x86_64"
           },
           "arm64": {
-            "3.11": "amazon/aws-lambda-provided:al2-arm64"
+            "3.11": "amazon/aws-lambda-provided:al2023-arm64"
           }
         },
         "images": [
