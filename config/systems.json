@@ -64,6 +64,33 @@
           ],
           "packages": []
         }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "pypy:latest"
+          },
+          "arm64": {
+            "3.11": "pypy:latest"
+          }
+        },
+        "images": [
+          "run",
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "storage.py",
+            "nosql.py"
+          ],
+          "packages": [],
+          "module_packages": {
+            "nosql": [
+              "boto3==1.28.3"
+            ]
+          }
+        }
       }
     },
     "architecture": ["x64"],
@@ -120,6 +147,29 @@
           "packages": {
             "uuid": "3.4.0"
           }
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "amazon/aws-lambda-provided:al2-x86_64"
+          },
+          "arm64": {
+            "3.11": "amazon/aws-lambda-provided:al2-arm64"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py",
+            "setup.py"
+          ],
+          "packages": [],
+          "module_packages": {}
         }
       }
     },
