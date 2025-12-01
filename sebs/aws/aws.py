@@ -136,6 +136,7 @@ class AWS(System):
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
+            "pypy": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
         package_config = CONFIG_FILES[language_name]
@@ -172,8 +173,13 @@ class AWS(System):
 
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
+        # We use a OS-only runtime for PyPy
         if language == "nodejs":
-            return f"{runtime}.x"
+            return f"{language}{runtime}.x"
+        elif language == "python":
+            return f"{language}{runtime}"
+        elif language == "pypy":
+            return "provided.al2"
         return runtime
 
     def create_function(
@@ -251,9 +257,7 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                create_function_params["Runtime"] = "{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
-                )
+                create_function_params["Runtime"] = self._map_language_runtime(language, language_runtime)
                 create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {
@@ -401,15 +405,26 @@ class AWS(System):
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {function.name} function. ")
 
+    def get_real_language_name(self, language_name: str) -> str:
+        LANGUAGE_NAMES = {
+            "python": "python",
+            "pypy": "python",
+            "nodejs": "nodejs",
+        }
+        return LANGUAGE_NAMES.get(language_name)
+
     # @staticmethod
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
             code_package.benchmark,
+            # see which works
+            #self.get_real_language_name(code_package.language_name),
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,
