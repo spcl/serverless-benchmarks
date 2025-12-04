@@ -96,12 +96,20 @@ export default {
       throw new Error('Failed to import benchmark function module: ' + e2.message);
     }
 
-    // If the function module exposes a storage initializer, call it
+    // Initialize storage - try function module first, then fall back to wrapper storage
     try {
       if (funcModule && funcModule.storage && typeof funcModule.storage.init_instance === 'function') {
+        funcModule.storage.init_instance({ env, request });
+      } else {
+        // Function doesn't export storage, so initialize wrapper storage directly
         try {
-          funcModule.storage.init_instance({ env, request });
-        } catch (ignore) {}
+          const storageModule = await import('./storage.js');
+          if (storageModule && storageModule.storage && typeof storageModule.storage.init_instance === 'function') {
+            storageModule.storage.init_instance({ env, request });
+          }
+        } catch (storageErr) {
+          // Ignore errors from storage initialization
+        }
       }
     } catch (e) {
       // don't fail the request if storage init isn't available

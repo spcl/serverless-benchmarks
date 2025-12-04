@@ -308,12 +308,12 @@ new_classes = ["KVApiObject"]
                 toml_content += f"""# R2 bucket binding for benchmarking files
 # This bucket is used by fs and path polyfills to read benchmark data
 [[r2_buckets]]
-binding = "{bucket_name}"
+binding = "R2"
 bucket_name = "{bucket_name}"
 
 """
                 r2_bucket_configured = True
-                self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as '{bucket_name}'")
+                self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
         except Exception as e:
             self.logging.warning(
                 f"R2 bucket binding not configured: {e}. "

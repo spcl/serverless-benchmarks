@@ -31,15 +31,32 @@ class storage {
   // so callers should use upload_stream or pass raw data. For Node.js we read
   // the file from disk and put it into R2 if available, otherwise throw.
   upload(__bucket, key, filepath) {
+    // Use singleton instance if available, otherwise use this instance
+    const instance = storage.instance || this;
+    
     // If file was previously written during this invocation, use /tmp absolute
     let realPath = filepath;
-    if (this.written_files.has(filepath)) {
+    if (instance.written_files.has(filepath)) {
       realPath = path.join('/tmp', path.resolve(filepath));
     }
 
-    // In Workers environment with R2, check if file exists in R2
+    const unique_key = storage.unique_name(key);
+
+    // Try filesystem first (for Workers with nodejs_compat that have /tmp)
+    if (fs && fs.existsSync(realPath)) {
+      const data = fs.readFileSync(realPath);
+      
+      if (instance.handle) {
+        const uploadPromise = instance.handle.put(unique_key, data);
+        return [unique_key, uploadPromise];
+      } else {
+        return [unique_key, Promise.resolve()];
+      }
+    }
+
+    // Fallback: In Workers environment with R2, check if file exists in R2
     // (it may have been written by fs-polyfill's createWriteStream)
-    if (this.handle) {
+    if (instance.handle) {
       // Normalize the path to match what fs-polyfill would use
       let normalizedPath = realPath.replace(/^\.?\//, '').replace(/^tmp\//, '');
       
@@ -49,28 +66,15 @@ class storage {
         normalizedPath = globalThis.BENCHMARK_NAME + '/' + normalizedPath;
       }
       
-      const unique_key = storage.unique_name(key);
-      
       // Read from R2 and re-upload with unique key
-      const uploadPromise = this.handle.get(normalizedPath).then(async (obj) => {
+      const uploadPromise = instance.handle.get(normalizedPath).then(async (obj) => {
         if (obj) {
           const data = await obj.arrayBuffer();
-          return this.handle.put(unique_key, data);
+          return instance.handle.put(unique_key, data);
         } else {
           throw new Error(`File not found in R2: ${normalizedPath} (original path: ${filepath})`);
         }
       });
-      
-      return [unique_key, uploadPromise];
-    }
-
-    // Fallback: Read file content from local filesystem (Node.js environment)
-    if (fs && fs.existsSync(realPath)) {
-      const data = fs.readFileSync(realPath);
-      const unique_key = storage.unique_name(key);
-      
-      // Return [uniqueName, promise] to match Azure storage API
-      const uploadPromise = Promise.resolve();
       
       return [unique_key, uploadPromise];
     }
@@ -81,6 +85,7 @@ class storage {
   }
 
   async download(__bucket, key, filepath) {
+    const instance = storage.instance || this;
     const data = await this.download_stream(__bucket, key);
 
     let real_fp = filepath;
@@ -88,7 +93,7 @@ class storage {
       real_fp = path.join('/tmp', path.resolve(filepath));
     }
 
-    this.written_files.add(filepath);
+    instance.written_files.add(filepath);
 
     // Write data to file if we have fs
     if (fs) {
@@ -106,11 +111,13 @@ class storage {
   }
 
   async download_directory(__bucket, prefix, out_path) {
-    if (!this.handle) {
+    const instance = storage.instance || this;
+    
+    if (!instance.handle) {
       throw new Error('download_directory requires R2 binding (env.R2)');
     }
 
-    const list_res = await this.handle.list({ prefix });
+    const list_res = await instance.handle.list({ prefix });
     const objects = list_res.objects || [];
     for (const obj of objects) {
       const file_name = obj.key;
@@ -121,10 +128,11 @@ class storage {
   }
 
   async upload_stream(__bucket, key, data) {
+    const instance = storage.instance || this;
     const unique_key = storage.unique_name(key);
-    if (this.handle) {
+    if (instance.handle) {
       // R2 put accepts ArrayBuffer, ReadableStream, or string
-      await this.handle.put(unique_key, data);
+      await instance.handle.put(unique_key, data);
       return unique_key;
     }
 
@@ -141,8 +149,10 @@ class storage {
   }
 
   async download_stream(__bucket, key) {
-    if (this.handle) {
-      const obj = await this.handle.get(key);
+    const instance = storage.instance || this;
+    
+    if (instance.handle) {
+      const obj = await instance.handle.get(key);
       if (!obj) return null;
       // R2 object provides arrayBuffer()/text() helpers in Workers
       if (typeof obj.arrayBuffer === 'function') {
