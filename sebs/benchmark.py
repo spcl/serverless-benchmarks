@@ -460,7 +460,7 @@ class Benchmark(LoggingBase):
         """
 
         self.logging.info(
-            f"Dependencies for CPP benchmark {self.benchmark} are " + 
+            f"CPP benchmark {self.benchmark} has " + 
                 str(len(self._benchmark_config._cpp_dependencies)) + " dependencies."
         )
 
