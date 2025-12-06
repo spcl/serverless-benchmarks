@@ -422,7 +422,7 @@ class Benchmark(LoggingBase):
         # FIXME: Configure CMakeLists.txt dependencies
         # FIXME: Configure for AWS - this should be generic
         # FIXME: optional hiredis
-        
+
         cmake_script = """
         cmake_minimum_required(VERSION 3.9)
         set(CMAKE_CXX_STANDARD 14)
@@ -440,10 +440,10 @@ class Benchmark(LoggingBase):
         find_package(aws-lambda-runtime)
         target_link_libraries(${PROJECT_NAME} PRIVATE AWS::aws-lambda-runtime)
         """
-        
+
         for dependency in self._benchmark_config._cpp_dependencies:
             cmake_script += CppDependencies.to_cmake_list(dependency)
-        
+
         cmake_script += """
         find_package(AWSSDK COMPONENTS s3 dynamodb core)
         target_link_libraries(${PROJECT_NAME} PUBLIC ${AWSSDK_LINK_LIBRARIES})
@@ -460,10 +460,10 @@ class Benchmark(LoggingBase):
         """
 
         self.logging.info(
-            "Dependencies for CPP benchmark {benchmark} are " + 
+            f"Dependencies for CPP benchmark {self.benchmark} are " + 
                 str(len(self._benchmark_config._cpp_dependencies)) + " dependencies."
         )
-        
+
         build_script = os.path.join(output_dir, "CMakeLists.txt")
         with open(build_script, "w") as script_file:
             script_file.write(textwrap.dedent(cmake_script))
