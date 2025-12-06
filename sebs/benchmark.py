@@ -15,6 +15,7 @@ from sebs.cpp_dependencies import CppDependencies
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
 from sebs.faas.config import Resources
+from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.types import BenchmarkModule, Language
@@ -118,9 +119,15 @@ class Benchmark(LoggingBase):
         return self._functions
 
     @property
-    def code_location(self):
+    def code_location(self) -> str | None:
         if self.code_package:
-            return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
+
+            if "location" in self.code_package:
+                """
+                Access cached code package instead of a built one.
+                """
+                return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
+            return None
         else:
             return self._code_location
 
@@ -258,7 +265,6 @@ class Benchmark(LoggingBase):
 
     @staticmethod
     def hash_directory(directory: str, deployment: str, language: Language):
-
         hash_sum = hashlib.md5()
         FILES = {
             Language.PYTHON: ["*.py", "requirements.txt*"],
@@ -292,7 +298,6 @@ class Benchmark(LoggingBase):
         return {"size": self.code_size, "hash": self.hash}
 
     def query_cache(self):
-
         if self.container_deployment:
             self._code_package = self._cache_client.get_container(
                 deployment=self._deployment_name,
@@ -377,14 +382,12 @@ class Benchmark(LoggingBase):
             shutil.copy2(file, os.path.join(output_dir))
 
     def add_deployment_package_python(self, output_dir):
-
         destination_file = f"requirements.txt.{self._language_version}"
         if not os.path.exists(os.path.join(output_dir, destination_file)):
             destination_file = "requirements.txt"
 
         # append to the end of requirements file
         with open(os.path.join(output_dir, destination_file), "a") as out:
-
             packages = self._system_config.deployment_packages(
                 self._deployment_name, self.language_name
             )
@@ -405,7 +408,6 @@ class Benchmark(LoggingBase):
             self._deployment_name, self.language_name
         )
         if len(packages):
-
             package_config = os.path.join(output_dir, f"package.json.{self._language_version}")
             if not os.path.exists(package_config):
                 package_config = os.path.join(output_dir, "package.json")
@@ -418,7 +420,6 @@ class Benchmark(LoggingBase):
                 json.dump(package_json, package_file, indent=2)
 
     def add_deployment_package_cpp(self, output_dir):
-
         # FIXME: Configure CMakeLists.txt dependencies
         # FIXME: Configure for AWS - this should be generic
         # FIXME: optional hiredis
@@ -460,8 +461,9 @@ class Benchmark(LoggingBase):
         """
 
         self.logging.info(
-            f"CPP benchmark {self.benchmark} has " + 
-                str(len(self._benchmark_config._cpp_dependencies)) + " dependencies."
+            f"CPP benchmark {self.benchmark} has "
+            + str(len(self._benchmark_config._cpp_dependencies))
+            + " dependencies."
         )
 
         build_script = os.path.join(output_dir, "CMakeLists.txt")
@@ -488,6 +490,19 @@ class Benchmark(LoggingBase):
         sizes = [f.stat().st_size for f in root.glob("**/*") if f.is_file()]
         return sum(sizes)
 
+    def builder_image_name(self):
+        unversioned_image_name = "build.{deployment}.{language}.{runtime}".format(
+            deployment=self._deployment_name,
+            language=self.language_name,
+            runtime=self.language_version,
+        )
+        image_name = "{base_image_name}-{sebs_version}".format(
+            base_image_name=unversioned_image_name,
+            sebs_version=self._system_config.version(),
+        )
+
+        return unversioned_image_name, image_name
+
     def install_dependencies(self, output_dir):
         # do we have docker image for this run and language?
         if "build" not in self._system_config.docker_image_types(
@@ -501,15 +516,7 @@ class Benchmark(LoggingBase):
             )
         else:
             repo_name = self._system_config.docker_repository()
-            unversioned_image_name = "build.{deployment}.{language}.{runtime}".format(
-                deployment=self._deployment_name,
-                language=self.language_name,
-                runtime=self.language_version,
-            )
-            image_name = "{base_image_name}-{sebs_version}".format(
-                base_image_name=unversioned_image_name,
-                sebs_version=self._system_config.version(),
-            )
+            unversioned_image_name, image_name = self.builder_image_name()
 
             def ensure_image(name: str) -> None:
                 try:
@@ -655,28 +662,29 @@ class Benchmark(LoggingBase):
 
     def build(
         self,
-        deployment_build_step: Callable[
-            [str, Language, str, str, str, bool, bool], Tuple[str, int, str]
-        ],
-    ) -> Tuple[bool, str, bool, str]:
-
+        package_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, int]],
+        container_client: DockerContainer | None,
+        container_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, int]]
+        | None,
+    ) -> Tuple[bool, str | None, bool, str | None]:
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
-            self.logging.info(
-                "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
-            )
-            if self.container_deployment:
-                return (
-                    False,
-                    self.code_location,
-                    self.container_deployment,
-                    self.container_uri,
-                )
 
-            return False, self.code_location, self.container_deployment, ""
+            if self.container_deployment:
+                self.logging.info(
+                    "Using cached benchmark {} from container image {}".format(
+                        self.benchmark, self.container_uri
+                    )
+                )
+                return False, None, self.container_deployment, self.container_uri
+            else:
+                self.logging.info(
+                    "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
+                )
+                return False, self.code_location, self.container_deployment, None
 
         msg = (
-            "no cached code package."
+            "no cached code package/container."
             if not self.is_cached
             else "cached code package is not up to date/build enforced."
         )
@@ -693,33 +701,81 @@ class Benchmark(LoggingBase):
         self.add_benchmark_data(self._output_dir)
         self.add_deployment_files(self._output_dir)
         self.add_deployment_package(self._output_dir)
-        self.install_dependencies(self._output_dir)
 
-        self._code_location, self._code_size, self._container_uri = deployment_build_step(
-            os.path.abspath(self._output_dir),
-            self.language,
-            self.language_version,
-            self.architecture,
-            self.benchmark,
-            self.is_cached_valid,
-            self.container_deployment,
-        )
-        self.logging.info(
-            (
-                "Created code package (source hash: {hash}), for run on {deployment}"
-                + " with {language}:{runtime}"
-            ).format(
-                hash=self.hash,
-                deployment=self._deployment_name,
-                language=self.language_name,
-                runtime=self.language_version,
+        """
+            We have two main build paths:
+            (1) Code Package. There, we finish by installing dependencies,
+                and let the platform figure out the details of code package,
+                such as exact directory distribution.
+            (2) Container build. There, we install all dependencies inside the container.
+        """
+
+        self._container_uri = None
+        if self.container_deployment:
+            assert container_client is not None
+
+            repo_name = self._system_config.docker_repository()
+            _, image_name = self.builder_image_name()
+
+            _, self._container_uri, self._code_size = container_client.build_base_image(
+                os.path.abspath(self._output_dir),
+                self.language,
+                self.language_version,
+                self.architecture,
+                self.benchmark,
+                self.is_cached_valid,
+                f"{repo_name}:{image_name}",
             )
-        )
+            self.logging.info(
+                f"Created function container {self._container_uri},"
+                f" code package (source hash: {self.hash}), for run on {self._deployment_name}"
+                f" with {self.language_name}:{self.language_version}"
+            )
 
-        if self.is_cached:
-            self._cache_client.update_code_package(self._deployment_name, self)
+            """
+                OpenWhisk requires a code package in addition to the container.
+            """
+
+            if container_build_step is not None:
+                self._code_location, self._code_size = package_build_step(
+                    os.path.abspath(self._output_dir),
+                    self.language,
+                    self.language_version,
+                    self.architecture,
+                    self.benchmark,
+                    self.is_cached_valid,
+                )
+            else:
+                self._code_location = None
+
         else:
-            self._cache_client.add_code_package(self._deployment_name, self)
+            self.install_dependencies(self._output_dir)
+
+            self._code_location, self._code_size = package_build_step(
+                os.path.abspath(self._output_dir),
+                self.language,
+                self.language_version,
+                self.architecture,
+                self.benchmark,
+                self.is_cached_valid,
+            )
+            self.logging.info(
+                (
+                    "Created code package (source hash: {hash}), for run on {deployment}"
+                    + " with {language}:{runtime}"
+                ).format(
+                    hash=self.hash,
+                    deployment=self._deployment_name,
+                    language=self.language_name,
+                    runtime=self.language_version,
+                )
+            )
+
+        """
+            Update can handle both update of an existing cache structure
+            or creating an entirely new one.
+        """
+        self._cache_client.update_code_package(self._deployment_name, self)
         self.query_cache()
 
         return (
@@ -749,7 +805,6 @@ class Benchmark(LoggingBase):
         Handle object storage buckets.
         """
         if hasattr(self._benchmark_input_module, "buckets_count"):
-
             buckets = self._benchmark_input_module.buckets_count()
             storage = system_resources.get_storage(replace_existing)
             input, output = storage.benchmark_data(self.benchmark, buckets)
@@ -769,7 +824,6 @@ class Benchmark(LoggingBase):
             This part is optional - only selected benchmarks implement this.
         """
         if hasattr(self._benchmark_input_module, "allocate_nosql"):
-
             nosql_storage = system_resources.get_nosql_storage()
             for (
                 name,
@@ -827,8 +881,7 @@ class Benchmark(LoggingBase):
     """
 
     def code_package_modify(self, filename: str, data: bytes):
-
-        if self.code_package_is_archive():
+        if self.container_deployment or not self.code_package_is_archive():
             self._update_zip(self.code_location, filename, data)
             new_size = self.code_package_recompute_size() / 1024.0 / 1024.0
             self.logging.info(f"Modified zip package {self.code_location}, new size {new_size} MB")
@@ -841,12 +894,19 @@ class Benchmark(LoggingBase):
     """
 
     def code_package_is_archive(self) -> bool:
+
+        if self.container_deployment:
+            return False
+
         if os.path.isfile(self.code_location):
             extension = os.path.splitext(self.code_location)[1]
             return extension in [".zip"]
         return False
 
     def code_package_recompute_size(self) -> float:
+        if self.container_deployment:
+            raise NotImplementedError()
+
         bytes_size = os.path.getsize(self.code_location)
         self._code_size = bytes_size
         return bytes_size

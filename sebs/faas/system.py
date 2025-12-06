@@ -1,7 +1,7 @@
 from abc import ABC
 from abc import abstractmethod
 from random import randrange
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Callable, Dict, List, Optional, Tuple, Type
 import uuid
 
 import docker
@@ -9,6 +9,7 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
 from sebs.faas.config import Resources
 from sebs.faas.function import Function, Trigger, ExecutionResult
@@ -67,6 +68,10 @@ class System(ABC, LoggingBase):
         pass
 
     @property
+    def container_client(self) -> DockerContainer | None:
+        return None
+
+    @property
     def system_resources(self) -> SystemResources:
         return self._system_resources
 
@@ -76,7 +81,6 @@ class System(ABC, LoggingBase):
         pass
 
     def find_deployments(self) -> List[str]:
-
         """
         Default implementation that uses storage buckets.
         data storage accounts.
@@ -86,7 +90,6 @@ class System(ABC, LoggingBase):
         return self.system_resources.get_storage().find_deployments()
 
     def initialize_resources(self, select_prefix: Optional[str]):
-
         # User provided resources or found in cache
         if self.config.resources.has_resources_id:
             self.logging.info(
@@ -99,7 +102,6 @@ class System(ABC, LoggingBase):
 
         # If a prefix is specified, we find the first matching resource ID
         if select_prefix is not None:
-
             for dep in deployments:
                 if select_prefix in dep:
                     self.logging.info(
@@ -116,7 +118,7 @@ class System(ABC, LoggingBase):
                 "If you want to use any of them, please abort, and "
                 "provide the resource id in your input config."
             )
-            self.logging.warning("Deployment resource IDs in the cloud: " f"{deployments}")
+            self.logging.warning(f"Deployment resource IDs in the cloud: {deployments}")
 
         # create
         res_id = ""
@@ -176,9 +178,13 @@ class System(ABC, LoggingBase):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
+    ) -> Tuple[str, int]:
         pass
+
+    def finalize_container_build(
+        self,
+    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
+        return None
 
     @abstractmethod
     def create_function(
@@ -186,9 +192,8 @@ class System(ABC, LoggingBase):
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> Function:
-
         """
         Create a new function in the FaaS platform.
         The implementation is responsible for creating all necessary
@@ -218,7 +223,7 @@ class System(ABC, LoggingBase):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ):
         """
         Update an existing function in the FaaS platform.
@@ -248,7 +253,6 @@ class System(ABC, LoggingBase):
     """
 
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
-
         if code_package.language_version not in self.system_config.supported_language_versions(
             self.name(), code_package.language_name, code_package.architecture
         ):
@@ -262,7 +266,9 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
-        rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
+        rebuilt, _, container_deployment, container_uri = code_package.build(
+            self.package_code, self.container_client, self.finalize_container_build()
+        )
 
         """
             There's no function with that name?
@@ -282,7 +288,6 @@ class System(ABC, LoggingBase):
             try:
                 function = self.function_type().deserialize(cached_function)
             except RuntimeError as e:
-
                 self.logging.error(
                     f"Cached function {cached_function['name']} is no longer available."
                 )
@@ -308,12 +313,15 @@ class System(ABC, LoggingBase):
             code_package.query_cache()
             return function
         else:
-
             assert function is not None
             self.cached_function(function)
-            self.logging.info(
-                "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
-            )
+            if code_package.container_deployment:
+                self.logging.info(
+                    f"Using cached function {func_name} container {code_package.container_uri}"
+                )
+            else:
+                self.logging.info(f"Using cached function {func_name} in {code_location}")
+
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash or rebuilt:
                 if function.code_package_hash != code_package.hash:
@@ -358,7 +366,6 @@ class System(ABC, LoggingBase):
     """
 
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
-
         changed = False
         for attr in ["timeout", "memory"]:
             new_val = getattr(benchmark.benchmark_config, attr)

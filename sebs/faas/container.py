@@ -41,7 +41,6 @@ class DockerContainer(LoggingBase):
         self._disable_rich_output = False
 
     def find_image(self, repository_name, image_tag) -> bool:
-
         if self.experimental_manifest:
             try:
                 # This requires enabling experimental Docker features
@@ -59,7 +58,6 @@ class DockerContainer(LoggingBase):
                 return False
 
     def show_progress(self, txt: str, progress: Progress, layer_tasks: dict):
-
         if isinstance(txt, str):
             line = json.loads(txt)
         else:
@@ -91,12 +89,9 @@ class DockerContainer(LoggingBase):
 
     def push_image(self, repository_uri, image_tag):
         try:
-
             if not self.disable_rich_output:
-
                 layer_tasks = {}
                 with Progress() as progress:
-
                     self.logging.info(f"Pushing image {image_tag} to {repository_uri}")
                     ret = self.docker_client.images.push(
                         repository=repository_uri,
@@ -142,7 +137,8 @@ class DockerContainer(LoggingBase):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[bool, str]:
+        builder_image: str,
+    ) -> Tuple[bool, str, float]:
         """
         When building function for the first time (according to SeBS cache),
         check if Docker image is available in the registry.
@@ -166,7 +162,7 @@ class DockerContainer(LoggingBase):
                     f"Skipping building Docker image for {benchmark}, using "
                     f"Docker image {image_uri} from registry: {registry_name}."
                 )
-                return False, image_uri
+                return False, image_uri, 0.0
             else:
                 # image doesn't exist, let's continue
                 self.logging.info(
@@ -189,7 +185,7 @@ class DockerContainer(LoggingBase):
         with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
             f.write("Dockerfile")
 
-        builder_image = self.system_config.benchmark_base_images(
+        base_image = self.system_config.benchmark_base_images(
             self.name(), language.value, architecture
         )[language_version]
         self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
@@ -206,12 +202,22 @@ class DockerContainer(LoggingBase):
 
         buildargs = {
             "VERSION": language_version,
-            "BASE_IMAGE": builder_image,
+            "BASE_IMAGE": base_image,
+            "BASE_IMAGE_BUILDER": builder_image,
             "TARGET_ARCHITECTURE": architecture,
         }
-        image, _ = self.docker_client.images.build(
-            tag=image_uri, path=build_dir, buildargs=buildargs
-        )
+
+        try:
+            image, _ = self.docker_client.images.build(
+                tag=image_uri, path=build_dir, buildargs=buildargs
+            )
+        except docker.errors.BuildError as e:
+            self.logging.error("Docker build failed!")
+
+            for chunk in e.build_log:
+                if "stream" in chunk:
+                    self.logging.error(chunk["stream"])
+            raise e
 
         self.logging.info(
             f"Push the benchmark base image {repository_name}:{image_tag} "
@@ -220,4 +226,4 @@ class DockerContainer(LoggingBase):
 
         self.push_image(image_uri, image_tag)
 
-        return True, image_uri
+        return True, image_uri, image.attrs["Size"] / 1024.0 / 1024.0

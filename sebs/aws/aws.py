@@ -50,6 +50,10 @@ class AWS(System):
     def system_resources(self) -> AWSSystemResources:
         return cast(AWSSystemResources, self._system_resources)
 
+    @property
+    def container_client(self) -> ECRContainer | None:
+        return self.ecr_client
+
     """
         :param cache_client: Function cache instance
         :param config: Experiments config
@@ -123,23 +127,7 @@ class AWS(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
-
-        container_uri = ""
-
-        # if the containerized deployment is set to True
-        if container_deployment:
-            # build base image and upload to ECR
-            _, container_uri = self.ecr_client.build_base_image(
-                directory,
-                language,
-                language_version,
-                architecture,
-                benchmark,
-                is_cached,
-            )
-
+    ) -> Tuple[str, int]:
         CONFIG_FILES = {
             Language.PYTHON: ["handler.py", "requirements.txt", ".python_packages"],
             Language.NODEJS: ["handler.js", "package.json", "node_modules"],
@@ -166,7 +154,6 @@ class AWS(System):
             self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
         elif language == Language.CPP:
-
             # lambda C++ runtime build scripts create the .zip file in build directory
             benchmark_archive = os.path.join(directory, "build", "benchmark.zip")
             self.logging.info("Created {} archive".format(benchmark_archive))
@@ -178,20 +165,14 @@ class AWS(System):
         else:
             raise NotImplementedError()
 
-        return (
-            benchmark_archive,
-            bytes_size,
-            container_uri,
-        )
+        return (benchmark_archive, bytes_size)
 
     def _map_architecture(self, architecture: str) -> str:
-
         if architecture == "x64":
             return "x86_64"
         return architecture
 
     def cloud_runtime(self, language: Language, language_version: str):
-
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
         if language == Language.NODEJS:
@@ -208,10 +189,8 @@ class AWS(System):
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> "LambdaFunction":
-
-        package = code_package.code_location
         benchmark = code_package.benchmark
         language = code_package.language
         language_runtime = code_package.language_version
@@ -243,7 +222,6 @@ class AWS(System):
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
-            self.logging.info("Creating function {} from {}".format(func_name, package))
 
             create_function_params = {
                 "FunctionName": func_name,
@@ -257,7 +235,15 @@ class AWS(System):
             if container_deployment:
                 create_function_params["PackageType"] = "Image"
                 create_function_params["Code"] = {"ImageUri": container_uri}
+                self.logging.info(
+                    "Creating function {} from container {}".format(func_name, container_uri)
+                )
             else:
+
+                package = code_package.code_location
+                assert package is not None
+                self.logging.info("Creating function {} from package {}".format(func_name, package))
+
                 create_function_params["PackageType"] = "Zip"
                 if code_size < 50 * 1024 * 1024:
                     package_body = open(package, "rb").read()
@@ -312,7 +298,6 @@ class AWS(System):
         return lambda_function
 
     def cached_function(self, function: Function):
-
         from sebs.aws.triggers import LibraryTrigger
 
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
@@ -337,7 +322,7 @@ class AWS(System):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ):
         name = function.name
         function = cast(LambdaFunction, function)
@@ -385,13 +370,11 @@ class AWS(System):
     def update_function_configuration(
         self, function: Function, code_package: Benchmark, env_variables: dict = {}
     ):
-
         # We can only update storage configuration once it has been processed for this benchmark
         assert code_package.has_input_processed
 
         envs = env_variables.copy()
         if code_package.uses_nosql:
-
             nosql_storage = self.system_resources.get_nosql_storage()
             for original_name, actual_name in nosql_storage.get_tables(
                 code_package.benchmark
@@ -401,7 +384,6 @@ class AWS(System):
         # AWS Lambda will overwrite existing variables
         # If we modify them, we need to first read existing ones and append.
         if len(envs) > 0:
-
             response = self.client.get_function_configuration(FunctionName=function.name)
             # preserve old variables while adding new ones.
             # but for conflict, we select the new one
@@ -558,7 +540,6 @@ class AWS(System):
         requests: Dict[str, ExecutionResult],
         metrics: dict,
     ):
-
         if not self.logs_client:
             self.logs_client = boto3.client(
                 service_name="logs",
@@ -606,7 +587,6 @@ class AWS(System):
         function = cast(LambdaFunction, func)
 
         if trigger_type == Trigger.TriggerType.HTTP:
-
             api_name = "{}-http-api".format(function.name)
             http_api = self.config.resources.http_api(api_name, function, self.session)
             # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
@@ -652,14 +632,12 @@ class AWS(System):
         self.logging.info("Finished function updates enforcing cold starts.")
 
     def wait_function_active(self, func: LambdaFunction):
-
         self.logging.info("Waiting for Lambda function to be created...")
         waiter = self.client.get_waiter("function_active_v2")
         waiter.wait(FunctionName=func.name)
         self.logging.info("Lambda function has been created.")
 
     def wait_function_updated(self, func: LambdaFunction):
-
         self.logging.info("Waiting for Lambda function to be updated...")
         waiter = self.client.get_waiter("function_updated_v2")
         waiter.wait(FunctionName=func.name)
