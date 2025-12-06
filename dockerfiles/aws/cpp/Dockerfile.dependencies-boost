@@ -5,7 +5,7 @@ ENV WORKERS=${WORKERS}
 
 
 RUN yum install -y cmake curl libcurl libcurl-devel git gcc gcc-c++ make tar gzip which python-devel
-RUN curl -LO https://boostorg.jfrog.io/artifactory/main/release/1.79.0/source/boost_1_79_0.tar.gz\
+RUN curl -LO https://archives.boost.io/release/1.79.0/source/boost_1_79_0.tar.gz\
       && tar -xf boost_1_79_0.tar.gz && cd boost_1_79_0\
       && echo "using gcc : : $(which gcc10-c++) ;"  >> tools/build/src/user-config.jam\
       && ./bootstrap.sh --prefix=/opt\
