@@ -1,9 +1,10 @@
 import os
 import uuid
 from . import storage
-
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC  # noqa: F401
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier  # noqa: F401
 import numpy as np
 
 
@@ -52,6 +53,7 @@ def handler(schedule):
     bucket = schedule.pop("bucket")
     benchmark_bucket = schedule.pop("benchmark_bucket")
     schedule.pop("request-id", None)
+    schedule.pop("request_id", None)
 
     clf = str_to_cls(name)(**schedule)
 
