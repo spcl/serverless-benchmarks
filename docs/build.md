@@ -1,6 +1,6 @@
 
 SeBS caches built code packages to save time, as installing dependencies can be time and bandwidth consuming, e.g., for ML frameworks such as PyTorch.
-Furthermore, some benchmarks require special treatment - for example, PyTorch image recognition benchmark requires additinal stripping and compression steps to fit into the size limits of AWS Lambda code package.
+Furthermore, some benchmarks require special treatment - for example, PyTorch image recognition benchmark requires additional stripping and compression steps to fit into the size limits of AWS Lambda code package.
 
 By default, we deploy benchmark code as package uploaded to the serverless platform.
 However, on some platforms we use [Docker images](#docker-image-build) instead.
@@ -19,6 +19,7 @@ sequenceDiagram
     Platform-->>Docker Image Builder: Build Image.
     Platform->>Benchmark Builder: Returns zip file or image tag.
 ```
+
 ## Code Package Build
 
 **Query Cache** - first, we check if there is an up-to-date build of the benchmark function
@@ -46,10 +47,14 @@ to the serverless platform. At the moment, this step is used only on AWS and in 
 
 ## Docker Image Build
 
-A different approach is taken in OpenWhisk.
+An alternative to uploading a code package is to deploy a Docker image. This option is not supported on every platform, i.e., Azure Functions and Google Cloud Functions do not support custom Docker images.
+
+On AWS Lambda, we support deploying functions as Docker images for Python, Node.js, and C++ functions.
+We also support building arm64 images for this platform, except for C++ functions (extension to ARM functions is planned in future).
+
+A slightly different approach is taken in OpenWhisk.
 Since OpenWhisk has a very small size limit on code packages, we deploy all functions as Docker images.
 There, in this step, we copy the prepared benchmark code into a newly created Docker image where 
 all dependencies are installed. The image is later pushed to either DockerHub or a user-defined registry.
-
-In future, we plan to extend Docker image support to other platforms as well.
+However, we still create a small zip package that contains the main handler only; it is not possible to create an OpenWhisk action directly from a Docker image.
 
