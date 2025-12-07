@@ -345,6 +345,7 @@ def process(**kwargs):
     type=str,
     help="Run only the selected benchmark.",
 )
+@click.option("--storage-configuration", type=str, multiple=True, help="JSON configuration of deployed storage.")
 @common_params
 @click.option(
     "--cache",
@@ -356,11 +357,11 @@ def process(**kwargs):
     default=os.path.join(os.path.curdir, "regression-output"),
     help="Output directory for results.",
 )
-def regression(benchmark_input_size, benchmark_name, **kwargs):
+def regression(benchmark_input_size, benchmark_name, storage_configuration, **kwargs):
     # for regression, deployment client is initialized locally
     # disable default initialization
     (config, output_dir, logging_filename, sebs_client, _) = parse_common_params(
-        initialize_deployment=False, **kwargs
+        initialize_deployment=False, storage_configuration=storage_configuration, **kwargs
     )
     regression_suite(
         sebs_client,
@@ -451,7 +452,7 @@ def storage_stop(storage, input_json):
     with open(input_json, "r") as f:
         cfg = json.load(f)
 
-    if storage in ["object", "all"]:
+    if storage in ["object", "all"] and "object" in cfg:
 
         storage_type = cfg["object"]["type"]
 
@@ -463,7 +464,7 @@ def storage_stop(storage, input_json):
         storage_instance.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 
-    if storage in ["nosql", "all"]:
+    if storage in ["nosql", "all"] and "nosql" in cfg:
 
         storage_type = cfg["nosql"]["type"]
 
