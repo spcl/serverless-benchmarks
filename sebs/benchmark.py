@@ -932,6 +932,9 @@ class Benchmark(LoggingBase):
         if self.container_deployment:
             raise NotImplementedError()
 
+        if self.code_location is None:
+            raise RuntimeError("Code location is not set!")
+
         bytes_size = os.path.getsize(self.code_location)
         self._code_size = bytes_size
         return bytes_size

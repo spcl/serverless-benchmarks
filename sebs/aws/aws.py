@@ -334,6 +334,9 @@ class AWS(System):
             package = code_package.code_location
             benchmark = code_package.benchmark
 
+            if package is None:
+                raise RuntimeError("Code location is not set for zip deployment")
+
             function_cfg = FunctionConfig.from_benchmark(code_package)
             architecture = function_cfg.architecture.value
 
@@ -488,9 +491,12 @@ class AWS(System):
         output.stats.memory_used = float(aws_vals["Max Memory Used"])
         if "Init Duration" in aws_vals:
             output.provider_times.initialization = int(float(aws_vals["Init Duration"]) * 1000)
-        output.billing.billed_time = int(aws_vals["Billed Duration"])
-        output.billing.memory = int(aws_vals["Memory Size"])
-        output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
+
+        billed_time = int(aws_vals["Billed Duration"])
+        memory = int(aws_vals["Memory Size"])
+        output.billing.billed_time = billed_time
+        output.billing.memory = memory
+        output.billing.gb_seconds = billed_time * memory
         return request_id
 
     def shutdown(self) -> None:

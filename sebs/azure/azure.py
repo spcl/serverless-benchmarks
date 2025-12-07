@@ -124,13 +124,7 @@ class Azure(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
-
-        container_uri = ""
-
-        if container_deployment:
-            raise NotImplementedError("Container Deployment is not supported in Azure")
+    ) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
@@ -179,7 +173,7 @@ class Azure(System):
 
         code_size = Benchmark.directory_size(directory)
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
-        return directory, code_size, container_uri
+        return directory, code_size
 
     def publish_function(
         self,
@@ -262,7 +256,7 @@ class Azure(System):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ):
 
         if container_deployment:
@@ -386,6 +380,10 @@ class Azure(System):
 
     def _mount_function_code(self, code_package: Benchmark) -> str:
         dest = os.path.join("/mnt", "function", uuid.uuid4().hex)
+
+        if code_package.code_location is None:
+            raise RuntimeError("Code location is not set")
+
         self.cli_instance.upload_package(code_package.code_location, dest)
         return dest
 
@@ -412,7 +410,7 @@ class Azure(System):
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> AzureFunction:
 
         if container_deployment:

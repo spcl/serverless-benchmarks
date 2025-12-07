@@ -175,8 +175,12 @@ class OpenWhisk(System):
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> "OpenWhiskFunction":
+
+        if not container_deployment:
+            raise RuntimeError("Non-container deployment is not supported in OpenWhisk!")
+
         self.logging.info("Creating function as an action in OpenWhisk.")
         try:
             actions = subprocess.run(
@@ -215,6 +219,13 @@ class OpenWhisk(System):
                         code_package.language_version,
                         code_package.architecture,
                     )
+
+                    if code_package.code_location is None:
+                        raise RuntimeError(
+                            "Code location must be set for OpenWhisk action! "
+                            "OpenWhisk requires container deployment with a code package."
+                        )
+
                     subprocess.run(
                         [
                             *self.get_wsk_cmd(),
@@ -264,8 +275,14 @@ class OpenWhisk(System):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ):
+        if not container_deployment:
+            raise RuntimeError(
+                "Code location must be set for OpenWhisk action! "
+                "OpenWhisk requires container deployment with a code package."
+            )
+
         self.logging.info(f"Update an existing OpenWhisk action {function.name}.")
         function = cast(OpenWhiskFunction, function)
         docker_image = self.system_config.benchmark_image_name(
@@ -275,6 +292,13 @@ class OpenWhisk(System):
             code_package.language_version,
             code_package.architecture,
         )
+
+        if code_package.code_location is None:
+            raise RuntimeError(
+                "Code location must be set for OpenWhisk action! "
+                "OpenWhisk requires container deployment with a code package."
+            )
+
         try:
             subprocess.run(
                 [
