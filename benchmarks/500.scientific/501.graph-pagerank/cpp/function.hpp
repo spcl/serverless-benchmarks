@@ -24,7 +24,7 @@ igraph_real_t graph_pagerank
       /* outpref=  */ 0,
       /* A=        */ 1.0,
       /* directed= */ 0,
-      /* algo=     */ IGRAPH_BARABASI_PSUMTREE_MULTIPLE,
+      /* algo=     */ IGRAPH_BARABASI_PSUMTREE,
       /* start_from= */ 0
     );
     graph_generation_time_ms = (timeSinceEpochMicrosec() - start_time);
