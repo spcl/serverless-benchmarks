@@ -30,7 +30,14 @@ class nosql_do:
         return pickle.dumps(data, 0).decode("ascii")
 
     def data_post(self, data):
-        return pickle.loads(bytes(data, "ascii"))
+        # Handle None (key not found in storage)
+        if data is None:
+            return None
+        # Handle both string and bytes data from Durable Object storage
+        if isinstance(data, str):
+            return pickle.loads(bytes(data, "ascii"))
+        else:
+            return pickle.loads(data)
     
     def insert(
         self,

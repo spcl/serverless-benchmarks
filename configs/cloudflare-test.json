@@ -13,7 +13,7 @@
   },
   "deployment": {
     "name": "cloudflare",
-    "cloudflare": {
-    }
+    "cloudflare": {},
+    "container": false
   }
 }

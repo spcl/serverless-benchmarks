@@ -70,7 +70,7 @@ class Default(WorkerEntrypoint):
         storage.storage.init_instance(self)
 
 
-        if self.env.NOSQL_STORAGE_DATABASE:
+        if hasattr(self.env, 'NOSQL_STORAGE_DATABASE'):
             from function import nosql
 
             nosql.nosql.init_instance(self)

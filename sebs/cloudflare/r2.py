@@ -1,4 +1,5 @@
 import json
+import os
 
 import requests
 from sebs.cloudflare.config import CloudflareCredentials
@@ -233,18 +234,48 @@ class R2(PersistentStorage):
 
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         """
-        Retrieves list of files in a bucket.
+        Retrieves list of files in a bucket using S3-compatible API.
         
         :param bucket_name:
         :param prefix: optional prefix filter
         :return: list of files in a given bucket
         """
-        account_id = self._credentials.account_id
+        # Use S3-compatible API with R2 credentials
+        if not self._credentials.r2_access_key_id or not self._credentials.r2_secret_access_key:
+            self.logging.warning(f"R2 S3 credentials not configured, cannot list bucket {bucket_name}")
+            return []
         
-        # R2 uses S3-compatible API for listing objects
-        # For now, return empty list as listing objects requires S3 credentials
-        self.logging.warning(f"list_bucket not fully implemented for R2 bucket {bucket_name}")
-        return []
+        try:
+            import boto3
+            from botocore.config import Config
+            
+            account_id = self._credentials.account_id
+            r2_endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+            
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=r2_endpoint,
+                aws_access_key_id=self._credentials.r2_access_key_id,
+                aws_secret_access_key=self._credentials.r2_secret_access_key,
+                config=Config(signature_version='s3v4'),
+                region_name='auto'
+            )
+            
+            # List objects with optional prefix
+            paginator = s3_client.get_paginator('list_objects_v2')
+            page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+            
+            files = []
+            for page in page_iterator:
+                if 'Contents' in page:
+                    for obj in page['Contents']:
+                        files.append(obj['Key'])
+            
+            return files
+            
+        except Exception as e:
+            self.logging.warning(f"Failed to list R2 bucket {bucket_name}: {str(e)}")
+            return []
 
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         """
@@ -346,9 +377,25 @@ class R2(PersistentStorage):
         """
         Upload a file to a bucket (used for parallel uploads).
         
-        :param bucket_idx: index of the bucket to upload to
-        :param file: destination file name
+        :param bucket_idx: index of the bucket/prefix to upload to
+        :param file: destination file name/key
         :param filepath: source file path
         """
-        self.logging.warning(f"uploader_func not fully implemented for R2")
-        pass
+        # Skip upload when using cached buckets and not updating storage
+        if self.cached and not self.replace_existing:
+            return
+
+        # Build the key with the input prefix
+        key = os.path.join(self.input_prefixes[bucket_idx], file)
+
+        bucket_name = self.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+        
+        # Check if file already exists (if not replacing existing files)
+        if not self.replace_existing:
+            for f in self.input_prefixes_files[bucket_idx]:
+                if key == f:
+                    self.logging.info(f"Skipping upload of {filepath} to {bucket_name} (already exists)")
+                    return
+
+        # Upload the file
+        self.upload(bucket_name, filepath, key)

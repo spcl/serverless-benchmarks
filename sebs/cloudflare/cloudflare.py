@@ -3,6 +3,8 @@ import shutil
 import json
 import uuid
 import subprocess
+import time
+from datetime import datetime
 from typing import cast, Dict, List, Optional, Tuple, Type
 
 import docker
@@ -222,7 +224,7 @@ class Cloudflare(System):
             raise RuntimeError("pywrangler version check timed out")
 
 
-    def _generate_wrangler_toml(self, worker_name: str, package_dir: str, language: str, account_id: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None) -> str:
+    def _generate_wrangler_toml(self, worker_name: str, package_dir: str, language: str, account_id: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None, container_deployment: bool = False, container_uri: str = "") -> str:
         """
         Generate a wrangler.toml configuration file for the worker.
 
@@ -233,24 +235,92 @@ class Cloudflare(System):
             account_id: Cloudflare account ID
             benchmark_name: Optional benchmark name for R2 file path prefix
             code_package: Optional benchmark package for nosql configuration
+            container_deployment: Whether this is a container deployment
+            container_uri: Container image URI/tag
 
         Returns:
             Path to the generated wrangler.toml file
         """
-        main_file = "dist/handler.js" if language == "nodejs" else "handler.py"
+        # Container deployment configuration
+        if container_deployment:
+            # Containers ALWAYS use Node.js worker.js for orchestration (@cloudflare/containers is Node.js only)
+            # The container itself can run any language (Python, Node.js, etc.)
+            # R2 and NoSQL access is proxied through worker.js which has the bindings
+            
+            # Determine if this benchmark needs larger disk space
+            # 411.image-recognition needs more disk for PyTorch models
+            # 311.compression needs more disk for file compression operations
+            # 504.dna-visualisation needs more disk for DNA sequence processing
+            # Python containers need even more space due to zip file creation doubling disk usage
+            instance_type = ""
+            if benchmark_name and ("411.image-recognition" in benchmark_name or "311.compression" in benchmark_name or "504.dna-visualisation" in benchmark_name):
+                # Use "standard" (largest) for Python, "standard-4" for Node.js
+                if language == "python":
+                    instance_type = '\ninstance_type = "standard"  # Largest available - needed for Python zip operations\n'
+                else:
+                    instance_type = '\ninstance_type = "standard-4"  # 20GB Disk, 12GB Memory\n'
+            
+            toml_content = f"""name = "{worker_name}"
+main = "worker.js"
+compatibility_date = "2025-11-18"
+account_id = "{account_id}"
+compatibility_flags = ["nodejs_compat"]
 
+[observability]
+enabled = true
 
+[[containers]]
+max_instances = 10
+class_name = "ContainerWorker"
+image = "./Dockerfile"{instance_type}
 
-        # Build wrangler.toml content
-        toml_content = f"""name = "{worker_name}"
+# Durable Object binding for Container class (required by @cloudflare/containers)
+[[durable_objects.bindings]]
+name = "CONTAINER_WORKER"
+class_name = "ContainerWorker"
+
+"""
+            # Add nosql table bindings if benchmark uses them
+            if code_package and code_package.uses_nosql:
+                # Get registered nosql tables for this benchmark
+                nosql_storage = self.system_resources.get_nosql_storage()
+                if nosql_storage.retrieve_cache(benchmark_name):
+                    nosql_tables = nosql_storage._tables.get(benchmark_name, {})
+                    for table_name in nosql_tables.keys():
+                        toml_content += f"""[[durable_objects.bindings]]
+name = "{table_name}"
+class_name = "KVApiObject"
+
+"""
+                        self.logging.info(f"Added Durable Object binding for nosql table '{table_name}'")
+                
+                # Add migrations for both ContainerWorker and KVApiObject
+                # Both need new_sqlite_classes (Container requires SQLite DO backend)
+                toml_content += """[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ContainerWorker", "KVApiObject"]
+
+"""
+            else:
+                # Container without nosql - only ContainerWorker migration
+                toml_content += """[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ContainerWorker"]
+
+"""
+        else:
+            # Native worker configuration
+            main_file = "dist/handler.js" if language == "nodejs" else "handler.py"
+
+            # Build wrangler.toml content
+            toml_content = f"""name = "{worker_name}"
 main = "{main_file}"
 compatibility_date = "2025-11-18"
 account_id = "{account_id}"
 """
 
-
-        if language == "nodejs":
-            toml_content += """# Use nodejs_compat for Node.js built-in support
+            if language == "nodejs":
+                toml_content += """# Use nodejs_compat for Node.js built-in support
 compatibility_flags = ["nodejs_compat"]
 no_bundle = true
 
@@ -268,23 +338,23 @@ globs = ["**/*.html"]
 fallthrough = true
 
 """
-        elif language == "python":
-            toml_content += """# Enable Python Workers runtime
+            elif language == "python":
+                toml_content += """# Enable Python Workers runtime
 compatibility_flags = ["python_workers"]
 """
 
-        toml_content += """
+            toml_content += """
 [[durable_objects.bindings]]
 name = "DURABLE_STORE"
 class_name = "KVApiObject"
 
 [[migrations]]
-tag = "v1"
+tag = "v3"
 new_classes = ["KVApiObject"]
 """
 
 
-        # Add environment variables
+        # Add environment variables (for both native and container deployments)
         vars_content = ""
         if benchmark_name:
             vars_content += f'BENCHMARK_NAME = "{benchmark_name}"\n'
@@ -299,7 +369,7 @@ new_classes = ["KVApiObject"]
 {vars_content}
 """
 
- # Add R2 bucket binding for benchmarking files (required for fs/path polyfills)
+        # Add R2 bucket binding for benchmarking files (for both native and container deployments)
         r2_bucket_configured = False
         try:
             storage = self.system_resources.get_storage()
@@ -367,16 +437,33 @@ bucket_name = "{bucket_name}"
             architecture: Target architecture (not used for Workers)
             benchmark: Benchmark name
             is_cached: Whether the code is cached
-            container_deployment: Whether to deploy as container (not supported)
+            container_deployment: Whether to deploy as container
 
         Returns:
             Tuple of (package_path, package_size, container_uri)
         """
+        # Container deployment flow - build Docker image
         if container_deployment:
-            raise NotImplementedError(
-                "Container deployment is not supported for Cloudflare Workers"
+            self.logging.info(f"Building container image for {benchmark}")
+            return self._package_code_container(
+                directory, language_name, language_version, benchmark
             )
+        
+        # Native worker deployment flow (existing logic)
+        return self._package_code_native(
+            directory, language_name, language_version, benchmark, is_cached
+        )
 
+
+    def _package_code_native(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+        is_cached: bool,
+    ) -> Tuple[str, int, str]:
+        """Package code for native Cloudflare Workers deployment."""
 
         # Install dependencies
         if language_name == "nodejs":
@@ -574,6 +661,291 @@ dev = [
 
         return (directory, total_size, "")
 
+    def _package_code_container(
+        self,
+        directory: str,
+        language_name: str,
+        language_version: str,
+        benchmark: str,
+    ) -> Tuple[str, int, str]:
+        """
+        Package code for Cloudflare container worker deployment.
+        
+        Builds a Docker image and returns the image tag for deployment.
+        """
+        self.logging.info(f"Packaging container for {language_name} {language_version}")
+        
+        # Get wrapper directory for container files
+        wrapper_base = os.path.join(
+            os.path.dirname(__file__), "..", "..", "benchmarks", "wrappers", "cloudflare"
+        )
+        wrapper_container_dir = os.path.join(wrapper_base, language_name, "container")
+        
+        if not os.path.exists(wrapper_container_dir):
+            raise RuntimeError(
+                f"Container wrapper directory not found: {wrapper_container_dir}"
+            )
+        
+        # Copy container wrapper files to the package directory
+        # Copy Dockerfile from dockerfiles/cloudflare/{language}/
+        dockerfile_src = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "dockerfiles",
+            "cloudflare",
+            language_name,
+            "Dockerfile"
+        )
+        dockerfile_dest = os.path.join(directory, "Dockerfile")
+        if os.path.exists(dockerfile_src):
+            shutil.copy2(dockerfile_src, dockerfile_dest)
+            self.logging.info(f"Copied Dockerfile from {dockerfile_src}")
+        else:
+            raise RuntimeError(f"Dockerfile not found at {dockerfile_src}")
+        
+        # Copy handler and utility files from wrapper/container
+        # Note: ALL containers use worker.js for orchestration (@cloudflare/containers is Node.js only)
+        # The handler inside the container can be Python or Node.js
+        container_files = ["handler.py" if language_name == "python" else "handler.js"]
+        
+        # For worker.js orchestration file, always use the nodejs version
+        nodejs_wrapper_dir = os.path.join(wrapper_base, "nodejs", "container")
+        worker_js_src = os.path.join(nodejs_wrapper_dir, "worker.js")
+        worker_js_dest = os.path.join(directory, "worker.js")
+        if os.path.exists(worker_js_src):
+            shutil.copy2(worker_js_src, worker_js_dest)
+            self.logging.info(f"Copied worker.js orchestration file from nodejs/container")
+        
+        # Copy storage and nosql utilities from language-specific wrapper
+        if language_name == "nodejs":
+            container_files.extend(["storage.js", "nosql.js"])
+        else:
+            container_files.extend(["storage.py", "nosql.py"])
+        
+        for file in container_files:
+            src = os.path.join(wrapper_container_dir, file)
+            dest = os.path.join(directory, file)
+            if os.path.exists(src):
+                shutil.copy2(src, dest)
+                self.logging.info(f"Copied container file: {file}")
+        
+        # For Python containers, fix relative imports in benchmark code
+        # Containers use flat structure, so "from . import storage" must become "import storage"
+        if language_name == "python":
+            for item in os.listdir(directory):
+                if item.endswith('.py') and item not in ['handler.py', 'storage.py', 'nosql.py', 'worker.py']:
+                    filepath = os.path.join(directory, item)
+                    with open(filepath, 'r') as f:
+                        content = f.read()
+                    
+                    # Replace relative imports with absolute imports
+                    modified = False
+                    if 'from . import storage' in content:
+                        content = content.replace('from . import storage', 'import storage')
+                        modified = True
+                    if 'from . import nosql' in content:
+                        content = content.replace('from . import nosql', 'import nosql')
+                        modified = True
+                    
+                    if modified:
+                        with open(filepath, 'w') as f:
+                            f.write(content)
+                        self.logging.info(f"Fixed relative imports in {item}")
+        
+        # For Node.js containers, transform benchmark code to be async-compatible
+        # The container wrapper uses async HTTP calls, but benchmarks expect sync
+        elif language_name == "nodejs":
+            import re
+            for item in os.listdir(directory):
+                if item.endswith('.js') and item not in ['handler.js', 'storage.js', 'nosql.js', 'worker.js', 'build.js', 'request-polyfill.js']:
+                    filepath = os.path.join(directory, item)
+                    with open(filepath, 'r') as f:
+                        content = f.read()
+                    
+                    # Only transform if file uses nosqlClient
+                    if 'nosqlClient' not in content:
+                        continue
+                    
+                    self.logging.info(f"Transforming {item} for async nosql...")
+                    
+                    # Step 1: Add await before nosqlClient method calls
+                    content = re.sub(
+                        r'(\s*)((?:const|let|var)\s+\w+\s*=\s*)?nosqlClient\.(insert|get|update|query|delete)\s*\(',
+                        r'\1\2await nosqlClient.\3(',
+                        content
+                    )
+                    
+                    # Step 2: Make all function declarations async
+                    content = re.sub(r'^(\s*)function\s+(\w+)\s*\(', r'\1async function \2(', content, flags=re.MULTILINE)
+                    
+                    # Step 3: Add await before user-defined function calls
+                    lines = content.split('\n')
+                    transformed_lines = []
+                    control_flow = {'if', 'for', 'while', 'switch', 'catch', 'return'}
+                    builtins = {'console', 'require', 'push', 'join', 'split', 'map', 'filter', 
+                               'reduce', 'forEach', 'find', 'findIndex', 'some', 'every', 
+                               'includes', 'parseInt', 'parseFloat', 'isNaN', 'Array', 
+                               'Object', 'String', 'Number', 'Boolean', 'Math', 'JSON', 
+                               'Date', 'RegExp', 'Error', 'Promise'}
+                    
+                    for line in lines:
+                        # Skip function declarations
+                        if re.search(r'\bfunction\s+\w+\s*\(', line) or re.search(r'=\s*(async\s+)?function\s*\(', line):
+                            transformed_lines.append(line)
+                            continue
+                        
+                        # Add await before likely user-defined function calls
+                        def replacer(match):
+                            prefix = match.group(1)
+                            assignment = match.group(2) or ''
+                            func_name = match.group(3)
+                            
+                            if func_name in control_flow or func_name in builtins:
+                                return match.group(0)
+                            
+                            return f"{prefix}{assignment}await {func_name}("
+                        
+                        line = re.sub(
+                            r'(^|\s+|;|,|\()((?:const|let|var)\s+\w+\s*=\s*)?(\w+)\s*\(',
+                            replacer,
+                            line
+                        )
+                        transformed_lines.append(line)
+                    
+                    content = '\n'.join(transformed_lines)
+                    
+                    with open(filepath, 'w') as f:
+                        f.write(content)
+                    self.logging.info(f"Transformed {item} for async nosql")
+        
+        # Install dependencies for container orchestration
+        # ALL containers need @cloudflare/containers for worker.js orchestration
+        worker_package_json = {
+            "name": f"{benchmark}-worker",
+            "version": "1.0.0",
+            "dependencies": {
+                "@cloudflare/containers": "*"
+            }
+        }
+        
+        if language_name == "nodejs":
+            # Read the benchmark's package.json if it exists and merge dependencies
+            benchmark_package_file = os.path.join(directory, "package.json")
+            if os.path.exists(benchmark_package_file):
+                with open(benchmark_package_file, 'r') as f:
+                    benchmark_package = json.load(f)
+                    # Merge benchmark dependencies with worker dependencies
+                    if "dependencies" in benchmark_package:
+                        worker_package_json["dependencies"].update(benchmark_package["dependencies"])
+            
+            # Write the combined package.json
+            with open(benchmark_package_file, 'w') as f:
+                json.dump(worker_package_json, f, indent=2)
+        else:  # Python containers also need package.json for worker.js orchestration
+            # Create package.json just for @cloudflare/containers (Python code in container)
+            package_json_path = os.path.join(directory, "package.json")
+            with open(package_json_path, 'w') as f:
+                json.dump(worker_package_json, f, indent=2)
+            self.logging.info("Created package.json for Python container worker.js orchestration")
+        
+        # Install Node.js dependencies (needed for all containers for worker.js)
+        self.logging.info(f"Installing @cloudflare/containers for worker.js orchestration in {directory}")
+        try:
+            result = subprocess.run(
+                ["npm", "install", "--production"],
+                cwd=directory,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=120
+            )
+            self.logging.info("npm install completed successfully")
+        except Exception as e:
+            self.logging.error(f"npm install failed: {e}")
+            raise RuntimeError(f"Failed to install Node.js dependencies: {e}")
+        
+        # For Python containers, also handle Python requirements
+        if language_name == "python":
+            # Python requirements will be installed in the Dockerfile
+            # Rename version-specific requirements.txt to requirements.txt
+            requirements_file = os.path.join(directory, "requirements.txt")
+            versioned_requirements = os.path.join(directory, f"requirements.txt.{language_version}")
+            
+            if os.path.exists(versioned_requirements):
+                shutil.copy2(versioned_requirements, requirements_file)
+                self.logging.info(f"Copied requirements.txt.{language_version} to requirements.txt")
+            elif not os.path.exists(requirements_file):
+                # Create empty requirements.txt if none exists
+                with open(requirements_file, 'w') as f:
+                    f.write("")
+                self.logging.info("Created empty requirements.txt")
+        
+        # Build Docker image locally for cache compatibility
+        # wrangler will re-build/push during deployment from the Dockerfile
+        image_tag = self._build_container_image_local(directory, benchmark, language_name, language_version)
+        
+        # Calculate package size (approximate, as it's a source directory)
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(directory):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                total_size += os.path.getsize(filepath)
+        
+        self.logging.info(f"Container package prepared with local image: {image_tag}")
+        
+        # Return local image tag (wrangler will rebuild from Dockerfile during deploy)
+        return (directory, total_size, image_tag)
+    
+    def _build_container_image_local(
+        self,
+        directory: str,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+    ) -> str:
+        """
+        Build a Docker image locally for cache purposes.
+        wrangler will rebuild from Dockerfile during deployment.
+        
+        Returns the local image tag.
+        """
+        # Generate image tag
+        image_name = f"{benchmark.replace('.', '-')}-{language_name}-{language_version.replace('.', '')}"
+        image_tag = f"{image_name}:latest"
+        
+        self.logging.info(f"Building local container image: {image_tag}")
+        
+        try:
+            # Build the Docker image locally (no push)
+            # Use --no-cache to ensure handler changes are picked up
+            result = subprocess.run(
+                ["docker", "build", "--no-cache", "-t", image_tag, "."],
+                cwd=directory,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=300  # 5 minutes for build
+            )
+            
+            self.logging.info(f"Local container image built: {image_tag}")
+            if result.stdout:
+                self.logging.debug(f"Docker build output: {result.stdout}")
+            
+            return image_tag
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Docker build failed for {image_tag}"
+            if e.stderr:
+                error_msg += f": {e.stderr}"
+            self.logging.error(error_msg)
+            raise RuntimeError(error_msg)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Docker build timed out for {image_tag}")
+
+
+        return (directory, total_size, "")
+
     def create_function(
         self,
         code_package: Benchmark,
@@ -589,24 +961,19 @@ dev = [
         Args:
             code_package: Benchmark containing the function code
             func_name: Name of the worker
-            container_deployment: Whether to deploy as container (not supported)
-            container_uri: URI of container image (not used)
+            container_deployment: Whether to deploy as container
+            container_uri: URI of container image
 
         Returns:
             CloudflareWorker instance
         """
-        if container_deployment:
-            raise NotImplementedError(
-                "Container deployment is not supported for Cloudflare Workers"
-            )
-
         package = code_package.code_location
         benchmark = code_package.benchmark
         language = code_package.language_name
         language_runtime = code_package.language_version
         function_cfg = FunctionConfig.from_benchmark(code_package)
 
-        func_name = self.format_function_name(func_name)
+        func_name = self.format_function_name(func_name, container_deployment)
         account_id = self.config.credentials.account_id
 
         if not account_id:
@@ -632,7 +999,7 @@ dev = [
             self.logging.info(f"Creating new worker {func_name}")
 
             # Create the worker with all package files
-            self._create_or_update_worker(func_name, package, account_id, language, benchmark, code_package)
+            self._create_or_update_worker(func_name, package, account_id, language, benchmark, code_package, container_deployment, container_uri)
 
             worker = CloudflareWorker(
                 func_name,
@@ -679,7 +1046,7 @@ dev = [
             return None
 
     def _create_or_update_worker(
-        self, worker_name: str, package_dir: str, account_id: str, language: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None
+        self, worker_name: str, package_dir: str, account_id: str, language: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None, container_deployment: bool = False, container_uri: str = ""
     ) -> dict:
         """Create or update a Cloudflare Worker using Wrangler CLI.
 
@@ -690,28 +1057,24 @@ dev = [
             language: Programming language (nodejs or python)
             benchmark_name: Optional benchmark name for R2 file path prefix
             code_package: Optional benchmark package for nosql configuration
+            container_deployment: Whether this is a container deployment
+            container_uri: Container image URI/tag
 
         Returns:
             Worker deployment result
         """
-        # # Convert CommonJS function.js to ESM if it exists
-        # if language == "nodejs":
-        #     function_js = os.path.join(package_dir, "function.js")
-        #     if os.path.exists(function_js):
-        #         self.logging.info(f"Converting function.js from CommonJS to ESM...")
-        #         try:
-        #             esm_content = self._convert_commonjs_to_esm(function_js)
-        #             with open(function_js, 'w') as f:
-        #                 f.write(esm_content)
-        #             self.logging.info("Successfully converted function.js to ESM")
-        #         except Exception as e:
-        #             self.logging.error(f"Failed to convert function.js to ESM: {e}")
-        #             raise
         # Generate wrangler.toml for this worker
-        self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name, code_package)
+        self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name, code_package, container_deployment, container_uri)
 
         # Set up environment for Wrangler
         env = os.environ.copy()
+        
+        # Add uv tools bin directory to PATH for pywrangler access
+        home_dir = os.path.expanduser("~")
+        uv_bin_dir = os.path.join(home_dir, ".local", "share", "uv", "tools", "workers-py", "bin")
+        if os.path.exists(uv_bin_dir):
+            env['PATH'] = f"{uv_bin_dir}:{env.get('PATH', '')}"
+        
         if self.config.credentials.api_token:
             env['CLOUDFLARE_API_TOKEN'] = self.config.credentials.api_token
         elif self.config.credentials.email and self.config.credentials.api_key:
@@ -723,20 +1086,48 @@ dev = [
         # Deploy using Wrangler
         self.logging.info(f"Deploying worker {worker_name} using Wrangler...")
 
+        # For container deployments, always use wrangler (not pywrangler)
+        # For native deployments, use wrangler for nodejs, pywrangler for python
+        if container_deployment:
+            wrangler_cmd = "wrangler"
+        else:
+            wrangler_cmd = "wrangler" if language == "nodejs" else "pywrangler"
+
         try:
+            # Increase timeout for large container images (e.g., 411.image-recognition with PyTorch)
+            # Container deployment requires pushing large images to Cloudflare
+            deploy_timeout = 1200 if container_deployment else 180  # 20 minutes for containers, 3 for native
+            
             result = subprocess.run(
-                ["wrangler" if language == "nodejs" else "pywrangler", "deploy"],
+                [wrangler_cmd, "deploy"],
                 cwd=package_dir,
                 env=env,
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=180  # 3 minutes for deployment
+                timeout=deploy_timeout
             )
 
             self.logging.info(f"Worker {worker_name} deployed successfully")
             if result.stdout:
                 self.logging.debug(f"Wrangler deploy output: {result.stdout}")
+
+            # For container deployments, wait for Durable Object infrastructure to initialize
+            # The container binding needs time to propagate before first invocation
+            if container_deployment:
+                self.logging.info("Waiting for container Durable Object to initialize...")
+                self._wait_for_durable_object_ready(worker_name, package_dir, env)
+            
+            # for benchmarks 220, 311, 411 we need to wait longer after deployment
+            # if benchmark_name in ["220.video-processing", "311.compression", "411.image-recognition", "504.dna-visualisation"]:
+            #     self.logging.info("Waiting 120 seconds for benchmark initialization...")
+            #     time.sleep(400)
+
+            # For container deployments, wait for Durable Object infrastructure to initialize
+            # The container binding needs time to propagate before first invocation
+            if container_deployment:
+                self.logging.info("Waiting 60 seconds for container Durable Object to initialize...")
+                time.sleep(60)
 
             # Parse the output to get worker URL
             # Wrangler typically outputs: "Published <worker-name> (<version>)"
@@ -752,6 +1143,69 @@ dev = [
                 error_msg += f": {e.stderr}"
             self.logging.error(error_msg)
             raise RuntimeError(error_msg)
+
+    def _wait_for_durable_object_ready(self, worker_name: str, package_dir: str, env: dict):
+        """Wait for container Durable Object to be fully provisioned and ready."""
+        max_wait_seconds = 400
+        wait_interval = 10
+        start_time = time.time()
+        
+        account_id = env.get('CLOUDFLARE_ACCOUNT_ID')
+        worker_url = self._build_workers_dev_url(worker_name, account_id)
+        
+        self.logging.info("Checking container Durable Object readiness via health endpoint...")
+        
+        consecutive_failures = 0
+        max_consecutive_failures = 5
+        
+        while time.time() - start_time < max_wait_seconds:
+            try:
+                # Use health check endpoint
+                response = requests.get(
+                    f"{worker_url}/health",
+                    timeout=60
+                )
+                
+                # 200 = ready
+                if response.status_code == 200:
+                    self.logging.info("Container Durable Object is ready!")
+                    return True
+                
+                # 503 = not ready yet (expected, keep waiting)
+                elif response.status_code == 503:
+                    elapsed = int(time.time() - start_time)
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get('error', 'Container provisioning')
+                        self.logging.info(f"{error_msg}... ({elapsed}s elapsed)")
+                    except:
+                        self.logging.info(f"Container provisioning... ({elapsed}s elapsed)")
+                    consecutive_failures = 0  # This is expected
+                
+                # 500 or other = something's wrong
+                else:
+                    consecutive_failures += 1
+                    self.logging.warning(f"Unexpected status {response.status_code}: {response.text[:200]}")
+                    
+                    # If we get too many unexpected errors, something might be broken
+                    if consecutive_failures >= max_consecutive_failures:
+                        self.logging.error(f"Got {consecutive_failures} consecutive errors, container may be broken")
+                        return False
+                    
+            except requests.exceptions.Timeout:
+                elapsed = int(time.time() - start_time)
+                self.logging.info(f"Health check timeout (container may be starting)... ({elapsed}s elapsed)")
+            except requests.exceptions.RequestException as e:
+                elapsed = int(time.time() - start_time)
+                self.logging.debug(f"Connection error ({elapsed}s): {str(e)[:100]}")
+            
+            time.sleep(wait_interval)
+        
+        self.logging.warning(
+            f"Container Durable Object may not be fully ready after {max_wait_seconds}s. "
+            "First invocation may still experience initialization delay."
+        )
+        return False
 
     def _get_workers_dev_subdomain(self, account_id: str) -> Optional[str]:
         """Fetch the workers.dev subdomain for the given account.
@@ -849,14 +1303,9 @@ dev = [
         Args:
             function: Existing function instance to update
             code_package: New benchmark containing the function code
-            container_deployment: Whether to deploy as container (not supported)
-            container_uri: URI of container image (not used)
+            container_deployment: Whether to deploy as container
+            container_uri: URI of container image
         """
-        if container_deployment:
-            raise NotImplementedError(
-                "Container deployment is not supported for Cloudflare Workers"
-            )
-
         worker = cast(CloudflareWorker, function)
         package = code_package.code_location
         language = code_package.language_name
@@ -867,7 +1316,7 @@ dev = [
         if not account_id:
             raise RuntimeError("Account ID is required to update worker")
 
-        self._create_or_update_worker(worker.name, package, account_id, language, benchmark, code_package)
+        self._create_or_update_worker(worker.name, package, account_id, language, benchmark, code_package, container_deployment, container_uri)
         self.logging.info(f"Updated worker {worker.name}")
 
         # Update configuration if needed
@@ -918,7 +1367,7 @@ dev = [
         ).lower()
 
     @staticmethod
-    def format_function_name(name: str) -> str:
+    def format_function_name(name: str, container_deployment: bool = False) -> str:
         """
         Format a function name to comply with Cloudflare Worker naming rules.
 
@@ -926,9 +1375,11 @@ dev = [
         - Be lowercase
         - Contain only alphanumeric characters and hyphens
         - Not start or end with a hyphen
+        - Not start with a digit
 
         Args:
             name: The original name
+            container_deployment: Whether this is a container worker (adds 'w-' prefix if name starts with digit)
 
         Returns:
             Formatted name
@@ -939,6 +1390,10 @@ dev = [
         formatted = ''.join(c for c in formatted if c.isalnum() or c == '-')
         # Remove leading/trailing hyphens
         formatted = formatted.strip('-')
+        # Ensure container worker names don't start with a digit (Cloudflare requirement)
+        # Only add prefix for container workers to differentiate from native workers
+        if container_deployment and formatted and formatted[0].isdigit():
+            formatted = 'container-' + formatted
         return formatted
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
