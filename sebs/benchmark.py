@@ -420,9 +420,6 @@ class Benchmark(LoggingBase):
                 json.dump(package_json, package_file, indent=2)
 
     def add_deployment_package_cpp(self, output_dir):
-        # FIXME: Configure CMakeLists.txt dependencies
-        # FIXME: Configure for AWS - this should be generic
-        # FIXME: optional hiredis
 
         cmake_script = """
         cmake_minimum_required(VERSION 3.9)
@@ -717,6 +714,31 @@ class Benchmark(LoggingBase):
             repo_name = self._system_config.docker_repository()
             _, image_name = self.builder_image_name()
 
+            """
+                Generate custom Dockerfile for C++ benchmarks
+            """
+            if self.language == Language.CPP:
+                from sebs.cpp_dependencies import CppDependencies
+                from sebs.utils import DOCKER_DIR
+
+                template_path = os.path.join(
+                    DOCKER_DIR, self._deployment_name, "cpp", "Dockerfile.function"
+                )
+                with open(template_path, "r") as f:
+                    dockerfile_template = f.read()
+
+                dockerfile_content = CppDependencies.generate_dockerfile(
+                    self._benchmark_config._cpp_dependencies, dockerfile_template
+                )
+                dockerfile_path = os.path.join(self._output_dir, "Dockerfile")
+                with open(dockerfile_path, "w") as f:
+                    f.write(dockerfile_content)
+
+                self.logging.info(
+                    f"Generated custom Dockerfile for C++ benchmark with "
+                    f"{len(self._benchmark_config._cpp_dependencies)} explicit dependencies"
+                )
+
             _, self._container_uri, self._code_size = container_client.build_base_image(
                 os.path.abspath(self._output_dir),
                 self.language,
@@ -736,6 +758,7 @@ class Benchmark(LoggingBase):
                 OpenWhisk requires a code package in addition to the container.
             """
 
+            self._code_location: str | None = None
             if container_build_step is not None:
                 self._code_location, self._code_size = package_build_step(
                     os.path.abspath(self._output_dir),
@@ -745,8 +768,6 @@ class Benchmark(LoggingBase):
                     self.benchmark,
                     self.is_cached_valid,
                 )
-            else:
-                self._code_location = None
 
         else:
             self.install_dependencies(self._output_dir)
@@ -882,6 +903,8 @@ class Benchmark(LoggingBase):
 
     def code_package_modify(self, filename: str, data: bytes):
         if self.container_deployment or not self.code_package_is_archive():
+
+            assert self.code_location is not None
             self._update_zip(self.code_location, filename, data)
             new_size = self.code_package_recompute_size() / 1024.0 / 1024.0
             self.logging.info(f"Modified zip package {self.code_location}, new size {new_size} MB")
@@ -898,8 +921,10 @@ class Benchmark(LoggingBase):
         if self.container_deployment:
             return False
 
-        if os.path.isfile(self.code_location):
-            extension = os.path.splitext(self.code_location)[1]
+        code_location = self.code_location
+        assert code_location is not None
+        if os.path.isfile(code_location):
+            extension = os.path.splitext(code_location)[1]
             return extension in [".zip"]
         return False
 

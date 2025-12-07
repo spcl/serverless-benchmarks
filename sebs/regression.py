@@ -30,16 +30,14 @@ benchmarks_nodejs = ["110.dynamic-html", "120.uploader", "210.thumbnailer"]
 
 benchmarks_cpp = [
     "010.sleep",
-    # "210.thumbnailer",
-    # "411.image-recognition",
-    # "501.graph-pagerank",
-    # "503.graph-bfs",
+    "210.thumbnailer",
+    "411.image-recognition",
+    "501.graph-pagerank",
+    "503.graph-bfs",
 ]
 
-# architectures_aws = ["x64", "arm64"]
-architectures_aws = ["x64"]
-# deployments_aws = ["package", "container"]
-deployments_aws = ["container"]
+architectures_aws = ["x64", "arm64"]
+deployments_aws = ["package", "container"]
 
 architectures_gcp = ["x64"]
 deployments_gcp = ["package"]
@@ -83,17 +81,13 @@ class TestSequenceMeta(type):
     ):
         def gen_test(benchmark_name, architecture, deployment_type):
             def test(self):
-                log_name = (
-                    f"Regression-{deployment_name}-{benchmark_name}-{deployment_type}"
-                )
+                log_name = f"Regression-{deployment_name}-{benchmark_name}-{deployment_type}"
                 logger = logging.getLogger(log_name)
                 logger.setLevel(logging.INFO)
                 logging_wrapper = ColoredWrapper(log_name, logger)
 
                 self.experiment_config["architecture"] = architecture
-                self.experiment_config["container_deployment"] = (
-                    deployment_type == "container"
-                )
+                self.experiment_config["container_deployment"] = deployment_type == "container"
 
                 deployment_client = self.get_deployment(
                     benchmark_name, architecture, deployment_type
@@ -105,9 +99,7 @@ class TestSequenceMeta(type):
                     f"Architecture {architecture}, deployment type: {deployment_type}."
                 )
 
-                experiment_config = self.client.get_experiment_config(
-                    self.experiment_config
-                )
+                experiment_config = self.client.get_experiment_config(self.experiment_config)
 
                 benchmark = self.client.get_benchmark(
                     benchmark_name, deployment_client, experiment_config
@@ -148,9 +140,7 @@ class TestSequenceMeta(type):
                             )
                     except RuntimeError:
                         failure = True
-                        logging_wrapper.error(
-                            f"{benchmark_name} fail on trigger: {trigger_type}"
-                        )
+                        logging_wrapper.error(f"{benchmark_name} fail on trigger: {trigger_type}")
                 deployment_client.shutdown()
                 if failure:
                     raise RuntimeError(f"Test of {benchmark_name} failed!")
@@ -160,10 +150,13 @@ class TestSequenceMeta(type):
         for benchmark in benchmarks:
             for architecture in architectures:
                 for deployment_type in deployments:
-                    # for trigger in triggers:
                     test_name = f"test_{deployment_name}_{benchmark}"
                     test_name += f"_{architecture}_{deployment_type}"
-                    dict[test_name] = gen_test(benchmark, architecture, deployment_type)
+                    test_method = gen_test(benchmark, architecture, deployment_type)
+                    test_method.test_architecture = architecture
+                    test_method.test_deployment_type = deployment_type
+                    test_method.test_benchmark = benchmark
+                    dict[test_name] = test_method
 
         dict["lock"] = threading.Lock()
         dict["cfg"] = None
@@ -314,9 +307,7 @@ class AzureTestSequenceNodejs(
                 logging_filename=os.path.join(self.client.output_dir, f),
                 deployment_config=AzureTestSequencePython.cfg,
             )
-            deployment_client.system_resources.initialize_cli(
-                cli=AzureTestSequenceNodejs.cli
-            )
+            deployment_client.system_resources.initialize_cli(cli=AzureTestSequenceNodejs.cli)
             deployment_client.initialize(resource_prefix="regr")
             return deployment_client
 
@@ -380,9 +371,7 @@ class OpenWhiskTestSequencePython(
 
         config_copy = cloud_config.copy()
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = (
-            deployment_type == "container"
-        )
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
 
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
@@ -409,9 +398,7 @@ class OpenWhiskTestSequenceNodejs(
 
         config_copy = cloud_config.copy()
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = (
-            deployment_type == "container"
-        )
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
 
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
@@ -435,9 +422,7 @@ class TracingStreamResult(testtools.StreamResult):
 
     # no way to directly access test instance from here
     def status(self, *args, **kwargs):
-        self.all_correct = self.all_correct and (
-            kwargs["test_status"] in ["inprogress", "success"]
-        )
+        self.all_correct = self.all_correct and (kwargs["test_status"] in ["inprogress", "success"])
 
         bench, arch, deployment_type = kwargs["test_id"].split("_")[-3:None]
         test_name = f"{bench}, {arch}, {deployment_type}"
@@ -449,11 +434,7 @@ class TracingStreamResult(testtools.StreamResult):
         elif kwargs["test_status"] == "fail":
             print("\n-------------\n")
             print("{0[test_id]}: {0[test_status]}".format(kwargs))
-            print(
-                "{0[test_id]}: {1}".format(
-                    kwargs, self.output[kwargs["test_id"]].decode()
-                )
-            )
+            print("{0[test_id]}: {1}".format(kwargs, self.output[kwargs["test_id"]].decode()))
             print("\n-------------\n")
             self.failures.add(test_name)
         elif kwargs["test_status"] == "success":
@@ -466,10 +447,18 @@ def filter_out_benchmarks(
     language: str,
     language_version: str,
     architecture: str,
+    deployment_type: str,
 ) -> bool:
     # fmt: off
+
+    if (language == "cpp" and architecture == "arm64"):
+        return False
+
     if (deployment_name == "aws" and language == "python"
             and language_version in ["3.9", "3.10", "3.11"]):
+        return "411.image-recognition" not in benchmark
+
+    if (deployment_name == "aws" and language == "cpp" and deployment_type == "package"):
         return "411.image-recognition" not in benchmark
 
     if (deployment_name == "aws" and architecture == "arm64"):
@@ -496,59 +485,36 @@ def regression_suite(
 
     language = experiment_config["runtime"]["language"]
     language_version = experiment_config["runtime"]["version"]
-    architecture = experiment_config["architecture"]
 
     if "aws" in providers:
         assert "aws" in cloud_config["deployment"]
         if language == "python":
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequencePython)
-            )
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequencePython))
         elif language == "nodejs":
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceNodejs)
-            )
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceNodejs))
         elif language == "cpp":
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceCpp)
-            )
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceCpp))
     if "gcp" in providers:
         assert "gcp" in cloud_config["deployment"]
         if language == "python":
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequencePython)
-            )
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequencePython))
         elif language == "nodejs":
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceNodejs)
-            )
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceNodejs))
     if "azure" in providers:
         assert "azure" in cloud_config["deployment"]
         if language == "python":
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(
-                    AzureTestSequencePython
-                )
-            )
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequencePython))
         elif language == "nodejs":
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(
-                    AzureTestSequenceNodejs
-                )
-            )
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceNodejs))
     if "openwhisk" in providers:
         assert "openwhisk" in cloud_config["deployment"]
         if language == "python":
             suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(
-                    OpenWhiskTestSequencePython
-                )
+                unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequencePython)
             )
         elif language == "nodejs":
             suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(
-                    OpenWhiskTestSequenceNodejs
-                )
+                unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequenceNodejs)
             )
 
     tests = []
@@ -559,12 +525,15 @@ def regression_suite(
             test_name = cast(unittest.TestCase, test)._testMethodName
 
             # Remove unsupported benchmarks
+            test_architecture = getattr(test, test_name).test_architecture  # type: ignore
+            test_deployment_type = getattr(test, test_name).test_deployment_type  # type: ignore
             if not filter_out_benchmarks(
                 test_name,
                 test.deployment_name,  # type: ignore
                 language,  # type: ignore
                 language_version,
-                architecture,  # type: ignore
+                test_architecture,
+                test_deployment_type,
             ):
                 print(f"Skip test {test_name} - not supported.")
                 continue
@@ -577,9 +546,7 @@ def regression_suite(
             else:
                 print(f"Skip test {test_name}")
 
-    concurrent_suite = testtools.ConcurrentStreamTestSuite(
-        lambda: ((test, None) for test in tests)
-    )
+    concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
     result = TracingStreamResult()
     result.startTestRun()
     concurrent_suite.run(result)
@@ -588,9 +555,7 @@ def regression_suite(
     for suc in result.success:
         print(f"- {suc}")
     if len(result.failures):
-        print(
-            f"Failures when executing {len(result.failures)} out of {len(tests)} functions"
-        )
+        print(f"Failures when executing {len(result.failures)} out of {len(tests)} functions")
         for failure in result.failures:
             print(f"- {failure}")
 

@@ -1,5 +1,10 @@
+ARG BASE_REPOSITORY
 ARG BASE_IMAGE_BUILDER
 ARG BASE_IMAGE
+
+# Dependency images - dynamically replaced based on benchmark requirements
+{{DEPENDENCY_IMAGES}}
+
 FROM $BASE_IMAGE_BUILDER as builder
 ARG VERSION
 ARG TARGET_ARCHITECTURE
@@ -8,13 +13,13 @@ COPY . /function
 
 RUN mkdir -p /build &&\
     cmake3 -DCMAKE_BUILD_TYPE=Release -S /function/ -B /build &&\
-    VERBOSE=1 cmake3 --build /build --target aws-lambda-package-benchmark 
+    VERBOSE=1 cmake3 --build /build --target aws-lambda-package-benchmark
 
 FROM $BASE_IMAGE
 
-# we no longer need includes
-COPY --from=builder /opt/lib /opt/lib
-COPY --from=builder /opt/lib64 /opt/lib64
+# Copy required dependencies - dynamically replaced based on benchmark requirements
+{{DEPENDENCY_COPIES}}
+
 COPY --from=builder /build /build
 
 ENTRYPOINT ["/build/benchmark"]

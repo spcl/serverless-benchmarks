@@ -173,10 +173,16 @@ class DockerContainer(LoggingBase):
         build_dir = os.path.join(directory, "build")
         os.makedirs(build_dir, exist_ok=True)
 
-        shutil.copy(
-            os.path.join(DOCKER_DIR, self.name(), language.value, "Dockerfile.function"),
-            os.path.join(build_dir, "Dockerfile"),
-        )
+        # Check if custom Dockerfile exists in directory (e.g., for C++)
+        custom_dockerfile = os.path.join(directory, "Dockerfile")
+        if os.path.exists(custom_dockerfile):
+            shutil.move(custom_dockerfile, os.path.join(build_dir, "Dockerfile"))
+        else:
+            # Use template for languages without custom generation
+            shutil.copy(
+                os.path.join(DOCKER_DIR, self.name(), language.value, "Dockerfile.function"),
+                os.path.join(build_dir, "Dockerfile"),
+            )
         for fn in os.listdir(directory):
             if fn not in ("index.js", "__main__.py"):
                 file = os.path.join(directory, fn)
@@ -205,6 +211,7 @@ class DockerContainer(LoggingBase):
             "BASE_IMAGE": base_image,
             "BASE_IMAGE_BUILDER": builder_image,
             "TARGET_ARCHITECTURE": architecture,
+            "BASE_REPOSITORY": self.system_config.docker_repository(),
         }
 
         try:
