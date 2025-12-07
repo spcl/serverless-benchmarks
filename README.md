@@ -82,7 +82,7 @@ You can cite our software repository as well, using the citation button on the r
 
 Requirements:
 - Docker (at least 19)
-- Python 3.7+ with:
+- Python 3.10+ with:
     - pip
     - venv
 - `libcurl` and its headers must be available on your system to install `pycurl`
