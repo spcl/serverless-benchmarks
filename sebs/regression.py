@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from sebs import SeBS
 
 benchmarks_python = [
+    "010.sleep",
     "110.dynamic-html",
     "120.uploader",
     "130.crud-api",
@@ -26,7 +27,7 @@ benchmarks_python = [
     "503.graph-bfs",
     "504.dna-visualisation",
 ]
-benchmarks_nodejs = ["110.dynamic-html", "120.uploader", "210.thumbnailer"]
+benchmarks_nodejs = ["010.sleep", "110.dynamic-html", "120.uploader", "210.thumbnailer"]
 
 benchmarks_cpp = [
     "010.sleep",
