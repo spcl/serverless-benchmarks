@@ -257,10 +257,11 @@ class System(ABC, LoggingBase):
             self.name(), code_package.language_name, code_package.architecture
         ):
             raise Exception(
-                "Unsupported {language} version {version} in {system}!".format(
-                    language=code_package.language_name,
-                    version=code_package.language_version,
-                    system=self.name(),
+                "Unsupported {lang} version {ver} in {sys} for architecture {arch}!".format(
+                    lang=code_package.language_name,
+                    ver=code_package.language_version,
+                    sys=self.name(),
+                    arch=code_package.architecture,
                 )
             )
 
