@@ -1,42 +1,43 @@
 #!/bin/bash
+set -euo pipefail
 
 cd /mnt/function
 
-#TODO: If the base image OS is not centOS based, change to apt
-yum install -y tar bzip2 gzip
-
-#TODO: make version configurable
+# Download and unpack PyPy
 curl -L -o pypy.tar.bz2 https://downloads.python.org/pypy/pypy3.11-v7.3.20-linux64.tar.bz2
-tar -xjf pypy.tar.bz2 
-mv pypy3.11-v7.3.20-linux64 /opt/pypy 
+tar -xjf pypy.tar.bz2
+mv pypy3.11-v7.3.20-linux64 pypy
 rm pypy.tar.bz2
-chmod -R +x /opt/pypy/bin
-export PATH=/opt/pypy/bin:$PATH
+chmod -R +x pypy/bin
+export PATH=/mnt/function/pypy/bin:$PATH
+
+# Ensure pip is available
 python -m ensurepip
 python -mpip install -U pip wheel
 
-#Probably remove this conditional, might break pypy builds, might lead to installation of CPython libraries
+# Where to place dependencies for Azure/AWS
+REQ_TARGET=".python_packages/lib/site-packages"
+mkdir -p "${REQ_TARGET}"
+
+# Platform pin for arm64 if needed
 PLATFORM_ARG=""
-if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]]; then
+if [[ "${TARGET_ARCHITECTURE:-}" == "arm64" ]]; then
   PLATFORM_ARG="--platform manylinux_2_17_aarch64 --only-binary=:all:"
 fi
 
-if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]] && [[ -f "requirements.txt.arm.${PYTHON_VERSION}" ]]; then
-
-  pip3 -q install ${PLATFORM_ARG} -r requirements.txt.arm.${PYTHON_VERSION} -t .python_packages/lib/site-packages
-
+# Pick the best matching requirements file
+if [[ "${TARGET_ARCHITECTURE:-}" == "arm64" && -f "requirements.txt.arm.${PYTHON_VERSION}" ]]; then
+  REQ_FILE="requirements.txt.arm.${PYTHON_VERSION}"
 elif [[ -f "requirements.txt.${PYTHON_VERSION}" ]]; then
-
-  pip3 -q install ${PLATFORM_ARG} -r requirements.txt.${PYTHON_VERSION} -t .python_packages/lib/site-packages
-
+  REQ_FILE="requirements.txt.${PYTHON_VERSION}"
 else
-
-  pip3 -q install ${PLATFORM_ARG} -r requirements.txt -t .python_packages/lib/site-packages
-
+  REQ_FILE="requirements.txt"
 fi
 
-if [[ -f "${SCRIPT_FILE}" ]]; then
-  /bin/bash ${SCRIPT_FILE} .python_packages/lib/site-packages
+# Install benchmark deps into the target directory
+python -mpip install ${PLATFORM_ARG} -r "${REQ_FILE}" -t "${REQ_TARGET}"
+
+# Run optional benchmark packaging hook
+if [[ -f "${SCRIPT_FILE:-}" ]]; then
+  /bin/bash "${SCRIPT_FILE}" "${REQ_TARGET}"
 fi
-
-

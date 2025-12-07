@@ -15,9 +15,13 @@ parser.add_argument(
 parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
 parser.add_argument("--language", default=None, choices=["python", "nodejs", "pypy"], action="store")
 parser.add_argument("--language-version", default=None, type=str, action="store")
+# Optional: force build platform (e.g., linux/amd64 on Apple Silicon)
+parser.add_argument("--platform", default=None, type=str, action="store")
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
 client = docker.from_env()
+# Prefer explicit CLI platform, otherwise fall back to environment
+PLATFORM = args.platform or os.environ.get("DOCKER_DEFAULT_PLATFORM")
 
 
 def build(image_type, system, language=None, version=None, version_name=None):
@@ -51,8 +55,17 @@ def build(image_type, system, language=None, version=None, version_name=None):
             target, PROJECT_DIR, dockerfile, buildargs
         )
     )
+    build_kwargs = {
+        "path": PROJECT_DIR,
+        "dockerfile": dockerfile,
+        "buildargs": buildargs,
+        "tag": target,
+    }
+    if PLATFORM:
+        build_kwargs["platform"] = PLATFORM
+
     try:
-        client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
+        client.images.build(**build_kwargs)
     except docker.errors.BuildError as exc:
         print("Error! Build failed!")
         print(exc)

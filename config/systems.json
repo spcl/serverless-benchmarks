@@ -231,6 +231,33 @@
             "uuid": "3.4.0"
           }
         }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "ubuntu:22.04"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py"
+          ],
+          "packages": [],
+          "module_packages": {
+            "storage": [
+              "azure-storage-blob"
+            ],
+            "nosql": [
+              "azure-cosmos"
+            ]
+          }
+        }
       }
     },
     "images": {
