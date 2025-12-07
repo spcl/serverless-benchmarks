@@ -81,13 +81,13 @@ When using Minio with cloud-hosted FaaS platforms like OpenWhisk or for local de
 By default, the container runs on the Docker bridge network with an address (e.g., `172.17.0.2`) that is not accessible from outside the host.
 Even when deploying both OpenWhisk and storage on the same system, the local bridge network is not accessible from the Kubernetes cluster. 
 To make it accessible, functions need to use the public IP address of the machine hosting the container instance and the mapped port.
-You can typically find an externally accessible address via `ip addr`, and then replace the storage's address with the external address of the machine and the mapped port. 
+You can typically find an externally accessible address via `ip addr`, and then replace the storage's address with the external address of the machine and the mapped port.
 
 For example, for an external address `10.10.1.15` (a LAN-local address on CloudLab) and mapped port `9011`, set the SeBS configuration as follows:
 
 ```bash
 # For a LAN-local address (e.g., on CloudLab)
-jq --slurpfile file1 storage.json '.deployment.openwhisk.storage = $file1[0] | .deployment.openwhisk.storage.address = "10.10.1.15:9011"' config/example.json > config/openwhisk.json
+jq --slurpfile file1 storage.json '.deployment.openwhisk.storage = $file1[0] | .deployment.openwhisk.storage.object.minio.address = "10.10.1.15:9011"' config/example.json > config/openwhisk.json
 ```
 
 You can validate the configuration of Minio with an HTTP request by using `curl`:
@@ -107,6 +107,27 @@ X-Xss-Protection: 1; mode=block
 Date: Mon, 30 May 2022 10:01:21 GMT
 ```
 
+If you use benchmarks relying on NoSQL storage (ScyllaDB), then you need to apply the same change to reflect the different address as well.
+Here, we again assume the external IP address of the system is `10.10.1.15`, and the mapped port changes to `9012`.
+
+```bash
+# For a LAN-local address (e.g., on CloudLab)
+jq '.deployment.openwhisk.storage.nosql.scylladb.address = "10.10.1.15:9012"' config/openwhisk.json | sponge config/openwhisk.json
+```
+
+You can validate the configuration of ScyllaDB with an HTTP request by using `curl`:
+
+```bash
+curl -i 10.10.1.15:9012
+HTTP/1.1 200 OK
+Content-Length: 26
+Content-Type: text/plain
+Date: Sun, 07 Dec 2025 14:07:29 GMT
+Server: Seastar httpd
+
+healthy: 192.168.0.20:9012
+```
+```
 
 ## Lifecycle Management
 
