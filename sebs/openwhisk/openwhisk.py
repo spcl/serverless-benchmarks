@@ -1,6 +1,6 @@
 import os
 import subprocess
-from typing import cast, Dict, List, Optional, Tuple, Type
+from typing import cast, Callable, Dict, List, Optional, Tuple, Type
 
 import docker
 
@@ -43,7 +43,7 @@ class OpenWhisk(System):
         self._config = config
         self.logging_handlers = logger_handlers
 
-        self.container_client = OpenWhiskContainer(
+        self._container_client = OpenWhiskContainer(
             self.system_config,
             self.config,
             self.docker_client,
@@ -69,6 +69,10 @@ class OpenWhisk(System):
     @property
     def config(self) -> OpenWhiskConfig:
         return self._config
+
+    @property
+    def container_client(self) -> OpenWhiskContainer:
+        return self._container_client
 
     def shutdown(self) -> None:
         if hasattr(self, "storage") and self.config.shutdownStorage:
@@ -105,14 +109,7 @@ class OpenWhisk(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
-
-        # Regardless of Docker image status, we need to create .zip file
-        # to allow registration of function with OpenWhisk
-        _, image_uri = self.container_client.build_base_image(
-            directory, language, language_version, architecture, benchmark, is_cached
-        )
+    ) -> Tuple[str, int]:
 
         # We deploy Minio config in code package since this depends on local
         # deployment - it cannnot be a part of Docker image
@@ -131,13 +128,19 @@ class OpenWhisk(System):
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
         self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
-        return benchmark_archive, bytes_size, image_uri
+        return benchmark_archive, bytes_size
+
+    def finalize_container_build(
+        self,
+    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
+        # Regardless of Docker image status, we need to create .zip file
+        # to allow registration of function with OpenWhisk
+        return self.package_code
 
     def storage_arguments(self, code_package: Benchmark) -> List[str]:
         envs = []
 
         if self.config.resources.storage_config:
-
             storage_envs = self.config.resources.storage_config.envs()
             envs = [
                 "-p",
@@ -152,7 +155,6 @@ class OpenWhisk(System):
             ]
 
         if code_package.uses_nosql:
-
             nosql_storage = self.system_resources.get_nosql_storage()
             for key, value in nosql_storage.envs().items():
                 envs.append("-p")
