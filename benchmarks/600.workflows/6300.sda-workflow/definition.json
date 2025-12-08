@@ -3,7 +3,12 @@
     "states": {
         "filter": {
             "type": "task",
-            "func_name": "filter"
+            "func_name": "filter",
+            "next": "neighbors"
+        },
+        "neighbors": {
+            "type": "task",
+            "func_name": "neighbors"
         }
     }
 }

@@ -3,5 +3,5 @@
   "memory": 128,
   "languages": ["python"],
   "modules": ["storage"],
-  "container-image": "logru/sda:latest"
+  "container-image": "logru/sda-no-db:latest"
 }
