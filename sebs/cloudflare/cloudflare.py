@@ -255,10 +255,10 @@ class Cloudflare(System):
             instance_type = ""
             if benchmark_name and ("411.image-recognition" in benchmark_name or "311.compression" in benchmark_name or "504.dna-visualisation" in benchmark_name):
                 # Use "standard" (largest) for Python, "standard-4" for Node.js
-                if language == "python":
-                    instance_type = '\ninstance_type = "standard"  # Largest available - needed for Python zip operations\n'
-                else:
-                    instance_type = '\ninstance_type = "standard-4"  # 20GB Disk, 12GB Memory\n'
+                # if language == "python":
+                #     instance_type = '\ninstance_type = "standard-4"  # Largest available - needed for Python zip operations\n'
+                # else:
+                instance_type = '\ninstance_type = "standard-4"  # 20GB Disk, 12GB Memory\n'
             
             toml_content = f"""name = "{worker_name}"
 main = "worker.js"
@@ -875,6 +875,40 @@ dev = [
             if os.path.exists(versioned_requirements):
                 shutil.copy2(versioned_requirements, requirements_file)
                 self.logging.info(f"Copied requirements.txt.{language_version} to requirements.txt")
+                
+                # Fix torch wheel URLs for container compatibility
+                # Replace direct wheel URLs with proper torch installation
+                with open(requirements_file, 'r') as f:
+                    content = f.read()
+                
+                # Replace torch wheel URLs with proper installation commands
+                import re
+                modified = False
+                if 'download.pytorch.org/whl' in content:
+                    # Remove direct wheel URLs and replace with proper torch installation
+                    lines = content.split('\n')
+                    new_lines = []
+                    for line in lines:
+                        if 'download.pytorch.org/whl/cpu/torch-' in line:
+                            # Extract version from URL (e.g., torch-2.0.0+cpu)
+                            match = re.search(r'torch-([0-9.]+)(?:%2B|\+)cpu', line)
+                            if match:
+                                version = match.group(1)
+                                # Use index-url method instead of direct wheel
+                                new_lines.append(f'torch=={version}')
+                                modified = True
+                            else:
+                                new_lines.append(line)
+                        else:
+                            new_lines.append(line)
+                    
+                    if modified:
+                        # Add extra-index-url at the top for CPU-only torch
+                        content = '--extra-index-url https://download.pytorch.org/whl/cpu\n' + '\n'.join(new_lines)
+                        with open(requirements_file, 'w') as f:
+                            f.write(content)
+                        self.logging.info("Modified requirements.txt to use torch index-url instead of direct wheels")
+                
             elif not os.path.exists(requirements_file):
                 # Create empty requirements.txt if none exists
                 with open(requirements_file, 'w') as f:
