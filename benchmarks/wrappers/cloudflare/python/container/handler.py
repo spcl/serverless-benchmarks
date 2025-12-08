@@ -118,7 +118,7 @@ class ContainerHandler(BaseHTTPRequestHandler):
             
             # Add request metadata
             import random
-            req_id = random.randint(0, 1000000)
+            req_id = str(random.randint(0, 1000000))
             income_timestamp = datetime.datetime.now().timestamp()
             event['request-id'] = req_id
             event['income-timestamp'] = income_timestamp
