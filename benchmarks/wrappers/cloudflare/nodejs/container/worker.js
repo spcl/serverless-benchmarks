@@ -4,7 +4,7 @@ import { DurableObject } from "cloudflare:workers";
 // Container wrapper class
 export class ContainerWorker extends Container {
   defaultPort = 8080;
-  sleepAfter = "10m";
+  sleepAfter = "30m";
 }
 
 // Durable Object for NoSQL storage (simple proxy to ctx.storage)
