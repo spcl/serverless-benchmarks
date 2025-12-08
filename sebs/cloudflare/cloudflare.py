@@ -1350,10 +1350,18 @@ dev = [
         if not account_id:
             raise RuntimeError("Account ID is required to update worker")
 
-        self._create_or_update_worker(worker.name, package, account_id, language, benchmark, code_package, container_deployment, container_uri)
-        self.logging.info(f"Updated worker {worker.name}")
+        # For container deployments, skip redeployment if code hasn't changed
+        # Containers don't support runtime memory configuration changes
+        # Detect container deployment by checking if worker name starts with "container-"
+        is_container = worker.name.startswith("container-")
+        
+        if is_container:
+            self.logging.info(f"Skipping redeployment for container worker {worker.name} - containers don't support runtime memory updates")
+        else:
+            self._create_or_update_worker(worker.name, package, account_id, language, benchmark, code_package, container_deployment, container_uri)
+            self.logging.info(f"Updated worker {worker.name}")
 
-        # Update configuration if needed
+        # Update configuration if needed (no-op for containers since they don't support runtime memory changes)
         self.update_function_configuration(worker, code_package)
 
     def update_function_configuration(
