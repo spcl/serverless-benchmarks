@@ -95,7 +95,6 @@ WORKFLOWS=(
   "670.auth"
   "680.excamera"
   "690.ml"
-  "6xx.OCR-pipeline"
 )
 
 for wf in "${WORKFLOWS[@]}"; do

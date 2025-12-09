@@ -1,3 +1,0 @@
-easyocr
-torch
-torchvision
