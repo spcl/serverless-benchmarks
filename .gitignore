@@ -7,6 +7,7 @@ perf-cost*
 python-venv
 cache*
 !cache.py
+experiment
 
 minio-volume
 scylladb-volume
