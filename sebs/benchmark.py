@@ -374,6 +374,8 @@ class Benchmark(LoggingBase):
             )
             for package in packages:
                 out.write(package)
+                if not package.endswith('\n'):
+                    out.write('\n')
 
             module_packages = self._system_config.deployment_module_packages(
                 self._deployment_name, self.language_name
@@ -382,6 +384,8 @@ class Benchmark(LoggingBase):
                 if bench_module.value in module_packages:
                     for package in module_packages[bench_module.value]:
                         out.write(package)
+                        if not package.endswith('\n'):
+                            out.write('\n')
 
     def add_deployment_package_nodejs(self, output_dir):
         # modify package.json
