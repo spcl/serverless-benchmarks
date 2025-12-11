@@ -31,7 +31,7 @@
             "envFile": "${workspaceFolder}/.env"
         },
         {
-            "name": "SeBS SDA Workflow",
+            "name": "SeBS SDA Workflow Test",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/sebs.py",
@@ -42,6 +42,31 @@
                 "workflow",
                 "6300.sda-workflow",
                 "test",
+                "--config",
+                "config/config.json",
+                "--deployment",
+                "aws",
+                "--trigger",
+                "library",
+                "--repetitions",
+                "1"
+            ],
+            "justMyCode": true,
+            "pythonPath": "${workspaceFolder}/python-venv/bin/python",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "SeBS SDA Workflow",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/sebs.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "args": [
+                "benchmark",
+                "workflow",
+                "6300.sda-workflow",
+                "large",
                 "--config",
                 "config/config.json",
                 "--deployment",
