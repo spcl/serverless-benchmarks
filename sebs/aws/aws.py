@@ -134,33 +134,49 @@ class AWS(System):
                 directory, language_name, language_version, architecture, benchmark, is_cached
             )
 
-        CONFIG_FILES = {
-            "python": ["handler.py", "requirements.txt", ".python_packages"],
-            "nodejs": ["handler.js", "package.json", "node_modules"],
-        }
-        package_config = CONFIG_FILES[language_name]
-        function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)
-        # move all files to 'function' except handler.py
-        for file in os.listdir(directory):
-            if file not in package_config:
-                file = os.path.join(directory, file)
-                shutil.move(file, function_dir)
-        # FIXME: use zipfile
-        # create zip with hidden directory but without parent directory
-        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
-        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+        if language_name == "java":
+            jar_path = os.path.join(directory, "function.jar")
+            if not os.path.exists(jar_path):
+                raise RuntimeError("function.jar missing. Ensure Java build produced the jar.")
+            package_dir = os.path.join(directory, "package")
+            os.makedirs(package_dir, exist_ok=True)
+            shutil.copy2(jar_path, os.path.join(package_dir, "function.jar"))
+            execute("zip -qu -r9 {}.zip .".format(benchmark), shell=True, cwd=package_dir)
+            benchmark_archive = "{}.zip".format(os.path.join(package_dir, benchmark))
+        else:
+            CONFIG_FILES = {
+                "python": ["handler.py", "requirements.txt", ".python_packages"],
+                "nodejs": ["handler.js", "package.json", "node_modules"],
+            }
+            package_config = CONFIG_FILES[language_name]
+            function_dir = os.path.join(directory, "function")
+            os.makedirs(function_dir)
+            # move all files to 'function' except handler.py
+            for file in os.listdir(directory):
+                if file not in package_config:
+                    file = os.path.join(directory, file)
+                    shutil.move(file, function_dir)
+            # FIXME: use zipfile
+            # create zip with hidden directory but without parent directory
+            execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+            benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
         self.logging.info("Created {} archive".format(benchmark_archive))
 
-        bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
+        bytes_size = os.path.getsize(benchmark_archive)
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
         return (
-            os.path.join(directory, "{}.zip".format(benchmark)),
+            benchmark_archive,
             bytes_size,
             container_uri,
         )
+    def _default_handler(self, language: str) -> str:
+
+        if language == "java":
+            return "org.serverlessbench.Handler::handleRequest"
+        return "handler.handler"
+
 
     def _map_architecture(self, architecture: str) -> str:
 
@@ -254,7 +270,7 @@ class AWS(System):
                 create_function_params["Runtime"] = "{}{}".format(
                     language, self._map_language_runtime(language, language_runtime)
                 )
-                create_function_params["Handler"] = "handler.handler"
+                create_function_params["Handler"] = self._default_handler(language)
 
             create_function_params = {
                 k: v for k, v in create_function_params.items() if v is not None

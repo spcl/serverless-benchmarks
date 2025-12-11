@@ -13,7 +13,14 @@ parser.add_argument(
     "--deployment", default=None, choices=["local", "aws", "azure", "gcp"], action="store"
 )
 parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
-parser.add_argument("--language", default=None, choices=["python", "nodejs"], action="store")
+parser.add_argument(
+    "--language", default=None, choices=["python", "nodejs", "java"], action="store"
+)
+parser.add_argument(
+    "--platform",
+    default=None,
+    help="Optional Docker platform (e.g., linux/amd64) to override host architecture.",
+)
 parser.add_argument("--language-version", default=None, type=str, action="store")
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
@@ -51,8 +58,16 @@ def build(image_type, system, language=None, version=None, version_name=None):
             target, PROJECT_DIR, dockerfile, buildargs
         )
     )
+    platform_arg = args.platform or os.environ.get("DOCKER_DEFAULT_PLATFORM")
+
     try:
-        client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
+        client.images.build(
+            path=PROJECT_DIR,
+            dockerfile=dockerfile,
+            buildargs=buildargs,
+            tag=target,
+            platform=platform_arg,
+        )
     except docker.errors.BuildError as exc:
         print("Error! Build failed!")
         print(exc)

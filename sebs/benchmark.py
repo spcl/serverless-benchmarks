@@ -252,8 +252,13 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "java": [],
         }
-        WRAPPERS = {"python": "*.py", "nodejs": "*.js"}
+        WRAPPERS = {
+            "python": ["*.py"],
+            "nodejs": ["*.js"],
+            "java": ["src", "pom.xml"],
+        }
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
@@ -262,13 +267,21 @@ class Benchmark(LoggingBase):
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
         # wrappers
-        wrappers = project_absolute_path(
-            "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
-        )
-        for f in glob.glob(wrappers):
-            path = os.path.join(directory, f)
-            with open(path, "rb") as opened_file:
-                hash_sum.update(opened_file.read())
+        wrapper_patterns = WRAPPERS[language]
+        for pattern in wrapper_patterns:
+            wrappers = project_absolute_path(
+                "benchmarks", "wrappers", deployment, language, pattern
+            )
+            for f in glob.glob(wrappers):
+                if os.path.isdir(f):
+                    for root, _, files in os.walk(f):
+                        for file in files:
+                            path = os.path.join(root, file)
+                            with open(path, "rb") as opened_file:
+                                hash_sum.update(opened_file.read())
+                else:
+                    with open(f, "rb") as opened_file:
+                        hash_sum.update(opened_file.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:
@@ -316,8 +329,12 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "java": [],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
+        if self.language_name == "java":
+            shutil.copytree(path, output_dir, dirs_exist_ok=True)
+            return
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
@@ -356,7 +373,12 @@ class Benchmark(LoggingBase):
             )
         ]
         for file in handlers:
-            shutil.copy2(file, os.path.join(output_dir))
+            destination = os.path.join(output_dir, os.path.basename(file))
+            if os.path.isdir(file):
+                shutil.copytree(file, destination, dirs_exist_ok=True)
+            else:
+                if not os.path.exists(destination):
+                    shutil.copy2(file, destination)
 
     def add_deployment_package_python(self, output_dir):
 
@@ -406,6 +428,9 @@ class Benchmark(LoggingBase):
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
+        elif self.language == Language.JAVA:
+            # Java dependencies are handled by Maven in the wrapper
+            return
         else:
             raise NotImplementedError
 
@@ -483,7 +508,7 @@ class Benchmark(LoggingBase):
                     }
 
             # run Docker container to install packages
-            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
+            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "java": "pom.xml"}
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
