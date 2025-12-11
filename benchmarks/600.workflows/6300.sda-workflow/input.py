@@ -10,14 +10,7 @@ def input_file(size):
     return size_generators[size]
 
 def buckets_count():
-    return (1, 4)
-
-def sda_config():
-    SDA_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "sda-config.json")
-    with open(SDA_CONFIG_PATH, "r") as f:
-        config = json.load(f)
-    return config
-
+    return (1, 5)
 
 def generate_input(data_dir, size, benchmarks_bucket,input_buckets, output_buckets, upload_func, nosql_func):
     INPUT_FILE = input_file(size)
@@ -28,9 +21,10 @@ def generate_input(data_dir, size, benchmarks_bucket,input_buckets, output_bucke
         "config_file": CONFIG_FILE,
         "input_file": INPUT_FILE,
         "input_bucket": input_buckets[0],
-        "filter_output_bucket": output_buckets[0],
-        "cluster_output_bucket": output_buckets[1],
-        "analysis_output_bucket": output_buckets[2],
-        "final_output_bucket": output_buckets[3],
+        "split_output_bucket": output_buckets[0],
+        "filter_output_bucket": output_buckets[1],
+        "cluster_output_bucket": output_buckets[2],
+        "analysis_output_bucket": output_buckets[3],
+        "final_output_bucket": output_buckets[4],
         "benchmark_bucket": benchmarks_bucket
     }

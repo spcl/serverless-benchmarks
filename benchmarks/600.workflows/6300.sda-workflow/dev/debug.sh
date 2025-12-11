@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 if [ -n "$(docker ps -aq -f name=^sda-aws-container$)" ]; then
     echo "Removing existing container sda-aws-container..."
     docker rm -f sda-aws-container >/dev/null 2>&1 || true

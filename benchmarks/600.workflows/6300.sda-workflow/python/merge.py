@@ -15,7 +15,7 @@ def load_input(event,directory):
     analysis_output_bucket = event["analysis_output_bucket"]
     merge_input_files = []
     merge_edges_input_files = []
-    for workload in event["workloads"]:
+    for workload in event["cluster_workloads"]:
         for file in workload["analysis_output_files"]:
             shp_file = download_shp_file(benchmark_bucket,analysis_output_bucket,file,directory)
             if "_edges" in shp_file.stem:

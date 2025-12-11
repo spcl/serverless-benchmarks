@@ -32,10 +32,11 @@ def handler(event):
         return event
     event.pop("stdout", None)
     event.pop("stderr", None)
+    event.pop("neighbors_workloads", None)
     components_files = sorted(str(p) for p in Path(TMP_DIR).glob(f"{COMPONENT_FILE_PREFIX}*.json"))
     workloads = build_cluster_workload(components_files)
     return {
-        "workloads":[
+        "cluster_workloads":[
             {
                 "cluster_input_files": workload["cluster_input_files"],
                 "cluster_components": workload["cluster_components"],

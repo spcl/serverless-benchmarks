@@ -4,17 +4,41 @@
         "clearDB":{
             "type": "task",
             "func_name": "clearDB",
-            "next": "filter"
+            "next": "split"
         },
-        "filter": {
+        "split": {
             "type": "task",
-            "func_name": "filter",
-            "next": "neighbors"
+            "func_name": "split",
+            "next": "filter-map"
         },
-        "neighbors": {
+        "filter-map":{
+            "type": "map",
+            "root": "filter",
+            "array": "filter_workloads",
+            "next": "prepare-neighbors",
+            "states": {
+                "filter": {
+                    "type": "task",
+                    "func_name": "filter"
+                }
+            }
+        },
+        "prepare-neighbors": {
             "type": "task",
-            "func_name": "neighbors",
-            "next": "components"
+            "func_name": "pre_neighbors",
+            "next": "neighbors-map"
+        },
+        "neighbors-map":{
+            "type": "map",
+            "root": "neighbors",
+            "array": "neighbors_workloads",
+            "next": "components",
+            "states": {
+                "neighbors": {
+                    "type": "task",
+                    "func_name": "neighbors"
+                }
+            }
         },
         "components": {
             "type": "task",
@@ -24,7 +48,7 @@
         "cluster-analyze-map":{
             "type": "map",
             "root": "clustering",
-            "array": "workloads",
+            "array": "cluster_workloads",
             "next": "merge-results",
             "states": {
                 "clustering": {
