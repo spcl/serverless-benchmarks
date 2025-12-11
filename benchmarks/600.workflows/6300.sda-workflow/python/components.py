@@ -3,7 +3,6 @@ from .SDAHelper import *
 import json
 
 def build_cluster_workload(components_files):
-    workloadID = 0
     workloads = []
     for comp_file in components_files:
         with open(comp_file, 'r') as f:
@@ -13,12 +12,11 @@ def build_cluster_workload(components_files):
             "cluster_components": components_data["components"]
         }
         workloads.append(workload)
-        workloadID += 1
     return workloads
 
 def handler(event):
     TMP_DIR = create_tmp_dir()
-    config_file = load_config(event["benchmark_bucket"],event["input_bucket"], TMP_DIR)
+    config_file = load_config(event, TMP_DIR)
     COMPONENT_FILE_PREFIX = "components"
     result = subprocess.run(
         ["AfricapolisGraphComponents", "-c", str(config_file), "-o", COMPONENT_FILE_PREFIX],

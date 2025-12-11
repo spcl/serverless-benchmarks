@@ -6,7 +6,6 @@ from . import storage
 storage_client = storage.storage.get_instance()
 
 SHP_SUFFIX = [".shp", ".shx", ".dbf", ".prj"]
-CONFIG_FILE_NAME = "sda-config.json"
 
 def download_file(benchmark_bucket, path_in_bucket, dest_dir):
     path = Path(dest_dir) / Path(path_in_bucket).name
@@ -22,8 +21,8 @@ def download_shp_file(benchmark_bucket, bucket ,shp_file, dest_dir):
         download_file_bucket(benchmark_bucket, bucket, f.name, dest_dir)
     return download_file_bucket(benchmark_bucket, bucket, shp_file, dest_dir)
 
-def load_config(benchmark_bucket, input_bucket,directory):
-    return download_file_bucket(benchmark_bucket, input_bucket, CONFIG_FILE_NAME, directory)
+def load_config(event,directory):
+    return download_file_bucket(event["benchmark_bucket"], event["input_bucket"], event["config_file"], directory)
 
 def upload_shp_file(benchmark_bucket, bucket, shp_basename):
     shp_dir = Path(shp_basename).parent

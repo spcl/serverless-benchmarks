@@ -6,7 +6,7 @@ def handler(event):
     input = event["filter_input_file"]
     TMP_DIR = create_tmp_dir()
     input_path = download_shp_file(benchmark_bucket, event["split_output_bucket"], input, TMP_DIR)
-    config_path = load_config(benchmark_bucket,event["input_bucket"], TMP_DIR)
+    config_path = load_config(event, TMP_DIR)
     # Store workflow data in /tmp due to read only filesystem restriction
     result = subprocess.run([f"SettlementDelineationFilter", "-i", str(input_path), "-c", str(config_path), "-o", TMP_DIR],capture_output=True,text=True)
     if result.returncode != 0:

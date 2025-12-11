@@ -6,7 +6,7 @@ def handler(event):
     cluster_output_bucket = event["cluster_output_bucket"]
     TMP_DIR = create_tmp_dir()
     analysis_input_file = download_shp_file(benchmark_bucket,cluster_output_bucket,event["cluster_output_file"],TMP_DIR)
-    config_file = load_config(benchmark_bucket,event["input_bucket"], TMP_DIR)
+    config_file = load_config(event, TMP_DIR)
     OUTPUT_STEM = "Analysis_"+Path(analysis_input_file).stem
     command = ["SettlementDelineationAnalysis", "-i", str(analysis_input_file), "-c", str(config_file), "--outputStem", OUTPUT_STEM]
     result = subprocess.run(command,capture_output=True,text=True, cwd=TMP_DIR)

@@ -7,7 +7,7 @@ def handler(event):
     filter_output_bucket = event["filter_output_bucket"]
     TMP_DIR = create_tmp_dir()
     input_files = [download_shp_file(benchmark_bucket, filter_output_bucket ,shp_file, TMP_DIR ) for shp_file in event["cluster_input_files"]]
-    config = load_config(benchmark_bucket,event["input_bucket"], TMP_DIR)
+    config = load_config(event, TMP_DIR)
     components = event["cluster_components"]
     OUTPUT_STEM = "Cluster"+str(components[0])
     # Store workflow data in /tmp due to read only filesystem restriction

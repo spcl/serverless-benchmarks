@@ -12,7 +12,7 @@ def handler(event):
     INPUT_DIR = create_tmp_dir()
     OUTPUT_DIR = create_tmp_dir()
     input_path = download_file_bucket(benchmark_bucket, event["input_bucket"], event["input_file"], INPUT_DIR)
-    splits = get_splits(load_config(benchmark_bucket,event["input_bucket"], INPUT_DIR))
+    splits = get_splits(load_config(event, INPUT_DIR))
     command = ["FishnetShapefileSplitter","-i", str(input_path), "-o", str(OUTPUT_DIR),"-s", str(splits)]
     result = subprocess.run(command,capture_output=True,text=True,cwd=INPUT_DIR)
     if result.returncode != 0:
