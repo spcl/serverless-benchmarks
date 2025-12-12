@@ -68,10 +68,10 @@
       "pypy": {
         "base_images": {
           "x64": {
-            "3.11": "pypy:latest"
+            "3.11": "pypy:3.11"
           },
           "arm64": {
-            "3.11": "pypy:latest"
+            "3.11": "pypy:3.11"
           }
         },
         "images": [
