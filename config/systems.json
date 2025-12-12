@@ -93,8 +93,12 @@
         }
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
   },
   "aws": {
     "languages": {
@@ -173,8 +177,14 @@
         }
       }
     },
-    "architecture": ["x64", "arm64"],
-    "deployments": ["package", "container"]
+    "architecture": [
+      "x64",
+      "arm64"
+    ],
+    "deployments": [
+      "package",
+      "container"
+    ]
   },
   "azure": {
     "languages": {
@@ -238,8 +248,12 @@
         "username": "docker_user"
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
   },
   "gcp": {
     "languages": {
@@ -261,7 +275,38 @@
           "files": [
             "handler.py",
             "storage.py",
-            "nosql.py"
+            "nosql.py",
+            "setup.py"
+          ],
+          "packages": [],
+          "module_packages": {
+            "storage": [
+              "google-cloud-storage"
+            ],
+            "nosql": [
+              "google-cloud-datastore"
+            ]
+          }
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.10": "pypy:3.10-slim",
+            "3.11": "pypy:3.11-slim",
+            "3.12": "pypy:3.12-slim"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py",
+            "setup.py"
           ],
           "packages": [],
           "module_packages": {
@@ -302,8 +347,13 @@
         "username": "docker_user"
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package",
+      "container"
+    ]
   },
   "openwhisk": {
     "languages": {
@@ -363,7 +413,11 @@
         }
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["container"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "container"
+    ]
   }
 }
