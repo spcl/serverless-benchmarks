@@ -252,8 +252,9 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "rust": ["*.rs", "Cargo.toml", "Cargo.lock"],
         }
-        WRAPPERS = {"python": "*.py", "nodejs": "*.js"}
+        WRAPPERS = {"python": "*.py", "nodejs": "*.js", "rust": None}
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
@@ -261,14 +262,25 @@ class Benchmark(LoggingBase):
                 path = os.path.join(directory, f)
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
-        # wrappers
-        wrappers = project_absolute_path(
-            "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
-        )
-        for f in glob.glob(wrappers):
-            path = os.path.join(directory, f)
-            with open(path, "rb") as opened_file:
-                hash_sum.update(opened_file.read())
+        # For rust, also hash the src directory recursively
+        if language == "rust":
+            src_dir = os.path.join(directory, "src")
+            if os.path.exists(src_dir):
+                for root, dirs, files in os.walk(src_dir):
+                    for file in sorted(files):
+                        if file.endswith('.rs'):
+                            path = os.path.join(root, file)
+                            with open(path, "rb") as opened_file:
+                                hash_sum.update(opened_file.read())
+        # wrappers (Rust doesn't use wrapper files)
+        if WRAPPERS[language] is not None:
+            wrappers = project_absolute_path(
+                "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
+            )
+            for f in glob.glob(wrappers):
+                path = os.path.join(directory, f)
+                with open(path, "rb") as opened_file:
+                    hash_sum.update(opened_file.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:
@@ -316,11 +328,22 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "rust": ["Cargo.toml", "Cargo.lock"],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
+        
+        # For Rust, copy the entire src directory
+        if self.language_name == "rust":
+            src_path = os.path.join(path, "src")
+            if os.path.exists(src_path):
+                dest_src = os.path.join(output_dir, "src")
+                if os.path.exists(dest_src):
+                    shutil.rmtree(dest_src)
+                shutil.copytree(src_path, dest_src)
+        
         # support node.js benchmarks with language specific packages
         nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
         if os.path.exists(nodejs_package_json):
@@ -406,6 +429,9 @@ class Benchmark(LoggingBase):
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
+        elif self.language == Language.RUST:
+            # Rust dependencies are managed by Cargo, no additional packages needed
+            pass
         else:
             raise NotImplementedError
 
@@ -483,7 +509,7 @@ class Benchmark(LoggingBase):
                     }
 
             # run Docker container to install packages
-            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
+            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "rust": "Cargo.toml"}
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:

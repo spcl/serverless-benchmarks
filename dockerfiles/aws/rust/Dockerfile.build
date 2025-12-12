@@ -1,0 +1,32 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG VERSION
+ENV RUST_VERSION=${VERSION}
+
+# Install required build tools
+RUN yum install -y gcc gcc-c++ make openssl-devel shadow-utils zip
+
+# Install Rust
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VERSION} \
+    && chmod -R a+w $RUSTUP_HOME $CARGO_HOME
+
+# Install gosu for user management
+ENV GOSU_VERSION 1.14
+RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-amd64" \
+    && chmod +x /usr/local/bin/gosu
+
+# Setup SEBS scripts
+RUN mkdir -p /sebs/
+COPY dockerfiles/rust_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/entrypoint.sh /sebs/installer.sh
+
+# useradd and groupmod is installed in /usr/sbin which is not in PATH
+ENV PATH=/usr/sbin:$PATH
+ENV SCRIPT_FILE=/mnt/function/package.sh
+CMD /bin/bash /sebs/installer.sh
+ENTRYPOINT ["/sebs/entrypoint.sh"]

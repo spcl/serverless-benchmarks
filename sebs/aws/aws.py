@@ -137,6 +137,7 @@ class AWS(System):
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
+            "rust": ["bootstrap", "Cargo.toml", "Cargo.lock", "target"],
         }
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
@@ -174,6 +175,9 @@ class AWS(System):
         # For example, it's 12.x instead of 12.
         if language == "nodejs":
             return f"{runtime}.x"
+        # Rust uses provided.al2023 runtime (custom runtime)
+        elif language == "rust":
+            return "provided.al2023"
         return runtime
 
     def create_function(
@@ -251,10 +255,15 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                create_function_params["Runtime"] = "{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
-                )
-                create_function_params["Handler"] = "handler.handler"
+                # Rust uses custom runtime with different handler
+                if language == "rust":
+                    create_function_params["Runtime"] = self._map_language_runtime(language, language_runtime)
+                    create_function_params["Handler"] = "bootstrap"
+                else:
+                    create_function_params["Runtime"] = "{}{}".format(
+                        language, self._map_language_runtime(language, language_runtime)
+                    )
+                    create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {
                 k: v for k, v in create_function_params.items() if v is not None
