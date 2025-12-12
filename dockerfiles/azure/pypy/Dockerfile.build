@@ -1,0 +1,19 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG VERSION
+ENV PYTHON_VERSION=${VERSION}
+
+RUN apt-get update && apt-get install -y gosu curl tar bzip2 gzip libc6 libgcc-s1 && \
+    mkdir -p /lib64 && \
+    (ln -sf /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 || true)
+
+RUN mkdir -p /sebs/
+COPY dockerfiles/pypy_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/entrypoint.sh
+
+# useradd and groupmod is installed in /usr/sbin which is not in PATH
+ENV PATH=/usr/sbin:$PATH
+ENV SCRIPT_FILE=/mnt/function/package.sh
+CMD /bin/bash /sebs/installer.sh
+ENTRYPOINT ["/sebs/entrypoint.sh"]

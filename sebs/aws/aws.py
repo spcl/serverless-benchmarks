@@ -134,33 +134,22 @@ class AWS(System):
                 directory, language_name, language_version, architecture, benchmark, is_cached
             )
 
-        if language_name == "java":
-            jar_path = os.path.join(directory, "function.jar")
-            if not os.path.exists(jar_path):
-                raise RuntimeError("function.jar missing. Ensure Java build produced the jar.")
-            package_dir = os.path.join(directory, "package")
-            os.makedirs(package_dir, exist_ok=True)
-            shutil.copy2(jar_path, os.path.join(package_dir, "function.jar"))
-            execute("zip -qu -r9 {}.zip .".format(benchmark), shell=True, cwd=package_dir)
-            benchmark_archive = "{}.zip".format(os.path.join(package_dir, benchmark))
-        else:
-            CONFIG_FILES = {
-                "python": ["handler.py", "requirements.txt", ".python_packages"],
-                "nodejs": ["handler.js", "package.json", "node_modules"],
-                "rust": ["bootstrap", "Cargo.toml", "Cargo.lock", "target"],
-            }
-            package_config = CONFIG_FILES[language_name]
-            function_dir = os.path.join(directory, "function")
-            os.makedirs(function_dir)
-            # move all files to 'function' except handler.py
-            for file in os.listdir(directory):
-                if file not in package_config:
-                    file = os.path.join(directory, file)
-                    shutil.move(file, function_dir)
-            # FIXME: use zipfile
-            # create zip with hidden directory but without parent directory
-            execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
-            benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+        CONFIG_FILES = {
+            "python": ["handler.py", "requirements.txt", ".python_packages"],
+            "nodejs": ["handler.js", "package.json", "node_modules"],
+        }
+        package_config = CONFIG_FILES[language_name]
+        function_dir = os.path.join(directory, "function")
+        os.makedirs(function_dir)
+        # move all files to 'function' except handler.py
+        for file in os.listdir(directory):
+            if file not in package_config:
+                file = os.path.join(directory, file)
+                shutil.move(file, function_dir)
+        # FIXME: use zipfile
+        # create zip with hidden directory but without parent directory
+        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
         self.logging.info("Created {} archive".format(benchmark_archive))
 
         bytes_size = os.path.getsize(benchmark_archive)
@@ -189,11 +178,9 @@ class AWS(System):
 
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
+        # We use a OS-only runtime for PyPy
         if language == "nodejs":
             return f"{runtime}.x"
-        # Rust uses provided.al2023 runtime (custom runtime)
-        elif language == "rust":
-            return "provided.al2023"
         return runtime
 
     def create_function(
@@ -271,15 +258,10 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                # Rust uses custom runtime with different handler
-                if language == "rust":
-                    create_function_params["Runtime"] = self._map_language_runtime(language, language_runtime)
-                    create_function_params["Handler"] = "bootstrap"
-                else:
-                    create_function_params["Runtime"] = "{}{}".format(
-                        language, self._map_language_runtime(language, language_runtime)
-                    )
-                    create_function_params["Handler"] = self._default_handler(language)
+                create_function_params["Runtime"] = "{}{}".format(
+                    language, self._map_language_runtime(language, language_runtime)
+                )
+                create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {
                 k: v for k, v in create_function_params.items() if v is not None
@@ -426,15 +408,26 @@ class AWS(System):
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {function.name} function. ")
 
+    def get_real_language_name(self, language_name: str) -> str:
+        LANGUAGE_NAMES = {
+            "python": "python",
+            "pypy": "python",
+            "nodejs": "nodejs",
+        }
+        return LANGUAGE_NAMES.get(language_name)
+
     # @staticmethod
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
             code_package.benchmark,
+            # see which works
+            #self.get_real_language_name(code_package.language_name),
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,

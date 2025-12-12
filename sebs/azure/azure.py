@@ -33,7 +33,11 @@ class Azure(System):
     _config: AzureConfig
 
     # runtime mapping
+<<<<<<< HEAD
     AZURE_RUNTIMES = {"python": "python", "nodejs": "node", "java": "java"}
+=======
+    AZURE_RUNTIMES = {"python": "python", "nodejs": "node", "pypy": "custom"}
+>>>>>>> features/pypy-runtime-azure
 
     @staticmethod
     def name():
@@ -144,11 +148,20 @@ class Azure(System):
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
+<<<<<<< HEAD
         EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js", "java": "../function.jar"}
         CONFIG_FILES = {
             "python": ["requirements.txt", ".python_packages"],
             "nodejs": ["package.json", "node_modules"],
             "java": ["function.jar"],
+=======
+        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js", "pypy": "handler.py"}
+        CONFIG_FILES = {
+            "python": ["requirements.txt", ".python_packages"],
+            "nodejs": ["package.json", "node_modules"],
+            # Keep .python_packages at the root so custom handler can import deps.
+            "pypy": ["requirements.txt", ".python_packages", "pypy"],
+>>>>>>> features/pypy-runtime-azure
         }
         package_config = CONFIG_FILES[language_name]
 
@@ -166,8 +179,12 @@ class Azure(System):
             package_config = ["lib", "src", "pom.xml", "target", ".mvn", "mvnw", "mvnw.cmd"]
         
         # move all files to 'handler' except package config
+        # For pypy custom handlers, handler.py must stay at root level
+        files_to_exclude = package_config.copy()
+        if language_name == "pypy":
+            files_to_exclude.append(EXEC_FILES[language_name])
         for f in os.listdir(directory):
-            if f not in package_config:
+            if f not in files_to_exclude:
                 source_file = os.path.join(directory, f)
                 shutil.move(source_file, handler_dir)
         
@@ -183,6 +200,7 @@ class Azure(System):
 
         # generate function.json
         # TODO: extension to other triggers than HTTP
+<<<<<<< HEAD
         if language_name == "java":
             # Java Azure Functions - For annotation-based functions, function.json
             # should include scriptFile and entryPoint
@@ -219,6 +237,23 @@ class Azure(System):
                     {"type": "http", "direction": "out", "name": "$return"},
                 ],
             }
+=======
+        default_function_json = {
+            "bindings": [
+                {
+                    "authLevel": "anonymous",
+                    "type": "httpTrigger",
+                    "direction": "in",
+                    "name": "req",
+                    "methods": ["get", "post"],
+                },
+                {"type": "http", "direction": "out", "name": "$return"},
+            ],
+        }
+        if language_name != "pypy":
+            default_function_json["scriptFile"] = EXEC_FILES[language_name]
+
+>>>>>>> features/pypy-runtime-azure
         json_out = os.path.join(directory, "handler", "function.json")
         json.dump(default_function_json, open(json_out, "w"), indent=2)
 
@@ -230,6 +265,14 @@ class Azure(System):
                 "version": "[4.0.0, 5.0.0)",
             },
         }
+        if language_name == "pypy":
+            default_host_json["customHandler"] = {
+                "description": {
+                    "defaultExecutablePath": "pypy/bin/pypy",
+                    "arguments": ["handler.py"],
+                },
+                "enableForwardingHttpRequest": True,
+            }
         json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
@@ -519,11 +562,16 @@ class Azure(System):
             while True:
                 try:
                     # create function app
+                    # Custom runtime doesn't support --runtime-version parameter
+                    runtime_version_param = ""
+                    if config["runtime"] != "custom":
+                        runtime_version_param = " --runtime-version {runtime_version} "
+                    
                     self.cli_instance.execute(
                         (
                             " az functionapp create --resource-group {resource_group} "
                             " --os-type Linux --consumption-plan-location {region} "
-                            " --runtime {runtime} --runtime-version {runtime_version} "
+                            " --runtime {runtime}" + runtime_version_param +
                             " --name {func_name} --storage-account {storage_account}"
                             " --functions-version 4 "
                         ).format(**config)

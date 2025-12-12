@@ -265,6 +265,7 @@ class Language(Enum):
     NODEJS = "nodejs"
     RUST = "rust"
     JAVA = "java"
+    PYPY = "pypy"
 
     # FIXME: 3.7+ python with future annotations
     @staticmethod
@@ -272,7 +273,7 @@ class Language(Enum):
         for member in Language:
             if member.value == val:
                 return member
-        raise Exception(f"Unknown language type {member}")
+        raise Exception(f"Unknown language type {val}")
 
 
 class Architecture(Enum):
@@ -301,7 +302,7 @@ class Runtime:
 
     @staticmethod
     def deserialize(config: dict) -> Runtime:
-        languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS, "rust": Language.RUST, "java": Language.JAVA}
+        languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS, "rust": Language.RUST, "java": Language.JAVA, "pypy": Language.PYPY}
         return Runtime(language=languages[config["language"]], version=config["version"])
 
 
