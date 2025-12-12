@@ -1,0 +1,16 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
+ARG VERSION
+ENV JAVA_VERSION=${VERSION}
+ARG TARGET_ARCHITECTURE
+
+COPY . function/
+WORKDIR /function
+
+# Ensure packaged jar is present for the Lambda base image
+RUN if [ -d "target" ] && ls target/*.jar >/dev/null 2>&1; then \
+      cp target/*.jar function.jar; \
+    fi \
+    && test -f function.jar
+
+CMD ["org.serverlessbench.Handler::handleRequest"]
