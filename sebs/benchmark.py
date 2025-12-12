@@ -252,21 +252,17 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
-<<<<<<< HEAD
             "rust": ["*.rs", "Cargo.toml", "Cargo.lock"],
             "java": [],
+            "pypy": ["*.py", "requirements.txt*"],
         }
         WRAPPERS = {
             "python": ["*.py"],
             "nodejs": ["*.js"],
             "rust": None,
             "java": ["src", "pom.xml"],
+            "pypy": ["*.py"],
         }
-=======
-            "pypy": ["*.py", "requirements.txt*"],
-        }
-        WRAPPERS = {"python": "*.py", "nodejs": "*.js", "pypy": "*.py"}
->>>>>>> features/pypy-runtime-azure
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
@@ -348,12 +344,9 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
-<<<<<<< HEAD
             "rust": ["Cargo.toml", "Cargo.lock"],
             "java": [],
-=======
             "pypy": ["*.py", "requirements.txt*"],
->>>>>>> features/pypy-runtime-azure
         }
         path = os.path.join(self.benchmark_path, self.language_name)
         if self.language_name == "java":
@@ -549,11 +542,7 @@ class Benchmark(LoggingBase):
                     }
 
             # run Docker container to install packages
-<<<<<<< HEAD
-            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "rust": "Cargo.toml", "java": "pom.xml"}
-=======
-            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "pypy": "requirements.txt"}
->>>>>>> features/pypy-runtime-azure
+            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "rust": "Cargo.toml", "java": "pom.xml", "pypy": "requirements.txt"}
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
