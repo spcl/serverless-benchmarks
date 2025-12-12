@@ -197,6 +197,8 @@ Then, we need to add the new language in [`config/systems.json`](/config/systems
 
 Once done, we can build the image with `tools/build_docker_images.py`.
 
+*Note: Building the docker files might fail to the scylladb volume having the wrong permissions. Can be circumvented using `chown -R <your user>:<your user> scylladb-volume`.*
+
 #### Benchmark Wrappers
 
 For each language and cloud platform, we need to implement benchmark wrappers.

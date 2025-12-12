@@ -4,6 +4,7 @@ import shutil
 import time
 import uuid
 from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
+import fnmatch
 
 import boto3
 import docker
@@ -137,13 +138,14 @@ class AWS(System):
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
+            "bun": ["*"], # ignore all files from bun / do not move them into a subdirectory
         }
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
-        # move all files to 'function' except handler.py
+        # move all files to 'function' except config files like handler.py
         for file in os.listdir(directory):
-            if file not in package_config:
+            if not any(fnmatch.fnmatch(file, pattern) for pattern in package_config):
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
         # FIXME: use zipfile
@@ -152,7 +154,7 @@ class AWS(System):
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
         self.logging.info("Created {} archive".format(benchmark_archive))
 
-        bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
+        bytes_size = os.path.getsize(benchmark_archive)
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
@@ -174,6 +176,8 @@ class AWS(System):
         # For example, it's 12.x instead of 12.
         if language == "nodejs":
             return f"{runtime}.x"
+        elif language == "bun":
+            return "provided.al2023"
         return runtime
 
     def create_function(
@@ -251,9 +255,7 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                create_function_params["Runtime"] = "{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
-                )
+                create_function_params["Runtime"] = self._map_language_runtime(language, language_runtime)
                 create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {

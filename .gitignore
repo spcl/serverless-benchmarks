@@ -190,3 +190,12 @@ cache
 
 # MacOS Finder
 **/.DS_Store
+
+# Local benchmarks
+out_benchmark.json
+out_storage.json
+local_deployment.json
+experiments.json
+
+# Editors
+.vscode
