@@ -149,7 +149,6 @@
           }
         }
       },
-<<<<<<< HEAD
       "rust": {
         "base_images": {
           "x64": {
@@ -188,15 +187,6 @@
           },
           "arm64": {
             "17": "public.ecr.aws/lambda/java:17"
-=======
-      "pypy": {
-        "base_images": {
-          "x64": {
-            "3.11": "amazon/aws-lambda-provided:al2-x86_64"
-          },
-          "arm64": {
-            "3.11": "amazon/aws-lambda-provided:al2-arm64"
->>>>>>> features/pypy-runtime-azure
           }
         },
         "images": [
@@ -204,19 +194,33 @@
         ],
         "deployment": {
           "files": [
-<<<<<<< HEAD
             "pom.xml",
             "src"
           ],
           "packages": {},
-=======
+          "module_packages": {}
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "amazon/aws-lambda-provided:al2-x86_64"
+          },
+          "arm64": {
+            "3.11": "amazon/aws-lambda-provided:al2-arm64"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
             "handler.py",
             "storage.py",
             "nosql.py",
             "setup.py"
           ],
           "packages": [],
->>>>>>> features/pypy-runtime-azure
           "module_packages": {}
         }
       }
@@ -280,17 +284,10 @@
           }
         }
       },
-<<<<<<< HEAD
       "java": {
         "base_images": {
           "x64": {
             "17": "mcr.microsoft.com/azure-functions/java:4-java17"
-=======
-      "pypy": {
-        "base_images": {
-          "x64": {
-            "3.11": "ubuntu:20.04"
->>>>>>> features/pypy-runtime-azure
           }
         },
         "images": [
@@ -299,13 +296,25 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-<<<<<<< HEAD
             "pom.xml",
             "src"
           ],
           "packages": {},
           "module_packages": {}
-=======
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "ubuntu:20.04"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
             "handler.py",
             "storage.py",
             "nosql.py"
@@ -319,7 +328,6 @@
               "azure-cosmos"
             ]
           }
->>>>>>> features/pypy-runtime-azure
         }
       }
     },

@@ -33,11 +33,7 @@ class Azure(System):
     _config: AzureConfig
 
     # runtime mapping
-<<<<<<< HEAD
-    AZURE_RUNTIMES = {"python": "python", "nodejs": "node", "java": "java"}
-=======
-    AZURE_RUNTIMES = {"python": "python", "nodejs": "node", "pypy": "custom"}
->>>>>>> features/pypy-runtime-azure
+    AZURE_RUNTIMES = {"python": "python", "nodejs": "node", "java": "java", "pypy": "custom"}
 
     @staticmethod
     def name():
@@ -148,20 +144,13 @@ class Azure(System):
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
-<<<<<<< HEAD
-        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js", "java": "../function.jar"}
+        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js", "java": "../function.jar", "pypy": "handler.py"}
         CONFIG_FILES = {
             "python": ["requirements.txt", ".python_packages"],
             "nodejs": ["package.json", "node_modules"],
             "java": ["function.jar"],
-=======
-        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js", "pypy": "handler.py"}
-        CONFIG_FILES = {
-            "python": ["requirements.txt", ".python_packages"],
-            "nodejs": ["package.json", "node_modules"],
             # Keep .python_packages at the root so custom handler can import deps.
             "pypy": ["requirements.txt", ".python_packages", "pypy"],
->>>>>>> features/pypy-runtime-azure
         }
         package_config = CONFIG_FILES[language_name]
 
@@ -200,7 +189,6 @@ class Azure(System):
 
         # generate function.json
         # TODO: extension to other triggers than HTTP
-<<<<<<< HEAD
         if language_name == "java":
             # Java Azure Functions - For annotation-based functions, function.json
             # should include scriptFile and entryPoint
@@ -225,7 +213,6 @@ class Azure(System):
             }
         else:
             default_function_json = {
-                "scriptFile": EXEC_FILES[language_name],
                 "bindings": [
                     {
                         "authLevel": "anonymous",
@@ -237,23 +224,10 @@ class Azure(System):
                     {"type": "http", "direction": "out", "name": "$return"},
                 ],
             }
-=======
-        default_function_json = {
-            "bindings": [
-                {
-                    "authLevel": "anonymous",
-                    "type": "httpTrigger",
-                    "direction": "in",
-                    "name": "req",
-                    "methods": ["get", "post"],
-                },
-                {"type": "http", "direction": "out", "name": "$return"},
-            ],
-        }
-        if language_name != "pypy":
-            default_function_json["scriptFile"] = EXEC_FILES[language_name]
+            # PyPy uses custom handler, no scriptFile needed
+            if language_name != "pypy":
+                default_function_json["scriptFile"] = EXEC_FILES[language_name]
 
->>>>>>> features/pypy-runtime-azure
         json_out = os.path.join(directory, "handler", "function.json")
         json.dump(default_function_json, open(json_out, "w"), indent=2)
 

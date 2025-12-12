@@ -13,18 +13,14 @@ parser.add_argument(
     "--deployment", default=None, choices=["local", "aws", "azure", "gcp"], action="store"
 )
 parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
-<<<<<<< HEAD
 parser.add_argument(
-    "--language", default=None, choices=["python", "nodejs", "java", "rust"], action="store"
+    "--language", default=None, choices=["python", "nodejs", "java", "rust", "pypy"], action="store"
 )
 parser.add_argument(
     "--platform",
     default=None,
     help="Optional Docker platform (e.g., linux/amd64) to override host architecture.",
 )
-=======
-parser.add_argument("--language", default=None, choices=["python", "nodejs", "pypy"], action="store")
->>>>>>> features/pypy-runtime-azure
 parser.add_argument("--language-version", default=None, type=str, action="store")
 # Optional: force build platform (e.g., linux/amd64 on Apple Silicon)
 parser.add_argument("--platform", default=None, type=str, action="store")
@@ -66,25 +62,20 @@ def build(image_type, system, language=None, version=None, version_name=None):
             target, PROJECT_DIR, dockerfile, buildargs
         )
     )
-<<<<<<< HEAD
-    platform_arg = args.platform or os.environ.get("DOCKER_DEFAULT_PLATFORM")
-
-    try:
-        client.images.build(
-            path=PROJECT_DIR,
-            dockerfile=dockerfile,
-            buildargs=buildargs,
-            tag=target,
-            platform=platform_arg,
-        )
-=======
+    
+    # Build kwargs with platform support
     build_kwargs = {
         "path": PROJECT_DIR,
         "dockerfile": dockerfile,
         "buildargs": buildargs,
         "tag": target,
     }
-    if PLATFORM:
+    
+    # Platform selection priority: CLI arg > env var > system config
+    platform_arg = args.platform or os.environ.get("DOCKER_DEFAULT_PLATFORM")
+    if platform_arg:
+        build_kwargs["platform"] = platform_arg
+    elif PLATFORM:
         build_kwargs["platform"] = PLATFORM
     elif system in config and "architecture" in config[system]:
         archs = config[system]["architecture"]
@@ -98,7 +89,6 @@ def build(image_type, system, language=None, version=None, version_name=None):
 
     try:
         client.images.build(**build_kwargs)
->>>>>>> features/pypy-runtime-azure
     except docker.errors.BuildError as exc:
         print("Error! Build failed!")
         print(exc)
