@@ -67,6 +67,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+    // Get unique request ID from Cloudflare (CF-Ray header)
+    const crypto = require('crypto');
+    const reqId = req.headers['cf-ray'] || crypto.randomUUID();
+    
     // Extract Worker URL from header for R2 and NoSQL proxy
     const workerUrl = req.headers['x-worker-url'];
     if (workerUrl) {
@@ -109,7 +113,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Add request metadata
-    const reqId = 0;
     const incomeTimestamp = Math.floor(Date.now() / 1000);
     event['request-id'] = reqId;
     event['income-timestamp'] = incomeTimestamp;
@@ -154,21 +157,26 @@ const server = http.createServer(async (req, res) => {
 
     console.log('Sending response with log_data:', log_data);
 
+    // Get memory usage in MB
+    const memUsage = process.memoryUsage();
+    const memory_mb = memUsage.heapUsed / 1024 / 1024;
+
     // Send response matching Python handler format exactly
     if (event.html) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(String(ret && ret.result !== undefined ? ret.result : ret));
     } else {
       const responseBody = JSON.stringify({
-        begin: "0",
-        end: "0",
-        results_time: "0",
+        begin: begin,
+        end: end,
+        results_time: 0,
         result: log_data,
         is_cold: false,
         is_cold_worker: false,
         container_id: '0',
         environ_container_id: 'no_id',
-        request_id: '0',
+        request_id: reqId,
+        memory_used: memory_mb,
       });
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(responseBody);

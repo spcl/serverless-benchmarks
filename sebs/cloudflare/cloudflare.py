@@ -1511,7 +1511,7 @@ dev = [
                 wall_times.append(result.times.benchmark)
 
             # Collect memory usage
-            if result.stats.memory_used > 0:
+            if result.stats.memory_used is not None and result.stats.memory_used > 0:
                 memory_values.append(result.stats.memory_used)
 
             # Set billing info for Cloudflare Workers

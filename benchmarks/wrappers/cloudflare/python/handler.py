@@ -2,6 +2,7 @@ import datetime, io, json, os, uuid, sys, ast
 import asyncio
 import importlib.util
 import traceback
+import resource
 from workers import WorkerEntrypoint, Response, DurableObject
 
 ## sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
@@ -34,6 +35,9 @@ class Default(WorkerEntrypoint):
     async def fetch2(self, request, env):
         if "favicon" in request.url: return Response("None")
 
+        # Get unique request ID from Cloudflare (CF-Ray header)
+        req_id = request.headers.get('CF-Ray', str(uuid.uuid4()))
+
         req_text = await request.text()
 
         event = json.loads(req_text) if len(req_text) > 0 else {}
@@ -55,8 +59,6 @@ class Default(WorkerEntrypoint):
 
 
 
-        ## we might need more data in self.env to know this ID
-        req_id = 0
         ## note: time fixed in worker
         income_timestamp = datetime.datetime.now().timestamp()
 
@@ -97,16 +99,24 @@ class Default(WorkerEntrypoint):
             headers = {"Content-Type" : "text/html; charset=utf-8"}
             return Response(str(ret["result"]), headers = headers)
         else:
+            # Get memory usage in MB
+            memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+            
+            # Calculate timestamps
+            end_timestamp = datetime.datetime.now().timestamp()
+            begin_timestamp = income_timestamp
+            
             return Response(json.dumps({
-                'begin': "0",
-                'end': "0",
-                'results_time': "0",
+                'begin': begin_timestamp,
+                'end': end_timestamp,
+                'results_time': 0,
                 'result': log_data,
                 'is_cold': False,
                 'is_cold_worker': False,
                 'container_id': "0",
                 'environ_container_id': "no_id",
-                'request_id': "0"
+                'request_id': req_id,
+                'memory_used': memory_mb
             }))
 
 

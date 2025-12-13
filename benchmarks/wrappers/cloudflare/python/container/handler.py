@@ -8,6 +8,7 @@ import json
 import sys
 import os
 import traceback
+import resource
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import datetime
@@ -84,6 +85,10 @@ class ContainerHandler(BaseHTTPRequestHandler):
             return
         
         try:
+            # Get unique request ID from Cloudflare (CF-Ray header)
+            import uuid
+            req_id = self.headers.get('CF-Ray', str(uuid.uuid4()))
+            
             # Extract Worker URL from header for R2 and NoSQL proxy
             worker_url = self.headers.get('X-Worker-URL')
             if worker_url:
@@ -117,8 +122,6 @@ class ContainerHandler(BaseHTTPRequestHandler):
                         event[key] = value
             
             # Add request metadata
-            import random
-            req_id = str(random.randint(0, 1000000))
             income_timestamp = datetime.datetime.now().timestamp()
             event['request-id'] = req_id
             event['income-timestamp'] = income_timestamp
@@ -146,16 +149,20 @@ class ContainerHandler(BaseHTTPRequestHandler):
             if 'measurement' in result:
                 log_data['measurement'] = result['measurement']
             
+            # Get memory usage in MB
+            memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+            
             response_data = {
-                'begin': "0",
-                'end': "0",
-                'results_time': "0",
+                'begin': begin,
+                'end': end,
+                'results_time': 0,
                 'result': log_data,
                 'is_cold': False,
                 'is_cold_worker': False,
                 'container_id': "0",
                 'environ_container_id': "no_id",
-                'request_id': "0"
+                'request_id': req_id,
+                'memory_used': memory_mb
             }
             
             # Send response

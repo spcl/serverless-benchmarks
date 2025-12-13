@@ -40,6 +40,9 @@ export default {
         return new Response('None');
       }
 
+    // Get unique request ID from Cloudflare (CF-Ray header)
+    const req_id = request.headers.get('CF-Ray') || crypto.randomUUID();
+
     // Start timing measurements
     const begin = Date.now() / 1000;
     const start = performance.now();
@@ -80,8 +83,7 @@ export default {
       }
     }
 
-    // Set request id and timestamps (Python used 0 for request id)
-    const req_id = 0;
+    // Set timestamps
     const income_timestamp = Math.floor(Date.now() / 1000);
     event['request-id'] = req_id;
     event['income-timestamp'] = income_timestamp;
@@ -201,6 +203,10 @@ export default {
       });
     }
 
+    // Get memory usage in MB
+    const memUsage = process.memoryUsage();
+    const memory_mb = memUsage.heapUsed / 1024 / 1024;
+
     const responseBody = JSON.stringify({
       begin: begin,
       end: end,
@@ -211,7 +217,8 @@ export default {
       is_cold_worker: false,
       container_id: '0',
       environ_container_id: 'no_id',
-      request_id: '0',
+      request_id: req_id,
+      memory_used: memory_mb,
     });
 
     return new Response(responseBody, { headers: { 'Content-Type': 'application/json' } });
