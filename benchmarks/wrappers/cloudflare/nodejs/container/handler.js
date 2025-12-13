@@ -150,16 +150,16 @@ const server = http.createServer(async (req, res) => {
     const log_data = { output: ret && ret.result !== undefined ? ret.result : ret };
     if (ret && ret.measurement !== undefined) {
       log_data.measurement = ret.measurement;
+    } else {
+      log_data.measurement = {};
     }
-    if (event.logs !== undefined) {
-      log_data.time = 0;
-    }
-
-    console.log('Sending response with log_data:', log_data);
-
-    // Get memory usage in MB
+    
+    // Add memory usage to measurement
     const memUsage = process.memoryUsage();
     const memory_mb = memUsage.heapUsed / 1024 / 1024;
+    log_data.measurement.memory_used_mb = memory_mb;
+
+    console.log('Sending response with log_data:', log_data);
 
     // Send response matching Python handler format exactly
     if (event.html) {
@@ -176,7 +176,6 @@ const server = http.createServer(async (req, res) => {
         container_id: '0',
         environ_container_id: 'no_id',
         request_id: reqId,
-        memory_used: memory_mb,
       });
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(responseBody);

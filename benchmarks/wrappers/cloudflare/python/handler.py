@@ -92,6 +92,13 @@ class Default(WorkerEntrypoint):
         }
         if 'measurement' in ret:
             log_data['measurement'] = ret['measurement']
+        else:
+            log_data['measurement'] = {}
+        
+        # Add memory usage to measurement
+        memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+        log_data['measurement']['memory_used_mb'] = memory_mb
+        
         if 'logs' in event:
             log_data['time'] = 0
 
@@ -99,9 +106,6 @@ class Default(WorkerEntrypoint):
             headers = {"Content-Type" : "text/html; charset=utf-8"}
             return Response(str(ret["result"]), headers = headers)
         else:
-            # Get memory usage in MB
-            memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
-            
             # Calculate timestamps
             end_timestamp = datetime.datetime.now().timestamp()
             begin_timestamp = income_timestamp
@@ -115,8 +119,7 @@ class Default(WorkerEntrypoint):
                 'is_cold_worker': False,
                 'container_id': "0",
                 'environ_container_id': "no_id",
-                'request_id': req_id,
-                'memory_used': memory_mb
+                'request_id': req_id
             }))
 
 

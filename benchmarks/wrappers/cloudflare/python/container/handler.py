@@ -148,9 +148,12 @@ class ContainerHandler(BaseHTTPRequestHandler):
             }
             if 'measurement' in result:
                 log_data['measurement'] = result['measurement']
+            else:
+                log_data['measurement'] = {}
             
-            # Get memory usage in MB
+            # Add memory usage to measurement
             memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+            log_data['measurement']['memory_used_mb'] = memory_mb
             
             response_data = {
                 'begin': begin,
@@ -161,8 +164,7 @@ class ContainerHandler(BaseHTTPRequestHandler):
                 'is_cold_worker': False,
                 'container_id': "0",
                 'environ_container_id': "no_id",
-                'request_id': req_id,
-                'memory_used': memory_mb
+                'request_id': req_id
             }
             
             # Send response

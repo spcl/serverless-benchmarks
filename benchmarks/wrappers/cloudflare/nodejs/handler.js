@@ -192,7 +192,15 @@ export default {
     const log_data = { output: ret && ret.result !== undefined ? ret.result : ret };
     if (ret && ret.measurement !== undefined) {
       log_data.measurement = ret.measurement;
+    } else {
+      log_data.measurement = {};
     }
+    
+    // Add memory usage to measurement
+    const memUsage = process.memoryUsage();
+    const memory_mb = memUsage.heapUsed / 1024 / 1024;
+    log_data.measurement.memory_used_mb = memory_mb;
+    
     if (event.logs !== undefined) {
       log_data.time = 0;
     }
@@ -202,10 +210,6 @@ export default {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
       });
     }
-
-    // Get memory usage in MB
-    const memUsage = process.memoryUsage();
-    const memory_mb = memUsage.heapUsed / 1024 / 1024;
 
     const responseBody = JSON.stringify({
       begin: begin,
@@ -218,7 +222,6 @@ export default {
       container_id: '0',
       environ_container_id: 'no_id',
       request_id: req_id,
-      memory_used: memory_mb,
     });
 
     return new Response(responseBody, { headers: { 'Content-Type': 'application/json' } });
