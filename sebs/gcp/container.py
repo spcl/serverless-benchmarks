@@ -61,14 +61,6 @@ class GCRContainer(DockerContainer):
             raise e
         return False
 
-    def get_adapted_image_name(self, image_name: str, language_name: str,language_version: str, architecture: str):
-        if language_name == "python":
-            return f"python:{language_version}-slim"
-        elif language_name == "nodejs":
-            return f"node:{language_version}-slim"
-
-        return image_name
-
     def push_image(self, repository_uri, image_tag):        
         self.logging.info("Authenticating Docker against Artifact Registry...")
         self.creds.refresh(Request())
