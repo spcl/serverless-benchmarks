@@ -126,9 +126,6 @@ class DockerContainer(LoggingBase):
     ) -> Tuple[str, str, str, str]:
         pass
 
-    def get_adapted_image_name(self, image_name: str, language_name: str,language_version: str, architecture: str):
-        return image_name
-
     def build_base_image(
         self,
         directory: str,
@@ -198,8 +195,6 @@ class DockerContainer(LoggingBase):
                 "This step requires configured emulation. If the build fails, please consult "
                 "our documentation. We recommend QEMU as it can be configured to run automatically."
             )
-
-        builder_image = self.get_adapted_image_name(builder_image, language_name, language_version, architecture)
 
         buildargs = {
             "VERSION": language_version,
