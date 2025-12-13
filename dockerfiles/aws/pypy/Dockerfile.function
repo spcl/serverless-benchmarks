@@ -1,29 +1,15 @@
 ARG BASE_IMAGE
-FROM $BASE_IMAGE
-ARG VERSION
-ENV PYTHON_VERSION=${VERSION}
 ARG TARGET_ARCHITECTURE
 
+FROM --platform=linux/amd64 ${BASE_IMAGE} AS base-x64
+FROM --platform=linux/arm64/v8 ${BASE_IMAGE} AS base-arm64
+
+FROM base-${TARGET_ARCHITECTURE}
+ARG TARGET_ARCHITECTURE
+ARG VERSION
+ENV PYTHON_VERSION=${VERSION}
+
 COPY . function/
-
-RUN dnf install -y tar bzip2 gzip glibc-langpack-en
-ENV LANG=en_US.UTF-8
-ENV LC_ALL=en_US.UTF-8
-
-RUN if [ "${TARGET_ARCHITECTURE}" = "arm64" ]; then \
-      export PYPY_ARCH="aarch64"; \
-    else \
-      export PYPY_ARCH="linux64"; \
-    fi \
-    && curl -L -o pypy.tar.bz2 https://downloads.python.org/pypy/pypy3.11-v7.3.20-${PYPY_ARCH}.tar.bz2 \
-    && tar -xjf pypy.tar.bz2 \
-    && mv  pypy3.11-v7.3.20-${PYPY_ARCH} /opt/pypy \
-    && rm pypy.tar.bz2
-RUN chmod -R +x /opt/pypy/bin
-ENV PATH=/opt/pypy/bin:$PATH
-RUN python -m ensurepip \
-    && python -mpip install -U pip wheel
-
 ENV PLATFORM_ARG=""
 
 RUN touch function/__init__.py
