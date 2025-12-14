@@ -1,0 +1,57 @@
+{
+  "experiments": {
+    "deployment": "sonataflow",
+    "update_code": true,
+    "update_storage": false,
+    "download_results": false,
+    "architecture": "x64",
+    "container_deployment": true,
+    "runtime": {
+      "language": "python",
+      "version": "3.8"
+    },
+    "type": "invocation-overhead",
+    "invocation-overhead": {
+      "repetitions": 1,
+      "N": 5,
+      "type": "payload",
+      "payload_begin": 1024,
+      "payload_end": 2048,
+      "payload_points": 2,
+      "code_begin": 1048576,
+      "code_end": 2097152,
+      "code_points": 2
+    }
+  },
+  "deployment": {
+    "name": "sonataflow",
+    "sonataflow": {
+      "resources": {
+        "redis": {
+          "host": "localhost:6380",
+          "password": ""
+        },
+        "runtime": {
+          "url": "http://localhost:8080",
+          "endpoint_prefix": "services"
+        }
+      },
+      "storage": {
+        "type": "minio",
+        "address": "localhost",
+        "mapped_port": 9000,
+        "access_key": "minio",
+        "secret_key": "minio123",
+        "instance_id": "minio",
+        "input_buckets": [],
+        "output_buckets": []
+      },
+      "nosql": {
+        "type": "scylladb",
+        "address": "localhost",
+        "mapped_port": 9042,
+        "instance_id": "scylladb"
+      }
+    }
+  }
+}
