@@ -1,0 +1,125 @@
+{
+  "_invocations": {
+    "sebd-610.gen-python-3.8": {
+      "6e0f75aa": {
+        "billing": {
+          "_billed_time": null,
+          "_gb_seconds": 0,
+          "_memory": null
+        },
+        "output": {},
+        "provider_times": {
+          "execution": 0,
+          "initialization": 0
+        },
+        "request_id": "6e0f75aa",
+        "stats": {
+          "cold_start": false,
+          "failure": true,
+          "memory_used": null
+        },
+        "times": {
+          "benchmark": 0,
+          "client": 93292,
+          "client_begin": "2025-12-14 22:00:40.135117",
+          "client_end": "2025-12-14 22:00:40.228409",
+          "initialization": 0
+        }
+      }
+    }
+  },
+  "_metrics": {},
+  "begin_time": 1765746040.129077,
+  "config": {
+    "deployment": {
+      "name": "sonataflow",
+      "region": "",
+      "resources": {
+        "allocated_ports": [],
+        "nosql": {
+          "access_key": "None",
+          "address": "172.17.0.3:8000",
+          "alternator_port": 8000,
+          "cpus": -1,
+          "data_volume": "",
+          "instance_id": "07961446bedf02c284b7657182c3ae4c0f3b25cab2d9a863c14e12dd9d886bdb",
+          "mapped_port": 9012,
+          "memory": -1,
+          "region": "None",
+          "secret_key": "None",
+          "version": ""
+        },
+        "runtime": {
+          "endpoint_prefix": "services",
+          "url": "http://localhost:8080"
+        },
+        "storage": {
+          "access_key": "dZgkU1z39_K77ONo22flFxi0Std9C-IxRSihbDGV_w8",
+          "address": "172.17.0.2:9000",
+          "data_volume": "",
+          "input_buckets": [],
+          "instance_id": "5dcae415d9adf6e71fbbf21c2c912eeda32e402d57282f026f42a7ba49ed9217",
+          "mapped_port": 9011,
+          "output_buckets": [],
+          "secret_key": "b91c091999ffd06ef36d169ff483456d437dbd56c924e51c3444efab1bc7a1bd",
+          "type": "minio",
+          "version": ""
+        }
+      }
+    },
+    "experiments": {
+      "architecture": "x64",
+      "container_deployment": false,
+      "download_results": false,
+      "experiments": {
+        "eviction-model": {
+          "function_copy_idx": 0,
+          "invocations": 1,
+          "repetitions": 5,
+          "sleep": 1
+        },
+        "invocation-overhead": {
+          "N": 20,
+          "code_begin": 1048576,
+          "code_end": 261619712,
+          "code_points": 20,
+          "payload_begin": 1024,
+          "payload_end": 6251000,
+          "payload_points": 20,
+          "repetitions": 5,
+          "type": "payload"
+        },
+        "network-ping-pong": {
+          "invocations": 50,
+          "repetitions": 1000,
+          "threads": 1
+        },
+        "perf-cost": {
+          "benchmark": "110.dynamic-html",
+          "concurrent-invocations": 50,
+          "experiments": [
+            "cold",
+            "warm",
+            "burst",
+            "sequential"
+          ],
+          "input-size": "test",
+          "memory-sizes": [
+            128,
+            256
+          ],
+          "repetitions": 50
+        }
+      },
+      "flags": {},
+      "runtime": {
+        "language": "python",
+        "version": "3.8"
+      },
+      "update_code": false,
+      "update_storage": false
+    }
+  },
+  "end_time": 1765746040.228735,
+  "result_bucket": null
+}

@@ -1,0 +1,33 @@
+{
+  "object": {
+    "type": "minio",
+    "minio": {
+      "address": "172.17.0.2:9000",
+      "mapped_port": 9011,
+      "access_key": "dZgkU1z39_K77ONo22flFxi0Std9C-IxRSihbDGV_w8",
+      "secret_key": "b91c091999ffd06ef36d169ff483456d437dbd56c924e51c3444efab1bc7a1bd",
+      "instance_id": "5dcae415d9adf6e71fbbf21c2c912eeda32e402d57282f026f42a7ba49ed9217",
+      "output_buckets": [],
+      "input_buckets": [],
+      "version": "RELEASE.2024-07-16T23-46-41Z",
+      "data_volume": "minio-volume",
+      "type": "minio"
+    }
+  },
+  "nosql": {
+    "type": "scylladb",
+    "scylladb": {
+      "address": "172.17.0.3:8000",
+      "mapped_port": 9012,
+      "alternator_port": 8000,
+      "access_key": "None",
+      "secret_key": "None",
+      "instance_id": "07961446bedf02c284b7657182c3ae4c0f3b25cab2d9a863c14e12dd9d886bdb",
+      "region": "None",
+      "cpus": 1,
+      "memory": "750",
+      "version": "6.0",
+      "data_volume": "scylladb-volume"
+    }
+  }
+}

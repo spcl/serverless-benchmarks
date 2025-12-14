@@ -123,6 +123,23 @@ class SonataFlow(Local):
     def _allocate_host_port(self, start_port: int, range_size: int = 1000) -> int:
         return Local._allocate_host_port(self, start_port, range_size)
 
+    @staticmethod
+    def _normalize_workflow_id_for_sonataflow(name: str) -> str:
+        """
+        Normalize workflow ID for SonataFlow.
+        SonataFlow generates Java classes from workflow IDs, so they must be valid Java identifiers.
+        Replace hyphens with underscores and ensure it starts with a letter.
+        """
+        import re
+        # Replace any non-alphanumeric characters (except underscore) with underscore
+        sanitized = re.sub(r"[^A-Za-z0-9_]", "_", name)
+        if not sanitized:
+            sanitized = "wf"
+        # Ensure it starts with a letter
+        if not sanitized[0].isalpha():
+            sanitized = f"wf_{sanitized}"
+        return sanitized
+
     def _start_container(
         self,
         code_package: Benchmark,
@@ -130,7 +147,25 @@ class SonataFlow(Local):
         func: Optional[LocalFunction],
         env_overrides: Optional[Dict[str, str]] = None,
     ) -> LocalFunction:
-        return Local._start_container(self, code_package, func_name, func, env_overrides)
+        # Override to use custom network for SonataFlow
+        # Create sebs-network if it doesn't exist
+        try:
+            self._docker_client.networks.get("sebs-network")
+        except docker.errors.NotFound:
+            self._docker_client.networks.create("sebs-network", driver="bridge")
+
+        # Call parent method to start the container
+        func_instance = Local._start_container(self, code_package, func_name, func, env_overrides)
+
+        # Connect the container to sebs-network
+        try:
+            network = self._docker_client.networks.get("sebs-network")
+            network.connect(func_instance.container.id)
+            self.logging.info(f"Connected container {func_instance.container.name} to sebs-network")
+        except Exception as e:
+            self.logging.warning(f"Failed to connect container to sebs-network: {e}")
+
+        return func_instance
 
     def _load_workflow_definition(self, path: str) -> dict:
         return Local._load_workflow_definition(path)
@@ -195,7 +230,7 @@ class SonataFlow(Local):
             raise ValueError(f"No workflow definition found for {workflow_name}")
 
         definition = self._load_workflow_definition(definition_path)
-        workflow_id = Local._normalize_workflow_id(workflow_name)
+        workflow_id = self._normalize_workflow_id_for_sonataflow(workflow_name)
 
         functions, bindings, definition_copy = self._prepare_workflow_functions(
             code_package, workflow_name, workflow_id, definition_path, definition
@@ -255,7 +290,7 @@ class SonataFlow(Local):
             raise ValueError(f"No workflow definition found for {workflow.name}")
 
         definition = self._load_workflow_definition(definition_path)
-        workflow_id = workflow.workflow_id if workflow.workflow_id else Local._normalize_workflow_id(workflow.name)
+        workflow_id = workflow.workflow_id if workflow.workflow_id else self._normalize_workflow_id_for_sonataflow(workflow.name)
         functions, bindings, _ = self._prepare_workflow_functions(
             code_package,
             workflow.name,

@@ -16,6 +16,7 @@ class SonataFlowGenerator(Generator):
         self._workflow_id = workflow_id
         self._bindings = bindings
         self._functions: Dict[str, Dict[str, str]] = {}
+        self._uses_errors = False  # Track if any state uses onErrors
 
     def _function_ref(self, func_name: str) -> Dict[str, str]:
         binding = self._bindings.get(func_name)
@@ -25,8 +26,14 @@ class SonataFlowGenerator(Generator):
         if ref_name not in self._functions:
             host = binding["host"]
             port = binding["port"]
+            # SonataFlow custom REST function format: operation is "rest:METHOD:URL"
+            # Use absolute URL since we know the host and port
             url = f"http://{host}:{port}/"
-            self._functions[ref_name] = {"name": ref_name, "operation": url}
+            self._functions[ref_name] = {
+                "name": ref_name,
+                "operation": f"rest:post:{url}",
+                "type": "custom"
+            }
         return {"refName": ref_name}
 
     def _default_action(self, func_name: str, payload_ref: str = "${ . }") -> Dict[str, object]:
@@ -35,15 +42,23 @@ class SonataFlowGenerator(Generator):
         return {"name": func_name, "functionRef": ref}
 
     def postprocess(self, payloads: List[dict]) -> dict:
-        return {
+        workflow_def = {
             "id": self._workflow_id,
             "name": self._workflow_id,
             "version": "0.1",
+            "specVersion": "0.8",
             "description": "Auto-generated from SeBS workflow definition.",
             "functions": list(self._functions.values()),
             "start": self.root.name,
             "states": payloads,
         }
+        # Add error definitions if any state uses onErrors
+        if self._uses_errors:
+            workflow_def["errors"] = [{
+                "name": "workflow_error",
+                "code": "*"  # Catch all errors
+            }]
+        return workflow_def
 
     def encode_task(self, state: Task) -> Union[dict, List[dict]]:
         payload: Dict[str, object] = {
@@ -56,7 +71,11 @@ class SonataFlowGenerator(Generator):
         else:
             payload["end"] = True
         if state.failure is not None:
-            payload["onErrors"] = [{"transition": state.failure}]
+            self._uses_errors = True
+            payload["onErrors"] = [{
+                "errorRef": "workflow_error",
+                "transition": state.failure
+            }]
         return payload
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
@@ -83,13 +102,18 @@ class SonataFlowGenerator(Generator):
                 merged[param] = "${ ." + param + " }"
             action_args = merged  # type: ignore
 
+        # Resolve the actual function name from the root state
+        # state.root is the name of the nested state, state.funcs contains the state definitions
+        root_state_def = state.funcs.get(state.root, {})
+        func_name = root_state_def.get("func_name", state.root)
+
         payload: Dict[str, object] = {
             "name": state.name,
             "type": "foreach",
             "inputCollection": "${ ." + state.array + " }",
             "outputCollection": "${ ." + state.array + " }",
             "iterationParam": iteration_param,
-            "actions": [self._default_action(state.root, action_args)],
+            "actions": [self._default_action(func_name, action_args)],
         }
         if state.next:
             payload["transition"] = state.next
@@ -128,15 +152,21 @@ class SonataFlowGenerator(Generator):
         return payload
 
     def _encode_branch(self, subworkflow: dict) -> Dict[str, object]:
+        # For SonataFlow, branches cannot contain nested states.
+        # We need to flatten the subworkflow into actions.
+        # For now, we'll encode the root state's function call as the branch action.
         states = {n: State.deserialize(n, s) for n, s in subworkflow["states"].items()}
-        payloads: List[dict] = []
-        for s in states.values():
-            obj = self.encode_state(s)
-            if isinstance(obj, list):
-                payloads.extend(obj)
-            else:
-                payloads.append(obj)
-        return {"name": subworkflow["root"], "states": payloads}
+        root_state = states.get(subworkflow["root"])
+        if not root_state:
+            raise ValueError(f"Root state {subworkflow['root']} not found in subworkflow")
+
+        # Extract the function name from the root state
+        if isinstance(root_state, Task):
+            func_name = root_state.func_name
+            action = self._default_action(func_name, "${ . }")
+            return {"name": subworkflow["root"], "actions": [action]}
+        else:
+            raise ValueError(f"Parallel branches currently only support Task states, got {type(root_state).__name__}")
 
     def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
         branches = [self._encode_branch(sw) for sw in state.funcs]

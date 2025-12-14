@@ -7,3 +7,9 @@ cache
 python-venv
 regression-*
 *_code
+scylladb-volume
+minio-volume
+output
+results
+*.json
+out_storage.json
