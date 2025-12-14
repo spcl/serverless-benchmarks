@@ -2,7 +2,12 @@ import datetime, io, json, os, uuid, sys, ast
 import asyncio
 import importlib.util
 import traceback
-import resource
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    # Pyodide (Python native workers) doesn't support resource module
+    HAS_RESOURCE = False
 from workers import WorkerEntrypoint, Response, DurableObject
 
 ## sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
@@ -95,9 +100,13 @@ class Default(WorkerEntrypoint):
         else:
             log_data['measurement'] = {}
         
-        # Add memory usage to measurement
-        memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
-        log_data['measurement']['memory_used_mb'] = memory_mb
+        # Add memory usage to measurement (if resource module is available)
+        if HAS_RESOURCE:
+            memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+            log_data['measurement']['memory_used_mb'] = memory_mb
+        else:
+            # Pyodide doesn't support resource module
+            log_data['measurement']['memory_used_mb'] = 0.0
         
         if 'logs' in event:
             log_data['time'] = 0
