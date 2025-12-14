@@ -12,6 +12,18 @@ ENV PYTHON_VERSION=${VERSION}
 COPY . function/
 ENV PLATFORM_ARG=""
 
+# Non-wheel images
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libc-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    libtiff-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libwebp-dev \
+    && rm -rf /var/lib/apt/lists/*
+    
 RUN touch function/__init__.py
     # Probably remove this conditional, might break pypy builds, might lead to installation of CPython libraries
 RUN if [ "${TARGET_ARCHITECTURE}" = "arm64" ]; then \
