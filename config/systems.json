@@ -263,6 +263,11 @@
             "3.10": "python:3.10-slim",
             "3.11": "python:3.11-slim",
             "3.12": "python:3.12-slim"
+          },
+          "arm64": {
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim",
+            "3.12": "python:3.12-slim"
           }
         },
         "images": [
@@ -290,9 +295,10 @@
       "pypy": {
         "base_images": {
           "x64": {
-            "3.10": "pypy:3.10-slim",
-            "3.11": "pypy:3.11-slim",
-            "3.12": "pypy:3.12-slim"
+            "3.11": "pypy:3.11-slim"
+          },
+          "arm64": {
+            "3.11": "pypy:3.11-slim"
           }
         },
         "images": [
@@ -346,7 +352,8 @@
       }
     },
     "architecture": [
-      "x64"
+      "x64",
+      "arm64"
     ],
     "deployments": [
       "package",

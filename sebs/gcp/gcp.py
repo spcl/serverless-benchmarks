@@ -95,11 +95,12 @@ class GCP(System):
     ) -> str:
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
-        func_name = "sebs-{}-{}-{}-{}".format(
+        func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
             code_package.benchmark,
             code_package.language_name,
             code_package.language_version,
+            code_package.architecture
         )
         return GCP.format_function_name(func_name) if not code_package.container_deployment else func_name.replace(".", "-")
 
@@ -215,6 +216,10 @@ class GCP(System):
         project_name = self.config.project_name
         function_cfg = FunctionConfig.from_benchmark(code_package)
         architecture = function_cfg.architecture.value
+
+        if architecture == "arm64" and not container_deployment:
+            raise RuntimeError("GCP does not support arm64 for non-container deployments")
+            
 
         if container_deployment:
             full_service_name = GCP.get_full_service_name(project_name, location, func_name)
