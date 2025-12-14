@@ -25,6 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfreetype6-dev \
     liblcms2-dev \
     libwebp-dev \
+    g++ \
+    cmake \
+    make \
     && rm -rf /var/lib/apt/lists/*
 
 RUN touch function/__init__.py \
