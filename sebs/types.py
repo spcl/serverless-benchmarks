@@ -12,6 +12,7 @@ class Platforms(str, Enum):
     GCP = "gcp"
     LOCAL = "local"
     OPENWHISK = "openwhisk"
+    SONATAFLOW = "sonataflow"
 
 
 class Storage(str, Enum):

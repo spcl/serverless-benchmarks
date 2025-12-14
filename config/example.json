@@ -88,6 +88,28 @@
         "type": "minio"
       }
     },
+    "sonataflow": {
+      "resources": {
+        "redis": {
+          "host": "",
+          "password": ""
+        },
+        "runtime": {
+          "url": "http://localhost:8080",
+          "endpoint_prefix": "services"
+        }
+      },
+      "storage": {
+        "address": "",
+        "mapped_port": -1,
+        "access_key": "",
+        "secret_key": "",
+        "instance_id": "",
+        "input_buckets": [],
+        "output_buckets": [],
+        "type": "minio"
+      }
+    },
     "openwhisk": {
       "shutdownStorage": false,
       "removeCluster": false,

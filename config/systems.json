@@ -72,6 +72,75 @@
     "architecture": ["x64"],
     "deployments": ["package"]
   },
+  "sonataflow": {
+    "experiments": {
+      "python": [
+        "papi",
+        "time",
+        "disk-io",
+        "memory"
+      ],
+      "nodejs": [
+        "time"
+      ]
+    },
+    "languages": {
+      "python": {
+        "base_images": {
+          "x64": {
+            "3.7": "python:3.7-slim",
+            "3.8": "python:3.8-slim",
+            "3.9": "python:3.9-slim",
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim"
+          }
+        },
+        "images": [
+          "run",
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "storage.py",
+            "nosql.py",
+            "function_workflow.py"
+          ],
+          "packages": [
+            "redis"
+          ],
+          "module_packages": {
+            "nosql": [
+              "boto3==1.28.3"
+            ]
+          }
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "x64": {
+            "14": "node:14-slim",
+            "16": "node:16-slim",
+            "18": "node:18-slim",
+            "20": "node:20-slim"
+          }
+        },
+        "images": [
+          "run",
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "storage.js"
+          ],
+          "packages": []
+        }
+      }
+    },
+    "architecture": ["x64"],
+    "deployments": ["package"]
+  },
   "aws": {
     "languages": {
       "python": {

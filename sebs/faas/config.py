@@ -209,6 +209,9 @@ class Config(ABC, LoggingBase):
 
         name = config["name"]
         implementations = {"local": LocalConfig.deserialize}
+        from sebs.sonataflow.config import SonataFlowConfig
+
+        implementations["sonataflow"] = SonataFlowConfig.deserialize
         if has_platform("aws"):
             from sebs.aws.config import AWSConfig
 
