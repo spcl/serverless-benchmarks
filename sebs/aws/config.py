@@ -48,9 +48,7 @@ class AWSCredentials(Credentials):
         return AWSCredentials(dct["access_key"], dct["secret_key"])
 
     @staticmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> Credentials:
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
 
         # FIXME: update return types of both functions to avoid cast
         # needs 3.7+  to support annotations
@@ -90,9 +88,7 @@ class AWSCredentials(Credentials):
         return ret
 
     def update_cache(self, cache: Cache):
-        cache.update_config(
-            val=self.account_id, keys=["aws", "credentials", "account_id"]
-        )
+        cache.update_config(val=self.account_id, keys=["aws", "credentials", "account_id"])
 
     def serialize(self) -> dict:
         out = {"account_id": self._account_id}
@@ -231,9 +227,7 @@ class AWSResources(Resources):
                             self.logging.error(e)
                             raise RuntimeError("Failed to create the HTTP API!")
                         else:
-                            self.logging.info(
-                                "HTTP API is overloaded, applying backoff."
-                            )
+                            self.logging.info("HTTP API is overloaded, applying backoff.")
                             time.sleep(retries)
 
             api_id = api_data["ApiId"]  # type: ignore
@@ -275,28 +269,20 @@ class AWSResources(Resources):
 
         if self._docker_registry is None:
             try:
-                resp = ecr_client.create_repository(
-                    repositoryName=self._container_repository
-                )
-                self.logging.info(
-                    f"Created ECR repository: {self._container_repository}"
-                )
+                resp = ecr_client.create_repository(repositoryName=self._container_repository)
+                self.logging.info(f"Created ECR repository: {self._container_repository}")
 
                 self._docker_registry = resp["repository"]["repositoryUri"]
             except ecr_client.exceptions.RepositoryAlreadyExistsException:
                 # Support the situation where two invocations concurrently initialize it.
-                self.logging.info(
-                    f"ECR repository {self._container_repository} already exists."
-                )
+                self.logging.info(f"ECR repository {self._container_repository} already exists.")
                 self._docker_registry = self.check_ecr_repository_exists(
                     ecr_client, self._container_repository
                 )
 
         return self._container_repository
 
-    def ecr_repository_authorization(
-        self, ecr_client: ECRClient
-    ) -> Tuple[str, str, str]:
+    def ecr_repository_authorization(self, ecr_client: ECRClient) -> Tuple[str, str, str]:
 
         if self._docker_password is None:
             response = ecr_client.get_authorization_token()
@@ -332,9 +318,7 @@ class AWSResources(Resources):
         out = {
             **super().serialize(),
             "lambda-role": self._lambda_role,
-            "http-apis": {
-                key: value.serialize() for (key, value) in self._http_apis.items()
-            },
+            "http-apis": {key: value.serialize() for (key, value) in self._http_apis.items()},
             "docker": {
                 "registry": self.docker_registry,
                 "username": self.docker_username,
@@ -355,13 +339,9 @@ class AWSResources(Resources):
             val=self.container_repository,
             keys=["aws", "resources", "container_repository"],
         )
-        cache.update_config(
-            val=self._lambda_role, keys=["aws", "resources", "lambda-role"]
-        )
+        cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
         for name, api in self._http_apis.items():
-            cache.update_config(
-                val=api.serialize(), keys=["aws", "resources", "http-apis", name]
-            )
+            cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
@@ -378,9 +358,7 @@ class AWSResources(Resources):
             if "resources" in config:
                 AWSResources.initialize(ret, config["resources"])
                 ret.logging_handlers = handlers
-                ret.logging.info(
-                    "No cached resources for AWS found, using user configuration."
-                )
+                ret.logging.info("No cached resources for AWS found, using user configuration.")
             else:
                 AWSResources.initialize(ret, {})
                 ret.logging_handlers = handlers
@@ -418,12 +396,8 @@ class AWSConfig(Config):
 
         cached_config = cache.get_config("aws")
         # FIXME: use future annotations (see sebs/faas/system)
-        credentials = cast(
-            AWSCredentials, AWSCredentials.deserialize(config, cache, handlers)
-        )
-        resources = cast(
-            AWSResources, AWSResources.deserialize(config, cache, handlers)
-        )
+        credentials = cast(AWSCredentials, AWSCredentials.deserialize(config, cache, handlers))
+        resources = cast(AWSResources, AWSResources.deserialize(config, cache, handlers))
         config_obj = AWSConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         # Load cached values

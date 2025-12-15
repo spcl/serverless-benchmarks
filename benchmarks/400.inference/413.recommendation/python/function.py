@@ -83,12 +83,8 @@ def _load_model(bucket, prefix):
 
 
 def _prepare_batch(requests):
-    user_ids = torch.tensor(
-        [req["user_id"] for req in requests], dtype=torch.long, device=_device
-    )
-    item_ids = torch.tensor(
-        [req["item_id"] for req in requests], dtype=torch.long, device=_device
-    )
+    user_ids = torch.tensor([req["user_id"] for req in requests], dtype=torch.long, device=_device)
+    item_ids = torch.tensor([req["item_id"] for req in requests], dtype=torch.long, device=_device)
     category_ids = torch.tensor(
         [req["category_id"] for req in requests], dtype=torch.long, device=_device
     )
@@ -137,9 +133,7 @@ def handler(event):
         )
 
     download_time = (download_end - download_begin) / datetime.timedelta(microseconds=1)
-    compute_time = (inference_end - inference_begin) / datetime.timedelta(
-        microseconds=1
-    )
+    compute_time = (inference_end - inference_begin) / datetime.timedelta(microseconds=1)
 
     return {
         "result": {"predictions": predictions},

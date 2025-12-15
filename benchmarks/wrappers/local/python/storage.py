@@ -40,9 +40,7 @@ class storage:
 
     def upload_stream(self, bucket, file, bytes_data):
         key_name = storage.unique_name(file)
-        self.client.put_object(
-            bucket, key_name, bytes_data, bytes_data.getbuffer().nbytes
-        )
+        self.client.put_object(bucket, key_name, bytes_data, bytes_data.getbuffer().nbytes)
         return key_name
 
     def download_stream(self, bucket, file):

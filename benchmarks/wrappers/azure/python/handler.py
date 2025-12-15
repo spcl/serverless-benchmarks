@@ -58,9 +58,7 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
             io.BytesIO(json.dumps(log_data).encode("utf-8")),
         )
         results_end = datetime.datetime.now()
-        results_time = (results_end - results_begin) / datetime.timedelta(
-            microseconds=1
-        )
+        results_time = (results_end - results_begin) / datetime.timedelta(microseconds=1)
     else:
         results_time = 0
 

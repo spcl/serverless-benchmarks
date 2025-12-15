@@ -113,9 +113,7 @@ class Benchmark(LoggingBase):
     @property
     def code_location(self):
         if self.code_package:
-            return os.path.join(
-                self._cache_client.cache_dir, self.code_package["location"]
-            )
+            return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
         else:
             return self._code_location
 
@@ -179,9 +177,7 @@ class Benchmark(LoggingBase):
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
-        self._hash_value = Benchmark.hash_directory(
-            path, self._deployment_name, self.language_name
-        )
+        self._hash_value = Benchmark.hash_directory(path, self._deployment_name, self.language_name)
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -211,18 +207,14 @@ class Benchmark(LoggingBase):
         self._container_deployment = config.container_deployment
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not self._benchmark_path:
-            raise RuntimeError(
-                "Benchmark {benchmark} not found!".format(benchmark=self._benchmark)
-            )
+            raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
         with open(os.path.join(self.benchmark_path, "config.json")) as json_file:
             self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
                 json.load(json_file)
             )
         if self.language not in self.benchmark_config.languages:
             raise RuntimeError(
-                "Benchmark {} not available for language {}".format(
-                    self.benchmark, self.language
-                )
+                "Benchmark {} not available for language {}".format(self.benchmark, self.language)
             )
         self._cache_client = cache_client
         self._docker_client = docker_client
@@ -334,9 +326,7 @@ class Benchmark(LoggingBase):
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
         # support node.js benchmarks with language specific packages
-        nodejs_package_json = os.path.join(
-            path, f"package.json.{self.language_version}"
-        )
+        nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
         if os.path.exists(nodejs_package_json):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
 
@@ -402,9 +392,7 @@ class Benchmark(LoggingBase):
         )
         if len(packages):
 
-            package_config = os.path.join(
-                output_dir, f"package.json.{self._language_version}"
-            )
+            package_config = os.path.join(output_dir, f"package.json.{self._language_version}")
             if not os.path.exists(package_config):
                 package_config = os.path.join(output_dir, "package.json")
 
@@ -462,9 +450,7 @@ class Benchmark(LoggingBase):
                 except docker.errors.ImageNotFound:
                     try:
                         self.logging.info(
-                            "Docker pull of image {repo}:{image}".format(
-                                repo=repo_name, image=name
-                            )
+                            "Docker pull of image {repo}:{image}".format(repo=repo_name, image=name)
                         )
                         self._docker_client.images.pull(repo_name, name)
                     except docker.errors.APIError:
@@ -489,9 +475,7 @@ class Benchmark(LoggingBase):
 
             # Create set of mounted volumes unless Docker volumes are disabled
             if not self._experiment_config.check_flag("docker_copy_build_files"):
-                volumes = {
-                    os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}
-                }
+                volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
                 package_script = os.path.abspath(
                     os.path.join(self._benchmark_path, self.language_name, "package.sh")
                 )
@@ -509,15 +493,11 @@ class Benchmark(LoggingBase):
                 try:
                     self.logging.info(
                         "Docker build of benchmark dependencies in container "
-                        "of image {repo}:{image}".format(
-                            repo=repo_name, image=image_name
-                        )
+                        "of image {repo}:{image}".format(repo=repo_name, image=image_name)
                     )
                     uid = os.getuid()
                     # Standard, simplest build
-                    if not self._experiment_config.check_flag(
-                        "docker_copy_build_files"
-                    ):
+                    if not self._experiment_config.check_flag("docker_copy_build_files"):
                         self.logging.info(
                             "Docker mount of benchmark code from path {path}".format(
                                 path=os.path.abspath(output_dir)
@@ -558,9 +538,7 @@ class Benchmark(LoggingBase):
                             "Send benchmark code from path {path} to "
                             "Docker instance".format(path=os.path.abspath(output_dir))
                         )
-                        tar_archive = os.path.join(
-                            output_dir, os.path.pardir, "function.tar"
-                        )
+                        tar_archive = os.path.join(output_dir, os.path.pardir, "function.tar")
                         with tarfile.open(tar_archive, "w") as tar:
                             for f in os.listdir(output_dir):
                                 tar.add(os.path.join(output_dir, f), arcname=f)
@@ -614,9 +592,7 @@ class Benchmark(LoggingBase):
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info(
-                "Using cached benchmark {} at {}".format(
-                    self.benchmark, self.code_location
-                )
+                "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
             )
             if self.container_deployment:
                 return (
@@ -633,9 +609,7 @@ class Benchmark(LoggingBase):
             if not self.is_cached
             else "cached code package is not up to date/build enforced."
         )
-        self.logging.info(
-            "Building benchmark {}. Reason: {}".format(self.benchmark, msg)
-        )
+        self.logging.info("Building benchmark {}. Reason: {}".format(self.benchmark, msg))
         # clear existing cache information
         self._code_package = None
 
@@ -650,16 +624,14 @@ class Benchmark(LoggingBase):
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
 
-        self._code_location, self._code_size, self._container_uri = (
-            deployment_build_step(
-                os.path.abspath(self._output_dir),
-                self.language_name,
-                self.language_version,
-                self.architecture,
-                self.benchmark,
-                self.is_cached_valid,
-                self.container_deployment,
-            )
+        self._code_location, self._code_size, self._container_uri = deployment_build_step(
+            os.path.abspath(self._output_dir),
+            self.language_name,
+            self.language_version,
+            self.architecture,
+            self.benchmark,
+            self.is_cached_valid,
+            self.container_deployment,
         )
         self.logging.info(
             (
@@ -788,9 +760,7 @@ class Benchmark(LoggingBase):
         if self.code_package_is_archive():
             self._update_zip(self.code_location, filename, data)
             new_size = self.code_package_recompute_size() / 1024.0 / 1024.0
-            self.logging.info(
-                f"Modified zip package {self.code_location}, new size {new_size} MB"
-            )
+            self.logging.info(f"Modified zip package {self.code_location}, new size {new_size} MB")
         else:
             raise NotImplementedError()
 
@@ -875,9 +845,7 @@ def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
     import importlib.machinery
     import importlib.util
 
-    loader = importlib.machinery.SourceFileLoader(
-        "input", os.path.join(benchmark_path, "input.py")
-    )
+    loader = importlib.machinery.SourceFileLoader("input", os.path.join(benchmark_path, "input.py"))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     assert spec
     mod = importlib.util.module_from_spec(spec)

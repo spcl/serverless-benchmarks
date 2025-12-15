@@ -13,9 +13,7 @@ def initialize_torch(N, density=0.01, dtype=torch.float32, device="cuda", seed=4
     values = torch.randn(nnz, dtype=dtype, device=device)
 
     indices = torch.stack([row_indices, col_indices])
-    sparse_matrix = torch.sparse_coo_tensor(
-        indices, values, (N, N), dtype=dtype, device=device
-    )
+    sparse_matrix = torch.sparse_coo_tensor(indices, values, (N, N), dtype=dtype, device=device)
 
     sparse_matrix_csr = sparse_matrix.to_sparse_csr()
 
@@ -54,9 +52,7 @@ def handler(event):
         seed = 42
 
     gen_begin = datetime.datetime.now()
-    A, x = initialize_torch(
-        size, density=density, dtype=torch.float32, device="cuda", seed=seed
-    )
+    A, x = initialize_torch(size, density=density, dtype=torch.float32, device="cuda", seed=seed)
     gen_end = datetime.datetime.now()
 
     comp_begin = datetime.datetime.now()

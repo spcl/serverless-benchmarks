@@ -43,9 +43,7 @@ class GCPCredentials(Credentials):
         return GCPCredentials(gcp_credentials)
 
     @staticmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> Credentials:
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
 
         cached_config = cache.get_config("gcp")
         ret: GCPCredentials
@@ -95,9 +93,7 @@ class GCPCredentials(Credentials):
         return out
 
     def update_cache(self, cache: Cache):
-        cache.update_config(
-            val=self._project_id, keys=["gcp", "credentials", "project_id"]
-        )
+        cache.update_config(val=self._project_id, keys=["gcp", "credentials", "project_id"])
 
 
 """
@@ -127,9 +123,7 @@ class GCPResources(Resources):
         return super().serialize()
 
     @staticmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> "Resources":
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
 
         cached_config = cache.get_config("gcp")
         ret = GCPResources()
@@ -142,9 +136,7 @@ class GCPResources(Resources):
             if "resources" in config:
                 GCPResources.initialize(ret, config["resources"])
                 ret.logging_handlers = handlers
-                ret.logging.info(
-                    "No cached resources for GCP found, using user configuration."
-                )
+                ret.logging.info("No cached resources for GCP found, using user configuration.")
             else:
                 GCPResources.initialize(ret, {})
                 ret.logging_handlers = handlers
@@ -190,12 +182,8 @@ class GCPConfig(Config):
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         cached_config = cache.get_config("gcp")
-        credentials = cast(
-            GCPCredentials, GCPCredentials.deserialize(config, cache, handlers)
-        )
-        resources = cast(
-            GCPResources, GCPResources.deserialize(config, cache, handlers)
-        )
+        credentials = cast(GCPCredentials, GCPCredentials.deserialize(config, cache, handlers))
+        resources = cast(GCPResources, GCPResources.deserialize(config, cache, handlers))
         config_obj = GCPConfig(credentials, resources)
         config_obj.logging_handlers = handlers
 
@@ -214,10 +202,7 @@ class GCPConfig(Config):
 
             old_value = getattr(config_obj, config_key)
             # ignore empty values
-            if (
-                getattr(config_obj, config_key) != config[config_key]
-                and config[config_key]
-            ):
+            if getattr(config_obj, config_key) != config[config_key] and config[config_key]:
                 config_obj.logging.info(
                     f"Updating cached key {config_key} with {old_value} "
                     f"to user-provided value {config[config_key]}."

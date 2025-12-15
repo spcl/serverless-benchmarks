@@ -60,9 +60,7 @@ class AWSSystemResources(SystemResources):
                 self.config.region,
                 access_key=self.config.credentials.access_key,
                 secret_key=self.config.credentials.secret_key,
-                replace_existing=(
-                    replace_existing if replace_existing is not None else False
-                ),
+                replace_existing=(replace_existing if replace_existing is not None else False),
             )
             self._storage.logging_handlers = self._logging_handlers
         elif replace_existing is not None:

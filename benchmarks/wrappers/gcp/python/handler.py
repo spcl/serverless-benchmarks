@@ -5,9 +5,7 @@ import os
 import sys
 import uuid
 
-sys.path.append(
-    os.path.join(os.path.dirname(__file__), ".python_packages/lib/site-packages")
-)
+sys.path.append(os.path.join(os.path.dirname(__file__), ".python_packages/lib/site-packages"))
 
 # This variable is defined by SeBS during function creation.
 if "NOSQL_STORAGE_DATABASE" in os.environ:
@@ -46,9 +44,7 @@ def handler(req):
             io.BytesIO(json.dumps(log_data).encode("utf-8")),
         )
         results_end = datetime.datetime.now()
-        results_time = (results_end - results_begin) / datetime.timedelta(
-            microseconds=1
-        )
+        results_time = (results_end - results_begin) / datetime.timedelta(microseconds=1)
     else:
         results_time = 0
 

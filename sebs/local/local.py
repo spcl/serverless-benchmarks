@@ -153,9 +153,7 @@ class Local(System):
         environment = {
             "CONTAINER_UID": str(os.getuid()),
             "CONTAINER_GID": str(os.getgid()),
-            "CONTAINER_USER": self._system_config.username(
-                self.name(), code_package.language_name
-            ),
+            "CONTAINER_USER": self._system_config.username(self.name(), code_package.language_name),
         }
         if self.config.resources.storage_config:
 
@@ -180,9 +178,7 @@ class Local(System):
         container_kwargs = {
             "image": container_name,
             "command": f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
-            "volumes": {
-                code_package.code_location: {"bind": "/function", "mode": "ro"}
-            },
+            "volumes": {code_package.code_location: {"bind": "/function", "mode": "ro"}},
             "environment": environment,
             "privileged": True,
             "security_opt": ["seccomp:unconfined"],
@@ -230,9 +226,7 @@ class Local(System):
 
         container = self._docker_client.containers.run(
             **container_kwargs,
-            device_requests=[
-                DeviceRequest(driver="nvidia", count=-1, capabilities=[["gpu"]])
-            ],
+            device_requests=[DeviceRequest(driver="nvidia", count=-1, capabilities=[["gpu"]])],
         )
 
         pid: Optional[int] = None
@@ -323,9 +317,7 @@ class Local(System):
         There's only one trigger - HTTP.
     """
 
-    def create_trigger(
-        self, func: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         from sebs.local.function import HTTPTrigger
 
         function = cast(LocalFunction, func)
@@ -342,15 +334,9 @@ class Local(System):
     def cached_function(self, function: Function):
         pass
 
-    def update_function_configuration(
-        self, function: Function, code_package: Benchmark
-    ):
-        self.logging.error(
-            "Updating function configuration of local deployment is not supported"
-        )
-        raise RuntimeError(
-            "Updating function configuration of local deployment is not supported"
-        )
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+        self.logging.error("Updating function configuration of local deployment is not supported")
+        raise RuntimeError("Updating function configuration of local deployment is not supported")
 
     def download_metrics(
         self,

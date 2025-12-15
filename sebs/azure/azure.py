@@ -63,9 +63,7 @@ class Azure(System):
             sebs_config,
             cache_client,
             docker_client,
-            AzureSystemResources(
-                sebs_config, config, cache_client, docker_client, logger_handlers
-            ),
+            AzureSystemResources(sebs_config, config, cache_client, docker_client, logger_handlers),
         )
         self.logging_handlers = logger_handlers
         self._config = config
@@ -175,9 +173,7 @@ class Azure(System):
                 "version": "[4.0.0, 5.0.0)",
             },
         }
-        json.dump(
-            default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2
-        )
+        json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
@@ -212,18 +208,12 @@ class Azure(System):
                 # Sometimes, the output does not include functions.
                 if url == "":
                     self.logging.warning(
-                        "Couldnt find function URL in the output: {}".format(
-                            ret.decode("utf-8")
-                        )
+                        "Couldnt find function URL in the output: {}".format(ret.decode("utf-8"))
                     )
 
-                    self.logging.info(
-                        "Sleeping 30 seconds before attempting another query."
-                    )
+                    self.logging.info("Sleeping 30 seconds before attempting another query.")
 
-                    resource_group = self.config.resources.resource_group(
-                        self.cli_instance
-                    )
+                    resource_group = self.config.resources.resource_group(self.cli_instance)
                     ret = self.cli_instance.execute(
                         "az functionapp function show --function-name handler "
                         f"--name {function.name} --resource-group {resource_group}"
@@ -240,9 +230,7 @@ class Azure(System):
                 error = str(e)
                 # app not found
                 # Azure changed the description as some point
-                if (
-                    "find app with name" in error or "NotFound" in error
-                ) and repeat_on_failure:
+                if ("find app with name" in error or "NotFound" in error) and repeat_on_failure:
                     # Sleep because of problems when publishing immediately
                     # after creating function app.
                     time.sleep(30)
@@ -286,9 +274,7 @@ class Azure(System):
 
         # Mount code package in Docker instance
         container_dest = self._mount_function_code(code_package)
-        function_url = self.publish_function(
-            function, code_package, container_dest, True
-        )
+        function_url = self.publish_function(function, code_package, container_dest, True)
 
         # Avoid duplication of HTTP trigger
         found_trigger = False
@@ -307,9 +293,7 @@ class Azure(System):
             trigger.logging_handlers = self.logging_handlers
             function.add_trigger(trigger)
 
-    def update_envs(
-        self, function: Function, code_package: Benchmark, env_variables: dict = {}
-    ):
+    def update_envs(self, function: Function, code_package: Benchmark, env_variables: dict = {}):
         envs = {}
         if code_package.uses_nosql:
 
@@ -329,11 +313,9 @@ class Azure(System):
 
         if code_package.uses_storage:
 
-            envs["STORAGE_CONNECTION_STRING"] = (
-                self.config.resources.data_storage_account(
-                    self.cli_instance
-                ).connection_string
-            )
+            envs["STORAGE_CONNECTION_STRING"] = self.config.resources.data_storage_account(
+                self.cli_instance
+            ).connection_string
 
         resource_group = self.config.resources.resource_group(self.cli_instance)
         # Retrieve existing environment variables to prevent accidental overwrite
@@ -376,9 +358,7 @@ class Azure(System):
                 for k, v in envs.items():
                     env_string += f" {k}={v}"
 
-                self.logging.info(
-                    f"Exporting environment variables for function {function.name}"
-                )
+                self.logging.info(f"Exporting environment variables for function {function.name}")
                 self.cli_instance.execute(
                     f"az functionapp config appsettings set --name {function.name} "
                     f" --resource-group {resource_group} "
@@ -397,9 +377,7 @@ class Azure(System):
                 self.logging.error(e)
                 raise e
 
-    def update_function_configuration(
-        self, function: Function, code_package: Benchmark
-    ):
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
         # FIXME: this does nothing currently - we don't specify timeout
         self.logging.warning(
             "Updating function's memory and timeout configuration is not supported."
@@ -466,18 +444,14 @@ class Azure(System):
             for setting in json.loads(ret.decode()):
                 if setting["name"] == "AzureWebJobsStorage":
                     connection_string = setting["value"]
-                    elems = [
-                        z for y in connection_string.split(";") for z in y.split("=")
-                    ]
+                    elems = [z for y in connection_string.split(";") for z in y.split("=")]
                     account_name = elems[elems.index("AccountName") + 1]
                     function_storage_account = AzureResources.Storage.from_cache(
                         account_name, connection_string
                     )
             self.logging.info("Azure: Selected {} function app".format(func_name))
         except RuntimeError:
-            function_storage_account = self.config.resources.add_storage_account(
-                self.cli_instance
-            )
+            function_storage_account = self.config.resources.add_storage_account(self.cli_instance)
             config["storage_account"] = function_storage_account.account_name
             # FIXME: only Linux type is supported
             while True:
@@ -492,9 +466,7 @@ class Azure(System):
                             " --functions-version 4 "
                         ).format(**config)
                     )
-                    self.logging.info(
-                        "Azure: Created function app {}".format(func_name)
-                    )
+                    self.logging.info("Azure: Created function app {}".format(func_name))
                     break
                 except RuntimeError as e:
                     # Azure does not allow some concurrent operations
@@ -514,9 +486,7 @@ class Azure(System):
         )
 
         # update existing function app
-        self.update_function(
-            function, code_package, container_deployment, container_uri
-        )
+        self.update_function(function, code_package, container_deployment, container_uri)
 
         self.cache_client.add_function(
             deployment_name=self.name(),
@@ -528,9 +498,7 @@ class Azure(System):
 
     def cached_function(self, function: Function):
 
-        data_storage_account = self.config.resources.data_storage_account(
-            self.cli_instance
-        )
+        data_storage_account = self.config.resources.data_storage_account(self.cli_instance)
         for trigger in function.triggers_all():
             azure_trigger = cast(AzureTrigger, trigger)
             azure_trigger.logging_handlers = self.logging_handlers
@@ -550,13 +518,12 @@ class Azure(System):
         resource_group = self.config.resources.resource_group(self.cli_instance)
         # Avoid warnings in the next step
         ret = self.cli_instance.execute(
-            "az feature register --name AIWorkspacePreview "
-            "--namespace microsoft.insights"
+            "az feature register --name AIWorkspacePreview " "--namespace microsoft.insights"
         )
         app_id_query = self.cli_instance.execute(
-            (
-                "az monitor app-insights component show " "--app {} --resource-group {}"
-            ).format(function_name, resource_group)
+            ("az monitor app-insights component show " "--app {} --resource-group {}").format(
+                function_name, resource_group
+            )
         ).decode("utf-8")
         application_id = json.loads(app_id_query)["appId"]
 
@@ -567,9 +534,7 @@ class Azure(System):
         start_time_str = datetime.datetime.fromtimestamp(start_time).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         )
-        end_time_str = datetime.datetime.fromtimestamp(end_time + 1).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        end_time_str = datetime.datetime.fromtimestamp(end_time + 1).strftime("%Y-%m-%d %H:%M:%S")
         from tzlocal import get_localzone
 
         timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
@@ -608,26 +573,20 @@ class Azure(System):
             # duration = request[4]
             func_exec_time = request[-1]
             invocations_processed.add(invocation_id)
-            requests[invocation_id].provider_times.execution = int(
-                float(func_exec_time) * 1000
-            )
+            requests[invocation_id].provider_times.execution = int(float(func_exec_time) * 1000)
         self.logging.info(
             f"Azure: Found time metrics for {len(invocations_processed)} "
             f"out of {len(requests.keys())} invocations."
         )
         if len(invocations_processed) < len(requests.keys()):
             time.sleep(5)
-        self.logging.info(
-            f"Missing the requests: {invocations_to_process - invocations_processed}"
-        )
+        self.logging.info(f"Missing the requests: {invocations_to_process - invocations_processed}")
 
         # TODO: query performance counters for mem
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark):
 
-        self.update_envs(
-            function, code_package, {"ForceColdStart": str(self.cold_start_counter)}
-        )
+        self.update_envs(function, code_package, {"ForceColdStart": str(self.cold_start_counter)})
 
         # FIXME: is this sufficient to enforce cold starts?
         # self.update_function(function, code_package, False, "")
@@ -645,9 +604,7 @@ class Azure(System):
         It is automatically created for each function.
     """
 
-    def create_trigger(
-        self, function: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         raise NotImplementedError()
 
 

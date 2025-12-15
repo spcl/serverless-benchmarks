@@ -121,8 +121,7 @@ def handler(event):
                 success = False
                 device_used = "cpu"
                 error_msg = (
-                    "CUDA GPU not usable, computation was done on CPU. "
-                    f"Original error: {msg}"
+                    "CUDA GPU not usable, computation was done on CPU. " f"Original error: {msg}"
                 )
             else:
 

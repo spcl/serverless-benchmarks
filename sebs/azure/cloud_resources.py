@@ -57,27 +57,21 @@ class CosmosDBAccount:
         return CosmosDBAccount(account_name, url, credential)
 
     @staticmethod
-    def query_url(
-        account_name: str, resource_group: str, cli_instance: AzureCLI
-    ) -> str:
+    def query_url(account_name: str, resource_group: str, cli_instance: AzureCLI) -> str:
 
         # Find the endpoint URL
         ret = cli_instance.execute(
-            f" az cosmosdb show --name {account_name} "
-            f" --resource-group {resource_group} "
+            f" az cosmosdb show --name {account_name} " f" --resource-group {resource_group} "
         )
         ret = json.loads(ret.decode("utf-8"))
         return ret["documentEndpoint"]
 
     @staticmethod
-    def query_credentials(
-        account_name: str, resource_group: str, cli_instance: AzureCLI
-    ) -> str:
+    def query_credentials(account_name: str, resource_group: str, cli_instance: AzureCLI) -> str:
 
         # Read the master key to access CosmosDB account
         ret = cli_instance.execute(
-            f" az cosmosdb keys list --name {account_name} "
-            f" --resource-group {resource_group} "
+            f" az cosmosdb keys list --name {account_name} " f" --resource-group {resource_group} "
         )
         ret = json.loads(ret.decode("utf-8"))
         credential = ret["primaryMasterKey"]
@@ -93,6 +87,4 @@ class CosmosDBAccount:
 
     @staticmethod
     def deserialize(obj: dict) -> "CosmosDBAccount":
-        return CosmosDBAccount.from_cache(
-            obj["account_name"], obj["url"], obj["credential"]
-        )
+        return CosmosDBAccount.from_cache(obj["account_name"], obj["url"], obj["credential"])

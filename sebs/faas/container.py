@@ -52,9 +52,7 @@ class DockerContainer(LoggingBase):
         else:
             try:
                 # default version requires pulling for an image
-                self.docker_client.images.pull(
-                    repository=repository_name, tag=image_tag
-                )
+                self.docker_client.images.pull(repository=repository_name, tag=image_tag)
                 return True
             except docker.errors.NotFound:
                 return False
@@ -85,9 +83,7 @@ class DockerContainer(LoggingBase):
         elif any(x in status for x in ["Layer already exists", "Pushed"]):
             if id_ in layer_tasks:
                 # Complete the task
-                progress.update(
-                    layer_tasks[id_], completed=progress.tasks[layer_tasks[id_]].total
-                )
+                progress.update(layer_tasks[id_], completed=progress.tasks[layer_tasks[id_]].total)
 
         elif "error" in line:
             raise Exception(line["error"])
@@ -118,9 +114,7 @@ class DockerContainer(LoggingBase):
 
                 for val in ret:
                     if "error" in val:
-                        self.logging.error(
-                            f"Failed to push the image to registry {repository_uri}"
-                        )
+                        self.logging.error(f"Failed to push the image to registry {repository_uri}")
                         raise RuntimeError(val)
 
         except docker.errors.APIError as e:
@@ -197,9 +191,7 @@ class DockerContainer(LoggingBase):
         builder_image = self.system_config.benchmark_base_images(
             self.name(), language_name, architecture
         )[language_version]
-        self.logging.info(
-            f"Build the benchmark base image {repository_name}:{image_tag}."
-        )
+        self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
 
         isa = platform.processor()
         if (isa == "x86_64" and architecture != "x64") or (

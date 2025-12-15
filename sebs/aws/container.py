@@ -69,21 +69,15 @@ class ECRContainer(DockerContainer):
 
     def push_image(self, repository_uri, image_tag):
 
-        username, password, registry_url = (
-            self.config.resources.ecr_repository_authorization(self.client)
+        username, password, registry_url = self.config.resources.ecr_repository_authorization(
+            self.client
         )
 
         try:
-            self.docker_client.login(
-                username=username, password=password, registry=registry_url
-            )
+            self.docker_client.login(username=username, password=password, registry=registry_url)
             super().push_image(repository_uri, image_tag)
-            self.logging.info(
-                f"Successfully pushed the image to registry {repository_uri}."
-            )
+            self.logging.info(f"Successfully pushed the image to registry {repository_uri}.")
         except docker.errors.APIError as e:
-            self.logging.error(
-                f"Failed to push the image to registry {repository_uri}."
-            )
+            self.logging.error(f"Failed to push the image to registry {repository_uri}.")
             self.logging.error(f"Error: {str(e)}")
             raise RuntimeError("Couldn't push to Docker registry")

@@ -15,9 +15,7 @@ class nosql:
     def _get_table(self, table_name: str):
 
         if table_name not in self._containers:
-            self._containers[table_name] = self._db_client.get_container_client(
-                table_name
-            )
+            self._containers[table_name] = self._db_client.get_container_client(table_name)
 
         return self._containers[table_name]
 
@@ -92,9 +90,7 @@ class nosql:
         secondary_key: Tuple[str, str],
     ):
 
-        self._get_table(table_name).delete_item(
-            item=secondary_key[1], partition_key=primary_key[1]
-        )
+        self._get_table(table_name).delete_item(item=secondary_key[1], partition_key=primary_key[1])
 
     @staticmethod
     def get_instance(

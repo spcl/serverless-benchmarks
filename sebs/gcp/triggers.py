@@ -46,8 +46,7 @@ class LibraryTrigger(Trigger):
         # GCP's fixed style for a function name
         config = self.deployment_client.config
         full_func_name = (
-            f"projects/{config.project_name}/locations/"
-            f"{config.region}/functions/{self.name}"
+            f"projects/{config.project_name}/locations/" f"{config.region}/functions/{self.name}"
         )
         function_client = self.deployment_client.get_function_client()
         req = (

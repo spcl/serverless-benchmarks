@@ -31,9 +31,7 @@ _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
-def _ensure_model(
-    bucket: str, model_prefix: str, model_key: str
-) -> Tuple[float, float]:
+def _ensure_model(bucket: str, model_prefix: str, model_key: str) -> Tuple[float, float]:
     """
     Lazily download, extract, and initialize the ONNX ResNet model.
     """
@@ -52,9 +50,7 @@ def _ensure_model(
             shutil.rmtree(model_dir)
         os.makedirs(MODEL_DIRECTORY, exist_ok=True)
 
-        client.download(
-            bucket, os.path.join(model_prefix, effective_model_key), archive_path
-        )
+        client.download(bucket, os.path.join(model_prefix, effective_model_key), archive_path)
         model_download_end = datetime.datetime.now()
 
         with tarfile.open(archive_path, "r:gz") as tar:
@@ -68,9 +64,7 @@ def _ensure_model(
 
         available = ort.get_available_providers()
         if "CUDAExecutionProvider" not in available:
-            raise RuntimeError(
-                f"CUDAExecutionProvider unavailable (providers: {available})"
-            )
+            raise RuntimeError(f"CUDAExecutionProvider unavailable (providers: {available})")
 
         _session = ort.InferenceSession(onnx_path, providers=["CUDAExecutionProvider"])
         _session_input = _session.get_inputs()[0].name
@@ -81,9 +75,9 @@ def _ensure_model(
         model_process_begin = datetime.datetime.now()
         model_process_end = model_process_begin
 
-    model_download_time = (
-        model_download_end - model_download_begin
-    ) / datetime.timedelta(microseconds=1)
+    model_download_time = (model_download_end - model_download_begin) / datetime.timedelta(
+        microseconds=1
+    )
     model_process_time = (model_process_end - model_process_begin) / datetime.timedelta(
         microseconds=1
     )
@@ -130,11 +124,7 @@ def _softmax(logits: np.ndarray) -> np.ndarray:
 
 
 def _run_inference(batch: np.ndarray) -> Tuple[int, float, List[int]]:
-    assert (
-        _session is not None
-        and _session_input is not None
-        and _session_output is not None
-    )
+    assert _session is not None and _session_input is not None and _session_output is not None
 
     outputs = _session.run([_session_output], {_session_input: batch})
     logits = outputs[0]
@@ -158,9 +148,7 @@ def handler(event):
     client.download(bucket, os.path.join(input_prefix, key), download_path)
     image_download_end = datetime.datetime.now()
 
-    model_download_time, model_process_time = _ensure_model(
-        bucket, model_prefix, model_key
-    )
+    model_download_time, model_process_time = _ensure_model(bucket, model_prefix, model_key)
 
     inference_begin = datetime.datetime.now()
     input_batch = _prepare_tensor(download_path)
@@ -169,12 +157,8 @@ def handler(event):
 
     os.remove(download_path)
 
-    download_time = (image_download_end - image_download_begin) / datetime.timedelta(
-        microseconds=1
-    )
-    compute_time = (inference_end - inference_begin) / datetime.timedelta(
-        microseconds=1
-    )
+    download_time = (image_download_end - image_download_begin) / datetime.timedelta(microseconds=1)
+    compute_time = (inference_end - inference_begin) / datetime.timedelta(microseconds=1)
     # gpu_time_ms = 0.0
 
     return {

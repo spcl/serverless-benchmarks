@@ -43,9 +43,7 @@ class GCPStorage(PersistentStorage):
     def correct_name(self, name: str) -> str:
         return name
 
-    def _create_bucket(
-        self, name, buckets: List[str] = [], randomize_name: bool = False
-    ):
+    def _create_bucket(self, name, buckets: List[str] = [], randomize_name: bool = False):
         found_bucket = False
         for bucket_name in buckets:
             if name in bucket_name:
@@ -64,9 +62,7 @@ class GCPStorage(PersistentStorage):
             logging.info("Created bucket {}".format(bucket_name))
             return bucket_name
         else:
-            logging.info(
-                "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
-            )
+            logging.info("Bucket {} for {} already exists, skipping.".format(bucket_name, name))
             return bucket_name
 
     def download(self, bucket_name: str, key: str, filepath: str) -> None:
@@ -79,9 +75,7 @@ class GCPStorage(PersistentStorage):
         logging.info("Upload {} to {}".format(filepath, bucket_name))
         bucket_instance = self.client.bucket(bucket_name)
         blob = bucket_instance.blob(key, chunk_size=4 * 1024 * 1024)
-        gcp_storage.blob._MAX_MULTIPART_SIZE = (
-            5 * 1024 * 1024
-        )  # workaround for connection timeout
+        gcp_storage.blob._MAX_MULTIPART_SIZE = 5 * 1024 * 1024  # workaround for connection timeout
         blob.upload_from_filename(filepath)
 
     def exists_bucket(self, bucket_name: str) -> bool:
@@ -100,9 +94,7 @@ class GCPStorage(PersistentStorage):
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         all_buckets = list(self.client.list_buckets())
         if bucket_name is not None:
-            buckets = [
-                bucket.name for bucket in all_buckets if bucket_name in bucket.name
-            ]
+            buckets = [bucket.name for bucket in all_buckets if bucket_name in bucket.name]
         else:
             buckets = [bucket.name for bucket in all_buckets]
         return buckets
@@ -122,8 +114,6 @@ class GCPStorage(PersistentStorage):
         if not self.replace_existing:
             for blob in self.input_prefixes_files[path_idx]:
                 if key == blob:
-                    logging.info(
-                        "Skipping upload of {} to {}".format(filepath, bucket_name)
-                    )
+                    logging.info("Skipping upload of {} to {}".format(filepath, bucket_name))
                     return
         self.upload(bucket_name, filepath, key)

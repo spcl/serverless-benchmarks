@@ -27,9 +27,7 @@ class BlobStorage(PersistentStorage):
         replace_existing: bool,
     ):
         super().__init__(region, cache_client, resources, replace_existing)
-        self.client: BlobServiceClient = BlobServiceClient.from_connection_string(
-            conn_string
-        )
+        self.client: BlobServiceClient = BlobServiceClient.from_connection_string(conn_string)
 
     """
         Internal implementation of creating a new container.
@@ -40,9 +38,7 @@ class BlobStorage(PersistentStorage):
     ) -> str:
         for c in containers:
             if name in c:
-                self.logging.info(
-                    "Container {} for {} already exists, skipping.".format(c, name)
-                )
+                self.logging.info("Container {} for {} already exists, skipping.".format(c, name))
                 return c
         if randomize_name:
             random_name = str(uuid.uuid4())[0:16]
@@ -62,9 +58,7 @@ class BlobStorage(PersistentStorage):
         if bucket_name is not None:
             return [
                 container["name"]
-                for container in self.client.list_containers(
-                    name_starts_with=bucket_name
-                )
+                for container in self.client.list_containers(name_starts_with=bucket_name)
             ]
         else:
             return [container["name"] for container in self.client.list_containers()]

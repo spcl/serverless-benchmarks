@@ -150,9 +150,7 @@ def find_benchmark(benchmark: str, path: str):
 def global_logging():
     logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
     logging_date_format = "%H:%M:%S"
-    logging.basicConfig(
-        format=logging_format, datefmt=logging_date_format, level=logging.INFO
-    )
+    logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
 
 
 class ColoredWrapper:
@@ -265,9 +263,7 @@ def has_platform(name: str) -> bool:
 
 # Check if the system is Linux and that it's not WSL
 def is_linux() -> bool:
-    return (
-        platform.system() == "Linux" and "microsoft" not in platform.release().lower()
-    )
+    return platform.system() == "Linux" and "microsoft" not in platform.release().lower()
 
 
 def catch_interrupt():

@@ -95,14 +95,10 @@ class EvictionModel(Experiment):
             s.close()
 
     @staticmethod
-    def execute_instance(
-        sleep_time: int, pid: int, tid: int, func: Function, payload: dict
-    ):
+    def execute_instance(sleep_time: int, pid: int, tid: int, func: Function, payload: dict):
 
         try:
-            print(
-                f"Process {pid} Thread {tid} Invoke function {func.name} with {payload} now!"
-            )
+            print(f"Process {pid} Thread {tid} Invoke function {func.name} with {payload} now!")
             begin = datetime.now()
             res = func.triggers(Trigger.TriggerType.HTTP)[0].sync_invoke(payload)
             end = datetime.now()
@@ -115,9 +111,7 @@ class EvictionModel(Experiment):
             logging.error(f"First Invocation Failed at function {func.name}, {e}")
             raise RuntimeError()
 
-        time_spent = float(datetime.now().strftime("%s.%f")) - float(
-            end.strftime("%s.%f")
-        )
+        time_spent = float(datetime.now().strftime("%s.%f")) - float(end.strftime("%s.%f"))
         seconds_sleep = sleep_time - time_spent
         print(f"PID {pid} TID {tid} with time {time}, sleep {seconds_sleep}")
         time.sleep(seconds_sleep)
@@ -204,9 +198,7 @@ class EvictionModel(Experiment):
             # if self._benchmark.functions and fname in self._benchmark.functions:
             # self.logging.info(f"Skip {fname}, exists already.")
             #    continue
-            self.functions.append(
-                deployment_client.get_function(self._benchmark, func_name=fname)
-            )
+            self.functions.append(deployment_client.get_function(self._benchmark, func_name=fname))
 
     def run(self):
 
@@ -223,9 +215,7 @@ class EvictionModel(Experiment):
         # function_names = self.functions_names[invocation_idx :: self.function_copies_per_time]
         # flake8 issue
         # https://github.com/PyCQA/pycodestyle/issues/373
-        functions = self.functions[
-            invocation_idx :: self.function_copies_per_time
-        ]  # noqa
+        functions = self.functions[invocation_idx :: self.function_copies_per_time]  # noqa
         results = {}
 
         # Disable logging - otherwise we have RLock that can't get be pickled
@@ -267,9 +257,7 @@ class EvictionModel(Experiment):
                 """
                 for j in range(0, threads):
                     servers_results.append(
-                        pool.apply_async(
-                            EvictionModel.accept_replies, args=(port + j, invocations)
-                        )
+                        pool.apply_async(EvictionModel.accept_replies, args=(port + j, invocations))
                     )
 
                 """

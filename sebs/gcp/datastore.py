@@ -70,13 +70,9 @@ class Datastore(NoSQLStorage):
         if benchmark in self._benchmark_resources:
             return True
 
-        cached_storage = self.cache_client.get_nosql_config(
-            self.deployment_name(), benchmark
-        )
+        cached_storage = self.cache_client.get_nosql_config(self.deployment_name(), benchmark)
         if cached_storage is not None:
-            self._benchmark_resources[benchmark] = BenchmarkResources.deserialize(
-                cached_storage
-            )
+            self._benchmark_resources[benchmark] = BenchmarkResources.deserialize(cached_storage)
             return True
 
         return False
@@ -140,9 +136,7 @@ class Datastore(NoSQLStorage):
 
         if benchmark_resources is None:
 
-            database_name = (
-                f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}"
-            )
+            database_name = f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}"
 
             try:
 
@@ -160,18 +154,14 @@ class Datastore(NoSQLStorage):
                     Allocate a new Firestore database, in datastore mode
                     """
 
-                    self.logging.info(
-                        f"Allocating a new Firestore database {database_name}"
-                    )
+                    self.logging.info(f"Allocating a new Firestore database {database_name}")
                     self._cli_instance.execute(
                         "gcloud firestore databases create "
                         f" --database='{database_name}' "
                         f" --location={self.region} "
                         f" --type='datastore-mode' "
                     )
-                    self.logging.info(
-                        f"Allocated a new Firestore database {database_name}"
-                    )
+                    self.logging.info(f"Allocated a new Firestore database {database_name}")
 
                 else:
 

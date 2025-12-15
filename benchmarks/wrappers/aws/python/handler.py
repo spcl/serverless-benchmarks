@@ -6,9 +6,7 @@ import sys
 import uuid
 
 # Add current directory to allow location of packages
-sys.path.append(
-    os.path.join(os.path.dirname(__file__), ".python_packages/lib/site-packages")
-)
+sys.path.append(os.path.join(os.path.dirname(__file__), ".python_packages/lib/site-packages"))
 
 # TODO: usual trigger
 # implement support for S3 and others
@@ -46,9 +44,7 @@ def handler(event, context):
             io.BytesIO(json.dumps(log_data).encode("utf-8")),
         )
         results_end = datetime.datetime.now()
-        results_time = (results_end - results_begin) / datetime.timedelta(
-            microseconds=1
-        )
+        results_time = (results_end - results_begin) / datetime.timedelta(microseconds=1)
     else:
         results_time = 0
 

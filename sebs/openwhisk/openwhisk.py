@@ -62,9 +62,7 @@ class OpenWhisk(System):
                     password=self.config.resources.docker_password,
                 )
 
-    def initialize(
-        self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None
-    ):
+    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         self.initialize_resources(select_prefix=resource_prefix)
 
     @property
@@ -136,9 +134,7 @@ class OpenWhisk(System):
         )
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
-        self.logging.info(
-            "Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0)
-        )
+        self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
         return benchmark_archive, bytes_size, image_uri
 
     def storage_arguments(self, code_package: Benchmark) -> List[str]:
@@ -199,9 +195,7 @@ class OpenWhisk(System):
                     break
 
             function_cfg = OpenWhiskFunctionConfig.from_benchmark(code_package)
-            function_cfg.object_storage = cast(
-                Minio, self.system_resources.get_storage()
-            ).config
+            function_cfg.object_storage = cast(Minio, self.system_resources.get_storage()).config
             function_cfg.nosql_storage = cast(
                 ScyllaDB, self.system_resources.get_nosql_storage()
             ).config
@@ -212,9 +206,7 @@ class OpenWhisk(System):
                 )
                 # Update function - we don't know what version is stored
                 self.logging.info(f"Retrieved existing OpenWhisk action {func_name}.")
-                self.update_function(
-                    res, code_package, container_deployment, container_uri
-                )
+                self.update_function(res, code_package, container_deployment, container_uri)
             else:
                 try:
                     self.logging.info(f"Creating new OpenWhisk action {func_name}")
@@ -259,9 +251,7 @@ class OpenWhisk(System):
                     raise RuntimeError(e)
 
         except FileNotFoundError:
-            self.logging.error(
-                "Could not retrieve OpenWhisk functions - is path to wsk correct?"
-            )
+            self.logging.error("Could not retrieve OpenWhisk functions - is path to wsk correct?")
             raise RuntimeError("Failed to access wsk binary")
 
         # Add LibraryTrigger to a new function
@@ -312,24 +302,16 @@ class OpenWhisk(System):
             function.config.docker_image = docker_image
 
         except FileNotFoundError as e:
-            self.logging.error(
-                "Could not update OpenWhisk function - is path to wsk correct?"
-            )
+            self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
             raise RuntimeError(e)
         except subprocess.CalledProcessError as e:
             self.logging.error(f"Unknown error when running function update: {e}!")
-            self.logging.error(
-                "Make sure to remove SeBS cache after restarting OpenWhisk!"
-            )
+            self.logging.error("Make sure to remove SeBS cache after restarting OpenWhisk!")
             self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
             raise RuntimeError(e)
 
-    def update_function_configuration(
-        self, function: Function, code_package: Benchmark
-    ):
-        self.logging.info(
-            f"Update configuration of an existing OpenWhisk action {function.name}."
-        )
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+        self.logging.info(f"Update configuration of an existing OpenWhisk action {function.name}.")
         try:
             subprocess.run(
                 [
@@ -348,21 +330,15 @@ class OpenWhisk(System):
                 check=True,
             )
         except FileNotFoundError as e:
-            self.logging.error(
-                "Could not update OpenWhisk function - is path to wsk correct?"
-            )
+            self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
             raise RuntimeError(e)
         except subprocess.CalledProcessError as e:
             self.logging.error(f"Unknown error when running function update: {e}!")
-            self.logging.error(
-                "Make sure to remove SeBS cache after restarting OpenWhisk!"
-            )
+            self.logging.error("Make sure to remove SeBS cache after restarting OpenWhisk!")
             self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
             raise RuntimeError(e)
 
-    def is_configuration_changed(
-        self, cached_function: Function, benchmark: Benchmark
-    ) -> bool:
+    def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
         changed = super().is_configuration_changed(cached_function, benchmark)
 
         storage = cast(Minio, self.system_resources.get_storage())
@@ -390,9 +366,7 @@ class OpenWhisk(System):
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
-        resource_id = (
-            resources.resources_id if resources else self.config.resources.resources_id
-        )
+        resource_id = resources.resources_id if resources else self.config.resources.resources_id
         return (
             f"sebs-{resource_id}-{code_package.benchmark}-"
             f"{code_package.language_name}-{code_package.language_version}"
@@ -411,9 +385,7 @@ class OpenWhisk(System):
     ):
         pass
 
-    def create_trigger(
-        self, function: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         if trigger_type == Trigger.TriggerType.LIBRARY:
             return function.triggers(Trigger.TriggerType.LIBRARY)[0]
         elif trigger_type == Trigger.TriggerType.HTTP:

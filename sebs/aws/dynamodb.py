@@ -46,9 +46,7 @@ class DynamoDB(NoSQLStorage):
         if benchmark in self._tables:
             return True
 
-        cached_storage = self.cache_client.get_nosql_config(
-            self.deployment_name(), benchmark
-        )
+        cached_storage = self.cache_client.get_nosql_config(self.deployment_name(), benchmark)
         if cached_storage is not None:
             self._tables[benchmark] = cached_storage["tables"]
             return True
@@ -112,9 +110,7 @@ class DynamoDB(NoSQLStorage):
         secondary_key: Optional[str] = None,
     ) -> str:
 
-        table_name = (
-            f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}-{name}"
-        )
+        table_name = f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}-{name}"
 
         try:
 
@@ -122,9 +118,7 @@ class DynamoDB(NoSQLStorage):
             key_schema = [{"AttributeName": primary_key, "KeyType": "HASH"}]
 
             if secondary_key is not None:
-                definitions.append(
-                    {"AttributeName": secondary_key, "AttributeType": "S"}
-                )
+                definitions.append({"AttributeName": secondary_key, "AttributeType": "S"})
                 key_schema.append({"AttributeName": secondary_key, "KeyType": "RANGE"})
 
             ret = self.client.create_table(
@@ -140,9 +134,7 @@ class DynamoDB(NoSQLStorage):
                 waiter = self.client.get_waiter("table_exists")
                 waiter.wait(TableName=table_name, WaiterConfig={"Delay": 1})
 
-            self.logging.info(
-                f"Created DynamoDB table {name} for benchmark {benchmark}"
-            )
+            self.logging.info(f"Created DynamoDB table {name} for benchmark {benchmark}")
             self._tables[benchmark][name] = table_name
 
             return ret["TableDescription"]["TableName"]
@@ -154,9 +146,7 @@ class DynamoDB(NoSQLStorage):
                 # We need this waiter.
                 # Otheriwise, we still might get later `ResourceNotFoundException`
                 # when uploading benchmark data.
-                self.logging.info(
-                    f"Waiting for the existing table {table_name} to be created"
-                )
+                self.logging.info(f"Waiting for the existing table {table_name} to be created")
                 waiter = self.client.get_waiter("table_exists")
                 waiter.wait(TableName=table_name, WaiterConfig={"Delay": 1})
                 ret = self.client.describe_table(TableName=table_name)
@@ -169,9 +159,7 @@ class DynamoDB(NoSQLStorage):
 
             if "being created" in e.response["Error"]["Message"]:
 
-                self.logging.info(
-                    f"Waiting for the existing table {table_name} to be created"
-                )
+                self.logging.info(f"Waiting for the existing table {table_name} to be created")
                 waiter = self.client.get_waiter("table_exists")
                 waiter.wait(TableName=table_name, WaiterConfig={"Delay": 1})
                 ret = self.client.describe_table(TableName=table_name)

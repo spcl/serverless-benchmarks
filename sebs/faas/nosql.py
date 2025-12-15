@@ -75,9 +75,7 @@ class NoSQLStorage(ABC, LoggingBase):
                 )
                 return
 
-        self.logging.info(
-            f"Preparing to create a NoSQL table {name} for benchmark {benchmark}"
-        )
+        self.logging.info(f"Preparing to create a NoSQL table {name} for benchmark {benchmark}")
 
         self.create_table(benchmark, name, primary_key, secondary_key)
 

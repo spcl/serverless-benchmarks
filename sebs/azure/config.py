@@ -52,10 +52,7 @@ class AzureCredentials(Credentials):
     @subscription_id.setter
     def subscription_id(self, subscription_id: str):
 
-        if (
-            self._subscription_id is not None
-            and subscription_id != self._subscription_id
-        ):
+        if self._subscription_id is not None and subscription_id != self._subscription_id:
             self.logging.error(
                 f"The subscription id {subscription_id} from provided "
                 f"credentials is different from the subscription id "
@@ -75,14 +72,10 @@ class AzureCredentials(Credentials):
 
     @staticmethod
     def initialize(dct: dict, subscription_id: Optional[str]) -> "AzureCredentials":
-        return AzureCredentials(
-            dct["appId"], dct["tenant"], dct["password"], subscription_id
-        )
+        return AzureCredentials(dct["appId"], dct["tenant"], dct["password"], subscription_id)
 
     @staticmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> Credentials:
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
 
         cached_config = cache.get_config("azure")
         ret: AzureCredentials
@@ -93,9 +86,7 @@ class AzureCredentials(Credentials):
 
         # Check for new config
         if "credentials" in config and "appId" in config["credentials"]:
-            ret = AzureCredentials.initialize(
-                config["credentials"], old_subscription_id
-            )
+            ret = AzureCredentials.initialize(config["credentials"], old_subscription_id)
         elif "AZURE_SECRET_APPLICATION_ID" in os.environ:
             ret = AzureCredentials(
                 os.environ["AZURE_SECRET_APPLICATION_ID"],
@@ -130,18 +121,12 @@ class AzureResources(Resources):
 
         # FIXME: 3.7+ migration with future annotations
         @staticmethod
-        def from_cache(
-            account_name: str, connection_string: str
-        ) -> "AzureResources.Storage":
-            assert connection_string, "Empty connection string for account {}".format(
-                account_name
-            )
+        def from_cache(account_name: str, connection_string: str) -> "AzureResources.Storage":
+            assert connection_string, "Empty connection string for account {}".format(account_name)
             return AzureResources.Storage(account_name, connection_string)
 
         @staticmethod
-        def from_allocation(
-            account_name: str, cli_instance: AzureCLI
-        ) -> "AzureResources.Storage":
+        def from_allocation(account_name: str, cli_instance: AzureCLI) -> "AzureResources.Storage":
             connection_string = AzureResources.Storage.query_connection_string(
                 account_name, cli_instance
             )
@@ -155,9 +140,7 @@ class AzureResources(Resources):
         @staticmethod
         def query_connection_string(account_name: str, cli_instance: AzureCLI) -> str:
             ret = cli_instance.execute(
-                "az storage account show-connection-string --name {}".format(
-                    account_name
-                )
+                "az storage account show-connection-string --name {}".format(account_name)
             )
             ret = json.loads(ret.decode("utf-8"))
             connection_string = ret["connectionString"]
@@ -168,9 +151,7 @@ class AzureResources(Resources):
 
         @staticmethod
         def deserialize(obj: dict) -> "AzureResources.Storage":
-            return AzureResources.Storage.from_cache(
-                obj["account_name"], obj["connection_string"]
-            )
+            return AzureResources.Storage.from_cache(obj["account_name"], obj["connection_string"])
 
     # FIXME: 3.7 Python, future annotations
     def __init__(
@@ -208,23 +189,17 @@ class AzureResources(Resources):
 
             groups = self.list_resource_groups(cli_instance)
             if self._resource_group in groups:
-                self.logging.info(
-                    "Using existing resource group {}.".format(self._resource_group)
-                )
+                self.logging.info("Using existing resource group {}.".format(self._resource_group))
             else:
                 self.logging.info(
-                    "Starting allocation of resource group {}.".format(
-                        self._resource_group
-                    )
+                    "Starting allocation of resource group {}.".format(self._resource_group)
                 )
                 cli_instance.execute(
                     "az group create --name {0} --location {1}".format(
                         self._resource_group, self._region
                     )
                 )
-                self.logging.info(
-                    "Resource group {} created.".format(self._resource_group)
-                )
+                self.logging.info("Resource group {} created.".format(self._resource_group))
         return self._resource_group
 
     def list_resource_groups(self, cli_instance: AzureCLI) -> List[str]:
@@ -243,9 +218,7 @@ class AzureResources(Resources):
             self.logging.error(ret.decode())
             raise RuntimeError("Failed to parse response from Azure CLI!")
 
-    def delete_resource_group(
-        self, cli_instance: AzureCLI, name: str, wait: bool = True
-    ):
+    def delete_resource_group(self, cli_instance: AzureCLI, name: str, wait: bool = True):
 
         cmd = "az group delete -y --name {0}".format(name)
         if not wait:
@@ -276,17 +249,13 @@ class AzureResources(Resources):
             accounts = self.list_cosmosdb_accounts(cli_instance)
             if account_name in accounts:
 
-                self.logging.info(
-                    "Using existing CosmosDB account {}.".format(account_name)
-                )
+                self.logging.info("Using existing CosmosDB account {}.".format(account_name))
                 url = accounts[account_name]
 
             else:
 
                 try:
-                    self.logging.info(
-                        f"Starting allocation of CosmosDB account {account_name}"
-                    )
+                    self.logging.info(f"Starting allocation of CosmosDB account {account_name}")
                     self.logging.info("This can take few minutes :-)!")
                     ret = cli_instance.execute(
                         f" az cosmosdb create --name {account_name} "
@@ -335,9 +304,7 @@ class AzureResources(Resources):
             parsed = re.compile("[^a-zA-Z0-9]").sub("", self.resources_id)
 
             account_name = "storage{}".format(parsed)
-            self._data_storage_account = self._create_storage_account(
-                cli_instance, account_name
-            )
+            self._data_storage_account = self._create_storage_account(cli_instance, account_name)
         return self._data_storage_account
 
     def list_storage_accounts(self, cli_instance: AzureCLI) -> List[str]:
@@ -380,9 +347,7 @@ class AzureResources(Resources):
         self, cli_instance: AzureCLI, account_name: str
     ) -> "AzureResources.Storage":
         sku = "Standard_LRS"
-        self.logging.info(
-            "Starting allocation of storage account {}.".format(account_name)
-        )
+        self.logging.info("Starting allocation of storage account {}.".format(account_name))
         cli_instance.execute(
             (
                 "az storage account create --name {0} --location {1} "
@@ -448,11 +413,7 @@ class AzureResources(Resources):
         cached_config = cache.get_config("azure")
         ret = AzureResources()
         # Load cached values
-        if (
-            cached_config
-            and "resources" in cached_config
-            and len(cached_config["resources"]) > 0
-        ):
+        if cached_config and "resources" in cached_config and len(cached_config["resources"]) > 0:
             logging.info("Using cached resources for Azure")
             AzureResources.initialize(ret, cached_config["resources"])
         else:
@@ -460,9 +421,7 @@ class AzureResources(Resources):
             if "resources" in config:
                 AzureResources.initialize(ret, config["resources"])
                 ret.logging_handlers = handlers
-                ret.logging.info(
-                    "No cached resources for Azure found, using user configuration."
-                )
+                ret.logging.info("No cached resources for Azure found, using user configuration.")
             else:
                 ret = AzureResources()
                 ret.logging_handlers = handlers
@@ -495,12 +454,8 @@ class AzureConfig(Config):
 
         cached_config = cache.get_config("azure")
         # FIXME: use future annotations (see sebs/faas/system)
-        credentials = cast(
-            AzureCredentials, AzureCredentials.deserialize(config, cache, handlers)
-        )
-        resources = cast(
-            AzureResources, AzureResources.deserialize(config, cache, handlers)
-        )
+        credentials = cast(AzureCredentials, AzureCredentials.deserialize(config, cache, handlers))
+        resources = cast(AzureResources, AzureResources.deserialize(config, cache, handlers))
         config_obj = AzureConfig(credentials, resources)
         config_obj.logging_handlers = handlers
         # Load cached values

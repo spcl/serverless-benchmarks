@@ -10,9 +10,7 @@ from typing import cast, Optional
 
 class OpenWhiskCredentials(Credentials):
     @staticmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> Credentials:
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
         return OpenWhiskCredentials()
 
     def serialize(self) -> dict:
@@ -188,14 +186,10 @@ class OpenWhiskConfig(Config):
         return res
 
     def update_cache(self, cache: Cache):
-        cache.update_config(
-            val=self.shutdownStorage, keys=["openwhisk", "shutdownStorage"]
-        )
+        cache.update_config(val=self.shutdownStorage, keys=["openwhisk", "shutdownStorage"])
         cache.update_config(val=self.removeCluster, keys=["openwhisk", "removeCluster"])
         cache.update_config(val=self.wsk_exec, keys=["openwhisk", "wskExec"])
-        cache.update_config(
-            val=self.wsk_bypass_security, keys=["openwhisk", "wskBypassSecurity"]
-        )
+        cache.update_config(val=self.wsk_bypass_security, keys=["openwhisk", "wskBypassSecurity"])
         cache.update_config(
             val=self.experimentalManifest, keys=["openwhisk", "experimentalManifest"]
         )

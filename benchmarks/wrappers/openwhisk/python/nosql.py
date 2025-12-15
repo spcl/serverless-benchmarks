@@ -13,9 +13,7 @@ class nosql:
     def __init__(self):
 
         if environ["NOSQL_STORAGE_TYPE"] != "scylladb":
-            raise RuntimeError(
-                f"Unsupported NoSQL storage type: {environ['NOSQL_STORAGE_TYPE']}!"
-            )
+            raise RuntimeError(f"Unsupported NoSQL storage type: {environ['NOSQL_STORAGE_TYPE']}!")
 
         config = Config(connect_timeout=5, retries={"max_attempts": 0})
         self.client = boto3.resource(
@@ -117,9 +115,7 @@ class nosql:
             ExpressionAttributeNames=update_names,
         )
 
-    def query(
-        self, table_name: str, primary_key: Tuple[str, str], _: str
-    ) -> List[dict]:
+    def query(self, table_name: str, primary_key: Tuple[str, str], _: str) -> List[dict]:
 
         res = self._get_table(table_name).query(
             KeyConditionExpression=f"{primary_key[0]} = :keyvalue",

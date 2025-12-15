@@ -13,9 +13,7 @@ if os.path.exists("function/torch.zip"):
     # we cannot write to the read-only filesystem
     zipfile.ZipFile("function/torch.zip").extractall("/tmp/")
     sys.path.append(
-        os.path.join(
-            os.path.dirname(__file__), "/tmp/.python_packages/lib/site-packages"
-        )
+        os.path.join(os.path.dirname(__file__), "/tmp/.python_packages/lib/site-packages")
     )
 
 from PIL import Image
@@ -75,20 +73,16 @@ def handler(event):
         ]
     )
     input_tensor = preprocess(input_image)
-    input_batch = input_tensor.unsqueeze(
-        0
-    )  # create a mini-batch as expected by the model
+    input_batch = input_tensor.unsqueeze(0)  # create a mini-batch as expected by the model
     output = model(input_batch)
     _, index = torch.max(output, 1)
     ret = idx2label[index]
     process_end = datetime.datetime.now()
 
-    download_time = (image_download_end - image_download_begin) / datetime.timedelta(
+    download_time = (image_download_end - image_download_begin) / datetime.timedelta(microseconds=1)
+    model_download_time = (model_download_end - model_download_begin) / datetime.timedelta(
         microseconds=1
     )
-    model_download_time = (
-        model_download_end - model_download_begin
-    ) / datetime.timedelta(microseconds=1)
     model_process_time = (model_process_end - model_process_begin) / datetime.timedelta(
         microseconds=1
     )
