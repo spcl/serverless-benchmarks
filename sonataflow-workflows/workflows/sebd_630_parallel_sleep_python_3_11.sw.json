@@ -1,0 +1,57 @@
+{
+  "id": "sebd_630_parallel_sleep_python_3_11",
+  "name": "sebd_630_parallel_sleep_python_3_11",
+  "version": "0.1",
+  "specVersion": "0.8",
+  "description": "Auto-generated from SeBS workflow definition.",
+  "functions": [
+    {
+      "name": "sebd_630_parallel_sleep_python_3_11_generate",
+      "operation": "rest:post:http://172.17.0.68:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_630_parallel_sleep_python_3_11_process",
+      "operation": "rest:post:http://172.17.0.69:9000/",
+      "type": "custom"
+    }
+  ],
+  "start": "generate",
+  "states": [
+    {
+      "name": "generate",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "generate",
+          "functionRef": {
+            "refName": "sebd_630_parallel_sleep_python_3_11_generate",
+            "arguments": {
+              "payload": "${ . }"
+            }
+          }
+        }
+      ],
+      "transition": "process-state"
+    },
+    {
+      "name": "process-state",
+      "type": "foreach",
+      "inputCollection": "${ .buffer }",
+      "outputCollection": "${ .buffer }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "process",
+          "functionRef": {
+            "refName": "sebd_630_parallel_sleep_python_3_11_process",
+            "arguments": {
+              "payload": "${ item }"
+            }
+          }
+        }
+      ],
+      "end": true
+    }
+  ]
+}

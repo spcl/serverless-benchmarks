@@ -1,35 +1,7 @@
 {
-  "_invocations": {
-    "sebd-610.gen-python-3.8": {
-      "6e0f75aa": {
-        "billing": {
-          "_billed_time": null,
-          "_gb_seconds": 0,
-          "_memory": null
-        },
-        "output": {},
-        "provider_times": {
-          "execution": 0,
-          "initialization": 0
-        },
-        "request_id": "6e0f75aa",
-        "stats": {
-          "cold_start": false,
-          "failure": true,
-          "memory_used": null
-        },
-        "times": {
-          "benchmark": 0,
-          "client": 93292,
-          "client_begin": "2025-12-14 22:00:40.135117",
-          "client_end": "2025-12-14 22:00:40.228409",
-          "initialization": 0
-        }
-      }
-    }
-  },
+  "_invocations": {},
   "_metrics": {},
-  "begin_time": 1765746040.129077,
+  "begin_time": 1765812589.989892,
   "config": {
     "deployment": {
       "name": "sonataflow",
@@ -42,7 +14,7 @@
           "alternator_port": 8000,
           "cpus": -1,
           "data_volume": "",
-          "instance_id": "07961446bedf02c284b7657182c3ae4c0f3b25cab2d9a863c14e12dd9d886bdb",
+          "instance_id": "a411b4a644addd73d1943883d9094b57f31ad5a87f94ecec9e5784e00118a727",
           "mapped_port": 9012,
           "memory": -1,
           "region": "None",
@@ -50,18 +22,18 @@
           "version": ""
         },
         "runtime": {
-          "endpoint_prefix": "services",
+          "endpoint_prefix": "",
           "url": "http://localhost:8080"
         },
         "storage": {
-          "access_key": "dZgkU1z39_K77ONo22flFxi0Std9C-IxRSihbDGV_w8",
+          "access_key": "hV4e0XGmzrJlsP8UW0OKDDrVqD1hE0IfCPYwZvTakJE",
           "address": "172.17.0.2:9000",
           "data_volume": "",
           "input_buckets": [],
-          "instance_id": "5dcae415d9adf6e71fbbf21c2c912eeda32e402d57282f026f42a7ba49ed9217",
+          "instance_id": "22b8cf06c8f28c429c88732bca34bb3d516d5583af59651c68925cd472de4a85",
           "mapped_port": 9011,
           "output_buckets": [],
-          "secret_key": "b91c091999ffd06ef36d169ff483456d437dbd56c924e51c3444efab1bc7a1bd",
+          "secret_key": "aec745a602364ac958b24787b93c87f469e27524a8ed1e1e420ad5218af38bd8",
           "type": "minio",
           "version": ""
         }
@@ -114,12 +86,12 @@
       "flags": {},
       "runtime": {
         "language": "python",
-        "version": "3.8"
+        "version": "3.11"
       },
       "update_code": false,
       "update_storage": false
     }
   },
-  "end_time": 1765746040.228735,
+  "end_time": 1765812589.995802,
   "result_bucket": null
 }

@@ -1,33 +1,33 @@
 {
-  "id": "sebd_610_gen_python_3_8",
-  "name": "sebd_610_gen_python_3_8",
+  "id": "sebd_610_gen_python_3_11",
+  "name": "sebd_610_gen_python_3_11",
   "version": "0.1",
   "specVersion": "0.8",
   "description": "Auto-generated from SeBS workflow definition.",
   "functions": [
     {
-      "name": "sebd_610_gen_python_3_8_get_astros",
-      "operation": "rest:post:http://172.17.1.112:9000/",
+      "name": "sebd_610_gen_python_3_11_get_astros",
+      "operation": "rest:post:http://172.18.0.3:9000/",
       "type": "custom"
     },
     {
-      "name": "sebd_610_gen_python_3_8_few_people",
-      "operation": "rest:post:http://172.17.1.111:9000/",
+      "name": "sebd_610_gen_python_3_11_few_people",
+      "operation": "rest:post:http://172.18.0.2:9000/",
       "type": "custom"
     },
     {
-      "name": "sebd_610_gen_python_3_8_many_people",
-      "operation": "rest:post:http://172.17.1.113:9000/",
+      "name": "sebd_610_gen_python_3_11_many_people",
+      "operation": "rest:post:http://172.18.0.4:9000/",
       "type": "custom"
     },
     {
-      "name": "sebd_610_gen_python_3_8_map_astros",
-      "operation": "rest:post:http://172.17.1.114:9000/",
+      "name": "sebd_610_gen_python_3_11_map_astros",
+      "operation": "rest:post:http://172.18.0.5:9000/",
       "type": "custom"
     },
     {
-      "name": "sebd_610_gen_python_3_8_process_astros",
-      "operation": "rest:post:http://172.17.1.115:9000/",
+      "name": "sebd_610_gen_python_3_11_process_astros",
+      "operation": "rest:post:http://172.18.0.6:9000/",
       "type": "custom"
     }
   ],
@@ -40,7 +40,7 @@
         {
           "name": "get_astros",
           "functionRef": {
-            "refName": "sebd_610_gen_python_3_8_get_astros",
+            "refName": "sebd_610_gen_python_3_11_get_astros",
             "arguments": {
               "payload": "${ . }"
             }
@@ -73,7 +73,7 @@
         {
           "name": "few_people",
           "functionRef": {
-            "refName": "sebd_610_gen_python_3_8_few_people",
+            "refName": "sebd_610_gen_python_3_11_few_people",
             "arguments": {
               "payload": "${ . }"
             }
@@ -89,7 +89,7 @@
         {
           "name": "many_people",
           "functionRef": {
-            "refName": "sebd_610_gen_python_3_8_many_people",
+            "refName": "sebd_610_gen_python_3_11_many_people",
             "arguments": {
               "payload": "${ . }"
             }
@@ -108,7 +108,7 @@
         {
           "name": "map_astros",
           "functionRef": {
-            "refName": "sebd_610_gen_python_3_8_map_astros",
+            "refName": "sebd_610_gen_python_3_11_map_astros",
             "arguments": {
               "payload": "${ item }"
             }
@@ -124,7 +124,7 @@
         {
           "name": "process_astros",
           "functionRef": {
-            "refName": "sebd_610_gen_python_3_8_process_astros",
+            "refName": "sebd_610_gen_python_3_11_process_astros",
             "arguments": {
               "payload": "${ . }"
             }

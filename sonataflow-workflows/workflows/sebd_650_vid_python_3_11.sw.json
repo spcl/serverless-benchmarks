@@ -1,0 +1,78 @@
+{
+  "id": "sebd_650_vid_python_3_11",
+  "name": "sebd_650_vid_python_3_11",
+  "version": "0.1",
+  "specVersion": "0.8",
+  "description": "Auto-generated from SeBS workflow definition.",
+  "functions": [
+    {
+      "name": "sebd_650_vid_python_3_11_decode",
+      "operation": "rest:post:http://172.17.0.46:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_650_vid_python_3_11_analyse",
+      "operation": "rest:post:http://172.17.0.45:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_650_vid_python_3_11_summarize",
+      "operation": "rest:post:http://172.17.0.47:9000/",
+      "type": "custom"
+    }
+  ],
+  "start": "decode",
+  "states": [
+    {
+      "name": "decode",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "decode",
+          "functionRef": {
+            "refName": "sebd_650_vid_python_3_11_decode",
+            "arguments": {
+              "payload": "${ . }"
+            }
+          }
+        }
+      ],
+      "transition": "analyse-map"
+    },
+    {
+      "name": "analyse-map",
+      "type": "foreach",
+      "inputCollection": "${ .frames }",
+      "outputCollection": "${ .frames }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "analyse",
+          "functionRef": {
+            "refName": "sebd_650_vid_python_3_11_analyse",
+            "arguments": {
+              "payload": "${ item }"
+            }
+          }
+        }
+      ],
+      "transition": "summarize"
+    },
+    {
+      "name": "summarize",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "summarize",
+          "functionRef": {
+            "refName": "sebd_650_vid_python_3_11_summarize",
+            "arguments": {
+              "payload": "${ . }"
+            }
+          }
+        }
+      ],
+      "end": true
+    }
+  ]
+}

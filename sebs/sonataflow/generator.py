@@ -32,7 +32,7 @@ class SonataFlowGenerator(Generator):
             self._functions[ref_name] = {
                 "name": ref_name,
                 "operation": f"rest:post:{url}",
-                "type": "custom"
+                "type": "custom",
             }
         return {"refName": ref_name}
 
@@ -54,10 +54,7 @@ class SonataFlowGenerator(Generator):
         }
         # Add error definitions if any state uses onErrors
         if self._uses_errors:
-            workflow_def["errors"] = [{
-                "name": "workflow_error",
-                "code": "*"  # Catch all errors
-            }]
+            workflow_def["errors"] = [{"name": "workflow_error", "code": "*"}]  # Catch all errors
         return workflow_def
 
     def encode_task(self, state: Task) -> Union[dict, List[dict]]:
@@ -72,10 +69,7 @@ class SonataFlowGenerator(Generator):
             payload["end"] = True
         if state.failure is not None:
             self._uses_errors = True
-            payload["onErrors"] = [{
-                "errorRef": "workflow_error",
-                "transition": state.failure
-            }]
+            payload["onErrors"] = [{"errorRef": "workflow_error", "transition": state.failure}]
         return payload
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
@@ -152,21 +146,33 @@ class SonataFlowGenerator(Generator):
         return payload
 
     def _encode_branch(self, subworkflow: dict) -> Dict[str, object]:
-        # For SonataFlow, branches cannot contain nested states.
-        # We need to flatten the subworkflow into actions.
-        # For now, we'll encode the root state's function call as the branch action.
+        """
+        For SonataFlow, branches are flat lists of actions. We flatten the root state
+        of each subworkflow to a single action by selecting the function name.
+        """
         states = {n: State.deserialize(n, s) for n, s in subworkflow["states"].items()}
         root_state = states.get(subworkflow["root"])
         if not root_state:
             raise ValueError(f"Root state {subworkflow['root']} not found in subworkflow")
 
-        # Extract the function name from the root state
+        func_name = None
         if isinstance(root_state, Task):
             func_name = root_state.func_name
-            action = self._default_action(func_name, "${ . }")
-            return {"name": subworkflow["root"], "actions": [action]}
+        elif isinstance(root_state, Map):
+            # Use the mapped state's root function as the branch action.
+            root_def = root_state.funcs.get(root_state.root, {})
+            func_name = root_def.get("func_name", root_state.root)
+        elif isinstance(root_state, Repeat):
+            func_name = root_state.func_name
+        elif isinstance(root_state, Loop):
+            func_name = root_state.func_name
         else:
-            raise ValueError(f"Parallel branches currently only support Task states, got {type(root_state).__name__}")
+            raise ValueError(
+                f"Parallel branches currently support Task/Map/Repeat/Loop root states, got {type(root_state).__name__}"
+            )
+
+        action = self._default_action(func_name, "${ . }")
+        return {"name": subworkflow["root"], "actions": [action]}
 
     def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
         branches = [self._encode_branch(sw) for sw in state.funcs]

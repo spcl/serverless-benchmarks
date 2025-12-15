@@ -115,6 +115,18 @@ class SonataFlow(Local):
         return Local._container_service_address(self, endpoint)
 
     def _function_network_endpoint(self, func: LocalFunction) -> Tuple[str, str]:
+        # SonataFlow runtime runs in `sebs-network` and invokes workflow functions from within
+        # that network. Use the function container's `sebs-network` IP and the container port.
+        try:
+            func.container.reload()
+            networks = func.container.attrs.get("NetworkSettings", {}).get("Networks", {})
+            sf_net = networks.get("sebs-network", {})
+            ip = sf_net.get("IPAddress")
+            if ip:
+                return ip, str(Local.DEFAULT_PORT)
+        except Exception:
+            pass
+        # Fallback to Local behavior (bridge IP + published host port).
         return Local._function_network_endpoint(self, func)
 
     def _workflow_env(self, workflow_name: str, module_name: str) -> Dict[str, str]:

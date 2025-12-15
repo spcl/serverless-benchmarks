@@ -1,0 +1,57 @@
+{
+  "id": "sebd_690_ml_python_3_11",
+  "name": "sebd_690_ml_python_3_11",
+  "version": "0.1",
+  "specVersion": "0.8",
+  "description": "Auto-generated from SeBS workflow definition.",
+  "functions": [
+    {
+      "name": "sebd_690_ml_python_3_11_generate",
+      "operation": "rest:post:http://172.17.0.41:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_690_ml_python_3_11_train",
+      "operation": "rest:post:http://172.17.0.42:9000/",
+      "type": "custom"
+    }
+  ],
+  "start": "generate",
+  "states": [
+    {
+      "name": "generate",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "generate",
+          "functionRef": {
+            "refName": "sebd_690_ml_python_3_11_generate",
+            "arguments": {
+              "payload": "${ . }"
+            }
+          }
+        }
+      ],
+      "transition": "train-state"
+    },
+    {
+      "name": "train-state",
+      "type": "foreach",
+      "inputCollection": "${ .schedules }",
+      "outputCollection": "${ .schedules }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "train",
+          "functionRef": {
+            "refName": "sebd_690_ml_python_3_11_train",
+            "arguments": {
+              "payload": "${ item }"
+            }
+          }
+        }
+      ],
+      "end": true
+    }
+  ]
+}

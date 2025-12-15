@@ -8,7 +8,7 @@
     "container_deployment": true,
     "runtime": {
       "language": "python",
-      "version": "3.8"
+      "version": "3.11"
     },
     "type": "invocation-overhead",
     "perf-cost": {
@@ -96,7 +96,7 @@
         },
         "runtime": {
           "url": "http://localhost:8080",
-          "endpoint_prefix": "services"
+          "endpoint_prefix": ""
         }
       },
       "storage": {
@@ -113,9 +113,9 @@
           "minio": {
             "address": "172.17.0.2:9000",
             "mapped_port": 9011,
-            "access_key": "dZgkU1z39_K77ONo22flFxi0Std9C-IxRSihbDGV_w8",
-            "secret_key": "b91c091999ffd06ef36d169ff483456d437dbd56c924e51c3444efab1bc7a1bd",
-            "instance_id": "5dcae415d9adf6e71fbbf21c2c912eeda32e402d57282f026f42a7ba49ed9217",
+            "access_key": "hV4e0XGmzrJlsP8UW0OKDDrVqD1hE0IfCPYwZvTakJE",
+            "secret_key": "aec745a602364ac958b24787b93c87f469e27524a8ed1e1e420ad5218af38bd8",
+            "instance_id": "22b8cf06c8f28c429c88732bca34bb3d516d5583af59651c68925cd472de4a85",
             "input_buckets": [],
             "output_buckets": []
           }
@@ -125,7 +125,7 @@
           "scylladb": {
             "address": "172.17.0.3:8000",
             "mapped_port": 9012,
-            "instance_id": "07961446bedf02c284b7657182c3ae4c0f3b25cab2d9a863c14e12dd9d886bdb"
+            "instance_id": "a411b4a644addd73d1943883d9094b57f31ad5a87f94ecec9e5784e00118a727"
           }
         }
       },

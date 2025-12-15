@@ -1,0 +1,102 @@
+{
+  "id": "sebd_660_map_reduce_python_3_11",
+  "name": "sebd_660_map_reduce_python_3_11",
+  "version": "0.1",
+  "specVersion": "0.8",
+  "description": "Auto-generated from SeBS workflow definition.",
+  "functions": [
+    {
+      "name": "sebd_660_map_reduce_python_3_11_split",
+      "operation": "rest:post:http://172.17.0.35:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_660_map_reduce_python_3_11_map",
+      "operation": "rest:post:http://172.17.0.32:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_660_map_reduce_python_3_11_shuffle",
+      "operation": "rest:post:http://172.17.0.34:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_660_map_reduce_python_3_11_reduce",
+      "operation": "rest:post:http://172.17.0.33:9000/",
+      "type": "custom"
+    }
+  ],
+  "start": "split",
+  "states": [
+    {
+      "name": "split",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "split",
+          "functionRef": {
+            "refName": "sebd_660_map_reduce_python_3_11_split",
+            "arguments": {
+              "payload": "${ . }"
+            }
+          }
+        }
+      ],
+      "transition": "map-state"
+    },
+    {
+      "name": "map-state",
+      "type": "foreach",
+      "inputCollection": "${ .list }",
+      "outputCollection": "${ .list }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "map",
+          "functionRef": {
+            "refName": "sebd_660_map_reduce_python_3_11_map",
+            "arguments": {
+              "payload": "${ item }"
+            }
+          }
+        }
+      ],
+      "transition": "shuffle"
+    },
+    {
+      "name": "shuffle",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "shuffle",
+          "functionRef": {
+            "refName": "sebd_660_map_reduce_python_3_11_shuffle",
+            "arguments": {
+              "payload": "${ . }"
+            }
+          }
+        }
+      ],
+      "transition": "reduce-state"
+    },
+    {
+      "name": "reduce-state",
+      "type": "foreach",
+      "inputCollection": "${ .list }",
+      "outputCollection": "${ .list }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "reduce",
+          "functionRef": {
+            "refName": "sebd_660_map_reduce_python_3_11_reduce",
+            "arguments": {
+              "payload": "${ item }"
+            }
+          }
+        }
+      ],
+      "end": true
+    }
+  ]
+}

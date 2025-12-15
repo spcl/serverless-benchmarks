@@ -1,6 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+# Ensure SeBS (python docker SDK) uses the same Docker daemon as `docker` CLI.
+# This avoids "No route to host" issues when containers are created in one daemon
+# (e.g., `/var/run/docker.sock`) but `docker run` uses another (e.g., Docker Desktop).
+if command -v docker >/dev/null 2>&1; then
+  DOCKER_HOST_FROM_CONTEXT=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)
+  if [ -n "${DOCKER_HOST_FROM_CONTEXT:-}" ]; then
+    export DOCKER_HOST="$DOCKER_HOST_FROM_CONTEXT"
+  fi
+fi
+
 # Prepare local configuration files
 if [ ! -f config/local_workflows.json ]; then
   cp config/example.json config/local_workflows.json
@@ -16,6 +26,11 @@ if [ ! -f "$DATA_FLAG" ]; then
 else
   echo "Workflow datasets present, skipping download."
 fi
+
+RUNTIME_URL="http://localhost:8080"
+# Recent `quay.io/kiegroup/kogito-swf-devmode` images expose workflow endpoints at `/{workflowId}`.
+# Some older setups used `/services/{workflowId}`; SeBS will auto-fallback on 404.
+ENDPOINT_PREFIX=""
 
 cleanup() {
   echo "Stopping all running Docker containers..."
@@ -47,8 +62,8 @@ for cfg in config/local_workflows.json config/local_deployment.json; do
     --arg sinst "$SCYLLA_INSTANCE" \
     --arg redis_host "localhost:6380" \
     --arg redis_pass "" \
-    --arg runtime_url "http://localhost:8080" \
-    --arg endpoint_prefix "services" \
+    --arg runtime_url "$RUNTIME_URL" \
+    --arg endpoint_prefix "$ENDPOINT_PREFIX" \
     '(.deployment.name = "sonataflow")
      | (.deployment.sonataflow.storage.object.type = "minio")
      | (.deployment.sonataflow.storage.object.minio.address = $addr)
@@ -75,15 +90,173 @@ if docker ps -a --format '{{.Names}}' | grep -q '^sebs-redis$'; then
 fi
 docker run -d --name sebs-redis -p 6380:6379 redis:7
 
-# Prepare SonataFlow workflow directory
-SONATAFLOW_WORKFLOWS_DIR="$PWD/sonataflow-workflows"
+# Prepare SonataFlow resources directory structure expected by kogito-swf-devmode:
+# - `src/main/resources/application.properties`
+# - `src/main/resources/workflows/*.sw.json`
+SONATAFLOW_RESOURCES_DIR="$PWD/sonataflow-workflows"
+SONATAFLOW_WORKFLOWS_DIR="$SONATAFLOW_RESOURCES_DIR/workflows"
 mkdir -p "$SONATAFLOW_WORKFLOWS_DIR"
+if [ ! -f "$SONATAFLOW_RESOURCES_DIR/application.properties" ]; then
+  cat >"$SONATAFLOW_RESOURCES_DIR/application.properties" <<'EOF'
+# Enable Kogito process/workflow generation
+kogito.codegen.processes.enabled=true
+quarkus.kogito.codegen.processes.enabled=true
+EOF
+fi
+
+# Read the runtime settings so we only stage matching workflow variants.
+RUNTIME_LANG=$(jq -r '.experiments.runtime.language // "python"' config/local_workflows.json)
+RUNTIME_VER=$(jq -r '.experiments.runtime.version // "3.11"' config/local_workflows.json)
+ARCH=$(jq -r '.experiments.architecture // "x64"' config/local_workflows.json)
+
+dedupe_sw_files() {
+  local dir=$1
+  declare -A seen=()
+  # Consider any `.sw.json` under resources (root + workflows/) to avoid Quarkus duplicates.
+  while IFS= read -r -d '' f; do
+    local wid
+    wid=$(jq -r '.id // empty' "$f" 2>/dev/null || true)
+    [ -n "$wid" ] || continue
+    if [ -n "${seen[$wid]:-}" ] && [ "${seen[$wid]}" != "$f" ]; then
+      echo "Removing duplicate workflow id '$wid' at $f (keeping ${seen[$wid]})"
+      rm -f "$f"
+    else
+      seen[$wid]="$f"
+    fi
+  done < <(find "$dir" -maxdepth 2 -name "*.sw.json" -print0 2>/dev/null)
+}
+
+# If older runs put `.sw.json` in the resources root, move them into `workflows/`
+# so Quarkus only sees a single copy.
+while IFS= read -r -d '' f; do
+  mv -f "$f" "$SONATAFLOW_WORKFLOWS_DIR/" || true
+done < <(find "$SONATAFLOW_RESOURCES_DIR" -maxdepth 1 -name "*.sw.json" -print0 2>/dev/null)
+dedupe_sw_files "$SONATAFLOW_RESOURCES_DIR"
 
 # Function to copy workflow definitions to SonataFlow directory after each benchmark
 copy_workflows_to_sonataflow() {
-  find cache -name "*.sw.json" -path "*/sonataflow/*" 2>/dev/null | while read -r swfile; do
+  find cache -name "*.sw.json" \
+    -path "*/sonataflow/${RUNTIME_LANG}/${RUNTIME_VER}/${ARCH}/*" \
+    -path "*/workflow_resources/sonataflow/*" 2>/dev/null | while read -r swfile; do
     cp -f "$swfile" "$SONATAFLOW_WORKFLOWS_DIR/" 2>/dev/null || true
   done
+  dedupe_sw_files "$SONATAFLOW_RESOURCES_DIR"
+}
+
+get_workflow_id_for() {
+  local wf_name=$1
+  local pattern="${wf_name//./_}"
+  for f in "$SONATAFLOW_WORKFLOWS_DIR"/*.sw.json; do
+    [ -f "$f" ] || continue
+    if printf '%s\n' "$f" | grep -q "$pattern"; then
+      jq -r '.id' "$f"
+      return 0
+    fi
+  done
+  local newest
+  newest=$(ls -1t "$SONATAFLOW_WORKFLOWS_DIR"/*.sw.json 2>/dev/null | head -n1)
+  if [ -n "$newest" ]; then
+    jq -r '.id' "$newest"
+    return 0
+  fi
+  return 1
+}
+
+wait_for_health() {
+  local url=$1
+  local attempts=40
+  local delay=3
+  echo "Waiting for SonataFlow runtime health at $url ..."
+  for i in $(seq 1 $attempts); do
+    code=$(curl -s -o /dev/null -w "%{http_code}" "$url/q/health/ready" || true)
+    if [ "$code" = "200" ]; then
+      echo "SonataFlow runtime is ready."
+      return 0
+    fi
+    sleep "$delay"
+  done
+  echo "Warning: SonataFlow runtime health endpoint not ready after $((attempts * delay))s"
+}
+
+wait_for_workflow_endpoint() {
+  local workflow_id=$1
+  local base_url=$2
+  local endpoint_prefix=$3
+  local prefix="${endpoint_prefix#/}"
+  local -a urls=()
+  if [ -n "$prefix" ]; then
+    urls+=("${base_url%/}/${prefix}/${workflow_id}")
+  fi
+  urls+=("${base_url%/}/${workflow_id}")
+  if [ "$prefix" != "services" ]; then
+    urls+=("${base_url%/}/services/${workflow_id}")
+  fi
+  local attempts=40
+  local delay=3
+  echo "Waiting for workflow endpoint(s): ${urls[*]} ..."
+  for i in $(seq 1 $attempts); do
+    for url in "${urls[@]}"; do
+      # GET will likely return 405 for POST-only endpoints; 404 means not loaded yet
+      code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || true)
+      if [ "$code" != "404" ] && [ "$code" != "000" ]; then
+        echo "Workflow endpoint responding at $url with HTTP $code."
+        return 0
+      fi
+    done
+    sleep "$delay"
+  done
+  echo "Warning: Workflow endpoint(s) not responding after $((attempts * delay))s"
+}
+
+preflight_runtime_function_connectivity() {
+  local sw_json=$1
+  if ! command -v docker >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^sonataflow-runtime$'; then
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ ! -f "$sw_json" ]; then
+    return 0
+  fi
+
+  # Extract function base URLs from `rest:post:http://host:port/` operations.
+  mapfile -t urls < <(jq -r '.functions[]?.operation // empty' "$sw_json" 2>/dev/null \
+    | sed -n 's#^rest:post:##p' | sed -e 's#/*$#/#' | sort -u)
+  if [ "${#urls[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  echo "Preflight: checking SonataFlow runtime connectivity to function containers..."
+  # Try curl first, then wget, then python.
+  local http_cmd
+  http_cmd=$(docker exec sonataflow-runtime sh -lc 'if command -v curl >/dev/null 2>&1; then echo curl; elif command -v wget >/dev/null 2>&1; then echo wget; elif command -v python3 >/dev/null 2>&1; then echo python3; elif command -v python >/dev/null 2>&1; then echo python; else echo none; fi' 2>/dev/null || echo none)
+  if [ "$http_cmd" = "none" ]; then
+    echo "Preflight skipped: no curl/wget/python found inside sonataflow-runtime."
+    return 0
+  fi
+  local failed=0
+  for u in "${urls[@]}"; do
+    # Use `/alive` which SeBS function containers expose.
+    if [ "$http_cmd" = "curl" ]; then
+      docker exec sonataflow-runtime sh -lc "curl -fsS --max-time 3 '${u}alive' >/dev/null" >/dev/null 2>&1 || failed=1
+    elif [ "$http_cmd" = "wget" ]; then
+      docker exec sonataflow-runtime sh -lc "wget -q -T 3 -O - '${u}alive' >/dev/null" >/dev/null 2>&1 || failed=1
+    else
+      docker exec sonataflow-runtime sh -lc "$http_cmd - <<'PY'\nimport sys, urllib.request\nurl=sys.argv[1]\nurllib.request.urlopen(url, timeout=3).read(1)\nPY\n'${u}alive'" >/dev/null 2>&1 || failed=1
+    fi
+    if [ "$failed" -ne 0 ]; then
+      echo "  Cannot reach ${u}alive from sonataflow-runtime"
+    fi
+  done
+  if [ "$failed" -ne 0 ]; then
+    echo "Preflight failed: SonataFlow cannot reach one or more function containers."
+    echo "Hint: ensure sonataflow-runtime and sebd-*___* function containers share a Docker network, and that SeBS and docker CLI use the same Docker daemon/context."
+    return 1
+  fi
 }
 
 # Create Docker network for SonataFlow and functions if it doesn't exist
@@ -134,24 +307,45 @@ for wf in "${WORKFLOWS[@]}"; do
   copy_workflows_to_sonataflow
   echo "Copied workflow definitions to SonataFlow directory"
 
+  if ! ls "$SONATAFLOW_WORKFLOWS_DIR"/*.sw.json >/dev/null 2>&1; then
+    echo "No workflow definitions found in $SONATAFLOW_WORKFLOWS_DIR after generating $wf"
+    exit 1
+  fi
+
+  WF_ID=$(get_workflow_id_for "$wf" || true)
+  if [ -z "$WF_ID" ] || [ "$WF_ID" = "null" ]; then
+    echo "Could not determine workflow id for $wf; available definitions:"
+    ls -l "$SONATAFLOW_WORKFLOWS_DIR"
+    exit 1
+  fi
+  echo "Workflow id for $wf: $WF_ID"
+
   # Start SonataFlow runtime on first iteration (after first workflow is generated)
   if [ "$SONATAFLOW_STARTED" = false ]; then
     echo "Starting SonataFlow runtime container..."
     if docker ps -a --format '{{.Names}}' | grep -q '^sonataflow-runtime$'; then
       docker rm -f sonataflow-runtime >/dev/null
     fi
+    # Start on `sebs-network` (primary) and also attach to `bridge` so the runtime can reach
+    # function containers whether SeBS exposes them via `sebs-network` or `bridge`.
     docker run -d --name sonataflow-runtime --network sebs-network -p 8080:8080 \
-      -v "$SONATAFLOW_WORKFLOWS_DIR":/home/kogito/serverless-workflow-project/src/main/resources \
+      -v "$SONATAFLOW_RESOURCES_DIR":/home/kogito/serverless-workflow-project/src/main/resources \
       quay.io/kiegroup/kogito-swf-devmode:latest
+    docker network connect bridge sonataflow-runtime >/dev/null 2>&1 || true
 
     echo "Waiting for SonataFlow runtime to start and load workflows..."
-    sleep 20
+    wait_for_health "$RUNTIME_URL"
+    wait_for_workflow_endpoint "$WF_ID" "$RUNTIME_URL" "$ENDPOINT_PREFIX"
     SONATAFLOW_STARTED=true
   else
     # Wait for SonataFlow to detect and load the new workflow (dev mode auto-reload)
     echo "Waiting for SonataFlow to load workflow..."
     sleep 10
+    wait_for_workflow_endpoint "$WF_ID" "$RUNTIME_URL" "$ENDPOINT_PREFIX"
   fi
+
+  # Ensure runtime can reach function containers before invoking the workflow.
+  preflight_runtime_function_connectivity "$SONATAFLOW_WORKFLOWS_DIR/${WF_ID}.sw.json" || exit 1
 
   # Now run the actual benchmark
   ./sebs.py benchmark workflow "$wf" test \
