@@ -44,8 +44,9 @@ export default {
     const req_id = request.headers.get('CF-Ray') || crypto.randomUUID();
 
     // Start timing measurements
-    const begin = Date.now() / 1000;
     const start = performance.now();
+    const begin = Date.now() / 1000;
+
 
     // Parse JSON body first (similar to Azure handler which uses req.body)
     const req_text = await request.text();
@@ -158,6 +159,16 @@ export default {
         throw new Error('benchmark handler function not found');
       }
     } catch (err) {
+      // Trigger a fetch request to update the timer before measuring
+      // Time measurements only update after a fetch request or R2 operation
+      try {
+        // Fetch the worker's own URL with favicon to minimize overhead
+        const finalUrl = new URL(request.url);
+        finalUrl.pathname = '/favicon';
+        await fetch(finalUrl.toString(), { method: 'HEAD' });
+      } catch (e) {
+        // Ignore fetch errors
+      }
       // Calculate timing even for errors
       const end = Date.now() / 1000;
       const elapsed = performance.now() - start;
@@ -183,7 +194,18 @@ export default {
       return new Response(errorPayload, { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Calculate elapsed time
+        // Trigger a fetch request to update the timer before measuring
+    // Time measurements only update after a fetch request or R2 operation
+    try {
+      // Fetch the worker's own URL with favicon to minimize overhead
+      const finalUrl = new URL(request.url);
+      finalUrl.pathname = '/favicon';
+      await fetch(finalUrl.toString(), { method: 'HEAD' });
+    } catch (e) {
+      // Ignore fetch errors
+    }
+    
+    // Now read the updated timer
     const end = Date.now() / 1000;
     const elapsed = performance.now() - start;
     const micro = elapsed * 1000; // Convert milliseconds to microseconds
