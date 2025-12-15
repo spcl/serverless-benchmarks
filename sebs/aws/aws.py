@@ -137,6 +137,7 @@ class AWS(System):
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
+            "pypy": ["handler.py", "requirements.txt", ".python_packages"],
         }
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
@@ -258,10 +259,15 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                create_function_params["Runtime"] = "{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
-                )
-                create_function_params["Handler"] = "handler.handler"
+                # PyPy uses custom runtime (provided.al2023) since there's no native PyPy runtime
+                if language == "pypy":
+                    create_function_params["Runtime"] = "provided.al2023"
+                    create_function_params["Handler"] = "handler.handler"
+                else:
+                    create_function_params["Runtime"] = "{}{}".format(
+                        language, self._map_language_runtime(language, language_runtime)
+                    )
+                    create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {
                 k: v for k, v in create_function_params.items() if v is not None

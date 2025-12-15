@@ -22,8 +22,6 @@ parser.add_argument(
     help="Optional Docker platform (e.g., linux/amd64) to override host architecture.",
 )
 parser.add_argument("--language-version", default=None, type=str, action="store")
-# Optional: force build platform (e.g., linux/amd64 on Apple Silicon)
-parser.add_argument("--platform", default=None, type=str, action="store")
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
 client = docker.from_env()
