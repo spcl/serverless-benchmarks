@@ -142,6 +142,10 @@ class BenchmarkRunner:
                 '--cache', self.cache_dir
             ]
             
+            # Add --container-deployment for AWS PyPy as it is required
+            if platform == 'aws' and language == 'pypy':
+                cmd.append('--container-deployment')
+            
             if self.verbose:
                 cmd.append('--verbose')
             
