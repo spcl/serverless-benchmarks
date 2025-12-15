@@ -4,7 +4,7 @@ tzlocal>=2.1
 requests
 #linting
 flake8
-black==22.8.0
+black==24.4.2
 mypy
 types-pycurl
 types-requests
