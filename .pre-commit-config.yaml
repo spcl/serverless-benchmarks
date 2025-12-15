@@ -15,7 +15,7 @@ repos:
       - id: black-check-local
         name: black --check (project env)
         language: python
-        additional_dependencies: ["black==22.8.0"]
+        additional_dependencies: ["black==24.4.2"]
         entry: black
         args: ["--config=.black.toml", "--check", "--diff"]
         types: [python]
