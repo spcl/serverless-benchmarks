@@ -2,8 +2,7 @@
 
 import datetime
 import os
-import subprocess  # not strictly needed anymore, but you can remove it
-import stat        # can also be removed if you drop ffmpeg entirely
+import stat  # can also be removed if you drop ffmpeg entirely
 from typing import Dict, Any
 
 import numpy as np
@@ -174,11 +173,15 @@ def handler(event: Dict[str, Any]):
     upload_begin = datetime.datetime.now()
     filename = os.path.basename(upload_path)
     upload_size = os.path.getsize(upload_path)
-    upload_key = client.upload(bucket, os.path.join(output_prefix, filename), upload_path)
+    upload_key = client.upload(
+        bucket, os.path.join(output_prefix, filename), upload_path
+    )
     upload_stop = datetime.datetime.now()
 
     # Convert timedeltas to microseconds
-    download_time = (download_stop - download_begin) / datetime.timedelta(microseconds=1)
+    download_time = (download_stop - download_begin) / datetime.timedelta(
+        microseconds=1
+    )
     upload_time = (upload_stop - upload_begin) / datetime.timedelta(microseconds=1)
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
 
