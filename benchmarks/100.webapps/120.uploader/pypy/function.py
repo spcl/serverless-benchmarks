@@ -4,7 +4,7 @@ import os
 
 import urllib.request
 
-import storage
+from . import storage
 client = storage.storage.get_instance()
 
 SEBS_USER_AGENT = "SeBS/1.2 (https://github.com/spcl/serverless-benchmarks) SeBS Benchmark Suite/1.2"

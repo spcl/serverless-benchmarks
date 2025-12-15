@@ -6,7 +6,7 @@ import uuid
 from urllib.parse import unquote_plus
 from PIL import Image
 
-import storage
+from . import storage
 client = storage.storage.get_instance()
 
 # Disk-based solution

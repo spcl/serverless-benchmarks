@@ -20,6 +20,7 @@ REQ_TARGET=".python_packages/lib/site-packages"
 mkdir -p "${REQ_TARGET}"
 
 # Platform pin for arm64 if needed
+# WARNING: Removing the conditional might break PyPy builds or install CPython-only libs.
 PLATFORM_ARG=""
 if [[ "${TARGET_ARCHITECTURE:-}" == "arm64" ]]; then
   PLATFORM_ARG="--platform manylinux_2_17_aarch64 --only-binary=:all:"

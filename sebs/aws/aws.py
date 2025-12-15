@@ -181,7 +181,11 @@ class AWS(System):
         # For example, it's 12.x instead of 12.
         # We use a OS-only runtime for PyPy
         if language == "nodejs":
-            return f"{runtime}.x"
+            return f"{language}{runtime}.x"
+        elif language == "python":
+            return f"{language}{runtime}"
+        elif language == "pypy":
+            return "provided.al2023"
         return runtime
 
     def create_function(

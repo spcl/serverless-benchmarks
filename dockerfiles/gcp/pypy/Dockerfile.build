@@ -5,19 +5,18 @@ ENV PYTHON_VERSION=${VERSION}
 ENV DEBIAN_FRONTEND="noninteractive"
 ENV TZ="Europe/Zurich"
 
-COPY --from=tianon/gosu:1.19-debian /usr/local/bin/gosu /usr/local/bin/gosu
-
 RUN apt-get update\
-  && apt-get install -y --no-install-recommends gcc build-essential libxml2 libxml2-dev zlib1g-dev gpg-agent zip\
+  && apt-get install -y --no-install-recommends gosu gcc build-essential libxml2 libxml2-dev zlib1g-dev  gpg-agent zip\
+  && apt-get update\
   && apt-get purge -y --auto-remove
 
 #RUN export PATH=/opt/python3.7/bin:/opt/python3.6/bin:/opt/python3.5/bin:/opt/python3.4/bin:$PATH
-RUN python${PYTHON_VERSION} -mvenv /sebs/env
+RUN python -mvenv /sebs/env
 ENV PATH /sebs/env/bin:${PATH}
 ENV VIRTUAL_ENV /sebs/env
 
 RUN mkdir -p /sebs/
-COPY dockerfiles/python_installer.sh /sebs/installer.sh
+COPY dockerfiles/pypy_installer.sh /sebs/installer.sh
 COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/entrypoint.sh
 

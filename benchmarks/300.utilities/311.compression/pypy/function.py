@@ -5,7 +5,7 @@ import shutil
 import uuid
 import zlib
 
-import storage
+from . import storage
 client = storage.storage.get_instance()
 
 def parse_directory(directory):
