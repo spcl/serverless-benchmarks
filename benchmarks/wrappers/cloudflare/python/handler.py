@@ -2,6 +2,7 @@ import datetime, io, json, os, uuid, sys, ast
 import asyncio
 import importlib.util
 import traceback
+import time
 try:
     import resource
     HAS_RESOURCE = True
@@ -9,6 +10,7 @@ except ImportError:
     # Pyodide (Python native workers) doesn't support resource module
     HAS_RESOURCE = False
 from workers import WorkerEntrypoint, Response, DurableObject
+from js import fetch as js_fetch, URL
 
 ## sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
 
@@ -42,6 +44,10 @@ class Default(WorkerEntrypoint):
 
         # Get unique request ID from Cloudflare (CF-Ray header)
         req_id = request.headers.get('CF-Ray', str(uuid.uuid4()))
+
+        # Start timing measurements
+        start = time.perf_counter()
+        begin = datetime.datetime.now().timestamp()
 
         req_text = await request.text()
 
@@ -115,13 +121,26 @@ class Default(WorkerEntrypoint):
             headers = {"Content-Type" : "text/html; charset=utf-8"}
             return Response(str(ret["result"]), headers = headers)
         else:
+            # Trigger a fetch request to update the timer before measuring
+            # Time measurements only update after a fetch request or R2 operation
+            try:
+                # Fetch the worker's own URL with favicon to minimize overhead
+                final_url = URL.new(request.url)
+                final_url.pathname = '/favicon'
+                await js_fetch(str(final_url), method='HEAD')
+            except:
+                # Ignore fetch errors
+                pass
+            
             # Calculate timestamps
-            end_timestamp = datetime.datetime.now().timestamp()
-            begin_timestamp = income_timestamp
+            end = datetime.datetime.now().timestamp()
+            elapsed = time.perf_counter() - start
+            micro = elapsed * 1_000_000  # Convert seconds to microseconds
             
             return Response(json.dumps({
-                'begin': begin_timestamp,
-                'end': end_timestamp,
+                'begin': begin,
+                'end': end,
+                'compute_time': micro,
                 'results_time': 0,
                 'result': log_data,
                 'is_cold': False,
