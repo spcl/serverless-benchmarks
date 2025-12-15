@@ -27,7 +27,13 @@ def upload_files(data_root, data_dir, upload_func):
 
 
 def generate_input(
-    data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func
+    data_dir,
+    size,
+    benchmarks_bucket,
+    input_paths,
+    output_paths,
+    upload_func,
+    nosql_func,
 ):
 
     # upload different datasets

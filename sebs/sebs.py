@@ -44,7 +44,9 @@ class SeBS(LoggingBase):
     def config(self) -> SeBSConfig:
         return self._config
 
-    def generate_logging_handlers(self, logging_filename: Optional[str] = None) -> LoggingHandlers:
+    def generate_logging_handlers(
+        self, logging_filename: Optional[str] = None
+    ) -> LoggingHandlers:
         filename = logging_filename if logging_filename else self.logging_filename
         if filename in self._handlers:
             return self._handlers[filename]
@@ -110,7 +112,9 @@ class SeBS(LoggingBase):
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 
-        if config["experiments"]["architecture"] not in self._config.supported_architecture(name):
+        if config["experiments"][
+            "architecture"
+        ] not in self._config.supported_architecture(name):
             raise RuntimeError(
                 "{architecture} is not supported in {name}".format(
                     architecture=config["experiments"]["architecture"], name=name
@@ -130,7 +134,9 @@ class SeBS(LoggingBase):
         # FIXME: future annotations, requires Python 3.7+
         handlers = self.generate_logging_handlers(logging_filename)
         if not deployment_config:
-            deployment_config = Config.deserialize(dep_config, self.cache_client, handlers)
+            deployment_config = Config.deserialize(
+                dep_config, self.cache_client, handlers
+            )
 
         deployment_client = implementations[name](
             self._config,
@@ -171,7 +177,9 @@ class SeBS(LoggingBase):
         }
         if experiment_type not in implementations:
             raise RuntimeError(f"Experiment {experiment_type} not supported!")
-        experiment = implementations[experiment_type](self.get_experiment_config(config))
+        experiment = implementations[experiment_type](
+            self.get_experiment_config(config)
+        )
         experiment.logging_handlers = self.generate_logging_handlers(
             logging_filename=logging_filename
         )
@@ -199,14 +207,18 @@ class SeBS(LoggingBase):
         return benchmark
 
     @staticmethod
-    def get_storage_implementation(storage_type: types.Storage) -> Type[PersistentStorage]:
+    def get_storage_implementation(
+        storage_type: types.Storage,
+    ) -> Type[PersistentStorage]:
         _storage_implementations = {types.Storage.MINIO: minio.Minio}
         impl = _storage_implementations.get(storage_type)
         assert impl
         return impl
 
     @staticmethod
-    def get_nosql_implementation(storage_type: types.NoSQLStorage) -> Type[NoSQLStorage]:
+    def get_nosql_implementation(
+        storage_type: types.NoSQLStorage,
+    ) -> Type[NoSQLStorage]:
         _storage_implementations = {types.NoSQLStorage.SCYLLADB: scylladb.ScyllaDB}
         impl = _storage_implementations.get(storage_type)
         assert impl

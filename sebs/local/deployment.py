@@ -66,10 +66,14 @@ class Deployment(LoggingBase):
             for func in input_data["functions"]:
                 deployment._functions.append(LocalFunction.deserialize(func))
             if "memory_measurements" in input_data:
-                deployment._memory_measurement_pids = input_data["memory_measurements"]["pids"]
+                deployment._memory_measurement_pids = input_data["memory_measurements"][
+                    "pids"
+                ]
                 deployment._measurement_file = input_data["memory_measurements"]["file"]
             deployment._storage = Minio.deserialize(
-                MinioConfig.deserialize(input_data["storage"]), cache_client, LocalResources()
+                MinioConfig.deserialize(input_data["storage"]),
+                cache_client,
+                LocalResources(),
             )
             return deployment
 

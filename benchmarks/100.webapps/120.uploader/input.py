@@ -16,7 +16,13 @@ def buckets_count():
 
 
 def generate_input(
-    data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func
+    data_dir,
+    size,
+    benchmarks_bucket,
+    input_buckets,
+    output_buckets,
+    upload_func,
+    nosql_func,
 ):
     input_config = {"object": {}, "bucket": {}}
     input_config["object"]["url"] = url_generators[size]

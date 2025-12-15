@@ -38,7 +38,9 @@ class LibraryTrigger(Trigger):
         serialized_payload = json.dumps(payload).encode("utf-8")
         client = self.deployment_client.get_lambda_client()
         begin = datetime.datetime.now()
-        ret = client.invoke(FunctionName=self.name, Payload=serialized_payload, LogType="Tail")
+        ret = client.invoke(
+            FunctionName=self.name, Payload=serialized_payload, LogType="Tail"
+        )
         end = datetime.datetime.now()
 
         aws_result = ExecutionResult.from_times(begin, end)

@@ -13,7 +13,13 @@ def upload_files(data_root, data_dir, upload_func):
 
 
 def generate_input(
-    data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func
+    data_dir,
+    size,
+    benchmarks_bucket,
+    input_paths,
+    output_paths,
+    upload_func,
+    nosql_func,
 ):
     model_file = "dlrm_tiny.pt"
     upload_func(0, model_file, os.path.join(data_dir, "model", model_file))

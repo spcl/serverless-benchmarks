@@ -52,6 +52,8 @@ def handler(event):
 
         client = storage.storage.get_instance()
         filename = "results-{}.csv".format(request_id)
-        key = client.upload(output_bucket, os.path.join(output_prefix, filename), "/tmp/data.csv")
+        key = client.upload(
+            output_bucket, os.path.join(output_prefix, filename), "/tmp/data.csv"
+        )
 
     return {"result": key}

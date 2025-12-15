@@ -18,9 +18,9 @@ def handler(event):
     result = graph.spanning_tree(None, False)
     process_end = datetime.datetime.now()
 
-    graph_generating_time = (graph_generating_end - graph_generating_begin) / datetime.timedelta(
-        microseconds=1
-    )
+    graph_generating_time = (
+        graph_generating_end - graph_generating_begin
+    ) / datetime.timedelta(microseconds=1)
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
 
     return {

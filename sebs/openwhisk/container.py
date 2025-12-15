@@ -26,7 +26,11 @@ class OpenWhiskContainer(DockerContainer):
         self.config = config
 
     def registry_name(
-        self, benchmark: str, language_name: str, language_version: str, architecture: str
+        self,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
     ) -> Tuple[str, str, str, str]:
 
         registry_name = self.config.resources.docker_registry

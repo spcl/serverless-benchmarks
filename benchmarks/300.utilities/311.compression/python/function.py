@@ -39,12 +39,18 @@ def handler(event):
     archive_name = "{}.zip".format(key)
     archive_size = os.path.getsize(os.path.join(download_path, archive_name))
     key_name = client.upload(
-        bucket, os.path.join(output_prefix, archive_name), os.path.join(download_path, archive_name)
+        bucket,
+        os.path.join(output_prefix, archive_name),
+        os.path.join(download_path, archive_name),
     )
     s3_upload_stop = datetime.datetime.now()
 
-    download_time = (s3_download_stop - s3_download_begin) / datetime.timedelta(microseconds=1)
-    upload_time = (s3_upload_stop - s3_upload_begin) / datetime.timedelta(microseconds=1)
+    download_time = (s3_download_stop - s3_download_begin) / datetime.timedelta(
+        microseconds=1
+    )
+    upload_time = (s3_upload_stop - s3_upload_begin) / datetime.timedelta(
+        microseconds=1
+    )
     process_time = (compress_end - compress_begin) / datetime.timedelta(microseconds=1)
     return {
         "result": {"bucket": bucket, "key": key_name},

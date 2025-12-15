@@ -57,7 +57,10 @@ class nosql:
         self._get_table(table_name).put_item(Item=data)
 
     def get(
-        self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
     ) -> dict:
 
         data = {}
@@ -99,7 +102,9 @@ class nosql:
             ExpressionAttributeNames=update_names,
         )
 
-    def query(self, table_name: str, primary_key: Tuple[str, str], _: str) -> List[dict]:
+    def query(
+        self, table_name: str, primary_key: Tuple[str, str], _: str
+    ) -> List[dict]:
 
         res = self._get_table(table_name).query(
             KeyConditionExpression=f"{primary_key[0]} = :keyvalue",
@@ -107,7 +112,12 @@ class nosql:
         )["Items"]
         return self._remove_decimals(res)
 
-    def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
+    def delete(
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
+    ):
         data = {}
         for key in (primary_key, secondary_key):
             data[key[0]] = key[1]

@@ -83,9 +83,13 @@ class PerfCost(Experiment):
         for memory in memory_sizes:
             self.logging.info(f"Begin experiment on memory size {memory}")
             self._function.config.memory = memory
-            self._deployment_client.update_function(self._function, self._benchmark, False, "")
+            self._deployment_client.update_function(
+                self._function, self._benchmark, False, ""
+            )
             self._sebs_client.cache_client.update_function(self._function)
-            self.run_configuration(settings, settings["repetitions"], suffix=str(memory))
+            self.run_configuration(
+                settings, settings["repetitions"], suffix=str(memory)
+            )
 
     def compute_statistics(self, times: List[float]):
 
@@ -155,7 +159,10 @@ class PerfCost(Experiment):
                 first_iteration = True
                 while samples_gathered < repetitions:
 
-                    if run_type == PerfCost.RunType.COLD or run_type == PerfCost.RunType.BURST:
+                    if (
+                        run_type == PerfCost.RunType.COLD
+                        or run_type == PerfCost.RunType.BURST
+                    ):
                         self._deployment_client.enforce_cold_start(
                             [self._function], self._benchmark
                         )
@@ -176,11 +183,21 @@ class PerfCost(Experiment):
                             ret = res.get()
                             if first_iteration:
                                 continue
-                            if run_type == PerfCost.RunType.COLD and not ret.stats.cold_start:
-                                self.logging.info(f"Invocation {ret.request_id} is not cold!")
+                            if (
+                                run_type == PerfCost.RunType.COLD
+                                and not ret.stats.cold_start
+                            ):
+                                self.logging.info(
+                                    f"Invocation {ret.request_id} is not cold!"
+                                )
                                 incorrect.append(ret)
-                            elif run_type == PerfCost.RunType.WARM and ret.stats.cold_start:
-                                self.logging.info(f"Invocation {ret.request_id} is cold!")
+                            elif (
+                                run_type == PerfCost.RunType.WARM
+                                and ret.stats.cold_start
+                            ):
+                                self.logging.info(
+                                    f"Invocation {ret.request_id} is cold!"
+                                )
                             else:
                                 result.add_invocation(self._function, ret)
                                 colds_count += ret.stats.cold_start
@@ -258,7 +275,9 @@ class PerfCost(Experiment):
                     PerfCost.RunType.SEQUENTIAL, settings, 1, repetitions, suffix
                 )
             else:
-                raise RuntimeError(f"Unknown experiment type {experiment_type} for Perf-Cost!")
+                raise RuntimeError(
+                    f"Unknown experiment type {experiment_type} for Perf-Cost!"
+                )
 
     def process(
         self,
@@ -305,7 +324,9 @@ class PerfCost(Experiment):
                 else:
 
                     if os.path.exists(
-                        os.path.join(directory, "perf-cost", f"{name}-processed{extension}")
+                        os.path.join(
+                            directory, "perf-cost", f"{name}-processed{extension}"
+                        )
                     ):
                         self.logging.info(f"Skipping already processed {f}")
                         continue
@@ -349,12 +370,17 @@ class PerfCost(Experiment):
 
                         name, extension = os.path.splitext(f)
                         with open(
-                            os.path.join(directory, "perf-cost", f"{name}-processed{extension}"),
+                            os.path.join(
+                                directory, "perf-cost", f"{name}-processed{extension}"
+                            ),
                             "w",
                         ) as out_f:
                             out_f.write(
                                 serialize(
-                                    {**json.loads(serialize(experiments)), "statistics": statistics}
+                                    {
+                                        **json.loads(serialize(experiments)),
+                                        "statistics": statistics,
+                                    }
                                 )
                             )
                 for func in experiments.functions():

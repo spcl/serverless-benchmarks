@@ -11,7 +11,9 @@ from sebs.utils import LoggingBase
 
 
 class SystemResources(ABC, LoggingBase):
-    def __init__(self, config: Config, cache_client: Cache, docker_client: docker.client):
+    def __init__(
+        self, config: Config, cache_client: Cache, docker_client: docker.client
+    ):
 
         super().__init__()
 

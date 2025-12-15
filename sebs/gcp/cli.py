@@ -14,7 +14,10 @@ class GCloudCLI(LoggingBase):
         return "GCP.CLI"
 
     def __init__(
-        self, credentials: GCPCredentials, system_config: SeBSConfig, docker_client: docker.client
+        self,
+        credentials: GCPCredentials,
+        system_config: SeBSConfig,
+        docker_client: docker.client,
     ):
 
         super().__init__()
@@ -26,7 +29,9 @@ class GCloudCLI(LoggingBase):
         except docker.errors.ImageNotFound:
             try:
                 logging.info(
-                    "Docker pull of image {repo}:{image}".format(repo=repo_name, image=image_name)
+                    "Docker pull of image {repo}:{image}".format(
+                        repo=repo_name, image=image_name
+                    )
                 )
                 docker_client.images.pull(repo_name, image_name)
             except docker.errors.APIError:

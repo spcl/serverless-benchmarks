@@ -51,5 +51,7 @@ class GCPFunction(Function):
 
     def code_bucket(self, benchmark: str, storage_client: GCPStorage):
         if not self.bucket:
-            self.bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+            self.bucket = storage_client.get_bucket(
+                Resources.StorageBucketType.DEPLOYMENT
+            )
         return self.bucket

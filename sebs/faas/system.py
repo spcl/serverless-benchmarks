@@ -75,7 +75,6 @@ class System(ABC, LoggingBase):
         pass
 
     def find_deployments(self) -> List[str]:
-
         """
         Default implementation that uses storage buckets.
         data storage accounts.
@@ -115,7 +114,9 @@ class System(ABC, LoggingBase):
                 "If you want to use any of them, please abort, and "
                 "provide the resource id in your input config."
             )
-            self.logging.warning("Deployment resource IDs in the cloud: " f"{deployments}")
+            self.logging.warning(
+                "Deployment resource IDs in the cloud: " f"{deployments}"
+            )
 
         # create
         res_id = ""
@@ -126,7 +127,9 @@ class System(ABC, LoggingBase):
         self.config.resources.resources_id = res_id
         self.logging.info(f"Generating unique resource name {res_id}")
         # ensure that the bucket is created - this allocates the new resource
-        self.system_resources.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
+        self.system_resources.get_storage().get_bucket(
+            Resources.StorageBucketType.BENCHMARKS
+        )
 
     """
         Initialize the system. After the call the local or remote
@@ -136,7 +139,9 @@ class System(ABC, LoggingBase):
         :param config: systems-specific parameters
     """
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+    def initialize(
+        self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None
+    ):
         pass
 
     """
@@ -187,7 +192,6 @@ class System(ABC, LoggingBase):
         container_deployment: bool,
         container_uri: str,
     ) -> Function:
-
         """
         Create a new function in the FaaS platform.
         The implementation is responsible for creating all necessary
@@ -246,10 +250,15 @@ class System(ABC, LoggingBase):
 
     """
 
-    def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
+    def get_function(
+        self, code_package: Benchmark, func_name: Optional[str] = None
+    ) -> Function:
 
-        if code_package.language_version not in self.system_config.supported_language_versions(
-            self.name(), code_package.language_name, code_package.architecture
+        if (
+            code_package.language_version
+            not in self.system_config.supported_language_versions(
+                self.name(), code_package.language_name, code_package.architecture
+            )
         ):
             raise Exception(
                 "Unsupported {language} version {version} in {system}!".format(
@@ -261,7 +270,9 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
-        rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
+        rebuilt, _, container_deployment, container_uri = code_package.build(
+            self.package_code
+        )
 
         """
             There's no function with that name?
@@ -311,7 +322,9 @@ class System(ABC, LoggingBase):
             assert function is not None
             self.cached_function(function)
             self.logging.info(
-                "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
+                "Using cached function {fname} in {loc}".format(
+                    fname=func_name, loc=code_location
+                )
             )
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash or rebuilt:
@@ -327,7 +340,9 @@ class System(ABC, LoggingBase):
                         f"Enforcing rebuild and update of of cached function "
                         f"{func_name} with hash {function.code_package_hash}."
                     )
-                self.update_function(function, code_package, container_deployment, container_uri)
+                self.update_function(
+                    function, code_package, container_deployment, container_uri
+                )
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
                 self.cache_client.add_function(
@@ -348,7 +363,9 @@ class System(ABC, LoggingBase):
             return function
 
     @abstractmethod
-    def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
+    def update_function_configuration(
+        self, cached_function: Function, benchmark: Benchmark
+    ):
         pass
 
     """
@@ -356,7 +373,9 @@ class System(ABC, LoggingBase):
         still up to date.
     """
 
-    def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
+    def is_configuration_changed(
+        self, cached_function: Function, benchmark: Benchmark
+    ) -> bool:
 
         changed = False
         for attr in ["timeout", "memory"]:
@@ -407,7 +426,9 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
-    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(
+        self, function: Function, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
         pass
 
     def disable_rich_output(self):

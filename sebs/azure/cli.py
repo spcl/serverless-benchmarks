@@ -21,7 +21,9 @@ class AzureCLI(LoggingBase):
         except docker.errors.ImageNotFound:
             try:
                 logging.info(
-                    "Docker pull of image {repo}:{image}".format(repo=repo_name, image=image_name)
+                    "Docker pull of image {repo}:{image}".format(
+                        repo=repo_name, image=image_name
+                    )
                 )
                 docker_client.images.pull(repo_name, image_name)
             except docker.errors.APIError:
@@ -85,7 +87,6 @@ class AzureCLI(LoggingBase):
         return result
 
     def upload_package(self, directory: str, dest: str):
-
         """
         This is not an efficient and memory-intensive implementation.
         So far, we didn't have very large functions that require many gigabytes.

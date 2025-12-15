@@ -42,9 +42,9 @@ def handler(event):
     sync()
     matmul_end = datetime.datetime.now()
 
-    matrix_generating_time = (matrix_generating_end - matrix_generating_begin) / datetime.timedelta(
-        microseconds=1
-    )
+    matrix_generating_time = (
+        matrix_generating_end - matrix_generating_begin
+    ) / datetime.timedelta(microseconds=1)
     matmul_time = (matmul_end - matmul_begin) / datetime.timedelta(microseconds=1)
     num_flops = 2 * (size**3) * reps
 

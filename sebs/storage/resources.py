@@ -145,13 +145,17 @@ class SelfHostedSystemResources(SystemResources):
 
     def get_storage(self, replace_existing: Optional[bool] = None) -> PersistentStorage:
         if self._storage is None:
-            storage_config = cast(SelfHostedResources, self._config.resources).storage_config
+            storage_config = cast(
+                SelfHostedResources, self._config.resources
+            ).storage_config
             if storage_config is None:
                 self.logging.error(
                     f"The {self._name} deployment is missing the "
                     "configuration of pre-allocated storage!"
                 )
-                raise RuntimeError(f"Cannot run {self._name} deployment without any object storage")
+                raise RuntimeError(
+                    f"Cannot run {self._name} deployment without any object storage"
+                )
 
             if isinstance(storage_config, MinioConfig):
                 self._storage = Minio.deserialize(
@@ -173,7 +177,9 @@ class SelfHostedSystemResources(SystemResources):
 
     def get_nosql_storage(self) -> NoSQLStorage:
         if self._nosql_storage is None:
-            storage_config = cast(SelfHostedResources, self._config.resources).nosql_storage_config
+            storage_config = cast(
+                SelfHostedResources, self._config.resources
+            ).nosql_storage_config
             if storage_config is None:
                 self.logging.error(
                     f"The {self._name} deployment is missing the configuration "

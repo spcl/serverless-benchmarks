@@ -32,7 +32,9 @@ class NetworkPingPong(Experiment):
         self.benchmark_input = benchmark.prepare_input(
             deployment_client.system_resources, size="test", replace_existing=True
         )
-        self._storage = deployment_client.system_resources.get_storage(replace_existing=True)
+        self._storage = deployment_client.system_resources.get_storage(
+            replace_existing=True
+        )
 
         self._function = deployment_client.get_function(benchmark)
 
@@ -64,7 +66,9 @@ class NetworkPingPong(Experiment):
 
         # give functions time to finish and upload result
         time.sleep(5)
-        self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
+        self._storage.download_bucket(
+            self.benchmark_input["output-bucket"], self._out_dir
+        )
 
     def process(self, directory: str):
 
@@ -78,7 +82,9 @@ class NetworkPingPong(Experiment):
             else:
                 full_data[request_id] = data
         df = pd.concat(full_data.values()).reset_index(drop=True)
-        df["rtt"] = (df["server_rcv"] - df["client_send"]) + (df["client_rcv"] - df["server_send"])
+        df["rtt"] = (df["server_rcv"] - df["client_send"]) + (
+            df["client_rcv"] - df["server_send"]
+        )
         print("Rows: ", df.shape[0])
         print("Mean: ", df["rtt"].mean())
         print("STD: ", df["rtt"].std())
@@ -106,7 +112,9 @@ class NetworkPingPong(Experiment):
             "repetitions": repetitions,
             **self.benchmark_input,
         }
-        self._function.triggers(Trigger.TriggerType.HTTP)[0].async_invoke(input_benchmark)
+        self._function.triggers(Trigger.TriggerType.HTTP)[0].async_invoke(
+            input_benchmark
+        )
 
         begin = datetime.now()
         times = []

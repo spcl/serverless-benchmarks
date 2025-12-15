@@ -6,7 +6,13 @@ def allocate_nosql() -> dict:
 
 
 def generate_input(
-    data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_upload
+    data_dir,
+    size,
+    benchmarks_bucket,
+    input_buckets,
+    output_buckets,
+    upload_func,
+    nosql_upload,
 ):
 
     input_config = {}

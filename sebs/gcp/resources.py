@@ -61,7 +61,10 @@ class GCPSystemResources(SystemResources):
     def get_nosql_storage(self) -> Datastore:
         if not self._nosql_storage:
             self._nosql_storage = Datastore(
-                self.cli_instance, self._cache_client, self.config.resources, self.config.region
+                self.cli_instance,
+                self._cache_client,
+                self.config.resources,
+                self.config.region,
             )
         return self._nosql_storage
 

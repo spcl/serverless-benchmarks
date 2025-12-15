@@ -23,7 +23,9 @@ def kernel_fw(path):
     n = path2.size(0)
     for k in range(n):
         for i in range(n):
-            path2[i, :] = torch.minimum(path2[i, :], path2[i, k] + path2[k, :])  # warmup
+            path2[i, :] = torch.minimum(
+                path2[i, :], path2[i, k] + path2[k, :]
+            )  # warmup
     torch.cuda.synchronize()
 
     start_evt = torch.cuda.Event(enable_timing=True)

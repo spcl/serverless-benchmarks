@@ -43,7 +43,9 @@ def handler(event):
             times.append([i, send_begin, recv_end])
         cur_time = recv_end - send_begin
         print(
-            "Time {} Min Time {} NotSmaller {}".format(cur_time, cur_min, measurements_not_smaller)
+            "Time {} Min Time {} NotSmaller {}".format(
+                cur_time, cur_min, measurements_not_smaller
+            )
         )
         if cur_time > cur_min and cur_min > 0:
             measurements_not_smaller += 1
@@ -68,7 +70,9 @@ def handler(event):
 
         client = storage.storage.get_instance()
         filename = "results-{}.csv".format(request_id)
-        key = client.upload(output_bucket, os.path.join(output_prefix, filename), "/tmp/data.csv")
+        key = client.upload(
+            output_bucket, os.path.join(output_prefix, filename), "/tmp/data.csv"
+        )
     else:
         key = None
 

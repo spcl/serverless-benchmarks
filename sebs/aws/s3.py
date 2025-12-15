@@ -54,7 +54,9 @@ class S3(PersistentStorage):
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
-                    "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
+                    "Bucket {} for {} already exists, skipping.".format(
+                        bucket_name, name
+                    )
                 )
                 return bucket_name
 
@@ -86,7 +88,9 @@ class S3(PersistentStorage):
 
             self.logging.info("Created bucket {}".format(bucket_name))
         except self.client.exceptions.BucketAlreadyExists as e:
-            self.logging.error(f"The bucket {bucket_name} exists already in region {self.region}!")
+            self.logging.error(
+                f"The bucket {bucket_name} exists already in region {self.region}!"
+            )
             raise e
         except self.client.exceptions.ClientError as e:
             self.logging.error(
@@ -110,7 +114,9 @@ class S3(PersistentStorage):
             for f in self.input_prefixes_files[path_idx]:
                 f_name = f
                 if key == f_name:
-                    self.logging.info("Skipping upload of {} to {}".format(filepath, bucket_name))
+                    self.logging.info(
+                        "Skipping upload of {} to {}".format(filepath, bucket_name)
+                    )
                     return
 
         self.upload(bucket_name, filepath, key)
@@ -142,7 +148,9 @@ class S3(PersistentStorage):
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         s3_buckets = self.client.list_buckets()["Buckets"]
         if bucket_name is not None:
-            return [bucket["Name"] for bucket in s3_buckets if bucket_name in bucket["Name"]]
+            return [
+                bucket["Name"] for bucket in s3_buckets if bucket_name in bucket["Name"]
+            ]
         else:
             return [bucket["Name"] for bucket in s3_buckets]
 

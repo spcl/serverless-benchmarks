@@ -124,7 +124,9 @@ class ScyllaDB(NoSQLStorage):
             self.logging.error("Starting ScyllaDB storage failed! Reason: {}".format(e))
             raise RuntimeError("Starting ScyllaDB storage unsuccesful")
         except Exception as e:
-            self.logging.error("Starting ScyllaDB storage failed! Unknown error: {}".format(e))
+            self.logging.error(
+                "Starting ScyllaDB storage failed! Unknown error: {}".format(e)
+            )
             raise RuntimeError("Starting ScyllaDB storage unsuccesful")
 
     # FIXME: refactor this - duplicated code from minio
@@ -141,10 +143,14 @@ class ScyllaDB(NoSQLStorage):
             self._storage_container.reload()
 
             # Check if the system is Linux and that it's not WSL
-            if platform.system() == "Linux" and "microsoft" not in platform.release().lower():
+            if (
+                platform.system() == "Linux"
+                and "microsoft" not in platform.release().lower()
+            ):
                 networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
                 self._cfg.address = "{IPAddress}:{Port}".format(
-                    IPAddress=networks["bridge"]["IPAddress"], Port=self._cfg.alternator_port
+                    IPAddress=networks["bridge"]["IPAddress"],
+                    Port=self._cfg.alternator_port,
                 )
             else:
                 # System is either WSL, Windows, or Mac
@@ -158,7 +164,9 @@ class ScyllaDB(NoSQLStorage):
                 raise RuntimeError(
                     f"Incorrect detection of IP address for container with id {self._instance_id}"
                 )
-            self.logging.info("Starting ScyllaDB instance at {}".format(self._cfg.address))
+            self.logging.info(
+                "Starting ScyllaDB instance at {}".format(self._cfg.address)
+            )
 
     def stop(self):
         if self._storage_container is not None:
@@ -166,10 +174,15 @@ class ScyllaDB(NoSQLStorage):
             self._storage_container.stop()
             self.logging.info(f"Stopped ScyllaDB container at {self._cfg.address}.")
         else:
-            self.logging.error("Stopping ScyllaDB was not succesful, storage container not known!")
+            self.logging.error(
+                "Stopping ScyllaDB was not succesful, storage container not known!"
+            )
 
     def envs(self) -> dict:
-        return {"NOSQL_STORAGE_TYPE": "scylladb", "NOSQL_STORAGE_ENDPOINT": self._cfg.address}
+        return {
+            "NOSQL_STORAGE_TYPE": "scylladb",
+            "NOSQL_STORAGE_ENDPOINT": self._cfg.address,
+        }
 
     def serialize(self) -> Tuple[StorageType, dict]:
         return StorageType.SCYLLADB, self._cfg.serialize()
@@ -186,7 +199,10 @@ class ScyllaDB(NoSQLStorage):
 
     @staticmethod
     def _deserialize(
-        cached_config: ScyllaDBConfig, cache_client: Cache, resources: Resources, obj_type: Type[T]
+        cached_config: ScyllaDBConfig,
+        cache_client: Cache,
+        resources: Resources,
+        obj_type: Type[T],
     ) -> T:
         docker_client = docker.from_env()
         obj = obj_type(docker_client, cache_client, cached_config, resources)
@@ -212,7 +228,9 @@ class ScyllaDB(NoSQLStorage):
         if benchmark in self._tables:
             return True
 
-        cached_storage = self.cache_client.get_nosql_config(self.deployment_name(), benchmark)
+        cached_storage = self.cache_client.get_nosql_config(
+            self.deployment_name(), benchmark
+        )
         if cached_storage is not None:
             self._tables[benchmark] = cached_storage["tables"]
             return True
@@ -269,10 +287,16 @@ class ScyllaDB(NoSQLStorage):
     """
 
     def create_table(
-        self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
+        self,
+        benchmark: str,
+        name: str,
+        primary_key: str,
+        secondary_key: Optional[str] = None,
     ) -> str:
 
-        table_name = f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}-{name}"
+        table_name = (
+            f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}-{name}"
+        )
 
         try:
 
@@ -280,7 +304,9 @@ class ScyllaDB(NoSQLStorage):
             key_schema = [{"AttributeName": primary_key, "KeyType": "HASH"}]
 
             if secondary_key is not None:
-                definitions.append({"AttributeName": secondary_key, "AttributeType": "S"})
+                definitions.append(
+                    {"AttributeName": secondary_key, "AttributeType": "S"}
+                )
                 key_schema.append({"AttributeName": secondary_key, "KeyType": "RANGE"})
 
             ret = self.client.create_table(
@@ -295,7 +321,9 @@ class ScyllaDB(NoSQLStorage):
                 waiter = self.client.get_waiter("table_exists")
                 waiter.wait(TableName=name)
 
-            self.logging.info(f"Created DynamoDB table {name} for benchmark {benchmark}")
+            self.logging.info(
+                f"Created DynamoDB table {name} for benchmark {benchmark}"
+            )
             self._tables[benchmark][name] = table_name
 
             return ret["TableDescription"]["TableName"]

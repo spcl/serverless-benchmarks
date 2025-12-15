@@ -33,7 +33,9 @@ class Credentials(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Credentials":
+    def deserialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> "Credentials":
         pass
 
     """
@@ -94,13 +96,17 @@ class Resources(ABC, LoggingBase):
     def region(self, region: str):
         self._region = region
 
-    def get_storage_bucket(self, bucket_type: Resources.StorageBucketType) -> Optional[str]:
+    def get_storage_bucket(
+        self, bucket_type: Resources.StorageBucketType
+    ) -> Optional[str]:
         return self._buckets.get(bucket_type)
 
     def get_storage_bucket_name(self, bucket_type: Resources.StorageBucketType) -> str:
         return f"sebs-{bucket_type.value}-{self._resources_id}"
 
-    def set_storage_bucket(self, bucket_type: Resources.StorageBucketType, bucket_name: str):
+    def set_storage_bucket(
+        self, bucket_type: Resources.StorageBucketType, bucket_name: str
+    ):
         self._buckets[bucket_type] = bucket_name
 
     @staticmethod
@@ -120,7 +126,9 @@ class Resources(ABC, LoggingBase):
 
     @staticmethod
     @abstractmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
+    def deserialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> "Resources":
         pass
 
     """

@@ -24,7 +24,9 @@ class BenchmarkResources:
 
     @staticmethod
     def deserialize(config: dict) -> "BenchmarkResources":
-        return BenchmarkResources(database=config["database"], containers=config["containers"])
+        return BenchmarkResources(
+            database=config["database"], containers=config["containers"]
+        )
 
 
 class CosmosDB(NoSQLStorage):
@@ -36,7 +38,9 @@ class CosmosDB(NoSQLStorage):
     def deployment_name():
         return "azure"
 
-    def __init__(self, cli: AzureCLI, cache_client: Cache, resources: AzureResources, region: str):
+    def __init__(
+        self, cli: AzureCLI, cache_client: Cache, resources: AzureResources, region: str
+    ):
         super().__init__(region, cache_client, resources)
         self._cli_instance = cli
         self._resource_group = resources.resource_group(self._cli_instance)
@@ -67,9 +71,13 @@ class CosmosDB(NoSQLStorage):
         if benchmark in self._benchmark_resources:
             return True
 
-        cached_storage = self.cache_client.get_nosql_config(self.deployment_name(), benchmark)
+        cached_storage = self.cache_client.get_nosql_config(
+            self.deployment_name(), benchmark
+        )
         if cached_storage is not None:
-            self._benchmark_resources[benchmark] = BenchmarkResources.deserialize(cached_storage)
+            self._benchmark_resources[benchmark] = BenchmarkResources.deserialize(
+                cached_storage
+            )
             return True
 
         return False
@@ -77,19 +85,22 @@ class CosmosDB(NoSQLStorage):
     def update_cache(self, benchmark: str):
 
         self.cache_client.update_nosql(
-            self.deployment_name(), benchmark, self._benchmark_resources[benchmark].serialize()
+            self.deployment_name(),
+            benchmark,
+            self._benchmark_resources[benchmark].serialize(),
         )
 
     def cosmos_client(self) -> CosmosClient:
 
         if self._cosmos_client is None:
 
-            self._cosmosdb_account = cast(AzureResources, self._cloud_resources).cosmosdb_account(
-                self._cli_instance
-            )
+            self._cosmosdb_account = cast(
+                AzureResources, self._cloud_resources
+            ).cosmosdb_account(self._cli_instance)
 
             self._cosmos_client = CosmosClient(
-                url=self._cosmosdb_account.url, credential=self._cosmosdb_account.credential
+                url=self._cosmosdb_account.url,
+                credential=self._cosmosdb_account.credential,
             )
 
         return self._cosmos_client
@@ -106,9 +117,9 @@ class CosmosDB(NoSQLStorage):
         # to initialize it separately
         # There were no prior actions that initialized this variable
         if self._cosmosdb_account is None:
-            self._cosmosdb_account = cast(AzureResources, self._cloud_resources).cosmosdb_account(
-                self._cli_instance
-            )
+            self._cosmosdb_account = cast(
+                AzureResources, self._cloud_resources
+            ).cosmosdb_account(self._cli_instance)
 
         return (
             self._cosmosdb_account.account_name,
@@ -172,8 +183,8 @@ class CosmosDB(NoSQLStorage):
 
         if benchmark_resources.database_client is None:
             # Data loaded from cache will miss database client
-            benchmark_resources.database_client = self.cosmos_client().get_database_client(
-                benchmark
+            benchmark_resources.database_client = (
+                self.cosmos_client().get_database_client(benchmark)
             )
 
         try:

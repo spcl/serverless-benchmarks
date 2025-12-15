@@ -36,7 +36,9 @@ def _ensure_model(bucket: str, model_prefix: str):
         if not os.path.exists(model_path):
             os.makedirs(MODEL_DIRECTORY, exist_ok=True)
             archive_path = os.path.join("/tmp", f"{uuid.uuid4()}-{MODEL_ARCHIVE}")
-            client.download(bucket, os.path.join(model_prefix, MODEL_ARCHIVE), archive_path)
+            client.download(
+                bucket, os.path.join(model_prefix, MODEL_ARCHIVE), archive_path
+            )
             model_download_end = datetime.datetime.now()
 
             with tarfile.open(archive_path, "r:gz") as tar:
@@ -69,9 +71,9 @@ def _ensure_model(bucket: str, model_prefix: str):
         model_process_begin = datetime.datetime.now()
         model_process_end = model_process_begin
 
-    model_download_time = (model_download_end - model_download_begin) / datetime.timedelta(
-        microseconds=1
-    )
+    model_download_time = (
+        model_download_end - model_download_begin
+    ) / datetime.timedelta(microseconds=1)
     model_process_time = (model_process_end - model_process_begin) / datetime.timedelta(
         microseconds=1
     )
@@ -111,7 +113,9 @@ def handler(event):
     text_key = event.get("object", {}).get("input")
 
     download_begin = datetime.datetime.now()
-    text_download_path = os.path.join("/tmp", f"{uuid.uuid4()}-{os.path.basename(text_key)}")
+    text_download_path = os.path.join(
+        "/tmp", f"{uuid.uuid4()}-{os.path.basename(text_key)}"
+    )
     client.download(bucket, os.path.join(text_prefix, text_key), text_download_path)
     download_end = datetime.datetime.now()
 
@@ -144,7 +148,9 @@ def handler(event):
         )
 
     download_time = (download_end - download_begin) / datetime.timedelta(microseconds=1)
-    compute_time = (inference_end - inference_begin) / datetime.timedelta(microseconds=1)
+    compute_time = (inference_end - inference_begin) / datetime.timedelta(
+        microseconds=1
+    )
 
     return {
         "result": {"predictions": results},

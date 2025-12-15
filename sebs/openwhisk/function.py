@@ -38,7 +38,11 @@ class OpenWhiskFunctionConfig(FunctionConfig):
 
 class OpenWhiskFunction(Function):
     def __init__(
-        self, name: str, benchmark: str, code_package_hash: str, cfg: OpenWhiskFunctionConfig
+        self,
+        name: str,
+        benchmark: str,
+        code_package_hash: str,
+        cfg: OpenWhiskFunctionConfig,
     ):
         super().__init__(benchmark, name, code_package_hash, cfg)
 
@@ -60,7 +64,10 @@ class OpenWhiskFunction(Function):
 
         cfg = OpenWhiskFunctionConfig.deserialize(cached_config["config"])
         ret = OpenWhiskFunction(
-            cached_config["name"], cached_config["benchmark"], cached_config["hash"], cfg
+            cached_config["name"],
+            cached_config["benchmark"],
+            cached_config["hash"],
+            cfg,
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(

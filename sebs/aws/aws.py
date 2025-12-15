@@ -74,7 +74,9 @@ class AWS(System):
         self.storage: Optional[S3] = None
         self.nosql_storage: Optional[DynamoDB] = None
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+    def initialize(
+        self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None
+    ):
         # thread-safe
         self.session = boto3.session.Session(
             aws_access_key_id=self.config.credentials.access_key,
@@ -131,7 +133,12 @@ class AWS(System):
         if container_deployment:
             # build base image and upload to ECR
             _, container_uri = self.ecr_client.build_base_image(
-                directory, language_name, language_version, architecture, benchmark, is_cached
+                directory,
+                language_name,
+                language_version,
+                architecture,
+                benchmark,
+                is_cached,
             )
 
         CONFIG_FILES = {
@@ -212,7 +219,9 @@ class AWS(System):
                 self.config.resources.lambda_role(self.session),
                 function_cfg,
             )
-            self.update_function(lambda_function, code_package, container_deployment, container_uri)
+            self.update_function(
+                lambda_function, code_package, container_deployment, container_uri
+            )
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
@@ -239,12 +248,16 @@ class AWS(System):
                     code_package_name = cast(str, os.path.basename(package))
 
                     storage_client = self.system_resources.get_storage()
-                    code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+                    code_bucket = storage_client.get_bucket(
+                        Resources.StorageBucketType.DEPLOYMENT
+                    )
                     code_prefix = os.path.join(benchmark, code_package_name)
                     storage_client.upload(code_bucket, package, code_prefix)
 
                     self.logging.info(
-                        "Uploading function {} code to {}".format(func_name, code_bucket)
+                        "Uploading function {} code to {}".format(
+                            func_name, code_bucket
+                        )
                     )
                     create_function_params["Code"] = {
                         "S3Bucket": code_bucket,
@@ -377,7 +390,9 @@ class AWS(System):
         # If we modify them, we need to first read existing ones and append.
         if len(envs) > 0:
 
-            response = self.client.get_function_configuration(FunctionName=function.name)
+            response = self.client.get_function_configuration(
+                FunctionName=function.name
+            )
             # preserve old variables while adding new ones.
             # but for conflict, we select the new one
             if "Environment" in response:
@@ -406,7 +421,9 @@ class AWS(System):
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
         # Create function name
-        resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        resource_id = (
+            resources.resources_id if resources else self.config.resources.resources_id
+        )
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
             code_package.benchmark,
@@ -480,7 +497,9 @@ class AWS(System):
         output.provider_times.execution = int(float(aws_vals["Duration"]) * 1000)
         output.stats.memory_used = float(aws_vals["Max Memory Used"])
         if "Init Duration" in aws_vals:
-            output.provider_times.initialization = int(float(aws_vals["Init Duration"]) * 1000)
+            output.provider_times.initialization = int(
+                float(aws_vals["Init Duration"]) * 1000
+            )
         output.billing.billed_time = int(aws_vals["Billed Duration"])
         output.billing.memory = int(aws_vals["Memory Size"])
         output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
@@ -575,7 +594,9 @@ class AWS(System):
             f"out of {results_count} invocations"
         )
 
-    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(
+        self, func: Function, trigger_type: Trigger.TriggerType
+    ) -> Trigger:
         from sebs.aws.triggers import HTTPTrigger
 
         function = cast(LambdaFunction, func)

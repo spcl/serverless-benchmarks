@@ -41,16 +41,18 @@ def handler(event):
         seed = int(seed)
 
     matrix_generating_begin = datetime.datetime.now()
-    alpha, beta, C, A, B = initialize_torch(size, size, size, dtype=torch.float32, device="cuda")
+    alpha, beta, C, A, B = initialize_torch(
+        size, size, size, dtype=torch.float32, device="cuda"
+    )
     matrix_generating_end = datetime.datetime.now()
 
     matmul_begin = datetime.datetime.now()
     C_out, gpu_ms = kernel_gemm(alpha, beta, C, A, B, reps=1)
     matmul_end = datetime.datetime.now()
 
-    matrix_generating_time = (matrix_generating_end - matrix_generating_begin) / datetime.timedelta(
-        microseconds=1
-    )
+    matrix_generating_time = (
+        matrix_generating_end - matrix_generating_begin
+    ) / datetime.timedelta(microseconds=1)
     matmul_time = (matmul_end - matmul_begin) / datetime.timedelta(microseconds=1)
 
     return {

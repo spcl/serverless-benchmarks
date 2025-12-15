@@ -111,7 +111,9 @@ class Minio(PersistentStorage):
             self.logging.error("Starting Minio storage failed! Reason: {}".format(e))
             raise RuntimeError("Starting Minio storage unsuccesful")
         except Exception as e:
-            self.logging.error("Starting Minio storage failed! Unknown error: {}".format(e))
+            self.logging.error(
+                "Starting Minio storage failed! Unknown error: {}".format(e)
+            )
             raise RuntimeError("Starting Minio storage unsuccesful")
 
     def configure_connection(self):
@@ -153,7 +155,9 @@ class Minio(PersistentStorage):
             self._storage_container.stop()
             self.logging.info(f"Stopped minio container at {self._cfg.address}.")
         else:
-            self.logging.error("Stopping minio was not succesful, storage container not known!")
+            self.logging.error(
+                "Stopping minio was not succesful, storage container not known!"
+            )
 
     def get_connection(self):
         return minio.Minio(
@@ -164,11 +168,15 @@ class Minio(PersistentStorage):
             http_client=Minio._define_http_client(),
         )
 
-    def _create_bucket(self, name: str, buckets: List[str] = [], randomize_name: bool = False):
+    def _create_bucket(
+        self, name: str, buckets: List[str] = [], randomize_name: bool = False
+    ):
         for bucket_name in buckets:
             if name in bucket_name:
                 self.logging.info(
-                    "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
+                    "Bucket {} for {} already exists, skipping.".format(
+                        bucket_name, name
+                    )
                 )
                 return bucket_name
         # minio has limit of bucket name to 16 characters
@@ -220,7 +228,9 @@ class Minio(PersistentStorage):
         )
         errors = self.connection.remove_objects(bucket, delete_object_list)
         for error in errors:
-            self.logging.error(f"Error when deleting object from bucket {bucket}: {error}!")
+            self.logging.error(
+                f"Error when deleting object from bucket {bucket}: {error}!"
+            )
 
     def remove_bucket(self, bucket: str):
         self.connection.remove_bucket(Bucket=bucket)
@@ -237,9 +247,13 @@ class Minio(PersistentStorage):
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         try:
             objects_list = self.connection.list_objects(bucket_name)
-            return [obj.object_name for obj in objects_list if prefix in obj.object_name]
+            return [
+                obj.object_name for obj in objects_list if prefix in obj.object_name
+            ]
         except minio.error.NoSuchBucket:
-            raise RuntimeError(f"Attempting to access a non-existing bucket {bucket_name}!")
+            raise RuntimeError(
+                f"Attempting to access a non-existing bucket {bucket_name}!"
+            )
 
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         buckets = self.connection.list_buckets()
@@ -288,5 +302,7 @@ class Minio(PersistentStorage):
         return obj
 
     @staticmethod
-    def deserialize(cached_config: MinioConfig, cache_client: Cache, res: Resources) -> "Minio":
+    def deserialize(
+        cached_config: MinioConfig, cache_client: Cache, res: Resources
+    ) -> "Minio":
         return Minio._deserialize(cached_config, cache_client, res, Minio)

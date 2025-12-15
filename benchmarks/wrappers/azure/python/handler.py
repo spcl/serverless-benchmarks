@@ -53,10 +53,14 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
         b = req_json.get("logs").get("bucket")
         req_id = context.invocation_id
         storage_inst.upload_stream(
-            b, "{}.json".format(req_id), io.BytesIO(json.dumps(log_data).encode("utf-8"))
+            b,
+            "{}.json".format(req_id),
+            io.BytesIO(json.dumps(log_data).encode("utf-8")),
         )
         results_end = datetime.datetime.now()
-        results_time = (results_end - results_begin) / datetime.timedelta(microseconds=1)
+        results_time = (results_end - results_begin) / datetime.timedelta(
+            microseconds=1
+        )
     else:
         results_time = 0
 

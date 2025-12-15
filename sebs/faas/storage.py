@@ -37,7 +37,11 @@ class PersistentStorage(ABC, LoggingBase):
         return self._region
 
     def __init__(
-        self, region: str, cache_client: Cache, resources: Resources, replace_existing: bool
+        self,
+        region: str,
+        cache_client: Cache,
+        resources: Resources,
+        replace_existing: bool,
     ):
         super().__init__()
         self._cache_client = cache_client
@@ -143,7 +147,6 @@ class PersistentStorage(ABC, LoggingBase):
     def benchmark_data(
         self, benchmark: str, requested_buckets: Tuple[int, int]
     ) -> Tuple[List[str], List[str]]:
-
         """
         Add an input path inside benchmarks bucket.
         Bucket name format: name-idx-input
@@ -158,7 +161,9 @@ class PersistentStorage(ABC, LoggingBase):
         for i in range(0, requested_buckets[1]):
             self.output_prefixes.append("{}-{}-output".format(benchmark, i))
 
-        cached_storage = self.cache_client.get_storage_config(self.deployment_name(), benchmark)
+        cached_storage = self.cache_client.get_storage_config(
+            self.deployment_name(), benchmark
+        )
         self.cached = True
 
         if cached_storage is not None:
@@ -264,13 +269,17 @@ class PersistentStorage(ABC, LoggingBase):
             name = self._cloud_resources.get_storage_bucket_name(bucket_type)
 
             if not self.exists_bucket(name):
-                self.logging.info(f"Initialize a new bucket for {description[bucket_type]}")
+                self.logging.info(
+                    f"Initialize a new bucket for {description[bucket_type]}"
+                )
                 bucket = self._create_bucket(
                     self.correct_name(name),
                     randomize_name=False,
                 )
             else:
-                self.logging.info(f"Using existing bucket {name} for {description[bucket_type]}")
+                self.logging.info(
+                    f"Using existing bucket {name} for {description[bucket_type]}"
+                )
                 bucket = name
             self._cloud_resources.set_storage_bucket(bucket_type, bucket)
 

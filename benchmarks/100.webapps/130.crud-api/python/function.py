@@ -5,7 +5,9 @@ nosql_client = nosql.nosql.get_instance()
 nosql_table_name = "shopping_cart"
 
 
-def add_product(cart_id: str, product_id: str, product_name: str, price: float, quantity: int):
+def add_product(
+    cart_id: str, product_id: str, product_name: str, price: float, quantity: int
+):
 
     nosql_client.insert(
         nosql_table_name,
@@ -16,7 +18,9 @@ def add_product(cart_id: str, product_id: str, product_name: str, price: float, 
 
 
 def get_products(cart_id: str, product_id: str):
-    return nosql_client.get(nosql_table_name, ("cart_id", cart_id), ("product_id", product_id))
+    return nosql_client.get(
+        nosql_table_name, ("cart_id", cart_id), ("product_id", product_id)
+    )
 
 
 def query_products(cart_id: str):
@@ -52,7 +56,11 @@ def handler(event):
 
         if route == "PUT /cart":
             add_product(
-                body["cart"], body["product_id"], body["name"], body["price"], body["quantity"]
+                body["cart"],
+                body["product_id"],
+                body["name"],
+                body["price"],
+                body["quantity"],
             )
             res = {}
         elif route == "GET /cart/{id}":

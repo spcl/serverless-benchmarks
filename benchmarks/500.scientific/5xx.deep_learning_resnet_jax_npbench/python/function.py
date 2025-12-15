@@ -22,11 +22,15 @@ def conv2d(input, weights):
 
     def row_update(output, i):
         def col_update(output, j):
-            input_slice = lax.dynamic_slice(input, (0, i, j, 0), (N, K, K, input.shape[-1]))
+            input_slice = lax.dynamic_slice(
+                input, (0, i, j, 0), (N, K, K, input.shape[-1])
+            )
             conv_result = jnp.sum(
                 input_slice[:, :, :, :, None] * weights[None, :, :, :], axis=(1, 2, 3)
             )
-            output = lax.dynamic_update_slice(output, conv_result[:, None, None, :], (0, i, j, 0))
+            output = lax.dynamic_update_slice(
+                output, conv_result[:, None, None, :], (0, i, j, 0)
+            )
             return output, None
 
         output, _ = lax.scan(col_update, output, jnp.arange(W_out))

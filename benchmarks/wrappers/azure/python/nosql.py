@@ -15,7 +15,9 @@ class nosql:
     def _get_table(self, table_name: str):
 
         if table_name not in self._containers:
-            self._containers[table_name] = self._db_client.get_container_client(table_name)
+            self._containers[table_name] = self._db_client.get_container_client(
+                table_name
+            )
 
         return self._containers[table_name]
 
@@ -34,7 +36,10 @@ class nosql:
         self._get_table(table_name).upsert_item(data)
 
     def get(
-        self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
     ) -> dict:
         res = self._get_table(table_name).read_item(
             item=secondary_key[1], partition_key=primary_key[1]
@@ -80,13 +85,22 @@ class nosql:
 
         return res
 
-    def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
+    def delete(
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
+    ):
 
-        self._get_table(table_name).delete_item(item=secondary_key[1], partition_key=primary_key[1])
+        self._get_table(table_name).delete_item(
+            item=secondary_key[1], partition_key=primary_key[1]
+        )
 
     @staticmethod
     def get_instance(
-        database: Optional[str] = None, url: Optional[str] = None, credential: Optional[str] = None
+        database: Optional[str] = None,
+        url: Optional[str] = None,
+        credential: Optional[str] = None,
     ):
         if nosql.instance is None:
             assert database is not None and url is not None and credential is not None

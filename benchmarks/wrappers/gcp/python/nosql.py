@@ -70,7 +70,10 @@ class nosql:
         self._client.put(res)
 
     def get(
-        self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
     ) -> Optional[dict]:
 
         parent_key = self._client.key(primary_key[0], primary_key[1])
@@ -110,7 +113,12 @@ class nosql:
 
         return res
 
-    def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
+    def delete(
+        self,
+        table_name: str,
+        primary_key: Tuple[str, str],
+        secondary_key: Tuple[str, str],
+    ):
         parent_key = self._client.key(primary_key[0], primary_key[1])
         key = self._client.key(
             # kind determines the table
