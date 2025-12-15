@@ -1,12 +1,6 @@
 {
-  "timeout": 300,
+  "timeout": 60,
   "memory": 1024,
   "languages": ["python"],
-  "modules": [],
-  "name": "050.gpu-cache-latency",
-  "runtime": "python3",
-  "handler": "python/function.handler",
-  "dockerfile": "Dockerfile",
-  "data_dir": "../../benchmarks-data/050.gpu-cache-latency",
-  "datasets": ["tiny", "small", "large"]
+  "modules": []
 }
