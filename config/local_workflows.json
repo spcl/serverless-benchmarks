@@ -113,9 +113,9 @@
           "minio": {
             "address": "172.17.0.2:9000",
             "mapped_port": 9011,
-            "access_key": "hV4e0XGmzrJlsP8UW0OKDDrVqD1hE0IfCPYwZvTakJE",
-            "secret_key": "aec745a602364ac958b24787b93c87f469e27524a8ed1e1e420ad5218af38bd8",
-            "instance_id": "22b8cf06c8f28c429c88732bca34bb3d516d5583af59651c68925cd472de4a85",
+            "access_key": "hmhh57YIS1h2Q5qCAtyBhSByAWsri1dLdyTPq82u9eU",
+            "secret_key": "d2cd1575c092f49ddd3522f017c60e34bbbbdff72765ff2235211b047e6bd311",
+            "instance_id": "178ad7ca573dff5e10326286bfbd239a2338a1f63b0ec29c93da497f99d0f8b1",
             "input_buckets": [],
             "output_buckets": []
           }
@@ -125,7 +125,7 @@
           "scylladb": {
             "address": "172.17.0.3:8000",
             "mapped_port": 9012,
-            "instance_id": "a411b4a644addd73d1943883d9094b57f31ad5a87f94ecec9e5784e00118a727"
+            "instance_id": "77290431c8bf4b8a5029dacf6e8a8d47676e4360206b35619565ef5dc65935ed"
           }
         }
       },

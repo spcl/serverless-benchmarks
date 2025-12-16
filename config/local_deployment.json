@@ -51,7 +51,7 @@
     }
   },
   "deployment": {
-    "name": "local",
+    "name": "sonataflow",
     "aws": {
       "region": "us-east-1",
       "lambda-role": "",
@@ -114,12 +114,12 @@
     "sonataflow": {
       "resources": {
         "redis": {
-          "host": "",
+          "host": "localhost:6380",
           "password": ""
         },
         "runtime": {
           "url": "http://localhost:8080",
-          "endpoint_prefix": "services"
+          "endpoint_prefix": ""
         }
       },
       "storage": {
@@ -130,7 +130,27 @@
         "instance_id": "",
         "input_buckets": [],
         "output_buckets": [],
-        "type": "minio"
+        "type": "minio",
+        "object": {
+          "type": "minio",
+          "minio": {
+            "address": "172.17.0.2:9000",
+            "mapped_port": 9011,
+            "access_key": "hmhh57YIS1h2Q5qCAtyBhSByAWsri1dLdyTPq82u9eU",
+            "secret_key": "d2cd1575c092f49ddd3522f017c60e34bbbbdff72765ff2235211b047e6bd311",
+            "instance_id": "178ad7ca573dff5e10326286bfbd239a2338a1f63b0ec29c93da497f99d0f8b1",
+            "input_buckets": [],
+            "output_buckets": []
+          }
+        },
+        "nosql": {
+          "type": "scylladb",
+          "scylladb": {
+            "address": "172.17.0.3:8000",
+            "mapped_port": 9012,
+            "instance_id": "77290431c8bf4b8a5029dacf6e8a8d47676e4360206b35619565ef5dc65935ed"
+          }
+        }
       }
     },
     "openwhisk": {

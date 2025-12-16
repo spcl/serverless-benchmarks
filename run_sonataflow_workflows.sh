@@ -1,13 +1,32 @@
 #!/bin/bash
 set -euo pipefail
 
-# Ensure SeBS (python docker SDK) uses the same Docker daemon as `docker` CLI.
-# This avoids "No route to host" issues when containers are created in one daemon
-# (e.g., `/var/run/docker.sock`) but `docker run` uses another (e.g., Docker Desktop).
-if command -v docker >/dev/null 2>&1; then
-  DOCKER_HOST_FROM_CONTEXT=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)
-  if [ -n "${DOCKER_HOST_FROM_CONTEXT:-}" ]; then
-    export DOCKER_HOST="$DOCKER_HOST_FROM_CONTEXT"
+# Use a single Docker daemon for both SeBS (python docker SDK) and `docker` CLI.
+# On Linux, prefer the native engine at `/var/run/docker.sock` when available:
+# Docker Desktop's VM-backed filesystem sharing can break bind-mounted volumes for MinIO/ScyllaDB.
+if [ -z "${DOCKER_HOST:-}" ]; then
+  if [ -S /var/run/docker.sock ] && DOCKER_HOST=unix:///var/run/docker.sock docker info >/dev/null 2>&1; then
+    export DOCKER_HOST="unix:///var/run/docker.sock"
+  elif command -v docker >/dev/null 2>&1; then
+    DOCKER_HOST_FROM_CONTEXT=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)
+    if [ -n "${DOCKER_HOST_FROM_CONTEXT:-}" ]; then
+      export DOCKER_HOST="$DOCKER_HOST_FROM_CONTEXT"
+    fi
+  fi
+fi
+
+# Prefer the repo's virtualenv (avoids missing deps when not activated).
+SEBS_PYTHON="${SEBS_PYTHON:-}"
+if [ -z "${SEBS_PYTHON}" ]; then
+  if [ -x "$PWD/python-venv/bin/python" ]; then
+    SEBS_PYTHON="$PWD/python-venv/bin/python"
+  elif command -v python3 >/dev/null 2>&1; then
+    SEBS_PYTHON="$(command -v python3)"
+  elif command -v python >/dev/null 2>&1; then
+    SEBS_PYTHON="$(command -v python)"
+  else
+    echo "ERROR: python not found (set SEBS_PYTHON or install python3)."
+    exit 1
   fi
 fi
 
@@ -38,7 +57,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-./sebs.py storage start all config/storage.json --output-json out_storage.json
+"$SEBS_PYTHON" ./sebs.py storage start all config/storage.json --output-json out_storage.json
 
 MINIO_ADDRESS=$(jq -r '.object.minio.address' out_storage.json)
 MINIO_PORT=$(jq -r '.object.minio.mapped_port' out_storage.json)
@@ -48,6 +67,18 @@ MINIO_INSTANCE=$(jq -r '.object.minio.instance_id' out_storage.json)
 SCYLLA_ADDRESS=$(jq -r '.nosql.scylladb.address' out_storage.json)
 SCYLLA_PORT=$(jq -r '.nosql.scylladb.mapped_port' out_storage.json)
 SCYLLA_INSTANCE=$(jq -r '.nosql.scylladb.instance_id' out_storage.json)
+
+# Fail fast if storage containers were created in a different daemon/context.
+if ! docker inspect "$MINIO_INSTANCE" >/dev/null 2>&1; then
+  echo "ERROR: MinIO container $MINIO_INSTANCE not found in the current Docker daemon."
+  echo "Hint: set DOCKER_HOST to the daemon SeBS uses (e.g., unix:///var/run/docker.sock)."
+  exit 1
+fi
+if ! docker inspect "$SCYLLA_INSTANCE" >/dev/null 2>&1; then
+  echo "ERROR: ScyllaDB container $SCYLLA_INSTANCE not found in the current Docker daemon."
+  echo "Hint: set DOCKER_HOST to the daemon SeBS uses (e.g., unix:///var/run/docker.sock)."
+  exit 1
+fi
 
 for cfg in config/local_workflows.json config/local_deployment.json; do
   tmp=$(mktemp)
@@ -298,7 +329,7 @@ for wf in "${WORKFLOWS[@]}"; do
 
   # First, create the workflow (without invoking it yet) by running with --repetitions 0
   # This generates the .sw.json file
-  ./sebs.py benchmark workflow "$wf" test \
+  "$SEBS_PYTHON" ./sebs.py benchmark workflow "$wf" test \
       --config config/local_workflows.json \
       --deployment sonataflow --trigger http --repetitions 0 \
       --output-dir results/local-workflows --verbose || true
@@ -348,7 +379,7 @@ for wf in "${WORKFLOWS[@]}"; do
   preflight_runtime_function_connectivity "$SONATAFLOW_WORKFLOWS_DIR/${WF_ID}.sw.json" || exit 1
 
   # Now run the actual benchmark
-  ./sebs.py benchmark workflow "$wf" test \
+  "$SEBS_PYTHON" ./sebs.py benchmark workflow "$wf" test \
       --config config/local_workflows.json \
       --deployment sonataflow --trigger http --repetitions 1 \
       --output-dir results/local-workflows --verbose || true

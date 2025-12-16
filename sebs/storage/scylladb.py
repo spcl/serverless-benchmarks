@@ -196,7 +196,11 @@ class ScyllaDB(NoSQLStorage):
             try:
                 obj._storage_container = docker_client.containers.get(instance_id)
             except docker.errors.NotFound:
-                raise RuntimeError(f"Storage container {instance_id} does not exist!")
+                obj.logging.warning(
+                    f"Storage container {instance_id} not found; continuing without container handle."
+                )
+                obj._storage_container = None
+                obj._cfg.instance_id = ""
         else:
             obj._storage_container = None
         return obj

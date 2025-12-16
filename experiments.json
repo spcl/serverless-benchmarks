@@ -1,7 +1,7 @@
 {
   "_invocations": {},
   "_metrics": {},
-  "begin_time": 1765812589.989892,
+  "begin_time": 1765895964.383506,
   "config": {
     "deployment": {
       "name": "sonataflow",
@@ -14,7 +14,7 @@
           "alternator_port": 8000,
           "cpus": -1,
           "data_volume": "",
-          "instance_id": "a411b4a644addd73d1943883d9094b57f31ad5a87f94ecec9e5784e00118a727",
+          "instance_id": "77290431c8bf4b8a5029dacf6e8a8d47676e4360206b35619565ef5dc65935ed",
           "mapped_port": 9012,
           "memory": -1,
           "region": "None",
@@ -26,14 +26,14 @@
           "url": "http://localhost:8080"
         },
         "storage": {
-          "access_key": "hV4e0XGmzrJlsP8UW0OKDDrVqD1hE0IfCPYwZvTakJE",
+          "access_key": "hmhh57YIS1h2Q5qCAtyBhSByAWsri1dLdyTPq82u9eU",
           "address": "172.17.0.2:9000",
           "data_volume": "",
           "input_buckets": [],
-          "instance_id": "22b8cf06c8f28c429c88732bca34bb3d516d5583af59651c68925cd472de4a85",
+          "instance_id": "178ad7ca573dff5e10326286bfbd239a2338a1f63b0ec29c93da497f99d0f8b1",
           "mapped_port": 9011,
           "output_buckets": [],
-          "secret_key": "aec745a602364ac958b24787b93c87f469e27524a8ed1e1e420ad5218af38bd8",
+          "secret_key": "d2cd1575c092f49ddd3522f017c60e34bbbbdff72765ff2235211b047e6bd311",
           "type": "minio",
           "version": ""
         }
@@ -92,6 +92,6 @@
       "update_storage": false
     }
   },
-  "end_time": 1765812589.995802,
+  "end_time": 1765895964.386292,
   "result_bucket": null
 }
