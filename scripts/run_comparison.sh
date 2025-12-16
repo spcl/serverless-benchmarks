@@ -22,7 +22,9 @@ OUTPUT_DIR="${PROJECT_ROOT}/results/comparison_$(date +%Y%m%d_%H%M%S)"
 REPETITIONS=5
 MEMORY="256"
 INPUT_SIZE="test"
+ARCHITECTURE="x64"
 GENERATE_PLOTS=true
+CONTAINER_DEPLOYMENT=false
 
 # Print usage
 usage() {
@@ -42,6 +44,8 @@ Options:
     -r, --repetitions NUM       Number of repetitions (default: 5)
     -m, --memory SIZES          Memory sizes in MB (space-separated, default: 256)
     -i, --input-size SIZE       Input size: test, small, large (default: test)
+    -a, --architecture ARCH     Architecture: x64, arm64 (default: x64)
+    --container-deployment      Run functions as containers
     --no-plots                  Skip plot generation
     --skip-benchmark            Skip benchmark run, only generate plots
     -h, --help                  Show this help message
@@ -95,6 +99,14 @@ while [[ $# -gt 0 ]]; do
             INPUT_SIZE="$2"
             shift 2
             ;;
+        -a|--architecture)
+            ARCHITECTURE="$2"
+            shift 2
+            ;;
+        --container-deployment)
+            CONTAINER_DEPLOYMENT=true
+            shift
+            ;;
         --no-plots)
             GENERATE_PLOTS=false
             shift
@@ -135,6 +147,8 @@ if [ "$SKIP_BENCHMARK" = false ]; then
     echo "  Repetitions: $REPETITIONS"
     echo "  Memory: $MEMORY MB"
     echo "  Input Size: $INPUT_SIZE"
+    echo "  Architecture: $ARCHITECTURE"
+    echo "  Container Deployment: $CONTAINER_DEPLOYMENT"
     echo "  Output: $OUTPUT_DIR"
     echo ""
     
@@ -149,8 +163,13 @@ if [ "$SKIP_BENCHMARK" = false ]; then
         --repetitions "$REPETITIONS"
         --memory $MEMORY
         --input-size "$INPUT_SIZE"
+        --architecture "$ARCHITECTURE"
         --verbose
     )
+
+    if [ "$CONTAINER_DEPLOYMENT" = true ]; then
+        CMD+=(--container-deployment)
+    fi
     
     echo "Running: ${CMD[@]}"
     echo ""
