@@ -53,6 +53,6 @@ RUN if [ "${TARGET_ARCHITECTURE}" = "arm64" ] && test -f "function/requirements.
         pip cache purge; \
     fi
 
-RUN pip install awslambdaric
+RUN pip install awslambdaric boto3
 ENTRYPOINT ["/opt/pypy/bin/python", "-m", "awslambdaric"]
 CMD ["function/handler.handler"]
