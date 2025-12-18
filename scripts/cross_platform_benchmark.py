@@ -89,7 +89,8 @@ class BenchmarkRunner:
         input_size: str = 'test',
         repetitions: int = 5,
         memory: int = 256,
-        architecture: str = 'x64'
+        architecture: str = 'x64',
+        container_deployment: bool = False
     ) -> Tuple[bool, Optional[str], Optional[Dict]]:
         """
         Run a single benchmark configuration.
@@ -142,8 +143,8 @@ class BenchmarkRunner:
                 '--cache', self.cache_dir
             ]
             
-            # Add --container-deployment for AWS PyPy as it is required
-            if platform == 'aws' and language == 'pypy':
+            # Add --container-deployment if requested or required
+            if container_deployment or ((platform == 'aws' or platform == 'gcp') and language == 'pypy'):
                 cmd.append('--container-deployment')
             
             if self.verbose:
@@ -206,7 +207,8 @@ class BenchmarkRunner:
         repetitions: int = 5,
         memory_sizes: List[int] = [256],
         architecture: str = 'x64',
-        versions: Optional[Dict[str, List[str]]] = None
+        versions: Optional[Dict[str, List[str]]] = None,
+        container_deployment: bool = False
     ):
         """
         Run benchmarks across multiple configurations.
@@ -269,7 +271,8 @@ class BenchmarkRunner:
                                 input_size=input_size,
                                 repetitions=repetitions,
                                 memory=memory,
-                                architecture=architecture
+                                architecture=architecture,
+                                container_deployment=container_deployment
                             )
                             
                             result_entry = {
@@ -442,6 +445,9 @@ Examples:
     
     parser.add_argument('--verbose', action='store_true',
                         help='Enable verbose output')
+
+    parser.add_argument('--container-deployment', action='store_true',
+                        help='Run functions as containers')
     
     args = parser.parse_args()
     
@@ -474,7 +480,8 @@ Examples:
             repetitions=args.repetitions,
             memory_sizes=args.memory,
             architecture=args.architecture,
-            versions=versions if versions else None
+            versions=versions if versions else None,
+            container_deployment=args.container_deployment
         )
         
         print("\n" + "="*60)
