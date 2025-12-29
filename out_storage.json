@@ -2,32 +2,34 @@
   "object": {
     "type": "minio",
     "minio": {
-      "address": "172.17.0.2:9000",
+      "address": "172.18.0.2:9000",
       "mapped_port": 9011,
-      "access_key": "rB907YMFJW7gUgnUnefzcni9RExzy4aP0vr52tGzYgQ",
-      "secret_key": "f47e06c50a29f37f68b01eb2b96ea1679cab8b6e72102078fa36ed72a07f8ec9",
-      "instance_id": "5fac4b34c68172c95f81230df52c2989d06e3f7891b5bd901905c085258e56b9",
+      "access_key": "1BLdaNtOSM0ydc6JdiCnVUkuFG17-F-WNgEjQDZ5OOk",
+      "secret_key": "13a8d3970b537c17c25e3a772c6ffaa4635423ca99d942508d3f5a626e242289",
+      "instance_id": "f95ec8af54b7c94293469dac2e20a46fe244bc33761a75a6b0c1cd9e04f2fcd4",
       "output_buckets": [],
       "input_buckets": [],
       "version": "RELEASE.2024-07-16T23-46-41Z",
       "data_volume": "minio-volume",
+      "network_name": "sebs-network",
       "type": "minio"
     }
   },
   "nosql": {
     "type": "scylladb",
     "scylladb": {
-      "address": "172.17.0.3:8000",
+      "address": "172.18.0.3:8000",
       "mapped_port": 9012,
       "alternator_port": 8000,
       "access_key": "None",
       "secret_key": "None",
-      "instance_id": "784e07f6d7cfe6b2670fc65d840fd79864d1e6336422dcc2fb340975b8131a4d",
+      "instance_id": "6186beb7178ed2d8c9317eafdd2726d66ce0798a65e74b9e6b6234fc9dba2c76",
       "region": "None",
       "cpus": 1,
       "memory": "750",
       "version": "6.0",
-      "data_volume": "scylladb-volume"
+      "data_volume": "scylladb-volume",
+      "network_name": "sebs-network"
     }
   }
 }

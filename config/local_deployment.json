@@ -134,11 +134,11 @@
         "object": {
           "type": "minio",
           "minio": {
-            "address": "172.17.0.2:9000",
+            "address": "172.18.0.2:9000",
             "mapped_port": 9011,
-            "access_key": "hmhh57YIS1h2Q5qCAtyBhSByAWsri1dLdyTPq82u9eU",
-            "secret_key": "d2cd1575c092f49ddd3522f017c60e34bbbbdff72765ff2235211b047e6bd311",
-            "instance_id": "178ad7ca573dff5e10326286bfbd239a2338a1f63b0ec29c93da497f99d0f8b1",
+            "access_key": "1BLdaNtOSM0ydc6JdiCnVUkuFG17-F-WNgEjQDZ5OOk",
+            "secret_key": "13a8d3970b537c17c25e3a772c6ffaa4635423ca99d942508d3f5a626e242289",
+            "instance_id": "f95ec8af54b7c94293469dac2e20a46fe244bc33761a75a6b0c1cd9e04f2fcd4",
             "input_buckets": [],
             "output_buckets": []
           }
@@ -146,9 +146,9 @@
         "nosql": {
           "type": "scylladb",
           "scylladb": {
-            "address": "172.17.0.3:8000",
+            "address": "172.18.0.3:8000",
             "mapped_port": 9012,
-            "instance_id": "77290431c8bf4b8a5029dacf6e8a8d47676e4360206b35619565ef5dc65935ed"
+            "instance_id": "6186beb7178ed2d8c9317eafdd2726d66ce0798a65e74b9e6b6234fc9dba2c76"
           }
         }
       }

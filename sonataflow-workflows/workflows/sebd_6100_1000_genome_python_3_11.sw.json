@@ -7,27 +7,27 @@
   "functions": [
     {
       "name": "sebd_6100_1000_genome_python_3_11_individuals",
-      "operation": "rest:post:http://172.17.0.54:9000/",
+      "operation": "rest:post:http://172.18.0.11:9000/",
       "type": "custom"
     },
     {
       "name": "sebd_6100_1000_genome_python_3_11_individuals_merge",
-      "operation": "rest:post:http://172.17.0.55:9000/",
+      "operation": "rest:post:http://172.18.0.12:9000/",
       "type": "custom"
     },
     {
       "name": "sebd_6100_1000_genome_python_3_11_sifting",
-      "operation": "rest:post:http://172.17.0.57:9000/",
+      "operation": "rest:post:http://172.18.0.14:9000/",
       "type": "custom"
     },
     {
       "name": "sebd_6100_1000_genome_python_3_11_frequency",
-      "operation": "rest:post:http://172.17.0.48:9000/",
+      "operation": "rest:post:http://172.18.0.10:9000/",
       "type": "custom"
     },
     {
       "name": "sebd_6100_1000_genome_python_3_11_mutation_overlap",
-      "operation": "rest:post:http://172.17.0.56:9000/",
+      "operation": "rest:post:http://172.18.0.13:9000/",
       "type": "custom"
     }
   ],

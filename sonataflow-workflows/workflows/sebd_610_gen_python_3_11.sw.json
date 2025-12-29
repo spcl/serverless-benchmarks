@@ -7,27 +7,27 @@
   "functions": [
     {
       "name": "sebd_610_gen_python_3_11_get_astros",
-      "operation": "rest:post:http://172.18.0.3:9000/",
-      "type": "custom"
-    },
-    {
-      "name": "sebd_610_gen_python_3_11_few_people",
-      "operation": "rest:post:http://172.18.0.2:9000/",
-      "type": "custom"
-    },
-    {
-      "name": "sebd_610_gen_python_3_11_many_people",
-      "operation": "rest:post:http://172.18.0.4:9000/",
-      "type": "custom"
-    },
-    {
-      "name": "sebd_610_gen_python_3_11_map_astros",
       "operation": "rest:post:http://172.18.0.5:9000/",
       "type": "custom"
     },
     {
-      "name": "sebd_610_gen_python_3_11_process_astros",
+      "name": "sebd_610_gen_python_3_11_few_people",
+      "operation": "rest:post:http://172.18.0.4:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_610_gen_python_3_11_many_people",
       "operation": "rest:post:http://172.18.0.6:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_610_gen_python_3_11_map_astros",
+      "operation": "rest:post:http://172.18.0.7:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_610_gen_python_3_11_process_astros",
+      "operation": "rest:post:http://172.18.0.8:9000/",
       "type": "custom"
     }
   ],
@@ -54,11 +54,11 @@
       "type": "switch",
       "dataConditions": [
         {
-          "condition": "astros.number < 10",
+          "condition": "${ .astros.number < 10 }",
           "transition": "few_people"
         },
         {
-          "condition": "astros.number >= 10",
+          "condition": "${ .astros.number >= 10 }",
           "transition": "many_people"
         }
       ],

@@ -90,7 +90,7 @@ class ScyllaDB(NoSQLStorage):
                 command=scylladb_args,
                 name="some-scylla",
                 hostname="some-scylla",
-                network_mode="bridge",
+                network_mode=self._cfg.network_name,
                 volumes=volumes,
                 ports={"8000": str(self._cfg.mapped_port)},
                 remove=True,
@@ -143,9 +143,18 @@ class ScyllaDB(NoSQLStorage):
             # Check if the system is Linux and that it's not WSL
             if platform.system() == "Linux" and "microsoft" not in platform.release().lower():
                 networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
-                self._cfg.address = "{IPAddress}:{Port}".format(
-                    IPAddress=networks["bridge"]["IPAddress"], Port=self._cfg.alternator_port
-                )
+                # Use the configured network name instead of hardcoded "bridge"
+                network_info = networks.get(self._cfg.network_name)
+                if network_info:
+                    self._cfg.address = "{IPAddress}:{Port}".format(
+                        IPAddress=network_info["IPAddress"], Port=self._cfg.alternator_port
+                    )
+                else:
+                    # Fallback: use the first available network
+                    first_network = next(iter(networks.values()))
+                    self._cfg.address = "{IPAddress}:{Port}".format(
+                        IPAddress=first_network["IPAddress"], Port=self._cfg.alternator_port
+                    )
             else:
                 # System is either WSL, Windows, or Mac
                 self._cfg.address = f"localhost:{self._cfg.mapped_port}"

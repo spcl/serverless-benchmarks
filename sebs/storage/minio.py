@@ -93,7 +93,7 @@ class Minio(PersistentStorage):
             self._storage_container = self._docker_client.containers.run(
                 f"minio/minio:{self._cfg.version}",
                 command="server /data",
-                network_mode="bridge",
+                network_mode=self._cfg.network_name,
                 ports={"9000": str(self._cfg.mapped_port)},
                 environment={
                     "MINIO_ACCESS_KEY": self._cfg.access_key,
@@ -129,9 +129,18 @@ class Minio(PersistentStorage):
             # Check if the system is Linux and that it's not WSL
             if is_linux():
                 networks = self._storage_container.attrs["NetworkSettings"]["Networks"]
-                self._cfg.address = "{IPAddress}:{Port}".format(
-                    IPAddress=networks["bridge"]["IPAddress"], Port=9000
-                )
+                # Use the configured network name instead of hardcoded "bridge"
+                network_info = networks.get(self._cfg.network_name)
+                if network_info:
+                    self._cfg.address = "{IPAddress}:{Port}".format(
+                        IPAddress=network_info["IPAddress"], Port=9000
+                    )
+                else:
+                    # Fallback: use the first available network
+                    first_network = next(iter(networks.values()))
+                    self._cfg.address = "{IPAddress}:{Port}".format(
+                        IPAddress=first_network["IPAddress"], Port=9000
+                    )
             else:
                 # System is either WSL, Windows, or Mac
                 self._cfg.address = f"localhost:{self._cfg.mapped_port}"

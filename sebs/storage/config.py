@@ -29,6 +29,7 @@ class MinioConfig(PersistentStorageConfig):
     input_buckets: List[str] = field(default_factory=lambda: [])
     version: str = ""
     data_volume: str = ""
+    network_name: str = "bridge"
     type: str = "minio"
 
     def update_cache(self, path: List[str], cache: Cache):
@@ -79,6 +80,7 @@ class ScyllaDBConfig(NoSQLStorageConfig):
     memory: int = -1
     version: str = ""
     data_volume: str = ""
+    network_name: str = "bridge"
 
     def update_cache(self, path: List[str], cache: Cache):
 

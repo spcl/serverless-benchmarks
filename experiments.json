@@ -1,7 +1,35 @@
 {
-  "_invocations": {},
+  "_invocations": {
+    "sebd-6100.1000-genome-python-3.11": {
+      "30bee4aa": {
+        "billing": {
+          "_billed_time": null,
+          "_gb_seconds": 0,
+          "_memory": null
+        },
+        "output": {},
+        "provider_times": {
+          "execution": 0,
+          "initialization": 0
+        },
+        "request_id": "30bee4aa",
+        "stats": {
+          "cold_start": false,
+          "failure": true,
+          "memory_used": null
+        },
+        "times": {
+          "benchmark": 0,
+          "client": 30220,
+          "client_begin": "2025-12-28 02:00:14.362132",
+          "client_end": "2025-12-28 02:00:14.392352",
+          "initialization": 0
+        }
+      }
+    }
+  },
   "_metrics": {},
-  "begin_time": 1765895964.383506,
+  "begin_time": 1766883614.36036,
   "config": {
     "deployment": {
       "name": "sonataflow",
@@ -10,13 +38,14 @@
         "allocated_ports": [],
         "nosql": {
           "access_key": "None",
-          "address": "172.17.0.3:8000",
+          "address": "172.18.0.3:8000",
           "alternator_port": 8000,
           "cpus": -1,
           "data_volume": "",
-          "instance_id": "77290431c8bf4b8a5029dacf6e8a8d47676e4360206b35619565ef5dc65935ed",
+          "instance_id": "6186beb7178ed2d8c9317eafdd2726d66ce0798a65e74b9e6b6234fc9dba2c76",
           "mapped_port": 9012,
           "memory": -1,
+          "network_name": "bridge",
           "region": "None",
           "secret_key": "None",
           "version": ""
@@ -26,14 +55,15 @@
           "url": "http://localhost:8080"
         },
         "storage": {
-          "access_key": "hmhh57YIS1h2Q5qCAtyBhSByAWsri1dLdyTPq82u9eU",
-          "address": "172.17.0.2:9000",
+          "access_key": "1BLdaNtOSM0ydc6JdiCnVUkuFG17-F-WNgEjQDZ5OOk",
+          "address": "172.18.0.2:9000",
           "data_volume": "",
           "input_buckets": [],
-          "instance_id": "178ad7ca573dff5e10326286bfbd239a2338a1f63b0ec29c93da497f99d0f8b1",
+          "instance_id": "f95ec8af54b7c94293469dac2e20a46fe244bc33761a75a6b0c1cd9e04f2fcd4",
           "mapped_port": 9011,
+          "network_name": "bridge",
           "output_buckets": [],
-          "secret_key": "d2cd1575c092f49ddd3522f017c60e34bbbbdff72765ff2235211b047e6bd311",
+          "secret_key": "13a8d3970b537c17c25e3a772c6ffaa4635423ca99d942508d3f5a626e242289",
           "type": "minio",
           "version": ""
         }
@@ -92,6 +122,6 @@
       "update_storage": false
     }
   },
-  "end_time": 1765895964.386292,
+  "end_time": 1766883614.392648,
   "result_bucket": null
 }

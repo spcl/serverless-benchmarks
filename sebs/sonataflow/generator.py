@@ -74,8 +74,19 @@ class SonataFlowGenerator(Generator):
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
         def _condition(case: Switch.Case) -> str:
-            # Serverless Workflow uses jq-like expressions; keep it simple.
-            return f"{case.var} {case.op} {json.dumps(case.val)}"
+            # Serverless Workflow uses jq expressions wrapped in ${ }
+            var = case.var.strip()
+            needs_dot_prefix = not var.startswith((".", "$")) and not any(ch in var for ch in " ()|+*/-")
+
+            # Ensure field path has dot prefix for jq
+            if needs_dot_prefix:
+                var = "." + self._quote_field_path(var)
+            elif var.startswith(".") and "." in var[1:]:
+                # Already has a dot prefix
+                var = "." + self._quote_field_path(var[1:])
+
+            # Wrap the condition in ${ } as per SonataFlow documentation
+            return f"${{ {var} {case.op} {json.dumps(case.val)} }}"
 
         return {
             "name": state.name,
@@ -86,6 +97,12 @@ class SonataFlowGenerator(Generator):
             "defaultCondition": {"transition": state.default} if state.default else {"end": True},
         }
 
+    def _quote_field_path(self, path: str) -> str:
+        """Return field path as-is for jq expressions.
+        Simple dot notation like "astros.people" works fine in jq.
+        """
+        return path
+
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         iteration_param = "item"
         action_args = "${ " + iteration_param + " }"
@@ -93,7 +110,8 @@ class SonataFlowGenerator(Generator):
             # Merge map element with selected common parameters.
             merged = {"array_element": "${ " + iteration_param + " }"}
             for param in [p.strip() for p in state.common_params.split(",") if p.strip()]:
-                merged[param] = "${ ." + param + " }"
+                quoted_param = self._quote_field_path(param)
+                merged[param] = "${ ." + quoted_param + " }"
             action_args = merged  # type: ignore
 
         # Resolve the actual function name from the root state
@@ -101,11 +119,12 @@ class SonataFlowGenerator(Generator):
         root_state_def = state.funcs.get(state.root, {})
         func_name = root_state_def.get("func_name", state.root)
 
+        quoted_array = self._quote_field_path(state.array)
         payload: Dict[str, object] = {
             "name": state.name,
             "type": "foreach",
-            "inputCollection": "${ ." + state.array + " }",
-            "outputCollection": "${ ." + state.array + " }",
+            "inputCollection": "${ ." + quoted_array + " }",
+            "outputCollection": "${ ." + quoted_array + " }",
             "iterationParam": iteration_param,
             "actions": [self._default_action(func_name, action_args)],
         }
@@ -132,10 +151,11 @@ class SonataFlowGenerator(Generator):
         return payload
 
     def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
+        quoted_array = self._quote_field_path(state.array)
         payload: Dict[str, object] = {
             "name": state.name,
             "type": "foreach",
-            "inputCollection": "${ ." + state.array + " }",
+            "inputCollection": "${ ." + quoted_array + " }",
             "iterationParam": "item",
             "actions": [self._default_action(state.func_name, "${ .item }")],
         }
