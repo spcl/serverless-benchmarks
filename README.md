@@ -133,3 +133,4 @@ To verify the correctness of installation, you can use [our regression testing](
 * [lawrence910426](https://github.com/lawrence910426) - contributed color-coded output to SeBS CLI.
 * [Abhishek Kumar](https://github.com/octonawish-akcodes) - contributed new language versions and Knative support.
 * [Prajin Khadka](https://github.com/prajinkhadka) - contributed new language versions, container support, and ARM builds.
+* [Horia Mercan](https://github.com/HoriaMercan) - contributed new benchmarks in C++.
