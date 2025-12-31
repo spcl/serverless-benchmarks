@@ -12,15 +12,16 @@ class Result:
     def __init__(
         self,
         experiment_config: ExperimentConfig,
-        deployment_config: DeploymentConfig,
+        deployment_config: DeploymentConfig | None = None,
         invocations: Optional[Dict[str, Dict[str, ExecutionResult]]] = None,
         metrics: Optional[Dict[str, dict]] = None,
         result_bucket: Optional[str] = None,
     ):
-        self.config = {
-            "experiments": experiment_config,
-            "deployment": deployment_config,
+        self.config: dict[str, ExperimentConfig | DeploymentConfig] = {
+            "experiments": experiment_config
         }
+        if deployment_config is not None:
+            self.config["deployment"] = deployment_config
         if not invocations:
             self._invocations = {}
         else:
@@ -67,15 +68,23 @@ class Result:
         return self._metrics[func]
 
     @staticmethod
-    def deserialize(cached_config: dict, cache: Cache, handlers: LoggingHandlers) -> "Result":
+    def deserialize(
+        cached_config: dict, cache: Cache | None, handlers: LoggingHandlers | None
+    ) -> "Result":
         invocations: Dict[str, dict] = {}
         for func, func_invocations in cached_config["_invocations"].items():
             invocations[func] = {}
             for invoc_id, invoc in func_invocations.items():
                 invocations[func][invoc_id] = ExecutionResult.deserialize(invoc)
+
+        deployment_cfg = None
+        if cache is not None and handlers is not None:
+            deployment_cfg = DeploymentConfig.deserialize(
+                cached_config["config"]["deployment"], cache, handlers
+            )
         ret = Result(
             ExperimentConfig.deserialize(cached_config["config"]["experiments"]),
-            DeploymentConfig.deserialize(cached_config["config"]["deployment"], cache, handlers),
+            deployment_cfg,
             invocations,
             # FIXME: compatibility with old results
             cached_config["metrics"] if "metrics" in cached_config else {},

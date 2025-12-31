@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 
+import copy
 import json
 import logging
 import functools
@@ -18,6 +19,7 @@ from sebs.regression import regression_suite
 from sebs.utils import update_nested_dict, append_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
+from sebs.statistics import basic_stats
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -333,6 +335,59 @@ def process(**kwargs):
     with open(output_file, "w") as out_f:
         out_f.write(sebs.utils.serialize(experiments))
     sebs_client.logging.info("Save results to {}".format(output_file))
+
+@benchmark.command()
+@click.argument("results", type=click.Path(dir_okay=False, readable=True))
+def statistics(results):
+
+    sebs.utils.global_logging()
+
+    logging.info(f"Load results from {results}")
+    with open(results, "r") as in_f:
+        config = json.load(in_f)
+        experiments = sebs.experiments.ExperimentResult.deserialize(
+            config, None, None
+        )
+
+    for func in experiments.functions():
+        logging.info(f"Processing function {func}")
+
+        warm_times = {
+            "exec": [],
+            "compute": [],
+            "download": [],
+            "upload": []
+        }
+        cold_times = {
+            "init": [],
+            **copy.deepcopy(warm_times)
+        }
+
+        for invoc in experiments.invocations(func).values():
+
+            dst = warm_times
+            if invoc.stats.cold_start:
+                dst = cold_times
+                dst["init"].append(invoc.provider_times.initialization)
+
+            dst["exec"].append(invoc.provider_times.execution)
+
+            measurements = invoc.output["result"]["measurement"]
+
+            for key, result in (("compute_time", "compute"), ("upload_time", "upload"), ("download_time", "download")):
+                if key in measurements:
+                    dst[result].append(measurements[key])
+
+        for name_type, times in (("cold", cold_times), ("warm", warm_times)):
+            logging.info(f"Processing {name_type} results.")
+
+            for key in ("init", "exec", "compute", "upload", "download"):
+
+                if key == "init" and name_type == "warm":
+                    continue
+
+                mean, median, std, cv = basic_stats(times[key])
+                logging.info(f"Measurement type {key}, mean {mean}, median {median}, std {std}, cv {cv}.")
 
 
 @benchmark.command()
