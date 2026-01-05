@@ -112,6 +112,10 @@ class GCP(System):
         func_name = func_name.replace(".", "_")
         return func_name
 
+    @staticmethod
+    def is_service_function(full_function_name: str):
+        return "/services/" in full_function_name
+
     """
         Apply the system-specific code packaging routine to build benchmark.
         The benchmark creates a code directory with the following structure:
@@ -563,15 +567,13 @@ class GCP(System):
 
     def _update_envs(self, full_function_name: str, envs: dict) -> dict:
 
-        if "/services/" in full_function_name:
+        if GCP.is_service_function(full_function_name):
             # Envs are in template.containers[0].env (list of {name, value})
             get_req = self.run_client.projects().locations().services().get(name=full_function_name)
             response = get_req.execute()
             
-            # Extract existing envs
             existing_envs = {}
             if "template" in response and "containers" in response["template"]:
-                # Assume single container
                 container = response["template"]["containers"][0]
                 if "env" in container:
                     for e in container["env"]:
@@ -636,7 +638,7 @@ class GCP(System):
         if len(envs) > 0:
             envs = self._update_envs(full_func_name, envs)
 
-        if "/services/" in full_func_name:
+        if GCP.is_service_function(full_func_name):
             # Cloud Run Configuration Update
             
             # Prepare envs list
