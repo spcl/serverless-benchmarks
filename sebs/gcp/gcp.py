@@ -52,6 +52,7 @@ from sebs.gcp.config import GCPConfig
 from sebs.gcp.resources import GCPSystemResources
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
+from sebs.gcp.container import GCRContainer
 from sebs.utils import LoggingHandlers
 from sebs.sebs_types import Language
 
@@ -157,7 +158,12 @@ class GCP(System):
             resource_prefix: Optional prefix for resource naming to avoid conflicts
         """
         self.function_client = build("cloudfunctions", "v1", cache_discovery=False)
+        # Container-based functions are created via run-client
+        self.run_client = build("run", "v2", cache_discovery=False)
         self.initialize_resources(select_prefix=resource_prefix, quiet=quiet)
+        self.gcr_client = GCRContainer(
+            self.system_config, self.config, self.docker_client
+        )
 
     def get_function_client(self):
         """Get the Google Cloud Functions API client.
@@ -257,13 +263,14 @@ class GCP(System):
         """
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
-        func_name = "sebs-{}-{}-{}-{}".format(
+        func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
             code_package.benchmark,
             code_package.language_name,
             code_package.language_version,
+            code_package.architecture
         )
-        return GCP.format_function_name(func_name)
+        return GCP.format_function_name(func_name) if not code_package.container_deployment else func_name.replace(".", "-")
 
     @staticmethod
     def format_function_name(func_name: str) -> str:
@@ -513,6 +520,14 @@ class GCP(System):
             Tuple of (archive_path, archive_size_bytes)
         """
 
+        container_uri = ""
+
+        if container_deployment:
+            # build base image and upload to GCR
+            _, container_uri = self.gcr_client.build_base_image(
+                directory, language_name, language_version, architecture, benchmark, is_cached
+            )
+
         if language == Language.CPP:
             raise NotImplementedError("C++ packaging is not supported on GCP!")
 
@@ -640,8 +655,6 @@ class GCP(System):
             RuntimeError: If function creation or IAM configuration fails
         """
 
-        if container_deployment:
-            raise NotImplementedError("Container deployment is not supported in GCP")
 
         package = code_package.code_location
         if package is None:
@@ -658,16 +671,31 @@ class GCP(System):
         function_cfg = FunctionConfig.from_benchmark(code_package)
         architecture = function_cfg.architecture.value
 
+        if architecture == "arm64" and not container_deployment:
+            raise RuntimeError("GCP does not support arm64 for non-container deployments")
+
         code_package_name = os.path.basename(package)
         code_package_name = f"{architecture}-{code_package_name}"
         code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
         code_prefix = os.path.join(benchmark, code_package_name)
         storage_client.upload(code_bucket, package, code_prefix)
 
-        self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
+        if container_deployment:
+            full_service_name = GCP.get_full_service_name(project_name, location, func_name)
+            get_req = self.run_client.projects().locations().services().get(name=full_service_name)
+        else:
+            if benchmark.language_name == "pypy":
+                raise RuntimeError("PyPy Zip deployment is not supported on GCP")
 
-        full_func_name = GCP.get_full_function_name(project_name, location, func_name)
-        get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
+            full_func_name = GCP.get_full_function_name(project_name, location, func_name)
+            code_package_name = cast(str, os.path.basename(package))
+            code_package_name = f"{architecture}-{code_package_name}"
+            code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+            code_prefix = os.path.join(benchmark, code_package_name)
+            storage_client.upload(code_bucket, package, code_prefix)
+
+            self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
+            get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
 
         try:
             self._execute_with_retry(get_req)
@@ -675,35 +703,102 @@ class GCP(System):
 
             envs = self._generate_function_envs(code_package)
 
-            create_req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .create(
-                    location="projects/{project_name}/locations/{location}".format(
-                        project_name=project_name, location=location
-                    ),
-                    body={
-                        "name": full_func_name,
-                        "entryPoint": (
-                            "org.serverlessbench.Handler"
-                            if code_package.language == Language.JAVA
-                            else "handler"
-                        ),
-                        "runtime": code_package.language_name + language_runtime.replace(".", ""),
-                        "availableMemoryMb": memory,
-                        "timeout": str(timeout) + "s",
-                        "httpsTrigger": {},
-                        "ingressSettings": "ALLOW_ALL",
-                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
-                        "environmentVariables": envs,
-                    },
+            if container_deployment:
+                # In the service model, envs is a list of objects with attributes name and value
+                envs = self._transform_service_envs(envs)
+                self.logging.info("Deploying run container service")
+                parent = f"projects/{project_name}/locations/{location}"
+                create_req = (
+                    self.run_client.projects()
+                    .locations()
+                    .services()
+                    .create(
+                        parent=parent,
+                        serviceId=func_name,
+                        body={
+                            "template": {
+                                "containers": [
+                                    {
+                                        "image": container_uri,
+                                        "ports": [{"containerPort": 8080}],
+                                        "env": envs,
+                                        "resources": {
+                                            "limits": {
+                                                "memory": f"{memory if memory >= 512 else 512}Mi",
+                                            }
+                                        }
+                                    }
+                                ],
+                                "timeout": f"{timeout}s",
+                            },
+                            "ingress": "INGRESS_TRAFFIC_ALL"
+                        },
+                    )
                 )
-            )
+            else:
+                create_req = (
+                    self.function_client.projects()
+                    .locations()
+                    .functions()
+                    .create(
+                        location="projects/{project_name}/locations/{location}".format(
+                            project_name=project_name, location=location
+                        ),
+                        body={
+                            "name": full_func_name,
+                            "entryPoint": (
+                                "org.serverlessbench.Handler"
+                                if code_package.language == Language.JAVA
+                                else "handler"
+                            ),
+                            "runtime": code_package.language_name + language_runtime.replace(".", ""),
+                            "availableMemoryMb": memory,
+                            "timeout": str(timeout) + "s",
+                            "httpsTrigger": {},
+                            "ingressSettings": "ALLOW_ALL",
+                            "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
+                            "environmentVariables": envs,
+                        },
+                    )
+                )
+
             self._execute_with_retry(create_req)
             self.logging.info(
                 f"Function {func_name} is creating - GCP build&deployment is started!"
             )
+
+            if container_deployment:
+                allow_unauthenticated_req = (
+                    self.run_client.projects()
+                    .locations()
+                    .services()
+                    .setIamPolicy(
+                        resource=full_service_name,
+                        body={
+                            "policy": {
+                                "bindings": [
+                                    {"role": "roles/run.invoker", "members": ["allUsers"]}
+                                ]
+                            }
+                        },
+                    )
+                )
+            else:
+                allow_unauthenticated_req = (
+                    self.function_client.projects()
+                    .locations()
+                    .functions()
+                    .setIamPolicy(
+                        resource=full_func_name,
+                        body={
+                            "policy": {
+                                "bindings": [
+                                    {"role": "roles/cloudfunctions.invoker", "members": ["allUsers"]}
+                                ]
+                            }
+                        },
+                    )
+                )
 
             # Poll build status until completion or failure
             build_found = self._wait_for_build_and_poll(func_name)
@@ -766,13 +861,39 @@ class GCP(System):
             # Get the HTTPS trigger URL
             location = self.config.region
             project_name = self.config.project_name
-            full_func_name = GCP.get_full_function_name(project_name, location, function.name)
-            get_req = (
-                self.function_client.projects().locations().functions().get(name=full_func_name)
-            )
-            func_details = self._execute_with_retry(get_req)
-            invoke_url = func_details["httpsTrigger"]["url"]
-            self.logging.info(f"Function {function.name} - HTTP trigger URL: {invoke_url}")
+            self.logging.info(f"Function {function.name} - waiting for deployment...")
+            
+            # Cloud Functions v1 do not have "-" in their name, Cloud Run Services do
+            if "-" in function.name:
+                # Cloud Run Service
+                service_id = function.name.lower()
+                full_service_name = GCP.get_full_service_name(project_name, self.config.region, service_id)
+                self.logging.info(f"Waiting for service {full_service_name} to be ready...")
+                deployed = False
+                begin = time.time()
+                while not deployed:
+                    svc = self.run_client.projects().locations().services().get(name=full_service_name).execute()
+                    condition = svc.get("terminalCondition", {})
+                    if condition.get("type") == "Ready" and condition.get("state") == "CONDITION_SUCCEEDED":
+                        deployed = True
+                    else:
+                        time.sleep(3)
+                    
+                    if time.time() - begin > 300:
+                        self.logging.error(f"Failed to deploy service: {function.name}")
+                        raise RuntimeError("Deployment timeout!")
+                
+                self.logging.info(f"Service {function.name} - deployed!")
+                invoke_url = svc["uri"]
+            
+            else:
+                full_func_name = GCP.get_full_function_name(project_name, location, function.name)
+                get_req = (
+                    self.function_client.projects().locations().functions().get(name=full_func_name)
+                )
+                func_details = self._execute_with_retry(get_req)
+                invoke_url = func_details["httpsTrigger"]["url"]
+                self.logging.info(f"Function {function.name} - HTTP trigger URL: {invoke_url}")
 
             trigger = HTTPTrigger(invoke_url)
         else:
@@ -825,9 +946,6 @@ class GCP(System):
             RuntimeError: If function update fails after maximum retries
         """
 
-        if container_deployment:
-            raise NotImplementedError("Container deployment is not supported in GCP")
-
         if code_package.code_location is None:
             raise RuntimeError("Code location is not set for GCP deployment")
 
@@ -844,49 +962,97 @@ class GCP(System):
         storage.upload(bucket, code_package.code_location, code_package_name)
 
         envs = self._generate_function_envs(code_package)
-
-        self.logging.info(f"Uploaded new code package to {bucket}/{code_package_name}")
-        full_func_name = GCP.get_full_function_name(
-            self.config.project_name, self.config.region, function.name
-        )
-        req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .patch(
-                name=full_func_name,
-                body={
-                    "name": full_func_name,
-                    "entryPoint": (
-                        "org.serverlessbench.Handler"
-                        if code_package.language == Language.JAVA
-                        else "handler"
-                    ),
-                    "runtime": code_package.language_name + language_runtime.replace(".", ""),
-                    "availableMemoryMb": function.config.memory,
-                    "timeout": str(function.config.timeout) + "s",
-                    "httpsTrigger": {},
-                    "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-                    "environmentVariables": envs,
-                },
+        
+        if container_deployment:
+            full_service_name = GCP.get_full_service_name(self.config.project_name, self.config.region, function.name)
+            
+            memory = function.config.memory
+            timeout = function.config.timeout
+            
+            # Cloud Run v2 Service Update
+            service_body = {
+                "template": {
+                    "maxInstanceRequestConcurrency" : 1,
+                    "containers": [
+                        {
+                            "image": container_uri,
+                            "resources": {
+                                "limits": {
+                                    "memory": f"{memory if memory >= 512 else 512}Mi",
+                                }
+                            },
+                            "env": [{"name": k, "value": v} for k, v in envs.items()]
+                        }
+                    ],
+                    "timeout": f"{timeout}s"
+                }
+            }
+            
+            req = self.run_client.projects().locations().services().patch(
+                name=full_service_name,
+                body=service_body
             )
-        )
-        res = self._execute_with_retry(req)
-
-        self.logging.info(f"Function {function.name} code update initiated")
-
-        # Patch does not return buildName, need to wait for build to start
-        expected_version = int(res["metadata"]["versionId"])
-        build_found = self._wait_for_build_and_poll(function.name)
-        if not build_found:
-            self.logging.warning(
-                f"No build operation found for {function.name} - "
-                "this is unexpected for code updates"
+            
+        else:
+            
+            self.logging.info(f"Uploaded new code package to {bucket}/{code_package_name}")
+            full_func_name = GCP.get_full_function_name(
+                self.config.project_name, self.config.region, function.name
             )
+            req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .patch(
+                    name=full_func_name,
+                    body={
+                        "name": full_func_name,
+                        "entryPoint": (
+                            "org.serverlessbench.Handler"
+                            if code_package.language == Language.JAVA
+                            else "handler"
+                        ),
+                        "runtime": code_package.language_name + language_runtime.replace(".", ""),
+                        "availableMemoryMb": function.config.memory,
+                        "timeout": str(function.config.timeout) + "s",
+                        "httpsTrigger": {},
+                        "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+                        "environmentVariables": envs,
+                    },
+                )
+            )
+        
+        if container_deployment:
+            res = req.execute()
 
-        # Wait for deployment to become ACTIVE with expected version
-        self._wait_for_active_status(function.name, expected_version)
-        self.logging.info("Published new function code and configuration.")
+            self.logging.info(f"Updated Cloud Run service {function.name}, waiting for operation completion...")
+            
+            op_name = res["name"]
+            op_res = self.run_client.projects().locations().operations().wait(name=op_name).execute()
+            
+            if "error" in op_res:
+                raise RuntimeError(f"Cloud Run update failed: {op_res['error']}")
+            
+            self.logging.info(f"Cloud Run service {function.name} updated and ready.")
+            
+        else:
+
+            res = self._execute_with_retry(req)
+
+            self.logging.info(f"Function {function.name} code update initiated")
+
+            # Patch does not return buildName, need to wait for build to start
+            expected_version = int(res["metadata"]["versionId"])
+            build_found = self._wait_for_build_and_poll(function.name)
+            if not build_found:
+                self.logging.warning(
+                    f"No build operation found for {function.name} - "
+                    "this is unexpected for code updates"
+                )
+
+            # Wait for deployment to become ACTIVE with expected version
+            self._wait_for_active_status(function.name, expected_version)
+            self.logging.info("Published new function code and configuration.")
 
     def _update_envs(self, full_function_name: str, envs: Dict) -> Dict:
         """Merge new environment variables with existing function environment.
@@ -902,15 +1068,33 @@ class GCP(System):
             Merged environment variables dictionary
         """
 
-        get_req = (
-            self.function_client.projects().locations().functions().get(name=full_function_name)
-        )
-        response = self._execute_with_retry(get_req)
+        if "/services/" in full_function_name:
+            # Envs are in template.containers[0].env (list of {name, value})
+            get_req = self.run_client.projects().locations().services().get(name=full_function_name)
+            response = get_req.execute()
+            
+            # Extract existing envs
+            existing_envs = {}
+            if "template" in response and "containers" in response["template"]:
+                # Assume single container
+                container = response["template"]["containers"][0]
+                if "env" in container:
+                    for e in container["env"]:
+                        existing_envs[e["name"]] = e["value"]
+            
+            # Merge: new overrides old
+            envs = {**existing_envs, **envs}
+            
+        else:
+            get_req = (
+                self.function_client.projects().locations().functions().get(name=full_function_name)
+            )
+            response = self._execute_with_retry(get_req)
 
-        # preserve old variables while adding new ones.
-        # but for conflict, we select the new one
-        if "environmentVariables" in response:
-            envs = {**response["environmentVariables"], **envs}
+            # preserve old variables while adding new ones.
+            # but for conflict, we select the new one
+            if "environmentVariables" in response:
+                envs = {**response["environmentVariables"], **envs}
 
         return envs
 
@@ -939,6 +1123,10 @@ class GCP(System):
 
         return envs
 
+
+    def _transform_service_envs(self, envs: dict) -> list:
+        return [{"name": k, "value": v} for k, v in envs.items()]
+
     def update_function_configuration(
         self, function: Function, code_package: Benchmark, env_variables: Dict = {}
     ) -> int:
@@ -962,9 +1150,16 @@ class GCP(System):
         assert code_package.has_input_processed
 
         function = cast(GCPFunction, function)
-        full_func_name = GCP.get_full_function_name(
-            self.config.project_name, self.config.region, function.name
-        )
+        if code_package.container_deployment:
+            full_func_name = GCP.get_full_service_name(
+                self.config.project_name, 
+                self.config.region, 
+                function.name.replace("_", "-").lower()
+            )
+        else:
+            full_func_name = GCP.get_full_function_name(
+                self.config.project_name, self.config.region, function.name
+            )
 
         envs = self._generate_function_envs(code_package)
         envs = {**envs, **env_variables}
@@ -973,7 +1168,47 @@ class GCP(System):
         if len(envs) > 0:
             envs = self._update_envs(full_func_name, envs)
 
-        if len(envs) > 0:
+        if "/services/" in full_func_name:
+            # Cloud Run Configuration Update
+            
+            # Prepare envs list
+            env_vars = [{"name": k, "value": v} for k, v in envs.items()]
+            memory = function.config.memory
+            timeout = function.config.timeout
+
+            service_body = {
+                "template": {
+                    "maxInstanceRequestConcurrency" : 1,
+                    "containers": [
+                        {
+                            "image": code_package.container_uri,
+                            "resources": {
+                                "limits": {
+                                    "memory": f"{memory if memory > 512 else 512}Mi",
+                                }
+                            },
+                            "env": env_vars
+                        }
+                    ],
+                    "timeout": f"{timeout}s"
+                }
+            }
+            
+            req = self.run_client.projects().locations().services().patch(
+                name=full_func_name,
+                body=service_body
+            )
+            res = req.execute()
+            
+            self.logging.info(f"Updated Cloud Run configuration {function.name}, waiting for operation...")
+            op_name = res["name"]
+            op_res = self.run_client.projects().locations().operations().wait(name=op_name).execute()
+            if "error" in op_res:
+                raise RuntimeError(f"Cloud Run config update failed: {op_res['error']}")
+
+            return 0 
+            
+        elif len(envs) > 0:
 
             req = (
                 self.function_client.projects()
@@ -1056,6 +1291,10 @@ class GCP(System):
             Fully qualified function name in GCP format
         """
         return f"projects/{project_name}/locations/{location}/functions/{func_name}"
+
+    @staticmethod
+    def get_full_service_name(project_name: str, location: str, service_name: str):
+        return f"projects/{project_name}/locations/{location}/services/{service_name}"
 
     def shutdown(self) -> None:
         """Shutdown the GCP system and clean up resources.
@@ -1316,14 +1555,28 @@ class GCP(System):
         Returns:
             Tuple of (is_deployed, current_version_id)
         """
-        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
-        function_client = self.get_function_client()
-        status_req = function_client.projects().locations().functions().get(name=name)
-        status_res = self._execute_with_retry(status_req)
-        if versionId == -1:
-            return (status_res["status"] == "ACTIVE", status_res["versionId"])
+        
+        #v1 functions don't allow hyphens, new functions don't allow underscores
+        if '-' in func_name:
+             # Cloud Run Service
+             service_name = func_name.replace("_", "-").lower()
+             name = GCP.get_full_service_name(self.config.project_name, self.config.region, service_name)
+             try:
+                  svc = self.run_client.projects().locations().services().get(name=name).execute()
+                  conditions = svc.get("terminalCondition", {})
+                  is_ready = conditions.get("type", "") == "Ready"
+                  return (is_ready, 0)
+             except HttpError:
+                  return (False, -1)
         else:
-            return (status_res["versionId"] == versionId, status_res["versionId"])
+            name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
+            function_client = self.get_function_client()
+            status_req = function_client.projects().locations().functions().get(name=name)
+            status_res = self._execute_with_retry(status_req)
+            if versionId == -1:
+                return (status_res["status"] == "ACTIVE", status_res["versionId"])
+            else:
+                return (status_res["versionId"] == versionId, status_res["versionId"])
 
     def deployment_version(self, func: Function) -> int:
         """Get the current deployment version ID of a function.
