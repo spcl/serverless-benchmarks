@@ -104,11 +104,9 @@ class storage:
         """Upload file from disk with unique key generation"""
         # Generate unique key to avoid conflicts
         unique_key = self.unique_name(key)
-        print(f"!!! [storage.upload] bucket={bucket}, key={key}, unique_key={unique_key}, filepath={filepath}")
         
         with open(filepath, 'rb') as f:
             data = f.read()
-            print(f"!!! [storage.upload] Read {len(data)} bytes from {filepath}")
             # Upload with the unique key
             self._upload_with_key(bucket, unique_key, data)
             return unique_key
@@ -140,7 +138,7 @@ class storage:
         try:
             with urllib.request.urlopen(req) as response:
                 result = json.loads(response.read().decode('utf-8'))
-                print(f"!!! [storage._upload_with_key] Upload successful, key={result['key']}")
+                print(f"[storage._upload_with_key] Upload successful, key={result['key']}")
         except Exception as e:
             print(f"R2 upload error: {e}")
             raise RuntimeError(f"Failed to upload to R2: {e}")

@@ -123,19 +123,12 @@ class storage {
   upload(bucket, key, filepath) {
     // Generate unique key synchronously so it can be returned immediately
     const unique_key = storage.unique_name(key);
-    console.error(`!!! [storage.upload] bucket=${bucket}, key=${key}, unique_key=${unique_key}, filepath=${filepath}`);
 
     // Read file from disk and upload
     if (fs.existsSync(filepath)) {
-      const stats = fs.statSync(filepath);
-      console.error(`!!! [storage.upload] File exists, size on disk: ${stats.size} bytes`);
       const data = fs.readFileSync(filepath);
-      console.error(`!!! [storage.upload] Read ${data.length} bytes from ${filepath}`);
-      console.error(`!!! [storage.upload] Data type: ${typeof data}, isBuffer: ${Buffer.isBuffer(data)}, isString: ${typeof data === 'string'}`);
-      console.error(`!!! [storage.upload] First 200 chars of data: ${data.toString().substring(0, 200)}`);
       // Call internal version that doesn't generate another unique key
       const uploadPromise = this._upload_stream_with_key(bucket, unique_key, data);
-      console.error(`!!! [storage.upload] Returning unique_key=${unique_key} and upload promise`);
       return [unique_key, uploadPromise];
     }
 

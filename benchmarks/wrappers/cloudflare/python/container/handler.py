@@ -126,12 +126,6 @@ class ContainerHandler(BaseHTTPRequestHandler):
             event['request-id'] = req_id
             event['income-timestamp'] = income_timestamp
             
-            print(f"!!! Event received: {json.dumps(event, default=str)}")
-            print(f"!!! Event keys: {list(event.keys())}")
-            print(f"!!! Event has 'bucket' key: {'bucket' in event}")
-            if 'bucket' in event:
-                print(f"!!! bucket value: {event['bucket']}")
-            
             # Measure execution time
             begin = datetime.datetime.now().timestamp()
             

@@ -117,27 +117,19 @@ const server = http.createServer(async (req, res) => {
     event['request-id'] = reqId;
     event['income-timestamp'] = incomeTimestamp;
 
-    console.error('!!! Event:', JSON.stringify(event));
-
     // For debugging: check /tmp directory before and after benchmark
     const fs = require('fs');
-    console.error('!!! Files in /tmp before benchmark:', fs.readdirSync('/tmp'));
 
     // Call the benchmark function
-    console.error('!!! Calling benchmark handler...');
     const ret = await benchmarkHandler(event);
-    console.error('!!! Benchmark result:', JSON.stringify(ret));
     
     // Check what was downloaded
-    console.error('!!! Files in /tmp after benchmark:', fs.readdirSync('/tmp'));
     const tmpFiles = fs.readdirSync('/tmp');
     for (const file of tmpFiles) {
       const filePath = `/tmp/${file}`;
       const stats = fs.statSync(filePath);
-      console.error(`!!!   ${file}: ${stats.size} bytes`);
       if (stats.size < 500) {
         const content = fs.readFileSync(filePath, 'utf8');
-        console.error(`!!!   First 300 chars: ${content.substring(0, 300)}`);
       }
     }
 
