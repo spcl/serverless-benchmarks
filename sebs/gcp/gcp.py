@@ -229,7 +229,7 @@ class GCP(System):
             full_service_name = GCP.get_full_service_name(project_name, location, func_name)
             get_req = self.run_client.projects().locations().services().get(name=full_service_name)
         else:
-            if benchmark.language_name == "pypy":
+            if code_package.language_name == "pypy":
                 raise RuntimeError("PyPy Zip deployment is not supported on GCP")
 
             full_func_name = GCP.get_full_function_name(project_name, location, func_name)
