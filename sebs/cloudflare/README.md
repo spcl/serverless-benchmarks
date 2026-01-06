@@ -216,59 +216,162 @@ Benchmark wrappers automatically include metrics in their responses. The Python 
 start = time.perf_counter()
 begin = datetime.datetime.now().timestamp()
 
-# Execute benchmark
-ret = handler(event, context)
+# Execute benchmark function
+from function import function
+ret = function.handler(event)
+
+# Build response with nested measurement data
+log_data = {
+    'output': ret['result']
+}
+if 'measurement' in ret:
+    log_data['measurement'] = ret['measurement']
+else:
+    log_data['measurement'] = {}
+
+# Add memory usage to measurement
+if HAS_RESOURCE:
+    memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+    log_data['measurement']['memory_used_mb'] = memory_mb
 
 # Calculate timing
 end = datetime.datetime.now().timestamp()
 elapsed = time.perf_counter() - start
 micro = elapsed * 1_000_000  # Convert to microseconds
 
-# Return response with embedded metrics
+# Return response with top-level wrapper fields and nested measurement
 return Response(json.dumps({
     'begin': begin,
     'end': end,
-    'compute_time': micro,
-    'result': ret,
-    'is_cold': False,
+    'compute_time': micro,  # Not used by SeBS
+    'results_time': 0,       # Not used by SeBS
+    'result': log_data,      # Contains nested measurement
+    'is_cold': False,        # Not used by SeBS (uses measurement.is_cold)
+    'is_cold_worker': False, # Not used by SeBS
+    'container_id': "0",     # Not used by SeBS
+    'environ_container_id': "no_id",  # Not used by SeBS
     'request_id': req_id
 }))
 ```
 
 ### Response Schema
 
-Worker responses include these fields for metrics collection:
+Worker responses include these fields:
 
-| Field | Type | Purpose | Example |
-|-------|------|---------|---------|
-| `begin` | Float | Start timestamp | `1704556800.123` |
-| `end` | Float | End timestamp | `1704556800.456` |
-| `compute_time` | Float | CPU time (μs) | `333000.0` |
-| `request_id` | String | Request identifier | `"cf-ray-abc123"` |
-| `is_cold` | Boolean | Cold start flag | `false` |
-| `result` | Object | Benchmark output | `{...}` |
+#### Top-Level Fields (Wrapper Metadata)
+
+| Field | Type | Used by SeBS? | Purpose |
+|-------|------|---------------|----------|
+| `begin` | Float | ❌ No | Start timestamp (legacy) |
+| `end` | Float | ❌ No | End timestamp (legacy) |
+| `compute_time` | Float | ❌ No | Wrapper overhead time (not benchmark time) |
+| `results_time` | Float | ❌ No | Reserved for future use |
+| `is_cold` | Boolean | ❌ No | Legacy field (use `measurement.is_cold`) |
+| `is_cold_worker` | Boolean | ❌ No | Not used |
+| `container_id` | String | ❌ No | Container identifier (informational) |
+| `environ_container_id` | String | ❌ No | Environment container ID (informational) |
+| `request_id` | String | ✅ Yes | Request identifier for tracking |
+| `result` | Object | ✅ Yes | Contains `output` and `measurement` |
+
+#### Nested Measurement Fields (result.measurement)
+
+These are the **actual fields consumed by SeBS** from `result['result']['measurement']`:
+
+| Field | Type | Used by SeBS? | Purpose | Populated By |
+|-------|------|---------------|---------|-------------|
+| `cpu_time_us` | Integer | ✅ Yes | CPU time in microseconds | Benchmark function |
+| `cpu_time_ms` | Float | ✅ Yes | CPU time in milliseconds (fallback) | Benchmark function |
+| `wall_time_us` | Integer | ✅ Yes | Wall time in microseconds | Benchmark function |
+| `wall_time_ms` | Float | ✅ Yes | Wall time in milliseconds (fallback) | Benchmark function |
+| `is_cold` | Boolean | ✅ Yes | True cold start indicator | Benchmark function |
+| `memory_used_mb` | Float | ✅ Yes | Memory usage in megabytes | Wrapper (via resource.getrusage) |
+
+**Example Response Structure:**
+
+```json
+{
+  "begin": 1704556800.123,
+  "end": 1704556800.456,
+  "compute_time": 333000,
+  "results_time": 0,
+  "result": {
+    "output": { /* benchmark output */ },
+    "measurement": {
+      "cpu_time_us": 150000,
+      "wall_time_us": 155000,
+      "is_cold": false,
+      "memory_used_mb": 45.2
+    }
+  },
+  "is_cold": false,
+  "is_cold_worker": false,
+  "container_id": "0",
+  "environ_container_id": "no_id",
+  "request_id": "cf-ray-abc123"
+}
+```
 
 ### Metrics Extraction Process
 
-When `download_metrics()` is called in `cloudflare.py`, SeBS:
+Metrics extraction happens in two stages:
 
-1. **Iterates ExecutionResults**: Loops through all tracked invocations
-2. **Extracts Response Data**: Reads metrics from the response JSON already captured
-3. **Populates Provider Times**: Sets `provider_times.execution` from `compute_time`
-4. **Calculates Billing**: Computes GB-seconds using Cloudflare's fixed 128MB memory
-5. **Aggregates Statistics**: Creates summary metrics (avg/min/max CPU time, cold starts)
+#### Stage 1: HTTPTrigger.sync_invoke (Per-Invocation)
 
-Example from `cloudflare.py`:
+In `sebs/cloudflare/triggers.py`, the `HTTPTrigger.sync_invoke()` method extracts metrics from **nested measurement data** immediately after each invocation:
+
+```python
+def sync_invoke(self, payload: dict) -> ExecutionResult:
+    result = self._http_invoke(payload, self.url)
+    
+    # Extract measurement data from result.output['result']['measurement']
+    if result.output and 'result' in result.output:
+        result_data = result.output['result']
+        if isinstance(result_data, dict) and 'measurement' in result_data:
+            measurement = result_data['measurement']
+            
+            if isinstance(measurement, dict):
+                # CPU time in microseconds (with ms fallback)
+                if 'cpu_time_us' in measurement:
+                    result.provider_times.execution = measurement['cpu_time_us']
+                elif 'cpu_time_ms' in measurement:
+                    result.provider_times.execution = int(measurement['cpu_time_ms'] * 1000)
+                
+                # Wall time in microseconds (with ms fallback)
+                if 'wall_time_us' in measurement:
+                    result.times.benchmark = measurement['wall_time_us']
+                elif 'wall_time_ms' in measurement:
+                    result.times.benchmark = int(measurement['wall_time_ms'] * 1000)
+                
+                # Cold start flag
+                if 'is_cold' in measurement:
+                    result.stats.cold_start = measurement['is_cold']
+                
+                # Memory usage
+                if 'memory_used_mb' in measurement:
+                    result.stats.memory_used = measurement['memory_used_mb']
+    
+    return result
+```
+
+**Note:** The top-level `compute_time` field is **ignored** by SeBS. Only the nested `measurement` object is used.
+
+#### Stage 2: download_metrics (Aggregation)
+
+When `download_metrics()` is called in `cloudflare.py`, SeBS aggregates the already-extracted metrics:
 
 ```python
 for request_id, result in requests.items():
-    # Count cold/warm starts
+    # Count cold/warm starts (from measurement.is_cold)
     if result.stats.cold_start:
         cold_starts += 1
     
-    # Extract CPU time from response measurement
+    # Collect CPU times (from measurement.cpu_time_us/ms)
     if result.provider_times.execution > 0:
         cpu_times.append(result.provider_times.execution)
+    
+    # Collect memory usage (from measurement.memory_used_mb)
+    if result.stats.memory_used is not None and result.stats.memory_used > 0:
+        memory_values.append(result.stats.memory_used)
     
     # Calculate billing
     cpu_time_seconds = result.provider_times.execution / 1_000_000.0
