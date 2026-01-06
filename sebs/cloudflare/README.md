@@ -138,6 +138,12 @@ Alternatively, create a configuration file:
 ### Platform Limitations
 
 - **Cold Start Enforcement**: Not available (Workers are instantiated on-demand at edge locations)
+- **Cold Start Detection**: ⚠️ **Not Supported** - Cloudflare does not expose cold start information
+  - All invocations report `is_cold: false` (see hardcoded value in handler at line 146 of `benchmarks/wrappers/cloudflare/python/handler.py`)
+  - The `measurement.is_cold` field will always be `false` regardless of actual worker state
+  - **Impact on benchmarks**: Cold start metrics are incomparable to AWS Lambda, Azure Functions, or GCP Cloud Functions
+  - **Warning**: This limitation may skew benchmark comparisons when analyzing cold start performance across platforms
+  - Workers are instantiated on-demand at edge locations with minimal latency, but this state is not observable
 - **Memory/Timeout Configuration**: Managed by Cloudflare (128MB memory, 50ms CPU time on free tier)
 
 ### Completed Enhancements
