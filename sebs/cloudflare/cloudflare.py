@@ -977,9 +977,6 @@ dev = [
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"Docker build timed out for {image_tag}")
 
-
-        return (directory, total_size, "")
-
     def create_function(
         self,
         code_package: Benchmark,
