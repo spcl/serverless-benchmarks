@@ -17,6 +17,8 @@ class SonataFlowGenerator(Generator):
         self._bindings = bindings
         self._functions: Dict[str, Dict[str, str]] = {}
         self._uses_errors = False  # Track if any state uses onErrors
+        # Unwrap SeBS local server responses so workflow state data stays as payload.
+        self._action_results_expr = "${ .result.output.payload // .payload // . }"
 
     def _function_ref(self, func_name: str) -> Dict[str, str]:
         binding = self._bindings.get(func_name)
@@ -39,7 +41,11 @@ class SonataFlowGenerator(Generator):
     def _default_action(self, func_name: str, payload_ref: str = "${ . }") -> Dict[str, object]:
         ref = self._function_ref(func_name)
         ref["arguments"] = {"payload": payload_ref}
-        return {"name": func_name, "functionRef": ref}
+        return {
+            "name": func_name,
+            "functionRef": ref,
+            "actionDataFilter": {"results": self._action_results_expr},
+        }
 
     def postprocess(self, payloads: List[dict]) -> dict:
         workflow_def = {

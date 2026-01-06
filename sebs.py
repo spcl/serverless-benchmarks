@@ -37,8 +37,14 @@ class ExceptionProcesser(click.Group):
             logging.info("# Experiments failed! See out.log for details")
         finally:
             # Close
+            # For SonataFlow deployments, skip shutdown to keep containers alive
+            # The external script will manage container lifecycle
             if deployment_client is not None:
-                deployment_client.shutdown()
+                deployment_name = getattr(deployment_client.config, '_name', '')
+                if deployment_name != 'sonataflow':
+                    deployment_client.shutdown()
+                else:
+                    logging.info("Skipping deployment shutdown for SonataFlow (containers kept alive)")
             if sebs_client is not None:
                 sebs_client.shutdown()
 

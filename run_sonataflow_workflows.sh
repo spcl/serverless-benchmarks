@@ -57,6 +57,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Clean up stale workflow definitions and cached workflows from previous runs
+# These contain hardcoded IPs that become invalid when containers restart
+echo "Cleaning up stale workflow definitions and cached workflows..."
+rm -f "$PWD/sonataflow-workflows/workflows"/*.sw.json 2>/dev/null || true
+# Delete entire workflow cache directories to force full regeneration
+if command -v docker >/dev/null 2>&1 && [ -d cache ]; then
+  docker run --rm -v "$PWD/cache:/cache" alpine sh -c "find /cache -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +" 2>/dev/null || true
+fi
+if [ -d "$PWD/cache" ]; then
+  rm -rf "$PWD/cache"/* 2>/dev/null || true
+fi
+
 "$SEBS_PYTHON" ./sebs.py storage start all config/storage.json --output-json out_storage.json
 
 MINIO_ADDRESS=$(jq -r '.object.minio.address' out_storage.json)
@@ -91,7 +103,7 @@ for cfg in config/local_workflows.json config/local_deployment.json; do
     --arg saddr "$SCYLLA_ADDRESS" \
     --argjson sport "$SCYLLA_PORT" \
     --arg sinst "$SCYLLA_INSTANCE" \
-    --arg redis_host "localhost:6380" \
+    --arg redis_host "localhost:6381" \
     --arg redis_pass "" \
     --arg runtime_url "$RUNTIME_URL" \
     --arg endpoint_prefix "$ENDPOINT_PREFIX" \
@@ -116,10 +128,16 @@ for cfg in config/local_workflows.json config/local_deployment.json; do
   mv "$tmp" "$cfg"
 done
 
-if docker ps -a --format '{{.Names}}' | grep -q '^sebs-redis$'; then
-  docker rm -f sebs-redis >/dev/null
+# Create sebs-network if it doesn't exist (needed before Redis starts)
+docker network inspect sebs-network >/dev/null 2>&1 || docker network create sebs-network
+
+# Start Redis if not already running
+if ! docker ps --format '{{.Names}}' | grep -q '^sebs-redis$'; then
+  # Remove any stopped Redis container
+  docker rm -f sebs-redis >/dev/null 2>&1 || true
+  # Start Redis on sebs-network so function containers can reach it
+  docker run -d --name sebs-redis --network sebs-network -p 6381:6379 redis:7
 fi
-docker run -d --name sebs-redis -p 6380:6379 redis:7
 
 # Prepare SonataFlow resources directory structure expected by kogito-swf-devmode:
 # - `src/main/resources/application.properties`
@@ -222,21 +240,45 @@ wait_for_workflow_endpoint() {
   if [ "$prefix" != "services" ]; then
     urls+=("${base_url%/}/services/${workflow_id}")
   fi
-  local attempts=40
-  local delay=3
+  local attempts=60
+  local delay=5
   echo "Waiting for workflow endpoint(s): ${urls[*]} ..."
   for i in $(seq 1 $attempts); do
     for url in "${urls[@]}"; do
       # GET will likely return 405 for POST-only endpoints; 404 means not loaded yet
+      # 500/503 mean workflow is loading/compiling, keep waiting
       code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || true)
-      if [ "$code" != "404" ] && [ "$code" != "000" ]; then
+      if [ "$code" = "200" ] || [ "$code" = "405" ]; then
         echo "Workflow endpoint responding at $url with HTTP $code."
         return 0
+      elif [ "$code" != "404" ] && [ "$code" != "000" ]; then
+        echo "Workflow endpoint at $url returned HTTP $code (still loading), waiting..."
       fi
     done
     sleep "$delay"
   done
   echo "Warning: Workflow endpoint(s) not responding after $((attempts * delay))s"
+}
+
+ensure_runtime_networks() {
+  if ! command -v docker >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^sonataflow-runtime$'; then
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local networks
+  networks=$(docker inspect -f '{{json .NetworkSettings.Networks}}' sonataflow-runtime 2>/dev/null || echo "{}")
+  if ! echo "$networks" | jq -e 'has("sebs-network")' >/dev/null 2>&1; then
+    docker network connect sebs-network sonataflow-runtime >/dev/null 2>&1 || true
+  fi
+  if ! echo "$networks" | jq -e 'has("bridge")' >/dev/null 2>&1; then
+    docker network connect bridge sonataflow-runtime >/dev/null 2>&1 || true
+  fi
 }
 
 preflight_runtime_function_connectivity() {
@@ -254,6 +296,8 @@ preflight_runtime_function_connectivity() {
     return 0
   fi
 
+  ensure_runtime_networks
+
   # Extract function base URLs from `rest:post:http://host:port/` operations.
   mapfile -t urls < <(jq -r '.functions[]?.operation // empty' "$sw_json" 2>/dev/null \
     | sed -n 's#^rest:post:##p' | sed -e 's#/*$#/#' | sort -u)
@@ -266,23 +310,45 @@ preflight_runtime_function_connectivity() {
   local http_cmd
   http_cmd=$(docker exec sonataflow-runtime sh -lc 'if command -v curl >/dev/null 2>&1; then echo curl; elif command -v wget >/dev/null 2>&1; then echo wget; elif command -v python3 >/dev/null 2>&1; then echo python3; elif command -v python >/dev/null 2>&1; then echo python; else echo none; fi' 2>/dev/null || echo none)
   if [ "$http_cmd" = "none" ]; then
-    echo "Preflight skipped: no curl/wget/python found inside sonataflow-runtime."
-    return 0
+    http_cmd=""
   fi
   local failed=0
-  for u in "${urls[@]}"; do
-    # Use `/alive` which SeBS function containers expose.
-    if [ "$http_cmd" = "curl" ]; then
-      docker exec sonataflow-runtime sh -lc "curl -fsS --max-time 3 '${u}alive' >/dev/null" >/dev/null 2>&1 || failed=1
-    elif [ "$http_cmd" = "wget" ]; then
-      docker exec sonataflow-runtime sh -lc "wget -q -T 3 -O - '${u}alive' >/dev/null" >/dev/null 2>&1 || failed=1
-    else
-      docker exec sonataflow-runtime sh -lc "$http_cmd - <<'PY'\nimport sys, urllib.request\nurl=sys.argv[1]\nurllib.request.urlopen(url, timeout=3).read(1)\nPY\n'${u}alive'" >/dev/null 2>&1 || failed=1
+  if [ -n "$http_cmd" ]; then
+    for u in "${urls[@]}"; do
+      # Use `/alive` which SeBS function containers expose.
+      if [ "$http_cmd" = "curl" ]; then
+        if ! docker exec sonataflow-runtime sh -lc "curl -fsS --max-time 3 '${u}alive' >/dev/null" >/dev/null 2>&1; then
+          echo "  Cannot reach ${u}alive from sonataflow-runtime"
+          failed=1
+        fi
+      elif [ "$http_cmd" = "wget" ]; then
+        if ! docker exec sonataflow-runtime sh -lc "wget -q -T 3 -O - '${u}alive' >/dev/null" >/dev/null 2>&1; then
+          echo "  Cannot reach ${u}alive from sonataflow-runtime"
+          failed=1
+        fi
+      else
+        if ! docker exec sonataflow-runtime sh -lc "$http_cmd - <<'PY'\nimport sys, urllib.request\nurl=sys.argv[1]\nurllib.request.urlopen(url, timeout=3).read(1)\nPY\n'${u}alive'" >/dev/null 2>&1; then
+          echo "  Cannot reach ${u}alive from sonataflow-runtime"
+          failed=1
+        fi
+      fi
+    done
+  else
+    if ! docker network inspect sebs-network >/dev/null 2>&1; then
+      echo "Preflight skipped: sebs-network not found and sonataflow-runtime lacks curl/wget/python."
+      return 0
     fi
-    if [ "$failed" -ne 0 ]; then
-      echo "  Cannot reach ${u}alive from sonataflow-runtime"
-    fi
-  done
+    docker run --rm --network sebs-network busybox sh -c '
+failed=0
+for u in "$@"; do
+  if ! wget -q -T 3 -O - "${u}alive" >/dev/null 2>&1; then
+    echo "  Cannot reach ${u}alive from sebs-network"
+    failed=1
+  fi
+done
+exit $failed
+' -- "${urls[@]}" || failed=1
+  fi
   if [ "$failed" -ne 0 ]; then
     echo "Preflight failed: SonataFlow cannot reach one or more function containers."
     echo "Hint: ensure sonataflow-runtime and sebd-*___* function containers share a Docker network, and that SeBS and docker CLI use the same Docker daemon/context."

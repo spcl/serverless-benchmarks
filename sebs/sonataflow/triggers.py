@@ -50,40 +50,101 @@ class WorkflowSonataFlowTrigger(Trigger):
         return out
 
     def _invoke(self, payload: dict) -> ExecutionResult:
+        import time
         request_id = str(uuid.uuid4())[0:8]
         begin = datetime.datetime.now()
         result = ExecutionResult.from_times(begin, begin)
         try:
+            body = payload
+            if isinstance(payload, dict):
+                body = dict(payload)
+                body.setdefault("request_id", request_id)
             endpoint_used = self._endpoint()
-            resp = requests.post(
-                endpoint_used,
-                json={"payload": payload, "request_id": request_id},
-                timeout=900,
-            )
-            if resp.status_code == 404:
-                # Auto-detect the correct endpoint layout.
-                for prefix, endpoint in self._candidate_endpoints():
-                    if endpoint == endpoint_used:
+
+            # Retry logic for 404 (workflow not loaded yet)
+            max_retries = 30
+            retry_delay = 2
+            resp = None
+            original_endpoint = endpoint_used
+
+            for attempt in range(max_retries):
+                # Try the main endpoint first
+                resp = requests.post(
+                    endpoint_used,
+                    json=body,
+                    timeout=900,
+                )
+                self.logging.debug(f"Attempt {attempt + 1}: {endpoint_used} returned {resp.status_code}")
+
+                # Check if we should retry
+                if resp.status_code == 404:
+                    # Auto-detect the correct endpoint layout.
+                    found_endpoint = False
+                    for prefix, endpoint in self._candidate_endpoints():
+                        if endpoint == original_endpoint:
+                            # Already tried this one as the main attempt
+                            continue
+                        self.logging.debug(f"Trying candidate: {endpoint}")
+                        resp = requests.post(
+                            endpoint,
+                            json=body,
+                            timeout=900,
+                        )
+                        self.logging.debug(f"Candidate {endpoint} returned {resp.status_code}")
+                        if resp.status_code != 404 and resp.status_code != 503:
+                            # Found the correct endpoint!
+                            self._endpoint_prefix = prefix
+                            endpoint_used = endpoint
+                            found_endpoint = True
+                            self.logging.info(f"Found workflow at {endpoint}")
+                            break
+
+                    if not found_endpoint and attempt < max_retries - 1:
+                        # Workflow not loaded yet, wait and retry
+                        self.logging.info(
+                            f"Workflow endpoint not ready (404), retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})"
+                        )
+                        time.sleep(retry_delay)
+                        # Reset to original endpoint for next attempt
+                        endpoint_used = original_endpoint
                         continue
-                    resp = requests.post(
-                        endpoint,
-                        json={"payload": payload, "request_id": request_id},
-                        timeout=900,
-                    )
-                    endpoint_used = endpoint
-                    if resp.status_code != 404:
-                        self._endpoint_prefix = prefix
+                    elif not found_endpoint:
+                        # Final attempt failed
+                        self.logging.error(f"Workflow endpoint not found after {max_retries} attempts")
                         break
+                elif resp.status_code in [500, 503] and attempt < max_retries - 1:
+                    # Service error (SonataFlow loading/restarting), wait and retry
+                    self.logging.info(
+                        f"SonataFlow not ready ({resp.status_code}), retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(retry_delay)
+                    endpoint_used = original_endpoint
+                    continue
+
+                # Success or non-retryable error, break out of retry loop
+                break
+
             end = datetime.datetime.now()
             result = ExecutionResult.from_times(begin, end)
             result.request_id = request_id
-            if resp.status_code >= 300:
+            if resp and resp.status_code >= 300:
                 result.stats.failure = True
+                try:
+                    error_text = resp.text[:500] if len(resp.text) > 500 else resp.text
+                except:
+                    error_text = "<unable to read response>"
                 self.logging.error(
-                    f"SonataFlow invocation failed ({resp.status_code}): {resp.text}"
+                    f"SonataFlow invocation failed ({resp.status_code}): {error_text}"
                 )
+            elif resp:
+                try:
+                    result.output = resp.json()
+                except Exception as e:
+                    result.stats.failure = True
+                    self.logging.error(f"Failed to parse SonataFlow response: {e}")
             else:
-                result.output = resp.json()
+                result.stats.failure = True
+                self.logging.error("SonataFlow invocation failed: No response received")
         except Exception as exc:
             end = datetime.datetime.now()
             result = ExecutionResult.from_times(begin, end)

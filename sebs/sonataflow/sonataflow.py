@@ -130,7 +130,32 @@ class SonataFlow(Local):
         return Local._function_network_endpoint(self, func)
 
     def _workflow_env(self, workflow_name: str, module_name: str) -> Dict[str, str]:
-        return Local._workflow_env(self, workflow_name, module_name)
+        # Get base environment from Local
+        env = Local._workflow_env(self, workflow_name, module_name)
+
+        # Override Redis configuration for SonataFlow containers on sebs-network
+        # Function containers are on sebs-network and should use the Redis container hostname
+        redis_host = self.config.resources.redis_host
+        if redis_host:
+            if ":" in redis_host:
+                host, port = redis_host.split(":", 1)
+            else:
+                host, port = redis_host, "6379"
+
+            # If the config specifies localhost, use the Redis container hostname instead
+            if host in ("127.0.0.1", "localhost"):
+                env["SEBS_REDIS_HOST"] = "sebs-redis"
+                env["SEBS_REDIS_PORT"] = "6379"  # Use internal port, not mapped port
+                self.logging.info(f"Overriding Redis config for {module_name}: sebs-redis:6379")
+            else:
+                env["SEBS_REDIS_HOST"] = host
+                env["SEBS_REDIS_PORT"] = port
+
+            if self.config.resources.redis_password:
+                env["SEBS_REDIS_PASSWORD"] = self.config.resources.redis_password
+
+        self.logging.debug(f"Container env for {module_name}: SEBS_REDIS_HOST={env.get('SEBS_REDIS_HOST')}, SEBS_REDIS_PORT={env.get('SEBS_REDIS_PORT')}")
+        return env
 
     def _allocate_host_port(self, start_port: int, range_size: int = 1000) -> int:
         return Local._allocate_host_port(self, start_port, range_size)
@@ -159,6 +184,9 @@ class SonataFlow(Local):
         func: Optional[LocalFunction],
         env_overrides: Optional[Dict[str, str]] = None,
     ) -> LocalFunction:
+        import requests
+        import time
+
         # Override to use custom network for SonataFlow
         # Create sebs-network if it doesn't exist
         try:
@@ -172,8 +200,33 @@ class SonataFlow(Local):
         # Connect the container to sebs-network
         try:
             network = self._docker_client.networks.get("sebs-network")
-            network.connect(func_instance.container.id)
-            self.logging.info(f"Connected container {func_instance.container.name} to sebs-network")
+            network.connect(func_instance.container.id, aliases=[func_name])
+            self.logging.info(
+                f"Connected container {func_instance.container.name} to sebs-network (alias {func_name})"
+            )
+
+            # Wait for the container to be reachable on sebs-network
+            # Get the sebs-network IP
+            func_instance.container.reload()
+            networks = func_instance.container.attrs.get("NetworkSettings", {}).get("Networks", {})
+            sf_net = networks.get("sebs-network", {})
+            sebs_ip = sf_net.get("IPAddress")
+
+            if sebs_ip:
+                # Health check on sebs-network IP
+                max_attempts = 10
+                attempts = 0
+                while attempts < max_attempts:
+                    try:
+                        requests.get(f"http://{sebs_ip}:{Local.DEFAULT_PORT}/alive", timeout=1)
+                        self.logging.debug(f"Container {func_instance.container.name} ready on sebs-network at {sebs_ip}")
+                        break
+                    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+                        time.sleep(0.25)
+                        attempts += 1
+
+                if attempts >= max_attempts:
+                    self.logging.warning(f"Container {func_instance.container.name} not responding on sebs-network IP {sebs_ip} after {max_attempts} attempts")
         except Exception as e:
             self.logging.warning(f"Failed to connect container to sebs-network: {e}")
 

@@ -114,7 +114,7 @@
     "sonataflow": {
       "resources": {
         "redis": {
-          "host": "localhost:6380",
+          "host": "localhost:6381",
           "password": ""
         },
         "runtime": {
@@ -136,9 +136,9 @@
           "minio": {
             "address": "172.18.0.2:9000",
             "mapped_port": 9011,
-            "access_key": "1BLdaNtOSM0ydc6JdiCnVUkuFG17-F-WNgEjQDZ5OOk",
-            "secret_key": "13a8d3970b537c17c25e3a772c6ffaa4635423ca99d942508d3f5a626e242289",
-            "instance_id": "f95ec8af54b7c94293469dac2e20a46fe244bc33761a75a6b0c1cd9e04f2fcd4",
+            "access_key": "JFWdNebAtS321z6UUsallfkxYXlz1jSJ-5v9Uqx5NEc",
+            "secret_key": "ae469750563d84c1d8aed83655cdd17443da9ba4ce8729f95268d63a336a61b5",
+            "instance_id": "d4ea989f0e9206f0df21547073fc3303c5a00fac9dad579025ce9e4bd3756d16",
             "input_buckets": [],
             "output_buckets": []
           }
@@ -148,7 +148,7 @@
           "scylladb": {
             "address": "172.18.0.3:8000",
             "mapped_port": 9012,
-            "instance_id": "6186beb7178ed2d8c9317eafdd2726d66ce0798a65e74b9e6b6234fc9dba2c76"
+            "instance_id": "d1cf3f482b4f9c344271a3dd54da68050eaabf2c047151a816c01046577361d3"
           }
         }
       }

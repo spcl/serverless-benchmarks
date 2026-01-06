@@ -7,27 +7,27 @@
   "functions": [
     {
       "name": "sebd_610_gen_python_3_11_get_astros",
-      "operation": "rest:post:http://172.18.0.5:9000/",
+      "operation": "rest:post:http://172.18.0.20:9000/",
       "type": "custom"
     },
     {
       "name": "sebd_610_gen_python_3_11_few_people",
-      "operation": "rest:post:http://172.18.0.4:9000/",
+      "operation": "rest:post:http://172.18.0.19:9000/",
       "type": "custom"
     },
     {
       "name": "sebd_610_gen_python_3_11_many_people",
-      "operation": "rest:post:http://172.18.0.6:9000/",
+      "operation": "rest:post:http://172.18.0.21:9000/",
       "type": "custom"
     },
     {
       "name": "sebd_610_gen_python_3_11_map_astros",
-      "operation": "rest:post:http://172.18.0.7:9000/",
+      "operation": "rest:post:http://172.18.0.22:9000/",
       "type": "custom"
     },
     {
       "name": "sebd_610_gen_python_3_11_process_astros",
-      "operation": "rest:post:http://172.18.0.8:9000/",
+      "operation": "rest:post:http://172.18.0.23:9000/",
       "type": "custom"
     }
   ],
@@ -44,6 +44,9 @@
             "arguments": {
               "payload": "${ . }"
             }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
           }
         }
       ],
@@ -77,6 +80,9 @@
             "arguments": {
               "payload": "${ . }"
             }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
           }
         }
       ],
@@ -93,6 +99,9 @@
             "arguments": {
               "payload": "${ . }"
             }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
           }
         }
       ],
@@ -112,6 +121,9 @@
             "arguments": {
               "payload": "${ item }"
             }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
           }
         }
       ],
@@ -128,6 +140,9 @@
             "arguments": {
               "payload": "${ . }"
             }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
           }
         }
       ],

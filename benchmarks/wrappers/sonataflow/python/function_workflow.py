@@ -28,12 +28,16 @@ def _load_function_handler():
 
 def _maybe_push_measurement(event, duration_start, duration_end):
     redis_host = os.getenv("SEBS_REDIS_HOST")
+    redis_port = int(os.getenv("SEBS_REDIS_PORT", "6379"))
     if not redis_host:
+        print(f"[workflow] SEBS_REDIS_HOST not set, skipping measurement", flush=True)
         return
 
     workflow_name = os.getenv("SEBS_WORKFLOW_NAME", "workflow")
     func_name = os.getenv("SEBS_WORKFLOW_FUNC", "function")
     request_id = event["request_id"]
+
+    print(f"[workflow] attempting to connect to Redis at {redis_host}:{redis_port}", flush=True)
 
     payload = {
         "func": func_name,
@@ -55,17 +59,22 @@ def _maybe_push_measurement(event, duration_start, duration_end):
     if download_bytes.isdigit():
         payload["blob.download"] = int(download_bytes)
 
-    redis = Redis(
-        host=redis_host,
-        port=int(os.getenv("SEBS_REDIS_PORT", "6379")),
-        decode_responses=True,
-        socket_connect_timeout=10,
-        password=os.getenv("SEBS_REDIS_PASSWORD"),
-    )
+    try:
+        redis = Redis(
+            host=redis_host,
+            port=redis_port,
+            decode_responses=True,
+            socket_connect_timeout=10,
+            password=os.getenv("SEBS_REDIS_PASSWORD"),
+        )
 
-    key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])
-    redis.set(key, json.dumps(payload))
-    print(f"[workflow] stored measurement {key}")
+        key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])
+        redis.set(key, json.dumps(payload))
+        print(f"[workflow] stored measurement {key}", flush=True)
+    except Exception as e:
+        print(f"[workflow] ERROR storing measurement to Redis: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
 
 
 def handler(event):
