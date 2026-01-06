@@ -189,15 +189,24 @@ class DurableObjects(NoSQLStorage):
         :param name: table name
         :return: table name
         """
-        # Remove from internal tracking
-        for benchmark, tables in self._tables.items():
+        # Remove from internal tracking - two-step approach to avoid mutation during iteration
+        benchmark_to_modify = None
+        table_key_to_delete = None
+        
+        # Step 1: Find the benchmark and table_key without deleting
+        for benchmark, tables in list(self._tables.items()):
             if name in tables.values():
                 # Find the table key
-                for table_key, table_name in tables.items():
+                for table_key, table_name in list(tables.items()):
                     if table_name == name:
-                        del self._tables[benchmark][table_key]
+                        benchmark_to_modify = benchmark
+                        table_key_to_delete = table_key
                         break
                 break
+        
+        # Step 2: Perform deletion after iteration
+        if benchmark_to_modify is not None and table_key_to_delete is not None:
+            del self._tables[benchmark_to_modify][table_key_to_delete]
         
         self.logging.info(f"Removed Durable Objects table {name} from tracking")
         return name

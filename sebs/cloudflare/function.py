@@ -54,9 +54,13 @@ class CloudflareWorker(Function):
         )
         
         for trigger in cached_config["triggers"]:
+            mapping = {
+                LibraryTrigger.typename(): LibraryTrigger,
+                HTTPTrigger.typename(): HTTPTrigger
+            }
             trigger_type = cast(
                 Trigger,
-                {"Library": LibraryTrigger, "HTTP": HTTPTrigger}.get(trigger["type"]),
+                mapping.get(trigger["type"]),
             )
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
