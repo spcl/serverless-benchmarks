@@ -35,6 +35,7 @@ class DurableObjects(NoSQLStorage):
         credentials: CloudflareCredentials,
     ):
         super().__init__(region, cache_client, resources)
+        self._credentials = credentials
         # Tables are just logical names - Durable Objects are accessed via Worker bindings
         self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
 
