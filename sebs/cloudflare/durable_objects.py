@@ -103,7 +103,7 @@ class DurableObjects(NoSQLStorage):
         
         :param benchmark: benchmark name
         """
-        self._cache_client.update_nosql(
+        self.cache_client.update_nosql(
             self.deployment_name(),
             benchmark,
             {
