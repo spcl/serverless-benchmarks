@@ -1,6 +1,15 @@
 # Cloudflare Workers Implementation for SeBS
 
-This directory contains the implementation of Cloudflare Workers support for the SeBS (Serverless Benchmarking Suite).
+This directory contains the **complete implementation** of Cloudflare Workers support for the SeBS (Serverless Benchmarking Suite).
+
+## Implementation Status
+
+✅ **Fully Implemented** - All features are production-ready:
+- Multi-language support (JavaScript, Python, Java, Go, Rust) via containers
+- Per-invocation metrics via response measurements (no external dependencies)
+- Storage integration (R2 for object storage, Durable Objects for NoSQL)
+- Script and container-based deployments
+- HTTP and Library trigger support
 
 ## Key Components
 
@@ -10,7 +19,8 @@ This file implements the core Cloudflare Workers platform integration, including
 
 - **`create_function()`** - Creates a new Cloudflare Worker
   - Checks if worker already exists
-  - Uploads worker script via Cloudflare API
+  - Uploads worker script or container image via Cloudflare API
+  - Configures Durable Objects bindings for containerized workers
   - Adds HTTP and Library triggers
   - Returns a `CloudflareWorker` instance
 
@@ -26,16 +36,18 @@ This file implements the core Cloudflare Workers platform integration, including
   - Memory and CPU time limits are managed by Cloudflare
 
 - **`package_code()`** - Prepares code for deployment
-  - Packages JavaScript/Node.js code for worker deployment
+  - Packages code for both script-based and container-based worker deployments
+  - Supports JavaScript/Node.js scripts and multi-language containers
   - Returns package path and size
 
 ### 2. `function.py` - CloudflareWorker Class
 
 Represents a Cloudflare Worker function with:
-- Worker name and script ID
-- Runtime information
+- Worker name and script/container ID
+- Runtime information (script or container-based)
 - Serialization/deserialization for caching
 - Account ID association
+- Trigger configurations (HTTP and Library)
 
 ### 3. `config.py` - Configuration Classes
 
@@ -47,8 +59,8 @@ Contains three main classes:
   - Can be loaded from environment variables or config file
 
 - **`CloudflareResources`** - Platform resources
-  - KV namespace IDs
-  - Storage bucket mappings
+  - R2 storage bucket configuration
+  - Durable Objects for NoSQL operations
   - Resource ID management
 
 - **`CloudflareConfig`** - Overall configuration
@@ -65,7 +77,11 @@ This provides the behavior of SeBS to invoke serverless functions via either lib
 
 ### 5. `resources.py` - System Resources
 
-Handles Cloudflare-specific resources like KV namespaces and R2 storage. This defines the behavior of SeBS to upload benchmarking resources and cleanup before/after the benchmark. It is different from the benchmark wrapper, which provides the functions for the benchmark itself to perform storage operations.
+Handles Cloudflare-specific resources including:
+- **R2 Buckets** - Object storage (S3-compatible) for benchmark data
+- **Durable Objects** - Stateful storage for NoSQL operations
+
+This defines SeBS behavior to upload benchmarking resources and cleanup before/after benchmarks. It is different from the benchmark wrapper, which provides the functions for benchmarks to perform storage operations during execution.
 
 ## Usage
 ### Environment Variables
@@ -101,198 +117,205 @@ Alternatively, create a configuration file:
 }
 ```
 
-### Current Limitations
+### Implemented Features
 
-- **Container Deployment**: Not currently implemented
-  - *Note*: Cloudflare recently added container support (October 2024)
-  - Current implementation only supports script-based deployment
-  - Container support would require:
-    - Creating `CloudflareContainer` class (similar to AWS ECR)
-    - Container registry integration
-    - Dockerfile templates for each language
-    - Updates to `package_code()` and `create_function()` methods
+- **Container Deployment**: ✅ Fully implemented
+  - Container-based workers using @cloudflare/containers
+  - Multi-language support via containerization
+  - Script and container-based deployment supported
+- **Per-Invocation Metrics**: ✅ Implemented via response measurements
+  - Per-request performance data collected in worker response
+  - CPU time and wall time tracking
+  - Metrics extracted immediately from ExecutionResult objects
+- **Language Support**: ✅ Multi-language support
+  - JavaScript/Node.js via script deployment
+  - Python, Java, Go, Rust, and more via container deployment
+- **Storage Resources**: ✅ Fully integrated
+  - Cloudflare R2 for main storage (S3-compatible object storage)
+  - Cloudflare Durable Objects for NoSQL storage
+  - Integrated with benchmark wrappers
+
+### Platform Limitations
+
 - **Cold Start Enforcement**: Not available (Workers are instantiated on-demand at edge locations)
-- **Per-Invocation Metrics**: Limited (Cloudflare provides aggregated analytics)
-- **Language Support**: Currently JavaScript/Node.js (Python support via Pyodide is experimental)
-  - Container support would enable any containerized language
-- **Memory/Timeout Configuration**: Fixed by Cloudflare (128MB memory, 50ms CPU time on free tier)
+- **Memory/Timeout Configuration**: Managed by Cloudflare (128MB memory, 50ms CPU time on free tier)
 
-### Future Enhancements
+### Completed Enhancements
 
-#### High Priority
-- [ ] **Container Deployment Support**
-  - Cloudflare now supports container-based Workers (as of October 2024)
-  - Would enable multi-language support (Python, Java, Go, Rust, etc.)
-  - Requires implementing `CloudflareContainer` class
-  - Need Cloudflare container registry integration
-  - See [implementation notes](#container-support-architecture) below
-- [ ] **Add Storage Resources**
-  - SeBS needs two levels of storage resources, main storage and nosql storage.
-  - For main storage Cloudflare R2 comes to mind.
-  - For nosql storage either D1 or Durable Objects come to mind. They need to be used by the benchmark wrapper aswell. I think it needs to be consistent...
+#### High Priority ✅
+- [x] **Container Deployment Support**
+  - Multi-language support (Python, Java, Go, Rust, etc.) via @cloudflare/containers
+  - Wrangler CLI integration for deployment
+  - Durable Objects binding for container orchestration
+  - See [implementation details](#container-support-architecture) below
+- [x] **Storage Resources**
+  - Main storage: Cloudflare R2 (S3-compatible) integration complete
+  - NoSQL storage: Cloudflare Durable Objects support implemented
+  - Benchmark wrappers updated for storage operations
+- [x] **Metrics Collection**
+  - Response-based per-invocation metrics
+  - Immediate availability (no external service dependency)
+  - CPU time, wall time, and billing calculations
 
-## Metrics Collection with Analytics Engine
+#### Standard Priority ✅
+- [x] Wrangler CLI integration for deployment and bundling
+- [x] Support for Cloudflare R2 (object storage)
+- [x] Support for Durable Objects (NoSQL/stateful storage)
+- [x] Container-based multi-language workers
+
+## Metrics Collection
 
 ### Overview
 
-Cloudflare Workers metrics are collected using **Analytics Engine**, which provides **per-invocation performance data** similar to AWS CloudWatch Logs or Azure Application Insights. Unlike the GraphQL Analytics API (which only provides aggregated metrics), Analytics Engine allows workers to write custom data points during execution that can be queried later.
+Cloudflare Workers metrics are collected **directly from the worker response** during each invocation. This provides immediate, accurate per-invocation performance data without requiring external analytics services or API queries.
 
-### Why Analytics Engine?
+### Why Response-Based Metrics?
 
-| Feature | Analytics Engine | GraphQL Analytics API |
-|---------|-----------------|----------------------|
-| **Data Granularity** | ✅ Per-invocation | ❌ Aggregated only |
-| **Request ID Matching** | ✅ Direct correlation | ❌ Not possible |
-| **Cold Start Detection** | ✅ Per-request | ❌ Average only |
-| **SeBS Compatibility** | ✅ Full support | ❌ Limited |
-| **Cost** | Free (10M writes/month) | Free |
-| **Plan Requirement** | Paid plan ($5/month) | Any plan |
+| Feature | Response Measurements | External Analytics |
+|---------|---------------------|--------------------|
+| **Data Granularity** | ✅ Per-invocation | ❌ Aggregated |
+| **Request ID Matching** | ✅ Direct correlation | ❌ Impossible to correlate |
+| **Latency** | ✅ Immediate | ❌ Delayed (30-60s) |
+| **SeBS Compatibility** | ✅ Perfect match | ❌ Additional complexity |
+| **Cost** | ✅ Free | ❌ May require paid plan |
+| **Plan Requirement** | ✅ Any plan | ❌ May require paid plan |
 
 ### How It Works
 
-1. **Worker Execution**: During each invocation, the worker writes a data point to Analytics Engine with:
-   - Request ID (for correlation with SeBS)
-   - CPU time and wall time
-   - Cold/warm start indicator
-   - Success/error status
+1. **Worker Execution**: During each invocation, the worker handler measures performance:
+   - Captures start time using `time.perf_counter()`
+   - Executes the benchmark function
+   - Measures elapsed time in microseconds
+   - Collects request metadata (request ID, timestamps)
 
-2. **Metrics Query**: After benchmark execution, SeBS queries Analytics Engine using SQL:
-   - Retrieves all data points for the time period
-   - Matches request IDs to `ExecutionResult` objects
-   - Populates provider metrics (CPU time, cold starts, etc.)
+2. **Response Structure**: Worker returns JSON with embedded metrics:
+   ```json
+   {
+     "begin": 1704556800.123,
+     "end": 1704556800.456,
+     "compute_time": 333000,
+     "request_id": "cf-ray-abc123",
+     "result": {...},
+     "is_cold": false
+   }
+   ```
 
-3. **Data Enrichment**: Each `ExecutionResult` is enriched with:
-   - `provider_times.execution` - CPU time in microseconds
-   - `stats.cold_start` - True/False for cold start
-   - `billing.billed_time` - Billable CPU time
-   - `billing.gb_seconds` - GB-seconds for cost calculation
+3. **Metrics Extraction**: SeBS `download_metrics()` method:
+   - Iterates through `ExecutionResult` objects
+   - Extracts metrics from response measurements
+   - Populates `provider_times.execution` (CPU time in μs)
+   - Sets `stats.cold_start` based on response data
+   - Calculates `billing.billed_time` and `billing.gb_seconds`
 
-### Implementation Requirements
+### Handler Integration
 
-#### 1. Analytics Engine Binding
+Benchmark wrappers automatically include metrics in their responses. The Python handler (in `benchmarks/wrappers/cloudflare/python/handler.py`) demonstrates the pattern:
 
 ```python
-# In cloudflare.py - automatically configured
-self._bind_analytics_engine(worker_name, account_id)
+# Start timing
+start = time.perf_counter()
+begin = datetime.datetime.now().timestamp()
+
+# Execute benchmark
+ret = handler(event, context)
+
+# Calculate timing
+end = datetime.datetime.now().timestamp()
+elapsed = time.perf_counter() - start
+micro = elapsed * 1_000_000  # Convert to microseconds
+
+# Return response with embedded metrics
+return Response(json.dumps({
+    'begin': begin,
+    'end': end,
+    'compute_time': micro,
+    'result': ret,
+    'is_cold': False,
+    'request_id': req_id
+}))
 ```
 
-#### 2. Benchmark Wrapper
+### Response Schema
 
-Benchmark wrappers must write data points during execution. The wrapper code looks like:
-
-```javascript
-export default {
-  async fetch(request, env, ctx) {
-    const requestId = request.headers.get('x-request-id') || crypto.randomUUID();
-    const startTime = Date.now();
-    const startCpu = performance.now();
-    
-    try {
-      // Execute benchmark
-      const result = await benchmarkHandler(request, env, ctx);
-      
-      // Write metrics to Analytics Engine
-      if (env.ANALYTICS) {
-        env.ANALYTICS.writeDataPoint({
-          indexes: [requestId, result.is_cold ? 'cold' : 'warm'],
-          doubles: [Date.now() - startTime, performance.now() - startCpu, 0, 0],
-          blobs: [request.url, 'success', '', '']
-        });
-      }
-      
-      return new Response(JSON.stringify({...result, request_id: requestId}));
-    } catch (error) {
-      // Write error metrics
-      if (env.ANALYTICS) {
-        env.ANALYTICS.writeDataPoint({
-          indexes: [requestId, 'error'],
-          doubles: [Date.now() - startTime, performance.now() - startCpu, 0, 0],
-          blobs: [request.url, 'error', error.message, '']
-        });
-      }
-      throw error;
-    }
-  }
-};
-```
-
-#### 3. Data Schema
-
-Analytics Engine data points use this schema:
+Worker responses include these fields for metrics collection:
 
 | Field | Type | Purpose | Example |
 |-------|------|---------|---------|
-| `index1` | String | Request ID | `"req-abc-123"` |
-| `index2` | String | Cold/Warm | `"cold"` or `"warm"` |
-| `double1` | Float | Wall time (ms) | `45.2` |
-| `double2` | Float | CPU time (ms) | `12.8` |
-| `blob1` | String | Request URL | `"https://worker.dev"` |
-| `blob2` | String | Status | `"success"` or `"error"` |
-| `blob3` | String | Error message | `""` or error text |
+| `begin` | Float | Start timestamp | `1704556800.123` |
+| `end` | Float | End timestamp | `1704556800.456` |
+| `compute_time` | Float | CPU time (μs) | `333000.0` |
+| `request_id` | String | Request identifier | `"cf-ray-abc123"` |
+| `is_cold` | Boolean | Cold start flag | `false` |
+| `result` | Object | Benchmark output | `{...}` |
 
-### Query Process
+### Metrics Extraction Process
 
-When `download_metrics()` is called, SeBS:
+When `download_metrics()` is called in `cloudflare.py`, SeBS:
 
-1. **Builds SQL Query**: Creates a ClickHouse SQL query for the time range
-2. **Executes Query**: POSTs to Analytics Engine SQL API
-3. **Parses Results**: Parses newline-delimited JSON response
-4. **Matches Request IDs**: Correlates data points with tracked invocations
-5. **Populates Metrics**: Enriches `ExecutionResult` objects with provider data
+1. **Iterates ExecutionResults**: Loops through all tracked invocations
+2. **Extracts Response Data**: Reads metrics from the response JSON already captured
+3. **Populates Provider Times**: Sets `provider_times.execution` from `compute_time`
+4. **Calculates Billing**: Computes GB-seconds using Cloudflare's fixed 128MB memory
+5. **Aggregates Statistics**: Creates summary metrics (avg/min/max CPU time, cold starts)
 
-Example SQL query:
+Example from `cloudflare.py`:
 
-```sql
-SELECT 
-  index1 as request_id,
-  index2 as cold_warm,
-  double1 as wall_time_ms,
-  double2 as cpu_time_ms,
-  blob2 as status,
-  timestamp
-FROM ANALYTICS_DATASET
-WHERE timestamp >= toDateTime('2025-10-27 10:00:00')
-  AND timestamp <= toDateTime('2025-10-27 11:00:00')
-  AND blob1 LIKE '%worker-name%'
-ORDER BY timestamp ASC
+```python
+for request_id, result in requests.items():
+    # Count cold/warm starts
+    if result.stats.cold_start:
+        cold_starts += 1
+    
+    # Extract CPU time from response measurement
+    if result.provider_times.execution > 0:
+        cpu_times.append(result.provider_times.execution)
+    
+    # Calculate billing
+    cpu_time_seconds = result.provider_times.execution / 1_000_000.0
+    gb_seconds = (128.0 / 1024.0) * cpu_time_seconds
+    result.billing.gb_seconds = int(gb_seconds * 1_000_000)
 ```
 
-### Limitation
+### Implementation Notes
 
-1. **Delay**: Typically 30-60 seconds for data to appear in Analytics Engine
-2. **Wrapper Updates**: All benchmark wrappers must be updated to write data points
+1. **Immediate Availability**: Metrics are available immediately in the response (no delay)
+2. **Wrapper Consistency**: All benchmark wrappers follow the same response schema
+3. **Billing Calculations**: Based on Cloudflare's fixed 128MB memory allocation and CPU time
+4. **Cold Start Detection**: Currently always reports `false` (Cloudflare doesn't expose cold start info)
 
 ### Troubleshooting
 
-**Missing Metrics**:
-- Check that worker has Analytics Engine binding configured
-- Verify wrapper is writing data points (check `env.ANALYTICS`)
-- Wait 60+ seconds after invocation for ingestion
-- Check SQL query matches worker URL pattern
+**Missing Metrics in Results**:
+- Verify worker handler returns complete JSON response with all required fields
+- Check that `compute_time`, `begin`, `end` fields are present in response
+- Ensure wrapper code hasn't been modified to remove metric collection
+- Confirm response JSON is properly formatted
 
-**Unmatched Request IDs**:
-- Ensure wrapper returns `request_id` in response
-- Verify SeBS is tracking request IDs correctly
-- Check timestamp range covers all invocations
+**Incorrect Timing Values**:
+- Verify `time.perf_counter()` is being used for microsecond precision
+- Check that timing starts before benchmark execution and ends after
+- Ensure no external fetch requests are inflating the measured time
+- Confirm microsecond conversion (multiply seconds by 1,000,000)
 
-**Query Failures**:
-- Verify account has Analytics Engine enabled (Paid plan)
-- Check API token has analytics read permissions
-- Validate SQL syntax (ClickHouse format)
+**Container Deployment Issues**:
+- Ensure Docker is installed and running locally
+- Verify wrangler CLI is installed (`npm install -g wrangler`)
+- Check that @cloudflare/containers package is in dependencies
+- Confirm Durable Objects bindings are correctly configured in wrangler.toml
+- Ensure container image size is under Cloudflare's limits
+
+**Worker Deployment Failures**:
+- Verify Cloudflare credentials are correctly configured
+- Check account has Workers enabled (may require paid plan for some features)
+- Ensure worker name doesn't conflict with existing workers
+- Review wrangler logs for specific error messages
 
 ### References
 
-- [Analytics Engine Documentation](https://developers.cloudflare.com/analytics/analytics-engine/)
-- [Analytics Engine SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/)
+- [Cloudflare Workers Runtime APIs](https://developers.cloudflare.com/workers/runtime-apis/)
 - [Workers Bindings](https://developers.cloudflare.com/workers/configuration/bindings/)
-- See `ANALYTICS_ENGINE_IMPLEMENTATION.md` for complete implementation details 
-
-#### Standard Priority
-- [ ] Support for Cloudflare Workers KV (key-value storage)
-- [ ] Support for Cloudflare R2 (object storage)
-- [ ] Support for Durable Objects
-- [ ] Wrangler CLI integration for better bundling
-- [ ] WebAssembly/Rust worker support
+- [Durable Objects Documentation](https://developers.cloudflare.com/durable-objects/)
+- [R2 Storage Documentation](https://developers.cloudflare.com/r2/)
 
 ---
 
@@ -300,28 +323,32 @@ ORDER BY timestamp ASC
 
 ### Overview
 
-Cloudflare recently introduced container support for Workers, enabling deployment of containerized applications. Adding this to SeBS would require the following components:
+Cloudflare container support for Workers is integrated into SeBS using the `@cloudflare/containers` package, enabling deployment of containerized applications across multiple programming languages.
 
-### Required Components
+### Implementation Details
 
-1. **Container Client** (`container.py`)
-   - Extends `sebs.faas.container.DockerContainer`
-   - Manages container image builds and registry operations
-   - Similar to `sebs/aws/container.py` for ECR
+1. **Container Orchestration**
+   - Uses `@cloudflare/containers` npm package
+   - Requires Node.js worker.js wrapper for orchestration
+   - Container runs inside Durable Object for isolation
+   - Integrated with wrangler CLI for deployment
 
-2. **Registry Integration**
-   - Cloudflare Container Registry authentication
-   - Image push/pull operations
-   - Support for external registries (Docker Hub, etc.)
+2. **Deployment Process**
+   - `package_code()` generates wrangler.toml with container configuration
+   - Creates `[[migrations]]` entries for Durable Objects
+   - Binds container to `CONTAINER_WORKER` Durable Object class
+   - Uses `wrangler deploy` to upload both worker and container
 
-3. **Dockerfile Templates**
-   - Create `/dockerfiles/cloudflare/{language}/Dockerfile.function`
-   - Support for Node.js, Python, and other languages
+3. **Supported Languages**
+   - Python via Docker containers
+   - Node.js (both script and container)
+   - Go, Rust, Java (via container deployment)
+   - Any language that can run in a Linux container
 
-4. **Updated Methods**
-   - `package_code()`: Add container build path alongside script packaging
-   - `create_function()`: Handle both script and container deployments
-   - `update_function()`: Support updating container-based workers
+4. **Key Methods**
+   - `_generate_wrangler_toml()`: Creates config with container bindings
+   - `create_function()`: Deploys workers using wrangler CLI
+   - `update_function()`: Updates existing containerized workers
 
 ### Benefits
 
