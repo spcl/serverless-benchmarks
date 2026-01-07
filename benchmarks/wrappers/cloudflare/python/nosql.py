@@ -114,12 +114,12 @@ class nosql_do:
 
 class nosql_kv:
 
-    instance: Optional["nosql"] = None
+    instance: Optional["nosql_kv"] = None
 
     @staticmethod
     def init_instance(entry: WorkerEntrypoint):
-        nosql.instance = nosql()
-        nosql.instance.env = entry.env
+        nosql_kv.instance = nosql_kv()
+        nosql_kv.instance.env = entry.env
 
     def key_maker(self, key1, key2):
         return f"({key1[0]},{str(key1[1])})+({key2[0]},{key2[1]})"
@@ -202,8 +202,8 @@ class nosql_kv:
 
     @staticmethod
     def get_instance():
-        if nosql.instance is None:
-            nosql.instance = nosql()
+        if nosql_kv.instance is None:
+            nosql_kv.instance = nosql_kv()
         return nosql.instance
 
 
