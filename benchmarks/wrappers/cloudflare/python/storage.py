@@ -57,7 +57,7 @@ class storage:
         if not filepath.startswith("/tmp"):
             real_fp = "/tmp" + os.path.abspath(filepath)
 
-        self.written_files.append(filepath)
+        self.written_files.add(filepath)
         with open(real_fp, "wb") as f:
             f.write(data)
         return
@@ -108,7 +108,9 @@ class storage:
         data = await get_res.bytes()
         return bytes(data)
 
+    @staticmethod
     def get_instance():
         if storage.instance is None:
-            raise "must init storage singleton first"
+            raise RuntimeError("must init storage singleton first")
+        return storage.instance
         return storage.instance
