@@ -33,7 +33,7 @@ class Azure(System):
     _config: AzureConfig
 
     # runtime mapping
-    AZURE_RUNTIMES = {"python": "python", "nodejs": "node"}
+    AZURE_RUNTIMES = {"python": "python", "nodejs": "node", "bun": "custom"}
 
     @staticmethod
     def name():
@@ -133,25 +133,29 @@ class Azure(System):
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
-        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js"}
+        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js"} # standard supported runtimes
+        # custom runtimes: (execPath, [args])
+        CUSTOM_EXEC = {
+            "pypy": ("pypy/bin/pypy", ["handler.py"]),
+            "bun": ("bun", ["--bun", "runtime.js"]),
+        }
         CONFIG_FILES = {
             "python": ["requirements.txt", ".python_packages"],
             "nodejs": ["package.json", "node_modules"],
+            "bun": ["bun", "runtime.js", "handler.js", "package.json", "node_modules"],
         }
         package_config = CONFIG_FILES[language_name]
 
         handler_dir = os.path.join(directory, "handler")
         os.makedirs(handler_dir)
-        # move all files to 'handler' except package config
-        for f in os.listdir(directory):
-            if f not in package_config:
-                source_file = os.path.join(directory, f)
+        for file in os.listdir(directory):
+            if file not in package_config:
+                source_file = os.path.join(directory, file)
                 shutil.move(source_file, handler_dir)
 
         # generate function.json
         # TODO: extension to other triggers than HTTP
         default_function_json = {
-            "scriptFile": EXEC_FILES[language_name],
             "bindings": [
                 {
                     "authLevel": "anonymous",
@@ -163,6 +167,9 @@ class Azure(System):
                 {"type": "http", "direction": "out", "name": "$return"},
             ],
         }
+        if language_name in EXEC_FILES:
+            default_function_json["scriptFile"] = EXEC_FILES[language_name]
+
         json_out = os.path.join(directory, "handler", "function.json")
         json.dump(default_function_json, open(json_out, "w"), indent=2)
 
@@ -174,6 +181,15 @@ class Azure(System):
                 "version": "[4.0.0, 5.0.0)",
             },
         }
+
+        if language_name in CUSTOM_EXEC:
+            default_host_json["customHandler"] = {
+                "description": {
+                    "defaultExecutablePath": CUSTOM_EXEC[language_name][0],
+                    "arguments": CUSTOM_EXEC[language_name][1],
+                },
+                "enableForwardingHttpRequest": True,
+            }
         json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
@@ -457,11 +473,16 @@ class Azure(System):
             while True:
                 try:
                     # create function app
+                    # Custom runtime doesn't support --runtime-version parameter
+                    runtime_version_param = ""
+                    if config["runtime"] != "custom":
+                        runtime_version_param = " --runtime-version {runtime_version} "
+                    
                     self.cli_instance.execute(
                         (
                             " az functionapp create --resource-group {resource_group} "
                             " --os-type Linux --consumption-plan-location {region} "
-                            " --runtime {runtime} --runtime-version {runtime_version} "
+                            " --runtime {runtime}" + runtime_version_param +
                             " --name {func_name} --storage-account {storage_account}"
                             " --functions-version 4 "
                         ).format(**config)
