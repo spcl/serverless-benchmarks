@@ -204,7 +204,7 @@ class nosql_kv:
     def get_instance():
         if nosql_kv.instance is None:
             nosql_kv.instance = nosql_kv()
-        return nosql.instance
+        return nosql_kv.instance
 
 
 
