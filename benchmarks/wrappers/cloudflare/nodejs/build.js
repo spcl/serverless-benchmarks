@@ -61,73 +61,6 @@ const nodeBuiltinsPlugin = {
   }
 };
 
-const asyncNosqlPlugin = {
-  name: 'async-nosql-transformer',
-  setup(build) {
-    // Transform function.js to make it async-compatible
-    build.onLoad({ filter: /function\.js$/ }, async (args) => {
-      let contents = await fs.promises.readFile(args.path, 'utf8');
-      
-      // Only transform if file uses nosql
-      if (!contents.includes('nosqlClient')) {
-        return { contents, loader: 'js' };
-      }
-      
-      console.log('🔧 Transforming function.js for async nosql...');
-      
-      // Step 1: Add await before nosqlClient method calls
-      contents = contents.replace(/(\s*)((?:const|let|var)\s+\w+\s*=\s*)?nosqlClient\.(insert|get|update|query|delete)\s*\(/g, 
-        '$1$2await nosqlClient.$3(');
-      
-      // Step 2: Make all function declarations async (but not function expressions)
-      contents = contents.replace(/^(\s*)function\s+(\w+)\s*\(/gm, '$1async function $2(');
-      
-      // Step 3: Add await before user-defined function calls
-      // Process line by line to handle specific patterns
-      const lines = contents.split('\n');
-      const transformedLines = lines.map(line => {
-        // Skip lines with function declarations or function expressions
-        if (line.match(/\bfunction\s+\w+\s*\(/) || line.match(/=\s*(async\s+)?function\s*\(/)) {
-          return line;
-        }
-        
-        // Add await before function calls that look like user-defined functions
-        // Match: identifier followed by ( where identifier starts line or follows whitespace/operators
-        // but NOT if preceded by = (assignment), . (method call), or keywords
-        line = line.replace(/(^|\s+|;|,|\()((?:const|let|var)\s+\w+\s*=\s*)?(\w+)\s*\(/g, (match, prefix, assignment, funcName) => {
-          // Skip control flow keywords
-          const controlFlow = ['if', 'for', 'while', 'switch', 'catch', 'return'];
-          if (controlFlow.includes(funcName)) {
-            return match;
-          }
-          
-          // Skip built-in JavaScript functions and methods
-          const builtins = ['console', 'require', 'push', 'join', 'split', 
-                           'map', 'filter', 'reduce', 'forEach', 'find', 'findIndex',
-                           'some', 'every', 'includes', 'parseInt', 'parseFloat', 
-                           'isNaN', 'Array', 'Object', 'String', 'Number', 'Boolean',
-                           'Math', 'JSON', 'Date', 'RegExp', 'Error', 'Promise'];
-          if (builtins.includes(funcName)) {
-            return match;
-          }
-          
-          // Add await for everything else
-          return `${prefix}${assignment || ''}await ${funcName}(`;
-        });
-        
-        return line;
-      });
-      contents = transformedLines.join('\n');
-      
-      console.log('✓ Transformed function.js for async nosql');
-      
-      return {
-        contents,
-        loader: 'js',
-      };
-    });
-  }
-};
 
 async function customBuild() {
   const srcDir = './';
@@ -162,7 +95,7 @@ async function customBuild() {
         target: 'es2020',
         sourcemap: true,
         allowOverwrite: true,
-        plugins: [nodeBuiltinsPlugin, asyncNosqlPlugin],
+        plugins: [nodeBuiltinsPlugin],
         define: {
           'process.env.NODE_ENV': '"production"',
           'global': 'globalThis',

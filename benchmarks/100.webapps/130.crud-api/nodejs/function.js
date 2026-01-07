@@ -3,8 +3,8 @@ const nosql = require('./nosql');
 const nosqlClient = nosql.nosql.get_instance();
 const nosqlTableName = "shopping_cart";
 
-function addProduct(cartId, productId, productName, price, quantity) {
-  nosqlClient.insert(
+async function addProduct(cartId, productId, productName, price, quantity) {
+  await nosqlClient.insert(
     nosqlTableName,
     ["cart_id", cartId],
     ["product_id", productId],
@@ -12,16 +12,16 @@ function addProduct(cartId, productId, productName, price, quantity) {
   );
 }
 
-function getProducts(cartId, productId) {
-  return nosqlClient.get(
+async function getProducts(cartId, productId) {
+  return await nosqlClient.get(
     nosqlTableName, 
     ["cart_id", cartId], 
     ["product_id", productId]
   );
 }
 
-function queryProducts(cartId) {
-  const res = nosqlClient.query(
+async function queryProducts(cartId) {
+  const res = await nosqlClient.query(
     nosqlTableName,
     ["cart_id", cartId],
     "product_id"
@@ -55,7 +55,7 @@ exports.handler = async function(event) {
     let res;
 
     if (route === "PUT /cart") {
-      addProduct(
+      await addProduct(
         body.cart,
         body.product_id,
         body.name,
@@ -64,9 +64,9 @@ exports.handler = async function(event) {
       );
       res = {};
     } else if (route === "GET /cart/{id}") {
-      res = getProducts(body.cart, request.path.id);
+      res = await getProducts(body.cart, request.path.id);
     } else if (route === "GET /cart") {
-      res = queryProducts(body.cart);
+      res = await queryProducts(body.cart);
     } else {
       throw new Error(`Unknown request route: ${route}`);
     }
