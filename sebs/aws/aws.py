@@ -4,7 +4,6 @@ import shutil
 import time
 import uuid
 from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
-import fnmatch
 
 import boto3
 import docker
@@ -138,14 +137,14 @@ class AWS(System):
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
-            "bun": ["*"], # ignore all files from bun / do not move them into a subdirectory
+            "bun": ["bootstrap", "bun", "runtime.js", "handler.js", "package.json", "node_modules"],
         }
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         # move all files to 'function' except config files like handler.py
         for file in os.listdir(directory):
-            if not any(fnmatch.fnmatch(file, pattern) for pattern in package_config):
+            if file not in package_config:
                 file = os.path.join(directory, file)
                 shutil.move(file, function_dir)
         # FIXME: use zipfile

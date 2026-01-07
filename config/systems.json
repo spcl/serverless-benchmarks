@@ -89,8 +89,12 @@
         }
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
   },
   "aws": {
     "languages": {
@@ -171,8 +175,14 @@
         }
       }
     },
-    "architecture": ["x64", "arm64"],
-    "deployments": ["package", "container"]
+    "architecture": [
+      "x64",
+      "arm64"
+    ],
+    "deployments": [
+      "package",
+      "container"
+    ]
   },
   "azure": {
     "languages": {
@@ -236,8 +246,12 @@
         "username": "docker_user"
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
   },
   "gcp": {
     "languages": {
@@ -300,8 +314,12 @@
         "username": "docker_user"
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
   },
   "openwhisk": {
     "languages": {
@@ -361,7 +379,11 @@
         }
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["container"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "container"
+    ]
   }
 }

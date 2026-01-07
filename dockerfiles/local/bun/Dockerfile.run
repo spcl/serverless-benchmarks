@@ -1,0 +1,30 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+WORKDIR /sebs
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN deps=''\
+  && apt-get update\
+  && apt-get install -y --no-install-recommends curl net-tools gosu python3 sudo ${deps}\
+  && apt-get purge -y --auto-remove ${deps}
+
+# function node_modules includes both the package specific and local-required packages
+ENV NODE_PATH=/function/node_modules
+
+COPY dockerfiles/local/*.py ./
+COPY dockerfiles/local/run.sh .
+COPY dockerfiles/local/nodejs/*.js ./
+COPY dockerfiles/local/nodejs/package.json .
+
+# bun specific files
+COPY dockerfiles/local/bun/*.js ./
+COPY dockerfiles/local/bun/run_server.sh .
+COPY dockerfiles/local/bun/timeit.sh .
+COPY dockerfiles/local/bun/runners.json .
+
+COPY dockerfiles/local/entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
+RUN chmod +x run.sh
+
+ENTRYPOINT ["/sebs/entrypoint.sh"]

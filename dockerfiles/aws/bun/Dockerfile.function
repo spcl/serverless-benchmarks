@@ -2,5 +2,7 @@ ARG BASE_IMAGE
 FROM $BASE_IMAGE
 
 WORKDIR /app
-COPY . .
-ENTRYPOINT [ "/app/bootstrap" ]
+COPY . function/
+COPY runtime.js handler.js ./
+
+ENTRYPOINT [ "bun", "--bun", "runtime.js" ]
