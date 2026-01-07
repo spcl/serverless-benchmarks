@@ -6,13 +6,13 @@ from workers import WorkerEntrypoint, DurableObject
 
 
 class nosql_do:
-    instance: Optional["nosql"] = None
+    instance: Optional["nosql_do"] = None
     DO_BINDING_NAME = "DURABLE_STORE"
 
     @staticmethod
     def init_instance(entry: WorkerEntrypoint):
-        nosql.instance = nosql()
-        nosql.instance.binding = getattr(entry.env, nosql_do.DO_BINDING_NAME)
+        nosql_do.instance = nosql_do()
+        nosql_do.instance.binding = getattr(entry.env, nosql_do.DO_BINDING_NAME)
 
     
     def get_table(self, table_name):
