@@ -26,6 +26,16 @@ def _load_function_handler():
     return _FUNCTION_HANDLER
 
 
+def _extract_request_id(event):
+    request_id = event.get("request_id")
+    if request_id:
+        return request_id
+    payload = event.get("payload")
+    if isinstance(payload, dict):
+        return payload.get("request_id") or payload.get("request-id")
+    return None
+
+
 def _maybe_push_measurement(event, duration_start, duration_end):
     redis_host = os.getenv("SEBS_REDIS_HOST")
     redis_port = int(os.getenv("SEBS_REDIS_PORT", "6379"))
@@ -87,7 +97,7 @@ def handler(event):
     if "payload" not in event:
         raise RuntimeError("Workflow invocation payload must include 'payload' key.")
 
-    request_id = event.get("request_id", str(uuid.uuid4()))
+    request_id = _extract_request_id(event) or str(uuid.uuid4())
     event["request_id"] = request_id
     payload = event["payload"]
     handler_fn = _load_function_handler()

@@ -396,9 +396,11 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
     df = pd.DataFrame(measurements)
     df.to_csv(path, index=False)
 
-    with open("experiments.json", "w") as out_f:
+    # Use workflow name to create unique file
+    experiment_file = f"experiments_{workflow.name}.json"
+    with open(experiment_file, "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
-    sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath(experiment_file)))
 
 
 @benchmark.command()

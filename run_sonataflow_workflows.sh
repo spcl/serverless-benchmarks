@@ -376,17 +376,17 @@ fi
 WORKFLOWS=(
   "610.gen"
   "6100.1000-genome"
-  # "6101.1000-genome-individuals"
-  # "620.func-invo"
-  # "6200.trip-booking"
-  # "630.parallel-sleep"
-  # "631.parallel-download"
-  # "640.selfish-detour"
-  # "650.vid"
-  # "660.map-reduce"
-  # "670.auth"
-  # "680.excamera"
-  # "690.ml"
+  "6101.1000-genome-individuals"
+  "620.func-invo"
+  "6200.trip-booking"
+  "630.parallel-sleep"
+  "631.parallel-download"
+  "640.selfish-detour"
+  "650.vid"
+  "660.map-reduce"
+  "670.auth"
+  "680.excamera"
+  "690.ml"
 )
 
 SONATAFLOW_STARTED=false

@@ -1,40 +1,25 @@
 {
   "_invocations": {
-    "sebd-690.ml-python-3.11": {
-      "e6b2713e": {
+    "sebd-640.selfish-detour-python-3.11": {
+      "4ea3bae4": {
         "billing": {
           "_billed_time": null,
           "_gb_seconds": 0,
           "_memory": null
         },
         "output": {
-          "id": "f3d89608-c7c2-4054-8849-c2daa7ecece4",
+          "id": "38e353c8-294d-4205-92e4-4947c841396f",
           "workflowdata": {
-            "benchmark_bucket": "sebs-benchmarks-sonataflow-075e240d",
-            "classifiers": [
-              {
-                "C": 0.025,
-                "kernel": "linear",
-                "name": "SVC"
-              }
-            ],
-            "dataset_bucket": "690.ml-0-output",
-            "n_features": 5,
-            "n_samples": 100,
-            "request_id": "e6b2713e",
-            "schedules": [
-              {
-                "name": "SVC",
-                "score": 0.925
-              }
-            ]
+            "num_samples": 100,
+            "request_id": "4ea3bae4",
+            "response": "ok"
           }
         },
         "provider_times": {
           "execution": 0,
           "initialization": 0
         },
-        "request_id": "e6b2713e",
+        "request_id": "4ea3bae4",
         "stats": {
           "cold_start": false,
           "failure": false,
@@ -42,16 +27,16 @@
         },
         "times": {
           "benchmark": 0,
-          "client": 2380060,
-          "client_begin": "2026-01-07 03:56:42.451065",
-          "client_end": "2026-01-07 03:56:44.831125",
+          "client": 10086565,
+          "client_begin": "2026-01-07 18:53:56.036991",
+          "client_end": "2026-01-07 18:54:06.123556",
           "initialization": 0
         }
       }
     }
   },
   "_metrics": {},
-  "begin_time": 1767754602.448902,
+  "begin_time": 1767808436.034907,
   "config": {
     "deployment": {
       "name": "sonataflow",
@@ -64,7 +49,7 @@
           "alternator_port": 8000,
           "cpus": -1,
           "data_volume": "",
-          "instance_id": "ec89b6c77f2efe30d9442b9b4fa12242c0e0a47b56fd494db2c2f77d0eac9804",
+          "instance_id": "533665fb786cf926f5029ae13b41a9e46e70e06b5bed8d99d14811b3d676255b",
           "mapped_port": 9012,
           "memory": -1,
           "network_name": "bridge",
@@ -77,15 +62,15 @@
           "url": "http://localhost:8080"
         },
         "storage": {
-          "access_key": "veg9pif0_IdAKBcFAOx3tbI0t1FAEkLnOf4GXymojwo",
+          "access_key": "8TOsGofwZjq6cEUVkb6FMFBt1HVgNW0rTPG2OjFFXUk",
           "address": "172.18.0.2:9000",
           "data_volume": "",
           "input_buckets": [],
-          "instance_id": "2e7b46cd4f88d0d2c9831c8fc25200176030abbeec32169897cf1558450d920b",
+          "instance_id": "ab6b3bc1b23989b211b8fd94bddc0bf59d1d032d1ab3a0a71c8c2d0408c8cb52",
           "mapped_port": 9011,
           "network_name": "bridge",
           "output_buckets": [],
-          "secret_key": "0c938f69cd525d8c85a911111e2688c0b837806ef4b2b0e2665b293155401a99",
+          "secret_key": "70b6e79a2ea05da0119a4ca4bf4a5f22ed95722796bf686915d2fa4d86c43e8d",
           "type": "minio",
           "version": ""
         }
@@ -144,6 +129,6 @@
       "update_storage": false
     }
   },
-  "end_time": 1767754604.831985,
+  "end_time": 1767808446.125367,
   "result_bucket": null
 }

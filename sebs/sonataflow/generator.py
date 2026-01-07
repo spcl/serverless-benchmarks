@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat, Loop, Parallel
 
@@ -18,7 +18,8 @@ class SonataFlowGenerator(Generator):
         self._functions: Dict[str, Dict[str, str]] = {}
         self._uses_errors = False  # Track if any state uses onErrors
         # Unwrap SeBS local server responses so workflow state data stays as payload.
-        self._action_results_expr = "${ .result.output.payload // .payload // . }"
+        self._action_results_expr_inner = ".result.output.payload // .payload // ."
+        self._action_results_expr = f"${{ {self._action_results_expr_inner} }}"
 
     def _function_ref(self, func_name: str) -> Dict[str, str]:
         binding = self._bindings.get(func_name)
@@ -111,10 +112,10 @@ class SonataFlowGenerator(Generator):
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
         iteration_param = "item"
-        action_args = "${ " + iteration_param + " }"
+        action_args = "${ ." + iteration_param + " }"
         if state.common_params:
             # Merge map element with selected common parameters.
-            merged = {"array_element": "${ " + iteration_param + " }"}
+            merged = {"array_element": "${ ." + iteration_param + " }"}
             for param in [p.strip() for p in state.common_params.split(",") if p.strip()]:
                 quoted_param = self._quote_field_path(param)
                 merged[param] = "${ ." + quoted_param + " }"
@@ -126,11 +127,13 @@ class SonataFlowGenerator(Generator):
         func_name = root_state_def.get("func_name", state.root)
 
         quoted_array = self._quote_field_path(state.array)
+        output_array = getattr(state, "output_array", state.array)
+        quoted_output = self._quote_field_path(output_array)
         payload: Dict[str, object] = {
             "name": state.name,
             "type": "foreach",
             "inputCollection": "${ ." + quoted_array + " }",
-            "outputCollection": "${ ." + quoted_array + " }",
+            "outputCollection": "${ ." + quoted_output + " }",
             "iterationParam": iteration_param,
             "actions": [self._default_action(func_name, action_args)],
         }
@@ -197,14 +200,59 @@ class SonataFlowGenerator(Generator):
                 f"Parallel branches currently support Task/Map/Repeat/Loop root states, got {type(root_state).__name__}"
             )
 
+        results_expr = (
+            f"${{ {{\"{subworkflow['root']}\": {self._action_results_expr_inner}}} }}"
+        )
         action = self._default_action(func_name, "${ . }")
+        action["actionDataFilter"] = {"results": results_expr}
         return {"name": subworkflow["root"], "actions": [action]}
 
     def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
-        branches = [self._encode_branch(sw) for sw in state.funcs]
-        payload: Dict[str, object] = {"name": state.name, "type": "parallel", "branches": branches}
-        if state.next:
-            payload["transition"] = state.next
-        else:
-            payload["end"] = True
-        return payload
+        branch_roots: List[State] = []
+        has_complex = False
+        for subworkflow in state.funcs:
+            states = {n: State.deserialize(n, s) for n, s in subworkflow["states"].items()}
+            root_state = states.get(subworkflow["root"])
+            if root_state is None:
+                raise ValueError(f"Root state {subworkflow['root']} not found in subworkflow")
+            branch_roots.append(root_state)
+            if not isinstance(root_state, Task):
+                has_complex = True
+
+        if not has_complex:
+            branches = [self._encode_branch(sw) for sw in state.funcs]
+            payload: Dict[str, object] = {"name": state.name, "type": "parallel", "branches": branches}
+            if state.next:
+                payload["transition"] = state.next
+            else:
+                payload["end"] = True
+            return payload
+
+        def _clone_state(root: State, name: str, next_name: Optional[str]) -> State:
+            if isinstance(root, Task):
+                return Task(name, root.func_name, next_name, root.failure)
+            if isinstance(root, Map):
+                return Map(name, root.funcs, root.array, root.root, next_name, root.common_params)
+            if isinstance(root, Repeat):
+                return Repeat(name, root.func_name, root.count, next_name)
+            if isinstance(root, Loop):
+                return Loop(name, root.func_name, root.array, next_name)
+            raise ValueError(
+                f"Parallel branch {name} uses unsupported root state type {type(root).__name__}"
+            )
+
+        encoded_states: List[dict] = []
+        for idx, root in enumerate(branch_roots):
+            branch_name = state.name if idx == 0 else root.name
+            next_name = (
+                branch_roots[idx + 1].name if idx < len(branch_roots) - 1 else state.next
+            )
+            cloned = _clone_state(root, branch_name, next_name)
+            if isinstance(cloned, Map) and idx < len(branch_roots) - 1:
+                cloned.output_array = f"_parallel_{state.name}_{idx}_results"
+            encoded = self.encode_state(cloned)
+            if isinstance(encoded, list):
+                encoded_states.extend(encoded)
+            else:
+                encoded_states.append(encoded)
+        return encoded_states

@@ -1,0 +1,71 @@
+{
+  "id": "sebd_620_func_invo_python_3_11",
+  "name": "sebd_620_func_invo_python_3_11",
+  "version": "0.1",
+  "specVersion": "0.8",
+  "description": "Auto-generated from SeBS workflow definition.",
+  "functions": [
+    {
+      "name": "sebd_620_func_invo_python_3_11_gen",
+      "operation": "rest:post:http://172.18.0.17:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_620_func_invo_python_3_11_process",
+      "operation": "rest:post:http://172.18.0.18:9000/",
+      "type": "custom"
+    }
+  ],
+  "start": "gen",
+  "states": [
+    {
+      "name": "gen",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "gen",
+          "functionRef": {
+            "refName": "sebd_620_func_invo_python_3_11_gen",
+            "arguments": {
+              "payload": "${ . }"
+            }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
+          }
+        }
+      ],
+      "transition": "process"
+    },
+    {
+      "name": "process",
+      "type": "foreach",
+      "inputCollection": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "iterationParam": "idx",
+      "actions": [
+        {
+          "name": "process",
+          "functionRef": {
+            "refName": "sebd_620_func_invo_python_3_11_process",
+            "arguments": {
+              "payload": "${ . }"
+            }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
+          }
+        }
+      ],
+      "end": true
+    }
+  ]
+}

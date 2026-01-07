@@ -127,7 +127,7 @@ class WorkflowSonataFlowTrigger(Trigger):
             end = datetime.datetime.now()
             result = ExecutionResult.from_times(begin, end)
             result.request_id = request_id
-            if resp and resp.status_code >= 300:
+            if resp is not None and resp.status_code >= 300:
                 result.stats.failure = True
                 try:
                     error_text = resp.text[:500] if len(resp.text) > 500 else resp.text
@@ -136,7 +136,7 @@ class WorkflowSonataFlowTrigger(Trigger):
                 self.logging.error(
                     f"SonataFlow invocation failed ({resp.status_code}): {error_text}"
                 )
-            elif resp:
+            elif resp is not None:
                 try:
                     result.output = resp.json()
                 except Exception as e:
