@@ -1,24 +1,12 @@
 ARG BASE_IMAGE
 FROM $BASE_IMAGE
 
-# Install Rust
-ARG RUST_VERSION
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
+# Copy the pre-built bootstrap binary
+# The binary is already built by the build container
+COPY bootstrap /var/runtime/bootstrap
 
-RUN yum install -y gcc openssl-devel && \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VERSION} && \
-    chmod -R a+w $RUSTUP_HOME $CARGO_HOME
-
-# Copy function code
-COPY . /var/task/
-
-# Build the function
-WORKDIR /var/task
-RUN cargo build --release && \
-    cp target/release/bootstrap /var/runtime/bootstrap || \
-    cp target/release/handler /var/runtime/bootstrap
+# Make sure it's executable
+RUN chmod +x /var/runtime/bootstrap
 
 # Set the CMD to the handler (AWS Lambda will execute this)
 CMD ["/var/runtime/bootstrap"]

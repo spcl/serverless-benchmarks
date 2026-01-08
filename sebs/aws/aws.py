@@ -137,7 +137,8 @@ class AWS(System):
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
-            "pypy": ["handler.py", "requirements.txt", ".python_packages"],
+            "rust": ["bootstrap", "Cargo.toml", "Cargo.lock", "target"],
+            "java": ["function.jar"],
         }
         package_config = CONFIG_FILES[language_name]
         function_dir = os.path.join(directory, "function")
@@ -153,21 +154,15 @@ class AWS(System):
         benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
         self.logging.info("Created {} archive".format(benchmark_archive))
 
-        bytes_size = os.path.getsize(benchmark_archive)
+        bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
         return (
-            benchmark_archive,
+            os.path.join(directory, "{}.zip".format(benchmark)),
             bytes_size,
             container_uri,
         )
-    def _default_handler(self, language: str) -> str:
-
-        if language == "java":
-            return "org.serverlessbench.Handler::handleRequest"
-        return "handler.handler"
-
 
     def _map_architecture(self, architecture: str) -> str:
 
@@ -179,12 +174,10 @@ class AWS(System):
 
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
-        # We use a OS-only runtime for PyPy
         if language == "nodejs":
-            return f"{language}{runtime}.x"
-        elif language == "python":
-            return f"{language}{runtime}"
-        elif language == "pypy":
+            return f"{runtime}.x"
+        # Rust uses provided.al2023 runtime (custom runtime)
+        elif language == "rust":
             return "provided.al2023"
         return runtime
 
@@ -263,10 +256,10 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                # PyPy uses custom runtime (provided.al2023) since there's no native PyPy runtime
-                if language == "pypy":
-                    create_function_params["Runtime"] = "provided.al2023"
-                    create_function_params["Handler"] = "handler.handler"
+                # Rust uses custom runtime with different handler
+                if language == "rust":
+                    create_function_params["Runtime"] = self._map_language_runtime(language, language_runtime)
+                    create_function_params["Handler"] = "bootstrap"
                 else:
                     create_function_params["Runtime"] = "{}{}".format(
                         language, self._map_language_runtime(language, language_runtime)
@@ -418,26 +411,15 @@ class AWS(System):
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {function.name} function. ")
 
-    def get_real_language_name(self, language_name: str) -> str:
-        LANGUAGE_NAMES = {
-            "python": "python",
-            "pypy": "python",
-            "nodejs": "nodejs",
-        }
-        return LANGUAGE_NAMES.get(language_name)
-
     # @staticmethod
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
-        
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
             code_package.benchmark,
-            # see which works
-            #self.get_real_language_name(code_package.language_name),
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,

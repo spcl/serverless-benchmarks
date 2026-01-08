@@ -169,6 +169,15 @@ class DockerContainer(LoggingBase):
         build_dir = os.path.join(directory, "build")
         os.makedirs(build_dir, exist_ok=True)
 
+        # For Rust, ensure bootstrap binary exists before building container image
+        if language_name == "rust":
+            bootstrap_path = os.path.join(directory, "bootstrap")
+            if not os.path.exists(bootstrap_path):
+                raise RuntimeError(
+                    f"Rust bootstrap binary not found at {bootstrap_path}. "
+                    "The Rust build must complete successfully before container image creation."
+                )
+
         shutil.copy(
             os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
             os.path.join(build_dir, "Dockerfile"),

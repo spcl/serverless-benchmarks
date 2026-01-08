@@ -25,6 +25,7 @@ INPUT_SIZE="test"
 ARCHITECTURE="x64"
 GENERATE_PLOTS=true
 CONTAINER_DEPLOYMENT=false
+CONTAINER_DEPLOYMENT_FOR=""
 
 # Print usage
 usage() {
@@ -45,7 +46,9 @@ Options:
     -m, --memory SIZES          Memory sizes in MB (space-separated, default: 256)
     -i, --input-size SIZE       Input size: test, small, large (default: test)
     -a, --architecture ARCH     Architecture: x64, arm64 (default: x64)
-    --container-deployment      Run functions as containers
+    --container-deployment      Run functions as containers (all platforms)
+    --container-deployment-for  Platforms to use container deployment (space-separated)
+                                Example: --container-deployment-for "aws gcp"
     --no-plots                  Skip plot generation
     --skip-benchmark            Skip benchmark run, only generate plots
     -h, --help                  Show this help message
@@ -53,6 +56,9 @@ Options:
 Examples:
     # Compare Python and Node.js on AWS and Azure
     $(basename "$0") -b "010.sleep 110.dynamic-html" -p "aws azure" -l "python nodejs"
+
+    # Compare AWS (container) vs Azure (package deployment)
+    $(basename "$0") -b "010.sleep" -p "aws azure" -l "python" --container-deployment-for "aws"
 
     # Test different memory configurations
     $(basename "$0") -b "501.graph-pagerank" -m "512 1024 2048" -r 10
@@ -107,6 +113,10 @@ while [[ $# -gt 0 ]]; do
             CONTAINER_DEPLOYMENT=true
             shift
             ;;
+        --container-deployment-for)
+            CONTAINER_DEPLOYMENT_FOR="$2"
+            shift 2
+            ;;
         --no-plots)
             GENERATE_PLOTS=false
             shift
@@ -149,6 +159,9 @@ if [ "$SKIP_BENCHMARK" = false ]; then
     echo "  Input Size: $INPUT_SIZE"
     echo "  Architecture: $ARCHITECTURE"
     echo "  Container Deployment: $CONTAINER_DEPLOYMENT"
+    if [ -n "$CONTAINER_DEPLOYMENT_FOR" ]; then
+        echo "  Container Deployment For: $CONTAINER_DEPLOYMENT_FOR"
+    fi
     echo "  Output: $OUTPUT_DIR"
     echo ""
     
@@ -171,6 +184,15 @@ if [ "$SKIP_BENCHMARK" = false ]; then
         CMD+=(--container-deployment)
     fi
     
+    if [ -n "$CONTAINER_DEPLOYMENT_FOR" ]; then
+        CMD+=(--container-deployment-for $CONTAINER_DEPLOYMENT_FOR)
+    fi
+    
+    # Add --plot flag if plots are enabled (uses integrated plotting)
+    if [ "$GENERATE_PLOTS" = true ]; then
+        CMD+=(--plot)
+    fi
+    
     echo "Running: ${CMD[@]}"
     echo ""
     
@@ -188,24 +210,24 @@ else
         echo -e "${RED}Error: Results file not found: $OUTPUT_DIR/comparison_results.json${NC}"
         exit 1
     fi
-fi
-
-# Generate plots
-if [ "$GENERATE_PLOTS" = true ]; then
-    echo ""
-    echo -e "${GREEN}Step 2: Generating Plots${NC}"
-    echo ""
     
-    PLOT_CMD=(
-        python3 "${SCRIPT_DIR}/plot_comparison.py"
-        "$OUTPUT_DIR/comparison_results.json"
-        --output "$OUTPUT_DIR/plots"
-    )
-    
-    if "${PLOT_CMD[@]}"; then
-        echo -e "${GREEN}✓ Plots generated successfully!${NC}"
-    else
-        echo -e "${YELLOW}⚠ Plot generation failed (may need matplotlib/seaborn)${NC}"
+    # Generate plots from existing results if requested
+    if [ "$GENERATE_PLOTS" = true ]; then
+        echo ""
+        echo -e "${GREEN}Generating Plots from Existing Results${NC}"
+        echo ""
+        
+        PLOT_CMD=(
+            python3 "${SCRIPT_DIR}/plot_comparison.py"
+            "$OUTPUT_DIR/comparison_results.json"
+            --output "$OUTPUT_DIR/plots"
+        )
+        
+        if "${PLOT_CMD[@]}"; then
+            echo -e "${GREEN}✓ Plots generated successfully!${NC}"
+        else
+            echo -e "${YELLOW}⚠ Plot generation failed (may need matplotlib/seaborn)${NC}"
+        fi
     fi
 fi
 
@@ -215,7 +237,7 @@ echo -e "${GREEN}Comparison Complete!${NC}"
 echo "=================================="
 echo ""
 echo "Results Location: $OUTPUT_DIR"
-echo "  - comparison_results.json  (raw results with full experiments.json data)"
+echo "  - comparison_results.json  (raw results)"
 echo "  - benchmark_run.log        (execution log)"
 if [ "$GENERATE_PLOTS" = true ]; then
     echo "  - plots/                   (visualizations)"
@@ -225,13 +247,7 @@ echo "Useful commands:"
 echo "  # Regenerate plots"
 echo "  python3 ${SCRIPT_DIR}/plot_comparison.py $OUTPUT_DIR/comparison_results.json"
 echo ""
-echo "  # Extract individual experiments.json files"
-echo "  python3 ${SCRIPT_DIR}/export_comparison_data.py $OUTPUT_DIR/comparison_results.json -e $OUTPUT_DIR/experiments/"
-echo ""
-echo "  # Create aggregated experiments.json"
-echo "  python3 ${SCRIPT_DIR}/export_comparison_data.py $OUTPUT_DIR/comparison_results.json -a $OUTPUT_DIR/aggregated.json"
-echo ""
-echo "  # Export to CSV"
-echo "  python3 ${SCRIPT_DIR}/export_comparison_data.py $OUTPUT_DIR/comparison_results.json -c $OUTPUT_DIR/summary.csv"
+echo "  # Regenerate with specific plot types"
+echo "  python3 ${SCRIPT_DIR}/plot_comparison.py $OUTPUT_DIR/comparison_results.json --plot-type cold_warm_boxplot memory_scaling"
 echo ""
 

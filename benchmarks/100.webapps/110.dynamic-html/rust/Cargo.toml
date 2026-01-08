@@ -1,5 +1,5 @@
 [package]
-name = "sleep-benchmark"
+name = "dynamic-html-benchmark"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
@@ -10,5 +10,7 @@ rust-version = "1.88"
 
 [dependencies]
 # Benchmark-specific dependencies only
-# serde is already in wrapper, but we can override features if needed
 serde = { version = "1.0", features = ["derive"] }
+rand = "0.8"
+chrono = "0.4"
+

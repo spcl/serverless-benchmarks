@@ -7,12 +7,12 @@
     "architecture": "arm64", 
     "container_deployment": true,
     "runtime": {
-      "language": "python",
-      "version": "3.8"
+      "language": "rust",
+      "version": "1.88"
     },
     "type": "invocation-overhead",
     "perf-cost": {
-      "benchmark": "110.dynamic-html",
+      "benchmark": "010.sleep",
       "experiments": ["cold", "warm", "burst", "sequential"],
       "input-size": "test",
       "repetitions": 50,
@@ -45,11 +45,20 @@
   "deployment": {
     "name": "aws",
     "aws": {
-      "region": "us-east-1",
-      "lambda-role": ""
+      "region": "eu-north-1",
+      "lambda-role": "sebs-lambda-role",
+      "credentials": {
+        "access_key": "",
+        "secret_key": ""
+      }
     },
     "azure": {
-      "region": "westeurope"
+      "region": "westeurope",
+      "credentials": {
+        "appID": "",
+        "tenant": "",
+        "password": ""
+      }
     },
     "gcp": {
       "region": "europe-west1",

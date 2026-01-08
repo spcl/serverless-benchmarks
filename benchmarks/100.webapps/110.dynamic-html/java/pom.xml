@@ -18,6 +18,12 @@
             <artifactId>compiler</artifactId>
             <version>0.9.10</version>
         </dependency>
+        <!-- AWS Lambda (required by wrapper) -->
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-core</artifactId>
+            <version>1.2.3</version>
+        </dependency>
         <!-- Azure Functions (required by wrapper) -->
         <dependency>
             <groupId>com.microsoft.azure.functions</groupId>
@@ -32,6 +38,7 @@
         </dependency>
     </dependencies>
     <build>
+        <finalName>function</finalName>
         <resources>
             <resource>
                 <directory>${project.basedir}/templates</directory>
@@ -61,6 +68,9 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                                        <exclude>META-INF/versions/**/module-info.class</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

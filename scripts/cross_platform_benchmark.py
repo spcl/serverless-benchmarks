@@ -51,10 +51,11 @@ LANGUAGE_CONFIGS = {
 class BenchmarkRunner:
     """Orchestrates benchmark execution across platforms and languages."""
     
-    def __init__(self, output_dir: str, cache_dir: str = 'cache', verbose: bool = False):
-        self.output_dir = Path(output_dir)
+    def __init__(self, output_dir: str, cache_dir: str = 'cache', verbose: bool = False, container_deployment_for: Optional[List[str]] = None):
+        self.output_dir = Path(output_dir).resolve()
         self.cache_dir = cache_dir
         self.verbose = verbose
+        self.container_deployment_for = set(container_deployment_for or [])
         self.results = {
             'metadata': {
                 'start_time': datetime.now().isoformat(),
@@ -99,10 +100,19 @@ class BenchmarkRunner:
             (success, output_file, error_message)
         """
         run_id = f"{benchmark}_{platform}_{language}_{version}_{memory}MB"
-        self.logger.info(f"Starting: {run_id}")
         
-        # Create experiment output directory
-        experiment_dir = self.output_dir / run_id
+        # Determine deployment type for logging
+        should_use_container = (
+            container_deployment or 
+            platform in self.container_deployment_for or
+            ((platform == 'aws' or platform == 'gcp') and language == 'pypy')
+        )
+        deployment_type = "container" if should_use_container else "package"
+        
+        self.logger.info(f"Starting: {run_id} (deployment: {deployment_type})")
+        
+        # Create experiment output directory (use absolute path)
+        experiment_dir = (self.output_dir / run_id).resolve()
         experiment_dir.mkdir(parents=True, exist_ok=True)
         
         # Update config for this run
@@ -144,7 +154,13 @@ class BenchmarkRunner:
             ]
             
             # Add --container-deployment if requested or required
-            if container_deployment or ((platform == 'aws' or platform == 'gcp') and language == 'pypy'):
+            # Priority: explicit flag > per-platform setting > automatic for PyPy on AWS/GCP
+            should_use_container = (
+                container_deployment or 
+                platform in self.container_deployment_for or
+                ((platform == 'aws' or platform == 'gcp') and language == 'pypy')
+            )
+            if should_use_container:
                 cmd.append('--container-deployment')
             
             if self.verbose:
@@ -152,16 +168,19 @@ class BenchmarkRunner:
             
             self.logger.debug(f"Command: {' '.join(cmd)}")
             
-            # Execute benchmark (run from experiment directory so experiments.json is saved there)
+            # Execute benchmark (run from project root for proper path resolution)
             start_time = time.time()
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=600,  # 10 minute timeout
-                cwd=str(experiment_dir)  # Run from experiment directory
+                cwd=PROJECT_ROOT  # Run from project root
             )
             execution_time = time.time() - start_time
+            
+            # Ensure the directory still exists (sebs.py might have cleaned it up on error)
+            experiment_dir.mkdir(parents=True, exist_ok=True)
             
             # Save stdout/stderr
             with open(experiment_dir / 'stdout.log', 'w') as f:
@@ -390,12 +409,22 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Compare Python and Node.js on AWS and Azure
+  # Compare Python and Node.js on AWS and Azure (with auto-plotting)
   %(prog)s --benchmarks 010.sleep 110.dynamic-html \\
            --platforms aws azure \\
            --languages python nodejs \\
            --config config/example.json \\
-           --output results/comparison_$(date +%%Y%%m%%d)
+           --output results/comparison_$(date +%%Y%%m%%d) \\
+           --plot
+
+  # Compare AWS (container) vs Azure (package deployment)
+  %(prog)s --benchmarks 010.sleep \\
+           --platforms aws azure \\
+           --languages python \\
+           --container-deployment-for aws \\
+           --config config/example.json \\
+           --output results/aws_container_vs_azure_package \\
+           --plot
 
   # Compare specific Python versions on AWS
   %(prog)s --benchmarks 501.graph-pagerank \\
@@ -403,7 +432,8 @@ Examples:
            --languages python \\
            --python-versions 3.11 3.10 3.9 \\
            --memory 512 1024 \\
-           --config config/example.json
+           --config config/example.json \\
+           --plot
         """
     )
     
@@ -447,7 +477,12 @@ Examples:
                         help='Enable verbose output')
 
     parser.add_argument('--container-deployment', action='store_true',
-                        help='Run functions as containers')
+                        help='Run functions as containers (all platforms)')
+    parser.add_argument('--container-deployment-for', nargs='+',
+                        help='Specific platforms to use container deployment (e.g., aws gcp)')
+    
+    parser.add_argument('--plot', action='store_true',
+                        help='Automatically generate plots after benchmarking')
     
     args = parser.parse_args()
     
@@ -466,7 +501,8 @@ Examples:
     runner = BenchmarkRunner(
         output_dir=args.output,
         cache_dir=args.cache,
-        verbose=args.verbose
+        verbose=args.verbose,
+        container_deployment_for=args.container_deployment_for
     )
     
     # Run comparison
@@ -489,6 +525,26 @@ Examples:
         print("="*60)
         print(f"Results: {args.output}/comparison_results.json")
         print(f"Logs: {args.output}/benchmark_run.log")
+        
+        # Auto-generate plots if requested
+        if args.plot:
+            print("\n" + "="*60)
+            print("Generating plots...")
+            print("="*60)
+            try:
+                # Suppress matplotlib debug output
+                logging.getLogger('matplotlib').setLevel(logging.WARNING)
+                logging.getLogger('PIL').setLevel(logging.WARNING)
+                
+                from plot_comparison import BenchmarkVisualizer
+                results_file = f"{args.output}/comparison_results.json"
+                visualizer = BenchmarkVisualizer(results_file)
+                visualizer.create_all_plots()
+                print(f"\n✓ Plots saved to: {visualizer.output_dir}")
+            except Exception as e:
+                print(f"Warning: Failed to generate plots: {e}")
+                print("You can generate plots manually with:")
+                print(f"  python scripts/plot_comparison.py {args.output}/comparison_results.json")
         
         return 0
         
