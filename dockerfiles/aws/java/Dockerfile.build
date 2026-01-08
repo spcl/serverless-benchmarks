@@ -4,7 +4,12 @@ ARG VERSION
 ENV JAVA_VERSION=${VERSION}
 
 # useradd, groupmod, build tooling
-RUN yum install -y shadow-utils unzip tar gzip maven zip
+RUN yum install -y shadow-utils unzip tar gzip zip
+# Install Maven 3.x (maven package may be old, install from Apache directly)
+RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz | tar -xz -C /opt && \
+    ln -s /opt/apache-maven-3.9.6 /opt/maven && \
+    ln -s /opt/maven/bin/mvn /usr/local/bin/mvn
+ENV PATH=/opt/maven/bin:$PATH
 ENV GOSU_VERSION 1.14
 # https://github.com/tianon/gosu/releases/tag/1.14
 # key https://keys.openpgp.org/search?q=tianon%40debian.org

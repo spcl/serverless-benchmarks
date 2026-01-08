@@ -20,6 +20,7 @@
         <!-- PLATFORM_DEPENDENCIES -->
     </dependencies>
     <build>
+        <finalName>function</finalName>
         <resources>
             <resource>
                 <directory>${project.basedir}/templates</directory>
@@ -62,6 +63,9 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                                        <exclude>META-INF/versions/**/module-info.class</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

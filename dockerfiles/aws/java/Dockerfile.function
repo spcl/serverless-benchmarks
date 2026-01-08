@@ -5,11 +5,23 @@ ENV JAVA_VERSION=${VERSION}
 ARG TARGET_ARCHITECTURE
 
 COPY . function/
-WORKDIR /function
 
 # Ensure packaged jar is present for the Lambda base image
-RUN if [ -d "target" ] && ls target/*.jar >/dev/null 2>&1; then \
-      cp target/*.jar function.jar; \
+# function.jar should exist (created by java_installer.sh), but if not, copy from target/
+# Prefer the shaded/fat JAR (exclude "original" JARs created by maven-shade-plugin)
+RUN if [ -f "function/function.jar" ]; then \
+      cp function/function.jar function.jar; \
+    elif [ -d "function/target" ] && ls function/target/*.jar >/dev/null 2>&1; then \
+      JAR_FILE=$(ls function/target/*.jar 2>/dev/null | grep -v "original-" | head -n1); \
+      if [ -z "$JAR_FILE" ]; then \
+        JAR_FILE=$(ls function/target/*.jar | head -n1); \
+      fi; \
+      cp "$JAR_FILE" function.jar; \
+    else \
+      echo "Error: function.jar not found"; \
+      echo "Contents of function/:"; \
+      ls -la function/ 2>/dev/null || true; \
+      exit 1; \
     fi \
     && test -f function.jar
 
