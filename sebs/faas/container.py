@@ -210,8 +210,9 @@ class DockerContainer(LoggingBase):
             "BASE_IMAGE": builder_image,
             "TARGET_ARCHITECTURE": architecture,
         }
+        docker_platform = "linux/arm64" if architecture == "arm64" else "linux/amd64"
         image, _ = self.docker_client.images.build(
-            tag=image_uri, path=build_dir, buildargs=buildargs
+            tag=image_uri, path=build_dir, buildargs=buildargs, platform=docker_platform
         )
 
         self.logging.info(

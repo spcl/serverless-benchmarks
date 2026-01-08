@@ -38,7 +38,6 @@
         </dependency>
     </dependencies>
     <build>
-        <!-- Force rebuild for Architecture fix -->
         <finalName>function</finalName>
         <resources>
             <resource>

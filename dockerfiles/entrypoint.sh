@@ -6,7 +6,7 @@ USER=${CONTAINER_USER}
 
 useradd --non-unique -m -u ${USER_ID} ${USER}
 groupmod --non-unique -g ${GROUP_ID} ${USER}
-mkdir -p /mnt/function && chown -R ${USER}:${USER} /mnt/function
+mkdir -p /mnt/function && chown -R ${USER_ID}:${GROUP_ID} /mnt/function 2>/dev/null || true
 export HOME=/home/${USER}
 echo "Running as ${USER}, with ${USER_ID} and ${GROUP_ID}"
 

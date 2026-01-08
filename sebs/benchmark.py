@@ -253,7 +253,7 @@ class Benchmark(LoggingBase):
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
             "rust": ["*.rs", "Cargo.toml", "Cargo.lock"],
-            "java": [],
+            "java": ["src", "pom.xml"],
             "pypy": ["*.py", "requirements.txt*"],
         }
         WRAPPERS = {
@@ -268,8 +268,15 @@ class Benchmark(LoggingBase):
         for file_type in selected_files:
             for f in glob.glob(os.path.join(directory, file_type)):
                 path = os.path.join(directory, f)
-                with open(path, "rb") as opened_file:
-                    hash_sum.update(opened_file.read())
+                if os.path.isdir(path):
+                    for root, _, files in os.walk(path):
+                        for file in sorted(files):
+                            file_path = os.path.join(root, file)
+                            with open(file_path, "rb") as opened_file:
+                                hash_sum.update(opened_file.read())
+                else:
+                    with open(path, "rb") as opened_file:
+                        hash_sum.update(opened_file.read())
         # For rust, also hash the src directory recursively
         if language == "rust":
             src_dir = os.path.join(directory, "src")
@@ -702,6 +709,15 @@ class Benchmark(LoggingBase):
                         "bind": "/mnt/function/package.sh",
                         "mode": "ro",
                     }
+                
+                # Mount updated java_installer.sh if language is java
+                if self.language_name == "java":
+                    installer_path = os.path.abspath("dockerfiles/java_installer.sh")
+                    if os.path.exists(installer_path):
+                        volumes[installer_path] = {
+                            "bind": "/sebs/installer.sh",
+                            "mode": "ro",
+                        }
 
             # run Docker container to install packages
             PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "rust": "Cargo.toml", "java": "pom.xml", "pypy": "requirements.txt"}
@@ -796,14 +812,51 @@ class Benchmark(LoggingBase):
 
                     # Pass to output information on optimizing builds.
                     # Useful for AWS where packages have to obey size limits.
-                    for line in stdout.decode("utf-8").split("\n"):
-                        if "size" in line:
+                    build_output = ""
+                    if isinstance(stdout, bytes):
+                        build_output = stdout.decode("utf-8")
+                    elif isinstance(stdout, tuple):
+                        # exec_run returns (exit_code, output)
+                        exit_code, output = stdout
+                        build_output = output.decode("utf-8") if isinstance(output, bytes) else str(output)
+                        if exit_code != 0:
+                            self.logging.error(f"Docker build exited with code {exit_code}")
+                    else:
+                        build_output = str(stdout)
+                    
+                    for line in build_output.split("\n"):
+                        if "size" in line or "error" in line.lower() or "Error" in line or "failed" in line.lower():
                             self.logging.info("Docker build: {}".format(line))
+                    
+                    # For Rust, check if bootstrap binary was created
+                    if self.language_name == "rust":
+                        bootstrap_path = os.path.join(output_dir, "bootstrap")
+                        if not os.path.exists(bootstrap_path):
+                            self.logging.error("Rust build failed: bootstrap binary not found!")
+                            self.logging.error("Build output:\n{}".format(build_output[-2000:]))  # Last 2000 chars
+                            raise RuntimeError("Rust build failed: bootstrap binary not created")
                 except docker.errors.ContainerError as e:
                     self.logging.error("Package build failed!")
                     self.logging.error(e)
                     self.logging.error(f"Docker mount volumes: {volumes}")
+                    # For Rust, also check bootstrap even if ContainerError occurred
+                    if self.language_name == "rust":
+                        bootstrap_path = os.path.join(output_dir, "bootstrap")
+                        if not os.path.exists(bootstrap_path):
+                            self.logging.error("Rust bootstrap binary not found after Docker build failure!")
                     raise e
+            else:
+                # Package file doesn't exist
+                error_msg = f"Package file {file} not found in {output_dir}"
+                self.logging.error(error_msg)
+                if self.language_name == "rust":
+                    # List files in output_dir for debugging
+                    files_in_dir = os.listdir(output_dir) if os.path.exists(output_dir) else []
+                    self.logging.error(f"Files in output_dir: {files_in_dir}")
+                    raise RuntimeError(
+                        f"{error_msg}. For Rust, Cargo.toml must exist after merging wrapper and benchmark files. "
+                        "Check that Cargo.toml merge completed successfully."
+                    )
 
     def recalculate_code_size(self):
         self._code_size = Benchmark.directory_size(self._output_dir)
