@@ -5,6 +5,13 @@ from . import nosql
 nosql_client = nosql.nosql.get_instance()
 nosql_table_name = "hotel_booking"
 
+def _get_request_id(event):
+    request_id = event.get("request-id") or event.get("request_id") or event.get("requestId")
+    if not request_id:
+        request_id = uuid.uuid4().hex
+    event["request-id"] = request_id
+    return request_id
+
 
 def handler(event):
 
@@ -14,7 +21,7 @@ def handler(event):
 
     # We start with the hotel
     trip_id = str(uuid.uuid4().hex)
-    hotel_booking_id = event["request-id"]
+    hotel_booking_id = _get_request_id(event)
 
     # Simulate return from a service
     hotel_price = "130"

@@ -41,7 +41,8 @@ class SonataFlowGenerator(Generator):
 
     def _default_action(self, func_name: str, payload_ref: str = "${ . }") -> Dict[str, object]:
         ref = self._function_ref(func_name)
-        ref["arguments"] = {"payload": payload_ref}
+        request_id_expr = '${ .request_id // .requestId // .["request-id"] }'
+        ref["arguments"] = {"payload": payload_ref, "request_id": request_id_expr}
         return {
             "name": func_name,
             "functionRef": ref,
@@ -146,10 +147,11 @@ class SonataFlowGenerator(Generator):
     def encode_repeat(self, state: Repeat) -> Union[dict, List[dict]]:
         # Encode as a foreach over a generated range.
         iterations = list(range(state.count))
+        input_expr = f"${{ {json.dumps(iterations)} }}"
         payload: Dict[str, object] = {
             "name": state.name,
             "type": "foreach",
-            "inputCollection": iterations,
+            "inputCollection": input_expr,
             "iterationParam": "idx",
             "actions": [self._default_action(state.func_name, "${ . }")],
         }
