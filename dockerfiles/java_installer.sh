@@ -13,7 +13,7 @@ if [[ -n "${POM_PATH}" ]]; then
   cd "${POM_DIR}"
 
   # Note: -q flag causes issues in Docker, removed for reliable builds
-  mvn -DskipTests package
+  mvn -DskipTests clean package
 
   if ls target/*.jar >/dev/null 2>&1; then
     # Prefer the shaded/fat JAR (exclude "original" JARs created by maven-shade-plugin)

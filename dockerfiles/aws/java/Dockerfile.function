@@ -23,6 +23,8 @@ RUN if [ -f "function/function.jar" ]; then \
       ls -la function/ 2>/dev/null || true; \
       exit 1; \
     fi \
-    && test -f function.jar
+    && test -f function.jar \
+    && (unzip function.jar || jar xf function.jar) \
+    && rm function.jar
 
 CMD ["org.serverlessbench.Handler::handleRequest"]
