@@ -69,21 +69,12 @@ def build(image_type, system, language=None, version=None, version_name=None):
         "tag": target,
     }
     
-    # Platform selection priority: CLI arg > env var > system config
+    # Platform selection priority: CLI arg > env var
     platform_arg = args.platform or os.environ.get("DOCKER_DEFAULT_PLATFORM")
     if platform_arg:
         build_kwargs["platform"] = platform_arg
     elif PLATFORM:
         build_kwargs["platform"] = PLATFORM
-    elif system in config and "architecture" in config[system]:
-        archs = config[system]["architecture"]
-        if len(archs) == 1:
-            if archs[0] == "x64":
-                build_kwargs["platform"] = "linux/amd64"
-                print(f"Automatically using platform linux/amd64 for {system}")
-            elif archs[0] == "arm64":
-                build_kwargs["platform"] = "linux/arm64"
-                print(f"Automatically using platform linux/arm64 for {system}")
 
     try:
         client.images.build(**build_kwargs)

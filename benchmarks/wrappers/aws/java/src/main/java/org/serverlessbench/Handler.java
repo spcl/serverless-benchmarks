@@ -4,12 +4,16 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
 public class Handler implements RequestHandler<Map<String, Object>, Map<String, Object>> {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Path MARKER = Path.of("/tmp/cold_run");
 
     @Override
     public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
@@ -24,10 +28,22 @@ public class Handler implements RequestHandler<Map<String, Object>, Map<String, 
         body.put("compute_time", (endNs - beginNs) / 1_000.0);
         body.put("results_time", 0);
         body.put("result", result);
-        body.put("is_cold", ColdStartTracker.isCold());
+        body.put("is_cold", isCold());
         body.put("request_id", context != null ? context.getAwsRequestId() : "");
 
         return body;
+    }
+
+    private boolean isCold() {
+        if (Files.exists(MARKER)) {
+            return false;
+        }
+        try {
+            Files.createFile(MARKER);
+        } catch (IOException ignored) {
+            // best-effort marker write
+        }
+        return true;
     }
 
     private Map<String, Object> normalize(Map<String, Object> event) {

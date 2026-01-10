@@ -202,41 +202,27 @@ class Handler(BaseHTTPRequestHandler):
             
             # Import user function
             # In Azure, function.py is in the handler directory
-            # AWS uses: from function import function (because AWS has function/function.py)
-            # Azure structure: handler/function.py, so we use: import function
-            function_module = None
             try:
                 import function
-                function_module = function
             except ImportError as e:
-                # Try AWS-style import as fallback
-                try:
-                    from function import function as aws_function_module
-                    function_module = aws_function_module
-                except ImportError as e2:
-                    logging.error(f"Failed to import function: {e}")
-                    logging.error(f"AWS-style import also failed: {e2}")
-                    logging.error(f"sys.path: {sys.path}")
-                    logging.error(f"Current directory: {os.getcwd()}")
-                    logging.error(f"Handler path exists: {os.path.exists(os.path.join(os.getcwd(), 'handler'))}")
-                    # List files in handler directory for debugging
-                    handler_dir = os.path.join(os.getcwd(), 'handler')
-                    if os.path.exists(handler_dir):
-                        try:
-                            files = os.listdir(handler_dir)
-                            logging.error(f"Files in handler directory: {files}")
-                        except Exception as list_err:
-                            logging.error(f"Failed to list handler directory: {list_err}")
-                    self.send_json_response(500, {'error': f'Failed to import function: {str(e)}'})
-                    return
-            
-            if function_module is None:
-                self.send_json_response(500, {'error': 'Function module is None after import'})
+                logging.error(f"Failed to import function: {e}")
+                logging.error(f"sys.path: {sys.path}")
+                logging.error(f"Current directory: {os.getcwd()}")
+                logging.error(f"Handler path exists: {os.path.exists(os.path.join(os.getcwd(), 'handler'))}")
+                # List files in handler directory for debugging
+                handler_dir = os.path.join(os.getcwd(), 'handler')
+                if os.path.exists(handler_dir):
+                    try:
+                        files = os.listdir(handler_dir)
+                        logging.error(f"Files in handler directory: {files}")
+                    except Exception as list_err:
+                        logging.error(f"Failed to list handler directory: {list_err}")
+                self.send_json_response(500, {'error': f'Failed to import function: {str(e)}'})
                 return
             
             try:
-                # Call the user function - AWS uses: ret = function.handler(event)
-                ret = function_module.handler(req_json)
+                # Call the user function
+                ret = function.handler(req_json)
             except Exception as e:
                 logging.error(f"Function handler error: {e}", exc_info=True)
                 self.send_json_response(500, {'error': str(e)})
@@ -305,21 +291,12 @@ class Handler(BaseHTTPRequestHandler):
                 logging.warning(f"Failed to read/write cold_run file: {e}")
                 container_id = str(uuid.uuid4())[0:8]
                     
-            is_cold_worker = False
-            global cold_marker
-            try:
-                _ = cold_marker
-            except NameError:
-                cold_marker = True
-                is_cold_worker = True
-
             response_data = {
                 'begin': begin.strftime('%s.%f'),
                 'end': end.strftime('%s.%f'),
                 'results_time': results_time,
                 'result': log_data,
                 'is_cold': is_cold,
-                'is_cold_worker': is_cold_worker,
                 'container_id': container_id,
                 'environ_container_id': os.environ.get('CONTAINER_NAME', ''),
                 'request_id': invocation_id

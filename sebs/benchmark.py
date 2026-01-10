@@ -364,9 +364,8 @@ class Benchmark(LoggingBase):
             matches = glob.glob(os.path.join(path, file_type))
             self.logging.info(f"copy_code: Pattern {file_type} matched {len(matches)} files: {matches}")
             for f in matches:
-                dest = os.path.join(output_dir, os.path.basename(f))
-                self.logging.info(f"copy_code: Copying {f} to {dest}")
-                shutil.copy2(f, dest)
+                self.logging.info(f"copy_code: Copying {f} to {output_dir}")
+                shutil.copy2(f, output_dir)
         
         # For Rust, copy the entire src directory
         if self.language_name == "rust":
