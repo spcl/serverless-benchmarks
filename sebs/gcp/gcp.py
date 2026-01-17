@@ -678,8 +678,8 @@ class GCP(System):
 
         # Convert timestamps to GCP's required format
         timestamps = []
-        for timestamp in [start_time, end_time + 60]:  # Add buffer
-            utc_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        for ts in [start_time, end_time + 60]:  # Add buffer
+            utc_date = datetime.fromtimestamp(ts, tz=timezone.utc)
             timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
         # Query logs for the specific execution ID
@@ -697,23 +697,21 @@ class GCP(System):
         while retries < max_retries:
             try:
                 entries = logger.list_entries(
-                    filter_=filter_str,
-                    page_size=1000,
-                    order_by="timestamp asc"
+                    filter_=filter_str, page_size=1000, order_by="timestamp asc"
                 )
 
                 found_logs = False
                 for entry in entries:
                     found_logs = True
                     timestamp = entry.timestamp.isoformat() if entry.timestamp else "unknown"
-                    severity = entry.severity if hasattr(entry, 'severity') else "DEFAULT"
+                    severity = entry.severity if hasattr(entry, "severity") else "DEFAULT"
 
                     # Extract the log message
-                    if hasattr(entry, 'payload'):
+                    if hasattr(entry, "payload"):
                         if isinstance(entry.payload, str):
                             message = entry.payload
                         elif isinstance(entry.payload, dict):
-                            message = entry.payload.get('message', str(entry.payload))
+                            message = entry.payload.get("message", str(entry.payload))
                         else:
                             message = str(entry.payload)
                     else:

@@ -75,7 +75,6 @@ class System(ABC, LoggingBase):
         pass
 
     def find_deployments(self) -> List[str]:
-
         """
         Default implementation that uses storage buckets.
         data storage accounts.
@@ -187,7 +186,6 @@ class System(ABC, LoggingBase):
         container_deployment: bool,
         container_uri: str,
     ) -> Function:
-
         """
         Create a new function in the FaaS platform.
         The implementation is responsible for creating all necessary

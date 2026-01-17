@@ -367,8 +367,7 @@ class Local(System):
         try:
             # Try to find container by name (function_name)
             containers = self.docker_client.containers.list(
-                all=True,
-                filters={"name": function_name}
+                all=True, filters={"name": function_name}
             )
 
             if containers:
@@ -380,17 +379,11 @@ class Local(System):
                         break
 
                 # Retrieve logs
-                logs = container.logs(
-                    stdout=True,
-                    stderr=True,
-                    timestamps=True
-                ).decode('utf-8')
+                logs = container.logs(stdout=True, stderr=True, timestamps=True).decode("utf-8")
 
-                log_messages = logs.split('\n')
+                log_messages = logs.split("\n")
             else:
-                self.logging.warning(
-                    f"No Docker container found for function {function_name}"
-                )
+                self.logging.warning(f"No Docker container found for function {function_name}")
                 log_messages.append(
                     f"Note: Local execution logs are ephemeral. "
                     f"Container for {function_name} may have been removed."

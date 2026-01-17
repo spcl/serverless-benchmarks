@@ -85,7 +85,6 @@ class Azure(System):
         super().shutdown()
 
     def find_deployments(self) -> List[str]:
-
         """
         Look for duplicated resource groups.
         """
@@ -616,9 +615,7 @@ class Azure(System):
         start_time_str = datetime.datetime.fromtimestamp(start_time).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         )
-        end_time_str = datetime.datetime.fromtimestamp(end_time + 60).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        end_time_str = datetime.datetime.fromtimestamp(end_time + 60).strftime("%Y-%m-%d %H:%M:%S")
         from tzlocal import get_localzone
 
         timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
@@ -660,12 +657,17 @@ class Azure(System):
                         timestamp = row[0]
                         message = row[1]
                         severity = row[2] if len(row) > 2 else None
-                        item_type = row[3] if len(row) > 3 else None
 
                         if message:
                             prefix = f"[{timestamp}]"
                             if severity is not None:
-                                severity_map = {0: "VERBOSE", 1: "INFO", 2: "WARNING", 3: "ERROR", 4: "CRITICAL"}
+                                severity_map = {
+                                    0: "VERBOSE",
+                                    1: "INFO",
+                                    2: "WARNING",
+                                    3: "ERROR",
+                                    4: "CRITICAL",
+                                }
                                 severity_str = severity_map.get(severity, str(severity))
                                 prefix += f" [{severity_str}]"
                             log_messages.append(f"{prefix} {message}")

@@ -336,44 +336,36 @@ def process(**kwargs):
 
 
 @benchmark.command("logs")
-@click.option(
-    "--experiments-file",
-    type=click.Path(exists=True, readable=True),
-    default=None,
-    help="Path to experiments.json file with invocation results.",
-)
-@click.option(
-    "--function-name",
+@click.argument(
+    "target",
     type=str,
-    default=None,
-    help="Function name (required if --request-id is provided).",
+    required=True,
 )
 @click.option(
     "--request-id",
     type=str,
     default=None,
-    help="Request/invocation ID (required if --function-name is provided).",
+    help="Request/invocation ID to query (optional, for specific invocation).",
 )
 @click.option(
-    "--start-time",
+    "--minutes",
     type=int,
-    default=None,
-    help="Start time as Unix timestamp (optional, for narrowing log search).",
-)
-@click.option(
-    "--end-time",
-    type=int,
-    default=None,
-    help="End time as Unix timestamp (optional, for narrowing log search).",
+    default=30,
+    help="Number of minutes to look back for logs (default: 30, only for function name mode).",
 )
 @common_params
-def query_logs(experiments_file, function_name, request_id, start_time, end_time, **kwargs):
+def query_logs(target, request_id, minutes, **kwargs):
     """
     Query and display logs for benchmark invocations.
 
-    You can either:
-    1. Provide --experiments-file to query logs for all invocations in that file
-    2. Provide --function-name and --request-id to query logs for a specific invocation
+    TARGET can be either:
+    1. Path to experiments.json file - queries logs for all invocations in that file
+    2. Function name - queries logs for that function (requires --request-id)
+
+    Examples:
+      ./sebs.py benchmark logs experiments.json --config config.json
+      ./sebs.py benchmark logs my-function --request-id abc123 --config config.json
+      ./sebs.py benchmark logs my-function --request-id abc123 --minutes 60 --config config.json
     """
     (
         config,
@@ -383,23 +375,13 @@ def query_logs(experiments_file, function_name, request_id, start_time, end_time
         deployment_client,
     ) = parse_common_params(**kwargs)
 
-    # Validate input parameters
-    if experiments_file is None and (function_name is None or request_id is None):
-        sebs_client.logging.error(
-            "Either --experiments-file or both --function-name and --request-id must be provided."
-        )
-        return
-
-    if experiments_file is not None and (function_name is not None or request_id is not None):
-        sebs_client.logging.warning(
-            "Both --experiments-file and individual parameters provided. "
-            "Using --experiments-file and ignoring individual parameters."
-        )
+    # Detect if target is a file or function name
+    is_file = os.path.isfile(target)
 
     # Case 1: Load from experiments file
-    if experiments_file is not None:
-        sebs_client.logging.info(f"Loading invocations from {experiments_file}")
-        with open(experiments_file, "r") as in_f:
+    if is_file:
+        sebs_client.logging.info(f"Loading invocations from {target}")
+        with open(target, "r") as in_f:
             exp_config = json.load(in_f)
             experiments = sebs.experiments.ExperimentResult.deserialize(
                 exp_config,
@@ -407,11 +389,10 @@ def query_logs(experiments_file, function_name, request_id, start_time, end_time
                 sebs_client.generate_logging_handlers(logging_filename),
             )
 
-        # Get time bounds from experiments if not provided
-        if start_time is None or end_time is None:
-            exp_start_time, exp_end_time = experiments.times()
-            start_time = start_time or int(exp_start_time)
-            end_time = end_time or int(exp_end_time)
+        # Get time bounds from experiments
+        exp_start_time, exp_end_time = experiments.times()
+        start_time = int(exp_start_time)
+        end_time = int(exp_end_time)
 
         # Query logs for all functions and invocations
         for func_name in experiments.functions():
@@ -438,16 +419,27 @@ def query_logs(experiments_file, function_name, request_id, start_time, end_time
                 except Exception as e:
                     sebs_client.logging.error(f"Error retrieving logs for {req_id}: {e}")
 
-    # Case 2: Query specific invocation
+    # Case 2: Query specific function
     else:
-        # Use provided times or default to last hour
-        if start_time is None:
-            import time
-            end_time = end_time or int(time.time())
-            start_time = end_time - 3600  # Default to 1 hour window
+        function_name = target
+
+        # Validate that request_id is provided
+        if not request_id:
+            sebs_client.logging.error(
+                "When querying by function name, please provide --request-id. "
+                "Alternatively, use an experiments.json file to query all invocations."
+            )
+            return
+
+        import time
+
+        # Calculate time window - look back X minutes from now
+        end_time = int(time.time())
+        start_time = end_time - (minutes * 60)
 
         sebs_client.logging.info(
-            f"Querying logs for function '{function_name}', request ID '{request_id}'"
+            f"Querying logs for function '{function_name}', request ID '{request_id}' "
+            f"(last {minutes} minutes)"
         )
 
         try:

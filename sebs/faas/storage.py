@@ -143,7 +143,6 @@ class PersistentStorage(ABC, LoggingBase):
     def benchmark_data(
         self, benchmark: str, requested_buckets: Tuple[int, int]
     ) -> Tuple[List[str], List[str]]:
-
         """
         Add an input path inside benchmarks bucket.
         Bucket name format: name-idx-input

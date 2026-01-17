@@ -549,7 +549,10 @@ class AWS(System):
             )
 
         # Query CloudWatch Logs for the specific request ID
-        query_string = f'filter @requestId = "{request_id}" | fields @timestamp, @message | sort @timestamp asc'
+        query_string = (
+            f'filter @requestId = "{request_id}" | '
+            f"fields @timestamp, @message | sort @timestamp asc"
+        )
 
         response = None
         retries = 0
@@ -584,20 +587,21 @@ class AWS(System):
 
         # Extract log messages
         log_messages = []
-        for log_entry in response["results"]:
-            message = None
-            timestamp = None
-            for field in log_entry:
-                if field["field"] == "@message":
-                    message = field["value"]
-                elif field["field"] == "@timestamp":
-                    timestamp = field["value"]
+        if response and "results" in response:
+            for log_entry in response["results"]:
+                message = None
+                timestamp = None
+                for field in log_entry:
+                    if field["field"] == "@message":
+                        message = field["value"]
+                    elif field["field"] == "@timestamp":
+                        timestamp = field["value"]
 
-            if message:
-                if timestamp:
-                    log_messages.append(f"[{timestamp}] {message}")
-                else:
-                    log_messages.append(message)
+                if message:
+                    if timestamp:
+                        log_messages.append(f"[{timestamp}] {message}")
+                    else:
+                        log_messages.append(message)
 
         return log_messages
 

@@ -85,7 +85,6 @@ class AzureCLI(LoggingBase):
         return result
 
     def upload_package(self, directory: str, dest: str):
-
         """
         This is not an efficient and memory-intensive implementation.
         So far, we didn't have very large functions that require many gigabytes.

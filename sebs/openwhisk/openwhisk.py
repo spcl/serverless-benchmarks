@@ -399,7 +399,7 @@ class OpenWhisk(System):
             )
 
             logs = result.stdout.decode("utf-8")
-            log_messages = logs.split('\n')
+            log_messages = logs.split("\n")
 
         except subprocess.CalledProcessError as e:
             self.logging.error(f"Error retrieving OpenWhisk logs: {e}")
