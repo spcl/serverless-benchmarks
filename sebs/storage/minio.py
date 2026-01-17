@@ -237,7 +237,6 @@ class Minio(PersistentStorage):
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         try:
             objects_list = self.connection.list_objects(bucket_name)
-            objects: List[str]
             return [obj.object_name for obj in objects_list if prefix in obj.object_name]
         except minio.error.NoSuchBucket:
             raise RuntimeError(f"Attempting to access a non-existing bucket {bucket_name}!")
@@ -267,7 +266,10 @@ class Minio(PersistentStorage):
 
     @staticmethod
     def _deserialize(
-        cached_config: MinioConfig, cache_client: Cache, resources: Resources, obj_type: Type[T]
+        cached_config: MinioConfig,
+        cache_client: Cache,
+        resources: Resources,
+        obj_type: Type[T],
     ) -> T:
         docker_client = docker.from_env()
         obj = obj_type(docker_client, cache_client, resources, False)

@@ -11,7 +11,6 @@ cache*
 minio-volume
 scylladb-volume
 
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -191,3 +190,5 @@ cache
 
 # Visual Studio Code files
 .vscode/
+# MacOS Finder
+**/.DS_Store

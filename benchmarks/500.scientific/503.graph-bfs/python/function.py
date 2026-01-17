@@ -4,6 +4,10 @@ import igraph
 def handler(event):
 
     size = event.get('size')
+    if "seed" in event:
+        import random
+
+        random.seed(event["seed"])
 
     graph_generating_begin = datetime.datetime.now()
     graph = igraph.Graph.Barabasi(size, 10)

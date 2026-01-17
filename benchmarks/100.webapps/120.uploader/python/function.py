@@ -1,16 +1,16 @@
 
 import datetime
 import os
-import uuid
 
 import urllib.request
 
 from . import storage
 client = storage.storage.get_instance()
 
+SEBS_USER_AGENT = "SeBS/1.2 (https://github.com/spcl/serverless-benchmarks) SeBS Benchmark Suite/1.2"
 
 def handler(event):
-  
+
     bucket = event.get('bucket').get('bucket')
     output_prefix = event.get('bucket').get('output')
     url = event.get('object').get('url')
@@ -18,7 +18,11 @@ def handler(event):
     download_path = '/tmp/{}'.format(name)
 
     process_begin = datetime.datetime.now()
-    urllib.request.urlretrieve(url, filename=download_path)
+    req = urllib.request.Request(url)
+    req.add_header('User-Agent', SEBS_USER_AGENT)
+    with open(download_path, 'wb') as f:
+        with urllib.request.urlopen(req) as response:
+            f.write(response.read())
     size = os.path.getsize(download_path)
     process_end = datetime.datetime.now()
 
