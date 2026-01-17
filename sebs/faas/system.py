@@ -407,6 +407,24 @@ class System(ABC, LoggingBase):
         pass
 
     @abstractmethod
+    def get_invocation_logs(
+        self, function_name: str, request_id: str, start_time: int, end_time: int
+    ) -> List[str]:
+        """
+        Retrieve full logs (stdout and stderr) for a specific invocation.
+
+        Args:
+            function_name: Name of the function
+            request_id: Platform-specific request/invocation ID
+            start_time: Start time as Unix timestamp
+            end_time: End time as Unix timestamp
+
+        Returns:
+            List of log messages for the invocation
+        """
+        pass
+
+    @abstractmethod
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         pass
 

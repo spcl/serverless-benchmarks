@@ -335,6 +335,138 @@ def process(**kwargs):
     sebs_client.logging.info("Save results to {}".format(output_file))
 
 
+@benchmark.command("logs")
+@click.option(
+    "--experiments-file",
+    type=click.Path(exists=True, readable=True),
+    default=None,
+    help="Path to experiments.json file with invocation results.",
+)
+@click.option(
+    "--function-name",
+    type=str,
+    default=None,
+    help="Function name (required if --request-id is provided).",
+)
+@click.option(
+    "--request-id",
+    type=str,
+    default=None,
+    help="Request/invocation ID (required if --function-name is provided).",
+)
+@click.option(
+    "--start-time",
+    type=int,
+    default=None,
+    help="Start time as Unix timestamp (optional, for narrowing log search).",
+)
+@click.option(
+    "--end-time",
+    type=int,
+    default=None,
+    help="End time as Unix timestamp (optional, for narrowing log search).",
+)
+@common_params
+def query_logs(experiments_file, function_name, request_id, start_time, end_time, **kwargs):
+    """
+    Query and display logs for benchmark invocations.
+
+    You can either:
+    1. Provide --experiments-file to query logs for all invocations in that file
+    2. Provide --function-name and --request-id to query logs for a specific invocation
+    """
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+
+    # Validate input parameters
+    if experiments_file is None and (function_name is None or request_id is None):
+        sebs_client.logging.error(
+            "Either --experiments-file or both --function-name and --request-id must be provided."
+        )
+        return
+
+    if experiments_file is not None and (function_name is not None or request_id is not None):
+        sebs_client.logging.warning(
+            "Both --experiments-file and individual parameters provided. "
+            "Using --experiments-file and ignoring individual parameters."
+        )
+
+    # Case 1: Load from experiments file
+    if experiments_file is not None:
+        sebs_client.logging.info(f"Loading invocations from {experiments_file}")
+        with open(experiments_file, "r") as in_f:
+            exp_config = json.load(in_f)
+            experiments = sebs.experiments.ExperimentResult.deserialize(
+                exp_config,
+                sebs_client.cache_client,
+                sebs_client.generate_logging_handlers(logging_filename),
+            )
+
+        # Get time bounds from experiments if not provided
+        if start_time is None or end_time is None:
+            exp_start_time, exp_end_time = experiments.times()
+            start_time = start_time or int(exp_start_time)
+            end_time = end_time or int(exp_end_time)
+
+        # Query logs for all functions and invocations
+        for func_name in experiments.functions():
+            invocations = experiments.invocations(func_name)
+            sebs_client.logging.info(
+                f"\n{'=' * 80}\nFunction: {func_name} ({len(invocations)} invocations)\n{'=' * 80}"
+            )
+
+            for req_id, execution_result in invocations.items():
+                sebs_client.logging.info(f"\n{'-' * 80}\nRequest ID: {req_id}\n{'-' * 80}")
+
+                try:
+                    logs = deployment_client.get_invocation_logs(
+                        func_name, req_id, start_time, end_time
+                    )
+
+                    if logs:
+                        for log_line in logs:
+                            if log_line.strip():  # Skip empty lines
+                                print(log_line)
+                    else:
+                        sebs_client.logging.warning(f"No logs found for request {req_id}")
+
+                except Exception as e:
+                    sebs_client.logging.error(f"Error retrieving logs for {req_id}: {e}")
+
+    # Case 2: Query specific invocation
+    else:
+        # Use provided times or default to last hour
+        if start_time is None:
+            import time
+            end_time = end_time or int(time.time())
+            start_time = end_time - 3600  # Default to 1 hour window
+
+        sebs_client.logging.info(
+            f"Querying logs for function '{function_name}', request ID '{request_id}'"
+        )
+
+        try:
+            logs = deployment_client.get_invocation_logs(
+                function_name, request_id, start_time, end_time
+            )
+
+            if logs:
+                sebs_client.logging.info(f"\n{'-' * 80}\nLogs:\n{'-' * 80}")
+                for log_line in logs:
+                    if log_line.strip():  # Skip empty lines
+                        print(log_line)
+            else:
+                sebs_client.logging.warning("No logs found")
+
+        except Exception as e:
+            sebs_client.logging.error(f"Error retrieving logs: {e}")
+
+
 @benchmark.command()
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])
