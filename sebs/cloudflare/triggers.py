@@ -4,59 +4,6 @@ import concurrent.futures
 from sebs.faas.function import Trigger, ExecutionResult
 
 
-class LibraryTrigger(Trigger):
-    """
-    Library trigger for Cloudflare Workers.
-    Allows invoking workers programmatically via the Cloudflare API.
-    """
-    
-    def __init__(self, worker_name: str, deployment_client=None):
-        super().__init__()
-        self.worker_name = worker_name
-        self.deployment_client = deployment_client
-
-    @staticmethod
-    def typename() -> str:
-        return "Cloudflare.LibraryTrigger"
-
-    @staticmethod
-    def trigger_type() -> Trigger.TriggerType:
-        return Trigger.TriggerType.LIBRARY
-
-    def sync_invoke(self, payload: dict) -> ExecutionResult:
-        """
-        Synchronously invoke a Cloudflare Worker.
-        
-        Args:
-            payload: The payload to send to the worker
-            
-        Returns:
-            ExecutionResult with performance metrics
-        """
-        # This will be implemented when we have the deployment client
-        raise NotImplementedError("Cloudflare Worker invocation not yet implemented")
-
-    def async_invoke(self, payload: dict) -> concurrent.futures.Future:
-        """
-        Asynchronously invoke a Cloudflare Worker.
-        Not typically supported for Cloudflare Workers.
-        """
-        raise NotImplementedError("Cloudflare Workers do not support async invocation")
-
-    def serialize(self) -> dict:
-        """Serialize the LibraryTrigger."""
-        return {
-            "type": self.typename(),
-            "worker_name": self.worker_name,
-        }
-
-    @staticmethod
-    def deserialize(cached_config: dict) -> "LibraryTrigger":
-        """Deserialize a LibraryTrigger from cached config."""
-        from sebs.cloudflare.triggers import LibraryTrigger
-        return LibraryTrigger(cached_config["worker_name"])
-
-
 class HTTPTrigger(Trigger):
     """
     HTTP trigger for Cloudflare Workers.

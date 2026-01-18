@@ -35,6 +35,7 @@ class R2(PersistentStorage):
     ):
         super().__init__(region, cache_client, resources, replace_existing)
         self._credentials = credentials
+        self._s3_client = None
 
     def _get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers for Cloudflare API requests."""
@@ -51,6 +52,46 @@ class R2(PersistentStorage):
             }
         else:
             raise RuntimeError("Invalid Cloudflare credentials configuration")
+
+    def _get_s3_client(self):
+        """
+        Get or initialize the S3-compatible client for R2 operations.
+        
+        :return: boto3 S3 client or None if credentials not available
+        """
+        if self._s3_client is not None:
+            return self._s3_client
+        
+        # Check if we have S3-compatible credentials
+        if not self._credentials.r2_access_key_id or not self._credentials.r2_secret_access_key:
+            self.logging.warning(
+                "R2 S3-compatible API credentials not configured. "
+                "Set CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY environment variables."
+            )
+            return None
+        
+        try:
+            import boto3
+            from botocore.config import Config
+            
+            account_id = self._credentials.account_id
+            
+            self._s3_client = boto3.client(
+                's3',
+                endpoint_url=f'https://{account_id}.r2.cloudflarestorage.com',
+                aws_access_key_id=self._credentials.r2_access_key_id,
+                aws_secret_access_key=self._credentials.r2_secret_access_key,
+                config=Config(signature_version='s3v4'),
+                region_name='auto'
+            )
+            
+            return self._s3_client
+            
+        except ImportError:
+            self.logging.warning(
+                "boto3 not available. Install with: pip install boto3"
+            )
+            return None
 
     def correct_name(self, name: str) -> str:
         return name
@@ -142,33 +183,12 @@ class R2(PersistentStorage):
         :param filepath: local source filepath
         :param key: R2 destination key/path
         """
+        s3_client = self._get_s3_client()
+        if s3_client is None:
+            self.logging.warning(f"Cannot upload {filepath} to R2 - S3 client not available")
+            return
+        
         try:
-            import boto3
-            from botocore.config import Config
-            
-            account_id = self._credentials.account_id
-            
-            # R2 uses S3-compatible API, but requires special configuration
-            # The endpoint is: https://<account_id>.r2.cloudflarestorage.com
-            # You need to create R2 API tokens in the Cloudflare dashboard
-            
-            # Check if we have S3-compatible credentials
-            if not self._credentials.r2_access_key_id or not self._credentials.r2_secret_access_key:
-                self.logging.warning(
-                    "R2 upload requires S3-compatible API credentials (r2_access_key_id, r2_secret_access_key). "
-                    "File upload skipped. Set CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY."
-                )
-                return
-            
-            s3_client = boto3.client(
-                's3',
-                endpoint_url=f'https://{account_id}.r2.cloudflarestorage.com',
-                aws_access_key_id=self._credentials.r2_access_key_id,
-                aws_secret_access_key=self._credentials.r2_secret_access_key,
-                config=Config(signature_version='s3v4'),
-                region_name='auto'
-            )
-            
             with open(filepath, 'rb') as f:
                 s3_client.put_object(
                     Bucket=bucket_name,
@@ -178,11 +198,6 @@ class R2(PersistentStorage):
             
             self.logging.debug(f"Uploaded {filepath} to R2 bucket {bucket_name} as {key}")
             
-        except ImportError:
-            self.logging.warning(
-                "boto3 not available. Install with: pip install boto3. "
-                "File upload to R2 skipped."
-            )
         except Exception as e:
             self.logging.warning(f"Failed to upload {filepath} to R2: {e}")
     
@@ -194,28 +209,12 @@ class R2(PersistentStorage):
         :param key: R2 destination key/path
         :param data: bytes to upload
         """
+        s3_client = self._get_s3_client()
+        if s3_client is None:
+            self.logging.warning(f"Cannot upload bytes to R2 - S3 client not available")
+            return
+        
         try:
-            import boto3
-            from botocore.config import Config
-            
-            account_id = self._credentials.account_id
-            
-            if not self._credentials.r2_access_key_id or not self._credentials.r2_secret_access_key:
-                self.logging.warning(
-                    "R2 upload requires S3-compatible API credentials (r2_access_key_id, r2_secret_access_key). "
-                    "Upload skipped. Set CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY environment variables."
-                )
-                return
-            
-            s3_client = boto3.client(
-                's3',
-                endpoint_url=f'https://{account_id}.r2.cloudflarestorage.com',
-                aws_access_key_id=self._credentials.r2_access_key_id,
-                aws_secret_access_key=self._credentials.r2_secret_access_key,
-                config=Config(signature_version='s3v4'),
-                region_name='auto'
-            )
-            
             s3_client.put_object(
                 Bucket=bucket_name,
                 Key=key,
@@ -224,10 +223,6 @@ class R2(PersistentStorage):
             
             self.logging.debug(f"Uploaded {len(data)} bytes to R2 bucket {bucket_name} as {key}")
             
-        except ImportError:
-            self.logging.warning(
-                "boto3 not available. Install with: pip install boto3"
-            )
         except Exception as e:
             self.logging.warning(f"Failed to upload bytes to R2: {e}")
 
@@ -246,27 +241,12 @@ class R2(PersistentStorage):
         :param prefix: optional prefix filter
         :return: list of files in a given bucket
         """
-        # Use S3-compatible API with R2 credentials
-        if not self._credentials.r2_access_key_id or not self._credentials.r2_secret_access_key:
-            self.logging.warning(f"R2 S3 credentials not configured, cannot list bucket {bucket_name}")
+        s3_client = self._get_s3_client()
+        if s3_client is None:
+            self.logging.warning(f"Cannot list R2 bucket {bucket_name} - S3 client not available")
             return []
         
         try:
-            import boto3
-            from botocore.config import Config
-            
-            account_id = self._credentials.account_id
-            r2_endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
-            
-            s3_client = boto3.client(
-                's3',
-                endpoint_url=r2_endpoint,
-                aws_access_key_id=self._credentials.r2_access_key_id,
-                aws_secret_access_key=self._credentials.r2_secret_access_key,
-                config=Config(signature_version='s3v4'),
-                region_name='auto'
-            )
-            
             # List objects with optional prefix
             paginator = s3_client.get_paginator('list_objects_v2')
             page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)

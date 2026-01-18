@@ -514,11 +514,7 @@ class Cloudflare(System):
         Args:
             function: The cached function
         """
-        from sebs.cloudflare.triggers import LibraryTrigger, HTTPTrigger
-
-        for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
-            trigger.logging_handlers = self.logging_handlers
-            cast(LibraryTrigger, trigger).deployment_client = self
+        from sebs.cloudflare.triggers import HTTPTrigger
 
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
@@ -779,15 +775,11 @@ class Cloudflare(System):
         Returns:
             The created trigger
         """
-        from sebs.cloudflare.triggers import LibraryTrigger, HTTPTrigger
+        from sebs.cloudflare.triggers import HTTPTrigger
 
         worker = cast(CloudflareWorker, function)
 
-        if trigger_type == Trigger.TriggerType.LIBRARY:
-            trigger = LibraryTrigger(worker.name, self)
-            trigger.logging_handlers = self.logging_handlers
-            return trigger
-        elif trigger_type == Trigger.TriggerType.HTTP:
+        if trigger_type == Trigger.TriggerType.HTTP:
             account_id = worker.account_id or self.config.credentials.account_id
             worker_url = self._build_workers_dev_url(worker.name, account_id)
             trigger = HTTPTrigger(worker.name, worker_url)

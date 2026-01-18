@@ -40,7 +40,7 @@ class CloudflareWorker(Function):
     @staticmethod
     def deserialize(cached_config: dict) -> "CloudflareWorker":
         from sebs.faas.function import Trigger
-        from sebs.cloudflare.triggers import LibraryTrigger, HTTPTrigger
+        from sebs.cloudflare.triggers import HTTPTrigger
 
         cfg = FunctionConfig.deserialize(cached_config["config"])
         ret = CloudflareWorker(
@@ -54,14 +54,7 @@ class CloudflareWorker(Function):
         )
         
         for trigger in cached_config["triggers"]:
-            mapping = {
-                LibraryTrigger.typename(): LibraryTrigger,
-                HTTPTrigger.typename(): HTTPTrigger
-            }
-            trigger_type = cast(
-                Trigger,
-                mapping.get(trigger["type"]),
-            )
+            trigger_type = HTTPTrigger if trigger["type"] == HTTPTrigger.typename() else None
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         
