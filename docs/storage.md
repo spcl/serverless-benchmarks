@@ -129,6 +129,37 @@ healthy: 192.168.0.20:9012
 ```
 ```
 
+## Cloudflare Storage
+
+Cloudflare Workers integrate with cloud-native storage services provided by Cloudflare:
+
+### R2 Object Storage
+
+Cloudflare R2 provides S3-compatible object storage for benchmarks that require persistent file storage. SeBS automatically configures R2 buckets for benchmark input and output data.
+
+**Key Features:**
+- S3-compatible API
+- No egress fees
+- Global edge storage
+- Integrated with Workers through bindings
+
+**Configuration:**
+R2 configuration is handled automatically by SeBS when deploying to Cloudflare Workers. The storage resources are defined in your deployment configuration and SeBS manages bucket creation and access.
+
+### Durable Objects for NoSQL
+
+Cloudflare Durable Objects provide stateful storage for NoSQL operations required by benchmarks like the CRUD API (130.crud-api).
+
+**Key Features:**
+- Strongly consistent storage
+- Low-latency access from Workers
+- Built-in coordination primitives
+- Global replication
+
+**Usage:**
+SeBS configures Durable Objects bindings automatically when deploying container-based Workers that require NoSQL storage. The benchmark wrappers handle the interaction with Durable Objects through the standard SeBS storage interface.
+
+
 ## Lifecycle Management
 
 By default, storage containers are retained after experiments complete. This allows you to run multiple experiments without redeploying and repopulating storage.

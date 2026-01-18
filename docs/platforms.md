@@ -1,6 +1,6 @@
 # Platform Configuration
 
-SeBS supports three commercial serverless platforms: AWS Lambda, Azure Functions, and Google Cloud Functions.
+SeBS supports four commercial serverless platforms: AWS Lambda, Azure Functions, Google Cloud Functions, and Cloudflare Workers.
 Furthermore, we support the open source FaaS system OpenWhisk.
 
 The file `config/example.json` contains all parameters that users can change
@@ -17,6 +17,7 @@ Supported platforms:
 * [Amazon Web Services (AWS) Lambda](#aws-lambda)
 * [Microsoft Azure Functions](#azure-functions)
 * [Google Cloud (GCP) Functions](#google-cloud-functions)
+* [Cloudflare Workers](#cloudflare-workers)
 * [OpenWhisk](#openwhisk)
 
 ## Storage Configuration
@@ -175,6 +176,80 @@ or in the JSON input configuration:
   }
 }
 ```
+
+## Cloudflare Workers
+
+Cloudflare offers a free tier for Workers with generous limits for development and testing. To use Cloudflare Workers with SeBS, you need to create a Cloudflare account and obtain API credentials.
+
+### Credentials
+
+You can authenticate with Cloudflare using an API token (recommended) or email + API key. Additionally, you need your account ID which can be found in the Cloudflare dashboard.
+
+You can pass credentials using environment variables:
+
+```bash
+# Option 1: Using API Token (recommended)
+export CLOUDFLARE_API_TOKEN="your-api-token"
+export CLOUDFLARE_ACCOUNT_ID="your-account-id"
+
+# Option 2: Using Email + API Key
+export CLOUDFLARE_EMAIL="your-email@example.com"
+export CLOUDFLARE_API_KEY="your-global-api-key"
+export CLOUDFLARE_ACCOUNT_ID="your-account-id"
+```
+
+or in the JSON configuration file:
+
+```json
+"deployment": {
+  "name": "cloudflare",
+  "cloudflare": {
+    "credentials": {
+      "api_token": "your-api-token",
+      "account_id": "your-account-id"
+    },
+    "resources": {
+      "resources_id": "unique-resource-id"
+    }
+  }
+}
+```
+
+**Note**: The `resources_id` is used to uniquely identify and track resources created by SeBS for a specific deployment.
+
+### Language Support
+
+Cloudflare Workers support multiple languages through different deployment methods:
+
+- **JavaScript/Node.js**: Supported via script-based deployment or container-based deployment using Wrangler CLI
+- **Python**: Supported via script-based deployment or container-based deployment using Wrangler CLI
+
+Container-based deployments use Cloudflare's container runtime and require the Wrangler CLI to be installed (`npm install -g wrangler`).
+
+### Trigger Support
+
+- **HTTP Trigger**: ✅ Fully supported - Workers are automatically accessible at `https://{name}.{account}.workers.dev`
+- **Library Trigger**: ❌ Not currently supported
+
+### Platform Limitations
+
+- **Cold Start Detection**: Cloudflare does not expose cold start information. All invocations report `is_cold: false` in the metrics. This limitation means cold start metrics are not available for Cloudflare Workers benchmarks.
+- **Memory/Timeout Configuration (Workers)**: Managed by Cloudflare (128MB memory, 30s CPU time on free tier)
+- **Memory/Timeout Configuration (Containers)**: Managed by Cloudflare, available in different tiers:
+
+  | Instance Type | vCPU | Memory | Disk |
+  |---------------|------|--------|------|
+  | lite | 1/16 | 256 MiB | 2 GB |
+  | basic | 1/4 | 1 GiB | 4 GB |
+  | standard-1 | 1/2 | 4 GiB | 8 GB |
+  | standard-2 | 1 | 6 GiB | 12 GB |
+  | standard-3 | 2 | 8 GiB | 16 GB |
+  | standard-4 | 4 | 12 GiB | 20 GB |
+- **Metrics Collection**: Uses response-based per-invocation metrics. Cloudflare does expose an Analytics engine, but it only provides aggregated metrics, no individual request metrics. Which is useless for our benchmarking purposes.
+
+### Storage Configuration
+
+Cloudflare Workers integrate with Cloudflare R2 for object storage and Durable Objects for NoSQL storage. For detailed storage configuration, see the [storage documentation](storage.md#cloudflare-storage).
 
 ## OpenWhisk
 
