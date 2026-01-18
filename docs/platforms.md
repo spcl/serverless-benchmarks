@@ -224,7 +224,9 @@ Cloudflare Workers support multiple languages through different deployment metho
 - **JavaScript/Node.js**: Supported via script-based deployment or container-based deployment using Wrangler CLI
 - **Python**: Supported via script-based deployment or container-based deployment using Wrangler CLI
 
-Container-based deployments use Cloudflare's container runtime and require the Wrangler CLI to be installed (`npm install -g wrangler`).
+### CLI Container
+
+SeBS uses a containerized CLI approach for Cloudflare deployments, eliminating the need to install Node.js, npm, wrangler, pywrangler, or uv on your host system. The CLI container (`sebs/manage.cloudflare`) is automatically built on first use and contains all necessary tools. This ensures consistent behavior across platforms and simplifies setup—only Docker is required.
 
 ### Trigger Support
 

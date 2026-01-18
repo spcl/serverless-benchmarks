@@ -10,6 +10,7 @@ from typing import cast, Dict, List, Optional, Tuple, Type
 import docker
 import requests
 
+from sebs.cloudflare.cli import CloudflareCLI
 from sebs.cloudflare.config import CloudflareConfig
 from sebs.cloudflare.function import CloudflareWorker
 from sebs.cloudflare.resources import CloudflareSystemResources
@@ -65,10 +66,12 @@ class Cloudflare(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._api_base_url = "https://api.cloudflare.com/client/v4"
-        # cached workers.dev subdomain for the account (e.g. 'marcin-copik')
+        # cached workers.dev subdomain for the account 
         # This is different from the account ID and is required to build
         # public worker URLs like <name>.<subdomain>.workers.dev
         self._workers_dev_subdomain: Optional[str] = None
+        # Initialize CLI container for wrangler/pywrangler operations
+        self._cli: Optional[CloudflareCLI] = None
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         """
@@ -154,74 +157,15 @@ class Cloudflare(System):
             )
 
         self.logging.info("Cloudflare credentials verified successfully")
-
-    def _ensure_wrangler_installed(self):
-        """Ensure Wrangler CLI is installed and available."""
-        try:
-            result = subprocess.run(
-                ["wrangler", "--version"],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=10
-            )
-            version = result.stdout.strip()
-            self.logging.info(f"Wrangler is installed: {version}")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self.logging.info("Wrangler not found, installing globally via npm...")
-            try:
-                result = subprocess.run(
-                    ["npm", "install", "-g", "wrangler"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                    timeout=120
-                )
-                self.logging.info("Wrangler installed successfully")
-                if result.stdout:
-                    self.logging.debug(f"npm install wrangler output: {result.stdout}")
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to install Wrangler: {e.stderr}")
-            except FileNotFoundError:
-                raise RuntimeError(
-                    "npm not found. Please install Node.js and npm to use Wrangler for deployment."
-                )
-        except subprocess.TimeoutExpired:
-            raise RuntimeError("Wrangler version check timed out")
-
-    def _ensure_pywrangler_installed(self):
-        """Necessary to download python dependencies"""
-        try:
-            result = subprocess.run(
-                ["pywrangler", "--version"],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=10
-            )
-            version = result.stdout.strip()
-            self.logging.info(f"pywrangler is installed: {version}")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self.logging.info("pywrangler not found, installing globally via uv tool install...")
-            try:
-                result = subprocess.run(
-                    ["uv", "tool", "install", "workers-py"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                    timeout=120
-                )
-                self.logging.info("pywrangler installed successfully")
-                if result.stdout:
-                    self.logging.debug(f"uv tool install workers-py output: {result.stdout}")
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to install pywrangler: {e.stderr}")
-            except FileNotFoundError:
-                raise RuntimeError(
-                    "uv not found. Please install uv."
-                )
-        except subprocess.TimeoutExpired:
-            raise RuntimeError("pywrangler version check timed out")
+    
+    def _get_cli(self) -> CloudflareCLI:
+        """Get or initialize the Cloudflare CLI container."""
+        if self._cli is None:
+            self._cli = CloudflareCLI(self.system_config, self.docker_client)
+            # Verify wrangler is available
+            version = self._cli.check_wrangler_version()
+            self.logging.info(f"Cloudflare CLI container ready: {version}")
+        return self._cli
 
 
     def _generate_wrangler_toml(self, worker_name: str, package_dir: str, language: str, account_id: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None, container_deployment: bool = False, container_uri: str = "") -> str:
@@ -241,23 +185,10 @@ class Cloudflare(System):
         Returns:
             Path to the generated wrangler.toml file
         """
-        # Container deployment configuration
         if container_deployment:
-            # Containers ALWAYS use Node.js worker.js for orchestration (@cloudflare/containers is Node.js only)
-            # The container itself can run any language (Python, Node.js, etc.)
-            # R2 and NoSQL access is proxied through worker.js which has the bindings
-            
-            # Determine if this benchmark needs larger disk space
-            # 411.image-recognition needs more disk for PyTorch models
-            # 311.compression needs more disk for file compression operations
-            # 504.dna-visualisation needs more disk for DNA sequence processing
-            # Python containers need even more space due to zip file creation doubling disk usage
             instance_type = ""
             if benchmark_name and ("411.image-recognition" in benchmark_name or "311.compression" in benchmark_name or "504.dna-visualisation" in benchmark_name):
-                # Use "standard" (largest) for Python, "standard-4" for Node.js
-                # if language == "python":
-                #     instance_type = '\ninstance_type = "standard-4"  # Largest available - needed for Python zip operations\n'
-                # else:
+                self.logging.warning("Using standard-4 instance type for high resource benchmark")
                 instance_type = '\ninstance_type = "standard-4"  # 20GB Disk, 12GB Memory\n'
             
             toml_content = f"""name = "{worker_name}"
@@ -467,52 +398,47 @@ bucket_name = "{bucket_name}"
 
         # Install dependencies
         if language_name == "nodejs":
-            # Ensure Wrangler is installed
-            self._ensure_wrangler_installed()
-
             package_file = os.path.join(directory, "package.json")
             node_modules = os.path.join(directory, "node_modules")
 
             # Only install if package.json exists and node_modules doesn't
             if os.path.exists(package_file) and not os.path.exists(node_modules):
                 self.logging.info(f"Installing Node.js dependencies in {directory}")
+                # Use CLI container for npm install - no Node.js/npm needed on host
+                cli = self._get_cli()
+                container_path = f"/tmp/npm_install/{os.path.basename(directory)}"
+                
                 try:
+                    # Upload package directory to container
+                    cli.upload_package(directory, container_path)
+                    
                     # Install production dependencies
-                    result = subprocess.run(
-                        ["npm", "install"],
-                        cwd=directory,
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                        timeout=120
-                    )
+                    self.logging.info("Installing npm dependencies in container...")
+                    output = cli.npm_install(container_path)
                     self.logging.info("npm install completed successfully")
-                    if result.stdout:
-                        self.logging.debug(f"npm output: {result.stdout}")
+                    self.logging.debug(f"npm output: {output}")
 
                     # Install esbuild as a dev dependency (needed by build.js)
                     self.logging.info("Installing esbuild for custom build script...")
-                    result = subprocess.run(
-                        ["npm", "install", "--save-dev", "esbuild"],
-                        cwd=directory,
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                        timeout=60
-                    )
+                    cli.execute(f"cd {container_path} && npm install --save-dev esbuild")
                     self.logging.info("esbuild installed successfully")
+                    
+                    # Download node_modules back to host
+                    import tarfile
+                    import io
+                    bits, stat = cli.docker_instance.get_archive(f"{container_path}/node_modules")
+                    file_obj = io.BytesIO()
+                    for chunk in bits:
+                        file_obj.write(chunk)
+                    file_obj.seek(0)
+                    with tarfile.open(fileobj=file_obj) as tar:
+                        tar.extractall(directory)
+                    
+                    self.logging.info(f"Downloaded node_modules to {directory}")
 
-
-                except subprocess.TimeoutExpired:
-                    self.logging.error("npm install timed out")
-                    raise RuntimeError("Failed to install Node.js dependencies: timeout")
-                except subprocess.CalledProcessError as e:
-                    self.logging.error(f"npm install failed: {e.stderr}")
-                    raise RuntimeError(f"Failed to install Node.js dependencies: {e.stderr}")
-                except FileNotFoundError:
-                    raise RuntimeError(
-                        "npm not found. Please install Node.js and npm to deploy Node.js benchmarks."
-                    )
+                except Exception as e:
+                    self.logging.error(f"npm install in container failed: {e}")
+                    raise RuntimeError(f"Failed to install Node.js dependencies: {e}")
             elif os.path.exists(node_modules):
                 self.logging.info(f"Node.js dependencies already installed in {directory}")
 
@@ -520,22 +446,29 @@ bucket_name = "{bucket_name}"
                 esbuild_path = os.path.join(node_modules, "esbuild")
                 if not os.path.exists(esbuild_path):
                     self.logging.info("Installing esbuild for custom build script...")
+                    cli = self._get_cli()
+                    container_path = f"/tmp/npm_install/{os.path.basename(directory)}"
+                    
                     try:
-                        subprocess.run(
-                            ["npm", "install", "--save-dev", "esbuild"],
-                            cwd=directory,
-                            capture_output=True,
-                            text=True,
-                            check=True,
-                            timeout=60
-                        )
+                        cli.upload_package(directory, container_path)
+                        cli.execute(f"cd {container_path} && npm install --save-dev esbuild")
+                        
+                        # Download node_modules back
+                        import tarfile
+                        import io
+                        bits, stat = cli.docker_instance.get_archive(f"{container_path}/node_modules")
+                        file_obj = io.BytesIO()
+                        for chunk in bits:
+                            file_obj.write(chunk)
+                        file_obj.seek(0)
+                        with tarfile.open(fileobj=file_obj) as tar:
+                            tar.extractall(directory)
+                        
                         self.logging.info("esbuild installed successfully")
                     except Exception as e:
                         self.logging.warning(f"Failed to install esbuild: {e}")
 
         elif language_name == "python":
-            # Ensure Wrangler is installed
-            self._ensure_pywrangler_installed()
 
             requirements_file = os.path.join(directory, "requirements.txt")
             if os.path.exists(f"{requirements_file}.{language_version}"):
@@ -893,16 +826,31 @@ dev = [
         
         # Install Node.js dependencies (needed for all containers for worker.js)
         self.logging.info(f"Installing @cloudflare/containers for worker.js orchestration in {directory}")
+        # Use CLI container for npm install - no Node.js/npm needed on host
+        cli = self._get_cli()
+        container_path = f"/tmp/container_npm/{os.path.basename(directory)}"
+        
         try:
-            result = subprocess.run(
-                ["npm", "install", "--production"],
-                cwd=directory,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=120
-            )
+            # Upload package directory to container
+            cli.upload_package(directory, container_path)
+            
+            # Install production dependencies
+            output = cli.execute(f"cd {container_path} && npm install --production")
             self.logging.info("npm install completed successfully")
+            self.logging.debug(f"npm output: {output.decode('utf-8')}")
+            
+            # Download node_modules back to host
+            import tarfile
+            import io
+            bits, stat = cli.docker_instance.get_archive(f"{container_path}/node_modules")
+            file_obj = io.BytesIO()
+            for chunk in bits:
+                file_obj.write(chunk)
+            file_obj.seek(0)
+            with tarfile.open(fileobj=file_obj) as tar:
+                tar.extractall(directory)
+            
+            self.logging.info(f"Downloaded node_modules to {directory}")
         except Exception as e:
             self.logging.error(f"npm install failed: {e}")
             raise RuntimeError(f"Failed to install Node.js dependencies: {e}")
@@ -1122,7 +1070,7 @@ dev = [
     def _create_or_update_worker(
         self, worker_name: str, package_dir: str, account_id: str, language: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None, container_deployment: bool = False, container_uri: str = ""
     ) -> dict:
-        """Create or update a Cloudflare Worker using Wrangler CLI.
+        """Create or update a Cloudflare Worker using Wrangler CLI in container.
 
         Args:
             worker_name: Name of the worker
@@ -1140,14 +1088,8 @@ dev = [
         # Generate wrangler.toml for this worker
         self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name, code_package, container_deployment, container_uri)
 
-        # Set up environment for Wrangler
-        env = os.environ.copy()
-        
-        # Add uv tools bin directory to PATH for pywrangler access
-        home_dir = os.path.expanduser("~")
-        uv_bin_dir = os.path.join(home_dir, ".local", "share", "uv", "tools", "workers-py", "bin")
-        if os.path.exists(uv_bin_dir):
-            env['PATH'] = f"{uv_bin_dir}:{env.get('PATH', '')}"
+        # Set up environment for Wrangler CLI in container
+        env = {}
         
         if self.config.credentials.api_token:
             env['CLOUDFLARE_API_TOKEN'] = self.config.credentials.api_token
@@ -1157,34 +1099,27 @@ dev = [
 
         env['CLOUDFLARE_ACCOUNT_ID'] = account_id
 
-        # Deploy using Wrangler
-        self.logging.info(f"Deploying worker {worker_name} using Wrangler...")
+        # Get CLI container instance
+        cli = self._get_cli()
 
-        # For container deployments, always use wrangler (not pywrangler)
-        # For native deployments, use wrangler for nodejs, pywrangler for python
-        if container_deployment:
-            wrangler_cmd = "wrangler"
-        else:
-            wrangler_cmd = "wrangler" if language == "nodejs" else "pywrangler"
+        # Upload package directory to container
+        container_package_path = f"/tmp/workers/{worker_name}"
+        self.logging.info(f"Uploading package to container: {container_package_path}")
+        cli.upload_package(package_dir, container_package_path)
+
+        # Deploy using Wrangler in container
+        self.logging.info(f"Deploying worker {worker_name} using Wrangler in container...")
 
         try:
-            # Increase timeout for large container images (e.g., 411.image-recognition with PyTorch)
-            # Container deployment requires pushing large images to Cloudflare
-            deploy_timeout = 1200 if container_deployment else 180  # 20 minutes for containers, 3 for native
-            
-            result = subprocess.run(
-                [wrangler_cmd, "deploy"],
-                cwd=package_dir,
-                env=env,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=deploy_timeout
-            )
+            # For container deployments, always use wrangler (not pywrangler)
+            # For native deployments, use wrangler for nodejs, pywrangler for python
+            if container_deployment or language == "nodejs":
+                output = cli.wrangler_deploy(container_package_path, env=env)
+            else:  # python native
+                output = cli.pywrangler_deploy(container_package_path, env=env)
 
             self.logging.info(f"Worker {worker_name} deployed successfully")
-            if result.stdout:
-                self.logging.debug(f"Wrangler deploy output: {result.stdout}")
+            self.logging.debug(f"Wrangler deploy output: {output}")
 
             # For container deployments, wait for Durable Object infrastructure to initialize
             # The container binding needs time to propagate before first invocation
@@ -1192,11 +1127,6 @@ dev = [
                 self.logging.info("Waiting for container Durable Object to initialize...")
                 self._wait_for_durable_object_ready(worker_name, package_dir, env)
             
-            # for benchmarks 220, 311, 411 we need to wait longer after deployment
-            # if benchmark_name in ["220.video-processing", "311.compression", "411.image-recognition", "504.dna-visualisation"]:
-            #     self.logging.info("Waiting 120 seconds for benchmark initialization...")
-            #     time.sleep(400)
-
             # For container deployments, wait for Durable Object infrastructure to initialize
             # The container binding needs time to propagate before first invocation
             if container_deployment:
@@ -1207,14 +1137,10 @@ dev = [
             # Wrangler typically outputs: "Published <worker-name> (<version>)"
             # and "https://<worker-name>.<subdomain>.workers.dev"
 
-            return {"success": True, "output": result.stdout}
+            return {"success": True, "output": output}
 
-        except subprocess.TimeoutExpired:
-            raise RuntimeError(f"Wrangler deployment timed out for worker {worker_name}")
-        except subprocess.CalledProcessError as e:
-            error_msg = f"Wrangler deployment failed for worker {worker_name}"
-            if e.stderr:
-                error_msg += f": {e.stderr}"
+        except RuntimeError as e:
+            error_msg = f"Wrangler deployment failed for worker {worker_name}: {str(e)}"
             self.logging.error(error_msg)
             raise RuntimeError(error_msg)
 
@@ -1288,7 +1214,7 @@ dev = [
         subdomain (the readable name used in *.workers.dev), e.g.
         GET /accounts/{account_id}/workers/subdomain
 
-        Returns the subdomain string (e.g. 'marcin-copik') or None on failure.
+        Returns the subdomain string or None on failure.
         """
         if self._workers_dev_subdomain:
             return self._workers_dev_subdomain
@@ -1642,10 +1568,15 @@ dev = [
         """
         Shutdown the Cloudflare system.
 
-        Saves configuration to cache.
+        Saves configuration to cache and shuts down CLI container.
         """
         try:
             self.cache_client.lock()
             self.config.update_cache(self.cache_client)
         finally:
             self.cache_client.unlock()
+        
+        # Shutdown CLI container if it was initialized
+        if self._cli is not None:
+            self._cli.shutdown()
+            self._cli = None
