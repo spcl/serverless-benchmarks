@@ -114,7 +114,7 @@ class CloudflareContainersDeployment:
                 # Add durable object bindings for each nosql table
                 for table_name in nosql_tables.keys():
                     config['durable_objects']['bindings'].append({
-                        'name': table_name.upper(),
+                        'name': table_name,
                         'class_name': 'KVApiObject'
                     })
                 
