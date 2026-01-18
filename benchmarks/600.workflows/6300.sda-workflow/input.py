@@ -83,7 +83,7 @@ class SDAConfig:
         configs = {
             "test": SDAConfig(memgraph_config, splits=0, required_area=5000.0, max_edge_distance=3000.0, max_neighbours=5, clustering_distance=500.0, merge_workers=1, visualize_edges=False),
             "small": SDAConfig(memgraph_config, splits=1, required_area=500.0, max_edge_distance=1000.0, max_neighbours=5, clustering_distance=500.0, merge_workers=2, visualize_edges=True),
-            "large": SDAConfig(memgraph_config, splits=2, required_area=500.0, max_edge_distance=2000.0, max_neighbours=5, clustering_distance=200.0, merge_workers=2, visualize_edges=True),
+            "large": SDAConfig(memgraph_config, splits=2, required_area=500.0, max_edge_distance=500.0, max_neighbours=5, clustering_distance=200.0, merge_workers=2, visualize_edges=True),
         }
         return configs[size]
     
