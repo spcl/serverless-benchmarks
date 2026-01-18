@@ -245,7 +245,7 @@ Container-based deployments use Cloudflare's container runtime and require the W
   | standard-2 | 1 | 6 GiB | 12 GB |
   | standard-3 | 2 | 8 GiB | 16 GB |
   | standard-4 | 4 | 12 GiB | 20 GB |
-- **Metrics Collection**: Uses response-based per-invocation metrics. Cloudflare does expose an Analytics engine, but it only provides aggregated metrics, no individual request metrics. Which is useless for our benchmarking purposes.
+- **Metrics Collection**: Uses response-based per-invocation metrics. During each function invocation, the worker handler measures performance metrics (CPU time, wall time, memory usage) and embeds them directly in the JSON response. SeBS extracts these metrics immediately from each response. When `download_metrics()` is called for postprocessing, it only aggregates the metrics that were already collected during invocations—no additional data is fetched from external services. This approach provides immediate per-invocation granularity without delays. Note that while Cloudflare does expose an Analytics Engine, it only provides aggregated metrics without individual request-level data, making it unsuitable for detailed benchmarking purposes.
 
 ### Storage Configuration
 
