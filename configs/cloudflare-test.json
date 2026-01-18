@@ -13,7 +13,14 @@
   },
   "deployment": {
     "name": "cloudflare",
-    "cloudflare": {},
+    "cloudflare": {
+      "credentials": {
+        "api_token": "<your-api-token>",
+        "account_id": "<your-account-id>",
+        "r2_access_key_id": "<your-r2-access-key-id>",
+        "r2_secret_access_key": "<your-r2-secret-access-key>"
+      }
+    },
     "container": false
   }
 }
