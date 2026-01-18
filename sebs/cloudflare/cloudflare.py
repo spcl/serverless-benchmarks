@@ -1035,12 +1035,8 @@ dev = [
                 account_id,
             )
 
-        # Add LibraryTrigger and HTTPTrigger
-        from sebs.cloudflare.triggers import LibraryTrigger, HTTPTrigger
-
-        library_trigger = LibraryTrigger(func_name, self)
-        library_trigger.logging_handlers = self.logging_handlers
-        worker.add_trigger(library_trigger)
+        # Add HTTPTrigger
+        from sebs.cloudflare.triggers import HTTPTrigger
 
         # Build worker URL using the account's workers.dev subdomain when possible.
         # Falls back to account_id-based host or plain workers.dev with warnings.
