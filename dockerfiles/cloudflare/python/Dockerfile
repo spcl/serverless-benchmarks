@@ -1,4 +1,5 @@
-FROM python:3.11-slim
+ARG BASE_IMAGE=python:3.11-slim
+FROM ${BASE_IMAGE}
 
 # Install system dependencies (ffmpeg for video processing benchmarks)
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -446,7 +446,7 @@ bucket_name = "{bucket_name}"
         if container_deployment:
             self.logging.info(f"Building container image for {benchmark}")
             return self._package_code_container(
-                directory, language_name, language_version, benchmark
+                directory, language_name, language_version, architecture, benchmark
             )
         
         # Native worker deployment flow (existing logic)
@@ -666,6 +666,7 @@ dev = [
         directory: str,
         language_name: str,
         language_version: str,
+        architecture: str,
         benchmark: str,
     ) -> Tuple[str, int, str]:
         """
@@ -699,7 +700,32 @@ dev = [
         )
         dockerfile_dest = os.path.join(directory, "Dockerfile")
         if os.path.exists(dockerfile_src):
-            shutil.copy2(dockerfile_src, dockerfile_dest)
+            # Read Dockerfile and update BASE_IMAGE based on language version
+            with open(dockerfile_src, 'r') as f:
+                dockerfile_content = f.read()
+            
+            # Get base image from systems.json for container deployments
+            container_images = self.system_config.benchmark_container_images(
+                "cloudflare", language_name, architecture
+            )
+            base_image = container_images.get(language_version)
+            if not base_image:
+                raise RuntimeError(
+                    f"No container base image found in systems.json for {language_name} {language_version} on {architecture}"
+                )
+            
+            # Replace BASE_IMAGE default value in ARG line
+            import re
+            dockerfile_content = re.sub(
+                r'ARG BASE_IMAGE=.*',
+                f'ARG BASE_IMAGE={base_image}',
+                dockerfile_content
+            )
+            
+            # Write modified Dockerfile
+            with open(dockerfile_dest, 'w') as f:
+                f.write(dockerfile_content)
+            
             self.logging.info(f"Copied Dockerfile from {dockerfile_src}")
         else:
             raise RuntimeError(f"Dockerfile not found at {dockerfile_src}")
@@ -953,6 +979,7 @@ dev = [
         try:
             # Build the Docker image locally (no push)
             # Use --no-cache to ensure handler changes are picked up
+            # Note: BASE_IMAGE is already set in the Dockerfile, no need to pass as build arg
             result = subprocess.run(
                 ["docker", "build", "--no-cache", "-t", image_tag, "."],
                 cwd=directory,

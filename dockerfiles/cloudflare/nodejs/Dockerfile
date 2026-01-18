@@ -1,4 +1,5 @@
-FROM node:18-slim
+ARG BASE_IMAGE=node:18-slim
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
