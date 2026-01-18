@@ -146,6 +146,9 @@ Cloudflare R2 provides S3-compatible object storage for benchmarks that require 
 **Configuration:**
 R2 configuration is handled automatically by SeBS when deploying to Cloudflare Workers. The storage resources are defined in your deployment configuration and SeBS manages bucket creation and access.
 
+**Limitations:**
+- Geographic location hints (locationHint) are not currently supported. R2 buckets are created with Cloudflare's automatic location selection, which places data near where it's most frequently accessed.
+
 ### Durable Objects for NoSQL
 
 Cloudflare Durable Objects provide stateful storage for NoSQL operations required by benchmarks like the CRUD API (130.crud-api).

@@ -75,8 +75,14 @@ class R2(PersistentStorage):
 
         # R2 API only accepts "name" parameter - locationHint is optional and must be one of:
         # "apac", "eeur", "enam", "weur", "wnam"
-        # For now, just send the name without locationHint
+        # WARNING: locationHint is not currently supported by SeBS. Buckets are created
+        # with Cloudflare's automatic location selection.
         params = {"name": name}
+        
+        self.logging.warning(
+            f"Creating R2 bucket '{name}' without locationHint. "
+            "Geographic location is determined automatically by Cloudflare."
+        )
 
         try:
             create_bucket_response = requests.post(
