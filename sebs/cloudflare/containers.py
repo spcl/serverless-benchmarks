@@ -12,6 +12,15 @@ import io
 import re
 import time
 import tarfile
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    import tomli as tomllib  # Fallback for older Python
+try:
+    import tomli_w
+except ImportError:
+    # Fallback to basic TOML writing if tomli_w not available
+    import toml as tomli_w
 from typing import Optional, Tuple
 
 import docker
@@ -74,102 +83,80 @@ class CloudflareContainersDeployment:
         Returns:
             Path to the generated wrangler.toml file
         """
-        instance_type = ""
-        if benchmark_name and ("411.image-recognition" in benchmark_name or "311.compression" in benchmark_name or "504.dna-visualisation" in benchmark_name):
-            self.logging.warning("Using standard-4 instance type for high resource benchmark")
-            instance_type = '\ninstance_type = "standard-4"  # 20GB Disk, 12GB Memory\n'
+        # Load template
+        template_path = os.path.join(
+            os.path.dirname(__file__), 
+            "../..", 
+            "templates", 
+            "wrangler-container.toml"
+        )
+        with open(template_path, 'rb') as f:
+            config = tomllib.load(f)
         
-        toml_content = f"""name = "{worker_name}"
-main = "worker.js"
-compatibility_date = "2025-11-18"
-account_id = "{account_id}"
-compatibility_flags = ["nodejs_compat"]
-
-[observability]
-enabled = true
-
-[[containers]]
-max_instances = 10
-class_name = "ContainerWorker"
-image = "./Dockerfile"{instance_type}
-
-# Durable Object binding for Container class (required by @cloudflare/containers)
-[[durable_objects.bindings]]
-name = "CONTAINER_WORKER"
-class_name = "ContainerWorker"
-
-"""
+        # Update basic configuration
+        config['name'] = worker_name
+        config['account_id'] = account_id
+        
+        # Update container configuration with instance type if needed
+        if benchmark_name and ("411.image-recognition" in benchmark_name or 
+                              "311.compression" in benchmark_name or 
+                              "504.dna-visualisation" in benchmark_name):
+            self.logging.warning("Using standard-4 instance type for high resource benchmark")
+            config['containers'][0]['instance_type'] = "standard-4"
+        
         # Add nosql table bindings if benchmark uses them
         if code_package and code_package.uses_nosql:
             # Get registered nosql tables for this benchmark
             nosql_storage = self.system_resources.get_nosql_storage()
             if nosql_storage.retrieve_cache(benchmark_name):
                 nosql_tables = nosql_storage._tables.get(benchmark_name, {})
+                
+                # Add durable object bindings for each nosql table
                 for table_name in nosql_tables.keys():
-                    toml_content += f"""# Durable Object binding for NoSQL table: {table_name}
-[[durable_objects.bindings]]
-name = "{table_name.upper()}"
-class_name = "KVApiObject"
-
-"""
-            
-            # Add migrations for both ContainerWorker and KVApiObject
-            # Both need new_sqlite_classes (Container requires SQLite DO backend)
-            toml_content += """[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["ContainerWorker", "KVApiObject"]
-
-"""
-        else:
-            # Container without nosql - only ContainerWorker migration
-            toml_content += """[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["ContainerWorker"]
-
-"""
-
+                    config['durable_objects']['bindings'].append({
+                        'name': table_name.upper(),
+                        'class_name': 'KVApiObject'
+                    })
+                
+                # Update migrations to include KVApiObject
+                config['migrations'][0]['new_sqlite_classes'].append('KVApiObject')
+        
         # Add environment variables
-        vars_content = ""
-        if benchmark_name:
-            vars_content += f'BENCHMARK_NAME = "{benchmark_name}"\n'
-
-        # Add nosql configuration if benchmark uses it
-        if code_package and code_package.uses_nosql:
-            vars_content += 'NOSQL_STORAGE_DATABASE = "durable_objects"\n'
-
-        if vars_content:
-            toml_content += f"""# Environment variables
-[vars]
-{vars_content}
-"""
-
-        # Add R2 bucket binding for benchmarking files
-        r2_bucket_configured = False
+        if benchmark_name or (code_package and code_package.uses_nosql):
+            config['vars'] = {}
+            if benchmark_name:
+                config['vars']['BENCHMARK_NAME'] = benchmark_name
+            if code_package and code_package.uses_nosql:
+                config['vars']['NOSQL_STORAGE_DATABASE'] = "durable_objects"
+        
+        # Add R2 bucket binding
         try:
             from sebs.faas.config import Resources
             storage = self.system_resources.get_storage()
             bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
             if bucket_name:
-                toml_content += f"""# R2 bucket binding for benchmarking files
-# This bucket is used by fs and path polyfills to read benchmark data
-[[r2_buckets]]
-binding = "R2"
-bucket_name = "{bucket_name}"
-
-"""
-                r2_bucket_configured = True
+                config['r2_buckets'] = [{
+                    'binding': 'R2',
+                    'bucket_name': bucket_name
+                }]
                 self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
         except Exception as e:
             self.logging.warning(
                 f"R2 bucket binding not configured: {e}. "
                 f"Benchmarks requiring file access will not work properly."
             )
-
+        
         # Write wrangler.toml to package directory
         toml_path = os.path.join(package_dir, "wrangler.toml")
-        with open(toml_path, 'w') as f:
-            f.write(toml_content)
-
+        try:
+            # Try tomli_w (writes binary)
+            with open(toml_path, 'wb') as f:
+                tomli_w.dump(config, f)
+        except TypeError:
+            # Fallback to toml library (writes text)
+            with open(toml_path, 'w') as f:
+                f.write(tomli_w.dumps(config))
+        
         self.logging.info(f"Generated wrangler.toml at {toml_path}")
         return toml_path
 

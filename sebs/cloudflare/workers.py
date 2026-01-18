@@ -10,6 +10,15 @@ import shutil
 import json
 import io
 import tarfile
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    import tomli as tomllib  # Fallback for older Python
+try:
+    import tomli_w
+except ImportError:
+    # Fallback to basic TOML writing if tomli_w not available
+    import toml as tomli_w
 from typing import Optional, Tuple
 
 from sebs.benchmark import Benchmark
@@ -68,92 +77,77 @@ class CloudflareWorkersDeployment:
         Returns:
             Path to the generated wrangler.toml file
         """
-        # Native worker configuration
-        main_file = "dist/handler.js" if language == "nodejs" else "handler.py"
-
-        # Build wrangler.toml content
-        toml_content = f"""name = "{worker_name}"
-main = "{main_file}"
-compatibility_date = "2025-11-18"
-account_id = "{account_id}"
-"""
-
+        # Load template
+        template_path = os.path.join(
+            os.path.dirname(__file__), 
+            "../..", 
+            "templates", 
+            "wrangler-worker.toml"
+        )
+        with open(template_path, 'rb') as f:
+            config = tomllib.load(f)
+        
+        # Update basic configuration
+        config['name'] = worker_name
+        config['main'] = "dist/handler.js" if language == "nodejs" else "handler.py"
+        config['account_id'] = account_id
+        
+        # Add language-specific configuration
         if language == "nodejs":
-            toml_content += """# Use nodejs_compat for Node.js built-in support
-compatibility_flags = ["nodejs_compat"]
-no_bundle = true
-
-[build]
-command = "node build.js"
-
-[[rules]]
-type = "ESModule"
-globs = ["**/*.js"]
-fallthrough = true
-
-[[rules]]
-type = "Text"
-globs = ["**/*.html"]
-fallthrough = true
-
-"""
+            config['compatibility_flags'] = ["nodejs_compat"]
+            config['no_bundle'] = True
+            config['build'] = {'command': 'node build.js'}
+            config['rules'] = [
+                {
+                    'type': 'ESModule',
+                    'globs': ['**/*.js'],
+                    'fallthrough': True
+                },
+                {
+                    'type': 'Text',
+                    'globs': ['**/*.html'],
+                    'fallthrough': True
+                }
+            ]
         elif language == "python":
-            toml_content += """# Enable Python Workers runtime
-compatibility_flags = ["python_workers"]
-"""
-
-        toml_content += """
-[[durable_objects.bindings]]
-name = "DURABLE_STORE"
-class_name = "KVApiObject"
-
-[[migrations]]
-tag = "v3"
-new_classes = ["KVApiObject"]
-"""
-
+            config['compatibility_flags'] = ["python_workers"]
+        
         # Add environment variables
-        vars_content = ""
-        if benchmark_name:
-            vars_content += f'BENCHMARK_NAME = "{benchmark_name}"\n'
-
-        # Add nosql configuration if benchmark uses it
-        if code_package and code_package.uses_nosql:
-            vars_content += 'NOSQL_STORAGE_DATABASE = "durable_objects"\n'
-
-        if vars_content:
-            toml_content += f"""# Environment variables
-[vars]
-{vars_content}
-"""
-
-        # Add R2 bucket binding for benchmarking files
-        r2_bucket_configured = False
+        if benchmark_name or (code_package and code_package.uses_nosql):
+            config['vars'] = {}
+            if benchmark_name:
+                config['vars']['BENCHMARK_NAME'] = benchmark_name
+            if code_package and code_package.uses_nosql:
+                config['vars']['NOSQL_STORAGE_DATABASE'] = "durable_objects"
+        
+        # Add R2 bucket binding
         try:
             from sebs.faas.config import Resources
             storage = self.system_resources.get_storage()
             bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
             if bucket_name:
-                toml_content += f"""# R2 bucket binding for benchmarking files
-# This bucket is used by fs and path polyfills to read benchmark data
-[[r2_buckets]]
-binding = "R2"
-bucket_name = "{bucket_name}"
-
-"""
-                r2_bucket_configured = True
+                config['r2_buckets'] = [{
+                    'binding': 'R2',
+                    'bucket_name': bucket_name
+                }]
                 self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
         except Exception as e:
             self.logging.warning(
                 f"R2 bucket binding not configured: {e}. "
                 f"Benchmarks requiring file access will not work properly."
             )
-
+        
         # Write wrangler.toml to package directory
         toml_path = os.path.join(package_dir, "wrangler.toml")
-        with open(toml_path, 'w') as f:
-            f.write(toml_content)
-
+        try:
+            # Try tomli_w (writes binary)
+            with open(toml_path, 'wb') as f:
+                tomli_w.dump(config, f)
+        except TypeError:
+            # Fallback to toml library (writes text)
+            with open(toml_path, 'w') as f:
+                f.write(tomli_w.dumps(config))
+        
         self.logging.info(f"Generated wrangler.toml at {toml_path}")
         return toml_path
 

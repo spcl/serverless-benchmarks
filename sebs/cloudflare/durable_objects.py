@@ -180,7 +180,7 @@ class DurableObjects(NoSQLStorage):
         :param name: table name
         :return: table name
         """
-        self.logging.info(f"Durable Objects data is managed within the Worker")
+        self.logging.warning(f"Durable Objects data is managed within the Worker")
         return name
 
     def remove_table(self, name: str) -> str:
