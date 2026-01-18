@@ -756,6 +756,22 @@ dev = [
                 shutil.copy2(src, dest)
                 self.logging.info(f"Copied container file: {file}")
         
+        # Check if benchmark has init.sh and copy it (needed for some benchmarks like video-processing)
+        # Look in both the benchmark root and the language-specific directory
+        from sebs.utils import find_benchmark
+        benchmark_path = find_benchmark(benchmark, "benchmarks")
+        if benchmark_path:
+            paths = [
+                benchmark_path,
+                os.path.join(benchmark_path, language_name),
+            ]
+            for path in paths:
+                init_sh = os.path.join(path, "init.sh")
+                if os.path.exists(init_sh):
+                    shutil.copy2(init_sh, os.path.join(directory, "init.sh"))
+                    self.logging.info(f"Copied init.sh from {path} for container build")
+                    break
+        
         # For Python containers, fix relative imports in benchmark code
         # Containers use flat structure, so "from . import storage" must become "import storage"
         if language_name == "python":

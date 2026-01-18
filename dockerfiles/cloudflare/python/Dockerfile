@@ -1,9 +1,10 @@
 ARG BASE_IMAGE=python:3.11-slim
 FROM ${BASE_IMAGE}
 
-# Install system dependencies (ffmpeg for video processing benchmarks)
+# Install system dependencies needed for benchmarks
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
+    wget \
+    xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -11,8 +12,13 @@ WORKDIR /app
 # Copy all application files first
 COPY . .
 
-# Create ffmpeg directory and symlink for video-processing benchmark compatibility
-RUN mkdir -p /app/ffmpeg && ln -s /usr/bin/ffmpeg /app/ffmpeg/ffmpeg
+# Run benchmark init script if it exists (e.g., for ffmpeg in video-processing)
+# This downloads static binaries needed by the benchmark
+# Note: ignore errors from init.sh (e.g., when resources already exist)
+RUN if [ -f "init.sh" ]; then \
+        chmod +x init.sh && \
+        ./init.sh /app verbose x64 || true; \
+    fi
 
 # Install dependencies
 # Core dependencies for wrapper modules:
