@@ -37,10 +37,10 @@
         "map_astros": {
             "type": "map",
             "array": "astros.people",
-            "root": "map_astros",
+            "root": "map",
             "next": "process_astros",
             "states": {
-              "map_astros": {
+              "map": {
                 "type": "task",
                 "func_name": "map_astros"
               }

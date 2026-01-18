@@ -363,7 +363,7 @@ class System(ABC, LoggingBase):
 
     def get_workflow(self, code_package: Benchmark, workflow_name: Optional[str] = None):
         if code_package.language_version not in self.system_config.supported_language_versions(
-            self.name(), code_package.language_name
+            self.name(), code_package.language_name, code_package.architecture
         ):
             raise Exception(
                 "Unsupported {language} version {version} in {system}!".format(
@@ -375,7 +375,7 @@ class System(ABC, LoggingBase):
 
         if not workflow_name:
             workflow_name = self.default_function_name(code_package)
-        rebuilt, _ = code_package.build(self.package_code, True)
+        rebuilt, _ , _ ,_= code_package.build(self.package_code, True)
 
         """
             There's no function with that name?

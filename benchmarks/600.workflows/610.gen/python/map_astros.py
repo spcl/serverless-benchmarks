@@ -1,7 +1,6 @@
 def handler(elem):
-    name = elem["name"]
-    fn, ln = name.split(" ")
-    name = " ".join([ln, fn])
-    elem["name_rev"] = name
-
+    full_name:str = elem["name"]
+    names = full_name.split(" ")
+    names.reverse()
+    elem["name_rev"] = " ".join(names)
     return elem

@@ -188,3 +188,11 @@ cache
 # IntelliJ IDEA files
 .idea
 *.iml
+
+# Local config
+config/config.json
+config/redis
+
+# Benchmark Results
+results/
+experiments.json

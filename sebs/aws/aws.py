@@ -165,7 +165,8 @@ class AWS(System):
                 "{{REDIS_PASSWORD}}",
                 f'"{self.config.resources.redis_password}"',
             )
-
+        assert not (code_package.container_deployment and code_package.benchmark_config.container_image is not None), \
+            "Custom container image specified in benchmark config collides with container deployment option."
         # if the containerized deployment is set to True
         if code_package.container_deployment:
             # build base image and upload to ECR
@@ -176,6 +177,15 @@ class AWS(System):
                 code_package.architecture,
                 code_package.benchmark,
                 is_cached,
+            )
+        if code_package.benchmark_config.container_image is not None:
+            _, container_uri =self.ecr_client.build_custom_image(
+                code_package.benchmark_config.container_image,
+                directory,
+                code_package.language_name,
+                code_package.language_version,
+                code_package.architecture,
+                code_package.benchmark,
             )
 
         package_config = CONFIG_FILES[code_package.language_name]
@@ -453,7 +463,7 @@ class AWS(System):
         code_files = list(code_package.get_code_files(include_config=False))
         func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
         funcs = [
-            self.create_function(code_package, workflow_name + "___" + fn) for fn in func_names
+            self.create_function(code_package, workflow_name + "___" + fn, code_package.container_deployment,code_package.container_uri if code_package.container_deployment else None) for fn in func_names
         ]
 
         # Generate workflow definition.json
@@ -527,7 +537,7 @@ class AWS(System):
         code_files = list(code_package.get_code_files(include_config=False))
         func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
         funcs = [
-            self.create_function(code_package, workflow.name + "___" + fn) for fn in func_names
+            self.create_function(code_package, workflow.name + "___" + fn,code_package.container_deployment,code_package.container_uri if code_package.container_deployment else None) for fn in func_names
         ]
 
         # Generate workflow definition.json

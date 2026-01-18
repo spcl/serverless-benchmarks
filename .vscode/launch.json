@@ -1,0 +1,84 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "SeBS Benchmark Workflow 610",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/sebs.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "args": [
+                "benchmark",
+                "workflow",
+                "610.gen",
+                "test",
+                "--config",
+                "config/config.json",
+                "--deployment",
+                "aws",
+                "--container-deployment",
+                "--trigger",
+                "library",
+                "--repetitions",
+                "1"
+            ],
+            "justMyCode": true,
+            "pythonPath": "${workspaceFolder}/python-venv/bin/python",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "SeBS SDA Workflow Test",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/sebs.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "args": [
+                "benchmark",
+                "workflow",
+                "6300.sda-workflow",
+                "test",
+                "--config",
+                "config/config.json",
+                "--deployment",
+                "aws",
+                "--trigger",
+                "library",
+                "--repetitions",
+                "1"
+            ],
+            "justMyCode": true,
+            "pythonPath": "${workspaceFolder}/python-venv/bin/python",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "SeBS SDA Workflow",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/sebs.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "args": [
+                "benchmark",
+                "workflow",
+                "6300.sda-workflow",
+                "large",
+                "--config",
+                "config/config.json",
+                "--deployment",
+                "aws",
+                "--trigger",
+                "library",
+                "--repetitions",
+                "1"
+            ],
+            "justMyCode": true,
+            "pythonPath": "${workspaceFolder}/python-venv/bin/python",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

@@ -29,11 +29,13 @@ class BenchmarkConfig:
         memory: int,
         languages: List["Language"],
         modules: List[BenchmarkModule],
+        container_image: Optional[str] = None
     ):
         self._timeout = timeout
         self._memory = memory
         self._languages = languages
         self._modules = modules
+        self._container_image = container_image
 
     @property
     def timeout(self) -> int:
@@ -59,6 +61,10 @@ class BenchmarkConfig:
     def modules(self) -> List[BenchmarkModule]:
         return self._modules
 
+    @property
+    def container_image(self) -> Optional[str]:
+        return self._container_image
+
     # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
@@ -69,6 +75,7 @@ class BenchmarkConfig:
             json_object["memory"],
             [Language.deserialize(x) for x in json_object["languages"]],
             [BenchmarkModule(x) for x in json_object["modules"]],
+            json_object.get("container-image",None)
         )
 
 
@@ -294,8 +301,7 @@ class Benchmark(LoggingBase):
         return {"size": self.code_size, "hash": self.hash}
 
     def query_cache(self):
-
-        if self.container_deployment:
+        if self.container_deployment or self.benchmark_config.container_image is not None:
             self._code_package = self._cache_client.get_container(
                 deployment=self._deployment_name,
                 benchmark=self._benchmark,
@@ -633,6 +639,13 @@ class Benchmark(LoggingBase):
         ],
         is_workflow: bool,
     ) -> Tuple[bool, str, bool, str]:
+        # Check if custom container image is specified which would collide with container deployment option
+        if self.container_deployment and self.benchmark_config.container_image is not None:
+            raise RuntimeError(
+                f"Benchmark {self.benchmark} specifies custom container image "
+                f"'{self.benchmark_config.container_image}' which collides with "
+                f"container deployment option enabled in the experiment."
+            )
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
@@ -681,6 +694,7 @@ class Benchmark(LoggingBase):
                 self.is_cached_valid,
             )
         )
+        self._container_deployment = self._container_uri != ""
         self.logging.info(
             (
                 "Created code package (source hash: {hash}), for run on {deployment}"

@@ -100,7 +100,11 @@
           "packages": [
             "redis"
           ],
-          "module_packages": {}
+          "module_packages": {
+            "storage": [
+              "boto3"
+            ]
+          }
         }
       },
       "nodejs": {
