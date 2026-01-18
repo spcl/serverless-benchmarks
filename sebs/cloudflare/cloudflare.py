@@ -1119,21 +1119,15 @@ dev = [
             self.logging.info(f"Worker {worker_name} deployed successfully")
             self.logging.debug(f"Wrangler deploy output: {output}")
 
-            # For container deployments, wait for Durable Object infrastructure to initialize
             # The container binding needs time to propagate before first invocation
             if container_deployment:
                 self.logging.info("Waiting for container Durable Object to initialize...")
                 self._wait_for_durable_object_ready(worker_name, package_dir, env)
             
-            # For container deployments, wait for Durable Object infrastructure to initialize
             # The container binding needs time to propagate before first invocation
             if container_deployment:
-                self.logging.info("Waiting 60 seconds for container Durable Object to initialize...")
+                self.logging.info("Waiting 60 seconds for container to be fully provisioned (can sometimes take a bit longer)...")
                 time.sleep(60)
-
-            # Parse the output to get worker URL
-            # Wrangler typically outputs: "Published <worker-name> (<version>)"
-            # and "https://<worker-name>.<subdomain>.workers.dev"
 
             return {"success": True, "output": output}
 
@@ -1414,10 +1408,11 @@ dev = [
             functions: List of functions to enforce cold start on
             code_package: The benchmark package
         """
-        self.logging.warning(
+        raise NotImplementedError(
             "Cloudflare Workers do not support forced cold starts. "
             "Workers are automatically instantiated on-demand at edge locations."
         )
+        
 
     def download_metrics(
         self,
