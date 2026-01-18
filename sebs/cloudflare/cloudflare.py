@@ -941,32 +941,34 @@ dev = [
         self.logging.info(f"Building local container image: {image_tag}")
         
         try:
-            # Build the Docker image locally (no push)
-            # Use --no-cache to ensure handler changes are picked up
-            # Note: BASE_IMAGE is already set in the Dockerfile, no need to pass as build arg
-            result = subprocess.run(
-                ["docker", "build", "--no-cache", "-t", image_tag, "."],
-                cwd=directory,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=300  # 5 minutes for build
+            # Build the Docker image using docker-py
+            # nocache=True ensures handler changes are picked up
+            _, build_logs = self.docker_client.images.build(
+                path=directory,
+                tag=image_tag,
+                nocache=True,
+                rm=True
             )
             
+            # Log build output
+            for log in build_logs:
+                if 'stream' in log:
+                    self.logging.debug(log['stream'].strip())
+                elif 'error' in log:
+                    self.logging.error(log['error'].strip())
+            
             self.logging.info(f"Local container image built: {image_tag}")
-            if result.stdout:
-                self.logging.debug(f"Docker build output: {result.stdout}")
             
             return image_tag
             
-        except subprocess.CalledProcessError as e:
-            error_msg = f"Docker build failed for {image_tag}"
-            if e.stderr:
-                error_msg += f": {e.stderr}"
+        except docker.errors.BuildError as e:
+            error_msg = f"Docker build failed for {image_tag}: {e}"
             self.logging.error(error_msg)
             raise RuntimeError(error_msg)
-        except subprocess.TimeoutExpired:
-            raise RuntimeError(f"Docker build timed out for {image_tag}")
+        except Exception as e:
+            error_msg = f"Unexpected error building Docker image {image_tag}: {e}"
+            self.logging.error(error_msg)
+            raise RuntimeError(error_msg)
 
     def create_function(
         self,
