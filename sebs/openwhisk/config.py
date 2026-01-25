@@ -144,6 +144,7 @@ class OpenWhiskConfig(Config):
         self.wsk_exec = config["wskExec"]
         self.wsk_bypass_security = config["wskBypassSecurity"]
         self.experimentalManifest = config["experimentalManifest"]
+        self.dockerhub_repository = config["dockerhubRepository"]
         self.cache = cache
 
     @property
@@ -166,6 +167,7 @@ class OpenWhiskConfig(Config):
             "wskExec": self.wsk_exec,
             "wskBypassSecurity": self.wsk_bypass_security,
             "experimentalManifest": self.experimentalManifest,
+            "dockerhubRepository": self.dockerhub_repository,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }
@@ -187,6 +189,9 @@ class OpenWhiskConfig(Config):
         cache.update_config(val=self.removeCluster, keys=["openwhisk", "removeCluster"])
         cache.update_config(val=self.wsk_exec, keys=["openwhisk", "wskExec"])
         cache.update_config(val=self.wsk_bypass_security, keys=["openwhisk", "wskBypassSecurity"])
+        cache.update_config(
+            val=self.dockerhub_repository, keys=["openwhisk", "dockerhub_repository"]
+        )
         cache.update_config(
             val=self.experimentalManifest, keys=["openwhisk", "experimentalManifest"]
         )
