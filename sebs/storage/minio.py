@@ -95,6 +95,7 @@ class Minio(PersistentStorage):
                 f"minio/minio:{self._cfg.version}",
                 command="server /data",
                 network_mode="bridge",
+                user=os.getuid(),
                 ports={"9000": str(self._cfg.mapped_port)},
                 environment={
                     "MINIO_ACCESS_KEY": self._cfg.access_key,
