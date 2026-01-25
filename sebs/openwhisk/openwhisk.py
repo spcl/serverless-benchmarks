@@ -221,6 +221,7 @@ class OpenWhisk(System):
                         code_package.language_name,
                         code_package.language_version,
                         code_package.architecture,
+                        repository=self.config.dockerhub_repository,
                     )
                     subprocess.run(
                         [
@@ -281,6 +282,7 @@ class OpenWhisk(System):
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,
+            repository=self.config.dockerhub_repository,
         )
         try:
             subprocess.run(
