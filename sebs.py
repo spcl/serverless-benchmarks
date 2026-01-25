@@ -375,6 +375,9 @@ def statistics(results):
             dst["function_exec"].append(invoc.times.benchmark)
             dst["client_exec"].append(invoc.times.client)
 
+            if "measurement" not in invoc.output["result"]:
+                continue
+
             measurements = invoc.output["result"]["measurement"]
 
             for key, result in (
@@ -386,7 +389,7 @@ def statistics(results):
                     dst[result].append(measurements[key])
 
         for name_type, times in (("cold", cold_times), ("warm", warm_times)):
-            logger.info(f"Processing {name_type} results.")
+            logger.info(f"Processing {len(times['client_exec'])} results of {name_type} type.")
 
             logger.info("\tCloud provider measurements")
 
@@ -406,6 +409,9 @@ def statistics(results):
             logger.info("\tIntra-function measurements")
 
             for key in ("function_exec", "compute", "upload", "download"):
+
+                if len(times[key]) == 0:
+                    continue
 
                 mean, median, std, cv = basic_stats(times[key])
                 logger.info(
