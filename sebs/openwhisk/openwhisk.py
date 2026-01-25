@@ -185,10 +185,14 @@ class OpenWhisk(System):
                     break
 
             function_cfg = OpenWhiskFunctionConfig.from_benchmark(code_package)
-            function_cfg.object_storage = cast(Minio, self.system_resources.get_storage()).config
-            function_cfg.nosql_storage = cast(
-                ScyllaDB, self.system_resources.get_nosql_storage()
-            ).config
+            if code_package.uses_storage:
+                function_cfg.object_storage = cast(
+                    Minio, self.system_resources.get_storage()
+                ).config
+            if code_package.uses_nosql:
+                function_cfg.nosql_storage = cast(
+                    ScyllaDB, self.system_resources.get_nosql_storage()
+                ).config
             if function_found:
                 # docker image is overwritten by the update
                 res = OpenWhiskFunction(
@@ -328,25 +332,27 @@ class OpenWhisk(System):
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
         changed = super().is_configuration_changed(cached_function, benchmark)
 
-        storage = cast(Minio, self.system_resources.get_storage())
-        function = cast(OpenWhiskFunction, cached_function)
-        # check if now we're using a new storage
-        if function.config.object_storage != storage.config:
-            self.logging.info(
-                "Updating function configuration due to changed storage configuration."
-            )
-            changed = True
-            function.config.object_storage = storage.config
+        if benchmark.uses_storage:
+            storage = cast(Minio, self.system_resources.get_storage())
+            function = cast(OpenWhiskFunction, cached_function)
+            # check if now we're using a new storage
+            if function.config.object_storage != storage.config:
+                self.logging.info(
+                    "Updating function configuration due to changed storage configuration."
+                )
+                changed = True
+                function.config.object_storage = storage.config
 
-        nosql_storage = cast(ScyllaDB, self.system_resources.get_nosql_storage())
-        function = cast(OpenWhiskFunction, cached_function)
-        # check if now we're using a new storage
-        if function.config.nosql_storage != nosql_storage.config:
-            self.logging.info(
-                "Updating function configuration due to changed NoSQL storage configuration."
-            )
-            changed = True
-            function.config.nosql_storage = nosql_storage.config
+        if benchmark.uses_nosql:
+            nosql_storage = cast(ScyllaDB, self.system_resources.get_nosql_storage())
+            function = cast(OpenWhiskFunction, cached_function)
+            # check if now we're using a new storage
+            if function.config.nosql_storage != nosql_storage.config:
+                self.logging.info(
+                    "Updating function configuration due to changed NoSQL storage configuration."
+                )
+                changed = True
+                function.config.nosql_storage = nosql_storage.config
 
         return changed
 
