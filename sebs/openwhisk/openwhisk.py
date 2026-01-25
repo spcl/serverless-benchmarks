@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 from typing import cast, Dict, List, Optional, Tuple, Type
@@ -43,7 +44,10 @@ class OpenWhisk(System):
         self.logging_handlers = logger_handlers
 
         self.container_client = OpenWhiskContainer(
-            self.system_config, self.config, self.docker_client, self.config.experimentalManifest
+            self.system_config,
+            self.config,
+            self.docker_client,
+            self.config.experimentalManifest,
         )
 
         if self.config.resources.docker_username:
@@ -107,7 +111,12 @@ class OpenWhisk(System):
         # Regardless of Docker image status, we need to create .zip file
         # to allow registration of function with OpenWhisk
         _, image_uri = self.container_client.build_base_image(
-            directory, language_name, language_version, architecture, benchmark, is_cached
+            directory,
+            language_name,
+            language_version,
+            architecture,
+            benchmark,
+            is_cached,
         )
 
         # We deploy Minio config in code package since this depends on local
@@ -120,7 +129,9 @@ class OpenWhisk(System):
 
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(
-            ["zip", benchmark_archive] + package_config, stdout=subprocess.DEVNULL, cwd=directory
+            ["zip", benchmark_archive] + package_config,
+            stdout=subprocess.DEVNULL,
+            cwd=directory,
         )
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
@@ -234,7 +245,10 @@ class OpenWhisk(System):
                     )
                     function_cfg.docker_image = docker_image
                     res = OpenWhiskFunction(
-                        func_name, code_package.benchmark, code_package.hash, function_cfg
+                        func_name,
+                        code_package.benchmark,
+                        code_package.hash,
+                        function_cfg,
                     )
                 except subprocess.CalledProcessError as e:
                     self.logging.error(f"Cannot create action {func_name}.")
@@ -376,7 +390,66 @@ class OpenWhisk(System):
         requests: Dict[str, ExecutionResult],
         metrics: dict,
     ):
-        pass
+        self.logging.info(
+            f"OpenWhisk: Starting to download metrics for {len(requests)} invocations"
+        )
+
+        processed_count = 0
+
+        for request_id in requests:
+            try:
+                result = subprocess.run(
+                    [*self.get_wsk_cmd(), "activation", "get", request_id],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+
+                if result.returncode != 0:
+                    self.logging.warning(f"OpenWhisk: Activation {request_id} not found")
+                    continue
+
+                # Parse JSON output (skip first "ok" line)
+                output = result.stdout.decode("utf-8")
+                lines = output.strip().split("\n")
+                if len(lines) <= 1:
+                    self.logging.warning(f"OpenWhisk: Activation {request_id} not found")
+                    continue
+
+                json_str = "\n".join(lines[1:])
+                activation = json.loads(json_str)
+
+                duration_ms = activation.get("duration")
+                if duration_ms is None:
+                    self.logging.error(f"OpenWhisk: Duration not found in activation {request_id}")
+                    continue
+
+                # Update execution time (convert milliseconds to microseconds)
+                requests[request_id].provider_times.execution = int(float(duration_ms) * 1000)
+
+                # Extract initTime from annotations (optional - only present on cold starts)
+                annotations = activation.get("annotations", [])
+                for annotation in annotations:
+                    if annotation.get("key") == "initTime":
+                        init_time_ms = annotation.get("value")
+                        if init_time_ms is not None:
+                            requests[request_id].provider_times.initialization = int(
+                                float(init_time_ms) * 1000
+                            )
+                        break
+
+                processed_count += 1
+
+            except json.JSONDecodeError as e:
+                self.logging.error(
+                    f"OpenWhisk: Failed to parse activation JSON for {request_id}: {e}"
+                )
+            except Exception as e:
+                self.logging.error(f"OpenWhisk: Error processing activation {request_id}: {e}")
+
+        self.logging.info(
+            f"OpenWhisk: Downloaded metrics for {processed_count} "
+            f"out of {len(requests)} invocations"
+        )
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         if trigger_type == Trigger.TriggerType.LIBRARY:
