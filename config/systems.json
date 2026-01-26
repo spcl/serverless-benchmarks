@@ -24,6 +24,13 @@
             "3.9": "python:3.9-slim",
             "3.10": "python:3.10-slim",
             "3.11": "python:3.11-slim"
+          },
+          "arm64": {
+            "3.7": "python:3.7-slim",
+            "3.8": "python:3.8-slim",
+            "3.9": "python:3.9-slim",
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim"
           }
         },
         "images": [
@@ -66,7 +73,7 @@
         }
       }
     },
-    "architecture": ["x64"],
+    "architecture": ["x64", "arm64"],
     "deployments": ["package"]
   },
   "aws": {
@@ -315,5 +322,87 @@
     },
     "architecture": ["x64"],
     "deployments": ["container"]
+  }, 
+  "cloudflare": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "x64": {
+            "3.8": "ubuntu:22.04",
+            "3.9": "ubuntu:22.04",
+            "3.10": "ubuntu:22.04",
+            "3.11": "ubuntu:22.04",
+            "3.12": "ubuntu:22.04"
+          }
+        },
+        "container_images": {
+          "x64": {
+            "3.8": "python:3.8-slim",
+            "3.9": "python:3.9-slim",
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim",
+            "3.12": "python:3.12-slim"
+          }
+        },
+        "images": [],
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py"
+          ],
+          "packages": [],
+          "module_packages": {}
+        },
+        "container_deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py"
+          ],
+          "packages": [],
+          "module_packages": {}
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "x64": {
+            "18": "ubuntu:22.04",
+            "20": "ubuntu:22.04"
+          }
+        },
+        "container_images": {
+          "x64": {
+            "18": "node:18-slim",
+            "20": "node:20-slim"
+          }
+        },
+        "images": [],
+        "deployment": {
+          "files": [
+            "handler.js",
+            "storage.js",
+            "nosql.js",
+            "build.js",
+            "request-polyfill.js"
+          ],
+          "packages": {
+            "uuid": "3.4.0"
+          }
+        },
+        "container_deployment": {
+          "files": [
+            "handler.js",
+            "storage.js",
+            "nosql.js"
+          ],
+          "packages": {
+            "uuid": "3.4.0"
+          }
+        }
+      }
+    },
+    "architecture": ["x64"],
+    "deployments": ["package", "container"]
   }
 }

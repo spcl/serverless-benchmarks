@@ -1,0 +1,16 @@
+# Template for native Cloudflare Workers
+# This file is read and modified by the deployment system
+
+name = "PLACEHOLDER_WORKER_NAME"
+main = "PLACEHOLDER_MAIN_FILE"
+compatibility_date = "2025-11-18"
+account_id = "PLACEHOLDER_ACCOUNT_ID"
+
+# Durable Object binding for NoSQL storage
+[[durable_objects.bindings]]
+name = "DURABLE_STORE"
+class_name = "KVApiObject"
+
+[[migrations]]
+tag = "v3"
+new_classes = ["KVApiObject"]

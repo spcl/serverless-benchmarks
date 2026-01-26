@@ -91,7 +91,7 @@ def common_params(func):
     @click.option(
         "--deployment",
         default=None,
-        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
+        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk", "cloudflare"]),
         help="Cloud deployment to use.",
     )
     @click.option(
@@ -157,7 +157,10 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
     update_nested_dict(config_obj, ["experiments", "architecture"], architecture)
-    update_nested_dict(config_obj, ["experiments", "container_deployment"], container_deployment)
+    # Only override container_deployment if explicitly set via CLI
+    # If not in config, use CLI default (False)
+    if container_deployment or "container_deployment" not in config_obj.get("experiments", {}):
+        update_nested_dict(config_obj, ["experiments", "container_deployment"], container_deployment)
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)

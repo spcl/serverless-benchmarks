@@ -12,6 +12,7 @@ class Platforms(str, Enum):
     GCP = "gcp"
     LOCAL = "local"
     OPENWHISK = "openwhisk"
+    CLOUDFLARE = "cloudflare"
 
 
 class Storage(str, Enum):

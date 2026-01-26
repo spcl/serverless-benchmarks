@@ -1,0 +1,35 @@
+FROM node:20-slim
+
+# Disable telemetry
+ENV WRANGLER_SEND_METRICS=false
+
+# Install system dependencies including Docker CLI
+RUN apt-get clean && apt-get update \
+  && apt-get install -y ca-certificates curl gnupg gosu python3 python3-pip python3-venv git \
+  && install -m 0755 -d /etc/apt/keyrings \
+  && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
+  && chmod a+r /etc/apt/keyrings/docker.asc \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
+  && apt-get update \
+  && apt-get install -y docker-ce-cli \
+  && apt-get purge -y --auto-remove \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install wrangler globally
+RUN npm install -g wrangler
+
+# Install uv (fast Python package installer) and pywrangler
+# uv install script puts the binary in ~/.local/bin by default (not ~/.cargo/bin)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    /root/.local/bin/uv tool install workers-py
+
+# Add paths to environment
+ENV PATH="/root/.local/bin:/root/.local/share/uv/tools/workers-py/bin:${PATH}"
+
+# Create working directory
+RUN mkdir -p /sebs/
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/entrypoint.sh
+
+ENTRYPOINT ["/sebs/entrypoint.sh"]

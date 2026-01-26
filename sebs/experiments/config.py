@@ -65,7 +65,7 @@ class Config:
         cfg._update_code = config["update_code"]
         cfg._update_storage = config["update_storage"]
         cfg._download_results = config["download_results"]
-        cfg._container_deployment = config["container_deployment"]
+        cfg._container_deployment = config.get("container_deployment", False)
         cfg._runtime = Runtime.deserialize(config["runtime"])
         cfg._flags = config["flags"] if "flags" in config else {}
         cfg._architecture = config["architecture"]

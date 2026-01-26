@@ -204,6 +204,14 @@ class Config(ABC, LoggingBase):
             from sebs.openwhisk.config import OpenWhiskConfig
 
             implementations["openwhisk"] = OpenWhiskConfig.deserialize
+        
+        # Cloudflare is available by default (like local)
+        try:
+            from sebs.cloudflare.config import CloudflareConfig
+            implementations["cloudflare"] = CloudflareConfig.deserialize
+        except ImportError:
+            pass
+        
         func = implementations.get(name)
         assert func, "Unknown config type!"
         return func(config[name] if name in config else config, cache, handlers)

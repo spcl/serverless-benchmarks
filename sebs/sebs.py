@@ -106,6 +106,10 @@ class SeBS(LoggingBase):
             from sebs.openwhisk import OpenWhisk
 
             implementations["openwhisk"] = OpenWhisk
+        if has_platform("cloudflare"):
+            from sebs.cloudflare import Cloudflare
+
+            implementations["cloudflare"] = Cloudflare
 
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
