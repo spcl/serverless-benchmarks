@@ -1,11 +1,11 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
-ARG VERSION
 
 COPY --from=tianon/gosu:1.19-debian /usr/local/bin/gosu /usr/local/bin/gosu
+RUN apt-get update && apt-get install -y curl unzip
 
 RUN mkdir -p /sebs/
-COPY dockerfiles/nodejs_installer.sh /sebs/installer.sh
+COPY dockerfiles/bun_installer.sh /sebs/installer.sh
 COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/entrypoint.sh
 
@@ -14,4 +14,3 @@ ENV PATH=/usr/sbin:$PATH
 ENV SCRIPT_FILE=/mnt/function/package.sh
 CMD /bin/bash /sebs/installer.sh
 ENTRYPOINT ["/sebs/entrypoint.sh"]
-

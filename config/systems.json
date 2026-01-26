@@ -64,10 +64,69 @@
           ],
           "packages": []
         }
+      },
+      "bun": {
+        "base_images": {
+          "x64": {
+            "1.2": "oven/bun:1.2",
+            "1.3": "oven/bun:1.3"
+          },
+          "arm64": {
+            "1.2": "oven/bun:1.2",
+            "1.3": "oven/bun:1.3"
+          }
+        },
+        "images": [
+          "run",
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "storage.js"
+          ],
+          "packages": {
+            "uuid": "3.4.0",
+            "strftime": "0.10.3",
+            "express": "5.2.1",
+            "minio": "7.0.16"
+          }
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "pypy:3.11"
+          },
+          "arm64": {
+            "3.11": "pypy:3.11"
+          }
+        },
+        "images": [
+          "run",
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "storage.py",
+            "nosql.py"
+          ],
+          "packages": [],
+          "module_packages": {
+            "nosql": [
+              "boto3==1.28.3"
+            ]
+          }
+        }
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
   },
   "aws": {
     "languages": {
@@ -121,10 +180,65 @@
             "uuid": "3.4.0"
           }
         }
+      },
+      "bun": {
+        "base_images": {
+          "x64": {
+            "1.2": "oven/bun:1.2",
+            "1.3": "oven/bun:1.3"
+          },
+          "arm64": {
+            "1.2": "oven/bun:1.2",
+            "1.3": "oven/bun:1.3"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "handler.js",
+            "storage.js",
+            "runtime.js"
+          ],
+          "packages": {
+            "uuid": "3.4.0",
+            "aws-sdk": "2.1693.0"
+          }
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "pypy:3.11-slim"
+          },
+          "arm64": {
+            "3.11": "pypy:3.11-slim"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py",
+            "setup.py"
+          ],
+          "packages": [],
+          "module_packages": {}
+        }
       }
     },
-    "architecture": ["x64", "arm64"],
-    "deployments": ["package", "container"]
+    "architecture": [
+      "x64",
+      "arm64"
+    ],
+    "deployments": [
+      "package",
+      "container"
+    ]
   },
   "azure": {
     "languages": {
@@ -188,19 +302,26 @@
         "username": "docker_user"
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
   },
   "gcp": {
     "languages": {
       "python": {
         "base_images": {
           "x64": {
-            "3.8": "ubuntu:22.04",
-            "3.9": "ubuntu:22.04",
-            "3.10": "ubuntu:22.04",
-            "3.11": "ubuntu:22.04",
-            "3.12": "ubuntu:22.04"
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim",
+            "3.12": "python:3.12-slim"
+          },
+          "arm64": {
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim",
+            "3.12": "python:3.12-slim"
           }
         },
         "images": [
@@ -211,7 +332,39 @@
           "files": [
             "handler.py",
             "storage.py",
-            "nosql.py"
+            "nosql.py",
+            "setup.py"
+          ],
+          "packages": [],
+          "module_packages": {
+            "storage": [
+              "google-cloud-storage"
+            ],
+            "nosql": [
+              "google-cloud-datastore"
+            ]
+          }
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "pypy:3.11-slim"
+          },
+          "arm64": {
+            "3.11": "pypy:3.11-slim"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py",
+            "setup.py"
           ],
           "packages": [],
           "module_packages": {
@@ -227,8 +380,8 @@
       "nodejs": {
         "base_images": {
           "x64": {
-            "18": "ubuntu:22.04",
-            "20": "ubuntu:22.04"
+            "20": "node:20-slim",
+            "22": "node:22-slim"
           }
         },
         "images": [
@@ -245,6 +398,29 @@
             "uuid": "3.4.0"
           }
         }
+      },
+      "bun": {
+        "base_images": {
+          "x64": {
+            "1.2": "oven/bun:1.2",
+            "1.3": "oven/bun:1.3"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.js",
+            "storage.js",
+            "runtime.js"
+          ],
+          "packages": {
+            "@google-cloud/storage": "^4.0.0",
+            "uuid": "3.4.0"
+          }
+        }
       }
     },
     "images": {
@@ -252,8 +428,14 @@
         "username": "docker_user"
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64",
+      "arm64"
+    ],
+    "deployments": [
+      "package",
+      "container"
+    ]
   },
   "openwhisk": {
     "languages": {
@@ -313,7 +495,11 @@
         }
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["container"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "container"
+    ]
   }
 }

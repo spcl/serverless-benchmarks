@@ -4,7 +4,7 @@ from distutils.dir_util import copy_tree
 from utils import *
 
 def get_language(lang):
-    languages = {'python': 'python3', 'nodejs': 'nodejs'}
+    languages = {'python': 'python3', 'nodejs': 'nodejs', 'bun': 'bun'}
     return languages[lang]
 
 def get_runner(experiment, options=None):

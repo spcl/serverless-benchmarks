@@ -1,6 +1,8 @@
 import json
 import os
 from typing import cast, List, Optional, Tuple
+import time
+from googleapiclient.errors import HttpError
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -108,6 +110,7 @@ class GCPCredentials(Credentials):
 class GCPResources(Resources):
     def __init__(self):
         super().__init__(name="gcp")
+        self._container_repository = None
 
     @staticmethod
     def initialize(res: Resources, dct: dict):
@@ -120,7 +123,9 @@ class GCPResources(Resources):
     """
 
     def serialize(self) -> dict:
-        return super().serialize()
+        out = super().serialize()
+        out["container_repository"] = self._container_repository
+        return out
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Resources":
@@ -147,6 +152,61 @@ class GCPResources(Resources):
     def update_cache(self, cache: Cache):
         super().update_cache(cache)
 
+    @property
+    def container_repository(self) -> str:
+        return self._container_repository
+
+    def check_container_repository_exists(self, config: Config, ar_client):
+        try:
+            parent = f"projects/{config.credentials.project_name}/locations/{config.region}"
+            repo_full_name = f"{parent}/repositories/{self._container_repository}"
+            self.logging.info("Checking if container repository exists...")
+            ar_client.projects().locations().repositories().get(name=repo_full_name).execute()
+            return True
+        except HttpError as e:
+            if e.resp.status == 404:
+                self.logging.error("Container repository does not exist.")
+                return False
+            else:
+                raise e
+
+    def create_container_repository(self, ar_client, parent):
+        request_body = {
+            "format": "DOCKER",
+            "description": "Container repository for SEBS"
+        }
+        self._container_repository = f"sebs-benchmarks-{self._resources_id}"
+        operation = ar_client.projects().locations().repositories().create(
+            parent=parent,
+            body=request_body,
+            repositoryId=self._container_repository
+        ).execute()
+        
+        while True:
+            # Operations for AR are global or location specific
+            op_name = operation['name']
+            op = ar_client.projects().locations().operations().get(name=op_name).execute()
+            
+            if op.get('done'):
+                if 'error' in op:
+                    raise Exception(f"Failed to create repo: {op['error']}")
+                self.logging.info("Repository created successfully.")
+                break
+            time.sleep(2)
+
+    def get_container_repository(self, config: Config, ar_client):
+        if self._container_repository is not None:
+            return self._container_repository
+        
+        self._container_repository = f"sebs-benchmarks-{self._resources_id}"
+        if self.check_container_repository_exists(config, ar_client):
+            return self._container_repository
+
+        parent = f"projects/{config.credentials.project_name}/locations/{config.region}"
+        self.create_container_repository(ar_client, parent)
+        return self._container_repository
+
+        
 
 """
     FaaS system config defining cloud region (if necessary), credentials and
