@@ -1,0 +1,46 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# Define Go version from VERSION build argument
+ARG VERSION
+ENV GO_VERSION=${VERSION}
+ARG TARGETARCH=amd64
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    wget \
+    ca-certificates \
+    tar \
+    zip \
+    gosu \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install Go
+RUN wget -q "https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" -O go.tar.gz && \
+    echo "Downloading Go ${GO_VERSION} for ${TARGETARCH}" && \
+    # Remove any previous Go installation
+    rm -rf /usr/local/go && \
+    tar -C /usr/local -xzf go.tar.gz && \
+    rm go.tar.gz
+
+# Add Go to PATH permanently
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# Verify installation
+RUN go version
+
+# Set up SeBS environment
+RUN mkdir -p /sebs/
+COPY dockerfiles/golang_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/installer.sh /sebs/entrypoint.sh
+
+# Add /usr/sbin to PATH (for useradd and groupmod)
+ENV PATH="/usr/sbin:${PATH}"
+ENV SCRIPT_FILE="/mnt/function/package.sh"
+
+# Set the entry point and command
+ENTRYPOINT ["/sebs/entrypoint.sh"]
+CMD ["/bin/bash", "/sebs/installer.sh"]
