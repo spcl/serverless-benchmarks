@@ -136,6 +136,7 @@ class AWS(System):
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
+            "pypy": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
         package_config = CONFIG_FILES[language_name]
@@ -173,7 +174,9 @@ class AWS(System):
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
         if language == "nodejs":
-            return f"{runtime}.x"
+            return f"{language}{runtime}.x"
+        elif language == "python":
+            return f"{language}{runtime}"
         return runtime
 
     def create_function(
@@ -231,6 +234,9 @@ class AWS(System):
                 create_function_params["PackageType"] = "Image"
                 create_function_params["Code"] = {"ImageUri": container_uri}
             else:
+                if language == "pypy":
+                    raise RuntimeError("PyPy Zip deployment is not supported on AWS")
+                    
                 create_function_params["PackageType"] = "Zip"
                 if code_size < 50 * 1024 * 1024:
                     package_body = open(package, "rb").read()
@@ -251,9 +257,7 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                create_function_params["Runtime"] = "{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
-                )
+                create_function_params["Runtime"] = self._map_language_runtime(language, language_runtime)
                 create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {
@@ -407,6 +411,7 @@ class AWS(System):
     ) -> str:
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
             code_package.benchmark,
