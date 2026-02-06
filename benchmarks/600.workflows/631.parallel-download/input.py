@@ -2,16 +2,16 @@ import os
 from random import shuffle
 
 size_generators = {
-    'test' : (5, 10),
-    'small': (20, 2**10),
-    'large': (50, 2**10),
-    '2e10': (20, 2**10),
-    '2e28': (20, 2**28),
-    '2e15': (20, 2**15),
-    '2e20': (20, 2**20),
-    '2e25': (20, 2**25),
-    '2e26': (20, 2**26),
-    '2e27': (20, 2**27) 
+    "test": (5, 10),
+    "small": (20, 2**10),
+    "large": (50, 2**10),
+    "2e10": (20, 2**10),
+    "2e28": (20, 2**28),
+    "2e15": (20, 2**15),
+    "2e20": (20, 2**20),
+    "2e25": (20, 2**25),
+    "2e26": (20, 2**26),
+    "2e27": (20, 2**27),
 }
 
 
@@ -32,7 +32,15 @@ def generate(size):
         yield data
 
 
-def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func):
+def generate_input(
+    data_dir,
+    size,
+    benchmarks_bucket,
+    input_buckets,
+    output_buckets,
+    upload_func,
+    nosql_func,
+):
     count, size_bytes = size_generators[size]
 
     data_name = f"data-{size_bytes}.txt"
@@ -45,4 +53,8 @@ def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buck
     upload_func(0, data_name, data_path)
     # os.remove(data_path)
 
-    return { 'count': count, "bucket": benchmarks_bucket, "blob": input_buckets[0] + '/' + data_name}
+    return {
+        "count": count,
+        "bucket": benchmarks_bucket,
+        "blob": input_buckets[0] + "/" + data_name,
+    }

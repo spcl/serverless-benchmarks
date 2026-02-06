@@ -1,0 +1,127 @@
+{
+  "_invocations": {
+    "sebd-620.func-invo-python-3.11": {
+      "eddf325d": {
+        "billing": {
+          "_billed_time": null,
+          "_gb_seconds": 0,
+          "_memory": null
+        },
+        "output": {},
+        "provider_times": {
+          "execution": 0,
+          "initialization": 0
+        },
+        "request_id": "eddf325d",
+        "stats": {
+          "cold_start": false,
+          "failure": true,
+          "memory_used": null
+        },
+        "times": {
+          "benchmark": 0,
+          "client": 58520101,
+          "client_begin": "2026-01-07 18:49:46.989085",
+          "client_end": "2026-01-07 18:50:45.509186",
+          "initialization": 0
+        }
+      }
+    }
+  },
+  "_metrics": {},
+  "begin_time": 1767808186.986613,
+  "config": {
+    "deployment": {
+      "name": "sonataflow",
+      "region": "",
+      "resources": {
+        "allocated_ports": [],
+        "nosql": {
+          "access_key": "None",
+          "address": "172.18.0.3:8000",
+          "alternator_port": 8000,
+          "cpus": -1,
+          "data_volume": "",
+          "instance_id": "533665fb786cf926f5029ae13b41a9e46e70e06b5bed8d99d14811b3d676255b",
+          "mapped_port": 9012,
+          "memory": -1,
+          "network_name": "bridge",
+          "region": "None",
+          "secret_key": "None",
+          "version": ""
+        },
+        "runtime": {
+          "endpoint_prefix": "",
+          "url": "http://localhost:8080"
+        },
+        "storage": {
+          "access_key": "8TOsGofwZjq6cEUVkb6FMFBt1HVgNW0rTPG2OjFFXUk",
+          "address": "172.18.0.2:9000",
+          "data_volume": "",
+          "input_buckets": [],
+          "instance_id": "ab6b3bc1b23989b211b8fd94bddc0bf59d1d032d1ab3a0a71c8c2d0408c8cb52",
+          "mapped_port": 9011,
+          "network_name": "bridge",
+          "output_buckets": [],
+          "secret_key": "70b6e79a2ea05da0119a4ca4bf4a5f22ed95722796bf686915d2fa4d86c43e8d",
+          "type": "minio",
+          "version": ""
+        }
+      }
+    },
+    "experiments": {
+      "architecture": "x64",
+      "container_deployment": false,
+      "download_results": false,
+      "experiments": {
+        "eviction-model": {
+          "function_copy_idx": 0,
+          "invocations": 1,
+          "repetitions": 5,
+          "sleep": 1
+        },
+        "invocation-overhead": {
+          "N": 20,
+          "code_begin": 1048576,
+          "code_end": 261619712,
+          "code_points": 20,
+          "payload_begin": 1024,
+          "payload_end": 6251000,
+          "payload_points": 20,
+          "repetitions": 5,
+          "type": "payload"
+        },
+        "network-ping-pong": {
+          "invocations": 50,
+          "repetitions": 1000,
+          "threads": 1
+        },
+        "perf-cost": {
+          "benchmark": "110.dynamic-html",
+          "concurrent-invocations": 50,
+          "experiments": [
+            "cold",
+            "warm",
+            "burst",
+            "sequential"
+          ],
+          "input-size": "test",
+          "memory-sizes": [
+            128,
+            256
+          ],
+          "repetitions": 50
+        }
+      },
+      "flags": {},
+      "runtime": {
+        "language": "python",
+        "version": "3.11"
+      },
+      "update_code": false,
+      "update_storage": false
+    }
+  },
+  "end_time": 1767808245.509385,
+  "result_bucket": null
+}

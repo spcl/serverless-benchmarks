@@ -1,0 +1,48 @@
+{
+  "id": "sebd_6101_1000_genome_individuals_python_3_11",
+  "name": "sebd_6101_1000_genome_individuals_python_3_11",
+  "version": "0.1",
+  "specVersion": "0.8",
+  "description": "Auto-generated from SeBS workflow definition.",
+  "functions": [
+    {
+      "name": "sebd_6101_1000_genome_individuals_python_3_11_individuals",
+      "operation": "rest:post:http://172.18.0.16:9000/",
+      "type": "custom"
+    }
+  ],
+  "start": "individuals_state",
+  "states": [
+    {
+      "name": "individuals_state",
+      "type": "foreach",
+      "inputCollection": "${ .blob }",
+      "outputCollection": "${ .blob }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "individuals",
+          "functionRef": {
+            "refName": "sebd_6101_1000_genome_individuals_python_3_11_individuals",
+            "arguments": {
+              "payload": {
+                "array_element": "${ .item }",
+                "benchmark_bucket": "${ .benchmark_bucket }",
+                "bucket": "${ .bucket }",
+                "columns": "${ .columns }",
+                "columns_bucket": "${ .columns_bucket }",
+                "populations": "${ .populations }",
+                "sifting_input": "${ .sifting_input }",
+                "individuals_file": "${ .individuals_file }"
+              }
+            }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
+          }
+        }
+      ],
+      "end": true
+    }
+  ]
+}

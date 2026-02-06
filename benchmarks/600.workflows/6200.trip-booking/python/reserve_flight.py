@@ -1,7 +1,16 @@
+import uuid
+
 from . import nosql
 
 nosql_client = nosql.nosql.get_instance()
 nosql_table_name = "flights"
+
+def _get_request_id(event):
+    request_id = event.get("request-id") or event.get("request_id") or event.get("requestId")
+    if not request_id:
+        request_id = uuid.uuid4().hex
+    event["request-id"] = request_id
+    return request_id
 
 
 def handler(event):
@@ -12,7 +21,7 @@ def handler(event):
 
     # We start with the hotel
     trip_id = event["trip_id"]
-    flight_id = event["request-id"]
+    flight_id = _get_request_id(event)
 
     # Simulate return from a service
     flight_price = "1000"

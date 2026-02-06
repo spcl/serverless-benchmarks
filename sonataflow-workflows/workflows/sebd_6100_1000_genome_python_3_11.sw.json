@@ -1,0 +1,161 @@
+{
+  "id": "sebd_6100_1000_genome_python_3_11",
+  "name": "sebd_6100_1000_genome_python_3_11",
+  "version": "0.1",
+  "specVersion": "0.8",
+  "description": "Auto-generated from SeBS workflow definition.",
+  "functions": [
+    {
+      "name": "sebd_6100_1000_genome_python_3_11_individuals",
+      "operation": "rest:post:http://172.18.0.12:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_6100_1000_genome_python_3_11_individuals_merge",
+      "operation": "rest:post:http://172.18.0.13:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_6100_1000_genome_python_3_11_sifting",
+      "operation": "rest:post:http://172.18.0.15:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_6100_1000_genome_python_3_11_frequency",
+      "operation": "rest:post:http://172.18.0.11:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_6100_1000_genome_python_3_11_mutation_overlap",
+      "operation": "rest:post:http://172.18.0.14:9000/",
+      "type": "custom"
+    }
+  ],
+  "start": "individuals",
+  "states": [
+    {
+      "name": "individuals",
+      "type": "foreach",
+      "inputCollection": "${ .blob }",
+      "outputCollection": "${ .blob }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "individuals",
+          "functionRef": {
+            "refName": "sebd_6100_1000_genome_python_3_11_individuals",
+            "arguments": {
+              "payload": {
+                "array_element": "${ .item }",
+                "benchmark_bucket": "${ .benchmark_bucket }",
+                "bucket": "${ .bucket }",
+                "columns": "${ .columns }",
+                "columns_bucket": "${ .columns_bucket }",
+                "populations": "${ .populations }",
+                "sifting_input": "${ .sifting_input }",
+                "individuals_file": "${ .individuals_file }"
+              }
+            }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
+          }
+        }
+      ],
+      "transition": "merge_and_sifting"
+    },
+    {
+      "name": "merge_and_sifting",
+      "type": "parallel",
+      "branches": [
+        {
+          "name": "individuals_merge",
+          "actions": [
+            {
+              "name": "individuals_merge",
+              "functionRef": {
+                "refName": "sebd_6100_1000_genome_python_3_11_individuals_merge",
+                "arguments": {
+                  "payload": "${ . }"
+                }
+              },
+              "actionDataFilter": {
+                "results": "${ {\"individuals_merge\": .result.output.payload // .payload // .} }"
+              }
+            }
+          ]
+        },
+        {
+          "name": "sifting",
+          "actions": [
+            {
+              "name": "sifting",
+              "functionRef": {
+                "refName": "sebd_6100_1000_genome_python_3_11_sifting",
+                "arguments": {
+                  "payload": "${ . }"
+                }
+              },
+              "actionDataFilter": {
+                "results": "${ {\"sifting\": .result.output.payload // .payload // .} }"
+              }
+            }
+          ]
+        }
+      ],
+      "transition": "frequency_and_overlap"
+    },
+    {
+      "name": "frequency_and_overlap",
+      "type": "foreach",
+      "inputCollection": "${ .sifting.populations }",
+      "outputCollection": "${ ._parallel_frequency_and_overlap_0_results }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "frequency",
+          "functionRef": {
+            "refName": "sebd_6100_1000_genome_python_3_11_frequency",
+            "arguments": {
+              "payload": {
+                "array_element": "${ .item }",
+                "sifting": "${ .sifting }",
+                "individuals_merge": "${ .individuals_merge }"
+              }
+            }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
+          }
+        }
+      ],
+      "transition": "mutation_overlap"
+    },
+    {
+      "name": "mutation_overlap",
+      "type": "foreach",
+      "inputCollection": "${ .sifting.populations }",
+      "outputCollection": "${ .sifting.populations }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "mutation_overlap",
+          "functionRef": {
+            "refName": "sebd_6100_1000_genome_python_3_11_mutation_overlap",
+            "arguments": {
+              "payload": {
+                "array_element": "${ .item }",
+                "sifting": "${ .sifting }",
+                "individuals_merge": "${ .individuals_merge }"
+              }
+            }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
+          }
+        }
+      ],
+      "end": true
+    }
+  ]
+}

@@ -90,6 +90,10 @@ class SeBS(LoggingBase):
         name = dep_config["name"]
         implementations: Dict[str, Type[FaaSSystem]] = {"local": Local}
 
+        from sebs.sonataflow import SonataFlow
+
+        implementations["sonataflow"] = SonataFlow
+
         if has_platform("aws"):
             from sebs.aws import AWS
 

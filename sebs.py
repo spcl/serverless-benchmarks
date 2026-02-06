@@ -37,8 +37,14 @@ class ExceptionProcesser(click.Group):
             logging.info("# Experiments failed! See out.log for details")
         finally:
             # Close
+            # For SonataFlow deployments, skip shutdown to keep containers alive
+            # The external script will manage container lifecycle
             if deployment_client is not None:
-                deployment_client.shutdown()
+                deployment_name = getattr(deployment_client.config, '_name', '')
+                if deployment_name != 'sonataflow':
+                    deployment_client.shutdown()
+                else:
+                    logging.info("Skipping deployment shutdown for SonataFlow (containers kept alive)")
             if sebs_client is not None:
                 sebs_client.shutdown()
 
@@ -91,7 +97,7 @@ def common_params(func):
     @click.option(
         "--deployment",
         default=None,
-        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
+        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk", "sonataflow"]),
         help="Cloud deployment to use.",
     )
     @click.option(
@@ -334,8 +340,6 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         sebs_client,
         deployment_client,
     ) = parse_common_params(**kwargs)
-    if isinstance(deployment_client, Local):
-        raise NotImplementedError("Local workflow deployment is currently not supported.")
 
     assert deployment_client.config.resources.redis_host is not None
 
@@ -392,9 +396,11 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
     df = pd.DataFrame(measurements)
     df.to_csv(path, index=False)
 
-    with open("experiments.json", "w") as out_f:
+    # Use workflow name to create unique file
+    experiment_file = f"experiments_{workflow.name}.json"
+    with open(experiment_file, "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
-    sebs_client.logging.info("Save results to {}".format(os.path.abspath("experiments.json")))
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath(experiment_file)))
 
 
 @benchmark.command()

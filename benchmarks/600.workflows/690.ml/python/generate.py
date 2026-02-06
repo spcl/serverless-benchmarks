@@ -14,7 +14,7 @@ def generate(n_samples, n_features):
         n_clusters_per_class=2,
         weights=[0.9, 0.1],
         flip_y=0.1,
-        random_state=123
+        random_state=123,
     )
 
     return X, y
@@ -30,10 +30,10 @@ def upload_dataset(benchmark_bucket, bucket, X, y):
     np.save(labels_path, y)
 
     client = storage.storage.get_instance()
-    features = client.upload(benchmark_bucket, bucket + '/' + "features.npy", features_path)
-    features = features.replace(bucket + '/', '')
-    labels = client.upload(benchmark_bucket, bucket + '/' + "labels.npy", labels_path)
-    labels = labels.replace(bucket + '/', '')
+    features = client.upload(benchmark_bucket, bucket + "/" + "features.npy", features_path)
+    features = features.replace(bucket + "/", "")
+    labels = client.upload(benchmark_bucket, bucket + "/" + "labels.npy", labels_path)
+    labels = labels.replace(bucket + "/", "")
 
     return features, labels
 
@@ -48,7 +48,14 @@ def handler(event):
     X, y = generate(n_samples, n_features)
     X_key, y_key = upload_dataset(benchmark_bucket, bucket, X, y)
 
-    schedules = [{**c, "features": X_key, "labels": y_key, "bucket": bucket, "benchmark_bucket": benchmark_bucket} for c in classifiers]
-    return {
-        "schedules": schedules
-    }
+    schedules = [
+        {
+            **c,
+            "features": X_key,
+            "labels": y_key,
+            "bucket": bucket,
+            "benchmark_bucket": benchmark_bucket,
+        }
+        for c in classifiers
+    ]
+    return {"schedules": schedules}

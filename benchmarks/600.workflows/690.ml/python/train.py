@@ -1,17 +1,17 @@
 import os
 import uuid
-import sys
 from . import storage
-
 from sklearn.model_selection import train_test_split
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC  # noqa: F401
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier  # noqa: F401
 import numpy as np
 
+
 def str_to_cls(cls_name):
-    #print(cls_name)
+    # print(cls_name)
     return globals()[cls_name]
+
 
 def load_dataset(benchmark_bucket, bucket, features, labels):
     dataset_dir = os.path.join("/tmp", str(uuid.uuid4()))
@@ -20,10 +20,9 @@ def load_dataset(benchmark_bucket, bucket, features, labels):
     features_path = os.path.join(dataset_dir, "features.npy")
     labels_path = os.path.join(dataset_dir, "labels.npy")
 
-
     client = storage.storage.get_instance()
-    client.download(benchmark_bucket, bucket + '/' + features, features_path)
-    client.download(benchmark_bucket, bucket + '/' + labels, labels_path)
+    client.download(benchmark_bucket, bucket + "/" + features, features_path)
+    client.download(benchmark_bucket, bucket + "/" + labels, labels_path)
 
     X = np.load(features_path)
     y = np.load(labels_path)
@@ -34,9 +33,7 @@ def load_dataset(benchmark_bucket, bucket, features, labels):
 def preprocess(X, y):
     X = StandardScaler().fit_transform(X)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.4, random_state=123
-    )
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=123)
 
     return X_train, X_test, y_train, y_test
 
@@ -55,7 +52,8 @@ def handler(schedule):
     y_key = schedule.pop("labels")
     bucket = schedule.pop("bucket")
     benchmark_bucket = schedule.pop("benchmark_bucket")
-    request_id = schedule.pop("request-id")
+    schedule.pop("request-id", None)
+    schedule.pop("request_id", None)
 
     clf = str_to_cls(name)(**schedule)
 
@@ -65,8 +63,4 @@ def handler(schedule):
     train(clf, X_train, y_train)
     score = val(clf, X_test, y_test)
 
-    return {
-        "name": name,
-        "score": score
-    }
-
+    return {"name": name, "score": score}

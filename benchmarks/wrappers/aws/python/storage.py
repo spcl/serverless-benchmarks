@@ -20,18 +20,16 @@ class storage:
     client = None
 
     def __init__(self):
-        self.client = boto3.client('s3')
+        self.client = boto3.client("s3")
 
     @staticmethod
     def unique_name(name):
         name, extension = os.path.splitext(name)
-        return '{name}.{random}{extension}'.format(
-                    name=name,
-                    extension=extension,
-                    random=str(uuid.uuid4()).split('-')[0]
-                )
+        return "{name}.{random}{extension}".format(
+            name=name, extension=extension, random=str(uuid.uuid4()).split("-")[0]
+        )
 
-    def upload(self, bucket, file, filepath, unique_name = True):
+    def upload(self, bucket, file, filepath, unique_name=True):
         incr_io_env_file(filepath, "STORAGE_UPLOAD_BYTES")
 
         key_name = storage.unique_name(file) if unique_name else file
@@ -44,8 +42,8 @@ class storage:
 
     def download_directory(self, bucket, prefix, path):
         objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        for obj in objects['Contents']:
-            file_name = obj['Key']
+        for obj in objects["Contents"]:
+            file_name = obj["Key"]
             path_to_file = os.path.dirname(file_name)
             os.makedirs(os.path.join(path, path_to_file), exist_ok=True)
             self.download(bucket, file_name, os.path.join(path, file_name))
@@ -64,15 +62,17 @@ class storage:
         self.client.download_fileobj(bucket, file, data)
         incr_io_env(data.tell(), "STORAGE_DOWNLOAD_BYTES")
         return data.getbuffer()
-    
+
     def download_within_range(self, bucket, file, start_byte, stop_byte):
-        resp = self.client.get_object(Bucket=bucket, Key=file, Range='bytes={}-{}'.format(start_byte, stop_byte))
-        return resp['Body'].read().decode('utf-8')
+        resp = self.client.get_object(
+            Bucket=bucket, Key=file, Range="bytes={}-{}".format(start_byte, stop_byte)
+        )
+        return resp["Body"].read().decode("utf-8")
 
     def list_directory(self, bucket, prefix):
         objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        for obj in objects['Contents']:
-            yield obj['Key']
+        for obj in objects["Contents"]:
+            yield obj["Key"]
 
     def get_instance():
         if storage.instance is None:

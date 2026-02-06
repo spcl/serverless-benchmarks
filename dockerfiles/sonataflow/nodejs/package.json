@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "minio": "^7.0.13",
+    "strftime": "^0.10.0",
+    "uuid": "^3.4.0"
+  }
+}

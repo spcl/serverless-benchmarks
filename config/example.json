@@ -1,10 +1,10 @@
 {
   "experiments": {
-    "deployment": "aws",
-    "update_code": false,
+    "deployment": "local",
+    "update_code": true,
     "update_storage": false,
     "download_results": false,
-    "architecture": "arm64", 
+    "architecture": "x64",
     "container_deployment": true,
     "runtime": {
       "language": "python",
@@ -51,7 +51,7 @@
     }
   },
   "deployment": {
-    "name": "aws",
+    "name": "local",
     "aws": {
       "region": "us-east-1",
       "lambda-role": "",
@@ -71,6 +71,34 @@
       "credentials": ""
     },
     "local": {
+      "resources": {
+        "redis": {
+          "host": "",
+          "password": ""
+        }
+      },
+      "storage": {
+        "address": "",
+        "mapped_port": -1,
+        "access_key": "",
+        "secret_key": "",
+        "instance_id": "",
+        "input_buckets": [],
+        "output_buckets": [],
+        "type": "minio"
+      }
+    },
+    "sonataflow": {
+      "resources": {
+        "redis": {
+          "host": "",
+          "password": ""
+        },
+        "runtime": {
+          "url": "http://localhost:8080",
+          "endpoint_prefix": "services"
+        }
+      },
       "storage": {
         "address": "",
         "mapped_port": -1,

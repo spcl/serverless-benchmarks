@@ -25,11 +25,9 @@ class storage:
     @staticmethod
     def unique_name(name):
         name, extension = os.path.splitext(name)
-        return '{name}.{random}{extension}'.format(
-                    name=name,
-                    extension=extension,
-                    random=str(uuid.uuid4()).split('-')[0]
-                )
+        return "{name}.{random}{extension}".format(
+            name=name, extension=extension, random=str(uuid.uuid4()).split("-")[0]
+        )
 
     def upload(self, bucket, file, filepath, unique_name=True):
         incr_io_env_file(filepath, "STORAGE_UPLOAD_BYTES")
@@ -74,27 +72,25 @@ class storage:
         incr_io_env(size, "STORAGE_DOWNLOAD_BYTES")
         data.seek(0)
 
-        #return data
+        # return data
 
         return data.getbuffer()
 
     def download_within_range(self, bucket, file, start_byte, stop_byte):
         bucket_instance = self.client.bucket(bucket)
         blob = bucket_instance.blob(file)
-        blob.download_to_filename('/tmp/' + file, start=start_byte, end=stop_byte)
-        with open('/tmp/' + file, 'r') as f:
+        blob.download_to_filename("/tmp/" + file, start=start_byte, end=stop_byte)
+        with open("/tmp/" + file, "r") as f:
             content = f.read()
         return content
 
     def list_directory(self, bucket, prefix):
-        bucket_instance = self.client.bucket(bucket)
-        #objects = list(self.client.list_blobs(bucket_or_name=bucket_instance,prefix=prefix))
         objects = self.client.bucket(bucket).list_blobs(prefix=prefix)
         names = []
         for obj in objects:
             names.append(obj.name)
         return names
-        #for obj in objects:
+        # for obj in objects:
         #    yield obj.name
 
     def get_instance():

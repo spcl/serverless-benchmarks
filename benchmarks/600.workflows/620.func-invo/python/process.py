@@ -1,7 +1,8 @@
 from random import shuffle
 
+
 def handler(event):
-    size = len(event['len'])
+    size = len(event["len"])
     elems = list(range(size))
     shuffle(elems)
 
@@ -11,4 +12,4 @@ def handler(event):
         if len(data) > size:
             break
 
-    return {'len' : data[:size]}
+    return {"len": data[:size]}

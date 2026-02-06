@@ -11,7 +11,13 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.faas.resources import SystemResources
 from sebs.faas.config import Resources
-from sebs.faas.function import CloudBenchmark, Function, Trigger, ExecutionResult, Workflow
+from sebs.faas.function import (
+    CloudBenchmark,
+    Function,
+    Trigger,
+    ExecutionResult,
+    Workflow,
+)
 from sebs.utils import LoggingBase
 from .config import Config
 
@@ -173,7 +179,11 @@ class System(ABC, LoggingBase):
 
     @abstractmethod
     def package_code(
-        self, code_package: Benchmark, directory: str, is_workflow: bool, is_cached: bool
+        self,
+        code_package: Benchmark,
+        directory: str,
+        is_workflow: bool,
+        is_cached: bool,
     ) -> Tuple[str, int, str]:
         pass
 
@@ -264,7 +274,9 @@ class System(ABC, LoggingBase):
         if not func_name:
             func_name = self.default_function_name(code_package)
 
-        rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code, False)
+        rebuilt, _, container_deployment, container_uri = code_package.build(
+            self.package_code, False
+        )
 
         """
             There's no function with that name?
@@ -363,7 +375,7 @@ class System(ABC, LoggingBase):
 
     def get_workflow(self, code_package: Benchmark, workflow_name: Optional[str] = None):
         if code_package.language_version not in self.system_config.supported_language_versions(
-            self.name(), code_package.language_name
+            self.name(), code_package.language_name, code_package.architecture
         ):
             raise Exception(
                 "Unsupported {language} version {version} in {system}!".format(
@@ -375,7 +387,9 @@ class System(ABC, LoggingBase):
 
         if not workflow_name:
             workflow_name = self.default_function_name(code_package)
-        rebuilt, _ = code_package.build(self.package_code, True)
+        rebuilt, _, container_deployment, container_uri = code_package.build(
+            self.package_code, True
+        )
 
         """
             There's no function with that name?
@@ -412,8 +426,23 @@ class System(ABC, LoggingBase):
                     workflow_name=workflow_name, loc=code_location
                 )
             )
+            needs_refresh = getattr(workflow, "needs_refresh", False)
             # is the function up-to-date?
-            if workflow.code_package_hash != code_package.hash or rebuilt:
+            if needs_refresh:
+                self.logging.info(
+                    f"Cached workflow {workflow_name} requires refreshing local resources."
+                )
+                self.update_workflow(workflow, code_package)
+                if hasattr(workflow, "needs_refresh"):
+                    workflow.needs_refresh = False
+                self.cache_client.add_benchmark(
+                    deployment_name=self.name(),
+                    language_name=code_package.language_name,
+                    code_package=code_package,
+                    benchmark=workflow,
+                )
+                code_package.query_cache()
+            elif workflow.code_package_hash != code_package.hash or rebuilt:
                 self.logging.info(
                     f"Cached workflow {workflow_name} with hash "
                     f"{workflow.code_package_hash} is not up to date with "

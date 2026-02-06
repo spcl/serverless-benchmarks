@@ -1,0 +1,63 @@
+{
+  "id": "sebd_630_parallel_sleep_python_3_11",
+  "name": "sebd_630_parallel_sleep_python_3_11",
+  "version": "0.1",
+  "specVersion": "0.8",
+  "description": "Auto-generated from SeBS workflow definition.",
+  "functions": [
+    {
+      "name": "sebd_630_parallel_sleep_python_3_11_generate",
+      "operation": "rest:post:http://172.18.0.26:9000/",
+      "type": "custom"
+    },
+    {
+      "name": "sebd_630_parallel_sleep_python_3_11_process",
+      "operation": "rest:post:http://172.18.0.27:9000/",
+      "type": "custom"
+    }
+  ],
+  "start": "generate",
+  "states": [
+    {
+      "name": "generate",
+      "type": "operation",
+      "actions": [
+        {
+          "name": "generate",
+          "functionRef": {
+            "refName": "sebd_630_parallel_sleep_python_3_11_generate",
+            "arguments": {
+              "payload": "${ . }"
+            }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
+          }
+        }
+      ],
+      "transition": "process-state"
+    },
+    {
+      "name": "process-state",
+      "type": "foreach",
+      "inputCollection": "${ .buffer }",
+      "outputCollection": "${ .buffer }",
+      "iterationParam": "item",
+      "actions": [
+        {
+          "name": "process",
+          "functionRef": {
+            "refName": "sebd_630_parallel_sleep_python_3_11_process",
+            "arguments": {
+              "payload": "${ .item }"
+            }
+          },
+          "actionDataFilter": {
+            "results": "${ .result.output.payload // .payload // . }"
+          }
+        }
+      ],
+      "end": true
+    }
+  ]
+}
