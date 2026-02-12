@@ -33,11 +33,22 @@ class Azure(System):
     _config: AzureConfig
 
     # runtime mapping
-    AZURE_RUNTIMES = {"python": "python", "nodejs": "node"}
+    AZURE_RUNTIMES = {"python": "python", "nodejs": "node", "java": "java", "pypy": "custom"}
 
     @staticmethod
     def name():
         return "azure"
+
+    @staticmethod
+    def _normalize_runtime_version(language: str, version: str) -> str:
+        """
+        Azure Functions Java expects versions with a minor component
+        (e.g. 17.0 instead of 17). Other languages can keep the version
+        as-is.
+        """
+        if language == "java" and re.match(r"^\d+$", str(version)):
+            return f"{version}.0"
+        return version
 
     @property
     def config(self) -> AzureConfig:
@@ -133,36 +144,90 @@ class Azure(System):
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
-        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js"}
+        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js", "java": "../function.jar", "pypy": "handler.py"}
         CONFIG_FILES = {
             "python": ["requirements.txt", ".python_packages"],
             "nodejs": ["package.json", "node_modules"],
+            "java": ["function.jar"],
+            # Keep .python_packages at the root so custom handler can import deps.
+            "pypy": ["requirements.txt", ".python_packages", "pypy"],
         }
         package_config = CONFIG_FILES[language_name]
 
         handler_dir = os.path.join(directory, "handler")
         os.makedirs(handler_dir)
+        
+        # For Java, create lib directory for JARs and exclude build artifacts
+        if language_name == "java":
+            lib_dir = os.path.join(directory, "lib")
+            os.makedirs(lib_dir, exist_ok=True)
+            # Move function.jar to lib directory
+            if os.path.exists(os.path.join(directory, "function.jar")):
+                shutil.move(os.path.join(directory, "function.jar"), os.path.join(lib_dir, "function.jar"))
+            # For Java, we want to keep lib and exclude source files/build artifacts
+            package_config = ["lib", "src", "pom.xml", "target", ".mvn", "mvnw", "mvnw.cmd"]
+        
         # move all files to 'handler' except package config
+        # For pypy custom handlers, handler.py must stay at root level
+        files_to_exclude = package_config.copy()
+        if language_name == "pypy":
+            files_to_exclude.append(EXEC_FILES[language_name])
         for f in os.listdir(directory):
-            if f not in package_config:
+            if f not in files_to_exclude:
                 source_file = os.path.join(directory, f)
                 shutil.move(source_file, handler_dir)
+        
+        # For Java, clean up build artifacts that we don't want to deploy
+        if language_name == "java":
+            for artifact in ["src", "pom.xml", "target", ".mvn", "mvnw", "mvnw.cmd"]:
+                artifact_path = os.path.join(directory, artifact)
+                if os.path.exists(artifact_path):
+                    if os.path.isdir(artifact_path):
+                        shutil.rmtree(artifact_path)
+                    else:
+                        os.remove(artifact_path)
 
         # generate function.json
         # TODO: extension to other triggers than HTTP
-        default_function_json = {
-            "scriptFile": EXEC_FILES[language_name],
-            "bindings": [
-                {
-                    "authLevel": "anonymous",
-                    "type": "httpTrigger",
-                    "direction": "in",
-                    "name": "req",
-                    "methods": ["get", "post"],
-                },
-                {"type": "http", "direction": "out", "name": "$return"},
-            ],
-        }
+        if language_name == "java":
+            # Java Azure Functions - For annotation-based functions, function.json
+            # should include scriptFile and entryPoint
+            # The @FunctionName annotation determines the function name
+            default_function_json = {
+                "scriptFile": "../lib/function.jar",
+                "entryPoint": "org.serverlessbench.Handler.handleRequest",
+                "bindings": [
+                    {
+                        "type": "httpTrigger",
+                        "direction": "in",
+                        "name": "req",
+                        "methods": ["get", "post"],
+                        "authLevel": "anonymous"
+                    },
+                    {
+                        "type": "http",
+                        "direction": "out",
+                        "name": "$return"
+                    }
+                ]
+            }
+        else:
+            default_function_json = {
+                "bindings": [
+                    {
+                        "authLevel": "anonymous",
+                        "type": "httpTrigger",
+                        "direction": "in",
+                        "name": "req",
+                        "methods": ["get", "post"],
+                    },
+                    {"type": "http", "direction": "out", "name": "$return"},
+                ],
+            }
+            # PyPy uses custom handler, no scriptFile needed
+            if language_name != "pypy":
+                default_function_json["scriptFile"] = EXEC_FILES[language_name]
+
         json_out = os.path.join(directory, "handler", "function.json")
         json.dump(default_function_json, open(json_out, "w"), indent=2)
 
@@ -174,6 +239,14 @@ class Azure(System):
                 "version": "[4.0.0, 5.0.0)",
             },
         }
+        if language_name == "pypy":
+            default_host_json["customHandler"] = {
+                "description": {
+                    "defaultExecutablePath": "pypy/bin/pypy",
+                    "arguments": ["handler.py"],
+                },
+                "enableForwardingHttpRequest": True,
+            }
         json.dump(default_host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
@@ -418,7 +491,13 @@ class Azure(System):
             raise NotImplementedError("Container deployment is not supported in Azure")
 
         language = code_package.language_name
-        language_runtime = code_package.language_version
+        language_runtime = self._normalize_runtime_version(
+            language, code_package.language_version
+        )
+        # ensure string form is passed to Azure CLI
+        language_runtime = str(language_runtime)
+        if language == "java" and "." not in language_runtime:
+            language_runtime = f"{language_runtime}.0"
         resource_group = self.config.resources.resource_group(self.cli_instance)
         region = self.config.region
         function_cfg = FunctionConfig.from_benchmark(code_package)
@@ -457,11 +536,16 @@ class Azure(System):
             while True:
                 try:
                     # create function app
+                    # Custom runtime doesn't support --runtime-version parameter
+                    runtime_version_param = ""
+                    if config["runtime"] != "custom":
+                        runtime_version_param = " --runtime-version {runtime_version} "
+                    
                     self.cli_instance.execute(
                         (
                             " az functionapp create --resource-group {resource_group} "
                             " --os-type Linux --consumption-plan-location {region} "
-                            " --runtime {runtime} --runtime-version {runtime_version} "
+                            " --runtime {runtime}" + runtime_version_param +
                             " --name {func_name} --storage-account {storage_account}"
                             " --functions-version 4 "
                         ).format(**config)

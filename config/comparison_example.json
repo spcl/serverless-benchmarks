@@ -1,0 +1,41 @@
+{
+  "deployment": {
+    "name": "aws",
+    "aws": {
+      "region": "us-east-1",
+      "access_key_id": "",
+      "secret_access_key": ""
+    },
+    "azure": {
+      "subscription_id": "",
+      "tenant_id": "",
+      "client_id": "",
+      "client_secret": ""
+    },
+    "gcp": {
+      "project_id": "",
+      "credentials": ""
+    },
+    "local": {
+      "runtime": {
+        "python": "3.11",
+        "nodejs": "20",
+        "pypy": "3.11"
+      }
+    }
+  },
+  "experiments": {
+    "update_code": false,
+    "update_storage": false,
+    "download_results": true,
+    "architecture": "x64",
+    "container_deployment": false,
+    "runtime": {
+      "language": "python",
+      "version": "3.11"
+    },
+    "repetitions": 5,
+    "memory": 256
+  }
+}
+

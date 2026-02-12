@@ -410,7 +410,7 @@ class minio_storage:
             objects = self.connection.list_objects_v2(bucket)
             objects = [obj.object_name for obj in objects]
             for err in self.connection.remove_objects(bucket, objects):
-                logging.error("Deletion Error: {}".format(del_err))
+                logging.error("Deletion Error: {}".format(err))
 
     def download_results(self, result_dir):
         result_dir = os.path.join(result_dir, 'storage_output')

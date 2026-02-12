@@ -3,7 +3,8 @@
   "memory": 128,
   "languages": [
     "python",
-    "nodejs"
+    "nodejs",
+    "pypy"
   ],
   "modules": [
     "nosql"

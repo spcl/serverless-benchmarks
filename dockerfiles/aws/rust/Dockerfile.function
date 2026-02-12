@@ -1,0 +1,12 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
+
+# Copy the pre-built bootstrap binary
+# The binary is already built by the build container
+COPY bootstrap /var/runtime/bootstrap
+
+# Make sure it's executable
+RUN chmod +x /var/runtime/bootstrap
+
+# Set the CMD to the handler (AWS Lambda will execute this)
+CMD ["/var/runtime/bootstrap"]

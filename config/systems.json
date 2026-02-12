@@ -64,10 +64,41 @@
           ],
           "packages": []
         }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "pypy:3.11"
+          },
+          "arm64": {
+            "3.11": "pypy:3.11"
+          }
+        },
+        "images": [
+          "run",
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "storage.py",
+            "nosql.py"
+          ],
+          "packages": [],
+          "module_packages": {
+            "nosql": [
+              "boto3==1.28.3"
+            ]
+          }
+        }
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
   },
   "aws": {
     "languages": {
@@ -121,10 +152,80 @@
             "uuid": "3.4.0"
           }
         }
+      },
+      "rust": {
+        "base_images": {
+          "x64": {
+            "1.88": "amazonlinux:2023"
+          },
+          "arm64": {
+            "1.88": "amazonlinux:2023"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "src",
+            "Cargo.toml"
+          ],
+          "packages": {}
+        }
+      },
+      "java": {
+        "base_images": {
+          "x64": {
+            "17": "public.ecr.aws/lambda/java:17"
+          },
+          "arm64": {
+            "17": "public.ecr.aws/lambda/java:17"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "pom.xml",
+            "src"
+          ],
+          "packages": {},
+          "module_packages": {}
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "pypy:3.11-slim"
+          },
+          "arm64": {
+            "3.11": "pypy:3.11-slim"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py",
+            "setup.py"
+          ],
+          "packages": [],
+          "module_packages": {}
+        }
       }
     },
-    "architecture": ["x64", "arm64"],
-    "deployments": ["package", "container"]
+    "architecture": [
+      "x64",
+      "arm64"
+    ],
+    "deployments": [
+      "package",
+      "container"
+    ]
   },
   "azure": {
     "languages": {
@@ -181,26 +282,30 @@
             "uuid": "3.4.0"
           }
         }
-      }
-    },
-    "images": {
-      "manage": {
-        "username": "docker_user"
-      }
-    },
-    "architecture": ["x64"],
-    "deployments": ["package"]
-  },
-  "gcp": {
-    "languages": {
-      "python": {
+      },
+      "java": {
         "base_images": {
           "x64": {
-            "3.8": "ubuntu:22.04",
-            "3.9": "ubuntu:22.04",
-            "3.10": "ubuntu:22.04",
-            "3.11": "ubuntu:22.04",
-            "3.12": "ubuntu:22.04"
+            "17": "mcr.microsoft.com/azure-functions/java:4-java17"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "pom.xml",
+            "src"
+          ],
+          "packages": {},
+          "module_packages": {}
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "ubuntu:20.04"
           }
         },
         "images": [
@@ -216,6 +321,87 @@
           "packages": [],
           "module_packages": {
             "storage": [
+              "azure-storage-blob"
+            ],
+            "nosql": [
+              "azure-cosmos"
+            ]
+          }
+        }
+      }
+    },
+    "images": {
+      "manage": {
+        "username": "docker_user"
+      }
+    },
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
+  },
+  "gcp": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "x64": {
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim",
+            "3.12": "python:3.12-slim"
+          },
+          "arm64": {
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim",
+            "3.12": "python:3.12-slim"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py",
+            "setup.py"
+          ],
+          "packages": [],
+          "module_packages": {
+            "storage": [
+              "google-cloud-storage"
+            ],
+            "nosql": [
+              "google-cloud-datastore"
+            ]
+          }
+        }
+      },
+      "pypy": {
+        "base_images": {
+          "x64": {
+            "3.11": "pypy:3.11-slim"
+          },
+          "arm64": {
+            "3.11": "pypy:3.11-slim"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py",
+            "setup.py"
+          ],
+          "packages": [],
+          "module_packages": {
+            "storage": [
               "google-cloud-storage"
             ],
             "nosql": [
@@ -227,8 +413,8 @@
       "nodejs": {
         "base_images": {
           "x64": {
-            "18": "ubuntu:22.04",
-            "20": "ubuntu:22.04"
+            "20": "node:20-slim",
+            "22": "node:22-slim"
           }
         },
         "images": [
@@ -252,8 +438,14 @@
         "username": "docker_user"
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64",
+      "arm64"
+    ],
+    "deployments": [
+      "package",
+      "container"
+    ]
   },
   "openwhisk": {
     "languages": {
@@ -313,7 +505,11 @@
         }
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["container"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "container"
+    ]
   }
 }

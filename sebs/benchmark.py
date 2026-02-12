@@ -252,23 +252,58 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "rust": ["*.rs", "Cargo.toml", "Cargo.lock"],
+            "java": ["src", "pom.xml"],
+            "pypy": ["*.py", "requirements.txt*"],
         }
-        WRAPPERS = {"python": "*.py", "nodejs": "*.js"}
+        WRAPPERS = {
+            "python": ["*.py"],
+            "nodejs": ["*.js"],
+            "rust": None,
+            "java": ["src", "pom.xml"],
+            "pypy": ["*.py"],
+        }
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
             for f in glob.glob(os.path.join(directory, file_type)):
                 path = os.path.join(directory, f)
-                with open(path, "rb") as opened_file:
-                    hash_sum.update(opened_file.read())
-        # wrappers
-        wrappers = project_absolute_path(
-            "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
-        )
-        for f in glob.glob(wrappers):
-            path = os.path.join(directory, f)
-            with open(path, "rb") as opened_file:
-                hash_sum.update(opened_file.read())
+                if os.path.isdir(path):
+                    for root, _, files in os.walk(path):
+                        for file in sorted(files):
+                            file_path = os.path.join(root, file)
+                            with open(file_path, "rb") as opened_file:
+                                hash_sum.update(opened_file.read())
+                else:
+                    with open(path, "rb") as opened_file:
+                        hash_sum.update(opened_file.read())
+        # For rust, also hash the src directory recursively
+        if language == "rust":
+            src_dir = os.path.join(directory, "src")
+            if os.path.exists(src_dir):
+                for root, dirs, files in os.walk(src_dir):
+                    for file in sorted(files):
+                        if file.endswith('.rs'):
+                            path = os.path.join(root, file)
+                            with open(path, "rb") as opened_file:
+                                hash_sum.update(opened_file.read())
+        # wrappers (Rust doesn't use wrapper files)
+        if WRAPPERS[language] is not None:
+            wrapper_patterns = WRAPPERS[language] if isinstance(WRAPPERS[language], list) else [WRAPPERS[language]]
+            for pattern in wrapper_patterns:
+                wrappers = project_absolute_path(
+                    "benchmarks", "wrappers", deployment, language, pattern
+                )
+                for f in glob.glob(wrappers):
+                    if os.path.isdir(f):
+                        for root, _, files in os.walk(f):
+                            for file in files:
+                                path = os.path.join(root, file)
+                                with open(path, "rb") as opened_file:
+                                    hash_sum.update(opened_file.read())
+                    else:
+                        with open(f, "rb") as opened_file:
+                            hash_sum.update(opened_file.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:
@@ -316,11 +351,31 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "rust": ["Cargo.toml", "Cargo.lock"],
+            "java": [],
+            "pypy": ["*.py", "requirements.txt*"],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
+        if self.language_name == "java":
+            shutil.copytree(path, output_dir, dirs_exist_ok=True)
+            return
+        self.logging.info(f"copy_code: Looking for files in {path} for language {self.language_name}")
         for file_type in FILES[self.language_name]:
-            for f in glob.glob(os.path.join(path, file_type)):
-                shutil.copy2(os.path.join(path, f), output_dir)
+            matches = glob.glob(os.path.join(path, file_type))
+            self.logging.info(f"copy_code: Pattern {file_type} matched {len(matches)} files: {matches}")
+            for f in matches:
+                self.logging.info(f"copy_code: Copying {f} to {output_dir}")
+                shutil.copy2(f, output_dir)
+        
+        # For Rust, copy the entire src directory
+        if self.language_name == "rust":
+            src_path = os.path.join(path, "src")
+            if os.path.exists(src_path):
+                dest_src = os.path.join(output_dir, "src")
+                if os.path.exists(dest_src):
+                    shutil.rmtree(dest_src)
+                shutil.copytree(src_path, dest_src)
+        
         # support node.js benchmarks with language specific packages
         nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
         if os.path.exists(nodejs_package_json):
@@ -345,6 +400,106 @@ class Benchmark(LoggingBase):
                     stderr=subprocess.STDOUT,
                 )
 
+    def _merge_rust_cargo_toml(self, wrapper_cargo_path: str, benchmark_cargo_path: str, output_dir: str):
+        """
+        Merge benchmark Cargo.toml dependencies into wrapper Cargo.toml.
+        The wrapper Cargo.toml is the base, and benchmark dependencies are added/merged.
+        Uses simple string-based approach to extract and merge [dependencies] sections.
+        """
+        import re
+        
+        # Ensure output_dir is absolute for consistent path handling
+        output_dir = os.path.abspath(output_dir)
+        
+        with open(wrapper_cargo_path, 'r') as f:
+            wrapper_content = f.read()
+        
+        with open(benchmark_cargo_path, 'r') as f:
+            benchmark_content = f.read()
+        
+        # Extract dependencies from benchmark Cargo.toml
+        deps_match = re.search(r'\[dependencies\](.*?)(?=\n\[|\Z)', benchmark_content, re.DOTALL)
+        if not deps_match:
+            # No dependencies in benchmark, just copy wrapper
+            output_cargo = os.path.join(output_dir, "Cargo.toml")
+            with open(output_cargo, 'w') as f:
+                f.write(wrapper_content)
+            return
+        
+        benchmark_deps_lines = deps_match.group(1).strip().split('\n')
+        
+        # Extract existing dependency names from wrapper to avoid duplicates
+        wrapper_deps_match = re.search(r'\[dependencies\](.*?)(?=\n\[|\Z)', wrapper_content, re.DOTALL)
+        existing_deps = set()
+        if wrapper_deps_match:
+            for line in wrapper_deps_match.group(1).split('\n'):
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    # Extract dependency name (before = or {)
+                    dep_name = re.split(r'[=\s{]+', line)[0].strip()
+                    if dep_name:
+                        existing_deps.add(dep_name)
+        
+        # Add benchmark dependencies that aren't already in wrapper
+        new_deps = []
+        for line in benchmark_deps_lines:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                dep_name = re.split(r'[=\s{]+', line)[0].strip()
+                if dep_name and dep_name not in existing_deps:
+                    new_deps.append(line)
+                    existing_deps.add(dep_name)
+        
+        # Merge dependencies into wrapper content
+        if new_deps:
+            if wrapper_deps_match:
+                # Insert new dependencies before the end of [dependencies] section
+                deps_section_start = wrapper_deps_match.start()
+                deps_section_end = wrapper_deps_match.end()
+                deps_content = wrapper_deps_match.group(1)
+                
+                # Build merged dependencies section
+                merged_deps = deps_content.rstrip()
+                for dep_line in new_deps:
+                    merged_deps += '\n' + dep_line
+                merged_deps += '\n'
+                
+                # Reconstruct wrapper content with merged dependencies
+                merged_content = (
+                    wrapper_content[:deps_section_start] +
+                    '[dependencies]' + merged_deps +
+                    wrapper_content[deps_section_end:]
+                )
+            else:
+                # Add [dependencies] section if it doesn't exist
+                if not wrapper_content.endswith('\n'):
+                    wrapper_content += '\n'
+                merged_content = wrapper_content + '\n[dependencies]\n'
+                for dep_line in new_deps:
+                    merged_content += dep_line + '\n'
+        else:
+            merged_content = wrapper_content
+        
+        # Write merged Cargo.toml (output_dir is already absolute)
+        output_cargo = os.path.join(output_dir, "Cargo.toml")
+        # Ensure directory exists
+        os.makedirs(output_dir, exist_ok=True)
+        with open(output_cargo, 'w') as f:
+            f.write(merged_content)
+            f.flush()
+            os.fsync(f.fileno())  # Force write to disk
+        # Verify it was written (with a small delay for filesystem sync)
+        import time
+        time.sleep(0.01)  # Small delay for filesystem to sync
+        if not os.path.exists(output_cargo):
+            # Try to get more info about what went wrong
+            parent_dir = os.path.dirname(output_cargo)
+            raise RuntimeError(
+                f"Failed to write merged Cargo.toml to {output_cargo}. "
+                f"Parent directory exists: {os.path.exists(parent_dir)}, "
+                f"Parent directory contents: {os.listdir(parent_dir) if os.path.exists(parent_dir) else 'N/A'}"
+            )
+
     def add_deployment_files(self, output_dir):
         handlers_dir = project_absolute_path(
             "benchmarks", "wrappers", self._deployment_name, self.language_name
@@ -355,8 +510,59 @@ class Benchmark(LoggingBase):
                 self._deployment_name, self.language_name
             )
         ]
+        
+        # Copy wrapper files first (except Cargo.toml for Rust, which we'll merge)
         for file in handlers:
-            shutil.copy2(file, os.path.join(output_dir))
+            destination = os.path.join(output_dir, os.path.basename(file))
+            if os.path.basename(file) == "Cargo.toml" and self.language_name == "rust":
+                # Skip copying wrapper Cargo.toml directly - we'll merge it instead
+                continue
+            if os.path.isdir(file):
+                shutil.copytree(file, destination, dirs_exist_ok=True)
+            else:
+                if not os.path.exists(destination):
+                    shutil.copy2(file, destination)
+        
+        # For Rust, merge Cargo.toml files after copying other wrapper files
+        if self.language_name == "rust":
+            # Ensure output_dir is absolute for consistent path handling
+            output_dir_abs = os.path.abspath(output_dir)
+            wrapper_cargo = os.path.join(handlers_dir, "Cargo.toml")
+            benchmark_cargo = os.path.join(output_dir_abs, "Cargo.toml")
+            self.logging.info(f"Rust Cargo.toml merge: wrapper={wrapper_cargo} (exists: {os.path.exists(wrapper_cargo)}), benchmark={benchmark_cargo} (exists: {os.path.exists(benchmark_cargo)})")
+            if os.path.exists(wrapper_cargo) and os.path.exists(benchmark_cargo):
+                # Merge dependencies from benchmark Cargo.toml into wrapper Cargo.toml
+                self.logging.info("Merging Rust Cargo.toml files")
+                # The merge function reads benchmark_cargo and writes merged content to output_dir/Cargo.toml
+                # Since benchmark_cargo IS output_dir/Cargo.toml, the merge overwrites it
+                # So we don't need to remove benchmark_cargo - it's already been overwritten with merged content
+                self._merge_rust_cargo_toml(wrapper_cargo, benchmark_cargo, output_dir_abs)
+                merged_path = os.path.join(output_dir_abs, "Cargo.toml")
+                # The merge function should have raised an error if it failed, but verify anyway
+                if not os.path.exists(merged_path):
+                    # List directory contents for debugging
+                    dir_contents = os.listdir(output_dir_abs) if os.path.exists(output_dir_abs) else []
+                    raise RuntimeError(
+                        f"Merged Cargo.toml was not created at {merged_path}. "
+                        f"Directory contents: {dir_contents}"
+                    )
+                self.logging.info(f"Merged Cargo.toml successfully written to {merged_path}")
+            elif os.path.exists(wrapper_cargo):
+                # Only wrapper Cargo.toml exists, just copy it
+                wrapper_dest = os.path.join(output_dir_abs, "Cargo.toml")
+                self.logging.info(f"Only wrapper Cargo.toml exists, copying to {wrapper_dest}")
+                shutil.copy2(wrapper_cargo, wrapper_dest)
+            elif os.path.exists(benchmark_cargo):
+                # Only benchmark Cargo.toml exists, copy it (shouldn't happen normally)
+                benchmark_dest = os.path.join(output_dir_abs, "Cargo.toml")
+                self.logging.warning(f"Only benchmark Cargo.toml exists, copying to {benchmark_dest}")
+                # Keep it as-is since wrapper should always exist
+            else:
+                self.logging.error(f"Neither wrapper nor benchmark Cargo.toml found! Wrapper: {wrapper_cargo}, Benchmark: {benchmark_cargo}")
+                raise RuntimeError(
+                    f"Cargo.toml not found: wrapper at {wrapper_cargo} or benchmark at {benchmark_cargo}. "
+                    "Both should exist for Rust builds."
+                )
 
     def add_deployment_package_python(self, output_dir):
 
@@ -372,6 +578,8 @@ class Benchmark(LoggingBase):
             )
             for package in packages:
                 out.write(package)
+                if not package.endswith('\n'):
+                    out.write('\n')
 
             module_packages = self._system_config.deployment_module_packages(
                 self._deployment_name, self.language_name
@@ -380,6 +588,8 @@ class Benchmark(LoggingBase):
                 if bench_module.value in module_packages:
                     for package in module_packages[bench_module.value]:
                         out.write(package)
+                        if not package.endswith('\n'):
+                            out.write('\n')
 
     def add_deployment_package_nodejs(self, output_dir):
         # modify package.json
@@ -402,10 +612,16 @@ class Benchmark(LoggingBase):
     def add_deployment_package(self, output_dir):
         from sebs.faas.function import Language
 
-        if self.language == Language.PYTHON:
+        if self.language == Language.PYTHON or self.language == Language.PYPY:
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
+        elif self.language == Language.RUST:
+            # Rust dependencies are managed by Cargo, no additional packages needed
+            pass
+        elif self.language == Language.JAVA:
+            # Java dependencies are handled by Maven in the wrapper
+            return
         else:
             raise NotImplementedError
 
@@ -419,15 +635,26 @@ class Benchmark(LoggingBase):
 
     def install_dependencies(self, output_dir):
         # do we have docker image for this run and language?
-        if "build" not in self._system_config.docker_image_types(
+        image_types = self._system_config.docker_image_types(
             self._deployment_name, self.language_name
-        ):
+        )
+        self.logging.info(
+            f"Docker image types for {self._deployment_name}/{self.language_name}: {image_types}"
+        )
+        if "build" not in image_types:
             self.logging.info(
                 (
                     "There is no Docker build image for {deployment} run in {language}, "
                     "thus skipping the Docker-based installation of dependencies."
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
+            # For Rust, this is a fatal error - we need the build image
+            if self.language_name == "rust":
+                raise RuntimeError(
+                    f"Docker build image is required for Rust but not configured for "
+                    f"{self._deployment_name}/{self.language_name}. "
+                    "Please ensure 'build' is in the 'images' list in config/systems.json"
+                )
         else:
             repo_name = self._system_config.docker_repository()
             unversioned_image_name = "build.{deployment}.{language}.{runtime}".format(
@@ -481,11 +708,30 @@ class Benchmark(LoggingBase):
                         "bind": "/mnt/function/package.sh",
                         "mode": "ro",
                     }
+                
+                # Mount updated java_installer.sh if language is java
+                if self.language_name == "java":
+                    installer_path = os.path.abspath("dockerfiles/java_installer.sh")
+                    if os.path.exists(installer_path):
+                        volumes[installer_path] = {
+                            "bind": "/sebs/installer.sh",
+                            "mode": "ro",
+                        }
 
             # run Docker container to install packages
-            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json"}
+            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "rust": "Cargo.toml", "java": "pom.xml", "pypy": "requirements.txt"}
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
+            
+            # For Java, check recursively if pom.xml exists
+            if self.language_name == "java" and not os.path.exists(file):
+                for root, _, files in os.walk(output_dir):
+                    if "pom.xml" in files:
+                        file = os.path.join(root, "pom.xml")
+                        break
+
+            self.logging.info(f"Checking for package file: {file} (exists: {os.path.exists(file)})")
             if os.path.exists(file):
+                self.logging.info(f"Found package file {file}, proceeding with Docker build")
                 try:
                     self.logging.info(
                         "Docker build of benchmark dependencies in container "
@@ -565,14 +811,51 @@ class Benchmark(LoggingBase):
 
                     # Pass to output information on optimizing builds.
                     # Useful for AWS where packages have to obey size limits.
-                    for line in stdout.decode("utf-8").split("\n"):
-                        if "size" in line:
+                    build_output = ""
+                    if isinstance(stdout, bytes):
+                        build_output = stdout.decode("utf-8")
+                    elif isinstance(stdout, tuple):
+                        # exec_run returns (exit_code, output)
+                        exit_code, output = stdout
+                        build_output = output.decode("utf-8") if isinstance(output, bytes) else str(output)
+                        if exit_code != 0:
+                            self.logging.error(f"Docker build exited with code {exit_code}")
+                    else:
+                        build_output = str(stdout)
+                    
+                    for line in build_output.split("\n"):
+                        if "size" in line or "error" in line.lower() or "Error" in line or "failed" in line.lower():
                             self.logging.info("Docker build: {}".format(line))
+                    
+                    # For Rust, check if bootstrap binary was created
+                    if self.language_name == "rust":
+                        bootstrap_path = os.path.join(output_dir, "bootstrap")
+                        if not os.path.exists(bootstrap_path):
+                            self.logging.error("Rust build failed: bootstrap binary not found!")
+                            self.logging.error("Build output:\n{}".format(build_output[-2000:]))  # Last 2000 chars
+                            raise RuntimeError("Rust build failed: bootstrap binary not created")
                 except docker.errors.ContainerError as e:
                     self.logging.error("Package build failed!")
                     self.logging.error(e)
                     self.logging.error(f"Docker mount volumes: {volumes}")
+                    # For Rust, also check bootstrap even if ContainerError occurred
+                    if self.language_name == "rust":
+                        bootstrap_path = os.path.join(output_dir, "bootstrap")
+                        if not os.path.exists(bootstrap_path):
+                            self.logging.error("Rust bootstrap binary not found after Docker build failure!")
                     raise e
+            else:
+                # Package file doesn't exist
+                error_msg = f"Package file {file} not found in {output_dir}"
+                self.logging.error(error_msg)
+                if self.language_name == "rust":
+                    # List files in output_dir for debugging
+                    files_in_dir = os.listdir(output_dir) if os.path.exists(output_dir) else []
+                    self.logging.error(f"Files in output_dir: {files_in_dir}")
+                    raise RuntimeError(
+                        f"{error_msg}. For Rust, Cargo.toml must exist after merging wrapper and benchmark files. "
+                        "Check that Cargo.toml merge completed successfully."
+                    )
 
     def recalculate_code_size(self):
         self._code_size = Benchmark.directory_size(self._output_dir)
@@ -613,7 +896,25 @@ class Benchmark(LoggingBase):
         self.add_benchmark_data(self._output_dir)
         self.add_deployment_files(self._output_dir)
         self.add_deployment_package(self._output_dir)
+        
+        # For Rust, remove any existing Cargo.lock to ensure it's regenerated with correct constraints
+        if self.language_name == "rust":
+            cargo_lock = os.path.join(self._output_dir, "Cargo.lock")
+            if os.path.exists(cargo_lock):
+                self.logging.info(f"Removing existing Cargo.lock at {cargo_lock} to ensure regeneration with correct dependency versions")
+                os.remove(cargo_lock)
+        
         self.install_dependencies(self._output_dir)
+        
+        # For Rust, verify bootstrap binary exists after dependency installation
+        if self.language_name == "rust":
+            bootstrap_path = os.path.join(self._output_dir, "bootstrap")
+            if not os.path.exists(bootstrap_path):
+                self.logging.error(f"Rust bootstrap binary not found at {bootstrap_path} after install_dependencies!")
+                raise RuntimeError(
+                    f"Rust build failed: bootstrap binary not created at {bootstrap_path}. "
+                    "Check Docker build logs above for compilation errors."
+                )
 
         self._code_location, self._code_size, self._container_uri = deployment_build_step(
             os.path.abspath(self._output_dir),

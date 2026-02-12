@@ -1,0 +1,44 @@
+ARG BASE_IMAGE
+ARG TARGET_ARCHITECTURE
+
+FROM --platform=linux/amd64 ${BASE_IMAGE} AS base-x64
+FROM --platform=linux/arm64/v8 ${BASE_IMAGE} AS base-arm64
+
+FROM base-${TARGET_ARCHITECTURE}
+ARG TARGET_ARCHITECTURE
+ARG VERSION
+ENV PYTHON_VERSION=${VERSION}
+
+COPY . function/
+
+ENV PLATFORM_ARG=""
+
+RUN pip install functions-framework
+
+RUN touch function/__init__.py \
+    && if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]]; then \
+      export PLATFORM_ARG="--platform manylinux_2_17_aarch64 --only-binary=:all:"; \
+    fi \
+    && if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]] && test -f "function/requirements.txt.arm.${PYTHON_VERSION}"; then \
+        pip install --no-cache-dir ${PLATFORM_ARG} --target . \
+            -r function/requirements.txt \
+            -r function/requirements.txt.arm.${PYTHON_VERSION} \
+            function/ && \
+        pip cache purge; \
+    elif test -f "function/requirements.txt.${PYTHON_VERSION}"; then \
+        pip install --no-cache-dir ${PLATFORM_ARG} --target . \
+            -r function/requirements.txt \
+            -r function/requirements.txt.${PYTHON_VERSION} \
+            function/ && \
+        pip cache purge; \
+    else \
+        pip install --no-cache-dir ${PLATFORM_ARG} --target . \
+            -r function/requirements.txt \
+            function/ && \
+        pip cache purge; \
+    fi
+
+
+ENV PYTHONPATH="/"
+
+CMD ["functions-framework", "--target=handler", "--source=function/handler.py"]
