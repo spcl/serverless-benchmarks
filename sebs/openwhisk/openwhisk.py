@@ -453,6 +453,43 @@ class OpenWhisk(System):
             f"out of {len(requests)} invocations"
         )
 
+    def get_invocation_logs(
+        self, function_name: str, request_id: str, start_time: int, end_time: int
+    ) -> List[str]:
+        """
+        Retrieve full logs (stdout and stderr) for a specific invocation.
+
+        Args:
+            function_name: Name of the OpenWhisk action
+            request_id: OpenWhisk activation ID
+            start_time: Start time as Unix timestamp
+            end_time: End time as Unix timestamp
+
+        Returns:
+            List of log messages for the invocation
+        """
+        log_messages = []
+
+        try:
+            # Use wsk CLI to get activation logs
+            result = subprocess.run(
+                [*self.get_wsk_cmd(), "activation", "logs", request_id],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
+
+            logs = result.stdout.decode("utf-8")
+            log_messages = logs.split("\n")
+
+        except subprocess.CalledProcessError as e:
+            self.logging.error(f"Error retrieving OpenWhisk logs: {e}")
+            log_messages.append(f"Error: {str(e)}")
+            if e.stderr:
+                log_messages.append(e.stderr.decode("utf-8"))
+
+        return log_messages
+
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         if trigger_type == Trigger.TriggerType.LIBRARY:
             return function.triggers(Trigger.TriggerType.LIBRARY)[0]

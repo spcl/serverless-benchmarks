@@ -657,7 +657,6 @@ class Benchmark(LoggingBase):
     def prepare_input(
         self, system_resources: SystemResources, size: str, replace_existing: bool = False
     ):
-
         """
         Handle object storage buckets.
         """

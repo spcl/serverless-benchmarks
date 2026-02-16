@@ -428,6 +428,130 @@ def statistics(results):
                 )
 
 
+@benchmark.command("logs")
+@click.argument(
+    "target",
+    type=str,
+    required=True,
+)
+@click.option(
+    "--request-id",
+    type=str,
+    default=None,
+    help="Request/invocation ID to query (optional, for specific invocation).",
+)
+@click.option(
+    "--minutes",
+    type=int,
+    default=30,
+    help="Number of minutes to look back for logs (default: 30, only for function name mode).",
+)
+@common_params
+def query_logs(target, request_id, minutes, **kwargs):
+    """
+    Query and display logs for benchmark invocations.
+
+    TARGET can be either:
+    1. Path to experiments.json file - queries logs for all invocations in that file
+    2. Function name - queries logs for that function (requires --request-id)
+
+    Examples:
+      ./sebs.py benchmark logs experiments.json --config config.json
+      ./sebs.py benchmark logs my-function --request-id abc123 --config config.json
+      ./sebs.py benchmark logs my-function --request-id abc123 --minutes 60 --config config.json
+    """
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+
+    # Detect if target is a file or function name
+    is_file = os.path.isfile(target)
+
+    # Case 1: Load from experiments file
+    if is_file:
+        sebs_client.logging.info(f"Loading invocations from {target}")
+        with open(target, "r") as in_f:
+            exp_config = json.load(in_f)
+            experiments = sebs.experiments.ExperimentResult.deserialize(
+                exp_config,
+                sebs_client.cache_client,
+                sebs_client.generate_logging_handlers(logging_filename),
+            )
+
+        # Get time bounds from experiments
+        exp_start_time, exp_end_time = experiments.times()
+        start_time = int(exp_start_time)
+        end_time = int(exp_end_time)
+
+        # Query logs for all functions and invocations
+        for func_name in experiments.functions():
+            invocations = experiments.invocations(func_name)
+            sebs_client.logging.info(
+                f"\n{'=' * 80}\nFunction: {func_name} ({len(invocations)} invocations)\n{'=' * 80}"
+            )
+
+            for req_id, execution_result in invocations.items():
+                sebs_client.logging.info(f"\n{'-' * 80}\nRequest ID: {req_id}\n{'-' * 80}")
+
+                try:
+                    logs = deployment_client.get_invocation_logs(
+                        func_name, req_id, start_time, end_time
+                    )
+
+                    if logs:
+                        for log_line in logs:
+                            if log_line.strip():  # Skip empty lines
+                                print(log_line)
+                    else:
+                        sebs_client.logging.warning(f"No logs found for request {req_id}")
+
+                except Exception as e:
+                    sebs_client.logging.error(f"Error retrieving logs for {req_id}: {e}")
+
+    # Case 2: Query specific function
+    else:
+        function_name = target
+
+        # Validate that request_id is provided
+        if not request_id:
+            sebs_client.logging.error(
+                "When querying by function name, please provide --request-id. "
+                "Alternatively, use an experiments.json file to query all invocations."
+            )
+            return
+
+        import time
+
+        # Calculate time window - look back X minutes from now
+        end_time = int(time.time())
+        start_time = end_time - (minutes * 60)
+
+        sebs_client.logging.info(
+            f"Querying logs for function '{function_name}', request ID '{request_id}' "
+            f"(last {minutes} minutes)"
+        )
+
+        try:
+            logs = deployment_client.get_invocation_logs(
+                function_name, request_id, start_time, end_time
+            )
+
+            if logs:
+                sebs_client.logging.info(f"\n{'-' * 80}\nLogs:\n{'-' * 80}")
+                for log_line in logs:
+                    if log_line.strip():  # Skip empty lines
+                        print(log_line)
+            else:
+                sebs_client.logging.warning("No logs found")
+
+        except Exception as e:
+            sebs_client.logging.error(f"Error retrieving logs: {e}")
+
+
 @benchmark.command()
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])

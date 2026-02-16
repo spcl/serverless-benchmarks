@@ -343,6 +343,58 @@ class Local(System):
     ):
         pass
 
+    def get_invocation_logs(
+        self, function_name: str, request_id: str, start_time: int, end_time: int
+    ) -> List[str]:
+        """
+        Retrieve full logs (stdout and stderr) for a specific invocation.
+
+        For local Docker-based execution, this retrieves logs from the Docker container.
+
+        Args:
+            function_name: Name of the local function
+            request_id: Request ID (container ID or identifier)
+            start_time: Start time as Unix timestamp
+            end_time: End time as Unix timestamp
+
+        Returns:
+            List of log messages for the invocation
+        """
+        log_messages = []
+
+        # For local execution, try to get logs from Docker container
+        # The request_id might be a container ID or we need to find the container
+        try:
+            # Try to find container by name (function_name)
+            containers = self.docker_client.containers.list(
+                all=True, filters={"name": function_name}
+            )
+
+            if containers:
+                # Get the most recent container or the specific one matching request_id
+                container = containers[0]
+                for c in containers:
+                    if request_id in c.id or request_id in c.name:
+                        container = c
+                        break
+
+                # Retrieve logs
+                logs = container.logs(stdout=True, stderr=True, timestamps=True).decode("utf-8")
+
+                log_messages = logs.split("\n")
+            else:
+                self.logging.warning(f"No Docker container found for function {function_name}")
+                log_messages.append(
+                    f"Note: Local execution logs are ephemeral. "
+                    f"Container for {function_name} may have been removed."
+                )
+
+        except Exception as e:
+            self.logging.error(f"Error retrieving local logs: {e}")
+            log_messages.append(f"Error: {str(e)}")
+
+        return log_messages
+
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
         raise NotImplementedError()
 

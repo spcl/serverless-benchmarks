@@ -655,6 +655,86 @@ class GCP(System):
                             }
                         ]
 
+    def get_invocation_logs(
+        self, function_name: str, execution_id: str, start_time: int, end_time: int
+    ) -> List[str]:
+        """
+        Retrieve full logs (stdout and stderr) for a specific invocation.
+
+        Args:
+            function_name: Name of the GCP Cloud Function
+            execution_id: GCP execution ID
+            start_time: Start time as Unix timestamp
+            end_time: End time as Unix timestamp
+
+        Returns:
+            List of log messages for the invocation
+        """
+        import google.cloud.logging as gcp_logging
+        from google.api_core import exceptions
+
+        logging_client = gcp_logging.Client()
+        logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")
+
+        # Convert timestamps to GCP's required format
+        timestamps = []
+        for ts in [start_time, end_time + 60]:  # Add buffer
+            utc_date = datetime.fromtimestamp(ts, tz=timezone.utc)
+            timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+        # Query logs for the specific execution ID
+        filter_str = (
+            f'resource.labels.function_name = "{function_name}" '
+            f'labels.execution_id = "{execution_id}" '
+            f'timestamp >= "{timestamps[0]}" '
+            f'timestamp <= "{timestamps[1]}"'
+        )
+
+        log_messages = []
+        retries = 0
+        max_retries = 3
+
+        while retries < max_retries:
+            try:
+                entries = logger.list_entries(
+                    filter_=filter_str, page_size=1000, order_by="timestamp asc"
+                )
+
+                found_logs = False
+                for entry in entries:
+                    found_logs = True
+                    timestamp = entry.timestamp.isoformat() if entry.timestamp else "unknown"
+                    severity = entry.severity if hasattr(entry, "severity") else "DEFAULT"
+
+                    # Extract the log message
+                    if hasattr(entry, "payload"):
+                        if isinstance(entry.payload, str):
+                            message = entry.payload
+                        elif isinstance(entry.payload, dict):
+                            message = entry.payload.get("message", str(entry.payload))
+                        else:
+                            message = str(entry.payload)
+                    else:
+                        message = str(entry)
+
+                    log_messages.append(f"[{timestamp}] [{severity}] {message}")
+
+                if found_logs or retries >= max_retries - 1:
+                    break
+
+            except exceptions.GoogleAPIError as e:
+                self.logging.warning(f"Error querying GCP logs: {e}")
+
+            retries += 1
+            if retries < max_retries:
+                self.logging.info(
+                    f"GCP logs not yet available for execution {execution_id}, "
+                    f"retrying in 10s... ({retries}/{max_retries})"
+                )
+                time.sleep(10)
+
+        return log_messages
+
     def _enforce_cold_start(self, function: Function, code_package: Benchmark):
 
         self.cold_start_counter += 1

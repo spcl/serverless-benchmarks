@@ -85,7 +85,6 @@ class Azure(System):
         super().shutdown()
 
     def find_deployments(self) -> List[str]:
-
         """
         Look for duplicated resource groups.
         """
@@ -583,6 +582,106 @@ class Azure(System):
         self.logging.info(f"Missing the requests: {invocations_to_process - invocations_processed}")
 
         # TODO: query performance counters for mem
+
+    def get_invocation_logs(
+        self, function_name: str, invocation_id: str, start_time: int, end_time: int
+    ) -> List[str]:
+        """
+        Retrieve full logs (stdout and stderr) for a specific invocation.
+
+        Args:
+            function_name: Name of the Azure function
+            invocation_id: Azure invocation ID
+            start_time: Start time as Unix timestamp
+            end_time: End time as Unix timestamp
+
+        Returns:
+            List of log messages for the invocation
+        """
+        self.cli_instance.install_insights()
+
+        resource_group = self.config.resources.resource_group(self.cli_instance)
+
+        # Get Application Insights ID
+        app_id_query = self.cli_instance.execute(
+            ("az monitor app-insights component show " "--app {} --resource-group {}").format(
+                function_name, resource_group
+            )
+        ).decode("utf-8")
+        application_id = json.loads(app_id_query)["appId"]
+
+        # Azure CLI requires date in the following format
+        # Format: date (yyyy-mm-dd) time (hh:mm:ss.xxxxx) timezone (+/-hh:mm)
+        start_time_str = datetime.datetime.fromtimestamp(start_time).strftime(
+            "%Y-%m-%d %H:%M:%S.%f"
+        )
+        end_time_str = datetime.datetime.fromtimestamp(end_time + 60).strftime("%Y-%m-%d %H:%M:%S")
+        from tzlocal import get_localzone
+
+        timezone_str = datetime.datetime.now(get_localzone()).strftime("%z")
+
+        # Query for traces (logs) associated with the invocation ID
+        query = (
+            f"union traces, requests | "
+            f"where customDimensions['InvocationId'] == '{invocation_id}' | "
+            f"project timestamp, message, severityLevel, itemType | "
+            f"order by timestamp asc"
+        )
+
+        log_messages = []
+        retries = 0
+        max_retries = 3
+
+        while retries < max_retries:
+            ret = self.cli_instance.execute(
+                (
+                    'az monitor app-insights query --app {} --analytics-query "{}" '
+                    "--start-time {} {} --end-time {} {}"
+                ).format(
+                    application_id,
+                    query,
+                    start_time_str,
+                    timezone_str,
+                    end_time_str,
+                    timezone_str,
+                )
+            ).decode("utf-8")
+
+            result = json.loads(ret)
+
+            if "tables" in result and len(result["tables"]) > 0:
+                table = result["tables"][0]
+                if len(table["rows"]) > 0:
+                    # Extract messages
+                    for row in table["rows"]:
+                        timestamp = row[0]
+                        message = row[1]
+                        severity = row[2] if len(row) > 2 else None
+
+                        if message:
+                            prefix = f"[{timestamp}]"
+                            if severity is not None:
+                                severity_map = {
+                                    0: "VERBOSE",
+                                    1: "INFO",
+                                    2: "WARNING",
+                                    3: "ERROR",
+                                    4: "CRITICAL",
+                                }
+                                severity_str = severity_map.get(severity, str(severity))
+                                prefix += f" [{severity_str}]"
+                            log_messages.append(f"{prefix} {message}")
+                    break
+
+            retries += 1
+            if retries < max_retries:
+                self.logging.info(
+                    f"Azure logs not yet available for invocation {invocation_id}, "
+                    f"retrying in 10s... ({retries}/{max_retries})"
+                )
+                time.sleep(10)
+
+        return log_messages
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark):
 

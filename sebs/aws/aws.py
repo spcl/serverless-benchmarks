@@ -525,6 +525,86 @@ class AWS(System):
                 if value["field"] == "@message":
                     self.logging.error(value["value"])
 
+    def get_invocation_logs(
+        self, function_name: str, request_id: str, start_time: int, end_time: int
+    ) -> List[str]:
+        """
+        Retrieve full logs (stdout and stderr) for a specific invocation.
+
+        Args:
+            function_name: Name of the Lambda function
+            request_id: AWS request ID for the invocation
+            start_time: Start time as Unix timestamp
+            end_time: End time as Unix timestamp
+
+        Returns:
+            List of log messages for the invocation
+        """
+        if not self.logs_client:
+            self.logs_client = boto3.client(
+                service_name="logs",
+                aws_access_key_id=self.config.credentials.access_key,
+                aws_secret_access_key=self.config.credentials.secret_key,
+                region_name=self.config.region,
+            )
+
+        # Query CloudWatch Logs for the specific request ID
+        query_string = (
+            f'filter @requestId = "{request_id}" | '
+            f"fields @timestamp, @message | sort @timestamp asc"
+        )
+
+        response = None
+        retries = 0
+        max_retries = 3
+
+        while retries < max_retries:
+            query = self.logs_client.start_query(
+                logGroupName="/aws/lambda/{}".format(function_name),
+                queryString=query_string,
+                startTime=math.floor(start_time),
+                endTime=math.ceil(end_time + 60),  # Add buffer for log delivery
+            )
+            query_id = query["queryId"]
+
+            # Poll for query completion
+            while response is None or response["status"] == "Running":
+                time.sleep(1)
+                response = self.logs_client.get_query_results(queryId=query_id)
+
+            if len(response["results"]) > 0:
+                break
+
+            # Logs might not be available yet
+            retries += 1
+            if retries < max_retries:
+                self.logging.info(
+                    f"AWS logs not yet available for request {request_id}, "
+                    f"retrying in 10s... ({retries}/{max_retries})"
+                )
+                time.sleep(10)
+                response = None
+
+        # Extract log messages
+        log_messages = []
+        if response and "results" in response:
+            for log_entry in response["results"]:
+                message = None
+                timestamp = None
+                for field in log_entry:
+                    if field["field"] == "@message":
+                        message = field["value"]
+                    elif field["field"] == "@timestamp":
+                        timestamp = field["value"]
+
+                if message:
+                    if timestamp:
+                        log_messages.append(f"[{timestamp}] {message}")
+                    else:
+                        log_messages.append(message)
+
+        return log_messages
+
     def download_metrics(
         self,
         function_name: str,
