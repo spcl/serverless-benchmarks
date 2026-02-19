@@ -99,7 +99,7 @@ class LambdaFunction(Function):
             AssertionError: If an unknown trigger type is encountered
         """
         from sebs.faas.function import Trigger
-        from sebs.aws.triggers import LibraryTrigger, HTTPTrigger
+        from sebs.aws.triggers import LibraryTrigger, HTTPTrigger, FunctionURLTrigger
 
         cfg = FunctionConfig.deserialize(cached_config["config"])
         ret = LambdaFunction(
@@ -115,7 +115,11 @@ class LambdaFunction(Function):
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
                 Trigger,
-                {"Library": LibraryTrigger, "HTTP": HTTPTrigger}.get(trigger["type"]),
+                {
+                    "Library": LibraryTrigger,
+                    "HTTP": HTTPTrigger,
+                    "FunctionURL": FunctionURLTrigger,
+                }.get(trigger["type"]),
             )
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))

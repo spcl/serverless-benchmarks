@@ -278,3 +278,49 @@ class HTTPTrigger(Trigger):
             Trigger: Deserialized HTTPTrigger instance
         """
         return HTTPTrigger(obj["url"], obj["api-id"])
+
+
+class FunctionURLTrigger(Trigger):
+    """
+    Trigger using AWS Lambda Function URLs instead of API Gateway.
+    Function URLs provide a simpler alternative without the 29-second timeout limit.
+    """
+
+    def __init__(self, url: str, function_name: str, auth_type: str = "NONE"):
+        super().__init__()
+        self.url = url
+        self.function_name = function_name
+        self.auth_type = auth_type
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.FunctionURLTrigger"
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        return Trigger.TriggerType.HTTP
+
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+        self.logging.debug(f"Invoke function via Function URL {self.url}")
+        return self._http_invoke(payload, self.url)
+
+    def async_invoke(self, payload: dict) -> concurrent.futures.Future:
+        pool = concurrent.futures.ThreadPoolExecutor()
+        fut = pool.submit(self.sync_invoke, payload)
+        return fut
+
+    def serialize(self) -> dict:
+        return {
+            "type": "FunctionURL",
+            "url": self.url,
+            "function_name": self.function_name,
+            "auth_type": self.auth_type,
+        }
+
+    @staticmethod
+    def deserialize(obj: dict) -> Trigger:
+        return FunctionURLTrigger(
+            obj["url"],
+            obj["function_name"],
+            obj.get("auth_type", "NONE"),
+        )
