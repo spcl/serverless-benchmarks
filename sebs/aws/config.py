@@ -115,6 +115,37 @@ class AWSResources(Resources):
             out = {"arn": self.arn, "endpoint": self.endpoint}
             return out
 
+    class FunctionURL:
+        def __init__(self, url: str, function_name: str, auth_type: str = "NONE"):
+            self._url = url
+            self._function_name = function_name
+            self._auth_type = auth_type
+
+        @property
+        def url(self) -> str:
+            return self._url
+
+        @property
+        def function_name(self) -> str:
+            return self._function_name
+
+        @property
+        def auth_type(self) -> str:
+            return self._auth_type
+
+        @staticmethod
+        def deserialize(dct: dict) -> "AWSResources.FunctionURL":
+            return AWSResources.FunctionURL(
+                dct["url"], dct["function_name"], dct.get("auth_type", "NONE")
+            )
+
+        def serialize(self) -> dict:
+            return {
+                "url": self.url,
+                "function_name": self.function_name,
+                "auth_type": self.auth_type,
+            }
+
     def __init__(
         self,
         registry: Optional[str] = None,
@@ -128,6 +159,9 @@ class AWSResources(Resources):
         self._container_repository: Optional[str] = None
         self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
+        self._function_urls: Dict[str, AWSResources.FunctionURL] = {}
+        self._use_function_url: bool = False
+        self._function_url_auth_type: str = "NONE"
 
     @staticmethod
     def typename() -> str:
@@ -148,6 +182,24 @@ class AWSResources(Resources):
     @property
     def container_repository(self) -> Optional[str]:
         return self._container_repository
+
+    @property
+    def use_function_url(self) -> bool:
+        return self._use_function_url
+
+    @use_function_url.setter
+    def use_function_url(self, value: bool):
+        self._use_function_url = value
+
+    @property
+    def function_url_auth_type(self) -> str:
+        return self._function_url_auth_type
+
+    @function_url_auth_type.setter
+    def function_url_auth_type(self, value: str):
+        if value not in ("NONE", "AWS_IAM"):
+            raise ValueError("function_url_auth_type must be 'NONE' or 'AWS_IAM'")
+        self._function_url_auth_type = value
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         if not self._lambda_role:
@@ -242,6 +294,105 @@ class AWSResources(Resources):
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
 
+    def function_url(
+        self, func: LambdaFunction, boto3_session: boto3.session.Session
+    ) -> "AWSResources.FunctionURL":
+        """
+        Create or retrieve a Lambda Function URL for the given function.
+        Function URLs provide a simpler alternative to API Gateway without the
+        29-second timeout limit.
+        """
+        cached_url = self._function_urls.get(func.name)
+        if cached_url:
+            self.logging.info(f"Using cached Function URL for {func.name}")
+            return cached_url
+
+        lambda_client = boto3_session.client(
+            service_name="lambda", region_name=cast(str, self._region)
+        )
+
+        try:
+            response = lambda_client.get_function_url_config(FunctionName=func.name)
+            self.logging.info(f"Using existing Function URL for {func.name}")
+            url = response["FunctionUrl"]
+            auth_type = response["AuthType"]
+        except lambda_client.exceptions.ResourceNotFoundException:
+            self.logging.info(f"Creating Function URL for {func.name}")
+
+            auth_type = self._function_url_auth_type
+
+            if auth_type == "NONE":
+                try:
+                    lambda_client.add_permission(
+                        FunctionName=func.name,
+                        StatementId="FunctionURLAllowPublicAccess",
+                        Action="lambda:InvokeFunctionUrl",
+                        Principal="*",
+                        FunctionUrlAuthType="NONE",
+                    )
+                except lambda_client.exceptions.ResourceConflictException:
+                    pass
+
+            retries = 0
+            while retries < 5:
+                try:
+                    response = lambda_client.create_function_url_config(
+                        FunctionName=func.name,
+                        AuthType=auth_type,
+                    )
+                    break
+                except lambda_client.exceptions.ResourceConflictException:
+                    response = lambda_client.get_function_url_config(
+                        FunctionName=func.name
+                    )
+                    break
+                except Exception as e:
+                    retries += 1
+                    if retries == 5:
+                        self.logging.error("Failed to create Function URL!")
+                        self.logging.error(e)
+                        raise RuntimeError("Failed to create Function URL!")
+                    else:
+                        self.logging.info("Function URL creation failed, retrying...")
+                        time.sleep(retries)
+
+            url = response["FunctionUrl"]
+
+        function_url_obj = AWSResources.FunctionURL(url, func.name, auth_type)
+        self._function_urls[func.name] = function_url_obj
+        return function_url_obj
+
+    def delete_function_url(
+        self, function_name: str, boto3_session: boto3.session.Session
+    ) -> bool:
+        """
+        Delete a Lambda Function URL for the given function.
+        Returns True if deleted successfully, False if it didn't exist.
+        """
+        lambda_client = boto3_session.client(
+            service_name="lambda", region_name=cast(str, self._region)
+        )
+
+        try:
+            lambda_client.delete_function_url_config(FunctionName=function_name)
+            self.logging.info(f"Deleted Function URL for {function_name}")
+
+            try:
+                lambda_client.remove_permission(
+                    FunctionName=function_name,
+                    StatementId="FunctionURLAllowPublicAccess",
+                )
+            except lambda_client.exceptions.ResourceNotFoundException:
+                pass
+
+            if function_name in self._function_urls:
+                del self._function_urls[function_name]
+
+            return True
+        except lambda_client.exceptions.ResourceNotFoundException:
+            self.logging.info(f"No Function URL found for {function_name}")
+            return False
+
     def check_ecr_repository_exists(
         self, ecr_client: ECRClient, repository_name: str
     ) -> Optional[str]:
@@ -310,6 +461,13 @@ class AWSResources(Resources):
             for key, value in dct["http-apis"].items():
                 ret._http_apis[key] = AWSResources.HTTPApi.deserialize(value)
 
+        if "function-urls" in dct:
+            for key, value in dct["function-urls"].items():
+                ret._function_urls[key] = AWSResources.FunctionURL.deserialize(value)
+
+        ret._use_function_url = dct.get("use-function-url", False)
+        ret._function_url_auth_type = dct.get("function-url-auth-type", "NONE")
+
         return ret
 
     def serialize(self) -> dict:
@@ -317,6 +475,11 @@ class AWSResources(Resources):
             **super().serialize(),
             "lambda-role": self._lambda_role,
             "http-apis": {key: value.serialize() for (key, value) in self._http_apis.items()},
+            "function-urls": {
+                key: value.serialize() for (key, value) in self._function_urls.items()
+            },
+            "use-function-url": self._use_function_url,
+            "function-url-auth-type": self._function_url_auth_type,
             "docker": {
                 "registry": self.docker_registry,
                 "username": self.docker_username,
@@ -339,6 +502,16 @@ class AWSResources(Resources):
         cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
         for name, api in self._http_apis.items():
             cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
+        for name, func_url in self._function_urls.items():
+            cache.update_config(
+                val=func_url.serialize(), keys=["aws", "resources", "function-urls", name]
+            )
+        cache.update_config(
+            val=self._use_function_url, keys=["aws", "resources", "use-function-url"]
+        )
+        cache.update_config(
+            val=self._function_url_auth_type, keys=["aws", "resources", "function-url-auth-type"]
+        )
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
