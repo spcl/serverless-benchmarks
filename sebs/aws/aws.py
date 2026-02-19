@@ -436,6 +436,13 @@ class AWS(System):
         except Exception:
             self.logging.debug("Function {} does not exist!".format(func_name))
 
+    def delete_function_url(self, func_name: str) -> bool:
+        """
+        Delete the Function URL associated with a Lambda function.
+        Returns True if deleted successfully, False if it didn't exist.
+        """
+        return self.config.resources.delete_function_url(func_name, self.session)
+
     """
         Prepare AWS resources to store experiment results.
         Allocate one bucket.
@@ -576,29 +583,41 @@ class AWS(System):
         )
 
     def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
-        from sebs.aws.triggers import HTTPTrigger
+        from sebs.aws.triggers import HTTPTrigger, FunctionURLTrigger
 
         function = cast(LambdaFunction, func)
 
         if trigger_type == Trigger.TriggerType.HTTP:
 
-            api_name = "{}-http-api".format(function.name)
-            http_api = self.config.resources.http_api(api_name, function, self.session)
-            # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
-            # but this is wrong - source arn must be {api-arn}/*/*
-            self.get_lambda_client().add_permission(
-                FunctionName=function.name,
-                StatementId=str(uuid.uuid1()),
-                Action="lambda:InvokeFunction",
-                Principal="apigateway.amazonaws.com",
-                SourceArn=f"{http_api.arn}/*/*",
-            )
-            trigger = HTTPTrigger(http_api.endpoint, api_name)
-            self.logging.info(
-                f"Created HTTP trigger for {func.name} function. "
-                "Sleep 5 seconds to avoid cloud errors."
-            )
-            time.sleep(5)
+            if self.config.resources.use_function_url:
+                # Use Lambda Function URL (no 29-second timeout limit)
+                func_url = self.config.resources.function_url(function, self.session)
+                trigger = FunctionURLTrigger(
+                    func_url.url, func_url.function_name, func_url.auth_type
+                )
+                self.logging.info(
+                    f"Created Function URL trigger for {func.name} function."
+                )
+            else:
+                # Use API Gateway (default, for backward compatibility)
+                api_name = "{}-http-api".format(function.name)
+                http_api = self.config.resources.http_api(api_name, function, self.session)
+                # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
+                # but this is wrong - source arn must be {api-arn}/*/*
+                self.get_lambda_client().add_permission(
+                    FunctionName=function.name,
+                    StatementId=str(uuid.uuid1()),
+                    Action="lambda:InvokeFunction",
+                    Principal="apigateway.amazonaws.com",
+                    SourceArn=f"{http_api.arn}/*/*",
+                )
+                trigger = HTTPTrigger(http_api.endpoint, api_name)
+                self.logging.info(
+                    f"Created HTTP API Gateway trigger for {func.name} function. "
+                    "Sleep 5 seconds to avoid cloud errors."
+                )
+                time.sleep(5)
+
             trigger.logging_handlers = self.logging_handlers
         elif trigger_type == Trigger.TriggerType.LIBRARY:
             # should already exist
