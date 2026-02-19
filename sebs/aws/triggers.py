@@ -5,6 +5,7 @@ import json
 from typing import Dict, Optional  # noqa
 
 from sebs.aws.aws import AWS
+from sebs.aws.config import FunctionURLAuthType
 from sebs.faas.function import ExecutionResult, Trigger
 
 
@@ -131,7 +132,12 @@ class FunctionURLTrigger(Trigger):
     Function URLs provide a simpler alternative without the 29-second timeout limit.
     """
 
-    def __init__(self, url: str, function_name: str, auth_type: str = "NONE"):
+    def __init__(
+        self,
+        url: str,
+        function_name: str,
+        auth_type: FunctionURLAuthType = FunctionURLAuthType.NONE,
+    ):
         super().__init__()
         self.url = url
         self.function_name = function_name
@@ -147,11 +153,18 @@ class FunctionURLTrigger(Trigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         self.logging.debug(f"Invoke function via Function URL {self.url}")
+        if self.auth_type == FunctionURLAuthType.AWS_IAM:
+            raise NotImplementedError(
+                "AWS_IAM auth type requires SigV4 signing, which is not yet "
+                "implemented in FunctionURLTrigger. Use auth_type=NONE or "
+                "implement SigV4 signing via botocore.auth.SigV4Auth."
+            )
         return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
         pool = concurrent.futures.ThreadPoolExecutor()
         fut = pool.submit(self.sync_invoke, payload)
+        pool.shutdown(wait=False)
         return fut
 
     def serialize(self) -> dict:
@@ -159,13 +172,14 @@ class FunctionURLTrigger(Trigger):
             "type": "FunctionURL",
             "url": self.url,
             "function_name": self.function_name,
-            "auth_type": self.auth_type,
+            "auth_type": self.auth_type.value,
         }
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
+        auth_type_str = obj.get("auth_type", "NONE")
         return FunctionURLTrigger(
             obj["url"],
             obj["function_name"],
-            obj.get("auth_type", "NONE"),
+            FunctionURLAuthType.from_string(auth_type_str),
         )
