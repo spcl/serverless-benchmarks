@@ -134,7 +134,7 @@
           }
         },
         "dependencies": [
-            "runtime", "sdk", "boost", "hiredis", "opencv", "igraph", "torch"
+            "runtime", "sdk", "boost", "hiredis", "opencv", "igraph", "torch", "libjpeg-turbo"
         ],
         "versions": ["all"],
         "images": ["build"],

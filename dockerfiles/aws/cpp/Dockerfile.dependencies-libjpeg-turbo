@@ -1,0 +1,26 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} as builder
+ARG WORKERS
+ENV WORKERS=${WORKERS}
+
+
+RUN yum install -y  unzip cmake3 curl libcurl libcurl-devel git gcc gcc-c++ make tar gzip zip zlib-devel openssl-devel openssl-static
+
+RUN curl -LO https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.1.tar.gz && \
+    tar -xzf 3.0.1.tar.gz && \
+    cd libjpeg-turbo-3.0.1 && \
+    mkdir build && cd build && \
+    cmake3 .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/libjpeg-turbo \
+        -DENABLE_SHARED=OFF \
+        -DENABLE_STATIC=ON \
+        -DWITH_SIMD=ON && \
+        #-DCMAKE_C_FLAGS="-O3 -march=haswell -mtune=haswell" \
+        #-DCMAKE_CXX_FLAGS="-O3 -march=haswell -mtune=haswell" && \
+    make -j$(nproc) && \
+    make install
+
+FROM ${BASE_IMAGE}
+
+COPY --from=builder /opt /opt

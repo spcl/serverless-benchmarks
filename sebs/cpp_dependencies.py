@@ -7,7 +7,7 @@ class CppDependencyConfig:
     def __init__(
         self,
         docker_img: str,
-        cmake_package: str,
+        cmake_package: str | None,
         cmake_libs: str,
         cmake_dir: Optional[str] = None,
         runtime_paths: Optional[list[str]] = None,
@@ -28,6 +28,7 @@ class CppDependencies(str, Enum):
     RUNTIME = "runtime"
     TORCH = "torch"
     OPENCV = "opencv"
+    LIBJPEG_TURBO = "libjpeg-turbo"
     IGRAPH = "igraph"
     BOOST = "boost"
     HIREDIS = "hiredis"
@@ -61,6 +62,13 @@ class CppDependencies(str, Enum):
                 cmake_libs="${OpenCV_LIBS}",
                 cmake_dir="${OpenCV_INCLUDE_DIRS}",
                 runtime_paths=["/opt/opencv"],
+            ),
+            CppDependencies.LIBJPEG_TURBO: CppDependencyConfig(
+                docker_img="dependencies-libjpeg-turbo.aws.cpp.all",
+                cmake_package=None,
+                cmake_libs="/opt/libjpeg-turbo/lib64/libturbojpeg.a",
+                cmake_dir="/opt/libjpeg-turbo/include",
+                runtime_paths=["/opt/libjpeg-turbo"],
             ),
             CppDependencies.IGRAPH: CppDependencyConfig(
                 docker_img="dependencies-igraph.aws.cpp.all",
@@ -99,13 +107,17 @@ class CppDependencies(str, Enum):
         if dependency not in CppDependencies:
             raise ValueError(f"Unknown C++ dependency {dependency}")
         dependency_config = CppDependencies._dependency_dictionary()[dependency]
-        return (
-            """
+
+        find_package_cmd =  ""
+        if dependency_config.cmake_package:
+            find_package_cmd = """
             find_package({cmake_package} REQUIRED)
-        """.format(
+            """.format(
                 cmake_package=dependency_config.cmake_package,
             )
-            + (
+
+        return (
+            find_package_cmd + (
                 ""
                 if not dependency_config.cmake_dir
                 else """
