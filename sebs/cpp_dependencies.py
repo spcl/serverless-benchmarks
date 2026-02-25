@@ -108,7 +108,7 @@ class CppDependencies(str, Enum):
             raise ValueError(f"Unknown C++ dependency {dependency}")
         dependency_config = CppDependencies._dependency_dictionary()[dependency]
 
-        find_package_cmd =  ""
+        find_package_cmd = ""
         if dependency_config.cmake_package:
             find_package_cmd = """
             find_package({cmake_package} REQUIRED)
@@ -117,7 +117,8 @@ class CppDependencies(str, Enum):
             )
 
         return (
-            find_package_cmd + (
+            find_package_cmd
+            + (
                 ""
                 if not dependency_config.cmake_dir
                 else """
@@ -188,7 +189,9 @@ class CppDependencies(str, Enum):
         for dep in required_deps:
             config = dep_dict[dep]
             # Use the short name (e.g., "sdk") as the stage alias
-            from_statements.append(f"FROM ${{BASE_REPOSITORY}}:{config.docker_img}-{sebs_version} as {dep.value}")
+            from_statements.append(
+                f"FROM ${{BASE_REPOSITORY}}:{config.docker_img}-{sebs_version} as {dep.value}"
+            )
 
         copy_statements = []
         for dep in required_deps:
