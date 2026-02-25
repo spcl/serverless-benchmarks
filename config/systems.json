@@ -125,7 +125,7 @@
       "cpp": {
         "base_images": {
           "x64":{
-            "all": "amazon/aws-lambda-provided:al2.2022.04.27.09"
+            "all": "amazon/aws-lambda-provided:al2023.2026.02.23.16-x86_64"
           }
         },
         "base_images_functions": {

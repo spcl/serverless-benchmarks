@@ -4,7 +4,7 @@ ARG WORKERS
 ENV WORKERS=${WORKERS}
 
 
-RUN yum install -y  unzip cmake3 curl libcurl libcurl-devel git gcc gcc-c++ make tar gzip zip zlib-devel openssl-devel openssl-static
+RUN dnf install -y cmake git gcc-11.5.0-5.amzn2023.0.5.x86_64 gcc-c++-11.5.0-5.amzn2023.0.5.x86_64 make tar gzip
 
 RUN curl -LO https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.1.tar.gz && \
     tar -xzf 3.0.1.tar.gz && \
