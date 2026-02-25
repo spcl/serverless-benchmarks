@@ -25,11 +25,14 @@ Below, we discuss the most important implementation details of each benchmark. F
 > [!NOTE]
 > ARM architecture is available only for AWS Lambda. C++ benchmarks are currently not supported on the ARM architecture.
 
+> [!NOTE]
+> While we attempt to achieve semantically the same behavior across languages in each benchmark, there are some minor differences and there is no guarantee of binary reproducibility across languages. For example, in benchmark `411.image-recognition` we load weights and import the model structure from Python package, whereas the C++ version imports a serialized TorchScript model. Similarly, graph benchmarks will not produce exactly the same result, as Python and C++ interfaces to `igraph` library use different RNGs.
+
 > [!WARNING]
 > Benchmark 411.image-recognition contains PyTorch which is often too large to fit into a code package. Up to Python 3.7, we can directly ship the dependencies. For Python 3.8, we use an additional zipping step that requires additional setup during the first run, making cold invocations slower. Warm invocations are not affected.
 
 > [!WARNING]
-> Benchmark `411.image-recognition` does not work on AWS with Python 3.9 due to excessive code size. While it is possible to ship the benchmark by zipping `torchvision` and `numpy` (see `benchmarks/400.inference/411.image-recognition/python/package.sh`), this significantly affects cold startup. On the lowest supported memory configuration of 512 MB, the cold startup can reach 30 seconds, making HTTP trigger unusable due to 30 second timeout of API gateway. In future, we might support Docker-based deployment on AWS that are not affected by code size limitations.
+> Benchmark `411.image-recognition` does not work on AWS with Python 3.9 due to excessive code size. While it is possible to ship the benchmark by zipping `torchvision` and `numpy` (see `benchmarks/400.inference/411.image-recognition/python/package.sh`), this significantly affects cold startup. On the lowest supported memory configuration of 512 MB, the cold startup can reach 30 seconds, making HTTP trigger unusable due to 30 second timeout of API gateway. Use Docker deployments for these configurations.
 
 > [!WARNING]
 > Benchmark `411.image-recognition` does not work on GCP with Python 3.8+ due to excessive code size. To the best of our knowledge, there is no way of circumventing that limit, as Google Cloud offers neither layers nor custom Docker images.
