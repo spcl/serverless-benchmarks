@@ -1,18 +1,20 @@
 
 ARG BASE_REPOSITORY
 ARG BASE_IMAGE
+ARG SEBS_VERSION
 
-FROM ${BASE_REPOSITORY}:dependencies-sdk.aws.cpp.all as sdk
-FROM ${BASE_REPOSITORY}:dependencies-boost.aws.cpp.all as boost
-FROM ${BASE_REPOSITORY}:dependencies-hiredis.aws.cpp.all as hiredis
-FROM ${BASE_REPOSITORY}:dependencies-runtime.aws.cpp.all as runtime
-FROM ${BASE_REPOSITORY}:dependencies-opencv.aws.cpp.all as opencv
-FROM ${BASE_REPOSITORY}:dependencies-igraph.aws.cpp.all as igraph
-FROM ${BASE_REPOSITORY}:dependencies-torch.aws.cpp.all as torch
+FROM ${BASE_REPOSITORY}:dependencies-sdk.aws.cpp.all-${SEBS_VERSION} as sdk
+FROM ${BASE_REPOSITORY}:dependencies-boost.aws.cpp.all-${SEBS_VERSION} as boost
+FROM ${BASE_REPOSITORY}:dependencies-hiredis.aws.cpp.all-${SEBS_VERSION} as hiredis
+FROM ${BASE_REPOSITORY}:dependencies-runtime.aws.cpp.all-${SEBS_VERSION} as runtime
+FROM ${BASE_REPOSITORY}:dependencies-opencv.aws.cpp.all-${SEBS_VERSION} as opencv
+FROM ${BASE_REPOSITORY}:dependencies-libjpeg-turbo.aws.cpp.all-${SEBS_VERSION} as libjpeg-turbo
+FROM ${BASE_REPOSITORY}:dependencies-igraph.aws.cpp.all-${SEBS_VERSION} as igraph
+FROM ${BASE_REPOSITORY}:dependencies-torch.aws.cpp.all-${SEBS_VERSION} as torch
 
 FROM ${BASE_IMAGE} as builder
 
-RUN yum install -y cmake3 curl libcurl libcurl-devel git gcc gcc-c++ make tar gzip zip zlib-devel openssl-devel openssl-static
+RUN dnf swap -y curl-minimal curl && dnf swap -y libcurl-minimal libcurl && dnf install -y libcurl-devel cmake gcc-11.5.0-5.amzn2023.0.5.x86_64 gcc-c++-11.5.0-5.amzn2023.0.5.x86_64 make tar gzip python-devel
 ENV GOSU_VERSION 1.14
 # https://github.com/tianon/gosu/releases/tag/1.14
 # key https://keys.openpgp.org/search?q=tianon%40debian.org
@@ -33,7 +35,8 @@ COPY --from=sdk /opt /opt
 COPY --from=boost /opt /opt
 COPY --from=runtime /opt /opt
 COPY --from=hiredis /opt /opt
-COPY --from=opencv /opt/opencv /opt/opencv
+COPY --from=opencv /opt/ /opt/
+COPY --from=libjpeg-turbo /opt/ /opt/
 COPY --from=igraph /opt /opt
 COPY --from=torch /opt /opt
 

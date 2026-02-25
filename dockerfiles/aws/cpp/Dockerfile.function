@@ -21,5 +21,7 @@ FROM $BASE_IMAGE
 {{DEPENDENCY_COPIES}}
 
 COPY --from=builder /build /build
+COPY --from=builder /function /function
 
+WORKDIR /function
 ENTRYPOINT ["/build/benchmark"]
