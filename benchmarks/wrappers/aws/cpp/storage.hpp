@@ -3,6 +3,9 @@
 
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/s3/S3Client.h>
+#include <aws/s3/model/GetObjectRequest.h>
+
+#include "utils.hpp"
 
 namespace sebs {
 
@@ -22,7 +25,7 @@ public:
                           int &required_retries,
                           bool report_dl_time,
                           Aws::IOStream &output_stream);
-                        
+
   /*
     * Downloads a file from S3
     * @param bucket The S3 bucket name
@@ -33,6 +36,30 @@ public:
   */
   std::tuple<std::string, uint64_t> download_file(Aws::String const &bucket,
                           Aws::String const &key);
+
+
+  template<typename F>
+  std::tuple<uint64_t, uint64_t> download_stream(
+      Aws::String const &bucket, Aws::String const &key, F && f
+  )
+  {
+    Aws::S3::Model::GetObjectRequest request;
+    request.WithBucket(bucket).WithKey(key);
+
+    auto bef = timeSinceEpochMicrosec();
+    Aws::S3::Model::GetObjectOutcome outcome = this->_client.GetObject(request);
+    if (!outcome.IsSuccess()) {
+      std::cerr << "Error: GetObject: " << outcome.GetError().GetMessage() << std::endl;
+      return {0, 0};
+    }
+    uint64_t finished_download = timeSinceEpochMicrosec();
+
+    auto bef_compute = timeSinceEpochMicrosec();
+    f(outcome.GetResult().GetBody());
+    uint64_t finished_compute = timeSinceEpochMicrosec();
+
+    return {finished_download - bef, finished_compute - bef_compute};
+  }
 
   uint64_t upload_random_file(Aws::String const &bucket,
                           Aws::String const &key,

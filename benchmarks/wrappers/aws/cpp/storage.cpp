@@ -17,8 +17,7 @@ sebs::Storage sebs::Storage::get_client() {
   Aws::Client::ClientConfiguration config;
 
   char const TAG[] = "LAMBDA_ALLOC";
-  auto credentialsProvider =
-      Aws::MakeShared<Aws::Auth::EnvironmentAWSCredentialsProvider>(TAG);
+  auto credentialsProvider = Aws::MakeShared<Aws::Auth::EnvironmentAWSCredentialsProvider>(TAG);
   Aws::S3::S3Client client(credentialsProvider, nullptr, config);
   return Storage(std::move(client));
 }
