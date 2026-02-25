@@ -45,13 +45,13 @@ def build(image_type, system, language=None, version=None, version_name=None):
     if version:
         target += "." + version
     sebs_version = config["general"].get("SeBS_version", "unknown")
-    if not (args.type == "dependencies"):
-        target += "-" + sebs_version # This should not be appended for dependencies' images
+    target += "-" + sebs_version
 
     # if we pass an integer, the build will fail with 'connection reset by peer'
     buildargs = {
         "VERSION": version,
         'WORKERS': str(args.parallel),
+        'SEBS_VERSION': sebs_version,
         'BASE_REPOSITORY': config["general"]["docker_repository"]
     }
     if version:
