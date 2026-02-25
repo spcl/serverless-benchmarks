@@ -729,7 +729,7 @@ class Benchmark(LoggingBase):
                     dockerfile_template = f.read()
 
                 dockerfile_content = CppDependencies.generate_dockerfile(
-                    self._benchmark_config._cpp_dependencies, dockerfile_template
+                    self._benchmark_config._cpp_dependencies, dockerfile_template, self._system_config.version()
                 )
                 dockerfile_path = os.path.join(self._output_dir, "Dockerfile")
                 with open(dockerfile_path, "w") as f:

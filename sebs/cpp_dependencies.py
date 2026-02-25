@@ -165,7 +165,7 @@ class CppDependencies(str, Enum):
 
     @staticmethod
     def generate_dockerfile(
-        cpp_dependencies: list[CppDependencies], dockerfile_template: str
+        cpp_dependencies: list[CppDependencies], dockerfile_template: str, sebs_version: str
     ) -> str:
         """
         Generate a custom Dockerfile for C++ Lambda functions with selective dependencies.
@@ -188,7 +188,7 @@ class CppDependencies(str, Enum):
         for dep in required_deps:
             config = dep_dict[dep]
             # Use the short name (e.g., "sdk") as the stage alias
-            from_statements.append(f"FROM ${{BASE_REPOSITORY}}:{config.docker_img} as {dep.value}")
+            from_statements.append(f"FROM ${{BASE_REPOSITORY}}:{config.docker_img}-{sebs_version} as {dep.value}")
 
         copy_statements = []
         for dep in required_deps:
