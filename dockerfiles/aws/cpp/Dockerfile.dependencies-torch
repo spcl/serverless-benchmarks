@@ -7,15 +7,13 @@ ENV WORKERS=${WORKERS}
 
 WORKDIR /app/builder
 
-RUN yum update -y && \
-    yum install -y cmake3 wget unzip curl git gcc gcc-c++ \
+RUN dnf install -y cmake wget unzip git gcc-11.5.0-5.amzn2023.0.5.x86_64 gcc-c++-11.5.0-5.amzn2023.0.5.x86_64 \
                     make tar gzip libpng-devel zlib-devel \
                     libjpeg-turbo-devel python3-devel python3-pip && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+    dnf clean all 
 
 # Download and extract libtorch.
-RUN curl -L -o torchlib.zip https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.7.0%2Bcpu.zip
+RUN curl -L -o torchlib.zip https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.0.0%2Bcpu.zip
 RUN unzip -q torchlib.zip
 RUN rm torchlib.zip
 
@@ -27,7 +25,7 @@ RUN mv libtorch /opt/libtorch
 ENV LD_LIBRARY_PATH=/opt/libtorch/lib:$LD_LIBRARY_PATH
 ENV CMAKE_PREFIX_PATH=/opt/libtorch:$CMAKE_PREFIX_PATH
 
-ENV TORCHVISION_VERSION=0.8.0
+ENV TORCHVISION_VERSION=0.15.1
 
 # Download and extract torchvision source.
 RUN curl -LO https://github.com/pytorch/vision/archive/refs/tags/v${TORCHVISION_VERSION}.zip && \
@@ -37,7 +35,7 @@ RUN curl -LO https://github.com/pytorch/vision/archive/refs/tags/v${TORCHVISION_
 # Build and install torchvision directly to /opt
 RUN mkdir build_torchvision && \
     cd build_torchvision && \
-    cmake3 \
+    cmake \
     -D CMAKE_BUILD_TYPE=RELEASE \
     -DCMAKE_INSTALL_PREFIX=/opt \
     -DCMAKE_PREFIX_PATH=/opt/libtorch/share/cmake \
