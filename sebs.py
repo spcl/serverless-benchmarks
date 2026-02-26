@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 
-import copy
 import json
+import glob
 import logging
 import functools
 import os
@@ -19,7 +19,7 @@ from sebs.regression import regression_suite
 from sebs.utils import update_nested_dict, append_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
-from sebs.statistics import basic_stats
+from sebs.statistics import print_stats
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -349,83 +349,8 @@ def statistics(results):
         config = json.load(in_f)
         experiments = sebs.experiments.ExperimentResult.deserialize(config, None, None)
 
-    for func in experiments.functions():
-        logging.info(f"Processing function {func}")
+    print_stats(logger, experiments)
 
-        warm_times = {
-            "provider_exec": [],
-            "function_exec": [],
-            "client_exec": [],
-            "compute": [],
-            "download": [],
-            "upload": [],
-        }
-        cold_times = {"init": [], **copy.deepcopy(warm_times)}
-
-        for invoc in experiments.invocations(func).values():
-
-            dst = warm_times
-            if invoc.stats.cold_start:
-                dst = cold_times
-                if invoc.provider_times.initialization != 0:
-                    dst["init"].append(invoc.provider_times.initialization)
-
-            if invoc.provider_times.execution != 0:
-                dst["provider_exec"].append(invoc.provider_times.execution)
-            dst["function_exec"].append(invoc.times.benchmark)
-            dst["client_exec"].append(invoc.times.client)
-
-            if "measurement" not in invoc.output["result"]:
-                continue
-
-            measurements = invoc.output["result"]["measurement"]
-
-            for key, result in (
-                ("compute_time", "compute"),
-                ("upload_time", "upload"),
-                ("download_time", "download"),
-            ):
-                if key in measurements:
-                    dst[result].append(measurements[key])
-
-        for name_type, times in (("cold", cold_times), ("warm", warm_times)):
-            logger.info(f"Processing {len(times['client_exec'])} results of {name_type} type.")
-
-            logger.info("\tCloud provider measurements")
-
-            for key in ("init", "provider_exec"):
-
-                if key == "init" and name_type == "warm":
-                    continue
-
-                if len(times[key]) == 0:
-                    continue
-
-                mean, median, std, cv = basic_stats(times[key])
-                logger.info(
-                    f"\t\tMeasurement type {key}, mean {mean}, median {median}, std {std}, cv {cv}."
-                )
-
-            logger.info("\tIntra-function measurements")
-
-            for key in ("function_exec", "compute", "upload", "download"):
-
-                if len(times[key]) == 0:
-                    continue
-
-                mean, median, std, cv = basic_stats(times[key])
-                logger.info(
-                    f"\t\tMeasurement type {key}, mean {mean}, median {median}, std {std}, cv {cv}."
-                )
-
-            logger.info("\tClient measurements")
-
-            for key in ("client_exec",):
-
-                mean, median, std, cv = basic_stats(times[key])
-                logger.info(
-                    f"\t\tMeasurement type {key}, mean {mean}, median {median}, std {std}, cv {cv}."
-                )
 
 
 @benchmark.command()
@@ -705,6 +630,43 @@ def experiment_process(experiment, extend_time_interval, **kwargs):
     experiment.process(
         sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval
     )
+
+@experiment.command("statistics")
+@click.argument("experiment-results", type=click.Path(dir_okay=True, readable=True))
+def experiment_statistics(experiment_results):
+
+    logger = logging.getLogger("Statistics")
+    logger.setLevel(logging.INFO)
+    logger = sebs.utils.ColoredWrapper("Statistics", logger)
+
+    logging.info(f"Load experiment results from {experiment_results}")
+    #with open(results, "r") as in_f:
+    #    config = json.load(in_f)
+    #    experiments = sebs.experiments.ExperimentResult.deserialize(config, None, None)
+
+    #print_stats(logger, experiments)
+    for f in glob.glob(os.path.join(experiment_results, "*.json")):
+        name, extension = os.path.splitext(f)
+        if "processed" not in f:
+            continue
+
+        with open(f) as in_f:
+            config = json.load(in_f)
+            experiments = sebs.experiments.ExperimentResult.deserialize(
+                config, None, None
+            )
+        # FIXME: this will only work for perf-cost
+        fname = os.path.splitext(os.path.basename(f))[0].split("_")
+        if len(fname) > 2:
+            memory = int(fname[2].split("-")[0])
+        else:
+            memory = 0
+        exp_type = fname[0]
+
+        logger.info(f"Print results for {exp_type}, memory: {memory}")
+        print_stats(logger, experiments)
+        logger.info("------")
+
 
 
 @cli.group()
