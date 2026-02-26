@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple  # noqa
+from typing import Dict, List, Optional, Tuple, Union  # noqa
 
 from sebs.cache import Cache
 from sebs.faas.config import Config as DeploymentConfig
@@ -12,12 +12,12 @@ class Result:
     def __init__(
         self,
         experiment_config: ExperimentConfig,
-        deployment_config: DeploymentConfig | None = None,
+        deployment_config: Optional[DeploymentConfig] = None,
         invocations: Optional[Dict[str, Dict[str, ExecutionResult]]] = None,
         metrics: Optional[Dict[str, dict]] = None,
         result_bucket: Optional[str] = None,
     ):
-        self.config: dict[str, ExperimentConfig | DeploymentConfig] = {
+        self.config: Dict[str, Union[ExperimentConfig, DeploymentConfig]] = {
             "experiments": experiment_config
         }
         if deployment_config is not None:
@@ -69,7 +69,7 @@ class Result:
 
     @staticmethod
     def deserialize(
-        cached_config: dict, cache: Cache | None, handlers: LoggingHandlers | None
+        cached_config: dict, cache: Optional[Cache], handlers: Optional[LoggingHandlers]
     ) -> "Result":
         invocations: Dict[str, dict] = {}
         for func, func_invocations in cached_config["_invocations"].items():

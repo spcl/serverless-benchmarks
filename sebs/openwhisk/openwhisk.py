@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 from typing import cast, Callable, Dict, List, Optional, Tuple, Type
@@ -197,10 +198,14 @@ class OpenWhisk(System):
                     break
 
             function_cfg = OpenWhiskFunctionConfig.from_benchmark(code_package)
-            function_cfg.object_storage = cast(Minio, self.system_resources.get_storage()).config
-            function_cfg.nosql_storage = cast(
-                ScyllaDB, self.system_resources.get_nosql_storage()
-            ).config
+            if code_package.uses_storage:
+                function_cfg.object_storage = cast(
+                    Minio, self.system_resources.get_storage()
+                ).config
+            if code_package.uses_nosql:
+                function_cfg.nosql_storage = cast(
+                    ScyllaDB, self.system_resources.get_nosql_storage()
+                ).config
             if function_found:
                 # docker image is overwritten by the update
                 res = OpenWhiskFunction(
@@ -218,6 +223,7 @@ class OpenWhisk(System):
                         code_package.language_name,
                         code_package.language_version,
                         code_package.architecture,
+                        repository=self.config.dockerhub_repository,
                     )
 
                     if code_package.code_location is None:
@@ -291,6 +297,7 @@ class OpenWhisk(System):
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,
+            repository=self.config.dockerhub_repository,
         )
 
         if code_package.code_location is None:
@@ -363,25 +370,27 @@ class OpenWhisk(System):
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
         changed = super().is_configuration_changed(cached_function, benchmark)
 
-        storage = cast(Minio, self.system_resources.get_storage())
-        function = cast(OpenWhiskFunction, cached_function)
-        # check if now we're using a new storage
-        if function.config.object_storage != storage.config:
-            self.logging.info(
-                "Updating function configuration due to changed storage configuration."
-            )
-            changed = True
-            function.config.object_storage = storage.config
+        if benchmark.uses_storage:
+            storage = cast(Minio, self.system_resources.get_storage())
+            function = cast(OpenWhiskFunction, cached_function)
+            # check if now we're using a new storage
+            if function.config.object_storage != storage.config:
+                self.logging.info(
+                    "Updating function configuration due to changed storage configuration."
+                )
+                changed = True
+                function.config.object_storage = storage.config
 
-        nosql_storage = cast(ScyllaDB, self.system_resources.get_nosql_storage())
-        function = cast(OpenWhiskFunction, cached_function)
-        # check if now we're using a new storage
-        if function.config.nosql_storage != nosql_storage.config:
-            self.logging.info(
-                "Updating function configuration due to changed NoSQL storage configuration."
-            )
-            changed = True
-            function.config.nosql_storage = nosql_storage.config
+        if benchmark.uses_nosql:
+            nosql_storage = cast(ScyllaDB, self.system_resources.get_nosql_storage())
+            function = cast(OpenWhiskFunction, cached_function)
+            # check if now we're using a new storage
+            if function.config.nosql_storage != nosql_storage.config:
+                self.logging.info(
+                    "Updating function configuration due to changed NoSQL storage configuration."
+                )
+                changed = True
+                function.config.nosql_storage = nosql_storage.config
 
         return changed
 
@@ -405,7 +414,66 @@ class OpenWhisk(System):
         requests: Dict[str, ExecutionResult],
         metrics: dict,
     ):
-        pass
+        self.logging.info(
+            f"OpenWhisk: Starting to download metrics for {len(requests)} invocations"
+        )
+
+        processed_count = 0
+
+        for request_id in requests:
+            try:
+                result = subprocess.run(
+                    [*self.get_wsk_cmd(), "activation", "get", request_id],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+
+                if result.returncode != 0:
+                    self.logging.warning(f"OpenWhisk: Activation {request_id} not found")
+                    continue
+
+                # Parse JSON output (skip first "ok" line)
+                output = result.stdout.decode("utf-8")
+                lines = output.strip().split("\n")
+                if len(lines) <= 1:
+                    self.logging.warning(f"OpenWhisk: Activation {request_id} not found")
+                    continue
+
+                json_str = "\n".join(lines[1:])
+                activation = json.loads(json_str)
+
+                duration_ms = activation.get("duration")
+                if duration_ms is None:
+                    self.logging.error(f"OpenWhisk: Duration not found in activation {request_id}")
+                    continue
+
+                # Update execution time (convert milliseconds to microseconds)
+                requests[request_id].provider_times.execution = int(float(duration_ms) * 1000)
+
+                # Extract initTime from annotations (optional - only present on cold starts)
+                annotations = activation.get("annotations", [])
+                for annotation in annotations:
+                    if annotation.get("key") == "initTime":
+                        init_time_ms = annotation.get("value")
+                        if init_time_ms is not None:
+                            requests[request_id].provider_times.initialization = int(
+                                float(init_time_ms) * 1000
+                            )
+                        break
+
+                processed_count += 1
+
+            except json.JSONDecodeError as e:
+                self.logging.error(
+                    f"OpenWhisk: Failed to parse activation JSON for {request_id}: {e}"
+                )
+            except Exception as e:
+                self.logging.error(f"OpenWhisk: Error processing activation {request_id}: {e}")
+
+        self.logging.info(
+            f"OpenWhisk: Downloaded metrics for {processed_count} "
+            f"out of {len(requests)} invocations"
+        )
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         if trigger_type == Trigger.TriggerType.LIBRARY:

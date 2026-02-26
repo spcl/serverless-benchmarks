@@ -20,7 +20,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
 
     #TODO: multiple datasets
     input_config = {'object': {}, 'bucket': {}}
-    input_config['object']['key'] = img
+    input_config["object"]["key"] = "6_astronomy-desktop-wallpaper-evening-1624438.jpg"
     input_config['object']['width'] = 200
     input_config['object']['height'] = 200
     input_config['bucket']['bucket'] = benchmarks_bucket

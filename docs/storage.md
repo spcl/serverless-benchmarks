@@ -142,3 +142,10 @@ When you're done with your experiments, you can stop the storage services:
 
 ./sebs.py storage stop all storage.json
 ```
+
+### Erasing Volumes
+
+Each storage service uses a Docker volume to persist data. The name of the volume is included in the storage configuration file under the `data_volume` field.
+
+In Minio, the volume is mapped to a physical location on the filesystem, and the directory can be removed once the experiments are finished.
+For ScyllaDB, we use named Docker volumes that can be removed using Docker commands: `docker volume rm scylladb-volume`.

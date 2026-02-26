@@ -340,54 +340,92 @@ def process(**kwargs):
 @click.argument("results", type=click.Path(dir_okay=False, readable=True))
 def statistics(results):
 
-    sebs.utils.global_logging()
+    logger = logging.getLogger("Statistics")
+    logger.setLevel(logging.INFO)
+    logger = sebs.utils.ColoredWrapper("Statistics", logger)
 
     logging.info(f"Load results from {results}")
     with open(results, "r") as in_f:
         config = json.load(in_f)
-        experiments = sebs.experiments.ExperimentResult.deserialize(
-            config, None, None
-        )
+        experiments = sebs.experiments.ExperimentResult.deserialize(config, None, None)
 
     for func in experiments.functions():
         logging.info(f"Processing function {func}")
 
         warm_times = {
-            "exec": [],
+            "provider_exec": [],
+            "function_exec": [],
+            "client_exec": [],
             "compute": [],
             "download": [],
-            "upload": []
+            "upload": [],
         }
-        cold_times = {
-            "init": [],
-            **copy.deepcopy(warm_times)
-        }
+        cold_times = {"init": [], **copy.deepcopy(warm_times)}
 
         for invoc in experiments.invocations(func).values():
 
             dst = warm_times
             if invoc.stats.cold_start:
                 dst = cold_times
-                dst["init"].append(invoc.provider_times.initialization)
+                if invoc.provider_times.initialization != 0:
+                    dst["init"].append(invoc.provider_times.initialization)
 
-            dst["exec"].append(invoc.provider_times.execution)
+            if invoc.provider_times.execution != 0:
+                dst["provider_exec"].append(invoc.provider_times.execution)
+            dst["function_exec"].append(invoc.times.benchmark)
+            dst["client_exec"].append(invoc.times.client)
+
+            if "measurement" not in invoc.output["result"]:
+                continue
 
             measurements = invoc.output["result"]["measurement"]
 
-            for key, result in (("compute_time", "compute"), ("upload_time", "upload"), ("download_time", "download")):
+            for key, result in (
+                ("compute_time", "compute"),
+                ("upload_time", "upload"),
+                ("download_time", "download"),
+            ):
                 if key in measurements:
                     dst[result].append(measurements[key])
 
         for name_type, times in (("cold", cold_times), ("warm", warm_times)):
-            logging.info(f"Processing {name_type} results.")
+            logger.info(f"Processing {len(times['client_exec'])} results of {name_type} type.")
 
-            for key in ("init", "exec", "compute", "upload", "download"):
+            logger.info("\tCloud provider measurements")
+
+            for key in ("init", "provider_exec"):
 
                 if key == "init" and name_type == "warm":
                     continue
 
+                if len(times[key]) == 0:
+                    continue
+
                 mean, median, std, cv = basic_stats(times[key])
-                logging.info(f"Measurement type {key}, mean {mean}, median {median}, std {std}, cv {cv}.")
+                logger.info(
+                    f"\t\tMeasurement type {key}, mean {mean}, median {median}, std {std}, cv {cv}."
+                )
+
+            logger.info("\tIntra-function measurements")
+
+            for key in ("function_exec", "compute", "upload", "download"):
+
+                if len(times[key]) == 0:
+                    continue
+
+                mean, median, std, cv = basic_stats(times[key])
+                logger.info(
+                    f"\t\tMeasurement type {key}, mean {mean}, median {median}, std {std}, cv {cv}."
+                )
+
+            logger.info("\tClient measurements")
+
+            for key in ("client_exec",):
+
+                mean, median, std, cv = basic_stats(times[key])
+                logger.info(
+                    f"\t\tMeasurement type {key}, mean {mean}, median {median}, std {std}, cv {cv}."
+                )
 
 
 @benchmark.command()
@@ -469,7 +507,7 @@ def storage_start(storage, config, output_json):
 
         user_storage_config["object"][storage_type_name] = storage_instance.serialize()
     else:
-        user_storage_config.pop("object")
+        user_storage_config.pop("object", None)
 
     if storage in ["nosql", "all"]:
 
@@ -487,7 +525,7 @@ def storage_start(storage, config, output_json):
         key, value = storage_instance.serialize()
         user_storage_config["nosql"][key] = value
     else:
-        user_storage_config.pop("nosql")
+        user_storage_config.pop("nosql", None)
 
     if output_json:
         logging.info(f"Writing storage configuration to {output_json}.")
