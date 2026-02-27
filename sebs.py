@@ -70,6 +70,7 @@ def simplified_common_params(func):
         help="Benchmark language",
     )
     @click.option("--language-version", default=None, type=str, help="Benchmark language version")
+    @click.option("--language-variant", default=None, type=str, help="Benchmark language variant (e.g. bun, llrt, pypy)")
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -132,6 +133,7 @@ def parse_common_params(
     deployment,
     language,
     language_version,
+    language_variant,
     architecture,
     container_deployment,
     resource_prefix: Optional[str] = None,
@@ -153,6 +155,7 @@ def parse_common_params(
     # CLI overrides JSON options
     update_nested_dict(config_obj, ["experiments", "runtime", "language"], language)
     update_nested_dict(config_obj, ["experiments", "runtime", "version"], language_version)
+    update_nested_dict(config_obj, ["experiments", "runtime", "variant"], language_variant)
     update_nested_dict(config_obj, ["deployment", "name"], deployment)
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)

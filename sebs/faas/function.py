@@ -293,14 +293,23 @@ class Runtime:
 
     language: Language
     version: str
+    variant: str = "default"
 
     def serialize(self) -> dict:
-        return {"language": self.language.value, "version": self.version}
+        return {
+            "language": self.language.value,
+            "version": self.version,
+            "variant": self.variant,
+        }
 
     @staticmethod
     def deserialize(config: dict) -> Runtime:
         languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS}
-        return Runtime(language=languages[config["language"]], version=config["version"])
+        return Runtime(
+            language=languages[config["language"]],
+            version=config["version"],
+            variant=config.get("variant", "default"),
+        )
 
 
 T = TypeVar("T", bound="FunctionConfig")

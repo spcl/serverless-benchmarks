@@ -22,13 +22,58 @@ if TYPE_CHECKING:
     from sebs.faas.function import Language
 
 
+class LanguageSpec:
+    """
+    Represents a language with its supported variants for a benchmark.
+
+    Parses the config language settings, supports both the legacy format (e.g. "python") and the new dict format:
+        {"language": "nodejs", "variants": ["default", "bun", "llrt"]}
+
+    The legacy format is treated as having just the "default" variant.
+    """
+
+    def __init__(self, language: "Language", variants: List[str]):
+        self._language = language
+        self._variants = variants
+
+    @property
+    def language(self) -> "Language":
+        return self._language
+
+    @property
+    def variants(self) -> List[str]:
+        return self._variants
+
+    # FIXME: 3.7+ python with future annotations
+    @staticmethod
+    def deserialize(val) -> "LanguageSpec":
+        from sebs.faas.function import Language
+
+        if isinstance(val, str):
+            return LanguageSpec(Language.deserialize(val), ["default"])
+        return LanguageSpec(
+            Language.deserialize(val["language"]),
+            val.get("variants", ["default"]),
+        )
+
+    def serialize(self) -> dict:
+        return {
+            "language": self._language.value,
+            "variants": self._variants,
+        }
+
+
 class BenchmarkConfig:
     def __init__(
-        self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
+        self,
+        timeout: int,
+        memory: int,
+        language_specs: List["LanguageSpec"],
+        modules: List[BenchmarkModule],
     ):
         self._timeout = timeout
         self._memory = memory
-        self._languages = languages
+        self._language_specs = language_specs
         self._modules = modules
 
     @property
@@ -48,22 +93,36 @@ class BenchmarkConfig:
         self._memory = val
 
     @property
+    def language_specs(self) -> List["LanguageSpec"]:
+        return self._language_specs
+
+    @property
     def languages(self) -> List["Language"]:
-        return self._languages
+        """Return the list of supported languages (backward-compatible)."""
+        return [spec.language for spec in self._language_specs]
 
     @property
     def modules(self) -> List[BenchmarkModule]:
         return self._modules
 
+    def supported_variants(self, language: "Language") -> List[str]:
+        """Return the list of variants supported for language, or [] if not found."""
+        for spec in self._language_specs:
+            if spec.language == language:
+                return spec.variants
+        return []
+
+    def supports(self, language: "Language", variant: str) -> bool:
+        """Return True when language + variant combination is declared in config.json."""
+        return variant in self.supported_variants(language)
+
     # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(json_object: dict) -> "BenchmarkConfig":
-        from sebs.faas.function import Language
-
         return BenchmarkConfig(
             json_object["timeout"],
             json_object["memory"],
-            [Language.deserialize(x) for x in json_object["languages"]],
+            [LanguageSpec.deserialize(x) for x in json_object["languages"]],
             [BenchmarkModule(x) for x in json_object["modules"]],
         )
 
@@ -147,6 +206,19 @@ class Benchmark(LoggingBase):
         return self._language.value
 
     @property
+    def language_variant(self) -> str:
+        return self._language_variant
+
+    @property
+    def cache_language_key(self) -> str:
+        """
+        Add language variant to the cache key so that different variants of the same language don't conflict in cache.
+        """
+        if self._language_variant == "default":
+            return self._language.value
+        return f"{self._language.value}_{self._language_variant}"
+
+    @property
     def language_version(self):
         return self._language_version
 
@@ -173,7 +245,9 @@ class Benchmark(LoggingBase):
     @property  # noqa: A003
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
-        self._hash_value = Benchmark.hash_directory(path, self._deployment_name, self.language_name)
+        self._hash_value = Benchmark.hash_directory(
+            path, self._deployment_name, self.language_name, self._language_variant
+        )
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -199,6 +273,7 @@ class Benchmark(LoggingBase):
         self._experiment_config = config
         self._language = config.runtime.language
         self._language_version = config.runtime.version
+        self._language_variant = config.runtime.variant
         self._architecture = self._experiment_config.architecture
         self._container_deployment = config.container_deployment
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
@@ -208,9 +283,11 @@ class Benchmark(LoggingBase):
             self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
                 json.load(json_file)
             )
-        if self.language not in self.benchmark_config.languages:
+        if not self.benchmark_config.supports(self.language, self._language_variant):
             raise RuntimeError(
-                "Benchmark {} not available for language {}".format(self.benchmark, self.language)
+                "Benchmark {} not available for language {} variant {}".format(
+                    self.benchmark, self.language, self._language_variant
+                )
             )
         self._cache_client = cache_client
         self._docker_client = docker_client
@@ -220,6 +297,7 @@ class Benchmark(LoggingBase):
             output_dir,
             f"{benchmark}_code",
             self._language.value,
+            self._language_variant,
             self._language_version,
             self._architecture,
             "container" if self._container_deployment else "package",
@@ -246,7 +324,7 @@ class Benchmark(LoggingBase):
     """
 
     @staticmethod
-    def hash_directory(directory: str, deployment: str, language: str):
+    def hash_directory(directory: str, deployment: str, language: str, variant: str = "default"):
 
         hash_sum = hashlib.md5()
         FILES = {
@@ -261,6 +339,20 @@ class Benchmark(LoggingBase):
                 path = os.path.join(directory, f)
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
+        # Include variant overlay files (or patch) in the hash so that a
+        # change to the variant directory invalidates the cached package.
+        if variant != "default":
+            variant_dir = os.path.join(directory, variant)
+            if os.path.isdir(variant_dir):
+                patch_file = os.path.join(variant_dir, "patch.diff")
+                if os.path.exists(patch_file):
+                    with open(patch_file, "rb") as pf:
+                        hash_sum.update(pf.read())
+                else:
+                    for file_type in selected_files:
+                        for f in glob.glob(os.path.join(variant_dir, file_type)):
+                            with open(f, "rb") as opened_file:
+                                hash_sum.update(opened_file.read())
         # wrappers
         wrappers = project_absolute_path(
             "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
@@ -280,7 +372,7 @@ class Benchmark(LoggingBase):
             self._code_package = self._cache_client.get_container(
                 deployment=self._deployment_name,
                 benchmark=self._benchmark,
-                language=self.language_name,
+                language=self.cache_language_key,
                 language_version=self.language_version,
                 architecture=self.architecture,
             )
@@ -290,7 +382,7 @@ class Benchmark(LoggingBase):
             self._code_package = self._cache_client.get_code_package(
                 deployment=self._deployment_name,
                 benchmark=self._benchmark,
-                language=self.language_name,
+                language=self.cache_language_key,
                 language_version=self.language_version,
                 architecture=self.architecture,
             )
@@ -298,7 +390,7 @@ class Benchmark(LoggingBase):
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
             benchmark=self._benchmark,
-            language=self.language_name,
+            language=self.cache_language_key,
         )
 
         if self._code_package is not None:
@@ -325,6 +417,45 @@ class Benchmark(LoggingBase):
         nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
         if os.path.exists(nodejs_package_json):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
+
+        if self._language_variant != "default":
+            variant_dir = os.path.join(path, self._language_variant)
+            if not os.path.isdir(variant_dir):
+                raise RuntimeError(
+                    "Variant directory not found for benchmark {} language {} variant {}: {}".format(
+                        self.benchmark, self.language_name, self._language_variant, variant_dir
+                    )
+                )
+
+            patch_file = os.path.join(variant_dir, "patch.diff")
+            if os.path.exists(patch_file):
+                # Apply unified diff on top of the already-copied base files
+                import patch_ng
+
+                pset = patch_ng.fromfile(patch_file)
+                if not pset or not pset.apply(strip=1, root=output_dir):
+                    raise RuntimeError(
+                        "Failed to apply patch {} for variant {}".format(
+                            patch_file, self._language_variant
+                        )
+                    )
+                self.logging.info(
+                    "Applied patch for variant {} ({})".format(self._language_variant, patch_file)
+                )
+            else:
+                # Overlay: copy variant-specific files on top, overwriting base files
+                for file_type in FILES[self.language_name]:
+                    for f in glob.glob(os.path.join(variant_dir, file_type)):
+                        shutil.copy2(f, output_dir)
+                # version-specific package.json override for Node.js
+                nodejs_variant_pkg = os.path.join(
+                    variant_dir, f"package.json.{self.language_version}"
+                )
+                if os.path.exists(nodejs_variant_pkg):
+                    shutil.copy2(nodejs_variant_pkg, os.path.join(output_dir, "package.json"))
+                self.logging.info(
+                    "Applied file overlay for variant {}".format(self._language_variant)
+                )
 
     def add_benchmark_data(self, output_dir):
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false {architecture}"
