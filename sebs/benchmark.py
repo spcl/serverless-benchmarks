@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import glob
 import hashlib
 import json
@@ -19,7 +21,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sebs.experiments.config import Config as ExperimentConfig
-    from sebs.faas.function import Language
+    from sebs.faas.function import Language, Variant
 
 
 class LanguageSpec:
@@ -44,9 +46,8 @@ class LanguageSpec:
     def variants(self) -> List[str]:
         return self._variants
 
-    # FIXME: 3.7+ python with future annotations
     @staticmethod
-    def deserialize(val) -> "LanguageSpec":
+    def deserialize(val) -> LanguageSpec:
         from sebs.faas.function import Language
 
         if isinstance(val, str):
@@ -93,11 +94,11 @@ class BenchmarkConfig:
         self._memory = val
 
     @property
-    def language_specs(self) -> List["LanguageSpec"]:
+    def language_specs(self) -> List[LanguageSpec]:
         return self._language_specs
 
     @property
-    def languages(self) -> List["Language"]:
+    def languages(self) -> List[Language]:
         """Return the list of supported languages (backward-compatible)."""
         return [spec.language for spec in self._language_specs]
 
@@ -105,20 +106,20 @@ class BenchmarkConfig:
     def modules(self) -> List[BenchmarkModule]:
         return self._modules
 
-    def supported_variants(self, language: "Language") -> List[str]:
-        """Return the list of variants supported for language, or [] if not found."""
+    def supported_variants(self, language: Language) -> List[str]:
+        """Return the list of variants supported for the given language,
+        or [] if the language has no implementation in this benchmark."""
         for spec in self._language_specs:
             if spec.language == language:
                 return spec.variants
         return []
 
-    def supports(self, language: "Language", variant: str) -> bool:
+    def supports(self, language: Language, variant: str) -> bool:
         """Return True when language + variant combination is declared in config.json."""
         return variant in self.supported_variants(language)
 
-    # FIXME: 3.7+ python with future annotations
     @staticmethod
-    def deserialize(json_object: dict) -> "BenchmarkConfig":
+    def deserialize(json_object: dict) -> BenchmarkConfig:
         return BenchmarkConfig(
             json_object["timeout"],
             json_object["memory"],
@@ -273,7 +274,7 @@ class Benchmark(LoggingBase):
         self._experiment_config = config
         self._language = config.runtime.language
         self._language_version = config.runtime.version
-        self._language_variant = config.runtime.variant
+        self._language_variant = config.runtime.variant.value
         self._architecture = self._experiment_config.architecture
         self._container_deployment = config.container_deployment
         self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
@@ -429,6 +430,10 @@ class Benchmark(LoggingBase):
 
             patch_file = os.path.join(variant_dir, "patch.diff")
             if os.path.exists(patch_file):
+                # Patch-based variant: a unified diff (patch.diff) is applied on top of the
+                # default implementation.  Use this when the variant only needs small
+                # targeted changes to the base code (e.g. swapping async I/O for sync I/O
+                # in a runtime that lacks full async support).
                 # Apply unified diff on top of the already-copied base files
                 import patch_ng
 
@@ -443,7 +448,11 @@ class Benchmark(LoggingBase):
                     "Applied patch for variant {} ({})".format(self._language_variant, patch_file)
                 )
             else:
-                # Overlay: copy variant-specific files on top, overwriting base files
+                # Overlay-based variant: the variant directory contains a complete
+                # replacement set of source files that fully override the default
+                # implementation.  All files from the variant directory are copied
+                # on top of the already-placed base files.  Use this when the variant
+                # is substantially different from the default (e.g. a full rewrite).
                 for file_type in FILES[self.language_name]:
                     for f in glob.glob(os.path.join(variant_dir, file_type)):
                         shutil.copy2(f, output_dir)

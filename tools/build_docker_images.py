@@ -103,25 +103,7 @@ def build_variant_language(system, language, language_config, variant):
         configs.append([None, None])
 
     for version, base_image in configs:
-        # Variant images are always local builds; tag WITHOUT the SeBS version
-        # suffix so the runtime can find them by the plain name it constructs.
-        dockerfile = os.path.join(DOCKER_DIR, system, language, variant, "Dockerfile.run")
-        target = f'{config["general"]["docker_repository"]}:run.{system}.{language}.{variant}.{version}'
-        buildargs = {"VERSION": version}
-        if version:
-            buildargs["BASE_IMAGE"] = base_image
-        print(f"Build variant img {target} from {dockerfile} with args {buildargs}")
-        try:
-            client.images.build(
-                path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target
-            )
-        except docker.errors.BuildError as exc:
-            print("Error! Build failed!")
-            print(exc)
-            print("Build log")
-            for line in exc.build_log:
-                if "stream" in line:
-                    print(line["stream"].strip())
+        build("run", system, language, version, base_image, variant)
 
 
 def build_systems(system, system_config):

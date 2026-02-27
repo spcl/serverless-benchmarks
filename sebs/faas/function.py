@@ -4,7 +4,7 @@ import json
 import concurrent.futures
 from abc import ABC
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
@@ -264,13 +264,56 @@ class Language(Enum):
     PYTHON = "python"
     NODEJS = "nodejs"
 
-    # FIXME: 3.7+ python with future annotations
     @staticmethod
     def deserialize(val: str) -> Language:
         for member in Language:
             if member.value == val:
                 return member
-        raise Exception(f"Unknown language type {member}")
+        raise Exception(f"Unknown language type {val}")
+
+
+class Variant:
+    """
+    Namespace for language-specific runtime variant enums.
+
+    Each nested class is an Enum that lists the variants supported for a given language.
+    DEFAULT = "default" is always present and represents the standard runtime.
+
+    To add variants for a new language (e.g. Java, WASM), add a new nested Enum class
+    and register it in Variant._LANG_MAP below.
+    """
+
+    class Python(Enum):
+        DEFAULT = "default"
+        PYPY = "pypy"
+
+    class NodeJS(Enum):
+        DEFAULT = "default"
+        BUN = "bun"
+        LLRT = "llrt"
+
+    @classmethod
+    def for_language(cls, language: Language, val: str) -> Enum:
+        """Deserialize a variant string for the given language."""
+        enum_cls = cls._LANG_MAP.get(language)
+        if enum_cls is None:
+            raise ValueError(f"No variants defined for language {language}")
+        for member in enum_cls:
+            if member.value == val:
+                return member
+        raise ValueError(f"Unknown variant {val!r} for language {language}")
+
+    @classmethod
+    def default(cls, language: Language) -> Enum:
+        """Return the DEFAULT variant for the given language."""
+        return cls.for_language(language, "default")
+
+
+# Populated here (after Language is defined) so forward references are resolved.
+Variant._LANG_MAP: Dict[Language, Type[Enum]] = {
+    Language.PYTHON: Variant.Python,
+    Language.NODEJS: Variant.NodeJS,
+}
 
 
 class Architecture(Enum):
@@ -293,22 +336,27 @@ class Runtime:
 
     language: Language
     version: str
-    variant: str = "default"
+    # None sentinel: __post_init__ resolves it to the language's DEFAULT variant.
+    variant: Enum = field(default=None)
+
+    def __post_init__(self):
+        if self.variant is None and self.language is not None:
+            self.variant = Variant.default(self.language)
 
     def serialize(self) -> dict:
         return {
             "language": self.language.value,
             "version": self.version,
-            "variant": self.variant,
+            "variant": self.variant.value,
         }
 
     @staticmethod
     def deserialize(config: dict) -> Runtime:
-        languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS}
+        language = Language.deserialize(config["language"])
         return Runtime(
-            language=languages[config["language"]],
+            language=language,
             version=config["version"],
-            variant=config.get("variant", "default"),
+            variant=Variant.for_language(language, config.get("variant", "default")),
         )
 
 
@@ -324,7 +372,11 @@ class FunctionConfig:
 
     @staticmethod
     def _from_benchmark(benchmark: Benchmark, obj_type: Type[T]) -> T:
-        runtime = Runtime(language=benchmark.language, version=benchmark.language_version)
+        runtime = Runtime(
+            language=benchmark.language,
+            version=benchmark.language_version,
+            variant=Variant.for_language(benchmark.language, benchmark.language_variant),
+        )
         architecture = Architecture.deserialize(benchmark._experiment_config._architecture)
         cfg = obj_type(
             timeout=benchmark.benchmark_config.timeout,
