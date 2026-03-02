@@ -339,7 +339,7 @@ class Benchmark(LoggingBase):
                     output_dir=output_dir,
                     architecture=self._experiment_config._architecture,
                 )
-                self.logging.info("Adding benchmark data with command: {}".format(full_cmd))
+                self.logging.debug("Adding benchmark data with command: {}".format(full_cmd))
                 result = subprocess.run(
                     full_cmd,
                     shell=True,
@@ -348,7 +348,7 @@ class Benchmark(LoggingBase):
                 )
                 output = result.stdout.decode("utf-8", errors="replace").strip()
                 if output:
-                    self.logging.info("init.sh output:\n{}".format(output))
+                    self.logging.debug("init.sh output:\n{}".format(output))
                 if result.returncode != 0:
                     raise RuntimeError(
                         "init.sh failed (exit {}): {}".format(result.returncode, output)
