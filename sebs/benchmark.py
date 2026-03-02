@@ -327,23 +327,32 @@ class Benchmark(LoggingBase):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
 
     def add_benchmark_data(self, output_dir):
-        cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false {architecture}"
+        cmd = "/bin/bash '{benchmark_path}/init.sh' '{output_dir}' false {architecture}"
         paths = [
             self.benchmark_path,
             os.path.join(self.benchmark_path, self.language_name),
         ]
         for path in paths:
             if os.path.exists(os.path.join(path, "init.sh")):
-                subprocess.run(
-                    cmd.format(
-                        benchmark_path=path,
-                        output_dir=output_dir,
-                        architecture=self._experiment_config._architecture,
-                    ),
+                full_cmd = cmd.format(
+                    benchmark_path=path,
+                    output_dir=output_dir,
+                    architecture=self._experiment_config._architecture,
+                )
+                self.logging.info("Adding benchmark data with command: {}".format(full_cmd))
+                result = subprocess.run(
+                    full_cmd,
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                 )
+                output = result.stdout.decode("utf-8", errors="replace").strip()
+                if output:
+                    self.logging.info("init.sh output:\n{}".format(output))
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        "init.sh failed (exit {}): {}".format(result.returncode, output)
+                    )
 
     def add_deployment_files(self, output_dir):
         handlers_dir = project_absolute_path(

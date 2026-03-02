@@ -7,4 +7,4 @@ path="${SCRIPT_DIR}/templates/"
 if [ "$VERBOSE" = true ]; then
   echo "Update ${DIR} with static templates ${path}"
 fi
-cp -r ${SCRIPT_DIR}/templates ${DIR}
+cp -r "${SCRIPT_DIR}/templates" "${DIR}"
