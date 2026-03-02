@@ -7,4 +7,4 @@ path="${SCRIPT_DIR}/imagenet_class_index.json"
 if [ "$VERBOSE" = true ]; then
   echo "Update ${DIR} with json ${path}"
 fi
-cp ${path} ${DIR}
+cp "${path}" "${DIR}"
