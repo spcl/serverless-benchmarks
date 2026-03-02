@@ -323,6 +323,12 @@ class System(ABC, LoggingBase):
             else:
                 self.logging.info(f"Using cached function {func_name} in {code_location}")
 
+            # code up to date, but configuration needs to be updated
+            if self.is_configuration_changed(function, code_package):
+                self.update_function_configuration(function, code_package)
+                self.cache_client.update_function(function)
+                code_package.query_cache()
+
             # is the function up-to-date?
             if function.code_package_hash != code_package.hash or rebuilt:
                 if function.code_package_hash != code_package.hash:
@@ -347,14 +353,8 @@ class System(ABC, LoggingBase):
                     function=function,
                 )
                 code_package.query_cache()
-            # code up to date, but configuration needs to be updated
-            # FIXME: detect change in function config
-            elif self.is_configuration_changed(function, code_package):
-                self.update_function_configuration(function, code_package)
-                self.cache_client.update_function(function)
-                code_package.query_cache()
             else:
-                self.logging.info(f"Cached function {func_name} is up to date.")
+                self.logging.info(f"Code of cached function: {func_name} is up to date.")
             return function
 
     @abstractmethod
