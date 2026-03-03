@@ -29,8 +29,6 @@ Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
   static sebs::Storage client_ = sebs::Storage::get_client();
   auto process_end = timeSinceEpochMicrosec();
 
-  std::cerr << (process_end - process_start) << " us taken to create storage client" << std::endl;
-
   auto bucket_obj = request.GetObject("bucket");
   if (!bucket_obj.IsObject()) {
     Aws::Utils::Json::JsonValue error;
@@ -44,8 +42,6 @@ Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
   auto image_name = request.GetObject("object").GetString("key");
   auto width = request.GetObject("object").GetInteger("width");
   auto height = request.GetObject("object").GetInteger("height");
-
-  //std::cerr << cv::getBuildInformation() << std::endl;
 
   std::string body_str;
   uint64_t download_time;
@@ -68,16 +64,13 @@ Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
   cv::Mat out_image;
   {
     auto start_time = timeSinceEpochMicrosec();
-    thumbnailer(vectordata, width, height, out_image);
-    //thumbnailer_fast(vectordata, width, height, out_image);
+    //thumbnailer(vectordata, width, height, out_image);
+    thumbnailer_fast(vectordata, width, height, out_image);
     computing_time = timeSinceEpochMicrosec() - start_time;
   }
 
-  auto encode_start = timeSinceEpochMicrosec();
   std::vector<unsigned char> out_buffer;
   cv::imencode(".jpg", out_image, out_buffer);
-  auto encode_end = timeSinceEpochMicrosec();
-  std::cerr << (encode_end - encode_start) << " us taken for encode" << std::endl;
 
   // Create a unique key name for the output image
   std::string key_name;

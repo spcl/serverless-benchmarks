@@ -8,7 +8,6 @@ RUN dnf install -y nasm-2.15.05-1.amzn2023.0.5.x86_64 cmake git gcc-11.5.0-5.amz
 RUN curl -LO https://github.com/opencv/opencv/archive/refs/tags/4.5.0.zip && \
     unzip 4.5.0.zip && \
     mkdir build && cd build && cmake -D CMAKE_BUILD_TYPE=RELEASE -D BUILD_EXAMPLES=Off -D OPENCV_GENERATE_PKGCONFIG=ON -DCMAKE_INSTALL_PREFIX=/opt/opencv -DBUILD_LIST=core,imgproc,imgcodecs ../opencv-4.5.0 && \
-    # mkdir build && cd build && cmake3 -D CMAKE_BUILD_TYPE=Release -D CPU_BASELINE=AVX2 -D CPU_DISPATCH=AVX512_SKX -DWITH_IPP=OFF -DWITH_TBB=OFF -DWITH_OPENMP=OFF -D CMAKE_CXX_FLAGS="-O3 -march=haswell -mtune=haswell" -D BUILD_EXAMPLES=Off -D OPENCV_GENERATE_PKGCONFIG=ON -DCMAKE_INSTALL_PREFIX=/opt/opencv -DBUILD_LIST=core,imgproc,imgcodecs ../opencv-4.5.0 && \
     make -j${WORKERS} && make install
 
 FROM ${BASE_IMAGE}

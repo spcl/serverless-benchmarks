@@ -8,7 +8,14 @@ void thumbnailer(const std::vector<char>& jpeg_data, int64_t width, int64_t heig
 {
   try
   {
+    // auto t1 = std::chrono::high_resolution_clock::now();
     cv::Mat in = cv::imdecode(jpeg_data, cv::IMREAD_COLOR);
+    // auto t2 = std::chrono::high_resolution_clock::now();
+
+    //std::cout
+    //    << "Slow decode to "
+    //    << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
+    //  << "ms\n";
 
     // Calculate thumbnail size while maintaining aspect ratio
     int orig_width = in.cols;
@@ -58,7 +65,7 @@ void thumbnailer_fast(const std::vector<char>& jpeg_data, int target_width, int 
 
   std::vector<unsigned char> buffer(scaled_width * scaled_height * 3);
 
-  auto t1 = std::chrono::high_resolution_clock::now();
+  //auto t1 = std::chrono::high_resolution_clock::now();
 
   tjDecompress2(
     tj_handle, reinterpret_cast<const unsigned char *>(jpeg_data.data()),
@@ -66,13 +73,11 @@ void thumbnailer_fast(const std::vector<char>& jpeg_data, int target_width, int 
     TJPF_BGR, TJFLAG_FASTDCT | TJFLAG_FASTUPSAMPLE
   );
 
-  auto t2 = std::chrono::high_resolution_clock::now();
-  std::cout
-      << "Fast decode to " << scaled_width << "x" << scaled_height << ": "
-      << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-      << "ms\n";
-
-  // tjDestroy(jpeg);
+  //auto t2 = std::chrono::high_resolution_clock::now();
+  //std::cout
+  //    << "Fast decode to " << scaled_width << "x" << scaled_height << ": "
+  //    << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
+  //    << "ms\n";
 
   double scale_w = static_cast<double>(target_width) / orig_width;
   double scale_h = static_cast<double>(target_width) / orig_height;
