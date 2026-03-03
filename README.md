@@ -82,7 +82,7 @@ You can cite our software repository as well, using the citation button on the r
 
 Requirements:
 - Docker (at least 19)
-- Python 3.7+ with:
+- Python 3.10+ with:
     - pip
     - venv
 - `libcurl` and its headers must be available on your system to install `pycurl`
@@ -119,7 +119,7 @@ To verify the correctness of installation, you can use [our regression testing](
 > [!WARNING]
 > We use libcurl to make HTTP requests. `pycurl` will attempt to build its bindings and needs headers for that - make sure you have all development packages installed. If you see an error like this one: `src/pycurl.h:206:13: fatal error: gnutls/gnutls.h: No such file or directory`, it means that you are missing some of the dependencies.
 
-## Authors
+## Authors & Contributors
 
 * [Marcin Copik (ETH Zurich)](https://github.com/mcopik/) - main author.
 * [Michał Podstawski (Future Processing SA)](https://github.com/micpod/) - contributed graph and DNA benchmarks, and worked on Google Cloud support.
@@ -133,3 +133,5 @@ To verify the correctness of installation, you can use [our regression testing](
 * [lawrence910426](https://github.com/lawrence910426) - contributed color-coded output to SeBS CLI.
 * [Abhishek Kumar](https://github.com/octonawish-akcodes) - contributed new language versions and Knative support.
 * [Prajin Khadka](https://github.com/prajinkhadka) - contributed new language versions, container support, and ARM builds.
+* [Horia Mercan](https://github.com/HoriaMercan) - contributed new benchmarks in C++.
+* [Dillon Elste (ETH Zurich)](https://github.com/DJAntivenom) - bugfixing in C++.

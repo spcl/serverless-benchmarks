@@ -26,6 +26,8 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     # upload model
     model_name = 'resnet50-19c8e357.pth'
     upload_func(0, model_name, os.path.join(data_dir, 'model', model_name))
+    model_name_cpp = 'resnet50.pt'
+    upload_func(0, model_name_cpp, os.path.join(data_dir, 'model', model_name_cpp))
 
     input_images = []
     resnet_path = os.path.join(data_dir, 'fake-resnet')
