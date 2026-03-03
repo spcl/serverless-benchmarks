@@ -80,7 +80,7 @@ void thumbnailer_fast(const std::vector<char>& jpeg_data, int target_width, int 
   //    << "ms\n";
 
   double scale_w = static_cast<double>(target_width) / orig_width;
-  double scale_h = static_cast<double>(target_width) / orig_height;
+  double scale_h = static_cast<double>(target_height) / orig_height;
   double scale = std::min(scale_w, scale_h); // Use smaller scale to fit within bounds
 
   target_width = static_cast<int>(orig_width * scale);
