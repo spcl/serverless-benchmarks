@@ -106,8 +106,11 @@ def _load_intro():
         content,
     )
 
-    # (docs/X.md) -> (X)  – plain Sphinx cross-reference
-    content = re.sub(r"\(docs/([^/)#]+)\.md\)", r"(\1)", content)
+    # (docs/X.md) -> (X.md)  – keep the .md extension so myst-parser treats it
+    # as an explicit document path rather than an "any" cross-reference; this
+    # avoids ambiguous-xref warnings when a doc name also matches a Python module
+    # (e.g. "experiments" matches both the experiments page and sebs.experiments).
+    content = re.sub(r"\(docs/([^/)#]+\.md)\)", r"(\1)", content)
 
     # (docs/X.png) -> (../X.png)
     # Images live in docs/ which is one level above docs/source/ (our Sphinx
