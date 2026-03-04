@@ -52,12 +52,14 @@ documentation:
 * [How SeBS package is designed?](docs/design.md)
 * [How to extend SeBS with new benchmarks, experiments, and platforms?](docs/modularity.md)
 
-### Publication
+### Publications
 
-When using SeBS, please cite our [Middleware '21 paper](https://dl.acm.org/doi/abs/10.1145/3464298.3476133).
+When using SeBS, please cite our published work.
+You can cite our software repository as well, using the citation button on the right.
+
+SeBS has been originally released with the [Middleware '21 paper](https://dl.acm.org/doi/abs/10.1145/3464298.3476133).
 An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.14132), and you can
 find more details about research work [in this paper summary](https://mcopik.github.io/projects/sebs/).
-You can cite our software repository as well, using the citation button on the right.
 
 ```
 @inproceedings{copik2021sebs,
@@ -75,6 +77,50 @@ You can cite our software repository as well, using the citation button on the r
   keywords = {benchmark, serverless, FaaS, function-as-a-service},
   location = {Qu\'{e}bec city, Canada},
   series = {Middleware '21}
+}
+```
+
+The SeBS-Flow paper published at [EuroSys'25](https://dl.acm.org/doi/abs/10.1145/3689031.3717465)
+extends SeBS with support for serverless workflows and NoSQL database:
+
+```
+@inproceedings{10.1145/3689031.3717465,
+  author = {Schmid, Larissa and Copik, Marcin and Calotoiu, Alexandru and Brandner, Laurin and Koziolek, Anne and Hoefler, Torsten},
+  title = {SeBS-Flow: Benchmarking Serverless Cloud Function Workflows},
+  year = {2025},
+  isbn = {9798400711961},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3689031.3717465},
+  doi = {10.1145/3689031.3717465},
+  booktitle = {Proceedings of the Twentieth European Conference on Computer Systems},
+  pages = {902–920},
+  numpages = {19},
+  keywords = {benchmark, faas, function-as-a-service, orchestration, serverless, serverless DAG, workflow},
+  location = {Rotterdam, Netherlands},
+  series = {EuroSys '25}
+}
+```
+
+The SeBS 2.0 workshop paper published at [SESAME @ EuroSys'25](https://dl.acm.org/doi/abs/10.1145/3721465.3721867)
+provides an overview of new and ongoing contributions to SeBS - benchmarks, platforms, languages.
+
+```
+@inproceedings{10.1145/3721465.3721867,
+  author = {Copik, Marcin and Calotoiu, Alexandru and Hoefler, Torsten},
+  title = {SeBS 2.0: Keeping up with the Clouds},
+  year = {2025},
+  isbn = {9798400715570},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3721465.3721867},
+  doi = {10.1145/3721465.3721867},
+  booktitle = {Proceedings of the 3rd Workshop on SErverless Systems, Applications and MEthodologies},
+  pages = {42–44},
+  numpages = {3},
+  keywords = {Benchmark, FaaS, Function-as-a-Service, Serverless},
+  location = {Rotterdam, Netherlands},
+  series = {SESAME' 25}
 }
 ```
 
