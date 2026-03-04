@@ -52,6 +52,11 @@ documentation:
 * [How SeBS package is designed?](docs/design.md)
 * [How to extend SeBS with new benchmarks, experiments, and platforms?](docs/modularity.md)
 
+## Tutorial
+
+We provide a tutorial on basic SeBS functionality in the [SeBS-Tutorial repository](https://github.com/spcl/sebs-tutorial.git).
+You can learn there how to install SeBS, configure it, deploy OpenWhisk on your system, and launch your first experiments.
+
 ## Publications
 
 When using SeBS, please cite our published work.
