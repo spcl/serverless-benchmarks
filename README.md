@@ -52,7 +52,7 @@ documentation:
 * [How SeBS package is designed?](docs/design.md)
 * [How to extend SeBS with new benchmarks, experiments, and platforms?](docs/modularity.md)
 
-### Publications
+## Publications
 
 When using SeBS, please cite our published work.
 You can cite our software repository as well, using the citation button on the right.
