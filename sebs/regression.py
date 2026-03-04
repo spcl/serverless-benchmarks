@@ -16,6 +16,7 @@ The module supports:
 - Different trigger types (HTTP, library)
 """
 
+import copy
 import logging
 import os
 import unittest
@@ -693,10 +694,10 @@ class OpenWhiskTestSequencePython(
         assert cloud_config, "Cloud configuration is required"
 
         # Create a copy of the config and set architecture and deployment type
-        config_copy = cloud_config.copy()
+        config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
 
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(

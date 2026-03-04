@@ -9,7 +9,7 @@ code packages, Docker containers, deployed functions, and cloud resource
 configurations to optimize repeated benchmark executions and deployments.
 
 This class is essential for efficient benchmarking - we avoid regenerating
-cloud resources, and we do not have to keeep querying them every time
+cloud resources, and we do not have to keep querying them every time
 we start the benchmark. This is particularly important for cloud platforms
 like Azure, where queries require CLI tool running in a container and can
 take long time to resolve.
@@ -108,7 +108,7 @@ class Cache(LoggingBase):
         config_updated (bool): Flag indicating if configuration needs to be saved.
         cache_dir (str): Absolute path to the cache directory.
         ignore_functions (bool): Flag to skip function caching operations.
-        ignore_storage (bool): Flag to skip storage resoyrce caching.
+        ignore_storage (bool): Flag to skip storage resource caching.
         docker_client (docker.DockerClient): Docker client for container operations.
     """
 

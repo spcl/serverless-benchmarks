@@ -1,6 +1,6 @@
 """Google Cloud Platform (GCP) serverless system implementation.
 
-This module provides the main GCP implementation wiht function deployment, management,
+This module provides the main GCP implementation with function deployment, management,
 monitoring, and resource allocation. It integrates with Google Cloud Functions,
 Cloud Storage, Cloud Monitoring, and Cloud Logging.
 

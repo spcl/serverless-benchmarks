@@ -269,7 +269,7 @@ class DockerContainer(LoggingBase):
             language_version: benchmark language version
             architecture: CPU architecture
             benchmark: benchmark name
-            is_cached: true if it the image is currently cached
+            is_cached: true if the image is currently cached
             builder_image: Base image for containers
 
         Returns:

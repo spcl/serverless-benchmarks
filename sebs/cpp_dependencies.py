@@ -23,7 +23,7 @@ class CppDependencyConfig:
             cmake_package: Name of CMake package to find
             cmake_libs: Variable or list of libraries to link against in CMake
             cmake_dir: Additional include directory to add in CMake (if not provided by the package)
-            runtime_paths: Paths to dynamic libraries that should be be copied with function.
+            runtime_paths: Paths to dynamic libraries that should be copied with function.
         """
         self.docker_img = docker_img
         self.cmake_package = cmake_package
@@ -40,7 +40,7 @@ class CppDependencies(str, Enum):
         RUNTIME: AWS C++ Lambda Runtime
         TORCH: Torch C++ API
         OPENCV: OpenCV
-        LIBJPEG_TURBO: Libjpeg-turbo (used in 210.thubmbnailer)
+        LIBJPEG_TURBO: Libjpeg-turbo (used in 210.thumbnailer)
         IGRAPH: Graph library used in 50* benchmarks
         BOOST: Standard Boost libraries
         HIREDIS: Redis client library used by storage wrappers
@@ -125,7 +125,7 @@ class CppDependencies(str, Enum):
         """Deserialize enum from string.
 
         Args:
-            val: depenedency name as string (e.g., "sdk", "torch")
+            val: dependency name as string (e.g., "sdk", "torch")
 
         Returns:
             Dependency enum member corresponding to the input string.

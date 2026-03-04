@@ -15,7 +15,7 @@
 | Scientific      | 503.graph-bfs    | Python, C++ | x64, arm64 | Breadth-first search (BFS) implementation with igraph. |
 | Scientific      | 504.dna-visualisation    | Python   | x64, arm64 | Creates a visualization data for DNA sequence. |
 
-For more details on benchmark selection and their characterization, please refer to [our paper](../README.md#publication). Detailed information about each benchmark can be found in its respective README.md file.
+For more details on benchmark selection and their characterization, please refer to [our papers](../README.md#publications). Detailed information about each benchmark can be found in its respective README.md file.
 
 > [!NOTE]
 > Benchmarks whose number starts with the digit 0, such as `020.server-reply` are internal microbenchmarks used by specific experiments. They are not intended to be directly invoked by users.
