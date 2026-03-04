@@ -35,6 +35,11 @@ jobs:
             . python-venv/bin/activate
             mypy sebs --config-file=.mypy.ini
           name: Python static code verification with mypy
+      - run:
+          command: |
+            . python-venv/bin/activate
+            interrogate -v --fail-under 100 sebs
+          name: Check for Python documentation coverage 
       - store_artifacts:
           path: flake-reports
           destination: flake-reports
