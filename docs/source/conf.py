@@ -20,7 +20,7 @@ repo_root = os.path.abspath(os.path.join(conf_dir, "../.."))
 sys.path.insert(0, repo_root)
 
 project = "sebs"
-copyright = "2024, Marcin Copik"
+copyright = "2024, Marcin Copik & SPCL"
 author = "Marcin Copik"
 release = "1.2"
 
@@ -35,6 +35,8 @@ extensions = [
     "sphinxcontrib.mermaid",
 ]
 
+# ensure that we can use mermaid diagrams in markdown files without needing to wrap them in {}
+# otherwise, they don't work on GitHub
 myst_fence_as_directive = ["mermaid"]
 
 templates_path = ["_templates"]
@@ -80,6 +82,67 @@ def _convert_gfm_alerts(text):
         return f":::{{{kind}}}\n{body}\n:::\n"
 
     return _GFM_ALERT.sub(_replace, text)
+
+
+# ---------------------------------------------------------------------------
+# Repo-link rewriting
+# ---------------------------------------------------------------------------
+# modularity.md (and potentially other docs) contains root-relative links that
+# work on GitHub but not in Sphinx:
+#
+#   [text](/sebs/faas/system.py)   → Sphinx API page with module section anchor
+#   [text](/config/systems.json)   → GitHub blob URL
+#   [text](/benchmarks/wrappers)   → GitHub tree URL
+#
+# The rewriting runs inside source-read so the source .md files stay unchanged.
+
+_GITHUB_REPO = "https://github.com/spcl/serverless-benchmarks"
+_GITHUB_BRANCH = "master"
+
+
+def _py_file_to_api_url(rel_path):
+    """Convert sebs/path/to/file.py → api/sebs.package.html#sebs-path-to-file-module.
+
+    Each package's modules are rendered into a single page (e.g. all sebs.faas.*
+    modules live in api/sebs.faas.html).  Sphinx derives section IDs by replacing
+    dots and spaces with hyphens, so the "sebs.faas.system module" section has
+    id="sebs-faas-system-module".
+    """
+    module = rel_path[:-3].replace("/", ".")  # sebs/faas/system.py → sebs.faas.system
+    parts = module.split(".")
+    package_page = ".".join(parts[:-1]) if len(parts) > 1 else parts[0]
+    anchor = module.replace(".", "-") + "-module"
+    return f"api/{package_page}.html#{anchor}"
+
+
+def _rewrite_repo_links(text):
+    """Rewrite root-relative repo links in markdown text."""
+
+    def _replace(m):
+        link_text = m.group(1)
+        path = m.group(2)  # e.g. /sebs/faas/system.py or /config/systems.json
+        rel_path = path.lstrip("/")
+
+        if rel_path.endswith(".py"):
+            url = _py_file_to_api_url(rel_path)
+        else:
+            rel_clean = rel_path.rstrip("/")
+            basename = os.path.basename(rel_clean)
+            url_type = (
+                "blob" if ("." in basename and not basename.startswith(".")) else "tree"
+            )
+            url = f"{_GITHUB_REPO}/{url_type}/{_GITHUB_BRANCH}/{rel_clean}"
+
+        # Emit a raw HTML <a> tag so myst-parser does not attempt to resolve
+        # the URL as a cross-reference or heading anchor.  If the link text is
+        # backtick-wrapped (inline code), convert to <code> accordingly.
+        if link_text.startswith("`") and link_text.endswith("`"):
+            inner = link_text[1:-1]
+            return f'<a href="{url}"><code>{inner}</code></a>'
+        return f'<a href="{url}">{link_text}</a>'
+
+    # Match [text](/absolute-path) — root-relative links only
+    return re.sub(r"\[([^\]]+)\]\((/[^)#\s]+)\)", _replace, text)
 
 
 # ---------------------------------------------------------------------------
@@ -191,12 +254,13 @@ _DOC_PAGES = frozenset(
 
 
 def _load_doc_page(docname):
-    """Load docs/<docname>.md and apply GFM alert conversion."""
+    """Load docs/<docname>.md, rewrite repo links, and apply GFM alert conversion."""
     path = os.path.join(docs_dir, docname + ".md")
     if not os.path.exists(path):
         return None
     with open(path) as f:
         content = f.read()
+    content = _rewrite_repo_links(content)
     return _convert_gfm_alerts(content)
 
 
