@@ -1,5 +1,5 @@
 
-## Experiments
+# Experiments
 
 For details on experiments and methodology, please refer to [the paper](../README.md#publication).
 

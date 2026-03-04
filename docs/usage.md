@@ -1,4 +1,6 @@
 
+# Usage
+
 SeBS has three basic commands: `benchmark`, `experiment`, and `local`.
 For each command you can pass `--verbose` flag to increase the verbosity of the output.
 By default, all scripts will create a cache in the directory `cache` to store code with

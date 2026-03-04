@@ -1,5 +1,5 @@
 
-## Modularity
+# Modularity
 
 SeBS benchmarks have been designed to operate independently of the underlying serverless platform.
 We provide a single benchmark implementation with additional scripts to install dependencies and generate inputs.
