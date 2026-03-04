@@ -8,7 +8,7 @@ function executor in the cloud. However, on some platforms, we deploy functions 
 
 ## Code Package Deployment
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Benchmark Builder
     participant Cache
@@ -39,7 +39,7 @@ JSON configuration files are needed.
 
 ## Docker Image Deployment
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Benchmark Builder
     participant Cache

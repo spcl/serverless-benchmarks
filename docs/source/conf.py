@@ -35,6 +35,8 @@ extensions = [
     "sphinxcontrib.mermaid",
 ]
 
+myst_fence_as_directive = ["mermaid"]
+
 templates_path = ["_templates"]
 exclude_patterns = []
 
@@ -110,9 +112,7 @@ def _load_intro():
     # (docs/X.png) -> (../X.png)
     # Images live in docs/ which is one level above docs/source/ (our Sphinx
     # source root), so we need to go up one directory from source root.
-    content = re.sub(
-        r"\(docs/([^)]+\.(?:png|jpg|gif|svg|webp))\)", r"(../\1)", content
-    )
+    content = re.sub(r"\(docs/([^)]+\.(?:png|jpg|gif|svg|webp))\)", r"(../\1)", content)
 
     return _convert_gfm_alerts(content)
 
@@ -155,9 +155,7 @@ def _load_benchmarks():
             parts.append(body)
 
         # Include benchmarks-data attribution if present
-        data_readme = os.path.join(
-            repo_root, "benchmarks-data", bench_rel, "README.md"
-        )
+        data_readme = os.path.join(repo_root, "benchmarks-data", bench_rel, "README.md")
         if os.path.exists(data_readme):
             with open(data_readme) as f:
                 data_body = f.read().strip()
