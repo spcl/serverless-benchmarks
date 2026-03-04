@@ -29,7 +29,7 @@ void thumbnailer(const std::vector<char>& jpeg_data, int64_t width, int64_t heig
     int new_height = static_cast<int>(orig_height * scale);
 
     // Resize image (equivalent to PIL's thumbnail method)
-    cv::resize(in, out, cv::Size(new_width, new_height), cv::INTER_LINEAR);
+    cv::resize(in, out, cv::Size(new_width, new_height), 0, 0, cv::INTER_LINEAR);
   }
   catch (const cv::Exception &e)
   {
