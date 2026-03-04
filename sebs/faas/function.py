@@ -268,18 +268,6 @@ class Trigger(ABC, LoggingBase):
         pass
 
 
-class Language(Enum):
-    PYTHON = "python"
-    NODEJS = "nodejs"
-
-    @staticmethod
-    def deserialize(val: str) -> Language:
-        for member in Language:
-            if member.value == val:
-                return member
-        raise Exception(f"Unknown language type {val}")
-
-
 class Variant:
     """
     Namespace for language-specific runtime variant enums.

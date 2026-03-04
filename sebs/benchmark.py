@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sebs.experiments.config import Config as ExperimentConfig
-    from sebs.faas.function import Language, Variant
+    from sebs.faas.function import Variant
 
 
 class LanguageSpec:
@@ -52,8 +52,6 @@ class LanguageSpec:
 
     @staticmethod
     def deserialize(val) -> LanguageSpec:
-        from sebs.faas.function import Language
-
         if isinstance(val, str):
             return LanguageSpec(Language.deserialize(val), ["default"])
         return LanguageSpec(
@@ -432,7 +430,7 @@ class Benchmark(LoggingBase):
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
-        for file_type in FILES[self.language_name]:
+        for file_type in FILES[self.language]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
         # support node.js benchmarks with language specific packages
@@ -616,8 +614,6 @@ class Benchmark(LoggingBase):
             script_file.write(textwrap.dedent(cmake_script))
 
     def add_deployment_package(self, output_dir):
-        from sebs.faas.function import Language
-
         if self.language == Language.PYTHON:
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:
@@ -711,7 +707,7 @@ class Benchmark(LoggingBase):
                 Language.NODEJS: "package.json",
                 Language.CPP: "CMakeLists.txt",
             }
-            file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
+            file = os.path.join(output_dir, PACKAGE_FILES[self.language])
             if os.path.exists(file):
                 try:
                     self.logging.info(

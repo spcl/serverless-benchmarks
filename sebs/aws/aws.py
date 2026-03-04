@@ -132,8 +132,8 @@ class AWS(System):
             Language.PYTHON: ["handler.py", "requirements.txt", ".python_packages"],
             Language.NODEJS: ["handler.js", "package.json", "node_modules"],
         }
-        if language.value in [Language.PYTHON, Language.NODEJS]:
-            package_config = CONFIG_FILES[language.value]
+        if language in [Language.PYTHON, Language.NODEJS]:
+            package_config = CONFIG_FILES[language]
             function_dir = os.path.join(directory, "function")
             os.makedirs(function_dir)
             # move all files to 'function' except handler.py
@@ -152,7 +152,7 @@ class AWS(System):
             mbytes = bytes_size / 1024.0 / 1024.0
             self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
-        elif language.value == Language.CPP:
+        elif language == Language.CPP:
             # lambda C++ runtime build scripts create the .zip file in build directory
             benchmark_archive = os.path.join(directory, "build", "benchmark.zip")
             self.logging.info("Created {} archive".format(benchmark_archive))
@@ -174,12 +174,12 @@ class AWS(System):
     def cloud_runtime(self, language: Language, language_version: str):
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
-        if language.value == Language.NODEJS:
-            return f"{language.value}{language_version}.x"
-        elif language.value == Language.CPP:
+        if language == Language.NODEJS:
+            return f"{language}{language_version}.x"
+        elif language == Language.CPP:
             return "provided.al2"
-        elif language.value in [Language.PYTHON]:
-            return f"{language.value}{language_version}"
+        elif language == Language.PYTHON:
+            return f"{language}{language_version}"
         else:
             raise NotImplementedError()
 
