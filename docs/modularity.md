@@ -1,4 +1,3 @@
-
 # Modularity
 
 SeBS benchmarks have been designed to operate independently of the underlying serverless platform.

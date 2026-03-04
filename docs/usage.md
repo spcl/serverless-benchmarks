@@ -1,4 +1,3 @@
-
 # Usage
 
 SeBS has three basic commands: `benchmark`, `experiment`, and `local`.

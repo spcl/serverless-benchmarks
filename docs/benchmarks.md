@@ -1,5 +1,4 @@
-
-## Benchmark Applications
+# Benchmark Applications
 
 | Type 		   | Benchmark           | Languages          | Architecture       |  Description |
 | :---         | :---:               | :---:              | :---:                | :---:                |
