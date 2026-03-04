@@ -9,6 +9,7 @@ from typing import Tuple
 from rich.progress import Progress
 
 from sebs.config import SeBSConfig
+from sebs.types import Language
 from sebs.utils import LoggingBase, execute, DOCKER_DIR
 
 
@@ -40,7 +41,6 @@ class DockerContainer(LoggingBase):
         self._disable_rich_output = False
 
     def find_image(self, repository_name, image_tag) -> bool:
-
         if self.experimental_manifest:
             try:
                 # This requires enabling experimental Docker features
@@ -58,7 +58,6 @@ class DockerContainer(LoggingBase):
                 return False
 
     def show_progress(self, txt: str, progress: Progress, layer_tasks: dict):
-
         if isinstance(txt, str):
             line = json.loads(txt)
         else:
@@ -90,15 +89,15 @@ class DockerContainer(LoggingBase):
 
     def push_image(self, repository_uri, image_tag):
         try:
-
             if not self.disable_rich_output:
-
                 layer_tasks = {}
                 with Progress() as progress:
-
                     self.logging.info(f"Pushing image {image_tag} to {repository_uri}")
                     ret = self.docker_client.images.push(
-                        repository=repository_uri, tag=image_tag, stream=True, decode=True
+                        repository=repository_uri,
+                        tag=image_tag,
+                        stream=True,
+                        decode=True,
                     )
                     for line in ret:
                         self.show_progress(line, progress, layer_tasks)
@@ -122,19 +121,24 @@ class DockerContainer(LoggingBase):
 
     @abstractmethod
     def registry_name(
-        self, benchmark: str, language_name: str, language_version: str, architecture: str
+        self,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
     ) -> Tuple[str, str, str, str]:
         pass
 
     def build_base_image(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[bool, str]:
+        builder_image: str,
+    ) -> Tuple[bool, str, float]:
         """
         When building function for the first time (according to SeBS cache),
         check if Docker image is available in the registry.
@@ -147,7 +151,7 @@ class DockerContainer(LoggingBase):
         """
 
         registry_name, repository_name, image_tag, image_uri = self.registry_name(
-            benchmark, language_name, language_version, architecture
+            benchmark, language.value, language_version, architecture
         )
 
         # cached package, rebuild not enforced -> check for new one
@@ -158,7 +162,7 @@ class DockerContainer(LoggingBase):
                     f"Skipping building Docker image for {benchmark}, using "
                     f"Docker image {image_uri} from registry: {registry_name}."
                 )
-                return False, image_uri
+                return False, image_uri, 0.0
             else:
                 # image doesn't exist, let's continue
                 self.logging.info(
@@ -169,10 +173,16 @@ class DockerContainer(LoggingBase):
         build_dir = os.path.join(directory, "build")
         os.makedirs(build_dir, exist_ok=True)
 
-        shutil.copy(
-            os.path.join(DOCKER_DIR, self.name(), language_name, "Dockerfile.function"),
-            os.path.join(build_dir, "Dockerfile"),
-        )
+        # Check if custom Dockerfile exists in directory (e.g., for C++)
+        custom_dockerfile = os.path.join(directory, "Dockerfile")
+        if os.path.exists(custom_dockerfile):
+            shutil.move(custom_dockerfile, os.path.join(build_dir, "Dockerfile"))
+        else:
+            # Use template for languages without custom generation
+            shutil.copy(
+                os.path.join(DOCKER_DIR, self.name(), language.value, "Dockerfile.function"),
+                os.path.join(build_dir, "Dockerfile"),
+            )
         for fn in os.listdir(directory):
             if fn not in ("index.js", "__main__.py"):
                 file = os.path.join(directory, fn)
@@ -181,8 +191,8 @@ class DockerContainer(LoggingBase):
         with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
             f.write("Dockerfile")
 
-        builder_image = self.system_config.benchmark_base_images(
-            self.name(), language_name, architecture
+        base_image = self.system_config.benchmark_base_images(
+            self.name(), language.value, architecture
         )[language_version]
         self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
 
@@ -198,12 +208,23 @@ class DockerContainer(LoggingBase):
 
         buildargs = {
             "VERSION": language_version,
-            "BASE_IMAGE": builder_image,
+            "BASE_IMAGE": base_image,
+            "BASE_IMAGE_BUILDER": builder_image,
             "TARGET_ARCHITECTURE": architecture,
+            "BASE_REPOSITORY": self.system_config.docker_repository(),
         }
-        image, _ = self.docker_client.images.build(
-            tag=image_uri, path=build_dir, buildargs=buildargs
-        )
+
+        try:
+            image, _ = self.docker_client.images.build(
+                tag=image_uri, path=build_dir, buildargs=buildargs
+            )
+        except docker.errors.BuildError as e:
+            self.logging.error("Docker build failed!")
+
+            for chunk in e.build_log:
+                if "stream" in chunk:
+                    self.logging.error(chunk["stream"])
+            raise e
 
         self.logging.info(
             f"Push the benchmark base image {repository_name}:{image_tag} "
@@ -212,4 +233,4 @@ class DockerContainer(LoggingBase):
 
         self.push_image(image_uri, image_tag)
 
-        return True, image_uri
+        return True, image_uri, image.attrs["Size"] / 1024.0 / 1024.0

@@ -246,19 +246,28 @@ class Cache(LoggingBase):
             if not os.path.exists(cached_dir):
                 os.makedirs(cached_dir, exist_ok=True)
 
-                # copy code
-                if os.path.isdir(code_package.code_location):
-                    cached_location = os.path.join(cached_dir, "code")
-                    shutil.copytree(code_package.code_location, cached_location)
-                # copy zip file
-                else:
-                    package_name = os.path.basename(code_package.code_location)
-                    cached_location = os.path.join(cached_dir, package_name)
-                    shutil.copy2(code_package.code_location, cached_dir)
                 language_config = code_package.serialize()
-                # don't store absolute path to avoid problems with moving cache dir
-                relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
-                language_config["location"] = relative_cached_loc
+                if code_package.code_location is not None:
+
+                    self.logging.info(
+                        f"Caching code package created at {code_package.code_location}"
+                    )
+                    # copy code
+                    if os.path.isdir(code_package.code_location):
+                        cached_location = os.path.join(cached_dir, "code")
+                        shutil.copytree(code_package.code_location, cached_location)
+
+                    # copy zip file
+                    else:
+                        package_name = os.path.basename(code_package.code_location)
+                        cached_location = os.path.join(cached_dir, package_name)
+                        shutil.copy2(code_package.code_location, cached_dir)
+
+                    # don't store absolute path to avoid problems with moving cache dir
+                    relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
+                    language_config["location"] = relative_cached_loc
+                else:
+                    self.logging.info(f"Caching container pushed to: {code_package.container_uri}")
 
                 date = str(datetime.datetime.now())
                 language_config["date"] = {
@@ -349,43 +358,75 @@ class Cache(LoggingBase):
                 package_type,
             )
 
-            if os.path.exists(cached_dir):
-                # copy code
-                if os.path.isdir(code_package.code_location):
-                    cached_location = os.path.join(cached_dir, "code")
-                    # could be replaced with dirs_exists_ok in copytree
-                    # available in 3.8
-                    shutil.rmtree(cached_location)
-                    shutil.copytree(src=code_package.code_location, dst=cached_location)
-                # copy zip file
-                else:
-                    package_name = os.path.basename(code_package.code_location)
-                    cached_location = os.path.join(cached_dir, package_name)
-                    if code_package.code_location != cached_location:
-                        shutil.copy2(code_package.code_location, cached_dir)
+            config_location = os.path.join(benchmark_dir, "config.json")
 
-                with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
-                    config = json.load(fp)
-                    date = str(datetime.datetime.now())
+            if not os.path.exists(config_location):
+                self.add_code_package(deployment_name, code_package)
+                return
 
-                    key = f"{language_version}-{architecture}"
-                    if code_package.container_deployment:
-                        main_key = "containers"
+            with open(config_location, "r") as fp:
+                config = json.load(fp)
+                date = str(datetime.datetime.now())
+
+            """
+                Check that a package of this type - code package or container - exists.
+                A simple check of directory existence is insufficient, as we might have
+                created a code package earlier (which creates a directory), but not a container.
+            """
+            key = f"{language_version}-{architecture}"
+            if code_package.container_deployment:
+                main_key = "containers"
+            else:
+                main_key = "code_package"
+
+            package_exists = True
+            try:
+                config[deployment_name][language][main_key][key]
+            except KeyError:
+                package_exists = False
+
+                """
+                    We have no such cache entry - fallback.
+                    However, we still have directory, a possible leftover after crash.
+                    Whatever was left, we remove it since we have no information what is there.
+                """
+                if os.path.exists(cached_dir):
+                    shutil.rmtree(cached_dir)
+
+            if package_exists:
+
+                if code_package.code_location is not None:
+
+                    self.logging.info(
+                        f"Caching code package created at {code_package.code_location}"
+                    )
+                    # copy code
+                    if os.path.isdir(code_package.code_location):
+                        cached_location = os.path.join(cached_dir, "code")
+                        # could be replaced with dirs_exists_ok in copytree
+                        # available in 3.8
+                        shutil.rmtree(cached_location)
+                        shutil.copytree(src=code_package.code_location, dst=cached_location)
+
+                    # copy zip file
                     else:
-                        main_key = "code_package"
+                        package_name = os.path.basename(code_package.code_location)
+                        cached_location = os.path.join(cached_dir, package_name)
+                        if code_package.code_location != cached_location:
+                            shutil.copy2(code_package.code_location, cached_dir)
+                else:
+                    self.logging.info(f"Caching container pushed to: {code_package.container_uri}")
 
-                    config[deployment_name][language][main_key][key]["date"]["modified"] = date
-                    config[deployment_name][language][main_key][key]["hash"] = code_package.hash
+                config[deployment_name][language][main_key][key]["date"]["modified"] = date
+                config[deployment_name][language][main_key][key]["hash"] = code_package.hash
+                config[deployment_name][language][main_key][key]["size"] = code_package.code_size
+
+                if code_package.container_deployment:
+                    image = self.docker_client.images.get(code_package.container_uri)
+                    config[deployment_name][language][main_key][key]["image-id"] = image.id
                     config[deployment_name][language][main_key][key][
-                        "size"
-                    ] = code_package.code_size
-
-                    if code_package.container_deployment:
-                        image = self.docker_client.images.get(code_package.container_uri)
-                        config[deployment_name][language][main_key][key]["image-id"] = image.id
-                        config[deployment_name][language][main_key][key][
-                            "image-uri"
-                        ] = code_package.container_uri
+                        "image-uri"
+                    ] = code_package.container_uri
 
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)

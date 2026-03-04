@@ -24,6 +24,7 @@ from sebs.gcp.resources import GCPSystemResources
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
 from sebs.utils import LoggingHandlers
+from sebs.types import Language
 
 """
     This class provides basic abstractions for the FaaS system.
@@ -124,28 +125,22 @@ class GCP(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
-
-        container_uri = ""
-
-        if container_deployment:
-            raise NotImplementedError("Container Deployment is not supported in GCP")
+    ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
-            "python": ["handler.py", ".python_packages"],
-            "nodejs": ["handler.js", "node_modules"],
+            Language.PYTHON: ["handler.py", ".python_packages"],
+            Language.NODEJS: ["handler.js", "node_modules"],
         }
         HANDLER = {
-            "python": ("handler.py", "main.py"),
-            "nodejs": ("handler.js", "index.js"),
+            Language.PYTHON: ("handler.py", "main.py"),
+            Language.NODEJS: ("handler.js", "index.js"),
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[language]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         for file in os.listdir(directory):
@@ -154,7 +149,7 @@ class GCP(System):
                 shutil.move(file, function_dir)
 
         # rename handler function.py since in gcp it has to be caled main.py
-        old_name, new_name = HANDLER[language_name]
+        old_name, new_name = HANDLER[language]
         old_path = os.path.join(directory, old_name)
         new_path = os.path.join(directory, new_name)
         shutil.move(old_path, new_path)
@@ -181,20 +176,26 @@ class GCP(System):
         # rename the main.py back to handler.py
         shutil.move(new_path, old_path)
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size, container_uri
+        return (
+            os.path.join(directory, "{}.zip".format(benchmark)),
+            bytes_size,
+        )
 
     def create_function(
         self,
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> "GCPFunction":
 
         if container_deployment:
             raise NotImplementedError("Container deployment is not supported in GCP")
 
         package = code_package.code_location
+        if package is None:
+            raise RuntimeError("Code location is not set for GCP deployment")
+
         benchmark = code_package.benchmark
         language_runtime = code_package.language_version
         timeout = code_package.benchmark_config.timeout
@@ -206,7 +207,7 @@ class GCP(System):
         function_cfg = FunctionConfig.from_benchmark(code_package)
         architecture = function_cfg.architecture.value
 
-        code_package_name = cast(str, os.path.basename(package))
+        code_package_name = os.path.basename(package)
         code_package_name = f"{architecture}-{code_package_name}"
         code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
         code_prefix = os.path.join(benchmark, code_package_name)
@@ -360,11 +361,14 @@ class GCP(System):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ):
 
         if container_deployment:
             raise NotImplementedError("Container deployment is not supported in GCP")
+
+        if code_package.code_location is None:
+            raise RuntimeError("Code location is not set for GCP deployment")
 
         function = cast(GCPFunction, function)
         language_runtime = code_package.language_version

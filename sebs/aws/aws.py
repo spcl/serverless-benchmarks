@@ -22,6 +22,7 @@ from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.system import System
+from sebs.types import Language
 
 
 class AWS(System):
@@ -48,6 +49,10 @@ class AWS(System):
     @property
     def system_resources(self) -> AWSSystemResources:
         return cast(AWSSystemResources, self._system_resources)
+
+    @property
+    def container_client(self) -> ECRContainer | None:
+        return self.ecr_client
 
     """
         :param cache_client: Function cache instance
@@ -117,76 +122,76 @@ class AWS(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
-
-        container_uri = ""
-
-        # if the containerized deployment is set to True
-        if container_deployment:
-            # build base image and upload to ECR
-            _, container_uri = self.ecr_client.build_base_image(
-                directory, language_name, language_version, architecture, benchmark, is_cached
-            )
-
+    ) -> Tuple[str, int]:
         CONFIG_FILES = {
-            "python": ["handler.py", "requirements.txt", ".python_packages"],
-            "nodejs": ["handler.js", "package.json", "node_modules"],
+            Language.PYTHON: ["handler.py", "requirements.txt", ".python_packages"],
+            Language.NODEJS: ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[language_name]
-        function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)
-        # move all files to 'function' except handler.py
-        for file in os.listdir(directory):
-            if file not in package_config:
-                file = os.path.join(directory, file)
-                shutil.move(file, function_dir)
-        # FIXME: use zipfile
-        # create zip with hidden directory but without parent directory
-        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
-        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
-        self.logging.info("Created {} archive".format(benchmark_archive))
+        if language.value in [Language.PYTHON, Language.NODEJS]:
+            package_config = CONFIG_FILES[language.value]
+            function_dir = os.path.join(directory, "function")
+            os.makedirs(function_dir)
+            # move all files to 'function' except handler.py
+            for file in os.listdir(directory):
+                if file not in package_config:
+                    file = os.path.join(directory, file)
+                    shutil.move(file, function_dir)
 
-        bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
-        mbytes = bytes_size / 1024.0 / 1024.0
-        self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+            # FIXME: use zipfile
+            # create zip with hidden directory but without parent directory
+            execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+            benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+            self.logging.info("Created {} archive".format(benchmark_archive))
 
-        return (
-            os.path.join(directory, "{}.zip".format(benchmark)),
-            bytes_size,
-            container_uri,
-        )
+            bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+        elif language.value == Language.CPP:
+            # lambda C++ runtime build scripts create the .zip file in build directory
+            benchmark_archive = os.path.join(directory, "build", "benchmark.zip")
+            self.logging.info("Created {} archive".format(benchmark_archive))
+
+            bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+        else:
+            raise NotImplementedError()
+
+        return (benchmark_archive, bytes_size)
 
     def _map_architecture(self, architecture: str) -> str:
-
         if architecture == "x64":
             return "x86_64"
         return architecture
 
-    def _map_language_runtime(self, language: str, runtime: str):
-
+    def cloud_runtime(self, language: Language, language_version: str):
         # AWS uses different naming scheme for Node.js versions
         # For example, it's 12.x instead of 12.
-        if language == "nodejs":
-            return f"{runtime}.x"
-        return runtime
+        if language.value == Language.NODEJS:
+            return f"{language.value}{language_version}.x"
+        elif language.value == Language.CPP:
+            return "provided.al2"
+        elif language.value in [Language.PYTHON]:
+            return f"{language.value}{language_version}"
+        else:
+            raise NotImplementedError()
 
     def create_function(
         self,
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> "LambdaFunction":
-
-        package = code_package.code_location
         benchmark = code_package.benchmark
-        language = code_package.language_name
+        language = code_package.language
         language_runtime = code_package.language_version
         timeout = code_package.benchmark_config.timeout
         memory = code_package.benchmark_config.memory
@@ -216,7 +221,6 @@ class AWS(System):
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
-            self.logging.info("Creating function {} from {}".format(func_name, package))
 
             create_function_params = {
                 "FunctionName": func_name,
@@ -230,7 +234,15 @@ class AWS(System):
             if container_deployment:
                 create_function_params["PackageType"] = "Image"
                 create_function_params["Code"] = {"ImageUri": container_uri}
+                self.logging.info(
+                    "Creating function {} from container {}".format(func_name, container_uri)
+                )
             else:
+
+                package = code_package.code_location
+                assert package is not None
+                self.logging.info("Creating function {} from package {}".format(func_name, package))
+
                 create_function_params["PackageType"] = "Zip"
                 if code_size < 50 * 1024 * 1024:
                     package_body = open(package, "rb").read()
@@ -251,9 +263,7 @@ class AWS(System):
                         "S3Key": code_prefix,
                     }
 
-                create_function_params["Runtime"] = "{}{}".format(
-                    language, self._map_language_runtime(language, language_runtime)
-                )
+                create_function_params["Runtime"] = self.cloud_runtime(language, language_runtime)
                 create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {
@@ -287,7 +297,6 @@ class AWS(System):
         return lambda_function
 
     def cached_function(self, function: Function):
-
         from sebs.aws.triggers import LibraryTrigger
 
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
@@ -312,7 +321,7 @@ class AWS(System):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ):
         name = function.name
         function = cast(LambdaFunction, function)
@@ -323,6 +332,9 @@ class AWS(System):
             code_size = code_package.code_size
             package = code_package.code_location
             benchmark = code_package.benchmark
+
+            if package is None:
+                raise RuntimeError("Code location is not set for zip deployment")
 
             function_cfg = FunctionConfig.from_benchmark(code_package)
             architecture = function_cfg.architecture.value
@@ -360,13 +372,11 @@ class AWS(System):
     def update_function_configuration(
         self, function: Function, code_package: Benchmark, env_variables: dict = {}
     ):
-
         # We can only update storage configuration once it has been processed for this benchmark
         assert code_package.has_input_processed
 
         envs = env_variables.copy()
         if code_package.uses_nosql:
-
             nosql_storage = self.system_resources.get_nosql_storage()
             for original_name, actual_name in nosql_storage.get_tables(
                 code_package.benchmark
@@ -376,7 +386,6 @@ class AWS(System):
         # AWS Lambda will overwrite existing variables
         # If we modify them, we need to first read existing ones and append.
         if len(envs) > 0:
-
             response = self.client.get_function_configuration(FunctionName=function.name)
             # preserve old variables while adding new ones.
             # but for conflict, we select the new one
@@ -481,9 +490,12 @@ class AWS(System):
         output.stats.memory_used = float(aws_vals["Max Memory Used"])
         if "Init Duration" in aws_vals:
             output.provider_times.initialization = int(float(aws_vals["Init Duration"]) * 1000)
-        output.billing.billed_time = int(aws_vals["Billed Duration"])
-        output.billing.memory = int(aws_vals["Memory Size"])
-        output.billing.gb_seconds = output.billing.billed_time * output.billing.memory
+
+        billed_time = int(aws_vals["Billed Duration"])
+        memory = int(aws_vals["Memory Size"])
+        output.billing.billed_time = billed_time
+        output.billing.memory = memory
+        output.billing.gb_seconds = billed_time * memory
         return request_id
 
     def shutdown(self) -> None:
@@ -533,7 +545,6 @@ class AWS(System):
         requests: Dict[str, ExecutionResult],
         metrics: dict,
     ):
-
         if not self.logs_client:
             self.logs_client = boto3.client(
                 service_name="logs",
@@ -581,7 +592,6 @@ class AWS(System):
         function = cast(LambdaFunction, func)
 
         if trigger_type == Trigger.TriggerType.HTTP:
-
             api_name = "{}-http-api".format(function.name)
             http_api = self.config.resources.http_api(api_name, function, self.session)
             # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
@@ -627,14 +637,12 @@ class AWS(System):
         self.logging.info("Finished function updates enforcing cold starts.")
 
     def wait_function_active(self, func: LambdaFunction):
-
         self.logging.info("Waiting for Lambda function to be created...")
         waiter = self.client.get_waiter("function_active_v2")
         waiter.wait(FunctionName=func.name)
         self.logging.info("Lambda function has been created.")
 
     def wait_function_updated(self, func: LambdaFunction):
-
         self.logging.info("Waiting for Lambda function to be updated...")
         waiter = self.client.get_waiter("function_updated_v2")
         waiter.wait(FunctionName=func.name)

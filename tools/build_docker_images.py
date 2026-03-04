@@ -10,13 +10,18 @@ DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
 
 parser = argparse.ArgumentParser(description="Run local app experiments.")
 parser.add_argument(
-    "--deployment", default=None, choices=["local", "aws", "azure", "gcp"], action="store"
+    "--deployment",
+    default=None,
+    choices=["local", "aws", "azure", "gcp"],
+    action="store",
 )
-parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
-parser.add_argument("--language", default=None, choices=["python", "nodejs"], action="store")
+parser.add_argument("--type", default=None, choices=["build", "dependencies", "run", "manage"], action="store")
+parser.add_argument("--type-tag", default=None, type=str, action="store")
+parser.add_argument("--language", default=None, choices=["python", "nodejs", "cpp"], action="store")
 parser.add_argument("--language-version", default=None, type=str, action="store")
 parser.add_argument("--language-variant", default=None, type=str, action="store",
                     help="Only build images for this specific language variant (e.g. bun, llrt, pypy)")
+parser.add_argument("--parallel", default=1, type=int, action="store")
 args = parser.parse_args()
 config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
 client = docker.from_env()
@@ -52,6 +57,9 @@ def build(image_type, system, language=None, version=None, version_name=None, va
     # if we pass an integer, the build will fail with 'connection reset by peer'
     buildargs = {
         "VERSION": version,
+        'WORKERS': str(args.parallel),
+        'SEBS_VERSION': sebs_version,
+        'BASE_REPOSITORY': config["general"]["docker_repository"]
     }
     if version:
         buildargs["BASE_IMAGE"] = version_name
@@ -61,15 +69,16 @@ def build(image_type, system, language=None, version=None, version_name=None, va
         )
     )
     try:
-        client.images.build(path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target)
+        client.images.build(
+            path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target
+        )
     except docker.errors.BuildError as exc:
         print("Error! Build failed!")
         print(exc)
         print("Build log")
         for line in exc.build_log:
-            if 'stream' in line:
-                print(line['stream'].strip())
-
+            if "stream" in line:
+                print(line["stream"].strip())
 
 def build_language(system, language, language_config):
     configs = []
@@ -113,6 +122,22 @@ def build_systems(system, system_config):
             build(args.type, system)
         else:
             print(f"Skipping manage image for {system}")
+    elif args.type == "dependencies":
+        if args.language:
+            if "dependencies" in system_config["languages"][args.language]:
+                language_config = system_config["languages"][args.language]
+                # for all dependencies 
+                if args.type_tag:
+                    # for all image versions
+                    for version, base_image in language_config["base_images"]['x64'].items():
+                        build(f"{args.type}-{args.type_tag}", system, args.language, version, base_image)
+                else:
+                    for dep in system_config["languages"][args.language]["dependencies"]:
+                        # for all image versions
+                        for version, base_image in language_config["base_images"]['x64'].items():
+                            build(f"{args.type}-{dep}", system, args.language, version, base_image)
+        else:
+            raise RuntimeError('Language must be specified for dependencies')
     else:
         if args.language:
             lang_config = system_config["languages"][args.language]

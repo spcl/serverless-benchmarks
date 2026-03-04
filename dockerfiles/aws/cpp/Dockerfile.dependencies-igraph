@@ -1,0 +1,27 @@
+ARG BASE_IMAGE
+
+FROM ${BASE_IMAGE} as builder
+
+ARG WORKERS
+ENV WORKERS=${WORKERS}
+
+WORKDIR /app/builder
+
+RUN dnf install -y cmake git gcc-11.5.0-5.amzn2023.0.5.x86_64 gcc-c++-11.5.0-5.amzn2023.0.5.x86_64 make tar gzip python-devel
+
+RUN curl -LO https://github.com/igraph/igraph/releases/download/0.10.15/igraph-0.10.15.tar.gz && \
+    tar -xzf igraph-0.10.15.tar.gz
+
+RUN mkdir build_igraph && \
+    cd build_igraph && \
+    cmake -DCMAKE_INSTALL_PREFIX=/app/builder/install \
+          -DIGRAPH_OPENMP_SUPPORT=OFF \
+          ../igraph-0.10.15 && \
+    make -j${WORKERS} && \
+    make install
+
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+
+COPY --from=builder /app/builder/install /opt

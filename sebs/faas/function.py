@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 
+from sebs.types import Language, Architecture
 from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 
@@ -211,6 +212,13 @@ class Trigger(ABC, LoggingBase):
 
         try:
             output = json.loads(data.getvalue())
+            if "body" in output:
+                # AWS C++ trigger returns payload as a dictionary inside "body"
+                # but add a conversion step just in case
+                if isinstance(output["body"], dict):
+                    output = output["body"]
+                else:
+                    output = json.loads(output["body"])
 
             if status_code != 200:
                 self.logging.error("Invocation on URL {} failed!".format(url))
