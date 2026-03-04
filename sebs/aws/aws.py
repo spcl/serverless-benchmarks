@@ -135,14 +135,19 @@ class AWS(System):
             )
 
         if language_name == "java":
-            jar_path = os.path.join(directory, "function.jar")
+
+            jar_path = os.path.join(directory, "target", "benchmark-1.0.jar")
+            bytes_size = os.path.getsize(jar_path)
+            mbytes = bytes_size / 1024.0 / 1024.0
             if not os.path.exists(jar_path):
-                raise RuntimeError("function.jar missing. Ensure Java build produced the jar.")
-            package_dir = os.path.join(directory, "package")
-            os.makedirs(package_dir, exist_ok=True)
-            shutil.copy2(jar_path, os.path.join(package_dir, "function.jar"))
-            execute("zip -qu -r9 {}.zip .".format(benchmark), shell=True, cwd=package_dir)
-            benchmark_archive = "{}.zip".format(os.path.join(package_dir, benchmark))
+                raise RuntimeError(
+                    f"Java artifact {jar_path} missing. Ensure Java build produced the jar."
+                )
+
+            self.logging.info(f"Created {jar_path} archive")
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+            return (jar_path, bytes_size, container_uri)
         else:
             CONFIG_FILES = {
                 "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -160,17 +165,18 @@ class AWS(System):
             # create zip with hidden directory but without parent directory
             execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
             benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
-        self.logging.info("Created {} archive".format(benchmark_archive))
 
-        bytes_size = os.path.getsize(benchmark_archive)
-        mbytes = bytes_size / 1024.0 / 1024.0
-        self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+            self.logging.info("Created {} archive".format(benchmark_archive))
 
-        return (
-            benchmark_archive,
-            bytes_size,
-            container_uri,
-        )
+            bytes_size = os.path.getsize(benchmark_archive)
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+            return (
+                benchmark_archive,
+                bytes_size,
+                container_uri,
+            )
 
     def _default_handler(self, language: str) -> str:
 
