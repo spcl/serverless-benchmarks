@@ -1,5 +1,6 @@
 
 [![CircleCI](https://circleci.com/gh/spcl/serverless-benchmarks.svg?style=shield)](https://circleci.com/gh/spcl/serverless-benchmarks)
+[![Documentation Status](https://readthedocs.org/projects/sebs/badge/?version=latest)](https://sebs.readthedocs.io/en/latest/?badge=latest)
 ![Release](https://img.shields.io/github/v/release/spcl/serverless-benchmarks)
 ![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
 ![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
