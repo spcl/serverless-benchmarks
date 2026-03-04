@@ -1,7 +1,6 @@
+# Experiments
 
-## Experiments
-
-For details on experiments and methodology, please refer to [the paper](../README.md#publication).
+For details on experiments and methodology, please refer to our papers.
 
 To run experiments, use the `sebs.py benchmark invoke <experiment> -c <config-path>` command.
 The configuration of each experiment consists of two parts: deployment and experiment.
@@ -18,8 +17,7 @@ Then, each benchmark has its own JSON object containing parameters specific to t
     "language": "python",
     "version": "3.7"
   },
-  "type": "<experiment>",
-  ...
+  "type": "<experiment>"
 }
 ```
 
@@ -29,9 +27,9 @@ We implemented four types of experiments:
 * [Invocation Overhead](#invocation-overhead) estimates the invocation latency by running a clock-drift protocol and comparing timestamps between the benchmarking machine and serverless function.
 * [Eviction](#eviction-model) runs functions with various configurations, invokes them after a specified time, and checks if the function is still running in a warm container. The experiment verifies how different parameters affect container eviction.
 
-### Perf-Cost
+## Perf-Cost
 
-#### Description
+### Description
 
 Invokes the given benchmark a selected number of times, measuring the time and cost of invocations.
 The experiment supports `cold` and `warm` invocations with a configurable number of concurrent invocations in a single batch.
@@ -41,7 +39,7 @@ If a cold execution appears during a `warm` experiment or a warm execution happe
 In addition, to accurately measure the overheads of Azure Function Apps, we offer `burst` and `sequential` invocation type that doesn't distinguish
 between cold and warm startups. These experiment types help to measure the invocation latencies for platforms where a single sandbox can handle multiple invocation requests. The main difference between both experiments is that the `sequential` experiment invokes functions sequentially, helping to investigate potential scalability issues.
 
-#### Results
+### Results
 
 These experiments produce four types of timing results. **All measurements are always in microseconds**.
 * `exec_time` - the actual time needed to execute the benchmark function, as measured by our lightweight shim.
@@ -52,7 +50,7 @@ These experiments produce four types of timing results. **All measurements are a
 In addition, on AWS, we provide `billing_time` in milliseconds, rounded up to the nearest integer.
 The cloud provider uses this value to determine the cost of running the function.
 
-#### Configuring Benchmark
+### Configuring Benchmark
 
 The file `config/example_perf_cost.json` contains an example of configuration:
 
@@ -72,7 +70,7 @@ The file `config/example_perf_cost.json` contains an example of configuration:
 
 The field `benchmark` and `input-size` specifies the benchmark function to be executed. SeBS will invoke the experiment with all configurations specified in `experiments` (see details above). The function will be invoked in batches, each consisting of `concurrent-invocations` instances until SeBS gathers as many results as specified in `repetitions`. While the number of submitted batches usually equals `repetitions/concurrent-invocations`, this can change between experiments as some results might be dropped. For example, a `cold` experiment will ignore all results from a warm container. Furthermore, SeBS will repeat all experiments for each memory configuration provided in `memory-sizes`.
 
-#### Running Benchmark
+### Running Benchmark
 
 To execute the benchmark, provide the path to the configuration:
 
@@ -92,7 +90,7 @@ At the end of each configuration, you should in the output statistical results s
 
 The full data can be found in the `experiments-result/perf-cost` directory. Each file has a format of `<experiment>_results_<mem-size>.json`, and contains the data for each invocation in a human-readable JSON format. Furthermore, SeBS will produce an additional file, `result.csv`, containing all data in a single tabular file.
 
-#### Postprocessing Results
+### Postprocessing Results
 
 We support querying cloud logs to locate cloud provider billing data. SeBS achieves this by reading the experiment data obtained in the previous step, finding all invocation IDs, querying cloud log entries, and finding matching data. To process results, run:
 
@@ -122,20 +120,20 @@ Afterward, you will find a new file for each experiment configuration called `<e
 > **Warning**
 > Depending on the cloud provider, not all invocations might have corresponding results in cloud logs. Thus, increasing the number of repetitions by roughly 10% is recommended to ensure the desired number of repetitions.
 
-#### Network Ping-pong
+## Network Ping-pong
 
 Measures the distribution of network latency between benchmark driver and function instance.
 
 Requirement: public IP.
 
-#### Invocation Overhead
+## Invocation Overhead
 
 The experiment performs the clock drift synchronization protocol to accurately measure the startup time of a function by comparing
 benchmark driver and function timestamps.
 
 Requirement: public IP.
 
-#### Eviction Model
+## Eviction Model
 
 **(WiP)** Executes test functions multiple times, with varying size, memory and runtime configurations, to test for how long function instances stay alive.
 The result helps to estimate the analytical models describing cold startups.

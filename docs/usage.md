@@ -1,3 +1,4 @@
+# Usage
 
 SeBS has three basic commands: `benchmark`, `experiment`, and `local`.
 For each command you can pass `--verbose` flag to increase the verbosity of the output.
@@ -9,7 +10,7 @@ To enforce redeployment of code, benchmark inputs, container deployment (support
 **Note:** The cache does not support updating the cloud region. If you want to deploy benchmarks
 to a new cloud region, then use a new cache directory.
 
-### Benchmark
+## Benchmark
 
 This command builds, deploys, and executes serverless benchmarks in the cloud.
 The example below invokes the benchmark `110.dynamic-html` on AWS via the standard HTTP trigger.
@@ -21,7 +22,7 @@ The example below invokes the benchmark `110.dynamic-html` on AWS via the standa
 To configure your benchmark, change settings in the config file or use command-line options.
 The full list is available by running `./sebs.py benchmark invoke --help`.
 
-### Regression
+## Regression
 
 Additionally, we provide a regression option to execute all benchmarks on a given platform.
 The example below demonstrates how to run the regression suite with `test` input size on AWS.
@@ -36,7 +37,7 @@ The regression can be executed on a single benchmark as well:
 ./sebs.py benchmark regression test --config config/example.json --deployment aws --benchmark-name 120.uploader
 ```
 
-### Experiment
+## Experiment
 
 This command is used to execute benchmarks described in the paper. The example below runs the experiment **perf-cost**:
 
@@ -65,7 +66,7 @@ To download cloud metrics and process the invocations into a .csv file with data
 
 [You can find more details on running experiments and analyzing results in the separate documentation.](experiments.md)
 
-### Local
+## Local
 
 In addition to the cloud deployment, we provide an opportunity to launch benchmarks locally with the help of [minio](https://min.io/) storage.
 This allows us to conduct debugging and a local characterization of the benchmarks.
@@ -184,7 +185,7 @@ To stop containers, you can use the following command:
 Note: The stopped benchmark containers won't be automatically removed 
 unless the option `--remove-containers` has been passed to the `local start` command.
 
-#### Memory Measurements
+### Memory Measurements
 
 The local backend allows additional continuous measurement of function containers. At the moment,
 we support memory measurements. To enable this, pass the following flag to `./sebs.py local start`

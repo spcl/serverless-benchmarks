@@ -19,3 +19,4 @@ pycurl>=7.43
 click>=7.1.2
 rich
 
+interrogate==1.7.0
