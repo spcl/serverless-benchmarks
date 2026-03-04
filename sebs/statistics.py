@@ -92,7 +92,13 @@ def ci_le_boudec(alpha: float, times: List[float]) -> Tuple[float, float]:
 
 
 def print_stats(logger: logging.Logger, experiments: ExperimentResult):
+    """Print statistics of a selected experiment result.
+    Used by the main CLI driver for pretty printing.
 
+    Args:
+        logger: Logger to user
+        experiments: Experiment to process
+    """
     for func in experiments.functions():
         logger.info(f"Processing function {func}")
 

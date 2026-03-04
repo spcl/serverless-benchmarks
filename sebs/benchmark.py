@@ -781,6 +781,18 @@ class Benchmark(LoggingBase):
                 json.dump(package_json, package_file, indent=2)
 
     def add_deployment_package_cpp(self, output_dir: str) -> None:
+        """Generates CMakeLists.txt file for C++ benchmark.
+
+        The CMake file contains multiple steps:
+        * Basic definition of benchmark target.
+        * Packaging instructions for AWS.
+        * Linking dependencies required by the benchmark.
+        * Linking AWS SDK and Hiredis.
+
+        Args:
+            output_dir: Benchmark directory 
+        """
+
         cmake_script = """
         cmake_minimum_required(VERSION 3.9)
         set(CMAKE_CXX_STANDARD 14)
@@ -871,6 +883,13 @@ class Benchmark(LoggingBase):
         return sum(sizes)
 
     def builder_image_name(self) -> Tuple[str, str]:
+        """Image names of builder Docker images for preparing benchmarks.
+
+        We are progressively replacing all unversioned image names with versioned ones.
+
+        Returns:
+            Tuple of unversioned and versioned image names.
+        """
         unversioned_image_name = "build.{deployment}.{language}.{runtime}".format(
             deployment=self._deployment_name,
             language=self.language_name,
@@ -919,6 +938,14 @@ class Benchmark(LoggingBase):
             unversioned_image_name, image_name = self.builder_image_name()
 
             def ensure_image(name: str) -> None:
+                """Internal implementation of checking for Docker image existence.
+
+                Args:
+                    name: image name 
+
+                Raises:
+                    RuntimeError: when neither versioned nor unversioned images exists.
+                """
                 try:
                     self._docker_client.images.get(repo_name + ":" + name)
                 except docker.errors.ImageNotFound:

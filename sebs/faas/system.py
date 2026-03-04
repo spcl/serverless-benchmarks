@@ -144,6 +144,13 @@ class System(ABC, LoggingBase):
 
     @property
     def container_client(self) -> DockerContainer | None:
+        """Get the platform-specific container manager.
+        For example, on OpenWhisk we push to DockerHub,
+        while on AWS we push images to ECR.
+
+        Returns:
+            Container manager instance.
+        """
         return None
 
     @property
@@ -288,6 +295,14 @@ class System(ABC, LoggingBase):
     def finalize_container_build(
         self,
     ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
+        """Default behavior of container deployment is that no code package is needed.
+        Thus, we return None to signal that.
+
+        One exception is OpenWhisk: we deploy code package + container.
+
+        Returns:
+            Null, as no code package.
+        """
         return None
 
     @abstractmethod

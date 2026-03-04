@@ -775,6 +775,15 @@ class GCP(System):
         from time import sleep
 
         def wrapper(gen):
+            """Generator function to extract all results from GCP API paginated responses.
+            If we exhaust resource, we sleep 30 seconds before a retry.
+
+            Args:
+                gen: generator of HTTP responses
+
+            Yields:
+                each HTTP response
+            """
             while True:
                 try:
                     yield next(gen)

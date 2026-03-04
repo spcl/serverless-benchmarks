@@ -247,8 +247,15 @@ class OpenWhisk(System):
     def finalize_container_build(
         self,
     ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
-        # Regardless of Docker image status, we need to create .zip file
-        # to allow registration of function with OpenWhisk
+        """
+        Regardless of Docker image status, we need to create .zip file
+        to allow registration of function with OpenWhisk.
+        By returning the code package routine, we ensure that a package
+        will be created.
+
+        Returns:
+            Code packaging function.
+        """
         return self.package_code
 
     def storage_arguments(self, code_package: Benchmark) -> List[str]:

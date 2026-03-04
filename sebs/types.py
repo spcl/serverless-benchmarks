@@ -91,6 +91,7 @@ class Language(str, Enum):
         raise Exception(f"Unknown language type {val}")
 
     def __str__(self) -> str:
+        """String serialization"""
         return self.value
 
 

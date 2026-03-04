@@ -103,6 +103,11 @@ class AWS(System):
 
     @property
     def container_client(self) -> ECRContainer | None:
+        """Get the AWS-specific container manager that uses ECR.
+
+        Returns:
+            Container manager instance.
+        """
         return self.ecr_client
 
     def __init__(

@@ -74,6 +74,19 @@ def update_dict(cfg: Dict[str, Any], val: Any, keys: List[str]) -> None:
     """
 
     def map_keys(obj: Dict[str, Any], val: Any, keys: List[str]) -> Dict[str, Any]:
+        """Helper to construct the nested dictionary structure for the update.
+        First element of `keys` becomes the key for the current level,
+        and the value is either the final value (if no more keys),
+        or a result of a recursive call to map the remaining keys.
+
+        Args:
+            obj: Main dictionary.
+            val: value to insert
+            keys: list of nested keys 
+
+        Returns:
+            [TODO:return]
+        """
         if len(keys):
             return {keys[0]: map_keys(obj, val, keys[1:])}
         else:

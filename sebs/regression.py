@@ -380,9 +380,26 @@ class AWSTestSequenceCpp(
     deployment_name="aws",
     triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
 ):
+    """Test suite for C++ benchmarks on AWS Lambda.
+
+    """
     def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get an AWS deployment client for the specified configuration.
+
+        Args:
+            benchmark_name: Name of the benchmark to deploy
+            architecture: Architecture to deploy on (x64, arm64)
+            deployment_type: Deployment type (package, container)
+
+        Returns:
+            An initialized AWS deployment client
+
+        Raises:
+            AssertionError: If cloud_config is not set
+        """
         deployment_name = "aws"
-        assert cloud_config
+        assert cloud_config, "Cloud configuration is required"
+
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
             cloud_config,
