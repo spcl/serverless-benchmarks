@@ -110,7 +110,7 @@ class AWS(System):
         sebs_config: SeBSConfig,
         config: AWSConfig,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         logger_handlers: LoggingHandlers,
     ):
         """
@@ -283,7 +283,7 @@ class AWS(System):
         if language == Language.NODEJS:
             return f"{language}{language_version}.x"
         elif language == Language.CPP:
-            return "provided.al2"
+            return "provided.al2023"
         elif language in [Language.PYTHON]:
             return f"{language}{language_version}"
         else:
