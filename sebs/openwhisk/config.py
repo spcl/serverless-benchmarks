@@ -392,7 +392,7 @@ class OpenWhiskConfig(Config):
             res.logging.info("Loading cached config for OpenWhisk")
             OpenWhiskConfig.initialize(res, cached_config)
         else:
-            res.logging.info("Using user-provided config for GCP")
+            res.logging.info("Using user-provided config for OpenWhisk")
             OpenWhiskConfig.initialize(res, config)
 
         return res
@@ -409,7 +409,7 @@ class OpenWhiskConfig(Config):
         cache.update_config(val=self.wsk_exec, keys=["openwhisk", "wskExec"])
         cache.update_config(val=self.wsk_bypass_security, keys=["openwhisk", "wskBypassSecurity"])
         cache.update_config(
-            val=self.dockerhub_repository, keys=["openwhisk", "dockerhub_repository"]
+            val=self.dockerhub_repository, keys=["openwhisk", "dockerhubRepository"]
         )
         cache.update_config(
             val=self.experimentalManifest, keys=["openwhisk", "experimentalManifest"]

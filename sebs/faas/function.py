@@ -166,7 +166,7 @@ class ExecutionBilling:
 
     _memory: Optional[int]
     _billed_time: Optional[int]
-    _gb_seconds: int
+    _gb_seconds: float
 
     def __init__(self):
         """Initialize with default values."""
@@ -215,17 +215,17 @@ class ExecutionBilling:
         self._billed_time = val
 
     @property
-    def gb_seconds(self) -> int:
+    def gb_seconds(self) -> float:
         """
         Get the GB-seconds consumed.
 
         Returns:
-            int: GB-seconds consumed
+            float: GB-seconds consumed
         """
         return self._gb_seconds
 
     @gb_seconds.setter
-    def gb_seconds(self, val: int):
+    def gb_seconds(self, val: float):
         """
         Set the GB-seconds consumed.
 

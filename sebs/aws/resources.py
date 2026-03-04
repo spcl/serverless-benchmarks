@@ -59,7 +59,7 @@ class AWSSystemResources(SystemResources):
         self,
         config: AWSConfig,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         logger_handlers: LoggingHandlers,
     ) -> None:
         """Initialize AWS system resources.

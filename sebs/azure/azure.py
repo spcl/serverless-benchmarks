@@ -123,7 +123,7 @@ class Azure(System):
         sebs_config: SeBSConfig,
         config: AzureConfig,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         logger_handlers: LoggingHandlers,
     ) -> None:
         """Initialize Azure system.
@@ -435,7 +435,7 @@ class Azure(System):
         Raises:
             RuntimeError: If environment variable operations fail.
         """
-        envs = {}
+        envs = env_variables.copy()
         if code_package.uses_nosql:
 
             nosql_storage = cast(CosmosDB, self._system_resources.get_nosql_storage())

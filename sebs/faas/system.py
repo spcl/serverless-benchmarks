@@ -58,7 +58,7 @@ class System(ABC, LoggingBase):
         self,
         system_config: SeBSConfig,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         system_resources: SystemResources,
     ):
         """
@@ -89,12 +89,12 @@ class System(ABC, LoggingBase):
         return self._system_config
 
     @property
-    def docker_client(self) -> docker.client:
+    def docker_client(self) -> docker.client.DockerClient:
         """
         Get the Docker client.
 
         Returns:
-            docker.client: The Docker client
+            docker.client.DockerClient: The Docker client
         """
         return self._docker_client
 
@@ -534,8 +534,9 @@ class System(ABC, LoggingBase):
                 # FIXME: should this even happen? we should never pick the function with
                 # different runtime - that should be encoded in the name
                 self.logging.info(
-                    f"Updating function configuration due to changed runtime attribute {attr}: "
-                    f"cached function has value {old_val} whereas {new_val} has been requested."
+                    f"Updating function configuration due to changed runtime attribute "
+                    f"{lang_attr}: cached function has value {old_val} whereas "
+                    f"{new_val} has been requested."
                 )
                 changed = True
                 setattr(cached_function.config.runtime, lang_attr[1], new_val)

@@ -56,7 +56,7 @@ class OpenWhiskContainer(DockerContainer):
         self,
         system_config: SeBSConfig,
         config: OpenWhiskConfig,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         experimental_manifest: bool,
     ) -> None:
         """

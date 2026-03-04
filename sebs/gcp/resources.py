@@ -65,7 +65,7 @@ class GCPSystemResources(SystemResources):
         system_config: SeBSConfig,
         config: GCPConfig,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         logger_handlers: LoggingHandlers,
     ) -> None:
         """Initialize GCP system resources manager.

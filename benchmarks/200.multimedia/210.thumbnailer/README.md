@@ -6,4 +6,4 @@
 
 ## Description
 
-This benchmark implements one of the most common functions implemented with serverless functions. It downloads an image from the cloud storage, resizes it to a thumbnail size, uploads the new smaller version to the cloud storage, and returns the location to the caller, allowing them to insert the newly created thumbnail. To resize the image, it uses the `Pillow` and `sharp` libraries on Python and Node.js, respectively.
+This benchmark implements one of the most common serverless workloads. It downloads an image from the cloud storage, resizes it to a thumbnail size, uploads the new smaller version to the cloud storage, and returns the location to the caller, allowing them to insert the newly created thumbnail. To resize the image, it uses the `Pillow` and `sharp` libraries on Python and Node.js, respectively.

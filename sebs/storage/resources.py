@@ -203,7 +203,7 @@ class SelfHostedSystemResources(SystemResources):
         name: str,
         config: Config,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         logger_handlers: LoggingHandlers,
     ):
         """Initialize system resources for self-hosted storage.

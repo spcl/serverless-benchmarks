@@ -82,7 +82,7 @@ class DockerContainer(LoggingBase):
     def __init__(
         self,
         system_config: SeBSConfig,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         experimental_manifest: bool = False,
     ):
         """Initialize the Docker container manager.
@@ -265,7 +265,7 @@ class DockerContainer(LoggingBase):
 
         Args:
             directory: build directory
-            language_name: benchmark language
+            language: benchmark language
             language_version: benchmark language version
             architecture: CPU architecture
             benchmark: benchmark name

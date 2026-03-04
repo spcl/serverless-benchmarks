@@ -72,7 +72,7 @@ class GCP(System):
         system_config: SeBSConfig,
         config: GCPConfig,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         logging_handlers: LoggingHandlers,
     ) -> None:
         """Initialize GCP serverless system.
@@ -227,7 +227,7 @@ class GCP(System):
 
         Args:
             directory: Path to the benchmark code directory
-            language_name: Programming language (python, nodejs)
+            language: Programming language (python, nodejs)
             language_version: Language version (e.g., '3.8', '14')
             architecture: Target architecture (x86_64, arm64)
             benchmark: Benchmark name for archive naming

@@ -58,7 +58,7 @@ class OpenWhisk(System):
         system_config: SeBSConfig,
         config: OpenWhiskConfig,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         logger_handlers: LoggingHandlers,
     ) -> None:
         """
@@ -207,7 +207,7 @@ class OpenWhisk(System):
 
         Args:
             directory: Path to the benchmark code directory
-            language_name: Programming language (e.g., 'python', 'nodejs')
+            language: Programming language (e.g., 'python', 'nodejs')
             language_version: Language version (e.g., '3.8', '14')
             architecture: Target architecture (e.g., 'x86_64')
             benchmark: Benchmark name

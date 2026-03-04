@@ -342,7 +342,6 @@ class AWS(System):
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
-
             create_function_params = {
                 "FunctionName": func_name,
                 "Role": self.config.resources.lambda_role(self.session),
@@ -359,7 +358,6 @@ class AWS(System):
                     "Creating function {} from container {}".format(func_name, container_uri)
                 )
             else:
-
                 package = code_package.code_location
                 assert package is not None
                 self.logging.info("Creating function {} from package {}".format(func_name, package))
@@ -665,7 +663,7 @@ class AWS(System):
         memory = int(aws_vals["Memory Size"])
         output.billing.billed_time = billed_time
         output.billing.memory = memory
-        output.billing.gb_seconds = billed_time * memory
+        output.billing.gb_seconds = (billed_time / 1000.0) * (memory / 1024.0)
         return request_id
 
     def shutdown(self) -> None:

@@ -50,7 +50,9 @@ class AzureCLI(LoggingBase):
         _insights_installed: Flag indicating if Application Insights extension is installed
     """
 
-    def __init__(self, system_config: SeBSConfig, docker_client: docker.client) -> None:
+    def __init__(
+        self, system_config: SeBSConfig, docker_client: docker.client.DockerClient
+    ) -> None:
         """Initialize Azure CLI container.
 
         Creates and starts a Docker container with Azure CLI tools installed.

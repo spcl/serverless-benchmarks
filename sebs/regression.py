@@ -529,7 +529,7 @@ class AzureTestSequenceNodejs(
             deployment_client = self.client.get_deployment(
                 cloud_config,
                 logging_filename=os.path.join(self.client.output_dir, f),
-                deployment_config=AzureTestSequencePython.cfg,  # Note: This uses Python config
+                deployment_config=AzureTestSequenceNodejs.cfg,
             )
 
             # Initialize CLI and setup resources (no login needed - reuses Python session)

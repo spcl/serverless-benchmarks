@@ -467,7 +467,7 @@ class Benchmark(LoggingBase):
         system_config: SeBSConfig,
         output_dir: str,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
     ):
         """
         Initialize a Benchmark instance.
@@ -1312,7 +1312,6 @@ class Benchmark(LoggingBase):
         # buckets = mod.buckets_count()
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
-        assert self._benchmark_data_path is not None
         input_config = self._benchmark_input_module.generate_input(
             self._benchmark_data_path,
             size,
@@ -1490,7 +1489,7 @@ class BenchmarkModuleInterface:
     @staticmethod
     @abstractmethod
     def generate_input(
-        data_dir: str,
+        data_dir: Optional[str],
         size: str,
         benchmarks_bucket: Optional[str],
         input_paths: List[str],
