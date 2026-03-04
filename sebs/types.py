@@ -116,6 +116,7 @@ class Architecture(str, Enum):
     """
     Defines the CPU architectures that can be targeted for function deployment.
     """
+
     X86 = "x64"
     ARM = "arm64"
 

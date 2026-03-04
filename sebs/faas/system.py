@@ -192,8 +192,6 @@ class System(ABC, LoggingBase):
         Args:
             select_prefix: Optional prefix to match when looking for existing deployments
         """
-=======
->>>>>>> origin/master
         # User provided resources or found in cache
         if self.config.resources.has_resources_id:
             self.logging.info(
@@ -254,7 +252,7 @@ class System(ABC, LoggingBase):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language_name: Language,
         language_version: str,
         architecture: str,
         benchmark: str,

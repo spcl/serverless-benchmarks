@@ -1195,7 +1195,6 @@ class Benchmark(LoggingBase):
                 OpenWhisk requires a code package in addition to the container.
             """
 
-            self._code_location: str | None = None
             if container_build_step is not None:
                 self._code_location, self._code_size = package_build_step(
                     os.path.abspath(self._output_dir),

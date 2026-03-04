@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 # List of Python benchmarks available for regression testing
 benchmarks_python = [
-    "010.sleep", # Microbenchmark: sleep X seconds
+    "010.sleep",  # Microbenchmark: sleep X seconds
     "110.dynamic-html",  # Dynamic HTML generation
     "120.uploader",  # File upload handling
     "130.crud-api",  # CRUD API implementation

@@ -687,7 +687,6 @@ class OpenWhisk(System):
             f"OpenWhisk: Downloaded metrics for {processed_count} "
             f"out of {len(requests)} invocations"
         )
->>>>>>> origin/master
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """
