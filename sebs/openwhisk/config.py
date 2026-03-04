@@ -277,6 +277,7 @@ class OpenWhiskConfig(Config):
         wsk_bypass_security: Whether to bypass security checks in WSK CLI
         experimentalManifest: Whether to use experimental manifest features
         cache: Cache instance for configuration persistence
+        dockerhub_repository: Repository at DockerHub to use for pushing images.
         _credentials: OpenWhisk credentials configuration
         _resources: OpenWhisk resources configuration
     """
@@ -287,6 +288,7 @@ class OpenWhiskConfig(Config):
     wsk_exec: str
     wsk_bypass_security: bool
     experimentalManifest: bool
+    dockerhub_repository: str
     cache: Cache
 
     def __init__(
@@ -342,6 +344,7 @@ class OpenWhiskConfig(Config):
         config.wsk_exec = dct["wskExec"]
         config.wsk_bypass_security = dct["wskBypassSecurity"]
         config.experimentalManifest = dct["experimentalManifest"]
+        config.dockerhub_repository = dct["dockerhubRepository"]
 
     def serialize(self) -> Dict[str, Any]:
         """
@@ -358,6 +361,7 @@ class OpenWhiskConfig(Config):
             "wskExec": self.wsk_exec,
             "wskBypassSecurity": self.wsk_bypass_security,
             "experimentalManifest": self.experimentalManifest,
+            "dockerhubRepository": self.dockerhub_repository,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }
@@ -404,6 +408,9 @@ class OpenWhiskConfig(Config):
         cache.update_config(val=self.removeCluster, keys=["openwhisk", "removeCluster"])
         cache.update_config(val=self.wsk_exec, keys=["openwhisk", "wskExec"])
         cache.update_config(val=self.wsk_bypass_security, keys=["openwhisk", "wskBypassSecurity"])
+        cache.update_config(
+            val=self.dockerhub_repository, keys=["openwhisk", "dockerhub_repository"]
+        )
         cache.update_config(
             val=self.experimentalManifest, keys=["openwhisk", "experimentalManifest"]
         )

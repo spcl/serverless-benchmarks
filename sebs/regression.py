@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 # List of Python benchmarks available for regression testing
 benchmarks_python = [
+    "010.sleep", # Microbenchmark: sleep X seconds
     "110.dynamic-html",  # Dynamic HTML generation
     "120.uploader",  # File upload handling
     "130.crud-api",  # CRUD API implementation
@@ -46,8 +47,15 @@ benchmarks_python = [
     "504.dna-visualisation",  # DNA visualization
 ]
 
-# List of Node.js benchmarks available for regression testing
-benchmarks_nodejs = ["110.dynamic-html", "120.uploader", "210.thumbnailer"]
+benchmarks_nodejs = ["010.sleep", "110.dynamic-html", "120.uploader", "210.thumbnailer"]
+
+benchmarks_cpp = [
+    "010.sleep",
+    "210.thumbnailer",
+    "411.image-recognition",
+    "501.graph-pagerank",
+    "503.graph-bfs",
+]
 
 # AWS-specific configurations
 architectures_aws = ["x64", "arm64"]
@@ -244,7 +252,11 @@ class TestSequenceMeta(type):
                 for deployment_type in deployments:
                     test_name = f"test_{deployment_name}_{benchmark}"
                     test_name += f"_{architecture}_{deployment_type}"
-                    dict[test_name] = gen_test(benchmark, architecture, deployment_type)
+                    test_method = gen_test(benchmark, architecture, deployment_type)
+                    test_method.test_architecture = architecture
+                    test_method.test_deployment_type = deployment_type
+                    test_method.test_benchmark = benchmark
+                    dict[test_name] = test_method
 
         # Add shared resources
         dict["lock"] = threading.Lock()  # Lock for thread-safe initialization
@@ -355,6 +367,28 @@ class AWSTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with AWSTestSequenceNodejs.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class AWSTestSequenceCpp(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_cpp,
+    architectures=architectures_aws,
+    deployments=deployments_aws,
+    deployment_name="aws",
+    triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
+):
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        deployment_name = "aws"
+        assert cloud_config
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            cloud_config,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+        with AWSTestSequenceCpp.lock:
             deployment_client.initialize(resource_prefix="regr")
         return deployment_client
 
@@ -788,6 +822,7 @@ def filter_out_benchmarks(
     language: str,
     language_version: str,
     architecture: str,
+    deployment_type: str,
 ) -> bool:
     """Filter out benchmarks that are not supported on specific platforms.
 
@@ -806,9 +841,18 @@ def filter_out_benchmarks(
         bool: True if the benchmark should be included, False to filter it out
     """
     # fmt: off
+
+    # Arm architecture currently not supported for C++
+    if (language == "cpp" and architecture == "arm64"):
+        return False
+
     # Filter out image recognition on newer Python versions on AWS
     if (deployment_name == "aws" and language == "python"
             and language_version in ["3.9", "3.10", "3.11"]):
+        return "411.image-recognition" not in benchmark
+
+    # C++ code package is too large for this benchmark
+    if (deployment_name == "aws" and language == "cpp" and deployment_type == "package"):
         return "411.image-recognition" not in benchmark
 
     # Filter out image recognition on ARM architecture on AWS
@@ -861,7 +905,6 @@ def regression_suite(
     # Extract runtime configuration
     language = experiment_config["runtime"]["language"]
     language_version = experiment_config["runtime"]["version"]
-    architecture = experiment_config["architecture"]
 
     # Add AWS tests if requested
     if "aws" in providers:
@@ -872,7 +915,8 @@ def regression_suite(
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequencePython))
         elif language == "nodejs":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceNodejs))
-
+        elif language == "cpp":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceCpp))
     # Add GCP tests if requested
     if "gcp" in providers:
         assert (
@@ -915,13 +959,16 @@ def regression_suite(
             # Get the test method name
             test_name = cast(unittest.TestCase, test)._testMethodName
 
-            # Filter out unsupported benchmarks
+            # Remove unsupported benchmarks
+            test_architecture = getattr(test, test_name).test_architecture  # type: ignore
+            test_deployment_type = getattr(test, test_name).test_deployment_type  # type: ignore
             if not filter_out_benchmarks(
                 test_name,
                 test.deployment_name,  # type: ignore
                 language,
                 language_version,
-                architecture,  # type: ignore
+                test_architecture,
+                test_deployment_type,
             ):
                 print(f"Skip test {test_name} - not supported.")
                 continue

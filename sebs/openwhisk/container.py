@@ -97,7 +97,7 @@ class OpenWhiskContainer(DockerContainer):
         registry_name = self.config.resources.docker_registry
 
         # We need to retag created images when pushing to registry other
-        # than default
+        # than default or to a different repository on DockerHub.
         repository_name = self.system_config.docker_repository()
         image_tag = self.system_config.benchmark_image_tag(
             self.name(), benchmark, language_name, language_version, architecture
@@ -106,6 +106,8 @@ class OpenWhiskContainer(DockerContainer):
             repository_name = f"{registry_name}/{repository_name}"
         else:
             registry_name = "Docker Hub"
+            if self.config.dockerhub_repository is not None:
+                repository_name = self.config.dockerhub_repository
         image_uri = f"{repository_name}:{image_tag}"
 
         return registry_name, repository_name, image_tag, image_uri

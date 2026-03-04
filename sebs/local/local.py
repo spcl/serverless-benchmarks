@@ -35,6 +35,7 @@ from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigge
 from sebs.faas.system import System
 from sebs.faas.config import Resources
 from sebs.benchmark import Benchmark
+from sebs.types import Language
 
 
 class Local(System):
@@ -175,13 +176,12 @@ class Local(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
+    ) -> Tuple[str, int]:
         """Package function code for local execution.
 
         Creates a compatible code package structure for local execution that
@@ -202,17 +202,16 @@ class Local(System):
             architecture: Target architecture (unused for local)
             benchmark: Benchmark name
             is_cached: Whether the package is from cache
-            container_deployment: Whether using container deployment
 
         Returns:
-            Tuple[str, int, str]: (package_path, size_bytes, deployment_package_uri)
+            Tuple[str, int]: (package_path, size_bytes)
         """
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
             "nodejs": ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[language]
         function_dir = os.path.join(directory, "function")
         os.makedirs(function_dir)
         # move all files to 'function' except handler.py
@@ -225,7 +224,7 @@ class Local(System):
         mbytes = bytes_size / 1024.0 / 1024.0
         self.logging.info("Function size {:2f} MB".format(mbytes))
 
-        return directory, bytes_size, ""
+        return directory, bytes_size
 
     def _start_container(
         self, code_package: Benchmark, func_name: str, func: Optional[LocalFunction]
@@ -388,7 +387,7 @@ class Local(System):
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> "LocalFunction":
         """Create a new function deployment. In practice, it starts a new Docker container.
 
@@ -413,7 +412,7 @@ class Local(System):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> None:
         """Update an existing function with new code.
 
@@ -425,6 +424,9 @@ class Local(System):
             container_deployment: Whether to use container deployment (unused)
             container_uri: Container URI (unused)
         """
+        if container_deployment:
+            raise NotImplementedError("Container deployment is not supported in Local")
+
         func = cast(LocalFunction, function)
         func.stop()
         self.logging.info("Allocating a new function container with updated code")

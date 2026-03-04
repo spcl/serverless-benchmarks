@@ -208,6 +208,7 @@ class SeBSConfig:
         language_version: str,
         architecture: str,
         registry: Optional[str] = None,
+        repository: Optional[str] = None,
     ) -> str:
         """Generate full Docker image name for a benchmark.
 
@@ -225,7 +226,10 @@ class SeBSConfig:
         tag = self.benchmark_image_tag(
             system, benchmark, language_name, language_version, architecture
         )
-        repo_name = self.docker_repository()
+        if repository is not None:
+            repo_name = repository
+        else:
+            repo_name = self.docker_repository()
         if registry is not None:
             return f"{registry}/{repo_name}:{tag}"
         else:

@@ -3,28 +3,30 @@
 
 | Type 		   | Benchmark           | Languages          | Architecture       |  Description |
 | :---         | :---:               | :---:              | :---:                | :---:                |
+| Webapps      | 010.sleep    | Python, Node.js, C++ | x64, arm64 | Customizable sleep microbenchmark. |
 | Webapps      | 110.dynamic-html    | Python, Node.js    | x64, arm64 | Generate dynamic HTML from a template. |
 | Webapps      | 120.uploader    | Python, Node.js    | x64, arm64 | Uploader file from provided URL to cloud storage. |
 | Webapps      | 130.crud-api    | Python    | x64, arm64 | Simple CRUD application using NoSQL to store application data. |
-| Multimedia      | 210.thumbnailer    | Python, Node.js    | x64, arm64 | Generate a thumbnail of an image. |
+| Multimedia      | 210.thumbnailer    | Python, Node.js, C++ | x64, arm64 | Generate a thumbnail of an image. |
 | Multimedia      | 220.video-processing    | Python    | x64, arm64 | Add a watermark and generate gif of a video file. |
 | Utilities      | 311.compression    | Python   | x64, arm64 | Create a .zip file for a group of files in storage and return to user to download. |
-| Inference      | 411.image-recognition    | Python    | x64 | Image recognition with ResNet and pytorch. |
-| Scientific      | 501.graph-pagerank    | Python    | x64, arm64 | PageRank implementation with igraph. |
+| Inference      | 411.image-recognition    | Python, C++ | x64 | Image recognition with ResNet and pytorch. |
+| Scientific      | 501.graph-pagerank    | Python, C++ | x64, arm64 | PageRank implementation with igraph. |
 | Scientific      | 502.graph-mst    | Python    | x64, arm64 | Minimum spanning tree (MST)  implementation with igraph. |
-| Scientific      | 503.graph-bfs    | Python    | x64, arm64 | Breadth-first search (BFS) implementation with igraph. |
+| Scientific      | 503.graph-bfs    | Python, C++ | x64, arm64 | Breadth-first search (BFS) implementation with igraph. |
 | Scientific      | 504.dna-visualisation    | Python   | x64, arm64 | Creates a visualization data for DNA sequence. |
 
 For more details on benchmark selection and their characterization, please refer to [our paper](../README.md#publication). Detailed information about each benchmark can be found in its respective README.md file.
 
 > [!NOTE]
 > Benchmarks whose number starts with the digit 0, such as `020.server-reply` are internal microbenchmarks used by specific experiments. They are not intended to be directly invoked by users.
+> The only exception is benchmark `010.sleep`, which is a customizable sleep microbenchmark.
 
 > [!NOTE]
-> ARM architecture is supported on AWS Lambda only.
+> ARM architecture is available only for AWS Lambda. C++ benchmarks are currently not supported on the ARM architecture.
 
 > [!NOTE]
-> Some benchmarks might not be available.
+> While we attempt to achieve semantically the same behavior across languages in each benchmark, there are some minor differences and there is no guarantee of binary reproducibility across languages. For example, in benchmark `411.image-recognition` we load weights and import the model structure from Python package, whereas the C++ version imports a serialized TorchScript model. Similarly, graph benchmarks will not produce exactly the same result, as Python and C++ interfaces to `igraph` library use different RNGs.
 
 ## Webapps
 

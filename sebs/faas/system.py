@@ -11,7 +11,7 @@ details.
 from abc import ABC
 from abc import abstractmethod
 from random import randrange
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Callable, Dict, List, Optional, Tuple, Type
 import uuid
 
 import docker
@@ -19,10 +19,12 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
 from sebs.faas.config import Resources
 from sebs.faas.function import Function, Trigger, ExecutionResult
 from sebs.utils import LoggingBase
+from sebs.types import Language
 from .config import Config
 
 
@@ -141,6 +143,10 @@ class System(ABC, LoggingBase):
         pass
 
     @property
+    def container_client(self) -> DockerContainer | None:
+        return None
+
+    @property
     def system_resources(self) -> SystemResources:
         """
         Get the platform-specific resources manager.
@@ -164,7 +170,6 @@ class System(ABC, LoggingBase):
     def find_deployments(self) -> List[str]:
         """
         Find existing deployments in the cloud platform.
-
         Default implementation uses storage buckets to identify deployments.
         This can be overridden by platform-specific implementations, e.g.,
         Azure that looks for unique storage accounts.
@@ -187,6 +192,8 @@ class System(ABC, LoggingBase):
         Args:
             select_prefix: Optional prefix to match when looking for existing deployments
         """
+=======
+>>>>>>> origin/master
         # User provided resources or found in cache
         if self.config.resources.has_resources_id:
             self.logging.info(
@@ -215,7 +222,7 @@ class System(ABC, LoggingBase):
                 "If you want to use any of them, please abort, and "
                 "provide the resource id in your input config."
             )
-            self.logging.warning("Deployment resource IDs in the cloud: " f"{deployments}")
+            self.logging.warning(f"Deployment resource IDs in the cloud: {deployments}")
 
         # Create a new unique resource ID
         res_id = ""
@@ -252,8 +259,7 @@ class System(ABC, LoggingBase):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
+    ) -> Tuple[str, int]:
         """
         Apply system-specific code packaging to prepare a deployment package.
 
@@ -273,15 +279,18 @@ class System(ABC, LoggingBase):
             architecture: Target architecture (e.g., 'x64', 'arm64')
             benchmark: Benchmark name
             is_cached: Whether the code is cached
-            container_deployment: Whether to package for container deployment
 
         Returns:
             Tuple containing:
             - Path to packaged code
             - Size of the package in bytes
-            - Container URI (if container deployment, otherwise empty string)
         """
         pass
+
+    def finalize_container_build(
+        self,
+    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
+        return None
 
     @abstractmethod
     def create_function(
@@ -289,9 +298,8 @@ class System(ABC, LoggingBase):
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> Function:
-
         """
         Create a new function in the FaaS platform.
         The implementation is responsible for creating all necessary
@@ -332,7 +340,7 @@ class System(ABC, LoggingBase):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ):
         """
         Update an existing function in the FaaS platform with new code and/or configuration.
@@ -373,15 +381,16 @@ class System(ABC, LoggingBase):
         Raises:
             Exception: If the language version is not supported by this platform
         """
-        # Verify language version compatibility
+
         if code_package.language_version not in self.system_config.supported_language_versions(
             self.name(), code_package.language_name, code_package.architecture
         ):
             raise Exception(
-                "Unsupported {language} version {version} in {system}!".format(
-                    language=code_package.language_name,
-                    version=code_package.language_version,
-                    system=self.name(),
+                "Unsupported {lang} version {ver} in {sys} for architecture {arch}!".format(
+                    lang=code_package.language_name,
+                    ver=code_package.language_version,
+                    sys=self.name(),
+                    arch=code_package.architecture,
                 )
             )
 
@@ -390,7 +399,9 @@ class System(ABC, LoggingBase):
             func_name = self.default_function_name(code_package)
 
         # Build the code package
-        rebuilt, _, container_deployment, container_uri = code_package.build(self.package_code)
+        rebuilt, _, container_deployment, container_uri = code_package.build(
+            self.package_code, self.container_client, self.finalize_container_build()
+        )
 
         # Check if function exists in cache
         functions = code_package.functions
@@ -430,14 +441,22 @@ class System(ABC, LoggingBase):
             code_package.query_cache()
             return function
         else:
-            # Handle existing function
             assert function is not None
             self.cached_function(function)
-            self.logging.info(
-                "Using cached function {fname} in {loc}".format(fname=func_name, loc=code_location)
-            )
+            if code_package.container_deployment:
+                self.logging.info(
+                    f"Using cached function {func_name} container {code_package.container_uri}"
+                )
+            else:
+                self.logging.info(f"Using cached function {func_name} in {code_location}")
 
-            # Check if code needs to be updated
+            # code up to date, but configuration needs to be updated
+            if self.is_configuration_changed(function, code_package):
+                self.update_function_configuration(function, code_package)
+                self.cache_client.update_function(function)
+                code_package.query_cache()
+
+            # is the function up-to-date?
             if function.code_package_hash != code_package.hash or rebuilt:
                 if function.code_package_hash != code_package.hash:
                     self.logging.info(
@@ -463,15 +482,8 @@ class System(ABC, LoggingBase):
                     function=function,
                 )
                 code_package.query_cache()
-
-            # Check if configuration needs to be updated
-            elif self.is_configuration_changed(function, code_package):
-                self.update_function_configuration(function, code_package)
-                self.cache_client.update_function(function)
-                code_package.query_cache()
             else:
-                self.logging.info(f"Cached function {func_name} is up to date.")
-
+                self.logging.info(f"Code of cached function: {func_name} is up to date.")
             return function
 
     @abstractmethod

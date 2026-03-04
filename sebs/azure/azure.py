@@ -56,6 +56,7 @@ from sebs.utils import LoggingHandlers, execute
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult
 from sebs.faas.system import System
 from sebs.faas.config import Resources
+from sebs.types import Language
 
 
 class Azure(System):
@@ -200,13 +201,12 @@ class Azure(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
+    ) -> Tuple[str, int]:
         """Package function code for Azure Functions deployment.
 
         Creates the proper directory structure and configuration files
@@ -232,19 +232,14 @@ class Azure(System):
             NotImplementedError: If container deployment is requested.
         """
 
-        container_uri = ""
-
-        if container_deployment:
-            raise NotImplementedError("Container Deployment is not supported in Azure")
-
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure
-        EXEC_FILES = {"python": "handler.py", "nodejs": "handler.js"}
+        EXEC_FILES = {Language.PYTHON: "handler.py", Language.NODEJS: "handler.js"}
         CONFIG_FILES = {
-            "python": ["requirements.txt", ".python_packages"],
-            "nodejs": ["package.json", "node_modules"],
+            Language.PYTHON: ["requirements.txt", ".python_packages"],
+            Language.NODEJS: ["package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[language]
 
         handler_dir = os.path.join(directory, "handler")
         os.makedirs(handler_dir)
@@ -257,7 +252,7 @@ class Azure(System):
         # generate function.json
         # TODO: extension to other triggers than HTTP
         default_function_json = {
-            "scriptFile": EXEC_FILES[language_name],
+            "scriptFile": EXEC_FILES[language],
             "bindings": [
                 {
                     "authLevel": "anonymous",
@@ -284,7 +279,7 @@ class Azure(System):
 
         code_size = Benchmark.directory_size(directory)
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
-        return directory, code_size, container_uri
+        return directory, code_size
 
     def publish_function(
         self,
@@ -375,7 +370,7 @@ class Azure(System):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> None:
         """Update existing Azure Function with new code.
 
@@ -551,6 +546,10 @@ class Azure(System):
             Path to mounted code in the CLI container.
         """
         dest = os.path.join("/mnt", "function", uuid.uuid4().hex)
+
+        if code_package.code_location is None:
+            raise RuntimeError("Code location is not set")
+
         self.cli_instance.upload_package(code_package.code_location, dest)
         return dest
 
@@ -587,7 +586,7 @@ class Azure(System):
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> AzureFunction:
         """Create new Azure Function.
 

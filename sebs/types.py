@@ -5,6 +5,7 @@ to represent different platforms, storage types, and benchmark modules.
 These types are used for configuration, deployment, and resource management.
 """
 
+from __future__ import annotations
 from enum import Enum
 
 
@@ -15,7 +16,6 @@ class BenchmarkModule(str, Enum):
     are needed for the benchmark to work correctly.
 
     - STORAGE: Object storage module for storing and retrieving files
-    - NOSQL: NoSQL database module for storing and retrieving structured data
     """
 
     STORAGE = "storage"
@@ -60,6 +60,40 @@ class Storage(str, Enum):
     MINIO = "minio"
 
 
+class Language(str, Enum):
+    """
+    Enumeration of supported programming languages.
+
+    Currently supports Python, Node.js, and C++ for serverless functions.
+    """
+
+    PYTHON = "python"
+    NODEJS = "nodejs"
+    CPP = "cpp"
+
+    @staticmethod
+    def deserialize(val: str) -> Language:
+        """
+        Get a Language by string value.
+
+        Args:
+            val: String representation of the language
+
+        Returns:
+            Language: The matching language enum
+
+        Raises:
+            Exception: If no matching language is found
+        """
+        for member in Language:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown language type {val}")
+
+    def __str__(self) -> str:
+        return self.value
+
+
 class NoSQLStorage(str, Enum):
     """Supported NoSQL database services.
 
@@ -76,3 +110,35 @@ class NoSQLStorage(str, Enum):
     AZURE_COSMOSDB = "azure-cosmosdb"
     GCP_DATASTORE = "google-cloud-datastore"
     SCYLLADB = "scylladb"
+
+
+class Architecture(str, Enum):
+    """
+    Defines the CPU architectures that can be targeted for function deployment.
+    """
+    X86 = "x64"
+    ARM = "arm64"
+
+    def serialize(self) -> str:
+        """
+        Returns:
+            str: String representation of the architecture
+        """
+        return self.value
+
+    @staticmethod
+    def deserialize(val: str) -> Architecture:
+        """
+        Args:
+            val: String representation of the architecture
+
+        Returns:
+            Architecture: The matching architecture enum
+
+        Raises:
+            Exception: If no matching architecture is found
+        """
+        for member in Architecture:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown architecture type {val}")

@@ -68,7 +68,11 @@ class GCPStorage(PersistentStorage):
         self._replace_existing = val
 
     def __init__(
-        self, region: str, cache_client: Cache, resources: Resources, replace_existing: bool
+        self,
+        region: str,
+        cache_client: Cache,
+        resources: Resources,
+        replace_existing: bool,
     ) -> None:
         """Initialize GCP Storage client.
 
@@ -130,7 +134,7 @@ class GCPStorage(PersistentStorage):
             else:
                 bucket_name = name
 
-            self.client.create_bucket(bucket_name)
+            self.client.create_bucket(bucket_name, location=self.region)
             logging.info("Created bucket {}".format(bucket_name))
             return bucket_name
         else:

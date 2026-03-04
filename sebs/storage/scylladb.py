@@ -7,7 +7,6 @@ for development and testing purposes.
 """
 
 import json
-import os
 import platform
 import time
 from collections import defaultdict
@@ -22,7 +21,6 @@ from sebs.faas.config import Resources
 from sebs.faas.nosql import NoSQLStorage
 from sebs.types import NoSQLStorage as StorageType
 from sebs.storage.config import ScyllaDBConfig
-from sebs.utils import project_absolute_path
 
 
 class ScyllaDB(NoSQLStorage):
@@ -122,13 +120,25 @@ class ScyllaDB(NoSQLStorage):
             RuntimeError: If starting the ScyllaDB container fails or if ScyllaDB
                          fails to initialize within the timeout period
         """
-        if self._cfg.data_volume == "":
-            scylladb_volume = os.path.join(project_absolute_path(), "scylladb-volume")
-        else:
-            scylladb_volume = self._cfg.data_volume
-        scylladb_volume = os.path.abspath(scylladb_volume)
 
-        os.makedirs(scylladb_volume, exist_ok=True)
+        # We replaced the default creation of a data volume on a local filesystem.
+        # ScyllaDB cannot work inside container as a non-root user.
+        # Unfortunately, this results in local directories owned by root.
+        # We're changing to use named Docker volumes instead.
+        # ScyllaDB issue: https://github.com/scylladb/scylladb/issues/16253
+        #
+        #
+        # if self._cfg.data_volume == "":
+        #    scylladb_volume = os.path.join(project_absolute_path(), "scylladb-volume")
+        # else:
+        #    scylladb_volume = self._cfg.data_volume
+        # scylladb_volume = os.path.abspath(scylladb_volume)
+        # os.makedirs(scylladb_volume, exist_ok=True)
+
+        scylladb_volume = self._cfg.data_volume
+        if scylladb_volume == "":
+            scylladb_volume = "scylladb-volume"
+
         volumes = {
             scylladb_volume: {
                 "bind": "/var/lib/scylla/",

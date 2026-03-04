@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 
+from sebs.types import Language, Architecture
 from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 
@@ -431,6 +432,13 @@ class Trigger(ABC, LoggingBase):
 
         try:
             output = json.loads(data.getvalue())
+            if "body" in output:
+                # AWS C++ trigger returns payload as a dictionary inside "body"
+                # but add a conversion step just in case
+                if isinstance(output["body"], dict):
+                    output = output["body"]
+                else:
+                    output = json.loads(output["body"])
 
             if status_code != 200:
                 self.logging.error("Invocation on URL {} failed!".format(url))
@@ -518,75 +526,6 @@ class Trigger(ABC, LoggingBase):
         pass
 
 
-class Language(Enum):
-    """
-    Enumeration of supported programming languages.
-
-    Currently supports Python and Node.js for serverless functions.
-    """
-
-    PYTHON = "python"
-    NODEJS = "nodejs"
-
-    @staticmethod
-    def deserialize(val: str) -> Language:
-        """
-        Get a Language by string value.
-
-        Args:
-            val: String representation of the language
-
-        Returns:
-            Language: The matching language enum
-
-        Raises:
-            Exception: If no matching language is found
-        """
-        for member in Language:
-            if member.value == val:
-                return member
-        raise Exception(f"Unknown language type {val}")
-
-
-class Architecture(Enum):
-    """
-    Enumeration of supported CPU architectures.
-
-    Defines the CPU architectures that can be targeted for function deployment.
-    """
-
-    X86 = "x64"
-    ARM = "arm64"
-
-    def serialize(self) -> str:
-        """
-        Serialize the architecture to a string.
-
-        Returns:
-            str: String representation of the architecture
-        """
-        return self.value
-
-    @staticmethod
-    def deserialize(val: str) -> Architecture:
-        """
-        Get an Architecture by string value.
-
-        Args:
-            val: String representation of the architecture
-
-        Returns:
-            Architecture: The matching architecture enum
-
-        Raises:
-            Exception: If no matching architecture is found
-        """
-        for member in Architecture:
-            if member.value == val:
-                return member
-        raise Exception(f"Unknown architecture type {val}")
-
-
 @dataclass
 class Runtime:
     """
@@ -622,8 +561,7 @@ class Runtime:
         Returns:
             Runtime: New instance with the deserialized data
         """
-        languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS}
-        return Runtime(language=languages[config["language"]], version=config["version"])
+        return Runtime(language=Language.deserialize(config["language"]), version=config["version"])
 
 
 T = TypeVar("T", bound="FunctionConfig")

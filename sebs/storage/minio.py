@@ -139,6 +139,7 @@ class Minio(PersistentStorage):
         # Set up data volume location
         if self._cfg.data_volume == "":
             minio_volume = os.path.join(project_absolute_path(), "minio-volume")
+            self._cfg.data_volume = minio_volume
         else:
             minio_volume = self._cfg.data_volume
         minio_volume = os.path.abspath(minio_volume)
@@ -166,6 +167,7 @@ class Minio(PersistentStorage):
                 f"minio/minio:{self._cfg.version}",
                 command="server /data",
                 network_mode="bridge",
+                user=os.getuid(),
                 ports={"9000": str(self._cfg.mapped_port)},
                 environment={
                     "MINIO_ACCESS_KEY": self._cfg.access_key,
@@ -338,6 +340,7 @@ class Minio(PersistentStorage):
         try:
             key = os.path.join(self.input_prefixes[path_idx], file)
             bucket_name = self.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+            self.logging.info("Upload {} to {}".format(filepath, bucket_name))
             self.connection.fput_object(bucket_name, key, filepath)
         except minio.error.ResponseError as err:
             self.logging.error("Upload failed!")

@@ -11,7 +11,7 @@ experiment results, making it easier to process and visualize the data.
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple  # noqa
+from typing import Dict, List, Optional, Tuple, Union  # noqa
 
 from sebs.cache import Cache
 from sebs.faas.config import Config as DeploymentConfig
@@ -41,7 +41,7 @@ class Result:
     def __init__(
         self,
         experiment_config: ExperimentConfig,
-        deployment_config: DeploymentConfig,
+        deployment_config: Optional[DeploymentConfig] = None,
         invocations: Optional[Dict[str, Dict[str, ExecutionResult]]] = None,
         metrics: Optional[Dict[str, dict]] = None,
         result_bucket: Optional[str] = None,
@@ -55,10 +55,11 @@ class Result:
             metrics: Optional dictionary of function metrics
             result_bucket: Optional bucket name for storing results
         """
-        self.config = {
-            "experiments": experiment_config,
-            "deployment": deployment_config,
+        self.config: Dict[str, Union[ExperimentConfig, DeploymentConfig]] = {
+            "experiments": experiment_config
         }
+        if deployment_config is not None:
+            self.config["deployment"] = deployment_config
         if not invocations:
             self._invocations = {}
         else:
@@ -160,7 +161,9 @@ class Result:
         return self._metrics[func]
 
     @staticmethod
-    def deserialize(cached_config: dict, cache: Cache, handlers: LoggingHandlers) -> "Result":
+    def deserialize(
+        cached_config: dict, cache: Optional[Cache], handlers: Optional[LoggingHandlers]
+    ) -> "Result":
         """Deserialize a result from a dictionary representation.
 
         This static method creates a new Result object from a dictionary
@@ -179,9 +182,15 @@ class Result:
             invocations[func] = {}
             for invoc_id, invoc in func_invocations.items():
                 invocations[func][invoc_id] = ExecutionResult.deserialize(invoc)
+
+        deployment_cfg = None
+        if cache is not None and handlers is not None:
+            deployment_cfg = DeploymentConfig.deserialize(
+                cached_config["config"]["deployment"], cache, handlers
+            )
         ret = Result(
             ExperimentConfig.deserialize(cached_config["config"]["experiments"]),
-            DeploymentConfig.deserialize(cached_config["config"]["deployment"], cache, handlers),
+            deployment_cfg,
             invocations,
             # FIXME: compatibility with old results
             cached_config["metrics"] if "metrics" in cached_config else {},

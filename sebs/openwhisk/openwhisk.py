@@ -6,9 +6,10 @@ serverless platform with the SeBS benchmarking framework. It handles function
 deployment, execution, monitoring, and resource management for OpenWhisk clusters.
 """
 
+import json
 import os
 import subprocess
-from typing import cast, Dict, List, Optional, Tuple, Type
+from typing import cast, Callable, Dict, List, Optional, Tuple, Type
 
 import docker
 
@@ -26,6 +27,7 @@ from sebs.faas.config import Resources
 from .config import OpenWhiskConfig
 from .function import OpenWhiskFunction, OpenWhiskFunctionConfig
 from ..config import SeBSConfig
+from sebs.types import Language
 
 
 class OpenWhisk(System):
@@ -81,8 +83,11 @@ class OpenWhisk(System):
         self._config = config
         self.logging_handlers = logger_handlers
 
-        self.container_client = OpenWhiskContainer(
-            self.system_config, self.config, self.docker_client, self.config.experimentalManifest
+        self._container_client = OpenWhiskContainer(
+            self.system_config,
+            self.config,
+            self.docker_client,
+            self.config.experimentalManifest,
         )
 
         if self.config.resources.docker_username:
@@ -119,6 +124,10 @@ class OpenWhisk(System):
             OpenWhisk configuration instance
         """
         return self._config
+
+    @property
+    def container_client(self) -> OpenWhiskContainer:
+        return self._container_client
 
     def shutdown(self) -> None:
         """
@@ -180,17 +189,17 @@ class OpenWhisk(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
+    ) -> Tuple[str, int]:
+
         """
         Package benchmark code for OpenWhisk deployment.
 
-        Creates both a Docker image and a ZIP archive containing the benchmark code.
+        Creates a a ZIP archive containing the benchmark code.
         The ZIP archive is required for OpenWhisk function registration even when
         using Docker-based deployment. It contains only the main handlers
         (`__main__.py` or `index.js`). The Docker image URI is returned,
@@ -203,40 +212,41 @@ class OpenWhisk(System):
             architecture: Target architecture (e.g., 'x86_64')
             benchmark: Benchmark name
             is_cached: Whether Docker image is already cached
-            container_deployment: Whether to use container-based deployment
 
         Returns:
             Tuple containing:
                 - Path to created ZIP archive
                 - Size of ZIP archive in bytes
-                - Docker image URI
 
         Raises:
             RuntimeError: If packaging fails
         """
 
-        # Regardless of Docker image status, we need to create .zip file
-        # to allow registration of function with OpenWhisk
-        _, image_uri = self.container_client.build_base_image(
-            directory, language_name, language_version, architecture, benchmark, is_cached
-        )
-
         # We deploy Minio config in code package since this depends on local
         # deployment - it cannnot be a part of Docker image
         CONFIG_FILES = {
-            "python": ["__main__.py"],
-            "nodejs": ["index.js"],
+            Language.PYTHON: ["__main__.py"],
+            Language.NODEJS: ["index.js"],
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[language]
 
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(
-            ["zip", benchmark_archive] + package_config, stdout=subprocess.DEVNULL, cwd=directory
+            ["zip", benchmark_archive] + package_config,
+            stdout=subprocess.DEVNULL,
+            cwd=directory,
         )
         self.logging.info(f"Created {benchmark_archive} archive")
         bytes_size = os.path.getsize(benchmark_archive)
         self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
-        return benchmark_archive, bytes_size, image_uri
+        return benchmark_archive, bytes_size
+
+    def finalize_container_build(
+        self,
+    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
+        # Regardless of Docker image status, we need to create .zip file
+        # to allow registration of function with OpenWhisk
+        return self.package_code
 
     def storage_arguments(self, code_package: Benchmark) -> List[str]:
         """
@@ -254,7 +264,6 @@ class OpenWhisk(System):
         envs = []
 
         if self.config.resources.storage_config:
-
             storage_envs = self.config.resources.storage_config.envs()
             envs = [
                 "-p",
@@ -269,7 +278,6 @@ class OpenWhisk(System):
             ]
 
         if code_package.uses_nosql:
-
             nosql_storage = self.system_resources.get_nosql_storage()
             for key, value in nosql_storage.envs().items():
                 envs.append("-p")
@@ -290,7 +298,7 @@ class OpenWhisk(System):
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> "OpenWhiskFunction":
         """
         Create or retrieve an OpenWhisk function (action).
@@ -311,6 +319,10 @@ class OpenWhisk(System):
         Raises:
             RuntimeError: If WSK CLI is not accessible or function creation fails
         """
+
+        if not container_deployment:
+            raise RuntimeError("Non-container deployment is not supported in OpenWhisk!")
+
         self.logging.info("Creating function as an action in OpenWhisk.")
         try:
             actions = subprocess.run(
@@ -327,10 +339,14 @@ class OpenWhisk(System):
                     break
 
             function_cfg = OpenWhiskFunctionConfig.from_benchmark(code_package)
-            function_cfg.object_storage = cast(Minio, self.system_resources.get_storage()).config
-            function_cfg.nosql_storage = cast(
-                ScyllaDB, self.system_resources.get_nosql_storage()
-            ).config
+            if code_package.uses_storage:
+                function_cfg.object_storage = cast(
+                    Minio, self.system_resources.get_storage()
+                ).config
+            if code_package.uses_nosql:
+                function_cfg.nosql_storage = cast(
+                    ScyllaDB, self.system_resources.get_nosql_storage()
+                ).config
             if function_found:
                 # docker image is overwritten by the update
                 res = OpenWhiskFunction(
@@ -348,7 +364,15 @@ class OpenWhisk(System):
                         code_package.language_name,
                         code_package.language_version,
                         code_package.architecture,
+                        repository=self.config.dockerhub_repository,
                     )
+
+                    if code_package.code_location is None:
+                        raise RuntimeError(
+                            "Code location must be set for OpenWhisk action! "
+                            "OpenWhisk requires container deployment with a code package."
+                        )
+
                     subprocess.run(
                         [
                             *self.get_wsk_cmd(),
@@ -372,7 +396,10 @@ class OpenWhisk(System):
                     )
                     function_cfg.docker_image = docker_image
                     res = OpenWhiskFunction(
-                        func_name, code_package.benchmark, code_package.hash, function_cfg
+                        func_name,
+                        code_package.benchmark,
+                        code_package.hash,
+                        function_cfg,
                     )
                 except subprocess.CalledProcessError as e:
                     self.logging.error(f"Cannot create action {func_name}.")
@@ -395,7 +422,7 @@ class OpenWhisk(System):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> None:
         """
         Update an existing OpenWhisk function with new code and configuration.
@@ -409,6 +436,12 @@ class OpenWhisk(System):
         Raises:
             RuntimeError: If WSK CLI is not accessible or update fails
         """
+        if not container_deployment:
+            raise RuntimeError(
+                "Code location must be set for OpenWhisk action! "
+                "OpenWhisk requires container deployment with a code package."
+            )
+
         self.logging.info(f"Update an existing OpenWhisk action {function.name}.")
         function = cast(OpenWhiskFunction, function)
         docker_image = self.system_config.benchmark_image_name(
@@ -417,7 +450,15 @@ class OpenWhisk(System):
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,
+            repository=self.config.dockerhub_repository,
         )
+
+        if code_package.code_location is None:
+            raise RuntimeError(
+                "Code location must be set for OpenWhisk action! "
+                "OpenWhisk requires container deployment with a code package."
+            )
+
         try:
             subprocess.run(
                 [
@@ -508,25 +549,27 @@ class OpenWhisk(System):
         """
         changed = super().is_configuration_changed(cached_function, benchmark)
 
-        storage = cast(Minio, self.system_resources.get_storage())
-        function = cast(OpenWhiskFunction, cached_function)
-        # check if now we're using a new storage
-        if function.config.object_storage != storage.config:
-            self.logging.info(
-                "Updating function configuration due to changed storage configuration."
-            )
-            changed = True
-            function.config.object_storage = storage.config
+        if benchmark.uses_storage:
+            storage = cast(Minio, self.system_resources.get_storage())
+            function = cast(OpenWhiskFunction, cached_function)
+            # check if now we're using a new storage
+            if function.config.object_storage != storage.config:
+                self.logging.info(
+                    "Updating function configuration due to changed storage configuration."
+                )
+                changed = True
+                function.config.object_storage = storage.config
 
-        nosql_storage = cast(ScyllaDB, self.system_resources.get_nosql_storage())
-        function = cast(OpenWhiskFunction, cached_function)
-        # check if now we're using a new storage
-        if function.config.nosql_storage != nosql_storage.config:
-            self.logging.info(
-                "Updating function configuration due to changed NoSQL storage configuration."
-            )
-            changed = True
-            function.config.nosql_storage = nosql_storage.config
+        if benchmark.uses_nosql:
+            nosql_storage = cast(ScyllaDB, self.system_resources.get_nosql_storage())
+            function = cast(OpenWhiskFunction, cached_function)
+            # check if now we're using a new storage
+            if function.config.nosql_storage != nosql_storage.config:
+                self.logging.info(
+                    "Updating function configuration due to changed NoSQL storage configuration."
+                )
+                changed = True
+                function.config.nosql_storage = nosql_storage.config
 
         return changed
 
@@ -569,7 +612,7 @@ class OpenWhisk(System):
         end_time: int,
         requests: Dict[str, ExecutionResult],
         metrics: dict,
-    ) -> None:
+    ):
         """
         Download metrics for function executions (no-op for OpenWhisk).
 
@@ -583,7 +626,68 @@ class OpenWhisk(System):
         Note:
             OpenWhisk metrics collection is not currently implemented.
         """
-        pass
+
+        self.logging.info(
+            f"OpenWhisk: Starting to download metrics for {len(requests)} invocations"
+        )
+
+        processed_count = 0
+
+        for request_id in requests:
+            try:
+                result = subprocess.run(
+                    [*self.get_wsk_cmd(), "activation", "get", request_id],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+
+                if result.returncode != 0:
+                    self.logging.warning(f"OpenWhisk: Activation {request_id} not found")
+                    continue
+
+                # Parse JSON output (skip first "ok" line)
+                output = result.stdout.decode("utf-8")
+                lines = output.strip().split("\n")
+                if len(lines) <= 1:
+                    self.logging.warning(f"OpenWhisk: Activation {request_id} not found")
+                    continue
+
+                json_str = "\n".join(lines[1:])
+                activation = json.loads(json_str)
+
+                duration_ms = activation.get("duration")
+                if duration_ms is None:
+                    self.logging.error(f"OpenWhisk: Duration not found in activation {request_id}")
+                    continue
+
+                # Update execution time (convert milliseconds to microseconds)
+                requests[request_id].provider_times.execution = int(float(duration_ms) * 1000)
+
+                # Extract initTime from annotations (optional - only present on cold starts)
+                annotations = activation.get("annotations", [])
+                for annotation in annotations:
+                    if annotation.get("key") == "initTime":
+                        init_time_ms = annotation.get("value")
+                        if init_time_ms is not None:
+                            requests[request_id].provider_times.initialization = int(
+                                float(init_time_ms) * 1000
+                            )
+                        break
+
+                processed_count += 1
+
+            except json.JSONDecodeError as e:
+                self.logging.error(
+                    f"OpenWhisk: Failed to parse activation JSON for {request_id}: {e}"
+                )
+            except Exception as e:
+                self.logging.error(f"OpenWhisk: Error processing activation {request_id}: {e}")
+
+        self.logging.info(
+            f"OpenWhisk: Downloaded metrics for {processed_count} "
+            f"out of {len(requests)} invocations"
+        )
+>>>>>>> origin/master
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """
