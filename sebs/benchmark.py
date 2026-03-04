@@ -276,8 +276,7 @@ class Benchmark(LoggingBase):
         Returns:
             str: Path to the code package
         """
-        if self.code_package:
-
+        if self._code_package:
             if "location" in self.code_package:
                 """
                 Access cached code package instead of a built one.
@@ -782,7 +781,6 @@ class Benchmark(LoggingBase):
                 json.dump(package_json, package_file, indent=2)
 
     def add_deployment_package_cpp(self, output_dir: str) -> None:
-
         cmake_script = """
         cmake_minimum_required(VERSION 3.9)
         set(CMAKE_CXX_STANDARD 14)
@@ -1101,7 +1099,6 @@ class Benchmark(LoggingBase):
         """
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
-
             if self.container_deployment:
                 self.logging.info(
                     "Using cached benchmark {} from container image {}".format(
@@ -1363,7 +1360,6 @@ class Benchmark(LoggingBase):
             NotImplementedError: If the code package is not a ZIP archive
         """
         if not self.container_deployment and self.code_package_is_archive():
-
             assert self.code_location is not None
             self._update_zip(self.code_location, filename, data)
             new_size = self.code_package_recompute_size() / 1024.0 / 1024.0
