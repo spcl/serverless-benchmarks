@@ -1,3 +1,4 @@
+# Platform Configuration
 
 SeBS supports three commercial serverless platforms: AWS Lambda, Azure Functions, and Google Cloud Functions.
 Furthermore, we support the open source FaaS system OpenWhisk.

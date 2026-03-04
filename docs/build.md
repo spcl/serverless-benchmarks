@@ -1,9 +1,10 @@
+# Build and Deployment
 
 SeBS caches built code packages to save time, as installing dependencies can be time and bandwidth-consuming, e.g., for ML frameworks such as PyTorch.
 Furthermore, some benchmarks require special treatment - for example, the PyTorch image recognition benchmark requires additional stripping and compression steps to fit into the size limits of AWS Lambda code package.
 
 By default, we deploy benchmark code as a package uploaded to the serverless platform. There, we use custom **build images** to install dependencies in an environment resembling the
-function executor in the cloud. However, on some platforms, we deploy functions as [Docker images](#docker-image-build) instead. There, we create one **function image** for each benchmark and configuration (language, language version, architecture).
+function executor in the cloud. However, on some platforms, we deploy functions as [Docker images](#docker-image-deployment) instead. There, we create one **function image** for each benchmark and configuration (language, language version, architecture).
 
 ## Code Package Deployment
 
