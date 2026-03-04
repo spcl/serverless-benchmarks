@@ -260,7 +260,7 @@ class Benchmark(LoggingBase):
     def hash(self):
         path = os.path.join(self.benchmark_path, self.language_name)
         self._hash_value = Benchmark.hash_directory(
-            path, self._deployment_name, self.language_name, self._language_variant
+            path, self._deployment_name, self.language, self._language_variant
         )
         return self._hash_value
 
@@ -338,7 +338,7 @@ class Benchmark(LoggingBase):
     """
 
     @staticmethod
-    def hash_directory(directory: str, deployment: str, language: str, variant: str = "default"):
+    def hash_directory(directory: str, deployment: str, language: Language, variant: str = "default"):
 
         hash_sum = hashlib.md5()
         FILES = {
@@ -375,7 +375,7 @@ class Benchmark(LoggingBase):
         # wrappers
         for wrapper in WRAPPERS[language]:
             wrappers = project_absolute_path(
-                "benchmarks", "wrappers", deployment, language, wrapper
+                "benchmarks", "wrappers", deployment, language.value, wrapper
             )
             for f in glob.glob(wrappers):
                 path = os.path.join(directory, f)
