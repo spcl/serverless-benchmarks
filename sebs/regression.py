@@ -380,9 +380,8 @@ class AWSTestSequenceCpp(
     deployment_name="aws",
     triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
 ):
-    """Test suite for C++ benchmarks on AWS Lambda.
+    """Test suite for C++ benchmarks on AWS Lambda."""
 
-    """
     def get_deployment(self, benchmark_name, architecture, deployment_type):
         """Get an AWS deployment client for the specified configuration.
 

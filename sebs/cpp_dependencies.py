@@ -7,6 +7,7 @@ from typing import Optional
 
 class CppDependencyConfig:
     """Configuration of each C++ dependency."""
+
     def __init__(
         self,
         docker_img: str,
@@ -59,7 +60,8 @@ class CppDependencies(str, Enum):
         """Maps dependency enum to its configuration details.
 
         Returns:
-            Full CMake and Docker configuration for each dependency, used for generating Dockerfiles and CMakeLists.
+            Full CMake and Docker configuration for each dependency,
+            used for generating Dockerfiles and CMakeLists.
         """
         return {
             CppDependencies.SDK: CppDependencyConfig(
@@ -141,7 +143,7 @@ class CppDependencies(str, Enum):
         """Returns the full CMake integration for the given C++ dependency.
 
         Args:
-            dependency: target name 
+            dependency: target name
 
         Returns:
             CMake configuration: find package, include directories, and link libraries.

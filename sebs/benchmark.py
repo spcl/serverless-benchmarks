@@ -790,7 +790,7 @@ class Benchmark(LoggingBase):
         * Linking AWS SDK and Hiredis.
 
         Args:
-            output_dir: Benchmark directory 
+            output_dir: Benchmark directory
         """
 
         cmake_script = """
@@ -941,7 +941,7 @@ class Benchmark(LoggingBase):
                 """Internal implementation of checking for Docker image existence.
 
                 Args:
-                    name: image name 
+                    name: image name
 
                 Raises:
                     RuntimeError: when neither versioned nor unversioned images exists.

@@ -82,7 +82,7 @@ def update_dict(cfg: Dict[str, Any], val: Any, keys: List[str]) -> None:
         Args:
             obj: Main dictionary.
             val: value to insert
-            keys: list of nested keys 
+            keys: list of nested keys
 
         Returns:
             [TODO:return]
