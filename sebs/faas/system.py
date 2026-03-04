@@ -252,7 +252,7 @@ class System(ABC, LoggingBase):
     def package_code(
         self,
         directory: str,
-        language_name: Language,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
@@ -265,14 +265,14 @@ class System(ABC, LoggingBase):
         - [benchmark sources]
         - [benchmark resources], e.g., HTML template or ffmpeg binary
         - [dependence specification], e.g. requirements.txt or package.json
-        - [language-speicifc wrappers implementation for the specific system]
+        - [language-specific wrappers implementation for the specific system]
 
         This step transforms that structure to fit platform-specific deployment
         requirements, such as creating a zip file for AWS or container image.
 
         Args:
             directory: Path to the code directory
-            language_name: Programming language name
+            language: Programming language name
             language_version: Programming language version
             architecture: Target architecture (e.g., 'x64', 'arm64')
             benchmark: Benchmark name

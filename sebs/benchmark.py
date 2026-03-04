@@ -1086,7 +1086,7 @@ class Benchmark(LoggingBase):
         - Cache updates after successful build
 
         Args:
-            deployment_build_step: Platform-specific build function for code package
+            package_build_step: Platform-specific build function for code package
             container_client: Docker client for building container images (if container deployment)
             container_build_step: Platform-specific build function for container deployments
 

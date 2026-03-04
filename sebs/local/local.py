@@ -197,7 +197,7 @@ class Local(System):
 
         Args:
             directory: Directory containing the function code
-            language_name: Programming language (e.g., "python", "nodejs")
+            language: Programming language (e.g., "python", "nodejs")
             language_version: Language version (e.g., "3.8", "14")
             architecture: Target architecture (unused for local)
             benchmark: Benchmark name
@@ -259,11 +259,9 @@ class Local(System):
             "CONTAINER_USER": self._system_config.username(self.name(), code_package.language_name),
         }
         if self.config.resources.storage_config:
-
             environment = {**self.config.resources.storage_config.envs(), **environment}
 
         if code_package.uses_nosql:
-
             nosql_storage = self.system_resources.get_nosql_storage()
             environment = {**environment, **nosql_storage.envs()}
 

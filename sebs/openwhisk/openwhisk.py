@@ -127,6 +127,12 @@ class OpenWhisk(System):
 
     @property
     def container_client(self) -> OpenWhiskContainer:
+        """
+        Get OpenWhisk container client.
+
+        Returns:
+            OpenWhisk container client
+        """
         return self._container_client
 
     def shutdown(self) -> None:
@@ -217,9 +223,6 @@ class OpenWhisk(System):
             Tuple containing:
                 - Path to created ZIP archive
                 - Size of ZIP archive in bytes
-
-        Raises:
-            RuntimeError: If packaging fails
         """
 
         # We deploy Minio config in code package since this depends on local

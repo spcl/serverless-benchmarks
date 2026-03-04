@@ -235,9 +235,6 @@ class GCP(System):
 
         Returns:
             Tuple of (archive_path, archive_size_bytes)
-
-        Raises:
-            NotImplementedError: If container_deployment is True
         """
 
         CONFIG_FILES = {

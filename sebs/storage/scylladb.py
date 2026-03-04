@@ -194,7 +194,7 @@ class ScyllaDB(NoSQLStorage):
             raise RuntimeError("Starting ScyllaDB storage unsuccessful")
         except Exception as e:
             self.logging.error("Starting ScyllaDB storage failed! Unknown error: {}".format(e))
-            raise RuntimeError("Starting ScyllaDB storage unsuccessful")
+            raise RuntimeError("Starting ScyllaDB storage unsuccessful") from None
 
     def configure_connection(self) -> None:
         """Configure the connection to the ScyllaDB container.

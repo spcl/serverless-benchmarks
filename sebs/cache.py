@@ -99,9 +99,6 @@ class Cache(LoggingBase):
         docker_client (docker.DockerClient): Docker client for container operations.
     """
 
-    cached_config: Dict[str, Any] = {}
-    config_updated: bool = False
-
     def __init__(self, cache_dir: str, docker_client: docker.DockerClient) -> None:
         """Initialize the Cache with directory and Docker client.
 
@@ -114,6 +111,8 @@ class Cache(LoggingBase):
             docker_client (docker.DockerClient): Docker client for container operations.
         """
         super().__init__()
+        self.cached_config: Dict[str, Any] = {}
+        self.config_updated: bool = False
         self.docker_client = docker_client
         self.cache_dir = os.path.abspath(cache_dir)
         self.ignore_functions: bool = False

@@ -272,7 +272,10 @@ class Minio(PersistentStorage):
         )
 
     def _create_bucket(
-        self, name: str, buckets: Optional[List[str]] = None, randomize_name: bool = False
+        self,
+        name: str,
+        buckets: Optional[List[str]] = None,
+        randomize_name: bool = False,
     ) -> str:
         """
         Create a new bucket if it doesn't already exist.
@@ -345,37 +348,6 @@ class Minio(PersistentStorage):
         except minio.error.ResponseError as err:
             self.logging.error("Upload failed!")
             raise err
-
-    # FIXME: is still even used anywhere?
-    # def clean(self) -> None:
-    #     """
-    #     Clean all objects from output buckets.
-
-    #     Removes all objects from the output buckets to prepare for a new
-    #     benchmark run. Logs any errors that occur during deletion.
-    #     """
-    #     for bucket in self.output_buckets:
-    #         objects = self.connection.list_objects_v2(bucket)
-    #         objects = [obj.object_name for obj in objects]
-    #         for err in self.connection.remove_objects(bucket, objects):
-    #             self.logging.error("Deletion Error: {}".format(err))
-    #
-    # def download_results(self, result_dir: str) -> None:
-    #    """
-    #    Download all objects from output buckets to a local directory.
-
-    #    Downloads benchmark results from all output buckets to a subdirectory
-    #    named 'storage_output' within the specified result directory.
-
-    #    Args:
-    #        result_dir: Base directory to store downloaded results
-    #    """
-    #    result_dir = os.path.join(result_dir, "storage_output")
-    #    for bucket in self.output_buckets:
-    #        objects = self.connection.list_objects_v2(bucket)
-    #        objects = [obj.object_name for obj in objects]
-    #        for obj in objects:
-    #            self.connection.fget_object(bucket, obj, os.path.join(result_dir, obj))
 
     def clean_bucket(self, bucket_name: str) -> None:
         """
@@ -463,7 +435,9 @@ class Minio(PersistentStorage):
             objects_list = self.connection.list_objects(bucket_name)
             return [obj.object_name for obj in objects_list if prefix in obj.object_name]
         except minio.error.NoSuchBucket:
-            raise RuntimeError(f"Attempting to access a non-existing bucket {bucket_name}!")
+            raise RuntimeError(
+                f"Attempting to access a non-existing bucket {bucket_name}!"
+            ) from None
 
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         """

@@ -218,7 +218,7 @@ class Azure(System):
 
         Args:
             directory: Directory containing the function code
-            language_name: Programming language (python, nodejs)
+            language: Programming language (python, nodejs)
             language_version: Language runtime version
             architecture: Target architecture (currently unused)
             benchmark: Name of the benchmark
@@ -227,9 +227,6 @@ class Azure(System):
 
         Returns:
             Tuple of (directory_path, code_size_bytes, container_uri)
-
-        Raises:
-            NotImplementedError: If container deployment is requested.
         """
 
         # In previous step we ran a Docker container which installed packages

@@ -201,7 +201,7 @@ class AWS(System):
 
         Args:
             directory: Path to the code directory
-            language_name: Programming language name (e.g., 'python', 'nodejs')
+            language: Programming language name (e.g., 'python', 'nodejs')
             language_version: Language version (e.g., '3.8', '14')
             architecture: Target CPU architecture (e.g., 'x64', 'arm64')
             benchmark: Benchmark name
