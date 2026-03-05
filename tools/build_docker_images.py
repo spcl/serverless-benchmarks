@@ -4,9 +4,15 @@ import argparse
 import docker
 import json
 import os
+import sys
 
-PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir)
-DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), os.path.pardir))
+
+from sebs.resource_manager import get_project_root, get_resource_path
+
+PROJECT_DIR = str(get_project_root())
+DOCKER_DIR = str(get_resource_path("dockerfiles"))
 
 parser = argparse.ArgumentParser(description="Run local app experiments.")
 parser.add_argument(
@@ -21,7 +27,8 @@ parser.add_argument("--language", default=None, choices=["python", "nodejs", "cp
 parser.add_argument("--language-version", default=None, type=str, action="store")
 parser.add_argument("--parallel", default=1, type=int, action="store")
 args = parser.parse_args()
-config = json.load(open(os.path.join(PROJECT_DIR, "config", "systems.json"), "r"))
+config_path = get_resource_path("config", "systems.json")
+config = json.load(open(config_path, "r"))
 client = docker.from_env()
 
 

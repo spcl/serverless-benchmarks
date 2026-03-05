@@ -21,9 +21,11 @@ import platform
 
 from typing import List, Optional
 
-# Global constants
-PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
-DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
+from sebs.resource_manager import get_project_root, get_resource_path, get_benchmarks_data_path
+
+# Global constants (deprecated, use resource_manager functions instead)
+PROJECT_DIR = str(get_project_root())
+DOCKER_DIR = str(get_resource_path("dockerfiles"))
 PACK_CODE_APP = "pack_code_{}.sh"
 
 
@@ -31,13 +33,16 @@ def project_absolute_path(*paths: str) -> str:
     """
     Join paths relative to the project root directory.
 
+    DEPRECATED: Use resource_manager.get_resource_path() instead for better
+    package install support.
+
     Args:
         *paths: Path components to join
 
     Returns:
         str: Absolute path including the project directory
     """
-    return os.path.join(PROJECT_DIR, *paths)
+    return str(get_resource_path(*paths))
 
 
 class JSONSerializer(json.JSONEncoder):
@@ -216,7 +221,10 @@ def find_benchmark(benchmark: str, path: str) -> Optional[str]:
     Returns:
         str: Path to benchmark directory, or None if not found
     """
-    benchmarks_dir = os.path.join(PROJECT_DIR, path)
+    if path == "benchmarks-data":
+        benchmarks_dir = str(get_benchmarks_data_path())
+    else:
+        benchmarks_dir = str(get_resource_path(path))
     benchmark_path = find(benchmark, benchmarks_dir)
     return benchmark_path
 

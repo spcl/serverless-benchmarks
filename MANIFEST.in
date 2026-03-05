@@ -1,0 +1,29 @@
+# Include documentation and license files
+include README.md LICENSE.md CLAUDE.md
+include pyproject.toml
+include requirements*.txt
+
+# Include config files
+recursive-include config *.json
+
+# Include benchmark files
+recursive-include benchmarks *.py *.js *.cpp *.hpp *.json *.txt *.sh
+recursive-include benchmarks Dockerfile* CMakeLists.txt package.json package-lock.json
+
+# Include dockerfiles
+recursive-include dockerfiles *
+
+# Include tools
+recursive-include tools *.py *.sh
+
+# Exclude data repository (will be cloned on demand)
+prune benchmarks-data
+
+# Exclude tests and build artifacts
+prune tests
+prune third-party
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.swp
+global-exclude .git*

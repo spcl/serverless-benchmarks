@@ -143,18 +143,64 @@ Requirements:
 ... and that should be all. We currently support Linux and other POSIX systems with Bash available.
 On Windows, we recommend using WSL.
 
-To install the benchmarks with a support for all platforms, use:
+### Installation Methods
 
+SeBS can be installed in three ways:
+
+#### 1. Package Install (Recommended for Users)
+
+Install SeBS from PyPI with support for specific cloud platforms:
+
+```bash
+# Install with AWS support
+pip install serverless-benchmarks[aws]
+
+# Install with multiple platforms
+pip install serverless-benchmarks[aws,azure,gcp]
+
+# Install with all platforms
+pip install serverless-benchmarks[all]
+
+# Install for local testing only
+pip install serverless-benchmarks[local]
 ```
+
+After installation, use the `sebs` command:
+
+```bash
+sebs --help
+```
+
+Benchmark data will be automatically cloned to `~/.sebs/benchmarks-data/` on first use.
+
+#### 2. Development Install (Git Clone)
+
+For developers who want to modify SeBS or contribute to the project:
+
+```bash
+git clone https://github.com/spcl/serverless-benchmarks.git
+cd serverless-benchmarks
 ./install.py --aws --azure --gcp --openwhisk --local
 ```
 
-It will create a virtual environment in `python-venv`, and install necessary Python
-dependencies and third-party dependencies. To use SeBS, you must first active the new Python
+This will create a virtual environment in `python-venv`, and install necessary Python
+dependencies and third-party dependencies. To use SeBS, you must first activate the new Python
 virtual environment:
 
-```
+```bash
 . python-venv/bin/activate
+python sebs.py --help
+```
+
+#### 3. Editable Install (For Contributors)
+
+For contributors who want to install SeBS in editable mode (changes to code take effect immediately):
+
+```bash
+git clone https://github.com/spcl/serverless-benchmarks.git
+cd serverless-benchmarks
+pip install -e .[dev,aws,azure,gcp,local]
+sebs --help
 ```
 
 Now you can deploy serverless experiments :-)

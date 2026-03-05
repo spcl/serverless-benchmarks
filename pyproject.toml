@@ -1,0 +1,177 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "serverless-benchmarks"
+version = "1.2.0"
+description = "Serverless Benchmark Suite"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Marcin Copik", email = "marcin.copik@inf.ethz.ch"}
+]
+keywords = ["serverless", "faas", "benchmark", "lambda", "azure-functions", "cloud-computing"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Benchmark",
+    "Topic :: System :: Distributed Computing",
+]
+
+# Core dependencies (from requirements.txt, excluding dev tools)
+dependencies = [
+    "testtools>=2.4.0",
+    "docker>=4.2.0",
+    "tzlocal>=2.1",
+    "requests",
+    "pandas>=1.1.3",
+    "numpy",
+    "scipy",
+    "pycurl>=7.43",
+    "click>=7.1.2",
+    "rich",
+]
+
+[project.optional-dependencies]
+# Cloud platform dependencies
+aws = [
+    "boto3",
+    "botocore",
+    "urllib3",
+    "boto3-stubs[lambda,s3,apigatewayv2,sts,logs,iam,ecr]",
+]
+azure = [
+    "azure-storage-blob==12.10.0",
+    "azure-cosmos",
+]
+gcp = [
+    "grpcio",
+    "google-cloud-storage==1.32.0",
+    "google-api-python-client==1.12.5",
+    "google-cloud-monitoring==2.0.0",
+    "google-api-python-client-stubs",
+    "google-cloud-logging==2.0.0",
+    "google-cloud-datastore",
+]
+local = [
+    "minio==5.0.10",
+]
+
+# All cloud platforms
+all = [
+    "boto3",
+    "botocore",
+    "urllib3",
+    "boto3-stubs[lambda,s3,apigatewayv2,sts,logs,iam,ecr]",
+    "azure-storage-blob==12.10.0",
+    "azure-cosmos",
+    "grpcio",
+    "google-cloud-storage==1.32.0",
+    "google-api-python-client==1.12.5",
+    "google-cloud-monitoring==2.0.0",
+    "google-api-python-client-stubs",
+    "google-cloud-logging==2.0.0",
+    "google-cloud-datastore",
+    "minio==5.0.10",
+]
+
+# Development dependencies
+dev = [
+    "flake8",
+    "black==22.8.0",
+    "mypy",
+    "types-pycurl",
+    "types-requests",
+    "types-PyYAML",
+    "types-urllib3",
+    "interrogate==1.7.0",
+]
+
+[project.scripts]
+sebs = "sebs.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/spcl/serverless-benchmarks"
+Repository = "https://github.com/spcl/serverless-benchmarks"
+Issues = "https://github.com/spcl/serverless-benchmarks/issues"
+Documentation = "https://serverlessbenchmarks.readthedocs.io"
+
+[tool.setuptools]
+# Find packages in the standard location
+packages = ["sebs"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sebs*"]
+exclude = ["benchmarks-data*", "tests*", "third-party*"]
+
+# Map top-level directories to sebs subpackages
+[tool.setuptools.package-dir]
+"sebs.benchmarks" = "benchmarks"
+"sebs.dockerfiles" = "dockerfiles"
+"sebs.config" = "config"
+"sebs.tools" = "tools"
+
+[tool.setuptools.package-data]
+# Include all necessary non-Python files
+sebs = ["py.typed"]
+"sebs.config" = ["*.json"]
+"sebs.benchmarks" = [
+    "**/*.py",
+    "**/*.js",
+    "**/*.cpp",
+    "**/*.hpp",
+    "**/*.json",
+    "**/*.txt",
+    "**/*.sh",
+    "**/Dockerfile*",
+    "**/package.json",
+    "**/package-lock.json",
+    "**/CMakeLists.txt",
+]
+"sebs.dockerfiles" = [
+    "**/*",
+]
+"sebs.tools" = [
+    "**/*.py",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+include = '\.pyi?$'
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-module = true
+ignore-nested-functions = false
+ignore-nested-classes = true
+ignore-setters = false
+fail-under = 80
+exclude = ["setup.py", "docs", "build", "tests"]
+ignore-regex = ["^get$", "^mock_.*", ".*BaseClass.*"]
+verbose = 0
+quiet = false
+whitelist-regex = []
+color = true

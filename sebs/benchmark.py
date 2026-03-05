@@ -25,6 +25,7 @@ from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
+from sebs.resource_manager import ensure_benchmarks_data
 from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
 from sebs.types import BenchmarkModule, Language
 from typing import TYPE_CHECKING
@@ -530,6 +531,13 @@ class Benchmark(LoggingBase):
             self._is_cached_valid = False
 
         # Load input module
+        # Try to ensure benchmarks-data exists (but don't fail - some benchmarks don't need it)
+        try:
+            ensure_benchmarks_data()
+        except RuntimeError as e:
+            self.logging.warning(f"Could not initialize benchmarks-data: {e}")
+            self.logging.warning("Some benchmarks may not work without benchmark data.")
+
         self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
         self._benchmark_input_module = load_benchmark_input(self._benchmark_path)
 

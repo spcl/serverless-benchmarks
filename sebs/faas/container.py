@@ -25,8 +25,9 @@ from typing import Tuple
 from rich.progress import Progress
 
 from sebs.config import SeBSConfig
+from sebs.resource_manager import get_resource_path
 from sebs.types import Language
-from sebs.utils import LoggingBase, execute, DOCKER_DIR
+from sebs.utils import LoggingBase, execute
 
 
 class DockerContainer(LoggingBase):
@@ -305,8 +306,9 @@ class DockerContainer(LoggingBase):
             shutil.move(custom_dockerfile, os.path.join(build_dir, "Dockerfile"))
         else:
             # Use template for languages without custom generation
+            dockerfile_path = get_resource_path("dockerfiles", self.name(), language.value, "Dockerfile.function")
             shutil.copy(
-                os.path.join(DOCKER_DIR, self.name(), language.value, "Dockerfile.function"),
+                str(dockerfile_path),
                 os.path.join(build_dir, "Dockerfile"),
             )
         for fn in os.listdir(directory):
