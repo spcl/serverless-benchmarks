@@ -1,3 +1,13 @@
+"""Deployment management for local execution platform.
+
+This module provides the Deployment class for managing local function deployments,
+including memory measurement collection, function lifecycle management, and
+resource cleanup.
+
+Classes:
+    Deployment: Main deployment management class for local functions
+"""
+
 import json
 import os
 from signal import SIGKILL
@@ -12,15 +22,36 @@ from sebs.utils import serialize, LoggingBase
 
 
 class Deployment(LoggingBase):
+    """Manages local function deployments and memory measurements.
+
+    Attributes:
+        _functions: List of deployed local functions
+        _storage: Optional Minio storage instance
+        _inputs: List of function input configurations
+        _memory_measurement_pids: PIDs of memory measurement processes
+        _measurement_file: Path to memory measurement output file
+    """
+
     @property
     def measurement_file(self) -> Optional[str]:
+        """Get the path to the memory measurement file.
+
+        Returns:
+            Optional[str]: Path to measurement file, or None if not set
+        """
         return self._measurement_file
 
     @measurement_file.setter
-    def measurement_file(self, val: Optional[str]):
+    def measurement_file(self, val: Optional[str]) -> None:
+        """Set the path to the memory measurement file.
+
+        Args:
+            val: Path to measurement file, or None to unset
+        """
         self._measurement_file = val
 
     def __init__(self):
+        """Initialize a new deployment."""
         super().__init__()
         self._functions: List[LocalFunction] = []
         self._storage: Optional[Minio]
@@ -28,18 +59,42 @@ class Deployment(LoggingBase):
         self._memory_measurement_pids: List[int] = []
         self._measurement_file: Optional[str] = None
 
-    def add_function(self, func: LocalFunction):
+    def add_function(self, func: LocalFunction) -> None:
+        """Add a function to the deployment.
+
+        If the function has a memory measurement PID, it's also recorded.
+
+        Args:
+            func: Local function to add to the deployment
+        """
         self._functions.append(func)
         if func.memory_measurement_pid is not None:
             self._memory_measurement_pids.append(func.memory_measurement_pid)
 
-    def add_input(self, func_input: dict):
+    def add_input(self, func_input: dict) -> None:
+        """Add function input configuration to the deployment.
+
+        Args:
+            func_input: Dictionary containing function input configuration
+        """
         self._inputs.append(func_input)
 
-    def set_storage(self, storage: Minio):
+    def set_storage(self, storage: Minio) -> None:
+        """Set the storage instance for the deployment.
+
+        Args:
+            storage: Minio storage instance to use
+        """
         self._storage = storage
 
-    def serialize(self, path: str):
+    def serialize(self, path: str) -> None:
+        """Serialize deployment configuration to file.
+
+        Includes details about functions, storage, inputs, and memory measurements.
+
+        Args:
+            path: File path to write serialized deployment configuration
+        """
         with open(path, "w") as out:
             config: dict = {
                 "functions": self._functions,
@@ -55,9 +110,20 @@ class Deployment(LoggingBase):
 
             out.write(serialize(config))
 
-    # FIXME: do we still use it?
     @staticmethod
     def deserialize(path: str, cache_client: Cache) -> "Deployment":
+        """Deserialize deployment configuration from file.
+
+        Args:
+            path: File path to read serialized deployment configuration
+            cache_client: Cache client for loading cached resources
+
+        Returns:
+            Deployment: Deserialized deployment instance
+
+        Note:
+            This method may be deprecated - check if still in use
+        """
         with open(path, "r") as in_f:
             input_data = json.load(in_f)
             deployment = Deployment()
@@ -73,8 +139,16 @@ class Deployment(LoggingBase):
             )
             return deployment
 
-    def shutdown(self, output_json: str):
+    def shutdown(self, output_json: str) -> None:
+        """Shutdown the deployment and collect memory measurements.
 
+        Terminates all memory measurement processes, processes measurement data,
+        and stops all function containers. Memory measurements are aggregated
+        and written to the specified output file.
+
+        Args:
+            output_json: Path to write memory measurement results
+        """
         if len(self._memory_measurement_pids) > 0:
 
             self.logging.info("Killing memory measurement processes")

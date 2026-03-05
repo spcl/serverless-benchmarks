@@ -2,6 +2,7 @@
 
 
 import json
+import glob
 import logging
 import functools
 import os
@@ -18,6 +19,7 @@ from sebs.regression import regression_suite
 from sebs.utils import update_nested_dict, append_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
+from sebs.statistics import print_stats
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -64,7 +66,7 @@ def simplified_common_params(func):
     @click.option(
         "--language",
         default=None,
-        type=click.Choice(["python", "nodejs", "java"]),
+        type=click.Choice(["python", "nodejs", "java", "cpp"]),
         help="Benchmark language",
     )
     @click.option("--language-version", default=None, type=str, help="Benchmark language version")
@@ -334,6 +336,22 @@ def process(**kwargs):
         out_f.write(sebs.utils.serialize(experiments))
     sebs_client.logging.info("Save results to {}".format(output_file))
 
+@benchmark.command()
+@click.argument("results", type=click.Path(dir_okay=False, readable=True))
+def statistics(results):
+
+    logger = logging.getLogger("Statistics")
+    logger.setLevel(logging.INFO)
+    logger = sebs.utils.ColoredWrapper("Statistics", logger)
+
+    logging.info(f"Load results from {results}")
+    with open(results, "r") as in_f:
+        config = json.load(in_f)
+        experiments = sebs.experiments.ExperimentResult.deserialize(config, None, None)
+
+    print_stats(logger, experiments)
+
+
 
 @benchmark.command()
 @click.argument(
@@ -345,6 +363,7 @@ def process(**kwargs):
     type=str,
     help="Run only the selected benchmark.",
 )
+@click.option("--storage-configuration", type=str, multiple=True, help="JSON configuration of deployed storage.")
 @common_params
 @click.option(
     "--cache",
@@ -356,11 +375,11 @@ def process(**kwargs):
     default=os.path.join(os.path.curdir, "regression-output"),
     help="Output directory for results.",
 )
-def regression(benchmark_input_size, benchmark_name, **kwargs):
+def regression(benchmark_input_size, benchmark_name, storage_configuration, **kwargs):
     # for regression, deployment client is initialized locally
     # disable default initialization
     (config, output_dir, logging_filename, sebs_client, _) = parse_common_params(
-        initialize_deployment=False, **kwargs
+        initialize_deployment=False, storage_configuration=storage_configuration, **kwargs
     )
     regression_suite(
         sebs_client,
@@ -413,7 +432,7 @@ def storage_start(storage, config, output_json):
 
         user_storage_config["object"][storage_type_name] = storage_instance.serialize()
     else:
-        user_storage_config.pop("object")
+        user_storage_config.pop("object", None)
 
     if storage in ["nosql", "all"]:
 
@@ -431,7 +450,7 @@ def storage_start(storage, config, output_json):
         key, value = storage_instance.serialize()
         user_storage_config["nosql"][key] = value
     else:
-        user_storage_config.pop("nosql")
+        user_storage_config.pop("nosql", None)
 
     if output_json:
         logging.info(f"Writing storage configuration to {output_json}.")
@@ -451,7 +470,7 @@ def storage_stop(storage, input_json):
     with open(input_json, "r") as f:
         cfg = json.load(f)
 
-    if storage in ["object", "all"]:
+    if storage in ["object", "all"] and "object" in cfg:
 
         storage_type = cfg["object"]["type"]
 
@@ -463,7 +482,7 @@ def storage_stop(storage, input_json):
         storage_instance.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 
-    if storage in ["nosql", "all"]:
+    if storage in ["nosql", "all"] and "nosql" in cfg:
 
         storage_type = cfg["nosql"]["type"]
 
@@ -611,6 +630,43 @@ def experiment_process(experiment, extend_time_interval, **kwargs):
     experiment.process(
         sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval
     )
+
+@experiment.command("statistics")
+@click.argument("experiment-results", type=click.Path(dir_okay=True, readable=True))
+def experiment_statistics(experiment_results):
+
+    logger = logging.getLogger("Statistics")
+    logger.setLevel(logging.INFO)
+    logger = sebs.utils.ColoredWrapper("Statistics", logger)
+
+    logging.info(f"Load experiment results from {experiment_results}")
+    #with open(results, "r") as in_f:
+    #    config = json.load(in_f)
+    #    experiments = sebs.experiments.ExperimentResult.deserialize(config, None, None)
+
+    #print_stats(logger, experiments)
+    for f in glob.glob(os.path.join(experiment_results, "*.json")):
+        name, extension = os.path.splitext(f)
+        if "processed" not in f:
+            continue
+
+        with open(f) as in_f:
+            config = json.load(in_f)
+            experiments = sebs.experiments.ExperimentResult.deserialize(
+                config, None, None
+            )
+        # FIXME: this will only work for perf-cost
+        fname = os.path.splitext(os.path.basename(f))[0].split("_")
+        if len(fname) > 2:
+            memory = int(fname[2].split("-")[0])
+        else:
+            memory = 0
+        exp_type = fname[0]
+
+        logger.info(f"Print results for {exp_type}, memory: {memory}")
+        print_stats(logger, experiments)
+        logger.info("------")
+
 
 
 @cli.group()

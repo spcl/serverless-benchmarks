@@ -74,6 +74,7 @@
       "wskBypassSecurity": "true",
       "wskExec": "wsk",
       "experimentalManifest": false,
+      "dockerhub_repository": null,
       "docker_registry": {
         "registry": "",
         "username": "",
