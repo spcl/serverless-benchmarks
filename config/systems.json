@@ -169,7 +169,7 @@
       }
     },
     "architecture": ["x64", "arm64"],
-    "deployments": ["package"]
+    "deployments": ["package", "container"]
   },
   "azure": {
     "languages": {
