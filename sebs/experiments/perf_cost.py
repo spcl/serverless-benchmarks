@@ -499,7 +499,8 @@ class PerfCost(Experiment):
                         for func in experiments.functions():
                             for id, invoc in experiments.invocations(func).items():
                                 # FIXME: compatibility with old results
-                                # Only process if result is a dict (some languages return primitives directly)
+                                # Only process if result is a dict
+                                # (some languages return primitives directly)
                                 if isinstance(invoc.output["result"], dict):
                                     if "output" in invoc.output["result"]:
                                         del invoc.output["result"]["output"]
