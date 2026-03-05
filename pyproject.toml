@@ -106,13 +106,22 @@ Issues = "https://github.com/spcl/serverless-benchmarks/issues"
 Documentation = "https://serverlessbenchmarks.readthedocs.io"
 
 [tool.setuptools]
-# Find packages in the standard location
-packages = ["sebs"]
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["sebs*"]
-exclude = ["benchmarks-data*", "tests*", "third-party*"]
+# Use both auto-discovery and explicit package mapping
+packages = [
+    "sebs",
+    "sebs.aws",
+    "sebs.azure",
+    "sebs.gcp",
+    "sebs.local",
+    "sebs.openwhisk",
+    "sebs.faas",
+    "sebs.storage",
+    "sebs.experiments",
+    "sebs.benchmarks",
+    "sebs.dockerfiles",
+    "sebs.config",
+    "sebs.tools",
+]
 
 # Map top-level directories to sebs subpackages
 [tool.setuptools.package-dir]
