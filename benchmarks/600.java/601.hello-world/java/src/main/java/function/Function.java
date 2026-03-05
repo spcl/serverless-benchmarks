@@ -1,8 +1,8 @@
-package faas;
+package function;
 import java.util.HashMap;
 import java.util.Map;
 
-public class App {
+public class Function {
     public Map<String, Object> handler(Map<String, Object> input) {
 
         Map<String, Object> result = new HashMap<>();

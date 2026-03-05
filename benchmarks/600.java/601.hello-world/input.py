@@ -8,6 +8,6 @@ def generate_input(
     input_paths,
     output_paths,
     upload_func,
-    nosql_func=None  
+    nosql_func=None
 ):
     return { }
