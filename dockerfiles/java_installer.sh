@@ -6,7 +6,7 @@ cd /mnt/function
 
 if [[ -f "pom.xml" ]]; then
   # Note: -q flag causes issues in Docker, removed for reliable builds
-  mvn -DskipTests package
+  mvn -DskipTests clean package
 
   if ls target/*.jar >/dev/null 2>&1; then
     JAR_PATH=$(ls target/*.jar | head -n1)
