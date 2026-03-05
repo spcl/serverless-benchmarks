@@ -337,7 +337,6 @@ class OpenWhiskConfig(Config):
         """
 
         config = cast(OpenWhiskConfig, cfg)
-        config._region = dct["region"]
 
         config.shutdownStorage = dct["shutdownStorage"]
         config.removeCluster = dct["removeCluster"]
