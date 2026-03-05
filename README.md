@@ -187,3 +187,5 @@ To verify the correctness of installation, you can use [our regression testing](
 * [Prajin Khadka](https://github.com/prajinkhadka) - contributed new language versions, container support, and ARM builds.
 * [Horia Mercan](https://github.com/HoriaMercan) - contributed new benchmarks in C++.
 * [Dillon Elste (ETH Zurich)](https://github.com/DJAntivenom) - bugfixing in C++.
+* [Mahla Sharifi](https://github.com/mahlashrifi) - contributed support for Java benchmarks.
+* [Alexander Schlieper (ETH Zurich)](https://github.com/xSurus) - improved support for Java benchmarks.

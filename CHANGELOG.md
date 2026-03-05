@@ -15,6 +15,7 @@
   - Dynamic dependency resolution with CMake generation
   - Support for Boost, OpenCV, igraph, PyTorch, hiredis libraries
   - C++ implementations: 010.sleep, 210.thumbnailer, 501.graph-pagerank, 503.graph-bfs, 411.image-recognition
+* **Java benchmarks**: initial support for Java on all four platforms (#223), including benchmark **110.dynamic-html**.
 * **Python**: Updated support for Python 3.8, 3.9, 3.10, 3.11, 3.12
 * **Node.js**: Updated support for Node.js 14, 16, 18, 20
 
@@ -104,6 +105,8 @@ This release includes contributions from:
 * @lawrence910426 - Colored CLI output (#141)
 * @alevy - Documentation improvements (#139)
 * @skehrli - Local memory measurements (#101)
+* @mahlashrifi - Java benchmarks support (#223)
+* @xSurus - improvements and extensions to Java benchmarks (#223)
 * And many others who contributed bug reports, testing, and feedback!
 
 ## [1.1.0](https://github.com/spcl/serverless-benchmarks/compare/v1.0...v1.1) (2022-05-30)
