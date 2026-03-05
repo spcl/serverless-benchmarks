@@ -284,7 +284,6 @@ class Benchmark(LoggingBase):
                 return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
             return None
         else:
-            assert self._code_location is not None
             return self._code_location
 
     @property
