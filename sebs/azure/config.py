@@ -200,7 +200,10 @@ class AzureCredentials(Credentials):
         Returns:
             Dictionary containing serialized credential data.
         """
-        out = {"subscription_id": self.subscription_id}
+        if self._subscription_id is not None:
+            out = {"subscription_id": self.subscription_id}
+        else:
+            out = {}
         return out
 
     def update_cache(self, cache_client: Cache) -> None:
