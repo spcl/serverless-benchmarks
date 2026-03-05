@@ -234,6 +234,15 @@ or a Docker image with all dependencies preinstalled.
 However, OpenWhisk has a very low code package size limit of only 48 megabytes.
 So, to circumvent this limit, we deploy functions using pre-built Docker images.
 
+> [!NOTE]
+> On Python and Node.js, we create a full Docker image and upload the main handler
+file only to OpenWhisk, as this is required for actions.
+This is not possible on Java, as we need to compile the code into JAR.
+To avoid extract build image, we build the function image, extract the function JAR,
+and upload it with the action. In future, if we want to create heavy JARs with complex
+dependencies, we might need to switch to full image deployment on Java as well.
+
+
 **Important**: OpenWhisk requires that all Docker images are available
 in the registry, even if they have been cached on a system serving OpenWhisk
 functions.
@@ -247,7 +256,6 @@ However, pushing the image to the default `spcleth/serverless-benchmarks`
 repository on Docker Hub requires permissions.
 To use a different Docker Hub repository, change the key
 `['general']['docker_repository']` in `config/systems.json`.
-
 
 Alternatively, OpenWhisk users can configure the FaaS platform to use a custom and
 private Docker registry and push new images there.

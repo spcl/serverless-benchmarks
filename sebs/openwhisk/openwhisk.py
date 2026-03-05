@@ -205,48 +205,101 @@ class OpenWhisk(System):
         """
         Package benchmark code for OpenWhisk deployment.
 
-        Creates a a ZIP archive containing the benchmark code.
+        Creates a ZIP archive containing the benchmark code.
         The ZIP archive is required for OpenWhisk function registration even when
         using Docker-based deployment. It contains only the main handlers
-        (`__main__.py` or `index.js`). The Docker image URI is returned,
-        which will be used when creating the action.
+        (`__main__.py` or `index.js`).
+
+        For Java, extracts the JAR from the built container image - this a
+        fix since we need to provide it as argument to OpenWhisk action,
+        but we do not want to add extra builder image.
 
         Args:
             directory: Path to the benchmark code directory
-            language: Programming language (e.g., 'python', 'nodejs')
-            language_version: Language version (e.g., '3.8', '14')
+            language: Programming language (e.g., 'python', 'nodejs', 'java')
+            language_version: Language version (e.g., '3.8', '14', '17')
             architecture: Target architecture (e.g., 'x86_64')
             benchmark: Benchmark name
             is_cached: Whether Docker image is already cached
 
         Returns:
             Tuple containing:
-                - Path to created ZIP archive
-                - Size of ZIP archive in bytes
+                - Path to created ZIP archive (or JAR for Java)
+                - Size of archive in bytes
         """
 
-        if language != Language.JAVA:
+        if language == Language.JAVA:
+            # For Java, we need to extract the JAR from the built container
+            # Get the container image URI that was just built
+            _, _, _, image_uri = self._container_client.registry_name(
+                benchmark, language.value, language_version, architecture
+            )
+
+            self.logging.info(f"Extracting JAR from container image {image_uri}")
+
+            # Run container to get the JAR file
+            jar_path = os.path.join(directory, "function.jar")
+            try:
+                # Create and run a temporary container
+                container = self.docker_client.containers.create(image_uri)
+
+                # Copy JAR from container to build directory
+                # Docker API expects a path to a tar stream
+                import tarfile
+                import io
+
+                bits, _ = container.get_archive("/function/function.jar")
+
+                # Extract tar stream to get the file
+                tar_stream = io.BytesIO()
+                for chunk in bits:
+                    tar_stream.write(chunk)
+                tar_stream.seek(0)
+
+                with tarfile.open(fileobj=tar_stream) as tar:
+                    # Extract function.jar from the tar
+                    jar_member = tar.getmember("function.jar")
+                    jar_file = tar.extractfile(jar_member)
+                    if jar_file is None:
+                        raise RuntimeError("Could not extract function.jar from container!")
+
+                    # Write to destination
+                    with open(jar_path, "wb") as f:
+                        f.write(jar_file.read())
+
+                # Clean up container
+                container.remove()
+
+                self.logging.info(f"Extracted function JAR to {jar_path}")
+                bytes_size = os.path.getsize(jar_path)
+                self.logging.info(f"JAR size {bytes_size / 1024.0 / 1024.0:.2f} MB")
+
+                return jar_path, bytes_size
+
+            except Exception as e:
+                self.logging.error(f"Failed to extract JAR from container: {e}")
+                raise RuntimeError(f"Failed to extract JAR from container {image_uri}: {e}")
+
+        else:
+            # For Python and Node.js, create a minimal ZIP with handlers
             # We deploy Minio config in code package since this depends on local
-            # deployment - it cannnot be a part of Docker image
-            # FIXME: why No file is needed for Java?
+            # deployment - it cannot be a part of Docker image
             CONFIG_FILES = {
-                "python": ["__main__.py"],
-                "nodejs": ["index.js"],
+                Language.PYTHON: ["__main__.py"],
+                Language.NODEJS: ["index.js"],
             }
             package_config = CONFIG_FILES[language]
-        else:
-            package_config = []
 
-        benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
-        subprocess.run(
-            ["zip", benchmark_archive] + package_config,
-            stdout=subprocess.DEVNULL,
-            cwd=directory,
-        )
-        self.logging.info(f"Created {benchmark_archive} archive")
-        bytes_size = os.path.getsize(benchmark_archive)
-        self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
-        return benchmark_archive, bytes_size
+            benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
+            subprocess.run(
+                ["zip", benchmark_archive] + package_config,
+                stdout=subprocess.DEVNULL,
+                cwd=directory,
+            )
+            self.logging.info(f"Created {benchmark_archive} archive")
+            bytes_size = os.path.getsize(benchmark_archive)
+            self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
+            return benchmark_archive, bytes_size
 
     def finalize_container_build(
         self,
@@ -381,6 +434,11 @@ class OpenWhisk(System):
                         repository=self.config.dockerhub_repository,
                     )
 
+                    code_location = code_package.code_location
+                    if code_location is None:
+                        raise RuntimeError(
+                            "Code location must be set for OpenWhisk action!"
+                        ) from None
                     run_arguments = [
                         *self.get_wsk_cmd(),
                         "action",
@@ -395,10 +453,10 @@ class OpenWhisk(System):
                         "--timeout",
                         str(code_package.benchmark_config.timeout * 1000),
                         *self.storage_arguments(code_package),
-                        code_package.code_location,
+                        code_location,
                     ]
                     if code_package.language == Language.JAVA:
-                        run_arguments.extend(["--main", "Main"])
+                        run_arguments.extend(["--main", "org.serverlessbench.Handler"])
 
                     if code_package.code_location is None:
                         raise RuntimeError(
