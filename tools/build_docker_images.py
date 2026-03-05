@@ -10,9 +10,14 @@ DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
 
 parser = argparse.ArgumentParser(description="Run local app experiments.")
 parser.add_argument(
-    "--deployment", default=None, choices=["local", "aws", "azure", "gcp"], action="store"
+    "--deployment",
+    default=None,
+    choices=["local", "aws", "azure", "gcp"],
+    action="store",
 )
-parser.add_argument("--type", default=None, choices=["build", "run", "manage"], action="store")
+parser.add_argument(
+    "--type", default=None, choices=["build", "run", "manage"], action="store"
+)
 parser.add_argument(
     "--language", default=None, choices=["python", "nodejs", "java"], action="store"
 )
@@ -36,7 +41,9 @@ def build(image_type, system, language=None, version=None, version_name=None):
         msg += " with version *" + version + "*"
     print(msg)
     if language is not None:
-        dockerfile = os.path.join(DOCKER_DIR, system, language, f"Dockerfile.{image_type}")
+        dockerfile = os.path.join(
+            DOCKER_DIR, system, language, f"Dockerfile.{image_type}"
+        )
     else:
         dockerfile = os.path.join(DOCKER_DIR, system, f"Dockerfile.{image_type}")
     target = f'{config["general"]["docker_repository"]}:{image_type}.{system}'
@@ -73,8 +80,8 @@ def build(image_type, system, language=None, version=None, version_name=None):
         print(exc)
         print("Build log")
         for line in exc.build_log:
-            if 'stream' in line:
-                print(line['stream'].strip())
+            if "stream" in line:
+                print(line["stream"].strip())
 
 
 def build_language(system, language, language_config):
@@ -105,7 +112,9 @@ def build_systems(system, system_config):
             print(f"Skipping manage image for {system}")
     else:
         if args.language:
-            build_language(system, args.language, system_config["languages"][args.language])
+            build_language(
+                system, args.language, system_config["languages"][args.language]
+            )
         else:
             for language, language_dict in system_config["languages"].items():
                 build_language(system, language, language_dict)
