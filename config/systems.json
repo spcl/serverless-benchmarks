@@ -282,7 +282,7 @@
           "packages": [],
           "module_packages": {
             "storage": [
-              "google-cloud-storage"
+              "goo	gle-cloud-storage"
             ],
             "nosql": [
               "google-cloud-datastore"
@@ -310,6 +310,28 @@
             "@google-cloud/storage": "^4.0.0",
             "uuid": "3.4.0"
           }
+        }
+      },
+      "java": {
+        "base_images": {
+          "x64": {
+            "11": "us-central1-docker.pkg.dev/serverless-runtimes/google-18-full/runtimes/java11:deprecated-public-image-java11_20260217_11_0_RC00",
+            "17": "us-central1-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/java17:java17_20260215_17_0_RC00"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "src"
+          ],
+          "packages": {
+            "com.google.cloud.functions:functions-framework-api": "1.1.0",
+            "com.fasterxml.jackson.core:jackson-databind": "2.17.1"
+          },
+          "module_packages": {}
         }
       }
     },
