@@ -4,7 +4,6 @@ import json
 import subprocess
 import os
 import shutil
-import subprocess
 from abc import abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -25,7 +24,11 @@ if TYPE_CHECKING:
 
 class BenchmarkConfig:
     def __init__(
-        self, timeout: int, memory: int, languages: List["Language"], modules: List[BenchmarkModule]
+        self,
+        timeout: int,
+        memory: int,
+        languages: List["Language"],
+        modules: List[BenchmarkModule],
     ):
         self._timeout = timeout
         self._memory = memory
@@ -253,18 +256,18 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
-            "java": [],
+            "java": ["*.java", "pom.xml"],
         }
         WRAPPERS = {
             "python": ["*.py"],
             "nodejs": ["*.js"],
-            "java": ["src", "pom.xml"],
+            "java": ["src"],
         }
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
-            for f in glob.glob(os.path.join(directory, file_type), recursive=True):
-                if os.path.isfile(f):  
+            for f in glob.glob(os.path.join(directory, "**", file_type), recursive=True):
+                if os.path.isfile(f):
                     path = os.path.join(directory, f)
                     with open(path, "rb") as opened_file:
                         hash_sum.update(opened_file.read())
@@ -336,39 +339,18 @@ class Benchmark(LoggingBase):
             "java": [],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
-        if self.language_name == "java":
+        if self.language == Language.JAVA:
+            # In Java, we copy the entire nested directory.
             shutil.copytree(path, output_dir, dirs_exist_ok=True)
             return
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
-     
+
         # support node.js benchmarks with language specific packages
         nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
         if os.path.exists(nodejs_package_json):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
-
-    #This is for making jar file and add it to docker directory
-    def add_java_output(self, code_dir):
-        from sebs.faas.function import Language
-        if self.language == Language.JAVA:
-
-            # Step 1: Move Main.java o src directory
-            src_dir = os.path.join(code_dir, "src", "main", "java")
-            if os.path.exists(code_dir):
-                main_java_path = os.path.join(code_dir, "Main.java")
-                if os.path.exists(main_java_path):
-                    shutil.move(main_java_path, src_dir)
-
-            # Step 2: Run mvn clean install
-            try:
-                # Navigate to the code directory where the pom.xml file is located
-                subprocess.run(['mvn', 'clean', 'install'], cwd=code_dir, check=True, text=True, capture_output=True)
-                print("Maven build successful!")
-            except subprocess.CalledProcessError as e:
-                print(f"Error during Maven build:\n{e.stdout}\n{e.stderr}")
-                return         
-           
 
     def add_benchmark_data(self, output_dir):
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false {architecture}"
@@ -399,8 +381,6 @@ class Benchmark(LoggingBase):
                 self._deployment_name, self.language_name
             )
         ]
-
-        final_path = output_dir
 
         for file in handlers:
             destination = os.path.join(output_dir, os.path.basename(file))
@@ -451,7 +431,7 @@ class Benchmark(LoggingBase):
             with open(package_config, "w") as package_file:
                 json.dump(package_json, package_file, indent=2)
 
-    # Dependencies in system.json are in "group:artifact": version format; 
+    # Dependencies in system.json are in "group:artifact": version format;
     # this function converts them to proper Maven <dependency> blocks.
     def format_maven_dependency(self, group_artifact: str, version: str) -> str:
         group_id, artifact_id = group_artifact.split(":")
@@ -461,26 +441,34 @@ class Benchmark(LoggingBase):
             <artifactId>{artifact_id}</artifactId>
             <version>{version}</version>
         </dependency>"""
-    
+
     def add_deployment_package_java(self, output_dir):
-        
+
         pom_path = os.path.join(output_dir, "pom.xml")
         with open(pom_path, "r") as f:
             pom_content = f.read()
 
-        packages = self._system_config.deployment_packages(self._deployment_name, self.language_name)
+        packages = self._system_config.deployment_packages(
+            self._deployment_name, self.language_name
+        )
 
         dependency_blocks = ""
         if len(packages):
             for key, val in packages.items():
                 dependency_name = key.strip('"').strip("'")
                 dependency_version = val.strip('"').strip("'")
-                dependency_blocks += self.format_maven_dependency(dependency_name, dependency_version) + "\n"
+                dependency_blocks += (
+                    self.format_maven_dependency(dependency_name, dependency_version) + "\n"
+                )
 
         if "<!-- PLATFORM_DEPENDENCIES -->" not in pom_content:
-            raise ValueError("pom.xml template is missing <!-- PLATFORM_DEPENDENCIES --> placeholder")
+            raise ValueError(
+                "pom.xml template is missing <!-- PLATFORM_DEPENDENCIES --> placeholder"
+            )
 
-        pom_content = pom_content.replace("<!-- PLATFORM_DEPENDENCIES -->", dependency_blocks.strip())
+        pom_content = pom_content.replace(
+            "<!-- PLATFORM_DEPENDENCIES -->", dependency_blocks.strip()
+        )
 
         with open(pom_path, "w") as f:
             f.write(pom_content)
@@ -493,8 +481,7 @@ class Benchmark(LoggingBase):
         elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
         elif self.language == Language.JAVA:
-            # Java dependencies are handled by Maven in the wrapper
-            return
+            self.add_deployment_package_java(output_dir)
         else:
             raise NotImplementedError
 
@@ -572,7 +559,11 @@ class Benchmark(LoggingBase):
                     }
 
             # run Docker container to install packages
-            PACKAGE_FILES = {"python": "requirements.txt", "nodejs": "package.json", "java": "pom.xml"}
+            PACKAGE_FILES = {
+                "python": "requirements.txt",
+                "nodejs": "package.json",
+                "java": "pom.xml",
+            }
             file = os.path.join(output_dir, PACKAGE_FILES[self.language_name])
             if os.path.exists(file):
                 try:
@@ -588,7 +579,7 @@ class Benchmark(LoggingBase):
                                 path=os.path.abspath(output_dir)
                             )
                         )
-                        stdout = self._docker_client.containers.run(
+                        container = self._docker_client.containers.run(
                             "{}:{}".format(repo_name, image_name),
                             volumes=volumes,
                             environment={
@@ -599,10 +590,24 @@ class Benchmark(LoggingBase):
                                 "PLATFORM": self._deployment_name.upper(),
                                 "TARGET_ARCHITECTURE": self._experiment_config._architecture,
                             },
-                            remove=True,
-                            stdout=True,
-                            stderr=True,
+                            remove=False,
+                            detach=True,
                         )
+                        try:
+                            exit_code = container.wait()
+                            stdout = container.logs()
+                            if exit_code["StatusCode"] != 0:
+                                error_log_path = os.path.join(output_dir, "error.log")
+                                with open(error_log_path, "wb") as error_file:
+                                    error_file.write(stdout)
+                                self.logging.error(
+                                    f"Build failed! Container exited with "
+                                    f"code {exit_code['StatusCode']}"
+                                )
+                                self.logging.error(f"Logs saved to {error_log_path}")
+                                raise RuntimeError("Package build failed!")
+                        finally:
+                            container.remove()
                     # Hack to enable builds on platforms where Docker mounted volumes
                     # are not supported. Example: CircleCI docker environment
                     else:
@@ -661,7 +666,7 @@ class Benchmark(LoggingBase):
                     self.logging.error("Package build failed!")
                     self.logging.error(e)
                     self.logging.error(f"Docker mount volumes: {volumes}")
-                    raise e
+                    raise e from None
 
     def recalculate_code_size(self):
         self._code_size = Benchmark.directory_size(self._output_dir)
@@ -680,7 +685,12 @@ class Benchmark(LoggingBase):
                 "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
             )
             if self.container_deployment:
-                return False, self.code_location, self.container_deployment, self.container_uri
+                return (
+                    False,
+                    self.code_location,
+                    self.container_deployment,
+                    self.container_uri,
+                )
 
             return False, self.code_location, self.container_deployment, ""
 
@@ -701,7 +711,6 @@ class Benchmark(LoggingBase):
         self.copy_code(self._output_dir)
         self.add_benchmark_data(self._output_dir)
         self.add_deployment_files(self._output_dir)
-#        self.add_java_output(self._output_dir)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
 
@@ -732,7 +741,12 @@ class Benchmark(LoggingBase):
             self._cache_client.add_code_package(self._deployment_name, self)
         self.query_cache()
 
-        return True, self._code_location, self._container_deployment, self._container_uri
+        return (
+            True,
+            self._code_location,
+            self._container_deployment,
+            self._container_uri,
+        )
 
     """
         Locates benchmark input generator, inspect how many storage buckets
@@ -745,9 +759,11 @@ class Benchmark(LoggingBase):
     """
 
     def prepare_input(
-        self, system_resources: SystemResources, size: str, replace_existing: bool = False
+        self,
+        system_resources: SystemResources,
+        size: str,
+        replace_existing: bool = False,
     ):
-
         """
         Handle object storage buckets.
         """
@@ -774,7 +790,10 @@ class Benchmark(LoggingBase):
         if hasattr(self._benchmark_input_module, "allocate_nosql"):
 
             nosql_storage = system_resources.get_nosql_storage()
-            for name, table_properties in self._benchmark_input_module.allocate_nosql().items():
+            for (
+                name,
+                table_properties,
+            ) in self._benchmark_input_module.allocate_nosql().items():
                 nosql_storage.create_benchmark_tables(
                     self._benchmark,
                     name,
@@ -791,7 +810,13 @@ class Benchmark(LoggingBase):
         # storage.allocate_buckets(self.benchmark, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = self._benchmark_input_module.generate_input(
-            self._benchmark_data_path, size, bucket, input, output, storage_func, nosql_func
+            self._benchmark_data_path,
+            size,
+            bucket,
+            input,
+            output,
+            storage_func,
+            nosql_func,
         )
 
         # Cache only once we data is in the cloud.
