@@ -1,8 +1,32 @@
 ARG BASE_IMAGE
-FROM $BASE_IMAGE
-COPY . /function/
+FROM $BASE_IMAGE as builder
+ARG VERSION
+ENV JAVA_VERSION=${VERSION}
+ARG TARGET_ARCHITECTURE
 
-# RUN apt-get update && apt-get install -y maven
+# Install Maven 3.x (maven package may be old, install from Apache directly)
+RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz | tar -xz -C /opt && \
+    ln -s /opt/apache-maven-3.9.6 /opt/maven && \
+    ln -s /opt/maven/bin/mvn /usr/local/bin/mvn
+ENV PATH=/opt/maven/bin:$PATH
+
+COPY . function/
 
 # # Check if pom.xml exists before running Maven
 # RUN if [ -f ./pom.xml ]; then mvn clean install; else echo "pom.xml not found, aborting build." && exit 1; fi
+# Ensure packaged jar is present for the Lambda base image
+# function.jar should exist (created by java_installer.sh), but if not, copy from target/
+# Prefer the shaded/fat JAR (exclude "original" JARs created by maven-shade-plugin)
+RUN POM_PATH=$(find /function -maxdepth 3 -name "pom.xml" | head -n1) && \
+    if [ -n "${POM_PATH}" ]; then \
+      mvn -f ${POM_PATH} -DskipTests clean package && \
+      POM_DIR=$(dirname "${POM_PATH}") && \
+      cp "${POM_DIR}"/target/function.jar /function/function.jar;\
+    else \
+      echo "No pom.xml found!" && \
+      exit 1; \
+    fi
+
+FROM $BASE_IMAGE
+
+COPY --from=builder /function/function.jar /function/
