@@ -237,7 +237,6 @@ class OpenWhisk(System):
         else:
             package_config = []
 
-
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(
             ["zip", benchmark_archive] + package_config,
@@ -408,8 +407,7 @@ class OpenWhisk(System):
                         )
 
                     subprocess.run(
-                        [
-                        ],
+                        run_arguments,
                         stderr=subprocess.PIPE,
                         stdout=subprocess.PIPE,
                         check=True,

@@ -245,7 +245,7 @@ class Azure(System):
         EXEC_FILES = {
             Language.PYTHON: "handler.py",
             Language.NODEJS: "handler.js",
-            Language.JAVA: "../lib/function.jar"
+            Language.JAVA: "../lib/function.jar",
         }
         CONFIG_FILES = {
             Language.PYTHON: ["requirements.txt", ".python_packages"],
@@ -263,7 +263,9 @@ class Azure(System):
             os.makedirs(lib_dir, exist_ok=True)
             # Move function.jar to lib directory
             if os.path.exists(os.path.join(directory, "function.jar")):
-                shutil.move(os.path.join(directory, "function.jar"), os.path.join(lib_dir, "function.jar"))
+                shutil.move(
+                    os.path.join(directory, "function.jar"), os.path.join(lib_dir, "function.jar")
+                )
 
         # move all files to 'handler' except package config
         for f in os.listdir(directory):
@@ -296,14 +298,10 @@ class Azure(System):
                         "direction": "in",
                         "name": "req",
                         "methods": ["get", "post"],
-                        "authLevel": "anonymous"
+                        "authLevel": "anonymous",
                     },
-                    {
-                        "type": "http",
-                        "direction": "out",
-                        "name": "$return"
-                    }
-                ]
+                    {"type": "http", "direction": "out", "name": "$return"},
+                ],
             }
         else:
             default_function_json = {
@@ -667,9 +665,7 @@ class Azure(System):
             raise NotImplementedError("Container deployment is not supported in Azure")
 
         language = code_package.language_name
-        language_runtime = self._normalize_runtime_version(
-            language, code_package.language_version
-        )
+        language_runtime = self._normalize_runtime_version(language, code_package.language_version)
         # ensure string form is passed to Azure CLI
         language_runtime = str(language_runtime)
         if language == "java" and "." not in language_runtime:

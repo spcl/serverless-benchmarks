@@ -802,9 +802,18 @@ class Benchmark(LoggingBase):
             with open(package_config, "w") as package_file:
                 json.dump(package_json, package_file, indent=2)
 
-    # Dependencies in system.json are in "group:artifact": version format;
-    # this function converts them to proper Maven <dependency> blocks.
     def format_maven_dependency(self, group_artifact: str, version: str) -> str:
+        """Helper method to format Java system dependencies.
+        Dependencies in system.json are in "group:artifact": version format;
+        this function converts them to proper Maven <dependency> blocks.
+
+        Args:
+            group_artifact: name of library to add to benchmark
+            version: library version
+
+        Returns:
+            XML-formatted block inserted into pom.xml
+        """
         group_id, artifact_id = group_artifact.split(":")
         return f"""
         <dependency>
@@ -813,8 +822,16 @@ class Benchmark(LoggingBase):
             <version>{version}</version>
         </dependency>"""
 
-    def add_deployment_package_java(self, output_dir):
+    def add_deployment_package_java(self, output_dir: str):
+        """Extend benchmark's pom.xml with system-specific packages.
+        All Java dependencies for each platform are defined in systems.json.
 
+        Args:
+            output_dir: benchmark directory containing pom.xml to modify
+
+        Raises:
+            ValueError: when benchmark's pom.xml is missing placeholder
+        """
         pom_path = os.path.join(output_dir, "pom.xml")
         with open(pom_path, "r") as f:
             pom_content = f.read()
@@ -1346,16 +1363,6 @@ class Benchmark(LoggingBase):
             self._container_deployment,
             self._container_uri,
         )
-
-    """
-        Locates benchmark input generator, inspect how many storage buckets
-        are needed and launches corresponding storage instance, if necessary.
-
-        :param client: Deployment client
-        :param benchmark:
-        :param benchmark_path:
-        :param size: Benchmark workload size
-    """
 
     def prepare_input(
         self,
