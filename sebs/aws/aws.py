@@ -219,7 +219,7 @@ class AWS(System):
         """
 
         if language == Language.JAVA:
-            jar_path = os.path.join(directory, "target", "benchmark-1.0.jar")
+            jar_path = os.path.join(directory, "target", "function.jar")
             bytes_size = os.path.getsize(jar_path)
             mbytes = bytes_size / 1024.0 / 1024.0
             if not os.path.exists(jar_path):

@@ -15,17 +15,10 @@ if [[ -n "${POM_PATH}" ]]; then
   # Note: -q flag causes issues in Docker, removed for reliable builds
   mvn -DskipTests clean package
 
-  if ls target/*.jar >/dev/null 2>&1; then
-    # Prefer the shaded/fat JAR (exclude "original" JARs created by maven-shade-plugin)
-    # The shaded JAR contains all dependencies and is the one we want to use
-    JAR_PATH=$(ls target/*.jar 2>/dev/null | grep -v "original-" | head -n1)
-    if [[ -z "${JAR_PATH}" ]]; then
-      # Fallback to any JAR if no non-original JAR found
-      JAR_PATH=$(ls target/*.jar | head -n1)
-    fi
-    echo "Found built jar at ${JAR_PATH}"
-    cp "${JAR_PATH}" /mnt/function/function.jar
-  fi
+  # Prefer the shaded/fat JAR (exclude "original" JARs created by maven-shade-plugin)
+  # The shaded JAR contains all dependencies and is the one we want to use
+  JAR_PATH=target/function.jar
+  cp "${JAR_PATH}" /mnt/function/function.jar
   
   cd /mnt/function
 else
