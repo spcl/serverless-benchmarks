@@ -254,7 +254,7 @@ class GCP(System):
     ) -> bool:
         """Wait for build to start, get build name, and poll until completion.
 
-        For patch operations that don't immediately return a build name, this function
+        Since GCP operations typically don't immediately return a build name, this function
         waits for the build to start, retrieves the build name from the function's
         metadata, and then polls the build status.
 
@@ -328,44 +328,66 @@ class GCP(System):
 
         return False
 
-    def verify_deployment(
-        self, func_name: str, expected_version: Optional[int] = None
-    ) -> Tuple[bool, int]:
-        """Verify that function deployment is complete.
+    def _wait_for_active_status(
+        self, func_name: str, expected_version: Optional[int] = None, timeout: int = 60
+    ) -> int:
+        """Wait for function to reach ACTIVE status after build completes.
 
-        Performs a single check to verify the function is in ACTIVE state and
-        optionally matches the expected version. This should be called after
-        build polling is complete.
+        After a build completes, the function may be in DEPLOY_IN_PROGRESS state
+        for a short time. This function polls until the status becomes ACTIVE.
 
         Args:
-            func_name: Name of the function to verify
+            func_name: Name of the function to check
             expected_version: Optional version ID to verify (None to skip version check)
+            timeout: Maximum time to wait in seconds (default: 60)
 
         Returns:
-            Tuple of (is_deployed, current_version_id)
+            Current version ID of the function
+
+        Raises:
+            RuntimeError: If deployment fails or timeout is reached
         """
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, func_name
         )
-        get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
-        func_details = get_req.execute()
+        begin = time.time()
 
-        is_active = func_details["status"] == "ACTIVE"
-        current_version = int(func_details["versionId"])
+        self.logging.info(f"Waiting for function {func_name} to become ACTIVE...")
 
-        if expected_version is not None:
-            is_deployed = is_active and current_version == expected_version
-        else:
-            is_deployed = is_active
-
-        if not is_deployed:
-            self.logging.warning(
-                f"Function {func_name} deployment verification failed: "
-                f"status={func_details['status']}, version={current_version}, "
-                f"expected_version={expected_version}"
+        while True:
+            get_req = (
+                self.function_client.projects().locations().functions().get(name=full_func_name)
             )
+            func_details = get_req.execute()
 
-        return (is_deployed, current_version)
+            status = func_details["status"]
+            current_version = int(func_details["versionId"])
+
+            if status == "ACTIVE":
+                # Check version if specified
+                if expected_version is not None and current_version != expected_version:
+                    self.logging.warning(
+                        f"Function {func_name} is ACTIVE but version mismatch: "
+                        f"expected {expected_version}, got {current_version}"
+                    )
+                    # Continue waiting as version might still be updating
+                else:
+                    self.logging.info(f"Function {func_name} is ACTIVE (version {current_version})")
+                    return current_version
+            elif status == "DEPLOY_IN_PROGRESS":
+                self.logging.debug(f"Function {func_name} deployment in progress...")
+            else:
+                # Unexpected status
+                self.logging.error(f"Function {func_name} has unexpected status: {status}")
+                raise RuntimeError(f"Function {func_name} deployment failed with status: {status}")
+
+            if time.time() - begin > timeout:
+                raise RuntimeError(
+                    f"Timeout waiting for function {func_name} to become ACTIVE. "
+                    f"Current status: {status}"
+                )
+
+            time.sleep(2)
 
     def package_code(
         self,
@@ -549,20 +571,16 @@ class GCP(System):
                     },
                 )
             )
-            ret = create_req.execute()
-            self.logging.info(f"Function {func_name} is creating - GCP deployment is started!")
+            create_req.execute()
+            self.logging.info(f"Function {func_name} is creating - GCP build&deployment is started!")
 
             # Poll build status until completion or failure
             build_found = self._wait_for_build_and_poll(func_name)
             if not build_found:
                 raise RuntimeError(f"No build operation found for {func_name}!")
 
-            # Verify deployment is complete
-            is_deployed, _ = self.verify_deployment(func_name)
-            if not is_deployed:
-                raise RuntimeError(
-                    f"Function {func_name} build succeeded but deployment verification failed!"
-                )
+            # Wait for deployment to become ACTIVE
+            self._wait_for_active_status(func_name)
 
             allow_unauthenticated_req = (
                 self.function_client.projects()
@@ -651,13 +669,6 @@ class GCP(System):
         from sebs.gcp.triggers import HTTPTrigger
 
         if trigger_type == Trigger.TriggerType.HTTP:
-
-            # Verify function is deployed (should already be done by create/update)
-            is_deployed, _ = self.verify_deployment(function.name)
-            if not is_deployed:
-                raise RuntimeError(
-                    f"Function {function.name} must be deployed before creating HTTP trigger!"
-                )
 
             # Get the HTTPS trigger URL
             location = self.config.region
@@ -780,13 +791,8 @@ class GCP(System):
                 "this is unexpected for code updates"
             )
 
-        # Verify deployment with expected version
-        is_deployed, current_version = self.verify_deployment(function.name, expected_version)
-        if not is_deployed:
-            raise RuntimeError(
-                f"Failed to publish new function code. "
-                f"Expected version {expected_version}, current version {current_version}."
-            )
+        # Wait for deployment to become ACTIVE with expected version
+        self._wait_for_active_status(function.name, expected_version)
         self.logging.info("Published new function code and configuration.")
 
     def _update_envs(self, full_function_name: str, envs: Dict) -> Dict:
@@ -912,24 +918,12 @@ class GCP(System):
 
         self.logging.info(f"Function {function.name} configuration update initiated")
 
-        # Verify deployment with expected version
-        # Retry a few times as version might take a moment to propagate
-        max_retries = 10
-        for retry in range(max_retries):
-            is_deployed, current_version = self.verify_deployment(function.name, expected_version)
-            if is_deployed:
-                break
-            if retry < max_retries - 1:
-                time.sleep(2)
-
-        if not is_deployed:
-            raise RuntimeError(
-                f"Failed to publish new function configuration. "
-                f"Expected version {expected_version}, current version {current_version}."
-            )
+        # Wait for deployment to become ACTIVE with expected version
+        # Configuration updates don't trigger builds but still need deployment time
+        current_version = self._wait_for_active_status(function.name, expected_version, timeout=60)
         self.logging.info("Published new function configuration.")
 
-        return expected_version
+        return current_version
 
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str) -> str:
