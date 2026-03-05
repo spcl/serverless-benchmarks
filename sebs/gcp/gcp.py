@@ -314,7 +314,7 @@ class GCP(System):
                             f"projects/{self.config.project_name}/locations/"
                             f"{self.config.region}/builds/{build_id}"
                         )
-                        self.logging.info(f"Found build {build_id} for function {func_name}")
+                        self.logging.info(f"Found build {build_id} for function {func_name}!")
                         break
             except HttpError as e:
                 self.logging.debug(f"Error getting function details: {e}")
@@ -572,7 +572,9 @@ class GCP(System):
                 )
             )
             create_req.execute()
-            self.logging.info(f"Function {func_name} is creating - GCP build&deployment is started!")
+            self.logging.info(
+                f"Function {func_name} is creating - GCP build&deployment is started!"
+            )
 
             # Poll build status until completion or failure
             build_found = self._wait_for_build_and_poll(func_name)
