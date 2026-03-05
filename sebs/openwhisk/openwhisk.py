@@ -537,23 +537,26 @@ class OpenWhisk(System):
             )
 
         try:
+            run_arguments = [
+                *self.get_wsk_cmd(),
+                "action",
+                "update",
+                function.name,
+                "--web",
+                "true",
+                "--docker",
+                docker_image,
+                "--memory",
+                str(code_package.benchmark_config.memory),
+                "--timeout",
+                str(code_package.benchmark_config.timeout * 1000),
+                *self.storage_arguments(code_package),
+                code_package.code_location,
+            ]
+            if code_package.language == Language.JAVA:
+                run_arguments.extend(["--main", "org.serverlessbench.Handler"])
             subprocess.run(
-                [
-                    *self.get_wsk_cmd(),
-                    "action",
-                    "update",
-                    function.name,
-                    "--web",
-                    "true",
-                    "--docker",
-                    docker_image,
-                    "--memory",
-                    str(code_package.benchmark_config.memory),
-                    "--timeout",
-                    str(code_package.benchmark_config.timeout * 1000),
-                    *self.storage_arguments(code_package),
-                    code_package.code_location,
-                ],
+                run_arguments,
                 stderr=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 check=True,
