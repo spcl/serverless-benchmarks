@@ -26,18 +26,7 @@ public class Handler {
         Map<String, Object> result = function.handler(gson.fromJson(args, mapType));
         Instant end = Instant.now();
 
-        boolean isCold = false;
-        String fileName = "/tmp/cold_run";
-
-        File file = new File(fileName);
-        if (!file.exists()) {
-            isCold = true;
-            try {
-                file.createNewFile();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+        String containerId = ColdStartTracker.getContainerId();
 
         // Convert to Unix timestamp in seconds.microseconds
         String formattedBegin = String.format("%d.%06d", begin.getEpochSecond(), begin.getNano() / 1000);
@@ -57,8 +46,10 @@ public class Handler {
         jsonResult.addProperty("end", formattedEnd);
         jsonResult.addProperty("request_id", requestId);
         jsonResult.addProperty("results_time", 0);
-        jsonResult.addProperty("is_cold", isCold);
+        jsonResult.addProperty("is_cold", ColdStartTracker.isCold());
+        jsonResult.addProperty("container_id", containerId);
         jsonResult.add("result", logData);
+
         return jsonResult;
     }
 
