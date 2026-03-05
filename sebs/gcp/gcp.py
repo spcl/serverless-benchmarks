@@ -400,26 +400,18 @@ class GCP(System):
             Tuple of (archive_path, archive_size_bytes)
         """
 
-        # Handle Java packaging - GCP accepts JAR files directly
-        if language == Language.JAVA:
-            jar_path = os.path.join(directory, "target", "function.jar")
+        if language == Language.CPP:
+            raise NotImplementedError("C++ packaging is not supported on GCP!")
 
-            if not os.path.exists(jar_path):
-                raise RuntimeError(
-                    f"Java artifact {jar_path} missing. " f"Ensure Java build produced the jar."
-                )
-
-            bytes_size = os.path.getsize(jar_path)
-            mbytes = bytes_size / 1024.0 / 1024.0
-
-            self.logging.info(f"Created {jar_path} archive")
-            self.logging.info(f"Jar archive size {mbytes:.2f} MB")
-
-            return (jar_path, bytes_size)
-
+        """
+            While for Java we produce an archive alread (JAR),
+            we need to pack in a zip file as their build sysstem will unzip it
+            and complain that it finds classes, and not a JAR.
+        """
         CONFIG_FILES = {
             Language.PYTHON: ["handler.py", ".python_packages"],
             Language.NODEJS: ["handler.js", "node_modules"],
+            Language.JAVA: ["function.jar"],
         }
         HANDLER = {
             Language.PYTHON: ("handler.py", "main.py"),
@@ -434,10 +426,12 @@ class GCP(System):
                 shutil.move(file, function_dir)
 
         # rename handler function.py since in gcp it has to be caled main.py
-        old_name, new_name = HANDLER[language]
-        old_path = os.path.join(directory, old_name)
-        new_path = os.path.join(directory, new_name)
-        shutil.move(old_path, new_path)
+        old_path, new_path = None, None
+        if language in HANDLER:
+            old_name, new_name = HANDLER[language]
+            old_path = os.path.join(directory, old_name)
+            new_path = os.path.join(directory, new_name)
+            shutil.move(old_path, new_path)
 
         """
             zip the whole directory (the zip-file gets uploaded to gcp later)
@@ -459,7 +453,8 @@ class GCP(System):
         logging.info("Zip archive size {:2f} MB".format(mbytes))
 
         # rename the main.py back to handler.py
-        shutil.move(new_path, old_path)
+        if new_path is not None and old_path is not None:
+            shutil.move(new_path, old_path)
 
         return (
             os.path.join(directory, "{}.zip".format(benchmark)),
