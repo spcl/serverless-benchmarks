@@ -17,6 +17,7 @@
   </dependencies>
 
   <build>
+    <finalName>function</finalName>
     <plugins>
       <!-- Compiler Plugin using environment-sourced version -->
       <plugin>
