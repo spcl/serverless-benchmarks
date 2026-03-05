@@ -138,10 +138,12 @@
         ],
         "deployment": {
           "files": [
-            "pom.xml",
             "src"
           ],
-          "packages": {},
+          "packages": {
+            "com.amazonaws:aws-lambda-java-core": "1.2.3",
+            "com.fasterxml.jackson.core:jackson-databind": "2.17.1"
+          },
           "module_packages": {}
         }
       }
@@ -217,10 +219,12 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "pom.xml",
             "src"
           ],
-          "packages": {},
+          "packages": {
+            "com.microsoft.azure.functions:azure-functions-java-library": "3.0.0",
+            "com.fasterxml.jackson.core:jackson-databind": "2.17.1"
+          },
           "module_packages": {}
         }
       }
