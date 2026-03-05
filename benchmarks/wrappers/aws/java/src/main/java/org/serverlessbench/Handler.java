@@ -3,6 +3,7 @@ package org.serverlessbench;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import function.Function;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,7 +17,8 @@ public class Handler implements RequestHandler<Map<String, Object>, Map<String, 
         long beginMs = System.currentTimeMillis();
         long beginNs = System.nanoTime();
         Map<String, Object> normalized = normalize(event);
-        Map<String, Object> result = FunctionInvoker.invoke(normalized);
+        Function function = new Function();
+        Map<String, Object> result = function.handler(normalized);
         long endNs = System.nanoTime();
         long endMs = System.currentTimeMillis();
 

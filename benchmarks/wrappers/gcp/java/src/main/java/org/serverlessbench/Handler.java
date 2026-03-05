@@ -4,6 +4,7 @@ import com.google.cloud.functions.HttpFunction;
 import com.google.cloud.functions.HttpRequest;
 import com.google.cloud.functions.HttpResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import function.Function;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -25,7 +26,8 @@ public class Handler implements HttpFunction {
         // Normalize request from GCP HTTP format
         Map<String, Object> normalized = normalizeRequest(request);
 
-        Map<String, Object> result = FunctionInvoker.invoke(normalized);
+        Function function = new Function();
+        Map<String, Object> result = function.handler(normalized);
 
         long endNs = System.nanoTime();
         long endMs = System.currentTimeMillis();
