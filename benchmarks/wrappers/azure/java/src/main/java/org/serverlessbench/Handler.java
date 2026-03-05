@@ -17,32 +17,44 @@ public class Handler {
 
     @FunctionName("handler")
     public HttpResponseMessage handleRequest(
-            @HttpTrigger(
-                            name = "req",
-                            methods = {HttpMethod.GET, HttpMethod.POST},
-                            authLevel = AuthorizationLevel.ANONYMOUS)
-                    final HttpRequestMessage<Optional<String>> request,
-            final ExecutionContext context) {
+        @HttpTrigger(
+          name = "req",
+          methods = {HttpMethod.GET, HttpMethod.POST},
+          authLevel = AuthorizationLevel.ANONYMOUS
+        )
+        final HttpRequestMessage<Optional<String>> request,
+        final ExecutionContext context
+    ) {
 
+        long beginMs = System.currentTimeMillis();
         long beginNs = System.nanoTime();
         Map<String, Object> normalized = normalizeRequest(request);
         Map<String, Object> result = FunctionInvoker.invoke(normalized);
         long endNs = System.nanoTime();
+        long endMs = System.currentTimeMillis();
+
+        // Format timestamps as "seconds.microseconds" like Python
+        String beginStr = formatTimestamp(beginMs, beginNs);
+        String endStr = formatTimestamp(endMs, endNs);
+
+        // Get or create container ID
+        String containerId = ColdStartTracker.getContainerId();
+
+        // Get cold_start environment variable if present
+        String coldStartVar = System.getenv("cold_start");
+        if (coldStartVar == null) {
+            coldStartVar = "";
+        }
 
         Map<String, Object> body = new HashMap<>();
-        body.put("begin", beginNs / 1_000_000_000.0);
-        body.put("end", endNs / 1_000_000_000.0);
-        body.put("compute_time", (endNs - beginNs) / 1_000.0);
+        body.put("begin", beginStr);
+        body.put("end", endStr);
         body.put("results_time", 0);
         body.put("result", result);
         body.put("is_cold", ColdStartTracker.isCold());
-        body.put("is_cold_worker", ColdStartTracker.isWorkerCold());
+        body.put("container_id", containerId);
+        body.put("cold_start_var", coldStartVar);
         body.put("request_id", context != null ? context.getInvocationId() : "");
-
-        String coldStartVar = System.getenv("cold_start");
-        if (coldStartVar != null) {
-            body.put("cold_start_var", coldStartVar);
-        }
 
         String json = toJson(body);
         return request
@@ -50,6 +62,13 @@ public class Handler {
                 .header("Content-Type", "application/json")
                 .body(json)
                 .build();
+    }
+
+    private String formatTimestamp(long epochMillis, long nanoTime) {
+        long seconds = epochMillis / 1000;
+        // Use nanos for microseconds precision
+        long microseconds = (nanoTime / 1000) % 1_000_000;
+        return String.format("%d.%06d", seconds, microseconds);
     }
 
     private Map<String, Object> normalizeRequest(HttpRequestMessage<Optional<String>> request) {

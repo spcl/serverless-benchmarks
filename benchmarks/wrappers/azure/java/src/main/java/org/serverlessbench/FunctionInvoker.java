@@ -24,13 +24,13 @@ final class FunctionInvoker {
                 return casted;
             }
         } catch (ClassNotFoundException e) {
-            return defaultResponse("Function implementation not found");
+            throw new RuntimeException("Function implementation not found");
         } catch (NoSuchMethodException e) {
-            return defaultResponse("Function.handler(Map<String,Object>) missing");
+            throw new RuntimeException("Function.handler(Map<String,Object>) missing");
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
-            return defaultResponse("Failed to invoke function: " + e.getMessage());
+            throw new RuntimeException("Failed to invoke function: " + e.getMessage());
         }
-        return defaultResponse("Function returned unsupported type");
+        throw new RuntimeException("Function returned unsupported type");
     }
 
     private static Map<String, Object> defaultResponse(String message) {
