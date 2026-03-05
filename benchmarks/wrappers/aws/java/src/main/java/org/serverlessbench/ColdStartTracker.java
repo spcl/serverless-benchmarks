@@ -9,7 +9,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 final class ColdStartTracker {
 
-    private static final AtomicBoolean COLD = new AtomicBoolean(true);
     private static final Path MARKER = Path.of("/tmp/cold_run");
     private static String containerId = null;
 
@@ -17,19 +16,15 @@ final class ColdStartTracker {
 
     static boolean isCold() {
         if (Files.exists(MARKER)) {
-            COLD.set(false);
             return false;
         }
-        boolean first = COLD.getAndSet(false);
-        if (first) {
-            try {
-                containerId = UUID.randomUUID().toString().substring(0, 8);
-                Files.writeString(MARKER, containerId, StandardCharsets.UTF_8);
-            } catch (IOException ignored) {
-                // best-effort marker write
-            }
+        try {
+            containerId = UUID.randomUUID().toString().substring(0, 8);
+            Files.writeString(MARKER, containerId, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+            // best-effort marker write
         }
-        return first;
+        return true;
     }
 
     static String getContainerId() {
