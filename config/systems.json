@@ -125,12 +125,12 @@
       "java": {
         "base_images": {
           "x64": {
-            "17": "public.ecr.aws/lambda/java:17",
-            "11": "amazon/aws-lambda-java:11"
+            "17": "amazon/aws-lambda-java:17.2026.02.28.00-x86_64",
+            "11": "amazon/aws-lambda-java:11.2026.02.28.00-x86_64"
           },
           "arm64": {
-            "17": "public.ecr.aws/lambda/java:17",
-            "11": "amazon/aws-lambda-java:11"
+            "17": "amazon/aws-lambda-java:17.2026.02.28.00-arm64",
+            "11": "amazon/aws-lambda-java:11.2026.02.28.00-arm64"
           }
         },
         "images": [
