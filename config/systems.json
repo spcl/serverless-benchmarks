@@ -282,7 +282,7 @@
           "packages": [],
           "module_packages": {
             "storage": [
-              "goo	gle-cloud-storage"
+              "google-cloud-storage"
             ],
             "nosql": [
               "google-cloud-datastore"
