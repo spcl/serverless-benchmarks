@@ -809,6 +809,60 @@ class GCPTestSequenceNodejs(
         return deployment_client
 
 
+class GCPTestSequenceJava(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_java,
+    architectures=architectures_gcp,
+    deployments=deployments_gcp,
+    deployment_name="gcp",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Java benchmarks on Google Cloud Functions.
+
+    Attributes:
+        benchmarks: List of Java benchmarks to test
+        architectures: List of GCP architectures to test (x64)
+        deployments: List of deployment types to test (package)
+        deployment_name: Cloud provider name ("gcp")
+        triggers: List of trigger types to test (HTTP)
+    """
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get a GCP deployment client for the specified configuration.
+
+        Args:
+            benchmark_name: Name of the benchmark to deploy
+            architecture: Architecture to deploy on (x64)
+            deployment_type: Deployment type (package)
+
+        Returns:
+            An initialized Google Cloud Functions deployment client
+
+        Raises:
+            AssertionError: If cloud_config is not set
+        """
+        deployment_name = "gcp"
+        assert cloud_config, "Cloud configuration is required"
+
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
+        # Create log file name based on test parameters
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        # Synchronize resource initialization with a lock
+        with GCPTestSequenceJava.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
 class OpenWhiskTestSequencePython(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
@@ -1155,6 +1209,8 @@ def regression_suite(
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequencePython))
         elif language == "nodejs":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceNodejs))
+        elif language == "java":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceJava))
 
     # Add Azure tests if requested
     if "azure" in providers:
