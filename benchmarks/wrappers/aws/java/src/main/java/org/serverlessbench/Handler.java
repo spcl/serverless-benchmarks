@@ -13,21 +13,52 @@ public class Handler implements RequestHandler<Map<String, Object>, Map<String, 
 
     @Override
     public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
+        long beginMs = System.currentTimeMillis();
         long beginNs = System.nanoTime();
         Map<String, Object> normalized = normalize(event);
         Map<String, Object> result = FunctionInvoker.invoke(normalized);
         long endNs = System.nanoTime();
+        long endMs = System.currentTimeMillis();
+
+        // Format timestamps as "seconds.microseconds" like Python
+        String beginStr = formatTimestamp(beginMs, beginNs);
+        String endStr = formatTimestamp(endMs, endNs);
+
+        // Get or create container ID
+        String containerId = ColdStartTracker.getContainerId();
+
+        // Get cold_start environment variable if present
+        String coldStartVar = System.getenv("cold_start");
+        if (coldStartVar == null) {
+            coldStartVar = "";
+        }
 
         Map<String, Object> body = new HashMap<>();
-        body.put("begin", beginNs / 1_000_000_000.0);
-        body.put("end", endNs / 1_000_000_000.0);
-        body.put("compute_time", (endNs - beginNs) / 1_000.0);
+        body.put("begin", beginStr);
+        body.put("end", endStr);
         body.put("results_time", 0);
-        body.put("result", result);
         body.put("is_cold", ColdStartTracker.isCold());
+        body.put("result", result);
         body.put("request_id", context != null ? context.getAwsRequestId() : "");
+        body.put("cold_start_var", coldStartVar);
+        body.put("container_id", containerId);
 
-        return body;
+        Map<String, Object> response = new HashMap<>();
+        response.put("statusCode", 200);
+        try {
+            response.put("body", MAPPER.writeValueAsString(body));
+        } catch (Exception e) {
+            response.put("body", "{}");
+        }
+
+        return response;
+    }
+
+    private String formatTimestamp(long epochMillis, long nanoTime) {
+        long seconds = epochMillis / 1000;
+        // Use nanos for microseconds precision
+        long microseconds = (nanoTime / 1000) % 1_000_000;
+        return String.format("%d.%06d", seconds, microseconds);
     }
 
     private Map<String, Object> normalize(Map<String, Object> event) {
