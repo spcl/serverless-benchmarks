@@ -1,30 +1,35 @@
 ARG BASE_IMAGE
-FROM $BASE_IMAGE
+FROM $BASE_IMAGE as builder
 ARG VERSION
 ENV JAVA_VERSION=${VERSION}
 ARG TARGET_ARCHITECTURE
+
+RUN yum install -y shadow-utils unzip tar gzip zip
+# Install Maven 3.x (maven package may be old, install from Apache directly)
+RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz | tar -xz -C /opt && \
+    ln -s /opt/apache-maven-3.9.6 /opt/maven && \
+    ln -s /opt/maven/bin/mvn /usr/local/bin/mvn
+ENV PATH=/opt/maven/bin:$PATH
 
 COPY . function/
 
 # Ensure packaged jar is present for the Lambda base image
 # function.jar should exist (created by java_installer.sh), but if not, copy from target/
 # Prefer the shaded/fat JAR (exclude "original" JARs created by maven-shade-plugin)
-RUN if [ -f "function/function.jar" ]; then \
-      cp function/function.jar function.jar; \
-    elif [ -d "function/target" ] && ls function/target/*.jar >/dev/null 2>&1; then \
-      JAR_FILE=$(ls function/target/*.jar 2>/dev/null | grep -v "original-" | head -n1); \
-      if [ -z "$JAR_FILE" ]; then \
-        JAR_FILE=$(ls function/target/*.jar | head -n1); \
-      fi; \
-      cp "$JAR_FILE" function.jar; \
+RUN POM_PATH=$(find function/ -maxdepth 3 -name "pom.xml" | head -n1) && \
+    if [[ -n "${POM_PATH}" ]]; then \
+      mvn -f ${POM_PATH} -DskipTests clean package && \
+      POM_DIR=$(dirname "${POM_PATH}") && \
+      cp "${POM_DIR}"/target/function.jar function.jar && \
+      (unzip function.jar || jar fx function.jar ) && \
+      rm function.jar; \
     else \
-      echo "Error: function.jar not found"; \
-      echo "Contents of function/:"; \
-      ls -la function/ 2>/dev/null || true; \
+      echo "No pom.xml found!" && \
       exit 1; \
-    fi \
-    && test -f function.jar \
-    && (unzip function.jar || jar xf function.jar) \
-    && rm function.jar
+    fi
+
+FROM $BASE_IMAGE
+
+COPY --from=builder ${LAMBDA_TASK_ROOT}/ ${LAMBDA_TASK_ROOT}/
 
 CMD ["org.serverlessbench.Handler::handleRequest"]
