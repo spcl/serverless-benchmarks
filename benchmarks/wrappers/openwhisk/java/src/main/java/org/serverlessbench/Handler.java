@@ -29,8 +29,8 @@ public class Handler {
         String containerId = ColdStartTracker.getContainerId();
 
         // Convert to Unix timestamp in seconds.microseconds
-        String formattedBegin = String.format("%d.%06d", begin.getEpochSecond(), begin.getNano() / 1000);
-        String formattedEnd = String.format("%d.%06d", end.getEpochSecond(), end.getNano() / 1000);
+        String formattedBegin = formatTimestamp(begin);
+        String formattedEnd = formatTimestamp(end);
 
         String requestId = System.getenv("__OW_ACTIVATION_ID");
         if (requestId == null) {
@@ -51,6 +51,12 @@ public class Handler {
         jsonResult.add("result", logData);
 
         return jsonResult;
+    }
+
+    static private String formatTimestamp(Instant ts) {
+        long seconds = ts.getEpochSecond();
+        long microseconds = ts.getNano() / 1_000;
+        return String.format("%d.%06d", seconds, microseconds);
     }
 
 }

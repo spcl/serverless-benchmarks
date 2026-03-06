@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.time.Instant;
 
 public class Handler {
 
@@ -27,17 +28,15 @@ public class Handler {
         final ExecutionContext context
     ) {
 
-        long beginMs = System.currentTimeMillis();
-        long beginNs = System.nanoTime();
+        Instant beginTs = Instant.now();
         Map<String, Object> normalized = normalizeRequest(request);
         Function function = new Function();
         Map<String, Object> result = function.handler(normalized);
-        long endNs = System.nanoTime();
-        long endMs = System.currentTimeMillis();
+        Instant endTs = Instant.now();
 
         // Format timestamps as "seconds.microseconds" like Python
-        String beginStr = formatTimestamp(beginMs, beginNs);
-        String endStr = formatTimestamp(endMs, endNs);
+        String beginStr = formatTimestamp(beginTs);
+        String endStr = formatTimestamp(endTs);
 
         // Get or create container ID
         String containerId = ColdStartTracker.getContainerId();
@@ -66,10 +65,9 @@ public class Handler {
                 .build();
     }
 
-    private String formatTimestamp(long epochMillis, long nanoTime) {
-        long seconds = epochMillis / 1000;
-        // Use nanos for microseconds precision
-        long microseconds = (nanoTime / 1000) % 1_000_000;
+    private String formatTimestamp(Instant ts) {
+        long seconds = ts.getEpochSecond();
+        long microseconds = ts.getNano() / 1_000;
         return String.format("%d.%06d", seconds, microseconds);
     }
 

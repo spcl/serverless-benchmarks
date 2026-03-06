@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.time.Instant;
 
 public class Handler implements HttpFunction {
 
@@ -20,8 +21,7 @@ public class Handler implements HttpFunction {
     public void service(HttpRequest request, HttpResponse response)
             throws IOException {
 
-        long beginMs = System.currentTimeMillis();
-        long beginNs = System.nanoTime();
+        Instant beginTs = Instant.now();
 
         // Normalize request from GCP HTTP format
         Map<String, Object> normalized = normalizeRequest(request);
@@ -29,12 +29,11 @@ public class Handler implements HttpFunction {
         Function function = new Function();
         Map<String, Object> result = function.handler(normalized);
 
-        long endNs = System.nanoTime();
-        long endMs = System.currentTimeMillis();
+        Instant endTs = Instant.now();
 
         // Format timestamps as "seconds.microseconds" (SeBS standard)
-        String beginStr = formatTimestamp(beginMs, beginNs);
-        String endStr = formatTimestamp(endMs, endNs);
+        String beginStr = formatTimestamp(beginTs);
+        String endStr = formatTimestamp(endTs);
 
         // Get cold start info
         String containerId = ColdStartTracker.getContainerId();
@@ -60,9 +59,9 @@ public class Handler implements HttpFunction {
         writer.write(MAPPER.writeValueAsString(body));
     }
 
-    private String formatTimestamp(long epochMillis, long nanoTime) {
-        long seconds = epochMillis / 1000;
-        long microseconds = (nanoTime / 1000) % 1_000_000;
+    private String formatTimestamp(Instant ts) {
+        long seconds = ts.getEpochSecond();
+        long microseconds = ts.getNano() / 1_000;
         return String.format("%d.%06d", seconds, microseconds);
     }
 
