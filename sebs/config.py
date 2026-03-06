@@ -37,7 +37,7 @@ class SeBSConfig:
             FileNotFoundError: If systems.json configuration file is not found.
             json.JSONDecodeError: If systems.json contains invalid JSON.
         """
-        config_path = get_resource_path("config", "systems.json")
+        config_path = get_resource_path("configs", "systems.json")
         with open(config_path, "r") as cfg:
             self._system_config = json.load(cfg)
         self._image_tag_prefix = ""

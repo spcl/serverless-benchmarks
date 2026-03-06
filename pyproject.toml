@@ -27,8 +27,9 @@ classifiers = [
     "Topic :: System :: Distributed Computing",
 ]
 
-# Core dependencies (from requirements.txt, excluding dev tools)
+# Core dependencies - includes all platform dependencies by default
 dependencies = [
+    # Core framework
     "testtools>=2.4.0",
     "docker>=4.2.0",
     "tzlocal>=2.1",
@@ -39,50 +40,31 @@ dependencies = [
     "pycurl>=7.43",
     "click>=7.1.2",
     "rich",
+    # AWS dependencies
+    "boto3",
+    "botocore",
+    "urllib3",
+    # Azure dependencies
+    "azure-storage-blob==12.10.0",
+    "azure-cosmos",
+    # GCP dependencies
+    "grpcio",
+    "google-cloud-storage==1.32.0",
+    "google-api-python-client",
+    "google-cloud-monitoring==2.0.0",
+    "google-cloud-logging==2.0.0",
+    "google-cloud-datastore",
+    # Local/storage dependencies
+    "minio==5.0.10",
 ]
 
 [project.optional-dependencies]
-# Cloud platform dependencies
-aws = [
-    "boto3",
-    "botocore",
-    "urllib3",
-    "boto3-stubs[lambda,s3,apigatewayv2,sts,logs,iam,ecr]",
-]
-azure = [
-    "azure-storage-blob==12.10.0",
-    "azure-cosmos",
-]
-gcp = [
-    "grpcio",
-    "google-cloud-storage==1.32.0",
-    "google-api-python-client==1.12.5",
-    "google-cloud-monitoring==2.0.0",
-    "google-api-python-client-stubs",
-    "google-cloud-logging==2.0.0",
-    "google-cloud-datastore",
-]
-local = [
-    "minio==5.0.10",
-]
-
-# All cloud platforms
-all = [
-    "boto3",
-    "botocore",
-    "urllib3",
-    "boto3-stubs[lambda,s3,apigatewayv2,sts,logs,iam,ecr]",
-    "azure-storage-blob==12.10.0",
-    "azure-cosmos",
-    "grpcio",
-    "google-cloud-storage==1.32.0",
-    "google-api-python-client==1.12.5",
-    "google-cloud-monitoring==2.0.0",
-    "google-api-python-client-stubs",
-    "google-cloud-logging==2.0.0",
-    "google-cloud-datastore",
-    "minio==5.0.10",
-]
+# Legacy aliases for backward compatibility (all dependencies now installed by default)
+aws = []
+azure = []
+gcp = []
+local = []
+all = []
 
 # Development dependencies
 dev = [
@@ -119,7 +101,7 @@ packages = [
     "sebs.experiments",
     "sebs.benchmarks",
     "sebs.dockerfiles",
-    "sebs.config",
+    "sebs.configs",
     "sebs.tools",
 ]
 
@@ -127,13 +109,13 @@ packages = [
 [tool.setuptools.package-dir]
 "sebs.benchmarks" = "benchmarks"
 "sebs.dockerfiles" = "dockerfiles"
-"sebs.config" = "config"
+"sebs.configs" = "configs"
 "sebs.tools" = "tools"
 
 [tool.setuptools.package-data]
 # Include all necessary non-Python files
 sebs = ["py.typed"]
-"sebs.config" = ["*.json"]
+"sebs.configs" = ["*.json"]
 "sebs.benchmarks" = [
     "**/*.py",
     "**/*.js",

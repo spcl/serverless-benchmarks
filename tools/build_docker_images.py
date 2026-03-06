@@ -27,7 +27,7 @@ parser.add_argument("--language", default=None, choices=["python", "nodejs", "cp
 parser.add_argument("--language-version", default=None, type=str, action="store")
 parser.add_argument("--parallel", default=1, type=int, action="store")
 args = parser.parse_args()
-config_path = get_resource_path("config", "systems.json")
+config_path = get_resource_path("configs", "systems.json")
 config = json.load(open(config_path, "r"))
 client = docker.from_env()
 

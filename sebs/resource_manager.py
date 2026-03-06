@@ -52,8 +52,8 @@ def get_resource_path(*path_parts: str) -> Path:
         Path to the resource
 
     Examples:
-        >>> get_resource_path("config", "systems.json")
-        Path("/path/to/sebs/config/systems.json")
+        >>> get_resource_path("configs", "systems.json")
+        Path("/path/to/sebs/configs/systems.json")
 
         >>> get_resource_path("benchmarks")
         Path("/path/to/sebs/benchmarks")

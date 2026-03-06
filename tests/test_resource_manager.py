@@ -30,7 +30,7 @@ def test_project_root_exists():
 
 def test_resource_path_config():
     """Test accessing config resources."""
-    config_path = get_resource_path("config", "systems.json")
+    config_path = get_resource_path("configs", "systems.json")
     assert isinstance(config_path, Path)
     assert config_path.exists()
     assert config_path.name == "systems.json"
