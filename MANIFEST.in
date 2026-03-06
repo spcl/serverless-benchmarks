@@ -4,10 +4,10 @@ include pyproject.toml
 include requirements*.txt
 
 # Include config files
-recursive-include config *.json
+recursive-include configs *.json
 
-# Include benchmark files
-recursive-include benchmarks *.py *.js *.cpp *.hpp *.json *.txt *.sh
+# Include benchmark files (all necessary file types)
+recursive-include benchmarks *.py *.js *.cpp *.hpp *.json *.txt *.sh *.html *.css *.md
 recursive-include benchmarks Dockerfile* CMakeLists.txt package.json package-lock.json
 
 # Include dockerfiles
