@@ -44,6 +44,7 @@ dependencies = [
     "boto3",
     "botocore",
     "urllib3",
+    "boto3-stubs[lambda,s3,apigatewayv2,sts,logs,iam,ecr]",
     # Azure dependencies
     "azure-storage-blob==12.10.0",
     "azure-cosmos",
