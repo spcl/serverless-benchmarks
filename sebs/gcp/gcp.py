@@ -38,6 +38,7 @@ from typing import cast, Dict, Optional, Tuple, List, Type
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import google.cloud.monitoring_v3 as monitoring_v3
+from google.cloud.devtools import cloudbuild_v1
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
@@ -204,6 +205,190 @@ class GCP(System):
         func_name = func_name.replace(".", "_")
         return func_name
 
+    def _poll_build_status(self, build_name: str, func_name: str, timeout: int = 300) -> None:
+        """Poll build operation until completion or failure.
+
+        Monitors a Cloud Build operation, waiting for it to complete successfully
+        or fail. Provides detailed error information if the build fails.
+
+        Args:
+            build_name: Fully qualified build name from GCP API
+            func_name: Function name for logging purposes
+            timeout: Maximum time to wait in seconds (default: 300)
+
+        Raises:
+            RuntimeError: If build fails or timeout is reached
+        """
+        build_client = cloudbuild_v1.CloudBuildClient()
+        begin = time.time()
+
+        while True:
+            build_status = build_client.get_build(name=build_name)
+
+            if build_status.status == cloudbuild_v1.Build.Status.SUCCESS:
+                self.logging.info(f"Function {func_name} - build completed successfully!")
+                break
+            elif build_status.status == cloudbuild_v1.Build.Status.FAILURE:
+                self.logging.error(f"Failed to build function: {func_name}")
+                self.logging.error(f"Reasons: {build_status.failure_info.detail}")
+                self.logging.error(f"URL for detailed error: {build_status.log_url}")
+                raise RuntimeError(f"Build failed for function {func_name}!") from None
+            elif build_status.status in (
+                cloudbuild_v1.Build.Status.CANCELLED,
+                cloudbuild_v1.Build.Status.TIMEOUT,
+            ):
+                self.logging.error(f"Build was cancelled or timed out for function: {func_name}")
+                self.logging.error(f"URL for detailed error: {build_status.log_url}")
+                raise RuntimeError(f"Build failed for function {func_name}!") from None
+
+            if time.time() - begin > timeout:
+                self.logging.error(
+                    f"Failed to build function: {func_name} after {timeout} seconds!"
+                )
+                raise RuntimeError(f"Build timeout for function {func_name}!") from None
+
+            time.sleep(3)
+
+    def _wait_for_build_and_poll(
+        self, func_name: str, timeout: int = 300, poll_interval: int = 2
+    ) -> bool:
+        """Wait for build to start, get build name, and poll until completion.
+
+        Since GCP operations typically don't immediately return a build name, this function
+        waits for the build to start, retrieves the build name from the function's
+        metadata, and then polls the build status.
+
+        Args:
+            func_name: Name of the function being built
+            timeout: Maximum time to wait in seconds (default: 300)
+            poll_interval: Seconds between polling attempts (default: 2)
+
+        Returns:
+            True if a build was found and completed successfully, False if no build was found
+
+        Raises:
+            RuntimeError: If build fails
+        """
+        full_func_name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+        begin = time.time()
+        build_name = None
+        previous_build_id = None
+
+        # First, try to get the current build ID to compare against
+        try:
+            get_req = (
+                self.function_client.projects().locations().functions().get(name=full_func_name)
+            )
+            func_details = get_req.execute()
+            if "buildId" in func_details:
+                previous_build_id = func_details["buildId"]
+        except HttpError:
+            pass
+
+        # Wait for build to start and get build name
+        self.logging.info(f"Waiting for build to start for function {func_name}...")
+        while build_name is None:
+            if time.time() - begin > timeout:
+                self.logging.warning(
+                    f"No build found for {func_name} after {timeout}s - "
+                    "might be a configuration-only update"
+                )
+                return False
+
+            try:
+                # Get function details to find the build
+                get_req = (
+                    self.function_client.projects().locations().functions().get(name=full_func_name)
+                )
+                func_details = get_req.execute()
+
+                # Check if there's a new build in progress
+                if "buildId" in func_details:
+                    build_id = func_details["buildId"]
+                    # Only consider it a new build if it's different from the previous one
+                    if previous_build_id is None or build_id != previous_build_id:
+                        # Construct build name from build ID
+                        build_name = (
+                            f"projects/{self.config.project_name}/locations/"
+                            f"{self.config.region}/builds/{build_id}"
+                        )
+                        self.logging.info(f"Found build {build_id} for function {func_name}!")
+                        break
+            except HttpError as e:
+                self.logging.debug(f"Error getting function details: {e}")
+
+            time.sleep(poll_interval)
+
+        # Now poll the build status
+        if build_name:
+            self._poll_build_status(build_name, func_name, timeout)
+            return True
+
+        return False
+
+    def _wait_for_active_status(
+        self, func_name: str, expected_version: Optional[int] = None, timeout: int = 60
+    ) -> int:
+        """Wait for function to reach ACTIVE status after build completes.
+
+        After a build completes, the function may be in DEPLOY_IN_PROGRESS state
+        for a short time. This function polls until the status becomes ACTIVE.
+
+        Args:
+            func_name: Name of the function to check
+            expected_version: Optional version ID to verify (None to skip version check)
+            timeout: Maximum time to wait in seconds (default: 60)
+
+        Returns:
+            Current version ID of the function
+
+        Raises:
+            RuntimeError: If deployment fails or timeout is reached
+        """
+        full_func_name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+        begin = time.time()
+
+        self.logging.info(f"Waiting for function {func_name} to become ACTIVE...")
+
+        while True:
+            get_req = (
+                self.function_client.projects().locations().functions().get(name=full_func_name)
+            )
+            func_details = get_req.execute()
+
+            status = func_details["status"]
+            current_version = int(func_details["versionId"])
+
+            if status == "ACTIVE":
+                # Check version if specified
+                if expected_version is not None and current_version != expected_version:
+                    self.logging.warning(
+                        f"Function {func_name} is ACTIVE but version mismatch: "
+                        f"expected {expected_version}, got {current_version}"
+                    )
+                    # Continue waiting as version might still be updating
+                else:
+                    self.logging.info(f"Function {func_name} is ACTIVE (version {current_version})")
+                    return current_version
+            elif status == "DEPLOY_IN_PROGRESS":
+                self.logging.debug(f"Function {func_name} deployment in progress...")
+            else:
+                # Unexpected status
+                self.logging.error(f"Function {func_name} has unexpected status: {status}")
+                raise RuntimeError(f"Function {func_name} deployment failed with status: {status}")
+
+            if time.time() - begin > timeout:
+                raise RuntimeError(
+                    f"Timeout waiting for function {func_name} to become ACTIVE. "
+                    f"Current status: {status}"
+                )
+
+            time.sleep(2)
+
     def package_code(
         self,
         directory: str,
@@ -237,9 +422,18 @@ class GCP(System):
             Tuple of (archive_path, archive_size_bytes)
         """
 
+        if language == Language.CPP:
+            raise NotImplementedError("C++ packaging is not supported on GCP!")
+
+        """
+            While for Java we produce an archive alread (JAR),
+            we need to pack in a zip file as their build sysstem will unzip it
+            and complain that it finds classes, and not a JAR.
+        """
         CONFIG_FILES = {
             Language.PYTHON: ["handler.py", ".python_packages"],
             Language.NODEJS: ["handler.js", "node_modules"],
+            Language.JAVA: ["function.jar"],
         }
         HANDLER = {
             Language.PYTHON: ("handler.py", "main.py"),
@@ -254,10 +448,12 @@ class GCP(System):
                 shutil.move(file, function_dir)
 
         # rename handler function.py since in gcp it has to be caled main.py
-        old_name, new_name = HANDLER[language]
-        old_path = os.path.join(directory, old_name)
-        new_path = os.path.join(directory, new_name)
-        shutil.move(old_path, new_path)
+        old_path, new_path = None, None
+        if language in HANDLER:
+            old_name, new_name = HANDLER[language]
+            old_path = os.path.join(directory, old_name)
+            new_path = os.path.join(directory, new_name)
+            shutil.move(old_path, new_path)
 
         """
             zip the whole directory (the zip-file gets uploaded to gcp later)
@@ -279,7 +475,8 @@ class GCP(System):
         logging.info("Zip archive size {:2f} MB".format(mbytes))
 
         # rename the main.py back to handler.py
-        shutil.move(new_path, old_path)
+        if new_path is not None and old_path is not None:
+            shutil.move(new_path, old_path)
 
         return (
             os.path.join(directory, "{}.zip".format(benchmark)),
@@ -359,7 +556,11 @@ class GCP(System):
                     ),
                     body={
                         "name": full_func_name,
-                        "entryPoint": "handler",
+                        "entryPoint": (
+                            "org.serverlessbench.Handler"
+                            if code_package.language == Language.JAVA
+                            else "handler"
+                        ),
                         "runtime": code_package.language_name + language_runtime.replace(".", ""),
                         "availableMemoryMb": memory,
                         "timeout": str(timeout) + "s",
@@ -371,7 +572,17 @@ class GCP(System):
                 )
             )
             create_req.execute()
-            self.logging.info(f"Function {func_name} has been created!")
+            self.logging.info(
+                f"Function {func_name} is creating - GCP build&deployment is started!"
+            )
+
+            # Poll build status until completion or failure
+            build_found = self._wait_for_build_and_poll(func_name)
+            if not build_found:
+                raise RuntimeError(f"No build operation found for {func_name}!")
+
+            # Wait for deployment to become ACTIVE
+            self._wait_for_active_status(func_name)
 
             allow_unauthenticated_req = (
                 self.function_client.projects()
@@ -382,7 +593,10 @@ class GCP(System):
                     body={
                         "policy": {
                             "bindings": [
-                                {"role": "roles/cloudfunctions.invoker", "members": ["allUsers"]}
+                                {
+                                    "role": "roles/cloudfunctions.invoker",
+                                    "members": ["allUsers"],
+                                }
                             ]
                         }
                     },
@@ -458,26 +672,16 @@ class GCP(System):
 
         if trigger_type == Trigger.TriggerType.HTTP:
 
+            # Get the HTTPS trigger URL
             location = self.config.region
             project_name = self.config.project_name
             full_func_name = GCP.get_full_function_name(project_name, location, function.name)
-            self.logging.info(f"Function {function.name} - waiting for deployment...")
-            our_function_req = (
+            get_req = (
                 self.function_client.projects().locations().functions().get(name=full_func_name)
             )
-            deployed = False
-            begin = time.time()
-            while not deployed:
-                status_res = our_function_req.execute()
-                if status_res["status"] == "ACTIVE":
-                    deployed = True
-                else:
-                    time.sleep(3)
-                if time.time() - begin > 300:  # wait 5 minutes; TODO: make it configurable
-                    self.logging.error(f"Failed to deploy function: {function.name}")
-                    raise RuntimeError("Deployment timeout!")
-            self.logging.info(f"Function {function.name} - deployed!")
-            invoke_url = status_res["httpsTrigger"]["url"]
+            func_details = get_req.execute()
+            invoke_url = func_details["httpsTrigger"]["url"]
+            self.logging.info(f"Function {function.name} - HTTP trigger ready at {invoke_url}")
 
             trigger = HTTPTrigger(invoke_url)
         else:
@@ -562,7 +766,11 @@ class GCP(System):
                 name=full_func_name,
                 body={
                     "name": full_func_name,
-                    "entryPoint": "handler",
+                    "entryPoint": (
+                        "org.serverlessbench.Handler"
+                        if code_package.language == Language.JAVA
+                        else "handler"
+                    ),
                     "runtime": code_package.language_name + language_runtime.replace(".", ""),
                     "availableMemoryMb": function.config.memory,
                     "timeout": str(function.config.timeout) + "s",
@@ -573,23 +781,20 @@ class GCP(System):
             )
         )
         res = req.execute()
-        versionId = res["metadata"]["versionId"]
-        retries = 0
-        last_version = -1
-        while retries < 100:
-            is_deployed, last_version = self.is_deployed(function.name, versionId)
-            if not is_deployed:
-                time.sleep(5)
-                retries += 1
-            else:
-                break
-            if retries > 0 and retries % 10 == 0:
-                self.logging.info(f"Waiting for function deployment, {retries} retries.")
-        if retries == 100:
-            raise RuntimeError(
-                "Failed to publish new function code after 10 attempts. "
-                f"Version {versionId} has not been published, last version {last_version}."
+
+        self.logging.info(f"Function {function.name} code update initiated")
+
+        # Patch does not return buildName, need to wait for build to start
+        expected_version = int(res["metadata"]["versionId"])
+        build_found = self._wait_for_build_and_poll(function.name)
+        if not build_found:
+            self.logging.warning(
+                f"No build operation found for {function.name} - "
+                "this is unexpected for code updates"
             )
+
+        # Wait for deployment to become ACTIVE with expected version
+        self._wait_for_active_status(function.name, expected_version)
         self.logging.info("Published new function code and configuration.")
 
     def _update_envs(self, full_function_name: str, envs: Dict) -> Dict:
@@ -711,26 +916,16 @@ class GCP(System):
             )
 
         res = req.execute()
-        versionId = res["metadata"]["versionId"]
-        retries = 0
-        last_version = -1
-        while retries < 100:
-            is_deployed, last_version = self.is_deployed(function.name, versionId)
-            if not is_deployed:
-                time.sleep(5)
-                retries += 1
-            else:
-                break
-            if retries > 0 and retries % 10 == 0:
-                self.logging.info(f"Waiting for function deployment, {retries} retries.")
-        if retries == 100:
-            raise RuntimeError(
-                "Failed to publish new function code after 10 attempts. "
-                f"Version {versionId} has not been published, last version {last_version}."
-            )
+        expected_version = int(res["metadata"]["versionId"])
+
+        self.logging.info(f"Function {function.name} configuration update initiated")
+
+        # Wait for deployment to become ACTIVE with expected version
+        # Configuration updates don't trigger builds but still need deployment time
+        current_version = self._wait_for_active_status(function.name, expected_version, timeout=60)
         self.logging.info("Published new function configuration.")
 
-        return versionId
+        return current_version
 
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str) -> str:
@@ -755,7 +950,12 @@ class GCP(System):
         super().shutdown()
 
     def download_metrics(
-        self, function_name: str, start_time: int, end_time: int, requests: Dict, metrics: Dict
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict,
+        metrics: Dict,
     ) -> None:
         """Download execution metrics and logs from GCP monitoring services.
 
@@ -992,7 +1192,6 @@ class GCP(System):
         return functions
 
     def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
-
         """Check if a function is deployed and optionally verify its version.
         Args:
             func_name: Name of the function to check

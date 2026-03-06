@@ -50,6 +50,8 @@ benchmarks_python = [
 
 benchmarks_nodejs = ["010.sleep", "110.dynamic-html", "120.uploader", "210.thumbnailer"]
 
+benchmarks_java = ["010.sleep", "110.dynamic-html"]
+
 benchmarks_cpp = [
     "010.sleep",
     "210.thumbnailer",
@@ -310,10 +312,15 @@ class AWSTestSequencePython(
         deployment_name = "aws"
         assert cloud_config, "Cloud configuration is required"
 
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
         # Create a log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
-            cloud_config,
+            config_copy,
             logging_filename=os.path.join(self.client.output_dir, f),
         )
 
@@ -359,10 +366,15 @@ class AWSTestSequenceNodejs(
         deployment_name = "aws"
         assert cloud_config, "Cloud configuration is required"
 
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
         # Create a log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
-            cloud_config,
+            config_copy,
             logging_filename=os.path.join(self.client.output_dir, f),
         )
 
@@ -400,12 +412,68 @@ class AWSTestSequenceCpp(
         deployment_name = "aws"
         assert cloud_config, "Cloud configuration is required"
 
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
-            cloud_config,
+            config_copy,
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with AWSTestSequenceCpp.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class AWSTestSequenceJava(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_java,
+    architectures=architectures_aws,
+    deployments=deployments_aws,
+    deployment_name="aws",
+    triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
+):
+    """Test suite for Java benchmarks on AWS Lambda.
+
+    Attributes:
+        benchmarks: List of Java benchmarks to test
+        architectures: List of AWS architectures to test (x64, arm64)
+        deployments: List of deployment types to test (package, container)
+        deployment_name: Cloud provider name ("aws")
+        triggers: List of trigger types to test (LIBRARY, HTTP)
+    """
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get an AWS deployment client for the specified configuration.
+
+        Args:
+            benchmark_name: Name of the benchmark to deploy
+            architecture: Architecture to deploy on (x64, arm64)
+            deployment_type: Deployment type (package, container)
+
+        Returns:
+            An initialized AWS deployment client
+
+        Raises:
+            AssertionError: If cloud_config is not set
+        """
+        deployment_name = "aws"
+        assert cloud_config, "Cloud configuration is required"
+
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+        with AWSTestSequenceJava.lock:
             deployment_client.initialize(resource_prefix="regr")
         return deployment_client
 
@@ -468,11 +536,16 @@ class AzureTestSequencePython(
                     self.client.config, self.client.docker_client
                 )
 
+            # Create a copy of the config and set architecture and deployment type
+            config_copy = copy.deepcopy(cloud_config)
+            config_copy["experiments"]["architecture"] = architecture
+            config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
             # Create log file name and get deployment client
             f = f"regression_{deployment_name}_{benchmark_name}_"
             f += f"{architecture}_{deployment_type}.log"
             deployment_client = self.client.get_deployment(
-                cloud_config,
+                config_copy,
                 logging_filename=os.path.join(self.client.output_dir, f),
                 deployment_config=AzureTestSequencePython.cfg,
             )
@@ -540,17 +613,94 @@ class AzureTestSequenceNodejs(
                     self.client.config, self.client.docker_client
                 )
 
+            # Create a copy of the config and set architecture and deployment type
+            config_copy = copy.deepcopy(cloud_config)
+            config_copy["experiments"]["architecture"] = architecture
+            config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
             # Create log file name and get deployment client
             f = f"regression_{deployment_name}_{benchmark_name}_"
             f += f"{architecture}_{deployment_type}.log"
             deployment_client = self.client.get_deployment(
-                cloud_config,
+                config_copy,
                 logging_filename=os.path.join(self.client.output_dir, f),
                 deployment_config=AzureTestSequenceNodejs.cfg,
             )
 
             # Initialize CLI and setup resources (no login needed - reuses Python session)
             deployment_client.system_resources.initialize_cli(cli=AzureTestSequenceNodejs.cli)
+            deployment_client.initialize(resource_prefix="regr")
+            return deployment_client
+
+
+class AzureTestSequenceJava(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_java,
+    architectures=architectures_azure,
+    deployments=deployments_azure,
+    deployment_name="azure",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Java benchmarks on Azure Functions.
+
+    Attributes:
+        benchmarks: List of Java benchmarks to test
+        architectures: List of Azure architectures to test (x64)
+        deployments: List of deployment types to test (package)
+        deployment_name: Cloud provider name ("azure")
+        triggers: List of trigger types to test (HTTP)
+    """
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get an Azure deployment client for the specified configuration.
+
+        Args:
+            benchmark_name: Name of the benchmark to deploy
+            architecture: Architecture to deploy on (x64)
+            deployment_type: Deployment type (package)
+
+        Returns:
+            An initialized Azure deployment client
+
+        Raises:
+            AssertionError: If cloud_config is not set
+        """
+        deployment_name = "azure"
+        assert cloud_config, "Cloud configuration is required"
+
+        with AzureTestSequenceJava.lock:
+            # Cache the deployment configuration for reuse across tests
+            if not AzureTestSequenceJava.cfg:
+                AzureTestSequenceJava.cfg = self.client.get_deployment_config(
+                    cloud_config["deployment"],
+                    logging_filename=f"regression_{deployment_name}_{benchmark_name}.log",
+                )
+
+            # Initialize Azure CLI if not already done
+            needs_login = False
+            if not hasattr(AzureTestSequenceJava, "cli"):
+                AzureTestSequenceJava.cli = AzureCLI(self.client.config, self.client.docker_client)
+                needs_login = True
+
+            # Create a copy of the config and set architecture and deployment type
+            config_copy = copy.deepcopy(cloud_config)
+            config_copy["experiments"]["architecture"] = architecture
+            config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
+            # Create log file name and get deployment client
+            f = f"regression_{deployment_name}_{benchmark_name}_"
+            f += f"{architecture}_{deployment_type}.log"
+            deployment_client = self.client.get_deployment(
+                config_copy,
+                logging_filename=os.path.join(self.client.output_dir, f),
+                deployment_config=AzureTestSequenceJava.cfg,
+            )
+
+            # Initialize CLI and setup resources (no login needed - reuses previous session)
+            deployment_client.system_resources.initialize_cli(
+                cli=AzureTestSequenceJava.cli, login=needs_login
+            )
             deployment_client.initialize(resource_prefix="regr")
             return deployment_client
 
@@ -591,10 +741,15 @@ class GCPTestSequencePython(
         deployment_name = "gcp"
         assert cloud_config, "Cloud configuration is required"
 
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
-            cloud_config,
+            config_copy,
             logging_filename=os.path.join(self.client.output_dir, f),
         )
 
@@ -640,15 +795,74 @@ class GCPTestSequenceNodejs(
         deployment_name = "gcp"
         assert cloud_config, "Cloud configuration is required"
 
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
-            cloud_config,
+            config_copy,
             logging_filename=os.path.join(self.client.output_dir, f),
         )
 
         # Synchronize resource initialization with a lock
         with GCPTestSequenceNodejs.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class GCPTestSequenceJava(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_java,
+    architectures=architectures_gcp,
+    deployments=deployments_gcp,
+    deployment_name="gcp",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Java benchmarks on Google Cloud Functions.
+
+    Attributes:
+        benchmarks: List of Java benchmarks to test
+        architectures: List of GCP architectures to test (x64)
+        deployments: List of deployment types to test (package)
+        deployment_name: Cloud provider name ("gcp")
+        triggers: List of trigger types to test (HTTP)
+    """
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get a GCP deployment client for the specified configuration.
+
+        Args:
+            benchmark_name: Name of the benchmark to deploy
+            architecture: Architecture to deploy on (x64)
+            deployment_type: Deployment type (package)
+
+        Returns:
+            An initialized Google Cloud Functions deployment client
+
+        Raises:
+            AssertionError: If cloud_config is not set
+        """
+        deployment_name = "gcp"
+        assert cloud_config, "Cloud configuration is required"
+
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
+        # Create log file name based on test parameters
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        # Synchronize resource initialization with a lock
+        with GCPTestSequenceJava.lock:
             deployment_client.initialize(resource_prefix="regr")
         return deployment_client
 
@@ -696,8 +910,8 @@ class OpenWhiskTestSequencePython(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-
         config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
@@ -752,7 +966,7 @@ class OpenWhiskTestSequenceNodejs(
         assert cloud_config, "Cloud configuration is required"
 
         # Create a copy of the config and set architecture and deployment type
-        config_copy = cloud_config.copy()
+        config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
         config_copy["experiments"]["container_deployment"] = deployment_type == "container"
 
@@ -765,6 +979,60 @@ class OpenWhiskTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequenceNodejs.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class OpenWhiskTestSequenceJava(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_java,
+    architectures=architectures_openwhisk,
+    deployments=deployments_openwhisk,
+    deployment_name="openwhisk",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Java benchmarks on OpenWhisk.
+
+    Attributes:
+        benchmarks: List of Java benchmarks to test
+        architectures: List of OpenWhisk architectures to test (x64)
+        deployments: List of deployment types to test (container)
+        deployment_name: Cloud provider name ("openwhisk")
+        triggers: List of trigger types to test (HTTP)
+    """
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get an OpenWhisk deployment client for the specified configuration.
+
+        Args:
+            benchmark_name: Name of the benchmark to deploy
+            architecture: Architecture to deploy on (x64)
+            deployment_type: Deployment type (container)
+
+        Returns:
+            An initialized OpenWhisk deployment client
+
+        Raises:
+            AssertionError: If cloud_config is not set
+        """
+        deployment_name = "openwhisk"
+        assert cloud_config, "Cloud configuration is required"
+
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+
+        # Create log file name based on test parameters
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        # Synchronize resource initialization with a lock
+        with OpenWhiskTestSequenceJava.lock:
             deployment_client.initialize(resource_prefix="regr")
         return deployment_client
 
@@ -932,6 +1200,8 @@ def regression_suite(
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequencePython))
         elif language == "nodejs":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceNodejs))
+        elif language == "java":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceJava))
         elif language == "cpp":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceCpp))
     # Add GCP tests if requested
@@ -943,6 +1213,8 @@ def regression_suite(
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequencePython))
         elif language == "nodejs":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceNodejs))
+        elif language == "java":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceJava))
 
     # Add Azure tests if requested
     if "azure" in providers:
@@ -953,6 +1225,8 @@ def regression_suite(
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequencePython))
         elif language == "nodejs":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceNodejs))
+        elif language == "java":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceJava))
 
     # Add OpenWhisk tests if requested
     if "openwhisk" in providers:
@@ -966,6 +1240,10 @@ def regression_suite(
         elif language == "nodejs":
             suite.addTest(
                 unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequenceNodejs)
+            )
+        elif language == "java":
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequenceJava)
             )
 
     # Prepare the list of tests to run
@@ -1022,6 +1300,8 @@ def regression_suite(
         AzureTestSequenceNodejs.cli.shutdown()
     if hasattr(AzureTestSequencePython, "cli"):
         AzureTestSequencePython.cli.shutdown()
+    if hasattr(AzureTestSequenceJava, "cli"):
+        AzureTestSequenceJava.cli.shutdown()
 
     # Return True if any test failed
     return not result.all_correct

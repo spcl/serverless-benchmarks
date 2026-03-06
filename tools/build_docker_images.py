@@ -15,9 +15,14 @@ parser.add_argument(
     choices=["local", "aws", "azure", "gcp"],
     action="store",
 )
+parser.add_argument(
+    "--platform",
+    default=None,
+    help="Optional Docker platform (e.g., linux/amd64) to override host architecture.",
+)
 parser.add_argument("--type", default=None, choices=["build", "dependencies", "run", "manage"], action="store")
 parser.add_argument("--type-tag", default=None, type=str, action="store")
-parser.add_argument("--language", default=None, choices=["python", "nodejs", "cpp"], action="store")
+parser.add_argument("--language", default=None, choices=["python", "nodejs", "cpp", "java"], action="store")
 parser.add_argument("--language-version", default=None, type=str, action="store")
 parser.add_argument("--parallel", default=1, type=int, action="store")
 args = parser.parse_args()
@@ -61,9 +66,15 @@ def build(image_type, system, language=None, version=None, version_name=None):
             target, PROJECT_DIR, dockerfile, buildargs
         )
     )
+    platform_arg = args.platform or os.environ.get("DOCKER_DEFAULT_PLATFORM")
+
     try:
         client.images.build(
-            path=PROJECT_DIR, dockerfile=dockerfile, buildargs=buildargs, tag=target
+            path=PROJECT_DIR,
+            dockerfile=dockerfile,
+            buildargs=buildargs,
+            tag=target,
+            platform=platform_arg,
         )
     except docker.errors.BuildError as exc:
         print("Error! Build failed!")

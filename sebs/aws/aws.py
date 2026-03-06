@@ -218,6 +218,20 @@ class AWS(System):
             - Size of the package in bytes
         """
 
+        if language == Language.JAVA:
+            jar_path = os.path.join(directory, "target", "function.jar")
+            bytes_size = os.path.getsize(jar_path)
+            mbytes = bytes_size / 1024.0 / 1024.0
+            if not os.path.exists(jar_path):
+                raise RuntimeError(
+                    f"Java artifact {jar_path} missing. Ensure Java build produced the jar."
+                )
+
+            self.logging.info(f"Created {jar_path} archive")
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+            return (jar_path, bytes_size)
+
         CONFIG_FILES = {
             Language.PYTHON: ["handler.py", "requirements.txt", ".python_packages"],
             Language.NODEJS: ["handler.js", "package.json", "node_modules"],
@@ -237,6 +251,7 @@ class AWS(System):
             # create zip with hidden directory but without parent directory
             execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
             benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+
             self.logging.info("Created {} archive".format(benchmark_archive))
 
             bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
@@ -289,6 +304,8 @@ class AWS(System):
             return f"{language}{language_version}.x"
         elif language == Language.CPP:
             return "provided.al2023"
+        elif language == Language.JAVA:
+            return f"{language}{language_version}"
         elif language in [Language.PYTHON]:
             return f"{language}{language_version}"
         else:
@@ -388,7 +405,10 @@ class AWS(System):
                     }
 
                 create_function_params["Runtime"] = self.cloud_runtime(language, language_runtime)
-                create_function_params["Handler"] = "handler.handler"
+                if language == Language.JAVA:
+                    create_function_params["Handler"] = "org.serverlessbench.Handler::handleRequest"
+                else:
+                    create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {
                 k: v for k, v in create_function_params.items() if v is not None

@@ -70,6 +70,7 @@ class Language(str, Enum):
     PYTHON = "python"
     NODEJS = "nodejs"
     CPP = "cpp"
+    JAVA = "java"
 
     @staticmethod
     def deserialize(val: str) -> Language:

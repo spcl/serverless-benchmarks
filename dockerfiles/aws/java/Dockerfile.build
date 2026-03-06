@@ -1,0 +1,27 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG VERSION
+ENV JAVA_VERSION=${VERSION}
+
+# useradd, groupmod, build tooling
+RUN yum install -y shadow-utils unzip tar gzip zip
+# Install Maven 3.x (maven package may be old, install from Apache directly)
+RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz | tar -xz -C /opt && \
+    ln -s /opt/apache-maven-3.9.6 /opt/maven && \
+    ln -s /opt/maven/bin/mvn /usr/local/bin/mvn
+ENV PATH=/opt/maven/bin:$PATH
+ENV GOSU_VERSION 1.14
+# https://github.com/tianon/gosu/releases/tag/1.14
+# key https://keys.openpgp.org/search?q=tianon%40debian.org
+RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-amd64" \
+    && chmod +x /usr/local/bin/gosu
+RUN mkdir -p /sebs/
+COPY dockerfiles/java_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/entrypoint.sh /sebs/installer.sh
+
+# useradd and groupmod is installed in /usr/sbin which is not in PATH
+ENV PATH=/usr/sbin:$PATH
+ENV SCRIPT_FILE=/mnt/function/package.sh
+CMD /bin/bash /sebs/installer.sh
+ENTRYPOINT ["/sebs/entrypoint.sh"]
