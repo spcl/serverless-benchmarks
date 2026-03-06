@@ -463,17 +463,51 @@ class LoggingBase:
 
 def has_platform(name: str) -> bool:
     """
-    Check if a specific platform is enabled via environment variable.
+    Check if a specific platform is available.
 
-    Looks for SEBS_WITH_{name} environment variable set to 'true'.
+    Since all platform dependencies are now installed by default (both in
+    package mode and when using pip install -e .), this function checks if
+    the required dependencies for each platform can be imported.
+
+    For backward compatibility with git clone mode using ./install.py script,
+    also checks SEBS_WITH_{name} environment variables.
 
     Args:
-        name: Platform name to check
+        name: Platform name to check (aws, azure, gcp, openwhisk, local)
 
     Returns:
-        bool: True if platform is enabled, False otherwise
+        bool: True if platform dependencies are available, False otherwise
     """
-    return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "true"
+    # First check environment variable (for backward compatibility with install.py)
+    env_var = os.environ.get(f"SEBS_WITH_{name.upper()}", "").lower()
+    if env_var == "true":
+        return True
+    if env_var == "false":
+        return False
+
+    # If env var not set, check if required dependencies can be imported
+    # This handles both package install and editable install cases
+    try:
+        if name == "aws":
+            import boto3  # noqa: F401
+            return True
+        elif name == "azure":
+            import azure.storage.blob  # noqa: F401
+            import azure.cosmos  # noqa: F401
+            return True
+        elif name == "gcp":
+            import google.cloud.storage  # noqa: F401
+            return True
+        elif name == "local":
+            import minio  # noqa: F401
+            return True
+        elif name == "openwhisk":
+            # OpenWhisk doesn't have specific dependencies
+            return True
+        else:
+            return False
+    except ImportError:
+        return False
 
 
 def is_linux() -> bool:
