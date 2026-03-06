@@ -12,76 +12,82 @@ SeBS (Serverless Benchmark Suite) is a FaaS benchmarking suite that automaticall
 
 #### Package Install (Recommended for Users)
 ```bash
-# Install from PyPI with support for specific platforms
-pip install serverless-benchmarks[aws]
-pip install serverless-benchmarks[aws,azure,gcp]
-pip install serverless-benchmarks[all]
+# Install from PyPI - includes all platform dependencies by default
+pip install serverless-benchmarks
 
 # Use sebs command
 sebs --help
+
+# Note: All platform dependencies (AWS, Azure, GCP, local) are installed by default.
+# Legacy extras like [aws], [azure], [gcp], [all] are still accepted but have no effect.
 ```
 
 #### Development Install (Git Clone)
 ```bash
-# Install with support for specific platforms
+# Option 1: Editable install (recommended) - installs all dependencies
+pip install -e .
+sebs --help
+
+# Option 2: Legacy install.py script - selective platform installation
 ./install.py --aws --azure --gcp --openwhisk --local
-
-# Install only local environment (default)
-./install.py
-
-# Activate virtual environment (required before using SeBS)
 . python-venv/bin/activate
-
-# Use python sebs.py or sebs command
 python sebs.py --help
+
+# Note: With editable install, all platform dependencies are installed by default.
+# The install.py script is maintained for backward compatibility and selective installs.
 ```
 
 #### Editable Install (Contributors)
 ```bash
-pip install -e .[dev,aws,azure,gcp,local]
+# All platform dependencies installed by default
+pip install -e .
+
+# With development tools (linting, type checking, etc.)
+pip install -e .[dev]
+
 sebs --help
 ```
 
 ### Running Benchmarks
 ```bash
 # Invoke a single benchmark
-./sebs.py benchmark invoke <benchmark-name> <input-size> --config config/example.json --deployment <platform> [--verbose]
+./sebs.py benchmark invoke <benchmark-name> <input-size> --config configs/example.json --deployment <platform> [--verbose]
 
 # Example: Run dynamic-html on AWS with test input
-./sebs.py benchmark invoke 110.dynamic-html test --config config/example.json --deployment aws --verbose
+./sebs.py benchmark invoke 110.dynamic-html test --config configs/example.json --deployment aws --verbose
 
 # Force code/storage updates
-./sebs.py benchmark invoke <benchmark-name> <input-size> --config config/example.json --deployment <platform> --update-code --update-storage
+./sebs.py benchmark invoke <benchmark-name> <input-size> --config configs/example.json --deployment <platform> --update-code --update-storage
 ```
 
 ### Regression Testing
 ```bash
 # Run all benchmarks on a platform
-./sebs.py benchmark regression test --config config/example.json --deployment <platform>
+./sebs.py benchmark regression test --config configs/example.json --deployment <platform>
 
 # Run regression on single benchmark
-./sebs.py benchmark regression test --config config/example.json --deployment aws --benchmark-name 120.uploader
+./sebs.py benchmark regression test --config configs/example.json --deployment aws --benchmark-name 120.uploader
 ```
 
 ### Experiments
 ```bash
 # Run an experiment (e.g., perf-cost)
-./sebs.py experiment invoke <experiment-name> --config config/example.json --deployment <platform>
+./sebs.py experiment invoke <experiment-name> --config configs/example.json --deployment <platform>
 
 # Process experiment results to get cloud metrics
-./sebs.py experiment process <experiment-name> --config config/example.json --deployment <platform>
+./sebs.py experiment process <experiment-name> --config configs/example.json --deployment <platform>
 ```
 
 ### Local Deployment
 ```bash
 # Start storage instance
-./sebs.py storage start all config/storage.json --output-json out_storage.json
+./sebs.py storage start all configs/storage.json --output-json out_storage.json
 
 # Merge storage config with deployment config
-jq '.deployment.local.storage = input' config/example.json out_storage.json > config/local_deployment.json
+jq '.deployment.local.storage = input' configs/example.json out_storage.json > configs/local_deployment.json
 
 # Start local containers
-./sebs.py local start <benchmark-name> <input-size> out_benchmark.json --config config/local_deployment.json --deployments 1 --remove-containers --architecture=x64
+./sebs.py local start <benchmark-name> <input-size> out_benchmark.json --config configs/local_deployment.json --deployments 1 --remove-containers --architecture=x64
 
 # Invoke local function with curl
 curl $(jq -rc ".functions[0].url" out_benchmark.json) \
@@ -234,11 +240,13 @@ Each benchmark contains:
 
 ## Configuration Notes
 
-- Main config: `config/example.json`
+- Main config: `configs/example.json`
 - Credentials can be provided via environment variables or JSON config
 - **Never commit credentials to version control** - SeBS erases credentials when saving results
 - Platform-specific environment variables: `AWS_ACCESS_KEY_ID`, `AZURE_SECRET_APPLICATION_ID`, etc.
-- Installation sets `SEBS_WITH_{PLATFORM}` environment variables in venv activation script
+- Platform detection:
+  - Package/editable install: Automatic detection via dependency imports (all platforms available by default)
+  - Git clone with install.py: Uses `SEBS_WITH_{PLATFORM}` environment variables in venv activation script
 
 ## Adding New Components
 
@@ -284,11 +292,16 @@ Rebuild all images: `tools/build_docker_images.py`
 SeBS is designed to work in both **package install** (PyPI) and **git clone** modes:
 
 ### Package Structure
-- **sebs/** - Main package code
+- **sebs/** - Main package code (including `sebs/config.py` module with `SeBSConfig` class)
 - **benchmarks/** - Benchmark implementations (mapped to `sebs.benchmarks` in package)
 - **dockerfiles/** - Dockerfile templates (mapped to `sebs.dockerfiles` in package)
-- **config/** - Configuration files (mapped to `sebs.config` in package)
+- **configs/** - Configuration JSON files (mapped to `sebs.configs` in package)
 - **tools/** - Utility scripts (mapped to `sebs.tools` in package)
+
+### Dependency Management
+- **All platform dependencies installed by default**: AWS (boto3), Azure (azure-storage-blob, azure-cosmos), GCP (google-cloud-*), and local (minio) dependencies are included in the base installation
+- **Legacy extras**: `[aws]`, `[azure]`, `[gcp]`, `[local]`, `[all]` extras are maintained for backward compatibility but are now empty (all dependencies in base install)
+- **Development extras**: `[dev]` includes linting, type checking, and testing tools
 
 ### Resource Manager
 The `sebs/resource_manager.py` module handles path resolution for both modes:
@@ -308,6 +321,18 @@ The `sebs/resource_manager.py` module handles path resolution for both modes:
 - `get_benchmarks_data_path()` - Get path to benchmarks-data directory
 - `ensure_benchmarks_data()` - Clone benchmarks-data if missing
 - `get_cache_dir(use_regression)` - Get cache directory path
+
+### Platform Detection (`has_platform`)
+The `sebs.utils.has_platform(name)` function detects platform availability:
+- **Environment variable check**: First checks `SEBS_WITH_{PLATFORM}` env var (for install.py compatibility)
+- **Import check**: If env var not set, tries to import platform dependencies
+- **Returns**: `True` if platform is available, `False` otherwise
+
+This works across all installation modes:
+- Package install: Detects via imports (all platforms available by default)
+- Editable install: Detects via imports (all platforms available by default)
+- Git clone with install.py: Uses environment variables
+- Git clone without install.py: Detects via imports
 
 ### CLI Entry Points
 - **Package install:** `sebs` command (from pyproject.toml entry_points)
