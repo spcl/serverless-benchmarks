@@ -5,27 +5,19 @@
     "update_storage": false,
     "download_results": false,
     "architecture": "x64",
-    "container_deployment": true,
+    "container_deployment": false,
     "runtime": {
-      "language": "cpp",
-      "version": "all"
+        "language": "java",
+        "version": "11"
     },
     "type": "invocation-overhead",
     "perf-cost": {
       "benchmark": "110.dynamic-html",
-      "experiments": [
-        "cold",
-        "warm",
-        "burst",
-        "sequential"
-      ],
+      "experiments": ["cold", "warm", "burst", "sequential"],
       "input-size": "test",
       "repetitions": 50,
       "concurrent-invocations": 50,
-      "memory-sizes": [
-        128,
-        256
-      ]
+      "memory-sizes": [128, 256]
     },
     "network-ping-pong": {
       "invocations": 50,
