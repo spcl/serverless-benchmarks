@@ -678,8 +678,10 @@ class AzureTestSequenceJava(
                 )
 
             # Initialize Azure CLI if not already done
+            needs_login = False
             if not hasattr(AzureTestSequenceJava, "cli"):
                 AzureTestSequenceJava.cli = AzureCLI(self.client.config, self.client.docker_client)
+                needs_login = True
 
             # Create a copy of the config and set architecture and deployment type
             config_copy = copy.deepcopy(cloud_config)
@@ -696,7 +698,9 @@ class AzureTestSequenceJava(
             )
 
             # Initialize CLI and setup resources (no login needed - reuses previous session)
-            deployment_client.system_resources.initialize_cli(cli=AzureTestSequenceJava.cli)
+            deployment_client.system_resources.initialize_cli(
+                cli=AzureTestSequenceJava.cli, login=needs_login
+            )
             deployment_client.initialize(resource_prefix="regr")
             return deployment_client
 
