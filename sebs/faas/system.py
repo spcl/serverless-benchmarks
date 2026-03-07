@@ -371,10 +371,19 @@ class System(ABC, LoggingBase):
 
     def build_function(self, code_package: Benchmark, func_name: Optional[str] = None):
 
+        """Create a build deployment of the selected function.
+
+        Args:
+            code_package: seleted benchmark
+            func_name: user-specified function name
+
+        Raises:
+            RuntimeError: unsupported language version for the platform
+        """
         if code_package.language_version not in self.system_config.supported_language_versions(
-            self.name(), code_package.language_name
+            self.name(), code_package.language_name, code_package.architecture
         ):
-            raise Exception(
+            raise RuntimeError(
                 "Unsupported {language} version {version} in {system}!".format(
                     language=code_package.language_name,
                     version=code_package.language_version,
@@ -384,7 +393,15 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
-        code_package.build(self.package_code)
+        _, code_package_loc, container_deployment, container_uri = code_package.build(
+            self.package_code, self.container_client, self.finalize_container_build()
+        )
+        if code_package_loc is not None:
+            self.logging.info(f"Built code package for function {func_name} at {code_package_loc}")
+        if container_deployment:
+            self.logging.info(
+                f"Built container deployment for function {func_name}: {container_uri}"
+            )
 
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
         """
