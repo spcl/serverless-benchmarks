@@ -465,6 +465,8 @@ class Cache(LoggingBase):
                     # don't store absolute path to avoid problems with moving cache dir
                     relative_cached_loc = os.path.relpath(cached_location, self.cache_dir)
                     language_config["location"] = relative_cached_loc
+
+                    self.logging.info(f"Updating cached code package {cached_location}")
                 else:
                     self.logging.info(f"Caching container pushed to: {code_package.container_uri}")
 
@@ -528,7 +530,6 @@ class Cache(LoggingBase):
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
 
-                self.logging.info(f"Updating cached code package {cached_location}")
             else:
                 # TODO: update
                 raise RuntimeError(
@@ -625,6 +626,8 @@ class Cache(LoggingBase):
                         cached_location = os.path.join(cached_dir, package_name)
                         if code_package.code_location != cached_location:
                             shutil.copy2(code_package.code_location, cached_dir)
+
+                    self.logging.info(f"Updated cached code package {cached_location}")
                 else:
                     self.logging.info(f"Caching container pushed to: {code_package.container_uri}")
 
@@ -641,7 +644,6 @@ class Cache(LoggingBase):
 
                 with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                     json.dump(config, fp, indent=2)
-                self.logging.info(f"Updated cached code package {cached_location}")
             else:
                 self.add_code_package(deployment_name, code_package)
 
