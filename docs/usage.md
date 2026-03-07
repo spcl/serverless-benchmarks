@@ -12,6 +12,20 @@ to a new cloud region, then use a new cache directory.
 
 ## Benchmark
 
+### Package
+
+If you want to simply build a function deployment, such as a full code package or a container,
+then use the command below.
+
+```
+./sebs.py benchmark build 110.dynamic-html --config config/example.json --deployment aws
+```
+
+It will create a code package (local) or build and push a container, when `--container-deployment` flag is used (AWS only).
+The resulting deployemnt can be inspect and used for deployment and invocations on unsupported platforms.
+
+### Invoke
+
 This command builds, deploys, and executes serverless benchmarks in the cloud.
 The example below invokes the benchmark `110.dynamic-html` on AWS via the standard HTTP trigger.
 
@@ -19,8 +33,27 @@ The example below invokes the benchmark `110.dynamic-html` on AWS via the standa
 ./sebs.py benchmark invoke 110.dynamic-html test --config config/example.json --deployment aws --verbose
 ```
 
+The results will be stored in `experiment.json`.
 To configure your benchmark, change settings in the config file or use command-line options.
 The full list is available by running `./sebs.py benchmark invoke --help`.
+
+### Process
+
+To download cloud metrics and process the invocations, run:
+
+```
+./sebs.py benchmark process --output-dir results
+```
+
+This will read invocations from `experiment.json` and write the processed data to `results.json`.
+
+### Statistics
+
+To summarize executions, run:
+
+```
+./sebs.py benchmark statistics results.json 
+```
 
 ## Regression
 
