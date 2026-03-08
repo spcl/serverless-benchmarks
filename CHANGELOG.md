@@ -84,8 +84,9 @@
 ### Deprecations
 
 * Python 3.6 no longer supported on all platforms
+* Azure: Python 3.7 and 3.8 no longer supported.
 * Node.js 8, 10, 12 deprecated on various platforms
-* Older runtime versions phased out across AWS, Azure, and GCP.
+* Older runtime versions phased out on Azure.
 
 ### Contributors
 
