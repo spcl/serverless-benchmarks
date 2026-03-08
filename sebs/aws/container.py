@@ -152,7 +152,7 @@ class ECRContainer(DockerContainer):
 
             # this is incredible. unfixed bug since 2019
             # https://github.com/docker/docker-py/issues/2256#issuecomment-2949115420
-            self.docker_client.api._auth_configs = auth.load_config(
+            self.docker_client.api._auth_configs = auth.load_config(  # type: ignore
                 config_dict=dict(auths={registry_url: {"auth": password}})
             )
 

@@ -126,7 +126,7 @@ class DockerContainer(LoggingBase):
             except docker.errors.NotFound:
                 return False
 
-    def push_image(self, repository_uri, image_tag):
+    def push_image(self, repository_uri: str, image_tag: str):
         """Push a Docker image to a container registry.
 
         Delegates to the static method in DockerImageBuilder for consistent
