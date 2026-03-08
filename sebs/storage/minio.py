@@ -168,7 +168,7 @@ class Minio(PersistentStorage):
                 command="server /data",
                 network_mode="bridge",
                 user=os.getuid(),
-                ports={"9000": str(self._cfg.mapped_port)},
+                ports={"9000": self._cfg.mapped_port},
                 environment={
                     "MINIO_ACCESS_KEY": self._cfg.access_key,
                     "MINIO_SECRET_KEY": self._cfg.secret_key,
@@ -179,6 +179,7 @@ class Minio(PersistentStorage):
                 stderr=True,
                 detach=True,
             )
+            assert self._storage_container.id is not None
             self._cfg.instance_id = self._storage_container.id
             self.configure_connection()
         except docker.errors.APIError as e:

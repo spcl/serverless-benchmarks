@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 import docker
 from docker.errors import BuildError, DockerException
-from rich.progress import Progress
+from rich.progress import Progress, TaskID
 
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingBase
@@ -271,7 +271,7 @@ class DockerImageBuilder(LoggingBase):
             parallel: Number of parallel workers, default 1
         """
         # Maps to language_version and Docker base image for that version
-        configs: List[Tuple[str, str]] = []
+        configs: List[Tuple[str | None, str | None]] = []
         if "base_images" in language_config:
             arch_key = architecture if architecture in language_config["base_images"] else "x64"
             if arch_key not in language_config["base_images"]:
@@ -283,9 +283,9 @@ class DockerImageBuilder(LoggingBase):
             for version, base_image in language_config["base_images"][arch_key].items():
                 if language_version is not None and language_version != version:
                     continue
-                configs.append([version, base_image])
+                configs.append((version, base_image))
         else:
-            configs.append([None, None])
+            configs.append((None, None))
 
         for image_config in configs:
             # Image_type None -> we process all types (build, run)
@@ -571,7 +571,7 @@ class DockerImageBuilder(LoggingBase):
         )
 
     @staticmethod
-    def show_progress(txt: str, progress: Progress, layer_tasks: dict):
+    def show_progress(txt: str, progress: Progress, layer_tasks: Dict[str, TaskID]):
         """Update progress display for Docker operations.
 
         Parses Docker API output and updates the rich progress display for
@@ -645,7 +645,7 @@ class DockerImageBuilder(LoggingBase):
         """
         try:
             if not disable_rich_output:
-                layer_tasks = {}
+                layer_tasks: Dict[str, TaskID] = {}
                 with Progress() as progress:
                     logger.info(f"Pushing image {image_tag} to {repository_uri}")
                     ret = docker_client.images.push(

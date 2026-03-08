@@ -1176,7 +1176,7 @@ class Benchmark(LoggingBase):
                             self.logging.info("Docker build: {}".format(line))
                 except docker.errors.ContainerError as e:
                     self.logging.error("Package build failed!")
-                    self.logging.error(f"Stderr: {e.stderr.decode()}")
+                    self.logging.error(f"Stderr: {e.stderr}")
                     self.logging.error(f"Docker mount volumes: {volumes}")
                     raise e from None
 
