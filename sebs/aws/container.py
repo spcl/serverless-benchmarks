@@ -147,7 +147,18 @@ class ECRContainer(DockerContainer):
         )
 
         try:
-            self.docker_client.login(username=username, password=password, registry=registry_url)
+
+            from docker import auth
+
+            # this is incredible. unfixed bug since 2019
+            # https://github.com/docker/docker-py/issues/2256#issuecomment-2949115420
+            self.docker_client.api._auth_configs = auth.load_config(
+                config_dict=dict(auths={registry_url: {"auth": password}})
+            )
+
+            self.docker_client.login(
+                username=username, password=password, registry=registry_url, reauth=True
+            )
             super().push_image(repository_uri, image_tag)
             self.logging.info(f"Successfully pushed the image to registry {repository_uri}.")
         except docker.errors.APIError as e:
