@@ -316,7 +316,7 @@ class PerfCost(Experiment):
                     samples_generated += invocations
                     if first_iteration:
                         self.logging.info(
-                            f"Processed {samples_gathered} warm-up samples, ignoring these results."
+                            f"Processed {invocations} warm-up samples, ignoring these results."
                         )
                     else:
                         self.logging.info(
