@@ -10,6 +10,7 @@ import traceback
 from typing import cast, List, Optional
 
 import click
+import docker
 
 import sebs
 from sebs import SeBS
@@ -814,6 +815,148 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
             )
     else:
         raise NotImplementedError(f"Resource {resource} not supported.")
+
+
+@cli.group()
+def docker_cmd():
+    """Docker image management commands."""
+    pass
+
+
+@docker_cmd.command("build")
+@click.option(
+    "--deployment",
+    default=None,
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    help="Deployment platform to build images for",
+)
+@click.option(
+    "--image-type",
+    default=None,
+    type=click.Choice(["build", "dependencies", "run", "manage"]),
+    help="Type of Docker image to build",
+)
+@click.option(
+    "--language",
+    default=None,
+    type=click.Choice(["python", "nodejs", "java", "cpp"]),
+    help="Programming language",
+)
+@click.option("--language-version", default=None, type=str, help="Language version")
+@click.option(
+    "--architecture",
+    default="x64",
+    type=click.Choice(["x64", "arm64"]),
+    help="Target architecture",
+)
+@click.option(
+    "--platform",
+    default=None,
+    type=str,
+    help="Optional Docker platform (e.g., linux/amd64) to override host architecture.",
+)
+@click.option(
+    "--dependency-type",
+    default=None,
+    type=str,
+    help="Specific dependency for cpp (opencv, boost, etc.)",
+)
+@click.option("--parallel", default=1, type=int, help="Number of parallel workers")
+@click.option("--verbose/--no-verbose", default=False, help="Enable verbose output")
+def docker_build(
+    deployment, image_type, language, language_version, architecture, platform, dependency_type, parallel, verbose
+):
+    """Build Docker images for SeBS infrastructure.
+
+    Examples:
+        sebs.py docker build --deployment aws
+        sebs.py docker build --deployment aws --language python --language-version 3.9 --image-type build
+    """
+    from sebs.config import SeBSConfig
+    from sebs.docker_builder import DockerImageBuilder
+
+    config = SeBSConfig()
+
+    try:
+        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+    except docker.errors.DockerException:
+        return
+
+    builder.build(
+        deployment=deployment,
+        image_type=image_type,
+        language=language,
+        language_version=language_version,
+        architecture=architecture,
+        dependency_type=dependency_type,
+        platform=platform,
+        parallel=parallel
+    )
+
+
+@docker_cmd.command("push")
+@click.option(
+    "--deployment",
+    default=None,
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    help="Deployment platform to push images for",
+)
+@click.option(
+    "--image-type",
+    default=None,
+    type=click.Choice(["build", "dependencies", "run", "manage"]),
+    help="Type of Docker image to push",
+)
+@click.option(
+    "--language",
+    default=None,
+    type=click.Choice(["python", "nodejs", "java", "cpp"]),
+    help="Programming language",
+)
+@click.option("--language-version", default=None, type=str, help="Language version")
+@click.option(
+    "--architecture",
+    default="x64",
+    type=click.Choice(["x64", "arm64"]),
+    help="Target architecture",
+)
+@click.option(
+    "--dependency-type",
+    default=None,
+    type=str,
+    help="Specific dependency for cpp (opencv, boost, etc.)",
+)
+@click.option("--verbose/--no-verbose", default=False, help="Enable verbose output")
+def docker_push_images(
+    deployment, image_type, language, language_version, architecture, dependency_type, verbose
+):
+    """Push Docker infrastructure images to registry.
+
+    This command pushes infrastructure images (build, run, manage, dependencies)
+    to DockerHub. Images must be built locally first using 'docker build'.
+
+    Examples:
+        sebs.py docker push-images --deployment aws
+        sebs.py docker push-images --deployment aws --language python --language-version 3.9 --image-type build
+    """
+    from sebs.config import SeBSConfig
+    from sebs.docker_builder import DockerImageBuilder
+
+    config = SeBSConfig()
+
+    try:
+        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+    except docker.errors.DockerException:
+        return
+
+    builder.push(
+        deployment=deployment,
+        image_type=image_type,
+        language=language,
+        language_version=language_version,
+        architecture=architecture,
+        dependency_type=dependency_type,
+    )
 
 
 if __name__ == "__main__":
