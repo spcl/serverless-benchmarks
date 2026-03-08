@@ -76,14 +76,12 @@
           "x64": {
             "3.11": "amazon/aws-lambda-python:3.11",
             "3.10": "amazon/aws-lambda-python:3.10",
-            "3.9": "amazon/aws-lambda-python:3.9",
-            "3.8": "amazon/aws-lambda-python:3.8"
+            "3.9": "amazon/aws-lambda-python:3.9"
           },
           "arm64": {
             "3.11": "amazon/aws-lambda-python:3.11.2024.05.23.17",
             "3.10": "amazon/aws-lambda-python:3.10.2024.06.19.11",
-            "3.9": "amazon/aws-lambda-python:3.9.2024.05.20.23",
-            "3.8": "amazon/aws-lambda-python:3.8.2024.09.05.16"
+            "3.9": "amazon/aws-lambda-python:3.9.2024.05.20.23"
           }
         },
         "images": [
