@@ -1,10 +1,9 @@
-
-## Benchmark Applications
+# Benchmark Applications
 
 | Type 		   | Benchmark           | Languages          | Architecture       |  Description |
 | :---         | :---:               | :---:              | :---:                | :---:                |
-| Webapps      | 010.sleep    | Python, Node.js, C++ | x64, arm64 | Customizable sleep microbenchmark. |
-| Webapps      | 110.dynamic-html    | Python, Node.js    | x64, arm64 | Generate dynamic HTML from a template. |
+| Webapps      | 010.sleep    | Python, Node.js, C++, Java | x64, arm64 | Customizable sleep microbenchmark. |
+| Webapps      | 110.dynamic-html    | Python, Node.js, Java | x64, arm64 | Generate dynamic HTML from a template. |
 | Webapps      | 120.uploader    | Python, Node.js    | x64, arm64 | Uploader file from provided URL to cloud storage. |
 | Webapps      | 130.crud-api    | Python    | x64, arm64 | Simple CRUD application using NoSQL to store application data. |
 | Multimedia      | 210.thumbnailer    | Python, Node.js, C++ | x64, arm64 | Generate a thumbnail of an image. |
@@ -16,7 +15,7 @@
 | Scientific      | 503.graph-bfs    | Python, C++ | x64, arm64 | Breadth-first search (BFS) implementation with igraph. |
 | Scientific      | 504.dna-visualisation    | Python   | x64, arm64 | Creates a visualization data for DNA sequence. |
 
-Below, we discuss the most important implementation details of each benchmark. For more details on benchmark selection and their characterization, please refer to [our paper](../README.md#publication).
+For more details on benchmark selection and their characterization, please refer to [our papers](../README.md#publications). Detailed information about each benchmark can be found in its respective README.md file.
 
 > [!NOTE]
 > Benchmarks whose number starts with the digit 0, such as `020.server-reply` are internal microbenchmarks used by specific experiments. They are not intended to be directly invoked by users.
@@ -28,62 +27,59 @@ Below, we discuss the most important implementation details of each benchmark. F
 > [!NOTE]
 > While we attempt to achieve semantically the same behavior across languages in each benchmark, there are some minor differences and there is no guarantee of binary reproducibility across languages. For example, in benchmark `411.image-recognition` we load weights and import the model structure from Python package, whereas the C++ version imports a serialized TorchScript model. Similarly, graph benchmarks will not produce exactly the same result, as Python and C++ interfaces to `igraph` library use different RNGs.
 
-> [!WARNING]
-> Benchmark 411.image-recognition contains PyTorch which is often too large to fit into a code package. Up to Python 3.7, we can directly ship the dependencies. For Python 3.8, we use an additional zipping step that requires additional setup during the first run, making cold invocations slower. Warm invocations are not affected.
-
-> [!WARNING]
-> Benchmark `411.image-recognition` does not work on AWS with Python 3.9 due to excessive code size. While it is possible to ship the benchmark by zipping `torchvision` and `numpy` (see `benchmarks/400.inference/411.image-recognition/python/package.sh`), this significantly affects cold startup. On the lowest supported memory configuration of 512 MB, the cold startup can reach 30 seconds, making HTTP trigger unusable due to 30 second timeout of API gateway. Use Docker deployments for these configurations.
-
-> [!WARNING]
-> Benchmark `411.image-recognition` does not work on GCP with Python 3.8+ due to excessive code size. To the best of our knowledge, there is no way of circumventing that limit, as Google Cloud offers neither layers nor custom Docker images.
-
 ## Webapps
 
-### Dynamic HTML
+### 110.dynamic-html - Dynamic HTML
 
-The benchmark represents a dynamic generation of webpage contents through a serverless function. It generates an HTML from an existing template, with random numbers inserted to control the output. It uses the `jinja2` and `mustache` libraries on Python and Node.js, respectively.
+Generate dynamic HTML from a template. [Details →](../benchmarks/100.webapps/110.dynamic-html/README.md)
 
-### Uploader
+### 120.uploader - Uploader
 
-The benchmark implements the common workflow of uploading user-defined data to the persistent cloud storage. It accepts a URL, downloads file contents, and uploads them to the storage. Python implementation uses the standard library `requests`, while the Node.js version uses the third-party `requests` library installed with `npm`.
+Upload file from provided URL to cloud storage. [Details →](../benchmarks/100.webapps/120.uploader/README.md)
 
-### CRUD API
+### 130.crud-api - CRUD API
 
-The benchmark implements a simple CRUD application simulating a webstore cart. It offers three basic methods: add new item (`PUT`), get an item (`GET`), and query all items in a cart. It uses the NoSQL storage, with each item stored using cart id as primary key and item id as secondary key. The Python implementation uses 
-cloud-native libraries to access the database.
+Simple CRUD application using NoSQL to store application data. [Details →](../benchmarks/100.webapps/130.crud-api/README.md)
 
 ## Multimedia
 
-### Thumbnailer
+### 210.thumbnailer - Thumbnailer
 
-This benchmark implements one of the most common functions implemented with serverless functions. It downloads an image from the cloud storage, resizes it to a thumbnail size, uploads the new smaller version to the cloud storage, and returns the location to the caller, allowing them to insert the newly created thumbnail. To resize the image, it uses the `Pillow` and `sharp` libraries on Python and Node.js, respectively.
+Generate a thumbnail of an image. [Details →](../benchmarks/200.multimedia/210.thumbnailer/README.md)
 
-### Video Processing
+### 220.video-processing - Video Processing
 
-The benchmark implements two operations on video files: adding a watermark and creating a gif. Both input and output media are passed through the cloud storage. To process the video, the benchmark uses `ffmpeg`. The benchmark installs the most recent static binary of `ffmpeg` provided by [John van Sickle](https://johnvansickle.com/ffmpeg/).
+Add a watermark and generate gif of a video file. [Details →](../benchmarks/200.multimedia/220.video-processing/README.md)
 
 ## Utilities
 
-### Compression
+### 311.compression - Compression
 
-The benchmark implements a common functionality of websites managing file operations - gather a set of files in cloud storage, compress them together, and return a single archive to the user.
-It implements the .zip file creation with the help of the `shutil` standard library in Python.
+Create a .zip file for a group of files in storage and return to user to download. [Details →](../benchmarks/300.utilities/311.compression/README.md)
 
 ## Inference
 
-### Image Recognition
+### 411.image-recognition - Image Recognition
 
-The benchmark is inspired by MLPerf and implements image recognition with Resnet50. It downloads the input and model from the storage and uses the CPU-only `pytorch` library in Python.
+Image recognition with ResNet and pytorch. [Details →](../benchmarks/400.inference/411.image-recognition/README.md)
 
 ## Scientific
 
-### Graph PageRank, BFS, MST
+### 501.graph-pagerank - Graph PageRank
 
-The benchmark represents scientific computations offloaded to serverless functions. It uses the `python-igraph` library to generate an input graph and process it with the selected algorithm.
+PageRank implementation with igraph. [Details →](../benchmarks/500.scientific/501.graph-pagerank/README.md)
 
-### DNA Visualization
+### 502.graph-mst - Graph MST
 
-This benchmark is inspired by the [DNAVisualization](https://github.com/Benjamin-Lee/DNAvisualization.org) project and it implements processing the `.fasta` file with the `squiggle` Python library.
+Minimum spanning tree (MST) implementation with igraph. [Details →](../benchmarks/500.scientific/502.graph-mst/README.md)
+
+### 503.graph-bfs - Graph BFS
+
+Breadth-first search (BFS) implementation with igraph. [Details →](../benchmarks/500.scientific/503.graph-bfs/README.md)
+
+### 504.dna-visualisation - DNA Visualization
+
+Creates a visualization data for DNA sequence. [Details →](../benchmarks/500.scientific/504.dna-visualisation/README.md)
 
 ## Serverless Workflows
 

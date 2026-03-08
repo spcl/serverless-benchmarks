@@ -1,9 +1,13 @@
+"""C++ dependencies supported in SeBS benchmarks."""
+
 from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
 
 class CppDependencyConfig:
+    """Configuration of each C++ dependency."""
+
     def __init__(
         self,
         docker_img: str,
@@ -12,6 +16,15 @@ class CppDependencyConfig:
         cmake_dir: Optional[str] = None,
         runtime_paths: Optional[list[str]] = None,
     ):
+        """Initializes a new C++ dependency configuration.
+
+        Args:
+            docker_img: Docker image providing the dependency
+            cmake_package: Name of CMake package to find
+            cmake_libs: Variable or list of libraries to link against in CMake
+            cmake_dir: Additional include directory to add in CMake (if not provided by the package)
+            runtime_paths: Paths to dynamic libraries that should be copied with function.
+        """
         self.docker_img = docker_img
         self.cmake_package = cmake_package
         self.cmake_dir = cmake_dir
@@ -20,8 +33,17 @@ class CppDependencyConfig:
 
 
 class CppDependencies(str, Enum):
-    """
-    Enum for C++ dependencies used in the benchmarks.
+    """C++ dependencies used in the benchmarks.
+
+    Attributes:
+        SDK: AWS C++ SDK
+        RUNTIME: AWS C++ Lambda Runtime
+        TORCH: Torch C++ API
+        OPENCV: OpenCV
+        LIBJPEG_TURBO: Libjpeg-turbo (used in 210.thumbnailer)
+        IGRAPH: Graph library used in 50* benchmarks
+        BOOST: Standard Boost libraries
+        HIREDIS: Redis client library used by storage wrappers
     """
 
     SDK = "sdk"
@@ -35,6 +57,12 @@ class CppDependencies(str, Enum):
 
     @staticmethod
     def _dependency_dictionary() -> dict[str, CppDependencyConfig]:
+        """Maps dependency enum to its configuration details.
+
+        Returns:
+            Full CMake and Docker configuration for each dependency,
+            used for generating Dockerfiles and CMakeLists.
+        """
         return {
             CppDependencies.SDK: CppDependencyConfig(
                 docker_img="dependencies-sdk.aws.cpp.all",
@@ -94,6 +122,17 @@ class CppDependencies(str, Enum):
 
     @staticmethod
     def deserialize(val: str) -> CppDependencies:
+        """Deserialize enum from string.
+
+        Args:
+            val: dependency name as string (e.g., "sdk", "torch")
+
+        Returns:
+            Dependency enum member corresponding to the input string.
+
+        Raises:
+            Exception: for unknown dependency types
+        """
         for member in CppDependencies:
             if member.value == val:
                 return member
@@ -101,8 +140,16 @@ class CppDependencies(str, Enum):
 
     @staticmethod
     def to_cmake_list(dependency: CppDependencies) -> str:
-        """
-        Returns the CMake target for the given C++ dependency.
+        """Returns the full CMake integration for the given C++ dependency.
+
+        Args:
+            dependency: target name
+
+        Returns:
+            CMake configuration: find package, include directories, and link libraries.
+
+        Raises:
+            ValueError: if C++ dependency is unsupported (unknown)
         """
         if dependency not in CppDependencies:
             raise ValueError(f"Unknown C++ dependency {dependency}")
