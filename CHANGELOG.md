@@ -68,6 +68,8 @@
 
 ### Improvements
 
+* Integrated SeBS container management into main CLI driver (#243).
+* New option of building FaaS code package without actual deployment (#243).
 * Comprehensive docstrings across codebase (#244)
 * Sphinx-based HTML documentation with API reference (#244)
 * Update linting process (#241)
@@ -84,7 +86,9 @@
 ### Deprecations
 
 * Python 3.6 no longer supported on all platforms
+* AWS: Python 3.8 is no longer supported.
 * Azure: Python 3.7 and 3.8 no longer supported.
+* GCP: Node.js 14 and 16 are deprecated.
 * Node.js 8, 10, 12 deprecated on various platforms
 * Older runtime versions phased out on Azure.
 
