@@ -47,10 +47,10 @@
       "nodejs": {
         "base_images": {
           "x64": {
-            "14": "node:14-slim",
-            "16": "node:16-slim",
-            "18": "node:18-slim",
-            "20": "node:20-slim"
+            "14": "ubuntu:22.04",
+            "16": "ubuntu:22.04",
+            "18": "ubuntu:22.04",
+            "20": "ubuntu:22.04"
           }
         },
         "images": [
