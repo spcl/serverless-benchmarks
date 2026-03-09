@@ -20,3 +20,5 @@ click>=7.1.2
 rich
 #
 redis
+
+interrogate==1.7.0

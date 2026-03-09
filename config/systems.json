@@ -124,6 +124,51 @@
             "uuid": "3.4.0"
           }
         }
+      },
+      "java": {
+        "base_images": {
+          "x64": {
+            "17": "amazon/aws-lambda-java:17.2026.02.28.00-x86_64",
+            "11": "amazon/aws-lambda-java:11.2026.02.28.00-x86_64"
+          },
+          "arm64": {
+            "17": "amazon/aws-lambda-java:17.2026.02.28.00-arm64",
+            "11": "amazon/aws-lambda-java:11.2026.02.28.00-arm64"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "src"
+          ],
+          "packages": {
+            "com.amazonaws:aws-lambda-java-core": "1.2.3",
+            "com.fasterxml.jackson.core:jackson-databind": "2.17.1"
+          },
+          "module_packages": {}
+        }
+      },
+      "cpp": {
+        "base_images": {
+          "x64":{
+            "all": "amazon/aws-lambda-provided:al2023.2026.02.23.16-x86_64"
+          }
+        },
+        "base_images_functions": {
+          "x64": {
+            "all": "spcleth/serverless-benchmarks:build.aws.cpp.all-1.2.0"
+          }
+        },
+        "dependencies": [
+            "runtime", "sdk", "boost", "hiredis", "opencv", "igraph", "torch", "libjpeg-turbo"
+        ],
+        "versions": ["all"],
+        "images": ["build"],
+        "deployment": {
+          "files": [ "handler.cpp", "key-value.cpp", "key-value.hpp", "storage.cpp", "storage.hpp", "redis.hpp", "redis.cpp", "utils.cpp", "utils.hpp"]
+        }
       }
     },
     "architecture": ["x64", "arm64"],
@@ -193,6 +238,27 @@
             "uuid": "3.4.0"
           }
         }
+      },
+      "java": {
+        "base_images": {
+          "x64": {
+            "17": "mcr.microsoft.com/azure-functions/java:4-java17"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "src"
+          ],
+          "packages": {
+            "com.microsoft.azure.functions:azure-functions-java-library": "3.0.0",
+            "com.fasterxml.jackson.core:jackson-databind": "2.17.1"
+          },
+          "module_packages": {}
+        }
       }
     },
     "images": {
@@ -260,6 +326,28 @@
             "uuid": "3.4.0"
           }
         }
+      },
+      "java": {
+        "base_images": {
+          "x64": {
+            "11": "us-central1-docker.pkg.dev/serverless-runtimes/google-18-full/runtimes/java11:deprecated-public-image-java11_20260217_11_0_RC00",
+            "17": "us-central1-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/java17:java17_20260215_17_0_RC00"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "src"
+          ],
+          "packages": {
+            "com.google.cloud.functions:functions-framework-api": "1.1.0",
+            "com.fasterxml.jackson.core:jackson-databind": "2.17.1"
+          },
+          "module_packages": {}
+        }
       }
     },
     "images": {
@@ -324,6 +412,25 @@
           ],
           "packages": {
             "minio": "7.0.16"
+          }
+        }
+      },
+      "java": {
+        "base_images": {
+          "x64": {
+            "8": "openwhisk/java8action:1.20.0"
+          }
+        },
+        "images": [
+          "function"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "src"
+          ],
+          "packages": {
+            "com.google.code.gson:gson": "2.8.5"
           }
         }
       }

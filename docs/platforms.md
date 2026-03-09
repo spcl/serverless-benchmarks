@@ -1,3 +1,4 @@
+# Platform Configuration
 
 SeBS supports three commercial serverless platforms: AWS Lambda, Azure Functions, and Google Cloud Functions.
 Furthermore, we support the open source FaaS system OpenWhisk.
@@ -129,6 +130,9 @@ or in the JSON input configuration:
 > The tool assumes there is only one subscription active on the account. If you want to bind the newly created service principal to a specific subscription, or the created credentials do not work with SeBS and you see errors such as "No subscriptions found for X", then you must specify a subscription when creating the service principal. Check your subscription ID on in the Azure portal, and use the CLI option `tools/create_azure_credentials.py --subscription <SUBSCRIPTION_ID>`.
 
 > [!WARNING]
+> Sometimes there's a delay within Azure platform that causes properties like subscription assignment to not be propagated immediately across systems. If you keep seeing errors such "No subscription found", then wait for a few minutes before trying again.
+
+> [!WARNING]
 > When you log in for the first time on a device, Microsoft might require authenticating your login with Multi-Factor Authentication (MFA). In this case, we will return an error such as: "The following tenants require Multi-Factor Authentication (MFA). Use 'az login --tenant TENANT_ID' to explicitly login to a tenant.". Then, you can pass the tenant ID by using the `--tenant <tenant-id>` flag.
 
 ### Resources
@@ -230,6 +234,15 @@ or a Docker image with all dependencies preinstalled.
 However, OpenWhisk has a very low code package size limit of only 48 megabytes.
 So, to circumvent this limit, we deploy functions using pre-built Docker images.
 
+> [!NOTE]
+> On Python and Node.js, we create a full Docker image and upload the main handler
+file only to OpenWhisk, as this is required for actions.
+This is not possible on Java, as we need to compile the code into JAR.
+To avoid extract build image, we build the function image, extract the function JAR,
+and upload it with the action. In future, if we want to create heavy JARs with complex
+dependencies, we might need to switch to full image deployment on Java as well.
+
+
 **Important**: OpenWhisk requires that all Docker images are available
 in the registry, even if they have been cached on a system serving OpenWhisk
 functions.
@@ -243,7 +256,6 @@ However, pushing the image to the default `spcleth/serverless-benchmarks`
 repository on Docker Hub requires permissions.
 To use a different Docker Hub repository, change the key
 `['general']['docker_repository']` in `config/systems.json`.
-
 
 Alternatively, OpenWhisk users can configure the FaaS platform to use a custom and
 private Docker registry and push new images there.

@@ -1,4 +1,3 @@
-
 # Design
 
 In this document, we present the overview of repository structure, explanation of the interfaces implemented,

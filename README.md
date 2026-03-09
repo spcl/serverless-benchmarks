@@ -1,5 +1,6 @@
 
 [![CircleCI](https://circleci.com/gh/spcl/serverless-benchmarks.svg?style=shield)](https://circleci.com/gh/spcl/serverless-benchmarks)
+[![Documentation Status](https://readthedocs.org/projects/sebs/badge/?version=latest)](https://sebs.readthedocs.io/en/latest/?badge=latest)
 ![Release](https://img.shields.io/github/v/release/spcl/serverless-benchmarks)
 ![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
 ![GitHub issues](https://img.shields.io/github/issues/spcl/serverless-benchmarks)
@@ -52,12 +53,19 @@ documentation:
 * [How SeBS package is designed?](docs/design.md)
 * [How to extend SeBS with new benchmarks, experiments, and platforms?](docs/modularity.md)
 
-### Publication
+## Tutorial
 
-When using SeBS, please cite our [Middleware '21 paper](https://dl.acm.org/doi/abs/10.1145/3464298.3476133).
+We provide a tutorial on basic SeBS functionality in the [SeBS-Tutorial repository](https://github.com/spcl/sebs-tutorial.git).
+You can learn there how to install SeBS, configure it, deploy OpenWhisk on your system, and launch your first experiments.
+
+## Publications
+
+When using SeBS, please cite our published work.
+You can cite our software repository as well, using the citation button on the right.
+
+SeBS has been originally released with the [Middleware '21 paper](https://dl.acm.org/doi/abs/10.1145/3464298.3476133).
 An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.14132), and you can
 find more details about research work [in this paper summary](https://mcopik.github.io/projects/sebs/).
-You can cite our software repository as well, using the citation button on the right.
 
 ```
 @inproceedings{copik2021sebs,
@@ -78,11 +86,55 @@ You can cite our software repository as well, using the citation button on the r
 }
 ```
 
+The SeBS-Flow paper published at [EuroSys'25](https://dl.acm.org/doi/abs/10.1145/3689031.3717465)
+extends SeBS with support for serverless workflows and NoSQL database:
+
+```
+@inproceedings{10.1145/3689031.3717465,
+  author = {Schmid, Larissa and Copik, Marcin and Calotoiu, Alexandru and Brandner, Laurin and Koziolek, Anne and Hoefler, Torsten},
+  title = {SeBS-Flow: Benchmarking Serverless Cloud Function Workflows},
+  year = {2025},
+  isbn = {9798400711961},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3689031.3717465},
+  doi = {10.1145/3689031.3717465},
+  booktitle = {Proceedings of the Twentieth European Conference on Computer Systems},
+  pages = {902–920},
+  numpages = {19},
+  keywords = {benchmark, faas, function-as-a-service, orchestration, serverless, serverless DAG, workflow},
+  location = {Rotterdam, Netherlands},
+  series = {EuroSys '25}
+}
+```
+
+The SeBS 2.0 workshop paper published at [SESAME @ EuroSys'25](https://dl.acm.org/doi/abs/10.1145/3721465.3721867)
+provides an overview of new and ongoing contributions to SeBS - benchmarks, platforms, languages.
+
+```
+@inproceedings{10.1145/3721465.3721867,
+  author = {Copik, Marcin and Calotoiu, Alexandru and Hoefler, Torsten},
+  title = {SeBS 2.0: Keeping up with the Clouds},
+  year = {2025},
+  isbn = {9798400715570},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3721465.3721867},
+  doi = {10.1145/3721465.3721867},
+  booktitle = {Proceedings of the 3rd Workshop on SErverless Systems, Applications and MEthodologies},
+  pages = {42–44},
+  numpages = {3},
+  keywords = {Benchmark, FaaS, Function-as-a-Service, Serverless},
+  location = {Rotterdam, Netherlands},
+  series = {SESAME' 25}
+}
+```
+
 ## Installation
 
 Requirements:
 - Docker (at least 19)
-- Python 3.7+ with:
+- Python 3.10+ with:
     - pip
     - venv
 - `libcurl` and its headers must be available on your system to install `pycurl`
@@ -119,7 +171,7 @@ To verify the correctness of installation, you can use [our regression testing](
 > [!WARNING]
 > We use libcurl to make HTTP requests. `pycurl` will attempt to build its bindings and needs headers for that - make sure you have all development packages installed. If you see an error like this one: `src/pycurl.h:206:13: fatal error: gnutls/gnutls.h: No such file or directory`, it means that you are missing some of the dependencies.
 
-## Authors
+## Authors & Contributors
 
 * [Marcin Copik (ETH Zurich)](https://github.com/mcopik/) - main author.
 * [Michał Podstawski (Future Processing SA)](https://github.com/micpod/) - contributed graph and DNA benchmarks, and worked on Google Cloud support.
@@ -133,3 +185,7 @@ To verify the correctness of installation, you can use [our regression testing](
 * [lawrence910426](https://github.com/lawrence910426) - contributed color-coded output to SeBS CLI.
 * [Abhishek Kumar](https://github.com/octonawish-akcodes) - contributed new language versions and Knative support.
 * [Prajin Khadka](https://github.com/prajinkhadka) - contributed new language versions, container support, and ARM builds.
+* [Horia Mercan](https://github.com/HoriaMercan) - contributed new benchmarks in C++.
+* [Dillon Elste (ETH Zurich)](https://github.com/DJAntivenom) - bugfixing in C++.
+* [Mahla Sharifi](https://github.com/mahlashrifi) - contributed support for Java benchmarks.
+* [Alexander Schlieper (ETH Zurich)](https://github.com/xSurus) - improved support for Java benchmarks.
