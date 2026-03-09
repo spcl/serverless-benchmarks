@@ -394,7 +394,7 @@ def package(
         logging_filename=logging_filename,
     )
 
-    func = deployment_client.build_function(
+    deployment_client.build_function(
         benchmark_obj,
         function_name if function_name else deployment_client.default_function_name(benchmark_obj)
     )
@@ -816,6 +816,32 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
     else:
         raise NotImplementedError(f"Resource {resource} not supported.")
 
+
+@resources.command("cleanup")
+@click.argument("resources-id", type=str, required=False, default=None)
+@click.option(
+    "--dry-run/--no-dry-run",
+    type=bool,
+    default=False,
+    help="Simulate run without actual deletions.",
+)
+@common_params
+def resources_cleanup(resources_id, dry_run, **kwargs):
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+
+    try:
+        result = deployment_client.cleanup_resources(dry_run=dry_run)
+        total = sum(len(v) for v in result.values())
+        action = "found" if dry_run else "deleted"
+        sebs_client.logging.info(f"Total resources {action}: {total}")
+    except NotImplementedError as e:
+        sebs_client.logging.error(str(e))
 
 @cli.group()
 def docker_cmd():

@@ -281,6 +281,85 @@ class Cache(LoggingBase):
         else:
             return None
 
+    def invalidate_all_container_uris(self, deployment: str) -> None:
+        """Set image-uri to None for all cached containers of a deployment.
+
+        Walks all benchmark directories and clears the image-uri field for every
+        container entry under the given deployment. This forces a re-push to the
+        registry on next use without invalidating the rest of the cached state.
+
+        This function is used primarily after cleaning up cloud resources.
+
+        Args:
+            deployment (str): Deployment platform name.
+        """
+        with self._lock:
+            if not os.path.exists(self.cache_dir):
+                return
+
+            for entry in os.listdir(self.cache_dir):
+                config_path = os.path.join(self.cache_dir, entry, "config.json")
+                if not os.path.exists(config_path):
+                    continue
+
+                with open(config_path, "r") as fp:
+                    config = json.load(fp)
+
+                dep_cfg = config.get(deployment)
+                if dep_cfg is None:
+                    continue
+
+                modified = False
+                for lang_cfg in dep_cfg.values():
+                    if lang_cfg is None:
+                        continue
+                    containers = lang_cfg.get("containers")
+                    if containers is None:
+                        continue
+                    for container_cfg in containers.values():
+                        container_cfg["image-uri"] = None
+                        modified = True
+
+                if modified:
+                    with open(config_path, "w") as fp:
+                        json.dump(config, fp, indent=2)
+
+    def update_container_uri(
+        self,
+        deployment: str,
+        benchmark: str,
+        language: str,
+        language_version: str,
+        architecture: str,
+        uri: str,
+    ) -> None:
+        """Update the image-uri for a specific cached container entry.
+
+        Used when the image is cached locally, but needs to be pushed to
+        the registry to be accessible for cloud deployment.
+
+        Args:
+            deployment (str): Deployment platform name.
+            benchmark (str): Benchmark name.
+            language (str): Programming language.
+            language_version (str): Language version.
+            architecture (str): Target architecture.
+            uri (str): New image URI to store.
+        """
+        with self._lock:
+            config_path = os.path.join(self.cache_dir, benchmark, "config.json")
+            if not os.path.exists(config_path):
+                return
+
+            with open(config_path, "r") as fp:
+                config = json.load(fp)
+
+            key = f"{language_version}-{architecture}"
+            config[deployment][language]["containers"][key]["image-uri"] = uri
+
+            with open(config_path, "w") as fp:
+                json.dump(config, fp, indent=2)
+
     def get_functions(
         self, deployment: str, benchmark: str, language: str
     ) -> Optional[Dict[str, Any]]:
@@ -299,6 +378,46 @@ class Cache(LoggingBase):
             return cfg[language]["functions"]
         else:
             return None
+
+    def get_all_functions(self, deployment: str) -> Dict[str, Any]:
+        """Get all cached function configurations for a given deployment.
+
+        Iterates all benchmarks and languages in the cache to collect every
+        function deployed to the specified platform.
+
+        Args:
+            deployment (str): Deployment platform name
+
+        Returns:
+            Mapping of function name to function configuration,
+            aggregated across benchmarks and languages.
+        """
+        result: Dict[str, Any] = {}
+
+        if not os.path.exists(self.cache_dir) or self.ignore_functions:
+            return result
+
+        for entry in os.listdir(self.cache_dir):
+            config_path = os.path.join(self.cache_dir, entry, "config.json")
+            if not os.path.exists(config_path):
+                continue
+
+            with open(config_path, "r") as fp:
+                config = json.load(fp)
+
+            dep_cfg = config.get(deployment)
+            if dep_cfg is None:
+                continue
+
+            for lang_cfg in dep_cfg.values():
+                if lang_cfg is None:
+                    continue
+
+                functions = lang_cfg.get("functions")
+                if functions is not None:
+                    result.update(functions)
+
+        return result
 
     def get_storage_config(self, deployment: str, benchmark: str) -> Optional[Dict[str, Any]]:
         """Access cached storage configuration of a benchmark.
@@ -323,6 +442,41 @@ class Cache(LoggingBase):
             Optional[Dict[str, Any]]: NoSQL configuration or None if not found.
         """
         return self._get_resource_config(deployment, benchmark, "nosql")
+
+    def get_nosql_configs(self, deployment: str) -> Dict[str, Any]:
+        """Access cached NoSQL configuration for all benchmarks.
+
+        Iterates all benchmark directories in the cache and merges their
+        NoSQL table configurations for the given deployment into a single dict.
+
+        Args:
+            deployment (str): Deployment platform name.
+
+        Returns:
+            NoSQL configurations across all benchmarks
+        """
+        result: Dict[str, Any] = {}
+
+        if not os.path.exists(self.cache_dir):
+            return result
+
+        for entry in os.listdir(self.cache_dir):
+            config_path = os.path.join(self.cache_dir, entry, "config.json")
+            if not os.path.exists(config_path):
+                continue
+
+            with open(config_path, "r") as fp:
+                config = json.load(fp)
+
+            dep_cfg = config.get(deployment)
+            if dep_cfg is None:
+                continue
+
+            nosql = dep_cfg.get("nosql")
+            if nosql is not None:
+                result.update(nosql)
+
+        return result
 
     def _get_resource_config(
         self, deployment: str, benchmark: str, resource: str
@@ -365,6 +519,116 @@ class Cache(LoggingBase):
         if self.ignore_storage:
             return
         self._update_resources(deployment, benchmark, "nosql", config)
+
+    def remove_function(self, deployment: str, benchmark: str, language: str, function_name: str):
+        """Remove a function entry from all benchmark cache configs.
+
+        Args:
+            function_name: function for removal
+        """
+        with self._lock:
+            if not os.path.exists(self.cache_dir):
+                return
+
+            config_path = os.path.join(self.cache_dir, benchmark, "config.json")
+
+            with open(config_path, "r") as fp:
+                config = json.load(fp)
+
+            if deployment not in config:
+                return
+
+            if language not in config[deployment]:
+                return
+
+            lang_cfg = config[deployment][language]
+            if function_name not in lang_cfg["functions"]:
+                return
+
+            self.logging.info(f"Deleting function {function_name} from cache")
+            del lang_cfg["functions"][function_name]
+
+            with open(config_path, "w") as fp:
+                json.dump(config, fp, indent=2)
+
+    def remove_storage(self, deployment: str):
+        """Remove storage config entries across all benchmarks for a deployment.
+
+        Args:
+            deployment: cloud platform name
+        """
+        self._remove_resource_config(deployment, "storage")
+
+    def remove_nosql(self, deployment: str):
+        """Remove nosql config entries across all benchmarks for a deployment.
+
+        Args:
+            deployment: cloud platform name
+        """
+        self._remove_resource_config(deployment, "nosql")
+
+    def _remove_resource_config(self, deployment: str, resource: str):
+        """Remove a resource configuration entry from all benchmark cache configs.
+
+        Args:
+            deployment: Deployment platform name.
+            resource: Resource type ('storage' or 'nosql').
+        """
+        with self._lock:
+            if not os.path.exists(self.cache_dir):
+                return
+
+            for entry in os.listdir(self.cache_dir):
+                config_path = os.path.join(self.cache_dir, entry, "config.json")
+                if not os.path.exists(config_path):
+                    continue
+
+                with open(config_path, "r") as fp:
+                    config = json.load(fp)
+
+                if deployment in config and resource in config[deployment]:
+                    del config[deployment][resource]
+                    with open(config_path, "w") as fp:
+                        json.dump(config, fp, indent=2)
+
+    def get_config_key(self, keys: List[str]) -> Optional[Any]:
+        """Return the value at a nested key path in the cached configuration.
+        Does not throw an error if the key path does not exist.
+
+        Args:
+            keys: key path needed to access the config value
+
+        Returns:
+            The value at the specified key path, or None if not found.
+        """
+        with self._lock:
+            cfg = self.cached_config
+            for key in keys[:-1]:
+                if not isinstance(cfg, dict) or key not in cfg:
+                    return None
+                cfg = cfg[key]
+            if isinstance(cfg, dict):
+                return cfg.get(keys[-1])
+            return None
+
+    def remove_config_key(self, keys: List[str]):
+        """Removes a configuration entry nested within cache dictiariony.
+        Used after deleting a specific cloud resource.
+
+        Does not throw an error if the key path does not exist.
+
+        Args:
+            keys: key path needed to access the config value
+        """
+        with self._lock:
+            cfg = self.cached_config
+            for key in keys[:-1]:
+                if not isinstance(cfg, dict) or key not in cfg:
+                    return
+                cfg = cfg[key]
+            if isinstance(cfg, dict) and keys[-1] in cfg:
+                del cfg[keys[-1]]
+        self.config_updated = True
 
     def _update_resources(
         self, deployment: str, benchmark: str, resource: str, config: Dict[str, Any]
@@ -447,7 +711,6 @@ class Cache(LoggingBase):
 
                 language_config = code_package.serialize()
                 if code_package.code_location is not None:
-
                     self.logging.info(
                         f"Caching code package created at {code_package.code_location}"
                     )
@@ -606,9 +869,7 @@ class Cache(LoggingBase):
                     shutil.rmtree(cached_dir)
 
             if package_exists:
-
                 if code_package.code_location is not None:
-
                     self.logging.info(
                         f"Caching code package created at {code_package.code_location}"
                     )

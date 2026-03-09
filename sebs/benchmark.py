@@ -1224,6 +1224,22 @@ class Benchmark(LoggingBase):
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             if self.container_deployment:
+                if self._container_uri is None:
+                    assert container_client is not None
+                    self._container_uri = container_client.push_to_registry(
+                        self.benchmark,
+                        self.language_name,
+                        self.language_version,
+                        self.architecture,
+                    )
+                    self._cache_client.update_container_uri(
+                        self._deployment_name,
+                        self._benchmark,
+                        self.language_name,
+                        self.language_version,
+                        self.architecture,
+                        self._container_uri,
+                    )
                 self.logging.info(
                     "Using cached benchmark {} from container image {}".format(
                         self.benchmark, self.container_uri

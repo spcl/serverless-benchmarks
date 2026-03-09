@@ -186,6 +186,17 @@ class System(ABC, LoggingBase):
         """
         return self.system_resources.get_storage().find_deployments()
 
+    def cleanup_resources(self, dry_run: bool = False) -> dict:
+        """Discover and delete all SeBS resources of the deployment.
+
+        Args:
+            dry_run: when true, it does not delete anything.
+
+        Returns:
+            Dict mapping resource type names to lists of deleted resource identifiers.
+        """
+        raise NotImplementedError(f"Resource cleanup not implemented for {self.name()}")
+
     def initialize_resources(self, select_prefix: Optional[str]):
         """
         Initialize cloud resources for the deployment.
@@ -370,7 +381,6 @@ class System(ABC, LoggingBase):
         pass
 
     def build_function(self, code_package: Benchmark, func_name: Optional[str] = None):
-
         """Create a build deployment of the selected function.
 
         Args:
@@ -383,11 +393,12 @@ class System(ABC, LoggingBase):
         if code_package.language_version not in self.system_config.supported_language_versions(
             self.name(), code_package.language_name, code_package.architecture
         ):
-            raise RuntimeError(
-                "Unsupported {language} version {version} in {system}!".format(
-                    language=code_package.language_name,
-                    version=code_package.language_version,
-                    system=self.name(),
+            raise Exception(
+                "Unsupported {lang} version {ver} in {sys} for architecture {arch}!".format(
+                    lang=code_package.language_name,
+                    ver=code_package.language_version,
+                    sys=self.name(),
+                    arch=code_package.architecture,
                 )
             )
 
@@ -397,10 +408,12 @@ class System(ABC, LoggingBase):
             self.package_code, self.container_client, self.finalize_container_build()
         )
         if code_package_loc is not None:
-            self.logging.info(f"Built code package for function {func_name} at {code_package_loc}")
+            self.logging.info(
+                f"Created code package for function {func_name} at {code_package_loc}"
+            )
         if container_deployment:
             self.logging.info(
-                f"Built container deployment for function {func_name}: {container_uri}"
+                f"Created container deployment for function {func_name}: {container_uri}"
             )
 
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
@@ -696,3 +709,42 @@ class System(ABC, LoggingBase):
             str: Platform name (e.g., 'aws', 'azure', 'gcp')
         """
         pass
+
+    def delete_function(self, func_name: str) -> None:
+        """Delete cloud deployment of a function.
+
+        Args:
+            func_name: function name in the cloud.
+        """
+        raise NotImplementedError(f"Function deletion not implemented for {self.name()}")
+
+    def cleanup_functions(self, dry_run: bool) -> List[str]:
+        """Remove all created cloud functions.
+
+        Args:
+            dry_run: when true, skips actual deletion
+
+        Returns:
+            list of deleted function names
+        """
+        functions = self.cache_client.get_all_functions(self.name())
+        deleted = []
+
+        for name, func in functions.items():
+            if not dry_run:
+                self.delete_function(name)
+            deleted.append(name)
+
+        if dry_run:
+            return deleted
+
+        for name, func in functions.items():
+
+            if name not in deleted:
+                continue
+
+            self.cache_client.remove_function(
+                self.name(), func["benchmark"], func["config"]["runtime"]["language"], name
+            )
+
+        return deleted

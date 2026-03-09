@@ -172,6 +172,37 @@ class DockerContainer(LoggingBase):
         """
         pass
 
+    def push_to_registry(
+        self,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
+    ) -> str:
+        """Push an existing local Docker image to the registry and return its URI.
+
+        Used when the container is cached locally but its registry URI is unknown
+        (e.g., after previously cleaning resources). Computes the registry
+        name, pushes the image, and returns the full image URI.
+
+        Args:
+            benchmark: Benchmark name (e.g., '110.dynamic-html')
+            language_name: Programming language name (e.g., 'python')
+            language_version: Language version (e.g., '3.8')
+            architecture: Target architecture (e.g., 'x64')
+
+        Returns:
+            str: Full URI of the pushed image.
+        """
+        registry_name, repository_name, image_tag, image_uri = self.registry_name(
+            benchmark, language_name, language_version, architecture
+        )
+        self.logging.info(
+            f"Pushing Docker image {repository_name}:{image_tag} to registry: {registry_name}."
+        )
+        self.push_image(image_uri, image_tag)
+        return image_uri
+
     def build_base_image(
         self,
         directory: str,

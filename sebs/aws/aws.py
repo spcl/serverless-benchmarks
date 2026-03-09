@@ -626,20 +626,17 @@ class AWS(System):
         func_name = func_name.replace(".", "_")
         return func_name
 
-    def delete_function(self, func_name: Optional[str]) -> None:
+    def delete_function(self, func_name: str) -> None:
         """Delete an AWS Lambda function.
 
         Args:
             func_name: Name of the function to delete
-
-        Note:
-            FIXME: does not clean the cache in SeBS.
         """
-        self.logging.debug("Deleting function {}".format(func_name))
+        self.logging.info("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
         except Exception:
-            self.logging.debug("Function {} does not exist!".format(func_name))
+            self.logging.error("Function {} does not exist!".format(func_name))
 
     @staticmethod
     def parse_aws_report(
@@ -690,6 +687,57 @@ class AWS(System):
         output.billing.memory = memory
         output.billing.gb_seconds = (billed_time / 1000.0) * (memory / 1024.0)
         return request_id
+
+    def cleanup_resources(self, dry_run: bool = False) -> dict:
+        """Delete allocated resources on AWS.
+        Currently it deletes the following resources:
+        * Lambda functions and its HTTP API triggers.
+        * CloudWatch log groups of the functions.
+        * DynamoDB tables created for the benchmark.
+        * S3 buckets and their content created for the benchmark.
+        * ECR repositories (images are retained locally).
+
+        Args:
+            dry_run: when true, only display resources.
+
+        Returns:
+            dictionary with the list of deleted resources for each resource type.
+        """
+        resources_id = self.config.resources.resources_id
+
+        result = {}
+        dry_run_tag = "[DRY-RUN] " if dry_run else ""
+
+        self.logging.info(
+            f"{dry_run_tag}Starting cleanup of resources of the deployment: {resources_id}"
+        )
+
+        functions = self.cache_client.get_all_functions(self.name())
+        result["Lambda functions"] = self.cleanup_functions(dry_run)
+
+        result["HTTP APIs"] = self.config.resources.cleanup_http_apis(
+            self.session, self.cache_client, dry_run
+        )
+
+        result["CloudWatch log groups"] = self.config.resources.cleanup_cloudwatch_logs(
+            list(functions.keys()), self.session, dry_run
+        )
+
+        result["S3 buckets"] = self.system_resources.get_storage().cleanup_buckets(dry_run)
+
+        result["ECR repositories"] = self.config.resources.cleanup_ecr_repository(
+            self.session, self.cache_client, dry_run
+        )
+
+        result["DynamoDB Tables"] = self.system_resources.get_nosql_storage().cleanup_tables(
+            dry_run
+        )
+
+        self.logging.info(f"{dry_run_tag}Cleanup summary for deployment {resources_id}:")
+        for resource_type, items in result.items():
+            self.logging.info(f"  {resource_type}: {len(items)} removed")
+
+        return result
 
     def shutdown(self) -> None:
         """Shutdown the AWS system and clean up resources.

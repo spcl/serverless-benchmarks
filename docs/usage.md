@@ -99,6 +99,17 @@ To download cloud metrics and process the invocations into a .csv file with data
 
 [You can find more details on running experiments and analyzing results in the separate documentation.](experiments.md)
 
+## Clean
+
+You can remove all allocated cloud resources with the following command:
+
+```bash
+./sebs.py resource clean --config config/example.json
+```
+
+This option is currently supported only on AWS, where it removes Lambda functions and associated HTTP APIs and CloudWatch logs,
+S3 buckets, DynamoDB tables, and ECR repositories.
+
 ## Local
 
 In addition to the cloud deployment, we provide an opportunity to launch benchmarks locally with the help of [minio](https://min.io/) storage.
