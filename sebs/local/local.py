@@ -332,7 +332,7 @@ class Local(System):
             container_kwargs["command"] = f"/bin/bash /sebs/run_server.sh {port}"
             container_kwargs["ports"] = {f"{port}/tcp": port}
 
-        container = self._docker_client.containers.run(**container_kwargs)
+        container = self._docker_client.containers.run(**container_kwargs)  # type: ignore
 
         pid: Optional[int] = None
         if self.measurements_enabled and self._memory_measurement_path is not None:

@@ -12,28 +12,61 @@ to a new cloud region, then use a new cache directory.
 
 ## Benchmark
 
+### Package
+
+If you want to simply build a function deployment, such as a full code package or a container,
+then use the command below.
+
+```bash
+./sebs.py benchmark build 110.dynamic-html --config config/example.json --deployment aws
+```
+
+It will create a code package (local) or build and push a container, when `--container-deployment` flag is used (AWS only).
+The resulting deployment can be inspected and used for deployment and invocations on unsupported platforms.
+
+### Invoke
+
 This command builds, deploys, and executes serverless benchmarks in the cloud.
 The example below invokes the benchmark `110.dynamic-html` on AWS via the standard HTTP trigger.
 
-```
+```bash
 ./sebs.py benchmark invoke 110.dynamic-html test --config config/example.json --deployment aws --verbose
 ```
 
+The results will be stored in `experiment.json`.
 To configure your benchmark, change settings in the config file or use command-line options.
 The full list is available by running `./sebs.py benchmark invoke --help`.
+
+### Process
+
+To download cloud metrics and process the invocations, run:
+
+```bash
+./sebs.py benchmark process --output-dir results
+```
+
+This will read invocations from `experiment.json` and write the processed data to `results.json`.
+
+### Statistics
+
+To summarize executions, run:
+
+```bash
+./sebs.py benchmark statistics results.json 
+```
 
 ## Regression
 
 Additionally, we provide a regression option to execute all benchmarks on a given platform.
 The example below demonstrates how to run the regression suite with `test` input size on AWS.
 
-```
+```bash
 ./sebs.py benchmark regression test --config config/example.json --deployment aws
 ```
 
 The regression can be executed on a single benchmark as well:
 
-```
+```bash
 ./sebs.py benchmark regression test --config config/example.json --deployment aws --benchmark-name 120.uploader
 ```
 
@@ -41,7 +74,7 @@ The regression can be executed on a single benchmark as well:
 
 This command is used to execute benchmarks described in the paper. The example below runs the experiment **perf-cost**:
 
-```
+```bash
 ./sebs.py experiment invoke perf-cost --config config/example.json --deployment aws
 ```
 
@@ -60,11 +93,22 @@ The configuration specifies that benchmark **110.dynamic-html** is executed 50 t
 
 To download cloud metrics and process the invocations into a .csv file with data, run the process construct
 
-```
+```bash
 ./sebs.py experiment process perf-cost --config example.json --deployment aws
 ```
 
 [You can find more details on running experiments and analyzing results in the separate documentation.](experiments.md)
+
+## Clean
+
+You can remove all allocated cloud resources with the following command:
+
+```bash
+./sebs.py resource clean --config config/example.json
+```
+
+This option is currently supported only on AWS, where it removes Lambda functions and associated HTTP APIs and CloudWatch logs,
+S3 buckets, DynamoDB tables, and ECR repositories.
 
 ## Local
 
@@ -177,7 +221,7 @@ curl $(jq -rc ".functions[0].url" out_benchmark.json) \
 
 To stop containers, you can use the following command:
 
-```
+```bash
 ./sebs.py local stop out_benchmark.json
 ./sebs.py storage stop all out_storage.json
 ```

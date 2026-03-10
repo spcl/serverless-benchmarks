@@ -15,6 +15,7 @@
   - Dynamic dependency resolution with CMake generation
   - Support for Boost, OpenCV, igraph, PyTorch, hiredis libraries
   - C++ implementations: 010.sleep, 210.thumbnailer, 501.graph-pagerank, 503.graph-bfs, 411.image-recognition
+* **Java benchmarks**: initial support for Java on all four platforms (#223), including benchmark **110.dynamic-html**.
 * **Python**: Updated support for Python 3.8, 3.9, 3.10, 3.11, 3.12
 * **Node.js**: Updated support for Node.js 14, 16, 18, 20
 
@@ -67,6 +68,8 @@
 
 ### Improvements
 
+* Integrated SeBS container management into main CLI driver (#243).
+* New option of building FaaS code package without actual deployment (#243).
 * Comprehensive docstrings across codebase (#244)
 * Sphinx-based HTML documentation with API reference (#244)
 * Update linting process (#241)
@@ -83,8 +86,11 @@
 ### Deprecations
 
 * Python 3.6 no longer supported on all platforms
+* AWS: Python 3.8 is no longer supported.
+* Azure: Python 3.7 and 3.8 no longer supported.
+* GCP: Node.js 14 and 16 are deprecated.
 * Node.js 8, 10, 12 deprecated on various platforms
-* Older runtime versions phased out across AWS, Azure, and GCP.
+* Older runtime versions phased out on Azure.
 
 ### Contributors
 
@@ -104,6 +110,8 @@ This release includes contributions from:
 * @lawrence910426 - Colored CLI output (#141)
 * @alevy - Documentation improvements (#139)
 * @skehrli - Local memory measurements (#101)
+* @mahlashrifi - Java benchmarks support (#223)
+* @xSurus - improvements and extensions to Java benchmarks (#223)
 * And many others who contributed bug reports, testing, and feedback!
 
 ## [1.1.0](https://github.com/spcl/serverless-benchmarks/compare/v1.0...v1.1) (2022-05-30)

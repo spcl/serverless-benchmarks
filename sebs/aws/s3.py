@@ -285,10 +285,13 @@ class S3(PersistentStorage):
         Args:
             bucket: Name of the bucket to clean
         """
-        objects = self.client.list_objects_v2(Bucket=bucket)
-        if "Contents" in objects:
-            objects = [{"Key": obj["Key"]} for obj in objects["Contents"]]  # type: ignore
-            self.client.delete_objects(Bucket=bucket, Delete={"Objects": objects})  # type: ignore
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket):
+            if "Contents" in page:
+                self.client.delete_objects(
+                    Bucket=bucket,
+                    Delete={"Objects": [{"Key": o["Key"]} for o in page["Contents"]]},
+                )
 
     def remove_bucket(self, bucket: str) -> None:
         """Delete an S3 bucket.

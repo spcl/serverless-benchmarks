@@ -211,6 +211,38 @@ class SeBSConfig:
         """
         return self._system_config["general"].get("SeBS_version", "unknown")
 
+    def docker_image_name(
+        self,
+        system: str,
+        image_type: str,
+        language_name: Optional[str] = None,
+        language_version: Optional[str] = None,
+    ) -> str:
+        """Generate standardized Docker image name for infrastructure images.
+
+        Creates a standardized name format for Docker images used in the SeBS
+        infrastructure (build, run, manage, function, dependencies images).
+
+        Format: {repo}:{type}.{system}[.{lang}[.{version}]]-{sebs_version}
+
+        Args:
+            system (str): Deployment system name (e.g., 'aws', 'azure', 'local').
+            image_type (str): Type of image (e.g., 'build', 'run', 'manage', 'function').
+            language_name (Optional[str]): Programming language name (e.g., 'python', 'nodejs').
+            language_version (Optional[str]): Language version (e.g., '3.9', '16').
+
+        Returns:
+            str: Complete Docker image name with repository and tag.
+        """
+        repo = self.docker_repository()
+        tag = f"{image_type}.{system}"
+        if language_name:
+            tag += f".{language_name}"
+        if language_version:
+            tag += f".{language_version}"
+        sebs_version = self.version()
+        return f"{repo}:{tag}-{sebs_version}"
+
     def benchmark_image_name(
         self,
         system: str,

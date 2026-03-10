@@ -170,7 +170,8 @@ class AzureCredentials(Credentials):
         old_subscription_id: Optional[str] = None
         # Load cached values
         if cached_config and "credentials" in cached_config:
-            old_subscription_id = cached_config["credentials"]["subscription_id"]
+            if "subscription_id" in cached_config["credentials"]:
+                old_subscription_id = cached_config["credentials"]["subscription_id"]
 
         # Check for new config
         if "credentials" in config and "appId" in config["credentials"]:
@@ -200,7 +201,10 @@ class AzureCredentials(Credentials):
         Returns:
             Dictionary containing serialized credential data.
         """
-        out = {"subscription_id": self.subscription_id}
+        if self._subscription_id is not None:
+            out = {"subscription_id": self.subscription_id}
+        else:
+            out = {}
         return out
 
     def update_cache(self, cache_client: Cache) -> None:

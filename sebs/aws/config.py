@@ -15,7 +15,7 @@ import base64
 import json
 import os
 import time
-from typing import cast, Dict, Optional, Tuple
+from typing import cast, Dict, List, Optional, Tuple
 
 import boto3
 from mypy_boto3_ecr import ECRClient
@@ -419,14 +419,12 @@ class AWSResources(Resources):
 
                 retries = 0
                 while retries < 5:
-
                     try:
                         api_data = api_client.create_api(  # type: ignore
                             Name=api_name, ProtocolType="HTTP", Target=func.arn
                         )
                         break
                     except api_client.exceptions.TooManyRequestsException as e:
-
                         retries += 1
 
                         if retries == 5:
@@ -450,6 +448,48 @@ class AWSResources(Resources):
         else:
             self.logging.info(f"Using cached HTTP API {api_name}")
         return http_api
+
+    def cleanup_http_apis(
+        self, boto3_session: boto3.session.Session, cache_client: Cache, dry_run: bool = False
+    ) -> List[str]:
+        """Remove HTTP APIs allocated for HTTP triggers.
+
+        Args:
+            boto3_session: boto3 session for AWS API calls
+            cache_client: SeBS cache client
+            dry_run: when true, skip actual deletion
+
+        Returns:
+            list of deleted HTTP API names
+        """
+
+        deleted: List[str] = []
+        dry_run_tag = "[DRY-RUN] " if dry_run else ""
+
+        api_client = boto3_session.client(
+            service_name="apigatewayv2", region_name=cast(str, self._region)
+        )
+
+        http_apis = cache_client.get_config_key(["aws", "resources", "http-apis"])
+        if http_apis is None:
+            return deleted
+
+        for name, http_api in http_apis.items():
+
+            self.logging.info(f"{dry_run_tag}Deleting HTTP API: {name} ({http_api['arn']})")
+
+            if not dry_run:
+                # We need to extract the ID
+                api_id = http_api["arn"].split(":")[-1]
+                api_client.delete_api(ApiId=api_id)
+            deleted.append(name)
+
+        if not dry_run:
+            for api_name in deleted:
+                cache_client.remove_config_key(["aws", "resources", "http-apis", api_name])
+                self._http_apis.pop(api_name, None)
+
+        return deleted
 
     def check_ecr_repository_exists(
         self, ecr_client: ECRClient, repository_name: str
@@ -514,6 +554,108 @@ class AWSResources(Resources):
                 )
 
         return self._container_repository
+
+    def cleanup_ecr_repository(
+        self,
+        boto3_session: boto3.session.Session,
+        cache_client: Cache,
+        dry_run: bool = False,
+    ) -> List[str]:
+        """Remove ECR repository used for container images.
+
+        Args:
+            boto3_session: boto3 session for AWS API calls
+            cache_client: SeBS cache instance
+            dry_run: when true, skip actual deletion
+
+        Returns:
+            list of deleted ECR repositories (currently always one)
+        """
+        deleted: List[str] = []
+        dry_run_tag = "[DRY-RUN] " if dry_run else ""
+        repo_name = self._container_repository
+
+        if repo_name is None:
+            return deleted
+
+        try:
+            ecr_client = boto3_session.client("ecr", region_name=cast(str, self._region))
+
+            try:
+                ecr_client.describe_repositories(repositoryNames=[repo_name])
+                self.logging.info(f"{dry_run_tag}Deleting ECR repository: {repo_name}")
+                deleted.append(repo_name)
+
+                if dry_run:
+                    return deleted
+
+                ecr_client.delete_repository(repositoryName=repo_name, force=True)
+
+            except ecr_client.exceptions.RepositoryNotFoundException:
+                self.logging.warning(f"ECR repository {repo_name} does not exist")
+            except Exception as e:
+                self.logging.error(f"Failed to delete ECR repository {repo_name}: {e}")
+            finally:
+                cache_client.remove_config_key(["aws", "resources", "container_repository"])
+                cache_client.remove_config_key(["aws", "resources", "docker"])
+
+                self._docker_registry = None
+                self._docker_username = None
+                self._container_repository = None
+
+        except Exception as e:
+            self.logging.error(f"Failed to create ECR client: {e}")
+
+        if not dry_run:
+            cache_client.invalidate_all_container_uris("aws")
+
+        return deleted
+
+    def cleanup_cloudwatch_logs(
+        self, function_names: List[str], boto3_session: boto3.session.Session, dry_run: bool
+    ) -> List[str]:
+        """Remove CloudWatch logs for selected functions.
+
+        Args:
+            function_names: list of function names to clean up logs for
+            boto3_session: boto3 session for AWS API calls
+            dry_run: when true, skip actual deletion
+
+        Returns:
+            list of deleted log group names
+        """
+
+        deleted: List[str] = []
+        dry_run_tag = "[DRY-RUN] " if dry_run else ""
+        if not function_names:
+            return deleted
+
+        logs_client = boto3_session.client("logs", region_name=self._region)
+
+        for func_name in function_names:
+            log_group = f"/aws/lambda/{func_name}"
+            try:
+                response = logs_client.describe_log_groups(logGroupNamePrefix=log_group)
+
+                for group in response.get("logGroups", []):
+                    group_name = group["logGroupName"]
+                    if group_name != log_group:
+                        continue
+
+                    self.logging.info(f"{dry_run_tag}Deleting log group: {group_name}")
+                    deleted.append(group_name)
+                    if dry_run:
+                        continue
+
+                    try:
+                        logs_client.delete_log_group(logGroupName=group_name)
+                    except Exception as e:
+                        self.logging.error(f"Failed to delete log group {group_name}: {e}")
+
+            except Exception as e:
+                self.logging.error(f"Failed to describe log groups for {func_name}: {e}")
+
+        return deleted
 
     def ecr_repository_authorization(self, ecr_client: ECRClient) -> Tuple[str, str, str]:
         """Get ECR repository authorization credentials.

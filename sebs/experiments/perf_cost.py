@@ -316,7 +316,7 @@ class PerfCost(Experiment):
                     samples_generated += invocations
                     if first_iteration:
                         self.logging.info(
-                            f"Processed {samples_gathered} warm-up samples, ignoring these results."
+                            f"Processed {invocations} warm-up samples, ignoring these results."
                         )
                     else:
                         self.logging.info(
@@ -499,10 +499,13 @@ class PerfCost(Experiment):
                         for func in experiments.functions():
                             for id, invoc in experiments.invocations(func).items():
                                 # FIXME: compatibility with old results
-                                if "output" in invoc.output["result"]:
-                                    del invoc.output["result"]["output"]
-                                elif "result" in invoc.output["result"]:
-                                    del invoc.output["result"]["result"]
+                                # Only process if result is a dict
+                                # (some languages return primitives directly)
+                                if isinstance(invoc.output["result"], dict):
+                                    if "output" in invoc.output["result"]:
+                                        del invoc.output["result"]["output"]
+                                    elif "result" in invoc.output["result"]:
+                                        del invoc.output["result"]["result"]
 
                         name, extension = os.path.splitext(f)
                         with open(

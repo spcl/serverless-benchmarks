@@ -1,9 +1,14 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
+ARG VERSION
+ENV NVM_DIR=/nvm
 
 RUN apt-get update\
-  && apt-get install -y --no-install-recommends zip gosu\
-  && apt-get purge -y --auto-remove
+  && apt-get install -y --no-install-recommends ca-certificates zip gosu wget\
+  && apt-get purge -y --auto-remove \
+  && update-ca-certificates \
+  && mkdir -p ${NVM_DIR} && wget -O- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash \
+  && . ${NVM_DIR}/nvm.sh && nvm install ${VERSION} && nvm alias default ${VERSION} && nvm use default
 
 RUN mkdir -p /sebs/
 COPY dockerfiles/nodejs_installer.sh /sebs/installer.sh
@@ -12,5 +17,6 @@ RUN chmod +x /sebs/entrypoint.sh
 
 # useradd and groupmod is installed in /usr/sbin which is not in PATH
 ENV SCRIPT_FILE=/mnt/function/package.sh
+ENV PATH="$NVM_DIR/versions/node/v$(cat $NVM_DIR/alias/default)/bin:$PATH"
 CMD /bin/bash /sebs/installer.sh
 ENTRYPOINT ["/sebs/entrypoint.sh"]

@@ -10,6 +10,7 @@ import traceback
 from typing import cast, List, Optional
 
 import click
+import docker
 
 import sebs
 from sebs import SeBS
@@ -32,9 +33,13 @@ class ExceptionProcesser(click.Group):
         try:
             return self.main(*args, **kwargs)
         except Exception as e:
-            logging.error(e)
+            if sebs_client is not None:
+                sebs_client.logging.error(e)
+                sebs_client.logging.error("# Experiments failed! See out.log for details")
+            else:
+                logging.error(e)
+                logging.error("# Experiments failed! See out.log for details")
             traceback.print_exc()
-            logging.info("# Experiments failed! See out.log for details")
         finally:
             # Close
             if deployment_client is not None:
@@ -66,7 +71,7 @@ def simplified_common_params(func):
     @click.option(
         "--language",
         default=None,
-        type=click.Choice(["python", "nodejs", "cpp"]),
+        type=click.Choice(["python", "nodejs", "java", "cpp"]),
         help="Benchmark language",
     )
     @click.option("--language-version", default=None, type=str, help="Benchmark language version")
@@ -104,7 +109,7 @@ def common_params(func):
     @click.option(
         "--container-deployment/--no-container-deployment",
         default=False,
-        help="Deploy functions as containers (AWS only). When enabled, functions are packaged as container images and pushed to Amazon ECR."
+        help="Deploy functions as container images (AWS only).",
     )
     @click.option(
         "--resource-prefix",
@@ -112,7 +117,6 @@ def common_params(func):
         type=str,
         help="Resource prefix to look for.",
     )
-
     @simplified_common_params
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -139,9 +143,8 @@ def parse_common_params(
     resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
-    storage_configuration: Optional[List[str]] = None
+    storage_configuration: Optional[List[str]] = None,
 ):
-
     global sebs_client, deployment_client
     config_obj = json.load(open(config, "r"))
     os.makedirs(output_dir, exist_ok=True)
@@ -166,11 +169,10 @@ def parse_common_params(
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)
 
     if storage_configuration is not None:
-
         for cfg_f in storage_configuration:
             sebs_client.logging.info(f"Loading storage configuration from {cfg_f}")
 
-            cfg = json.load(open(cfg_f, 'r'))
+            cfg = json.load(open(cfg_f, "r"))
             append_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
 
     if initialize_deployment:
@@ -235,7 +237,12 @@ def benchmark():
     type=str,
     help="Attach prefix to generated Docker image tag.",
 )
-@click.option("--storage-configuration", type=str, multiple=True, help="JSON configuration of deployed storage.")
+@click.option(
+    "--storage-configuration",
+    type=str,
+    multiple=True,
+    help="JSON configuration of deployed storage.",
+)
 @common_params
 def invoke(
     benchmark,
@@ -248,14 +255,9 @@ def invoke(
     image_tag_prefix,
     **kwargs,
 ):
-
-    (
-        config,
-        output_dir,
-        logging_filename,
-        sebs_client,
-        deployment_client
-    ) = parse_common_params(**kwargs)
+    (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
+        **kwargs
+    )
 
     if image_tag_prefix is not None:
         sebs_client.config.image_tag_prefix = image_tag_prefix
@@ -274,12 +276,18 @@ def invoke(
     if timeout is not None:
         benchmark_obj.benchmark_config.timeout = timeout
 
-    input_config = benchmark_obj.prepare_input(deployment_client.system_resources, size=benchmark_input_size, replace_existing=experiment_config.update_storage)
+    input_config = benchmark_obj.prepare_input(
+        deployment_client.system_resources,
+        size=benchmark_input_size,
+        replace_existing=experiment_config.update_storage,
+    )
 
     func = deployment_client.get_function(
         benchmark_obj,
         function_name if function_name else deployment_client.default_function_name(benchmark_obj),
     )
+
+    # Update configuration
 
     result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
     result.begin()
@@ -291,10 +299,10 @@ def invoke(
     else:
         trigger = triggers[0]
     for i in range(repetitions):
-        sebs_client.logging.info(f"Beginning repetition {i+1}/{repetitions}")
+        sebs_client.logging.info(f"Beginning repetition {i + 1}/{repetitions}")
         ret = trigger.sync_invoke(input_config)
         if ret.stats.failure:
-            sebs_client.logging.info(f"Failure on repetition {i+1}/{repetitions}")
+            sebs_client.logging.info(f"Failure on repetition {i + 1}/{repetitions}")
             # deployment_client.get_invocation_error(
             #    function_name=func.name, start_time=start_time, end_time=end_time
             # )
@@ -310,7 +318,6 @@ def invoke(
 @benchmark.command()
 @common_params
 def process(**kwargs):
-
     (
         config,
         output_dir,
@@ -331,7 +338,10 @@ def process(**kwargs):
 
     for func in experiments.functions():
         deployment_client.download_metrics(
-            func, *experiments.times(), experiments.invocations(func), experiments.metrics(func)
+            func,
+            *experiments.times(),
+            experiments.invocations(func),
+            experiments.metrics(func),
         )
 
     output_file = os.path.join(output_dir, "results.json")
@@ -339,10 +349,10 @@ def process(**kwargs):
         out_f.write(sebs.utils.serialize(experiments))
     sebs_client.logging.info("Save results to {}".format(output_file))
 
+
 @benchmark.command()
 @click.argument("results", type=click.Path(dir_okay=False, readable=True))
 def statistics(results):
-
     logger = logging.getLogger("Statistics")
     logger.setLevel(logging.INFO)
     logger = sebs.utils.ColoredWrapper("Statistics", logger)
@@ -355,6 +365,51 @@ def statistics(results):
     print_stats(logger, experiments)
 
 
+@benchmark.command()
+@click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
+@click.option(
+    "--function-name",
+    default=None,
+    type=str,
+    help="Override function name for random generation.",
+)
+@click.option(
+    "--image-tag-prefix",
+    default=None,
+    type=str,
+    help="Attach prefix to generated Docker image tag.",
+)
+@common_params
+def package(
+    benchmark,
+    function_name,
+    image_tag_prefix,
+    **kwargs,
+):
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    if image_tag_prefix is not None:
+        sebs_client.config.image_tag_prefix = image_tag_prefix
+
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    update_nested_dict(config, ["experiments", "benchmark"], benchmark)
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+
+    deployment_client.build_function(
+        benchmark_obj,
+        function_name if function_name else deployment_client.default_function_name(benchmark_obj),
+    )
+
 
 @benchmark.command()
 @click.argument(
@@ -366,7 +421,12 @@ def statistics(results):
     type=str,
     help="Run only the selected benchmark.",
 )
-@click.option("--storage-configuration", type=str, multiple=True, help="JSON configuration of deployed storage.")
+@click.option(
+    "--storage-configuration",
+    type=str,
+    multiple=True,
+    help="JSON configuration of deployed storage.",
+)
 @common_params
 @click.option(
     "--cache",
@@ -382,7 +442,9 @@ def regression(benchmark_input_size, benchmark_name, storage_configuration, **kw
     # for regression, deployment client is initialized locally
     # disable default initialization
     (config, output_dir, logging_filename, sebs_client, _) = parse_common_params(
-        initialize_deployment=False, storage_configuration=storage_configuration, **kwargs
+        initialize_deployment=False,
+        storage_configuration=storage_configuration,
+        **kwargs,
     )
     regression_suite(
         sebs_client,
@@ -412,21 +474,25 @@ def storage():
 @click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
 @click.argument("config", type=click.Path(dir_okay=False, readable=True))
 @click.option("--output-json", type=click.Path(dir_okay=False, writable=True), default=None)
-def storage_start(storage, config, output_json):
-
+@click.option(
+    "--remove-containers/--no-remove-containers",
+    default=True,
+    help="Remove containers after stopping.",
+)
+def storage_start(storage, config, output_json, remove_containers):
     import docker
 
     sebs.utils.global_logging()
-    user_storage_config = json.load(open(config, 'r'))
+    user_storage_config = json.load(open(config, "r"))
 
     if storage in ["object", "all"]:
-
         storage_type_name = user_storage_config["object"]["type"]
         storage_type_enum = StorageTypes(storage_type_name)
 
         storage_type = sebs.SeBS.get_storage_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
+        config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, None, True)
         storage_instance.config = config
@@ -438,13 +504,13 @@ def storage_start(storage, config, output_json):
         user_storage_config.pop("object", None)
 
     if storage in ["nosql", "all"]:
-
         storage_type_name = user_storage_config["nosql"]["type"]
         storage_type_enum = NoSQLStorageTypes(storage_type_name)
 
         storage_type = sebs.SeBS.get_nosql_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_nosql_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["nosql"][storage_type_name])
+        config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, config)
 
@@ -468,34 +534,36 @@ def storage_start(storage, config, output_json):
 @click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
 @click.argument("input-json", type=click.Path(exists=True, dir_okay=False, readable=True))
 def storage_stop(storage, input_json):
-
     sebs.utils.global_logging()
     with open(input_json, "r") as f:
         cfg = json.load(f)
 
     if storage in ["object", "all"] and "object" in cfg:
-
         storage_type = cfg["object"]["type"]
 
         storage_cfg = sebs.SeBS.get_storage_config_implementation(storage_type)
         config = storage_cfg.deserialize(cfg["object"][storage_type])
 
         logging.info(f"Stopping storage deployment of {storage_type}.")
-        storage_instance = sebs.SeBS.get_storage_implementation(storage_type).deserialize(config, None, None)
+        storage_instance = sebs.SeBS.get_storage_implementation(storage_type).deserialize(
+            config, None, None
+        )
         storage_instance.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 
     if storage in ["nosql", "all"] and "nosql" in cfg:
-
         storage_type = cfg["nosql"]["type"]
 
         storage_cfg = sebs.SeBS.get_nosql_config_implementation(storage_type)
         config = storage_cfg.deserialize(cfg["nosql"][storage_type])
 
         logging.info(f"Stopping nosql deployment of {storage_type}.")
-        storage_instance = sebs.SeBS.get_nosql_implementation(storage_type).deserialize(config, None, None)
+        storage_instance = sebs.SeBS.get_nosql_implementation(storage_type).deserialize(
+            config, None, None
+        )
         storage_instance.stop()
         logging.info(f"Stopped nosql deployment of {storage_type}.")
+
 
 @cli.group()
 def local():
@@ -507,9 +575,18 @@ def local():
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
 @click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
-@click.option("--storage-configuration", type=str, multiple=True, help="JSON configuration of deployed storage.")
-@click.option("--measure-interval", type=int, default=-1,
-              help="Interval duration between memory measurements in ms.")
+@click.option(
+    "--storage-configuration",
+    type=str,
+    multiple=True,
+    help="JSON configuration of deployed storage.",
+)
+@click.option(
+    "--measure-interval",
+    type=int,
+    default=-1,
+    help="Interval duration between memory measurements in ms.",
+)
 @click.option(
     "--remove-containers/--no-remove-containers",
     default=True,
@@ -538,10 +615,13 @@ def start(
     """
 
     (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
-        update_code=False, update_storage=False,
-        deployment="local", storage_configuration=storage_configuration,
-        container_deployment=False, architecture=architecture,
-        **kwargs
+        update_code=False,
+        update_storage=False,
+        deployment="local",
+        storage_configuration=storage_configuration,
+        container_deployment=False,
+        architecture=architecture,
+        **kwargs,
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers
@@ -558,14 +638,17 @@ def start(
     input_config = benchmark_obj.prepare_input(
         deployment_client.system_resources,
         size=benchmark_input_size,
-        replace_existing=experiment_config.update_storage
+        replace_existing=experiment_config.update_storage,
     )
     result.set_storage(deployment_client.system_resources.get_storage())
     result.add_input(input_config)
 
     for i in range(deployments):
         func = deployment_client.get_function(
-            benchmark_obj, deployment_client.default_function_name(benchmark_obj,deployment_client.config.resources)
+            benchmark_obj,
+            deployment_client.default_function_name(
+                benchmark_obj, deployment_client.config.resources
+            ),
         )
         result.add_function(func)
 
@@ -631,33 +714,30 @@ def experiment_process(experiment, extend_time_interval, **kwargs):
     ) = parse_common_params(**kwargs)
     experiment = sebs_client.get_experiment(experiment, config["experiments"])
     experiment.process(
-        sebs_client, deployment_client, output_dir, logging_filename, extend_time_interval
+        sebs_client,
+        deployment_client,
+        output_dir,
+        logging_filename,
+        extend_time_interval,
     )
+
 
 @experiment.command("statistics")
 @click.argument("experiment-results", type=click.Path(dir_okay=True, readable=True))
 def experiment_statistics(experiment_results):
-
     logger = logging.getLogger("Statistics")
     logger.setLevel(logging.INFO)
     logger = sebs.utils.ColoredWrapper("Statistics", logger)
 
     logging.info(f"Load experiment results from {experiment_results}")
-    #with open(results, "r") as in_f:
-    #    config = json.load(in_f)
-    #    experiments = sebs.experiments.ExperimentResult.deserialize(config, None, None)
 
-    #print_stats(logger, experiments)
     for f in glob.glob(os.path.join(experiment_results, "*.json")):
-        name, extension = os.path.splitext(f)
         if "processed" not in f:
             continue
 
         with open(f) as in_f:
             config = json.load(in_f)
-            experiments = sebs.experiments.ExperimentResult.deserialize(
-                config, None, None
-            )
+            experiments = sebs.experiments.ExperimentResult.deserialize(config, None, None)
         # FIXME: this will only work for perf-cost
         fname = os.path.splitext(os.path.basename(f))[0].split("_")
         if len(fname) > 2:
@@ -671,7 +751,6 @@ def experiment_statistics(experiment_results):
         logger.info("------")
 
 
-
 @cli.group()
 def resources():
     pass
@@ -681,7 +760,6 @@ def resources():
 @click.argument("resource", type=click.Choice(["buckets", "resource-groups"]))
 @common_params
 def resources_list(resource, **kwargs):
-
     (
         config,
         output_dir,
@@ -698,7 +776,6 @@ def resources_list(resource, **kwargs):
             sebs_client.logging.info(f"({idx}) {bucket}")
 
     elif resource == "resource-groups":
-
         if deployment_client.name() != "azure":
             sebs_client.logging.error("Resource groups are only supported on Azure!")
             return
@@ -723,7 +800,6 @@ def resources_list(resource, **kwargs):
 )
 @common_params
 def resources_remove(resource, prefix, wait, dry_run, **kwargs):
-
     (
         config,
         output_dir,
@@ -734,10 +810,8 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
 
     storage_client = deployment_client.system_resources.get_storage(False)
     if resource == "buckets":
-
         buckets = storage_client.list_buckets()
         for idx, bucket in enumerate(buckets):
-
             if len(prefix) > 0 and not bucket.startswith(prefix):
                 continue
 
@@ -747,7 +821,6 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
                 storage_client.remove_bucket(bucket)
 
     elif resource == "resource-groups":
-
         if deployment_client.name() != "azure":
             sebs_client.logging.error("Resource groups are only supported on Azure!")
             return
@@ -765,6 +838,189 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
             )
     else:
         raise NotImplementedError(f"Resource {resource} not supported.")
+
+
+@resources.command("cleanup")
+@click.argument("resources-id", type=str, required=False, default=None)
+@click.option(
+    "--dry-run/--no-dry-run",
+    type=bool,
+    default=False,
+    help="Simulate run without actual deletions.",
+)
+@common_params
+def resources_cleanup(resources_id, dry_run, **kwargs):
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+
+    try:
+        result = deployment_client.cleanup_resources(dry_run=dry_run)
+        total = sum(len(v) for v in result.values())
+        action = "found" if dry_run else "deleted"
+        sebs_client.logging.info(f"Total resources {action}: {total}")
+    except NotImplementedError as e:
+        sebs_client.logging.error(str(e))
+
+
+@cli.group()
+def docker_cmd():
+    """Docker image management commands."""
+    pass
+
+
+@docker_cmd.command("build")
+@click.option(
+    "--deployment",
+    default=None,
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    help="Deployment platform to build images for",
+)
+@click.option(
+    "--image-type",
+    default=None,
+    type=click.Choice(["build", "dependencies", "run", "manage"]),
+    help="Type of Docker image to build",
+)
+@click.option(
+    "--language",
+    default=None,
+    type=click.Choice(["python", "nodejs", "java", "cpp"]),
+    help="Programming language",
+)
+@click.option("--language-version", default=None, type=str, help="Language version")
+@click.option(
+    "--architecture",
+    default="x64",
+    type=click.Choice(["x64", "arm64"]),
+    help="Target architecture",
+)
+@click.option(
+    "--platform",
+    default=None,
+    type=str,
+    help="Optional Docker platform (e.g., linux/amd64) to override host architecture.",
+)
+@click.option(
+    "--dependency-type",
+    default=None,
+    type=str,
+    help="Specific dependency for cpp (opencv, boost, etc.)",
+)
+@click.option("--parallel", default=1, type=int, help="Number of parallel workers")
+@click.option("--verbose/--no-verbose", default=False, help="Enable verbose output")
+def docker_build(
+    deployment,
+    image_type,
+    language,
+    language_version,
+    architecture,
+    platform,
+    dependency_type,
+    parallel,
+    verbose,
+):
+    """Build Docker images for SeBS infrastructure.
+
+    Examples:
+        sebs.py docker build --deployment aws --image-type build
+        sebs.py docker build --deployment aws --language python --language-version 3.9
+    """
+    from sebs.config import SeBSConfig
+    from sebs.docker_builder import DockerImageBuilder
+
+    config = SeBSConfig()
+
+    try:
+        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+    except docker.errors.DockerException:
+        return
+
+    builder.build(
+        deployment=deployment,
+        image_type=image_type,
+        language=language,
+        language_version=language_version,
+        architecture=architecture,
+        dependency_type=dependency_type,
+        platform=platform,
+        parallel=parallel,
+    )
+
+
+@docker_cmd.command("push")
+@click.option(
+    "--deployment",
+    default=None,
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    help="Deployment platform to push images for",
+)
+@click.option(
+    "--image-type",
+    default=None,
+    type=click.Choice(["build", "dependencies", "run", "manage"]),
+    help="Type of Docker image to push",
+)
+@click.option(
+    "--language",
+    default=None,
+    type=click.Choice(["python", "nodejs", "java", "cpp"]),
+    help="Programming language",
+)
+@click.option("--language-version", default=None, type=str, help="Language version")
+@click.option(
+    "--architecture",
+    default="x64",
+    type=click.Choice(["x64", "arm64"]),
+    help="Target architecture",
+)
+@click.option(
+    "--dependency-type",
+    default=None,
+    type=str,
+    help="Specific dependency for cpp (opencv, boost, etc.)",
+)
+@click.option("--verbose/--no-verbose", default=False, help="Enable verbose output")
+def docker_push_images(
+    deployment,
+    image_type,
+    language,
+    language_version,
+    architecture,
+    dependency_type,
+    verbose,
+):
+    """Push Docker infrastructure images to registry.
+
+    This command pushes infrastructure images (build, run, manage, dependencies)
+    to DockerHub. Images must be built locally first using 'docker build'.
+
+    Examples:
+        sebs.py docker push-images --deployment aws --image-type build
+        sebs.py docker push-images --deployment aws --language python --language-version 3.9
+    """
+    from sebs.config import SeBSConfig
+    from sebs.docker_builder import DockerImageBuilder
+
+    config = SeBSConfig()
+
+    try:
+        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+    except docker.errors.DockerException:
+        return
+
+    builder.push(
+        deployment=deployment,
+        image_type=image_type,
+        language=language,
+        language_version=language_version,
+        architecture=architecture,
+        dependency_type=dependency_type,
+    )
 
 
 if __name__ == "__main__":

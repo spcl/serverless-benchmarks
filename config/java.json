@@ -4,28 +4,20 @@
     "update_code": false,
     "update_storage": false,
     "download_results": false,
-    "architecture": "arm64",
-    "container_deployment": true,
+    "architecture": "x64",
+    "container_deployment": false,
     "runtime": {
-      "language": "nodejs",
-      "version": "16"
+        "language": "java",
+        "version": "11"
     },
     "type": "invocation-overhead",
     "perf-cost": {
       "benchmark": "110.dynamic-html",
-      "experiments": [
-        "cold",
-        "warm",
-        "burst",
-        "sequential"
-      ],
+      "experiments": ["cold", "warm", "burst", "sequential"],
       "input-size": "test",
       "repetitions": 50,
       "concurrent-invocations": 50,
-      "memory-sizes": [
-        128,
-        256
-      ]
+      "memory-sizes": [128, 256]
     },
     "network-ping-pong": {
       "invocations": 50,
@@ -82,6 +74,7 @@
       "wskBypassSecurity": "true",
       "wskExec": "wsk",
       "experimentalManifest": false,
+      "dockerhubRepository": null,
       "docker_registry": {
         "registry": "",
         "username": "",

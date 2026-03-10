@@ -247,9 +247,9 @@ class SeBS(LoggingBase):
         deployment_client = implementations[name](
             self._config,
             deployment_config,  # type: ignore
-            self.cache_client,
-            self.docker_client,
-            handlers,
+            self.cache_client,  # type: ignore
+            self.docker_client,  # type: ignore
+            handlers,  # type: ignore
         )
         return deployment_client
 

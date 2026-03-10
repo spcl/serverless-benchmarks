@@ -249,7 +249,7 @@ def _load_benchmarks():
 
 # Pages whose content is loaded from docs/*.md one level above docs/source/
 _DOC_PAGES = frozenset(
-    {"usage", "build", "design", "experiments", "modularity", "platforms", "storage"}
+    {"usage", "build", "design", "experiments", "modularity", "platforms", "storage", "resource-management"}
 )
 
 

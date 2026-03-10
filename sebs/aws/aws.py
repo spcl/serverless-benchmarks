@@ -218,6 +218,20 @@ class AWS(System):
             - Size of the package in bytes
         """
 
+        if language == Language.JAVA:
+            jar_path = os.path.join(directory, "target", "function.jar")
+            bytes_size = os.path.getsize(jar_path)
+            mbytes = bytes_size / 1024.0 / 1024.0
+            if not os.path.exists(jar_path):
+                raise RuntimeError(
+                    f"Java artifact {jar_path} missing. Ensure Java build produced the jar."
+                )
+
+            self.logging.info(f"Created {jar_path} archive")
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+            return (jar_path, bytes_size)
+
         CONFIG_FILES = {
             Language.PYTHON: ["handler.py", "requirements.txt", ".python_packages"],
             Language.NODEJS: ["handler.js", "package.json", "node_modules"],
@@ -237,6 +251,7 @@ class AWS(System):
             # create zip with hidden directory but without parent directory
             execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
             benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+
             self.logging.info("Created {} archive".format(benchmark_archive))
 
             bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
@@ -289,6 +304,8 @@ class AWS(System):
             return f"{language}{language_version}.x"
         elif language == Language.CPP:
             return "provided.al2023"
+        elif language == Language.JAVA:
+            return f"{language}{language_version}"
         elif language in [Language.PYTHON]:
             return f"{language}{language_version}"
         else:
@@ -388,7 +405,10 @@ class AWS(System):
                     }
 
                 create_function_params["Runtime"] = self.cloud_runtime(language, language_runtime)
-                create_function_params["Handler"] = "handler.handler"
+                if language == Language.JAVA:
+                    create_function_params["Handler"] = "org.serverlessbench.Handler::handleRequest"
+                else:
+                    create_function_params["Handler"] = "handler.handler"
 
             create_function_params = {
                 k: v for k, v in create_function_params.items() if v is not None
@@ -606,20 +626,17 @@ class AWS(System):
         func_name = func_name.replace(".", "_")
         return func_name
 
-    def delete_function(self, func_name: Optional[str]) -> None:
+    def delete_function(self, func_name: str) -> None:
         """Delete an AWS Lambda function.
 
         Args:
             func_name: Name of the function to delete
-
-        Note:
-            FIXME: does not clean the cache in SeBS.
         """
-        self.logging.debug("Deleting function {}".format(func_name))
+        self.logging.info("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
         except Exception:
-            self.logging.debug("Function {} does not exist!".format(func_name))
+            self.logging.error("Function {} does not exist!".format(func_name))
 
     @staticmethod
     def parse_aws_report(
@@ -670,6 +687,57 @@ class AWS(System):
         output.billing.memory = memory
         output.billing.gb_seconds = (billed_time / 1000.0) * (memory / 1024.0)
         return request_id
+
+    def cleanup_resources(self, dry_run: bool = False) -> dict:
+        """Delete allocated resources on AWS.
+        Currently it deletes the following resources:
+        * Lambda functions and its HTTP API triggers.
+        * CloudWatch log groups of the functions.
+        * DynamoDB tables created for the benchmark.
+        * S3 buckets and their content created for the benchmark.
+        * ECR repositories (images are retained locally).
+
+        Args:
+            dry_run: when true, only display resources.
+
+        Returns:
+            dictionary with the list of deleted resources for each resource type.
+        """
+        resources_id = self.config.resources.resources_id
+
+        result = {}
+        dry_run_tag = "[DRY-RUN] " if dry_run else ""
+
+        self.logging.info(
+            f"{dry_run_tag}Starting cleanup of resources of the deployment: {resources_id}"
+        )
+
+        functions = self.cache_client.get_all_functions(self.name())
+        result["Lambda functions"] = self.cleanup_functions(dry_run)
+
+        result["HTTP APIs"] = self.config.resources.cleanup_http_apis(
+            self.session, self.cache_client, dry_run
+        )
+
+        result["CloudWatch log groups"] = self.config.resources.cleanup_cloudwatch_logs(
+            list(functions.keys()), self.session, dry_run
+        )
+
+        result["S3 buckets"] = self.system_resources.get_storage().cleanup_buckets(dry_run)
+
+        result["ECR repositories"] = self.config.resources.cleanup_ecr_repository(
+            self.session, self.cache_client, dry_run
+        )
+
+        result["DynamoDB Tables"] = self.system_resources.get_nosql_storage().cleanup_tables(
+            dry_run
+        )
+
+        self.logging.info(f"{dry_run_tag}Cleanup summary for deployment {resources_id}:")
+        for resource_type, items in result.items():
+            self.logging.info(f"  {resource_type}: {len(items)} removed")
+
+        return result
 
     def shutdown(self) -> None:
         """Shutdown the AWS system and clean up resources.

@@ -21,6 +21,7 @@ SeBS: Serverless Benchmark Suite
    design
    modularity
    storage
+   resource-management
 
 .. toctree::
    :maxdepth: 2

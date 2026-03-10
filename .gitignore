@@ -188,5 +188,7 @@ cache
 .idea
 *.iml
 
+# Visual Studio Code files
+.vscode/
 # MacOS Finder
 **/.DS_Store

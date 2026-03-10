@@ -29,7 +29,7 @@ void thumbnailer(const std::vector<char>& jpeg_data, int64_t width, int64_t heig
     int new_height = static_cast<int>(orig_height * scale);
 
     // Resize image (equivalent to PIL's thumbnail method)
-    cv::resize(in, out, cv::Size(new_width, new_height), cv::INTER_LINEAR);
+    cv::resize(in, out, cv::Size(new_width, new_height), 0, 0, cv::INTER_LINEAR);
   }
   catch (const cv::Exception &e)
   {
@@ -80,7 +80,7 @@ void thumbnailer_fast(const std::vector<char>& jpeg_data, int target_width, int 
   //    << "ms\n";
 
   double scale_w = static_cast<double>(target_width) / orig_width;
-  double scale_h = static_cast<double>(target_width) / orig_height;
+  double scale_h = static_cast<double>(target_height) / orig_height;
   double scale = std::min(scale_w, scale_h); // Use smaller scale to fit within bounds
 
   target_width = static_cast<int>(orig_width * scale);

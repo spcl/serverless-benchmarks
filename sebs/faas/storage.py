@@ -292,6 +292,40 @@ class PersistentStorage(ABC, LoggingBase):
         """
         pass
 
+    def cleanup_buckets(self, dry_run: bool = False) -> List[str]:
+        """Remove all allocated object storage buckets.
+
+        Args:
+            dry_run: when true, skips actual deletion
+
+        Returns:
+            list of deleted buckets
+        """
+
+        deleted = []
+        dry_run_tag = "[DRY-RUN] " if dry_run else ""
+        bucket_names = self._cloud_resources.get_buckets()
+
+        existing_buckets = self.list_buckets()
+        for bucket in bucket_names:
+            if bucket in existing_buckets:
+                self.logging.info(f"{dry_run_tag}Deleting S3 bucket: {bucket}")
+                deleted.append(bucket)
+                if dry_run:
+                    continue
+
+                try:
+                    self.clean_bucket(bucket)
+                    self.remove_bucket(bucket)
+                except Exception as e:
+                    self.logging.error(f"Failed to delete S3 bucket {bucket}: {e}")
+
+        if not dry_run:
+            self.cache_client.remove_storage(self.deployment_name())
+            self._cloud_resources.cleanup_deleted_buckets(self._cache_client)
+
+        return deleted
+
     def benchmark_data(
         self, benchmark: str, requested_buckets: Tuple[int, int]
     ) -> Tuple[List[str], List[str]]:

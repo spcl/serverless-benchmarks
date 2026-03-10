@@ -9,7 +9,7 @@ cache management for benchmark data stored in NoSQL databases.
 
 from abc import ABC
 from abc import abstractmethod
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sebs.faas.config import Resources
 from sebs.cache import Cache
@@ -258,3 +258,41 @@ class NoSQLStorage(ABC, LoggingBase):
             str: Result message or status
         """
         pass
+
+    def _get_tables(self) -> Dict[str, List[str]]:
+        """Get list of all allocated NoSQL tables.
+
+        Returns:
+            mapping of benchmark names to lists of actual NoSQL table names.
+        """
+        raise NotImplementedError()
+
+    def cleanup_tables(self, dry_run: bool = False) -> List[str]:
+        """Remove all allocated NoSQL tables.
+
+        Args:
+            dry_run: when true, skips actual deletion
+
+        Returns:
+            list of deleted table names
+        """
+
+        deleted = []
+        table_names = self._get_tables()
+
+        for _, tables in table_names.items():
+
+            for table in tables:
+                deleted.append(table)
+                if dry_run:
+                    continue
+
+                try:
+                    self.remove_table(table)
+                except Exception as e:
+                    self.logging.error(f"Failed to delete NoSQL table: {table}: {e}")
+
+        if not dry_run:
+            self._cache_client.remove_nosql(self.deployment_name())
+
+        return deleted

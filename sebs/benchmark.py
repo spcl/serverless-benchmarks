@@ -10,9 +10,9 @@ various serverless platforms, including caching mechanisms to avoid redundant bu
 import glob
 import hashlib
 import json
+import subprocess
 import os
 import shutil
-import subprocess
 import textwrap
 from abc import abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -338,7 +338,6 @@ class Benchmark(LoggingBase):
                 return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
             return None
         else:
-            assert self._code_location is not None
             return self._code_location
 
     @property
@@ -632,11 +631,13 @@ class Benchmark(LoggingBase):
         FILES = {
             Language.PYTHON: ["*.py", "requirements.txt*"],
             Language.NODEJS: ["*.js", "package.json"],
+            Language.JAVA: ["*.java", "pom.xml"],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
         }
         WRAPPERS = {
             Language.PYTHON: ["*.py"],
             Language.NODEJS: ["*.js"],
+            Language.JAVA: ["src"],
             Language.CPP: ["*.cpp", "*.hpp"],
         }
         NON_LANG_FILES = ["*.sh", "*.json"]
@@ -661,14 +662,21 @@ class Benchmark(LoggingBase):
                             with open(f, "rb") as opened_file:
                                 hash_sum.update(opened_file.read())
         # wrappers
-        for wrapper in WRAPPERS[language]:
+        wrapper_patterns = WRAPPERS[language]
+        for pattern in wrapper_patterns:
             wrappers = project_absolute_path(
-                "benchmarks", "wrappers", deployment, language.value, wrapper
+                "benchmarks", "wrappers", deployment, language.value, pattern
             )
             for f in glob.glob(wrappers):
-                path = os.path.join(directory, f)
-                with open(path, "rb") as opened_file:
-                    hash_sum.update(opened_file.read())
+                if os.path.isdir(f):
+                    for root, _, files in os.walk(f):
+                        for file in files:
+                            path = os.path.join(root, file)
+                            with open(path, "rb") as opened_file:
+                                hash_sum.update(opened_file.read())
+                else:
+                    with open(f, "rb") as opened_file:
+                        hash_sum.update(opened_file.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:
@@ -729,7 +737,7 @@ class Benchmark(LoggingBase):
 
         Copies language-specific source files and dependency files from the
         benchmark directory to the output directory for deployment preparation.
-        Handles both Python requirements files and Node.js package.json files.
+        Handles Python requirements files, Node.js package.json files, and Java projects.
 
         Args:
             output_dir: Destination directory for copied files
@@ -737,12 +745,18 @@ class Benchmark(LoggingBase):
         FILES = {
             Language.PYTHON: ["*.py", "requirements.txt*"],
             Language.NODEJS: ["*.js", "package.json"],
+            Language.JAVA: [],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
+        if self.language == Language.JAVA:
+            # In Java, we copy the entire nested directory.
+            shutil.copytree(path, output_dir, dirs_exist_ok=True)
+            return
         for file_type in FILES[self.language]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
+
         # support node.js benchmarks with language specific packages
         nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
         if os.path.exists(nodejs_package_json):
@@ -853,8 +867,14 @@ class Benchmark(LoggingBase):
                 self._deployment_name, self.language_name
             )
         ]
+
         for file in handlers:
-            shutil.copy2(file, os.path.join(output_dir))
+            destination = os.path.join(output_dir, os.path.basename(file))
+            if os.path.isdir(file):
+                shutil.copytree(file, destination, dirs_exist_ok=True)
+            else:
+                if not os.path.exists(destination):
+                    shutil.copy2(file, destination)
 
     def add_deployment_package_python(self, output_dir: str) -> None:
         """Add Python deployment packages to requirements file.
@@ -913,6 +933,65 @@ class Benchmark(LoggingBase):
                 package_json["dependencies"][key] = val
             with open(package_config, "w") as package_file:
                 json.dump(package_json, package_file, indent=2)
+
+    def format_maven_dependency(self, group_artifact: str, version: str) -> str:
+        """Helper method to format Java system dependencies.
+        Dependencies in system.json are in "group:artifact": version format;
+        this function converts them to proper Maven <dependency> blocks.
+
+        Args:
+            group_artifact: name of library to add to benchmark
+            version: library version
+
+        Returns:
+            XML-formatted block inserted into pom.xml
+        """
+        group_id, artifact_id = group_artifact.split(":")
+        return f"""
+        <dependency>
+            <groupId>{group_id}</groupId>
+            <artifactId>{artifact_id}</artifactId>
+            <version>{version}</version>
+        </dependency>"""
+
+    def add_deployment_package_java(self, output_dir: str):
+        """Extend benchmark's pom.xml with system-specific packages.
+        All Java dependencies for each platform are defined in systems.json.
+
+        Args:
+            output_dir: benchmark directory containing pom.xml to modify
+
+        Raises:
+            ValueError: when benchmark's pom.xml is missing placeholder
+        """
+        pom_path = os.path.join(output_dir, "pom.xml")
+        with open(pom_path, "r") as f:
+            pom_content = f.read()
+
+        packages = self._system_config.deployment_packages(
+            self._deployment_name, self.language_name
+        )
+
+        dependency_blocks = ""
+        if len(packages):
+            for key, val in packages.items():
+                dependency_name = key.strip('"').strip("'")
+                dependency_version = val.strip('"').strip("'")
+                dependency_blocks += (
+                    self.format_maven_dependency(dependency_name, dependency_version) + "\n"
+                )
+
+        if "<!-- PLATFORM_DEPENDENCIES -->" not in pom_content:
+            raise ValueError(
+                "pom.xml template is missing <!-- PLATFORM_DEPENDENCIES --> placeholder"
+            )
+
+        pom_content = pom_content.replace(
+            "<!-- PLATFORM_DEPENDENCIES -->", dependency_blocks.strip()
+        )
+
+        with open(pom_path, "w") as f:
+            f.write(pom_content)
 
     def add_deployment_package_cpp(self, output_dir: str) -> None:
         """Generates CMakeLists.txt file for C++ benchmark.
@@ -991,6 +1070,8 @@ class Benchmark(LoggingBase):
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
+        elif self.language == Language.JAVA:
+            self.add_deployment_package_java(output_dir)
         elif self.language == Language.CPP:
             self.add_deployment_package_cpp(output_dir)
         else:
@@ -1125,6 +1206,7 @@ class Benchmark(LoggingBase):
                 Language.PYTHON: "requirements.txt",
                 Language.NODEJS: "package.json",
                 Language.CPP: "CMakeLists.txt",
+                Language.JAVA: "pom.xml",
             }
             file = os.path.join(output_dir, PACKAGE_FILES[self.language])
             if os.path.exists(file):
@@ -1141,7 +1223,7 @@ class Benchmark(LoggingBase):
                                 path=os.path.abspath(output_dir)
                             )
                         )
-                        stdout = self._docker_client.containers.run(
+                        container = self._docker_client.containers.run(
                             "{}:{}".format(repo_name, image_name),
                             volumes=volumes,
                             environment={
@@ -1152,10 +1234,24 @@ class Benchmark(LoggingBase):
                                 "PLATFORM": self._deployment_name.upper(),
                                 "TARGET_ARCHITECTURE": self._experiment_config._architecture,
                             },
-                            remove=True,
-                            stdout=True,
-                            stderr=True,
+                            remove=False,
+                            detach=True,
                         )
+                        try:
+                            exit_code = container.wait()
+                            stdout = container.logs()
+                            if exit_code["StatusCode"] != 0:
+                                error_log_path = os.path.join(output_dir, "error.log")
+                                with open(error_log_path, "wb") as error_file:
+                                    error_file.write(stdout)
+                                self.logging.error(
+                                    f"Build failed! Container exited with "
+                                    f"code {exit_code['StatusCode']}"
+                                )
+                                self.logging.error(f"Logs saved to {error_log_path}")
+                                raise RuntimeError("Package build failed!")
+                        finally:
+                            container.remove()
                     # Hack to enable builds on platforms where Docker mounted volumes
                     # are not supported. Example: CircleCI docker environment
                     else:
@@ -1212,9 +1308,9 @@ class Benchmark(LoggingBase):
                             self.logging.info("Docker build: {}".format(line))
                 except docker.errors.ContainerError as e:
                     self.logging.error("Package build failed!")
-                    self.logging.error(f"Stderr: {e.stderr.decode()}")
+                    self.logging.error(f"Stderr: {e.stderr}")
                     self.logging.error(f"Docker mount volumes: {volumes}")
-                    raise e
+                    raise e from None
 
     def recalculate_code_size(self) -> int:
         """Recalculate and update the code package size.
@@ -1260,6 +1356,22 @@ class Benchmark(LoggingBase):
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             if self.container_deployment:
+                if self._container_uri is None:
+                    assert container_client is not None
+                    self._container_uri = container_client.push_to_registry(
+                        self.benchmark,
+                        self.language_name,
+                        self.language_version,
+                        self.architecture,
+                    )
+                    self._cache_client.update_container_uri(
+                        self._deployment_name,
+                        self._benchmark,
+                        self.language_name,
+                        self.language_version,
+                        self.architecture,
+                        self._container_uri,
+                    )
                 self.logging.info(
                     "Using cached benchmark {} from container image {}".format(
                         self.benchmark, self.container_uri
@@ -1398,16 +1510,6 @@ class Benchmark(LoggingBase):
             self._container_deployment,
             self._container_uri,
         )
-
-    """
-        Locates benchmark input generator, inspect how many storage buckets
-        are needed and launches corresponding storage instance, if necessary.
-
-        :param client: Deployment client
-        :param benchmark:
-        :param benchmark_path:
-        :param size: Benchmark workload size
-    """
 
     def prepare_input(
         self,

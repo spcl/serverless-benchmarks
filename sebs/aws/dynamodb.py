@@ -9,7 +9,7 @@ Key classes:
 """
 
 from collections import defaultdict
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sebs.cache import Cache
 from sebs.faas.config import Resources
@@ -82,6 +82,15 @@ class DynamoDB(NoSQLStorage):
         self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
 
         self._serializer = TypeSerializer()
+
+    def _get_tables(self) -> Dict[str, List[str]]:
+        """Get list of all allocated DynamoDB tables.
+
+        Returns:
+            mapping of benchmark names to lists of actual DynamoDB table names.
+        """
+        tables = self.cache_client.get_nosql_configs(self.deployment_name())
+        return {benchmark: list(v.values()) for benchmark, v in tables.items()}
 
     def retrieve_cache(self, benchmark: str) -> bool:
         """Retrieve table configuration from cache.
@@ -176,7 +185,11 @@ class DynamoDB(NoSQLStorage):
         self.client.put_item(TableName=table_name, Item=serialized_data)
 
     def create_table(
-        self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
+        self,
+        benchmark: str,
+        name: str,
+        primary_key: str,
+        secondary_key: Optional[str] = None,
     ) -> str:
         """Create a DynamoDB table for benchmark data.
 
@@ -203,7 +216,6 @@ class DynamoDB(NoSQLStorage):
         table_name = f"sebs-benchmarks-{self._cloud_resources.resources_id}-{benchmark}-{name}"
 
         try:
-
             definitions = [{"AttributeName": primary_key, "AttributeType": "S"}]
             key_schema = [{"AttributeName": primary_key, "KeyType": "HASH"}]
 
@@ -219,7 +231,6 @@ class DynamoDB(NoSQLStorage):
             )
 
             if ret["TableDescription"]["TableStatus"] == "CREATING":
-
                 self.logging.info(f"Waiting for creation of DynamoDB table {name}")
                 waiter = self.client.get_waiter("table_exists")
                 waiter.wait(TableName=table_name, WaiterConfig={"Delay": 1})
@@ -230,9 +241,7 @@ class DynamoDB(NoSQLStorage):
             return ret["TableDescription"]["TableName"]
 
         except self.client.exceptions.ResourceInUseException as e:
-
             if "already exists" in e.response["Error"]["Message"]:
-
                 # We need this waiter.
                 # Otheriwise, we still might get later `ResourceNotFoundException`
                 # when uploading benchmark data.
@@ -248,7 +257,6 @@ class DynamoDB(NoSQLStorage):
                 return name
 
             if "being created" in e.response["Error"]["Message"]:
-
                 self.logging.info(f"Waiting for the existing table {table_name} to be created")
                 waiter = self.client.get_waiter("table_exists")
                 waiter.wait(TableName=table_name, WaiterConfig={"Delay": 1})
@@ -284,8 +292,10 @@ class DynamoDB(NoSQLStorage):
 
         Returns:
             str: Result of the operation
-
-        Raises:
-            NotImplementedError: This operation is not yet implemented
         """
-        raise NotImplementedError()
+        self.client.delete_table(TableName=name)
+        self.logging.info(f"Waiting for deletion of DynamoDB table {name}")
+        waiter = self.client.get_waiter("table_not_exists")
+        waiter.wait(TableName=name, WaiterConfig={"Delay": 1})
+        self.logging.info(f"Deleted DynamoDB table {name}")
+        return name
