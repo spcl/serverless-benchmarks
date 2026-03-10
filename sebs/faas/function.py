@@ -569,22 +569,6 @@ Variant._LANG_MAP: Dict[Language, Type[Enum]] = {
     Language.NODEJS: Variant.NodeJS,
 }
 
-
-class Architecture(Enum):
-    X86 = "x64"
-    ARM = "arm64"
-
-    def serialize(self) -> str:
-        return self.value
-
-    @staticmethod
-    def deserialize(val: str) -> Architecture:
-        for member in Architecture:
-            if member.value == val:
-                return member
-        raise Exception(f"Unknown architecture type {member}")
-
-
 @dataclass
 class Runtime:
     """
