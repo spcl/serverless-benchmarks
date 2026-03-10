@@ -213,17 +213,6 @@ The resulting image is tagged:
 
 e.g. `spcleth/serverless-benchmarks:run.local.nodejs.bun.18-1.2.0`.
 
-To build all variant images for a system:
-
-```bash
-python tools/build_docker_images.py --deployment local
-```
-
-To build a single variant only:
-
-```bash
-python tools/build_docker_images.py --deployment local --language nodejs --language-variant bun
-```
 
 ---
 
