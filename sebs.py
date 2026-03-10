@@ -6,8 +6,6 @@ import glob
 import logging
 import functools
 import os
-import subprocess
-import sys
 import traceback
 from typing import cast, List, Optional
 
@@ -37,9 +35,7 @@ class ExceptionProcesser(click.Group):
         except Exception as e:
             if sebs_client is not None:
                 sebs_client.logging.error(e)
-                sebs_client.logging.error(
-                    "# Experiments failed! See out.log for details"
-                )
+                sebs_client.logging.error("# Experiments failed! See out.log for details")
             else:
                 logging.error(e)
                 logging.error("# Experiments failed! See out.log for details")
@@ -59,12 +55,8 @@ def simplified_common_params(func):
         type=click.Path(readable=True),
         help="Location of experiment config.",
     )
-    @click.option(
-        "--output-dir", default=os.path.curdir, help="Output directory for results."
-    )
-    @click.option(
-        "--output-file", default="out.log", help="Output filename for logging."
-    )
+    @click.option("--output-dir", default=os.path.curdir, help="Output directory for results.")
+    @click.option("--output-file", default="out.log", help="Output filename for logging.")
     @click.option(
         "--cache",
         default=os.path.join(os.path.curdir, "cache"),
@@ -82,9 +74,7 @@ def simplified_common_params(func):
         type=click.Choice(["python", "nodejs", "java", "cpp"]),
         help="Benchmark language",
     )
-    @click.option(
-        "--language-version", default=None, type=str, help="Benchmark language version"
-    )
+    @click.option("--language-version", default=None, type=str, help="Benchmark language version")
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -118,7 +108,7 @@ def common_params(func):
     @click.option(
         "--container-deployment/--no-container-deployment",
         default=False,
-        help="Deploy functions as containers (AWS only). When enabled, functions are packaged as container images and pushed to Amazon ECR.",
+        help="Deploy functions as container images (AWS only).",
     )
     @click.option(
         "--resource-prefix",
@@ -165,16 +155,12 @@ def parse_common_params(
 
     # CLI overrides JSON options
     update_nested_dict(config_obj, ["experiments", "runtime", "language"], language)
-    update_nested_dict(
-        config_obj, ["experiments", "runtime", "version"], language_version
-    )
+    update_nested_dict(config_obj, ["experiments", "runtime", "version"], language_version)
     update_nested_dict(config_obj, ["deployment", "name"], deployment)
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
     update_nested_dict(config_obj, ["experiments", "architecture"], architecture)
-    update_nested_dict(
-        config_obj, ["experiments", "container_deployment"], container_deployment
-    )
+    update_nested_dict(config_obj, ["experiments", "container_deployment"], container_deployment)
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)
@@ -217,9 +203,7 @@ def benchmark():
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])
 )  # help="Input test size")
-@click.option(
-    "--repetitions", default=5, type=int, help="Number of experimental repetitions."
-)
+@click.option("--repetitions", default=5, type=int, help="Number of experimental repetitions.")
 @click.option(
     "--trigger",
     type=click.Choice(["library", "http"]),
@@ -268,8 +252,8 @@ def invoke(
     image_tag_prefix,
     **kwargs,
 ):
-    (config, output_dir, logging_filename, sebs_client, deployment_client) = (
-        parse_common_params(**kwargs)
+    (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
+        **kwargs
     )
 
     if image_tag_prefix is not None:
@@ -297,16 +281,12 @@ def invoke(
 
     func = deployment_client.get_function(
         benchmark_obj,
-        function_name
-        if function_name
-        else deployment_client.default_function_name(benchmark_obj),
+        function_name if function_name else deployment_client.default_function_name(benchmark_obj),
     )
 
     # Update configuration
 
-    result = sebs.experiments.ExperimentResult(
-        experiment_config, deployment_client.config
-    )
+    result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
     result.begin()
 
     trigger_type = Trigger.TriggerType.get(trigger)
@@ -344,9 +324,7 @@ def process(**kwargs):
     ) = parse_common_params(**kwargs)
 
     result_file = os.path.join(output_dir, "experiments.json")
-    sebs_client.logging.info(
-        "Load results from {}".format(os.path.abspath(result_file))
-    )
+    sebs_client.logging.info("Load results from {}".format(os.path.abspath(result_file)))
     with open(result_file, "r") as in_f:
         config = json.load(in_f)
         experiments = sebs.experiments.ExperimentResult.deserialize(
@@ -426,9 +404,7 @@ def package(
 
     deployment_client.build_function(
         benchmark_obj,
-        function_name
-        if function_name
-        else deployment_client.default_function_name(benchmark_obj),
+        function_name if function_name else deployment_client.default_function_name(benchmark_obj),
     )
 
 
@@ -494,9 +470,7 @@ def storage():
 @storage.command("start")
 @click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
 @click.argument("config", type=click.Path(dir_okay=False, readable=True))
-@click.option(
-    "--output-json", type=click.Path(dir_okay=False, writable=True), default=None
-)
+@click.option("--output-json", type=click.Path(dir_okay=False, writable=True), default=None)
 @click.option(
     "--remove-containers/--no-remove-containers",
     default=True,
@@ -514,9 +488,7 @@ def storage_start(storage, config, output_json, remove_containers):
 
         storage_type = sebs.SeBS.get_storage_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
-        config = storage_config.deserialize(
-            user_storage_config["object"][storage_type_name]
-        )
+        config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
         config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, None, True)
@@ -534,9 +506,7 @@ def storage_start(storage, config, output_json, remove_containers):
 
         storage_type = sebs.SeBS.get_nosql_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_nosql_config_implementation(storage_type_enum)
-        config = storage_config.deserialize(
-            user_storage_config["nosql"][storage_type_name]
-        )
+        config = storage_config.deserialize(user_storage_config["nosql"][storage_type_name])
         config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, config)
@@ -559,9 +529,7 @@ def storage_start(storage, config, output_json, remove_containers):
 
 @storage.command("stop")
 @click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
-@click.argument(
-    "input-json", type=click.Path(exists=True, dir_okay=False, readable=True)
-)
+@click.argument("input-json", type=click.Path(exists=True, dir_okay=False, readable=True))
 def storage_stop(storage, input_json):
     sebs.utils.global_logging()
     with open(input_json, "r") as f:
@@ -574,9 +542,9 @@ def storage_stop(storage, input_json):
         config = storage_cfg.deserialize(cfg["object"][storage_type])
 
         logging.info(f"Stopping storage deployment of {storage_type}.")
-        storage_instance = sebs.SeBS.get_storage_implementation(
-            storage_type
-        ).deserialize(config, None, None)
+        storage_instance = sebs.SeBS.get_storage_implementation(storage_type).deserialize(
+            config, None, None
+        )
         storage_instance.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 
@@ -603,9 +571,7 @@ def local():
 @click.argument("benchmark", type=str)
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
-@click.option(
-    "--deployments", default=1, type=int, help="Number of deployed containers."
-)
+@click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
 @click.option(
     "--storage-configuration",
     type=str,
@@ -645,16 +611,14 @@ def start(
     Start a given number of function instances and a storage instance.
     """
 
-    (config, output_dir, logging_filename, sebs_client, deployment_client) = (
-        parse_common_params(
-            update_code=False,
-            update_storage=False,
-            deployment="local",
-            storage_configuration=storage_configuration,
-            container_deployment=False,
-            architecture=architecture,
-            **kwargs,
-        )
+    (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
+        update_code=False,
+        update_storage=False,
+        deployment="local",
+        storage_configuration=storage_configuration,
+        container_deployment=False,
+        architecture=architecture,
+        **kwargs,
     )
     deployment_client = cast(sebs.local.Local, deployment_client)
     deployment_client.remove_containers = remove_containers
@@ -735,9 +699,7 @@ def experiment_invoke(experiment, **kwargs):
 
 @experiment.command("process")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
-@click.option(
-    "--extend-time-interval", type=int, default=-1
-)  # , help="Benchmark to be launched.")
+@click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
 @common_params
 def experiment_process(experiment, extend_time_interval, **kwargs):
     (
@@ -772,9 +734,7 @@ def experiment_statistics(experiment_results):
 
         with open(f) as in_f:
             config = json.load(in_f)
-            experiments = sebs.experiments.ExperimentResult.deserialize(
-                config, None, None
-            )
+            experiments = sebs.experiments.ExperimentResult.deserialize(config, None, None)
         # FIXME: this will only work for perf-cost
         fname = os.path.splitext(os.path.basename(f))[0].split("_")
         if len(fname) > 2:
@@ -828,9 +788,7 @@ def resources_list(resource, **kwargs):
 @resources.command("remove")
 @click.argument("resource", type=click.Choice(["buckets", "resource-groups"]))
 @click.argument("prefix", type=str)
-@click.option(
-    "--wait/--no-wait", type=bool, default=True, help="Wait for completion of removal."
-)
+@click.option("--wait/--no-wait", type=bool, default=True, help="Wait for completion of removal.")
 @click.option(
     "--dry-run/--no-dry-run",
     type=bool,
@@ -966,8 +924,8 @@ def docker_build(
     """Build Docker images for SeBS infrastructure.
 
     Examples:
-        sebs.py docker build --deployment aws
-        sebs.py docker build --deployment aws --language python --language-version 3.9 --image-type build
+        sebs.py docker build --deployment aws --image-type build
+        sebs.py docker build --deployment aws --language python --language-version 3.9
     """
     from sebs.config import SeBSConfig
     from sebs.docker_builder import DockerImageBuilder
@@ -1039,8 +997,8 @@ def docker_push_images(
     to DockerHub. Images must be built locally first using 'docker build'.
 
     Examples:
-        sebs.py docker push-images --deployment aws
-        sebs.py docker push-images --deployment aws --language python --language-version 3.9 --image-type build
+        sebs.py docker push-images --deployment aws --image-type build
+        sebs.py docker push-images --deployment aws --language python --language-version 3.9
     """
     from sebs.config import SeBSConfig
     from sebs.docker_builder import DockerImageBuilder
