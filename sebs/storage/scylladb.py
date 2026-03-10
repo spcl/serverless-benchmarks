@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional, Tuple, Type, TypeVar
 import boto3
 from boto3.dynamodb.types import TypeSerializer
 import docker
+import docker.models.containers
 
 from sebs.cache import Cache
 from sebs.faas.config import Resources
@@ -162,12 +163,13 @@ class ScyllaDB(NoSQLStorage):
                 hostname="some-scylla",
                 network_mode="bridge",
                 volumes=volumes,
-                ports={"8000": str(self._cfg.mapped_port)},
-                remove=True,
+                ports={"8000": self._cfg.mapped_port},
+                remove=self.config.remove_containers,
                 stdout=True,
                 stderr=True,
                 detach=True,
             )
+            assert self._storage_container.id is not None
             self._cfg.instance_id = self._storage_container.id
 
             # Wait until it boots up

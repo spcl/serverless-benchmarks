@@ -16,15 +16,13 @@ configuration for cross-compilation when needed.
 
 from abc import abstractmethod
 import docker
-import json
 import platform
 import os
 import shutil
 from typing import Tuple
 
-from rich.progress import Progress
-
 from sebs.config import SeBSConfig
+from sebs.docker_builder import DockerImageBuilder
 from sebs.types import Language
 from sebs.utils import LoggingBase, execute, DOCKER_DIR
 
@@ -128,56 +126,11 @@ class DockerContainer(LoggingBase):
             except docker.errors.NotFound:
                 return False
 
-    def show_progress(self, txt: str, progress: Progress, layer_tasks: dict):
-        """Update progress display for Docker operations.
-
-        Parses Docker API output and updates the rich progress display for
-        operations like image pushing. Tracks individual layer progress and
-        handles completion events.
-
-        Args:
-            txt: Docker API output line (JSON string or dict)
-            progress: Rich progress instance to update
-            layer_tasks: Dictionary tracking progress tasks for each layer
-
-        Raises:
-            Exception: If an error is reported in the Docker output
-        """
-        if isinstance(txt, str):
-            line = json.loads(txt)
-        else:
-            line = txt
-
-        status = line.get("status", "")
-        progress_detail = line.get("progressDetail", {})
-        id_ = line.get("id", "")
-
-        if "Pushing" in status and progress_detail:
-            current = progress_detail.get("current", 0)
-            total = progress_detail.get("total", 0)
-
-            if id_ not in layer_tasks and total > 0:
-                # Create new progress task for this layer
-                description = f"Layer {id_[:12]}"
-                layer_tasks[id_] = progress.add_task(description, total=total)
-            if id_ in layer_tasks:
-                # Update progress for existing task
-                progress.update(layer_tasks[id_], completed=current)
-
-        elif any(x in status for x in ["Layer already exists", "Pushed"]):
-            if id_ in layer_tasks:
-                # Complete the task
-                progress.update(layer_tasks[id_], completed=progress.tasks[layer_tasks[id_]].total)
-
-        elif "error" in line:
-            raise Exception(line["error"])
-
-    def push_image(self, repository_uri, image_tag):
+    def push_image(self, repository_uri: str, image_tag: str):
         """Push a Docker image to a container registry.
 
-        Pushes the specified image to the container registry with optional
-        progress tracking. Handles errors and provides informative logging
-        throughout the process.
+        Delegates to the static method in DockerImageBuilder for consistent
+        image pushing with progress tracking across SeBS.
 
         Args:
             repository_uri: URI of the container registry repository
@@ -187,36 +140,13 @@ class DockerContainer(LoggingBase):
             docker.errors.APIError: If the push operation fails
             RuntimeError: If an error occurs during the push stream
         """
-        try:
-            if not self.disable_rich_output:
-                layer_tasks = {}
-                with Progress() as progress:
-                    self.logging.info(f"Pushing image {image_tag} to {repository_uri}")
-                    ret = self.docker_client.images.push(
-                        repository=repository_uri,
-                        tag=image_tag,
-                        stream=True,
-                        decode=True,
-                    )
-                    for line in ret:
-                        self.show_progress(line, progress, layer_tasks)
-
-            else:
-                self.logging.info(f"Pushing image {image_tag} to {repository_uri}")
-                ret = self.docker_client.images.push(
-                    repository=repository_uri, tag=image_tag, stream=True, decode=True
-                )
-
-                for val in ret:
-                    if "error" in val:
-                        self.logging.error(f"Failed to push the image to registry {repository_uri}")
-                        raise RuntimeError(val)
-
-        except docker.errors.APIError as e:
-            self.logging.error(
-                f"Failed to push the image to registry {repository_uri}. Error: {str(e)}"
-            )
-            raise e
+        DockerImageBuilder.push_image_with_progress(
+            self.docker_client,
+            repository_uri,
+            image_tag,
+            self.logging,
+            disable_rich_output=self.disable_rich_output,
+        )
 
     @abstractmethod
     def registry_name(
@@ -241,6 +171,37 @@ class DockerContainer(LoggingBase):
             Tuple[str, str, str, str]: Registry name, repository name, image tag, full image URI
         """
         pass
+
+    def push_to_registry(
+        self,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
+    ) -> str:
+        """Push an existing local Docker image to the registry and return its URI.
+
+        Used when the container is cached locally but its registry URI is unknown
+        (e.g., after previously cleaning resources). Computes the registry
+        name, pushes the image, and returns the full image URI.
+
+        Args:
+            benchmark: Benchmark name (e.g., '110.dynamic-html')
+            language_name: Programming language name (e.g., 'python')
+            language_version: Language version (e.g., '3.8')
+            architecture: Target architecture (e.g., 'x64')
+
+        Returns:
+            str: Full URI of the pushed image.
+        """
+        registry_name, repository_name, image_tag, image_uri = self.registry_name(
+            benchmark, language_name, language_version, architecture
+        )
+        self.logging.info(
+            f"Pushing Docker image {repository_name}:{image_tag} to registry: {registry_name}."
+        )
+        self.push_image(image_uri, image_tag)
+        return image_uri
 
     def build_base_image(
         self,

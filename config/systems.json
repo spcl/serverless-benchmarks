@@ -47,10 +47,10 @@
       "nodejs": {
         "base_images": {
           "x64": {
-            "14": "node:14-slim",
-            "16": "node:16-slim",
-            "18": "node:18-slim",
-            "20": "node:20-slim"
+            "14": "ubuntu:22.04",
+            "16": "ubuntu:22.04",
+            "18": "ubuntu:22.04",
+            "20": "ubuntu:22.04"
           }
         },
         "images": [
@@ -74,16 +74,14 @@
       "python": {
         "base_images": {
           "x64": {
-            "3.11": "amazon/aws-lambda-python:3.11",
-            "3.10": "amazon/aws-lambda-python:3.10",
-            "3.9": "amazon/aws-lambda-python:3.9",
-            "3.8": "amazon/aws-lambda-python:3.8"
+            "3.11": "amazon/aws-lambda-python:3.11.2024.05.23.18",
+            "3.10": "amazon/aws-lambda-python:3.10.2024.06.19.12",
+            "3.9": "amazon/aws-lambda-python:3.9.2024.05.21.00"
           },
           "arm64": {
             "3.11": "amazon/aws-lambda-python:3.11.2024.05.23.17",
             "3.10": "amazon/aws-lambda-python:3.10.2024.06.19.11",
-            "3.9": "amazon/aws-lambda-python:3.9.2024.05.20.23",
-            "3.8": "amazon/aws-lambda-python:3.8.2024.09.05.16"
+            "3.9": "amazon/aws-lambda-python:3.9.2024.05.20.23"
           }
         },
         "images": [
@@ -103,7 +101,7 @@
       "nodejs": {
         "base_images": {
           "x64": {
-            "16": "amazon/aws-lambda-nodejs:16"
+            "16": "amazon/aws-lambda-nodejs:16.2024.09.06.14"
           },
           "arm64": {
             "16": "amazon/aws-lambda-nodejs:16.2024.09.06.13"
@@ -176,8 +174,6 @@
       "python": {
         "base_images": {
           "x64": {
-            "3.7": "mcr.microsoft.com/azure-functions/python:3.0-python3.7",
-            "3.8": "mcr.microsoft.com/azure-functions/python:3.0-python3.8",
             "3.9": "mcr.microsoft.com/azure-functions/python:3.0-python3.9",
             "3.10": "mcr.microsoft.com/azure-functions/python:4-python3.10",
             "3.11": "mcr.microsoft.com/azure-functions/python:4-python3.11"

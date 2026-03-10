@@ -1,13 +1,20 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
+ARG VERSION
+ENV NVM_DIR=/nvm
 
-RUN deps=''\
-  && apt-get update\
-  && apt-get install -y --no-install-recommends curl net-tools gosu python3 sudo ${deps}\
-  && apt-get purge -y --auto-remove ${deps}
+RUN apt-get update\
+  && apt-get install -y --no-install-recommends ca-certificates zip gosu curl net-tools python3 sudo\
+  && apt-get purge -y --auto-remove \
+  && update-ca-certificates \
+  && mkdir -p ${NVM_DIR} && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash \
+  && . ${NVM_DIR}/nvm.sh && nvm install ${VERSION} && nvm alias default ${VERSION} && nvm use default
+
+ENV SCRIPT_FILE=/mnt/function/package.sh
+ENV PATH="$NVM_DIR/versions/node/v$(cat $NVM_DIR/alias/default)/bin:$PATH"
 
 RUN mkdir -p /sebs
-RUN cd /sebs/ && npm install -g uuid strftime express minio
+RUN . ${NVM_DIR}/nvm.sh && cd /sebs/ && npm install -g uuid strftime express minio
 # NODE_PATH=$(npm root --quiet -g)
 # https://github.com/moby/moby/issues/29110
 ENV NODE_PATH=/usr/local/lib/node_modules

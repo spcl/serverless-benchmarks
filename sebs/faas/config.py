@@ -30,7 +30,7 @@ from __future__ import annotations
 from abc import ABC
 from abc import abstractmethod
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from sebs.cache import Cache
 from sebs.utils import has_platform, LoggingBase, LoggingHandlers
@@ -233,6 +233,14 @@ class Resources(ABC, LoggingBase):
         """
         self._buckets[bucket_type] = bucket_name
 
+    def get_buckets(self) -> List[str]:
+        """Produces a list of all buckets.
+
+        Returns:
+           list of bucket names
+        """
+        return [v for v in self._buckets.values()]
+
     @staticmethod
     @abstractmethod
     def initialize(res: "Resources", dct: dict):
@@ -302,6 +310,15 @@ class Resources(ABC, LoggingBase):
             cache.update_config(
                 val=value, keys=[self._name, "resources", "storage_buckets", key.value]
             )
+
+    def cleanup_deleted_buckets(self, cache_client: Cache):
+        """Clean local and cached entries for already deleted storage buckets.
+
+        Args:
+            cache_client: SeBS cache client.
+        """
+        self._buckets.clear()
+        cache_client.remove_config_key([self._name, "resources", "storage_buckets"])
 
 
 class Config(ABC, LoggingBase):

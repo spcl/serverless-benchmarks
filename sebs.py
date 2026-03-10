@@ -6,12 +6,11 @@ import glob
 import logging
 import functools
 import os
-import subprocess
-import sys
 import traceback
 from typing import cast, List, Optional
 
 import click
+import docker
 
 import sebs
 from sebs import SeBS
@@ -109,7 +108,7 @@ def common_params(func):
     @click.option(
         "--container-deployment/--no-container-deployment",
         default=False,
-        help="Deploy functions as containers (AWS only). When enabled, functions are packaged as container images and pushed to Amazon ECR.",
+        help="Deploy functions as container images (AWS only).",
     )
     @click.option(
         "--resource-prefix",
@@ -364,6 +363,52 @@ def statistics(results):
 
 
 @benchmark.command()
+@click.argument("benchmark", type=str)  # , help="Benchmark to be used.")
+@click.option(
+    "--function-name",
+    default=None,
+    type=str,
+    help="Override function name for random generation.",
+)
+@click.option(
+    "--image-tag-prefix",
+    default=None,
+    type=str,
+    help="Attach prefix to generated Docker image tag.",
+)
+@common_params
+def package(
+    benchmark,
+    function_name,
+    image_tag_prefix,
+    **kwargs,
+):
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+    if image_tag_prefix is not None:
+        sebs_client.config.image_tag_prefix = image_tag_prefix
+
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    update_nested_dict(config, ["experiments", "benchmark"], benchmark)
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+
+    deployment_client.build_function(
+        benchmark_obj,
+        function_name if function_name else deployment_client.default_function_name(benchmark_obj),
+    )
+
+
+@benchmark.command()
 @click.argument(
     "benchmark-input-size", type=click.Choice(["test", "small", "large"])
 )  # help="Input test size")
@@ -426,7 +471,12 @@ def storage():
 @click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
 @click.argument("config", type=click.Path(dir_okay=False, readable=True))
 @click.option("--output-json", type=click.Path(dir_okay=False, writable=True), default=None)
-def storage_start(storage, config, output_json):
+@click.option(
+    "--remove-containers/--no-remove-containers",
+    default=True,
+    help="Remove containers after stopping.",
+)
+def storage_start(storage, config, output_json, remove_containers):
     import docker
 
     sebs.utils.global_logging()
@@ -439,6 +489,7 @@ def storage_start(storage, config, output_json):
         storage_type = sebs.SeBS.get_storage_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
+        config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, None, True)
         storage_instance.config = config
@@ -456,6 +507,7 @@ def storage_start(storage, config, output_json):
         storage_type = sebs.SeBS.get_nosql_implementation(storage_type_enum)
         storage_config = sebs.SeBS.get_nosql_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["nosql"][storage_type_name])
+        config.remove_containers = remove_containers
 
         storage_instance = storage_type(docker.from_env(), None, config)
 
@@ -785,6 +837,187 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
         raise NotImplementedError(f"Resource {resource} not supported.")
 
 
+@resources.command("cleanup")
+@click.argument("resources-id", type=str, required=False, default=None)
+@click.option(
+    "--dry-run/--no-dry-run",
+    type=bool,
+    default=False,
+    help="Simulate run without actual deletions.",
+)
+@common_params
+def resources_cleanup(resources_id, dry_run, **kwargs):
+    (
+        config,
+        output_dir,
+        logging_filename,
+        sebs_client,
+        deployment_client,
+    ) = parse_common_params(**kwargs)
+
+    try:
+        result = deployment_client.cleanup_resources(dry_run=dry_run)
+        total = sum(len(v) for v in result.values())
+        action = "found" if dry_run else "deleted"
+        sebs_client.logging.info(f"Total resources {action}: {total}")
+    except NotImplementedError as e:
+        sebs_client.logging.error(str(e))
+
+
+@cli.group()
+def docker_cmd():
+    """Docker image management commands."""
+    pass
+
+
+@docker_cmd.command("build")
+@click.option(
+    "--deployment",
+    default=None,
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    help="Deployment platform to build images for",
+)
+@click.option(
+    "--image-type",
+    default=None,
+    type=click.Choice(["build", "dependencies", "run", "manage"]),
+    help="Type of Docker image to build",
+)
+@click.option(
+    "--language",
+    default=None,
+    type=click.Choice(["python", "nodejs", "java", "cpp"]),
+    help="Programming language",
+)
+@click.option("--language-version", default=None, type=str, help="Language version")
+@click.option(
+    "--architecture",
+    default="x64",
+    type=click.Choice(["x64", "arm64"]),
+    help="Target architecture",
+)
+@click.option(
+    "--platform",
+    default=None,
+    type=str,
+    help="Optional Docker platform (e.g., linux/amd64) to override host architecture.",
+)
+@click.option(
+    "--dependency-type",
+    default=None,
+    type=str,
+    help="Specific dependency for cpp (opencv, boost, etc.)",
+)
+@click.option("--parallel", default=1, type=int, help="Number of parallel workers")
+@click.option("--verbose/--no-verbose", default=False, help="Enable verbose output")
+def docker_build(
+    deployment,
+    image_type,
+    language,
+    language_version,
+    architecture,
+    platform,
+    dependency_type,
+    parallel,
+    verbose,
+):
+    """Build Docker images for SeBS infrastructure.
+
+    Examples:
+        sebs.py docker build --deployment aws --image-type build
+        sebs.py docker build --deployment aws --language python --language-version 3.9
+    """
+    from sebs.config import SeBSConfig
+    from sebs.docker_builder import DockerImageBuilder
+
+    config = SeBSConfig()
+
+    try:
+        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+    except docker.errors.DockerException:
+        return
+
+    builder.build(
+        deployment=deployment,
+        image_type=image_type,
+        language=language,
+        language_version=language_version,
+        architecture=architecture,
+        dependency_type=dependency_type,
+        platform=platform,
+        parallel=parallel,
+    )
+
+
+@docker_cmd.command("push")
+@click.option(
+    "--deployment",
+    default=None,
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    help="Deployment platform to push images for",
+)
+@click.option(
+    "--image-type",
+    default=None,
+    type=click.Choice(["build", "dependencies", "run", "manage"]),
+    help="Type of Docker image to push",
+)
+@click.option(
+    "--language",
+    default=None,
+    type=click.Choice(["python", "nodejs", "java", "cpp"]),
+    help="Programming language",
+)
+@click.option("--language-version", default=None, type=str, help="Language version")
+@click.option(
+    "--architecture",
+    default="x64",
+    type=click.Choice(["x64", "arm64"]),
+    help="Target architecture",
+)
+@click.option(
+    "--dependency-type",
+    default=None,
+    type=str,
+    help="Specific dependency for cpp (opencv, boost, etc.)",
+)
+@click.option("--verbose/--no-verbose", default=False, help="Enable verbose output")
+def docker_push_images(
+    deployment,
+    image_type,
+    language,
+    language_version,
+    architecture,
+    dependency_type,
+    verbose,
+):
+    """Push Docker infrastructure images to registry.
+
+    This command pushes infrastructure images (build, run, manage, dependencies)
+    to DockerHub. Images must be built locally first using 'docker build'.
+
+    Examples:
+        sebs.py docker push-images --deployment aws --image-type build
+        sebs.py docker push-images --deployment aws --language python --language-version 3.9
+    """
+    from sebs.config import SeBSConfig
+    from sebs.docker_builder import DockerImageBuilder
+
+    config = SeBSConfig()
+
+    try:
+        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+    except docker.errors.DockerException:
+        return
+
+    builder.push(
+        deployment=deployment,
+        image_type=image_type,
+        language=language,
+        language_version=language_version,
+        architecture=architecture,
+        dependency_type=dependency_type,
+    )
 
 
 if __name__ == "__main__":
