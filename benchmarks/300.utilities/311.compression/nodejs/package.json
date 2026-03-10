@@ -1,0 +1,9 @@
+{
+  "name": "compression-benchmark",
+  "version": "1.0.0",
+  "description": "Compression benchmark for serverless platforms",
+  "main": "function.js",
+  "dependencies": {
+    "uuid": "^10.0.0"
+  }
+}
