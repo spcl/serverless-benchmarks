@@ -688,7 +688,7 @@ class Cache(LoggingBase):
             RuntimeError: If cached application already exists for the deployment.
         """
         with self._lock:
-            language = code_package.language_name
+            language = code_package.cache_language_key
             language_version = code_package.language_version
             architecture = code_package.architecture
 
@@ -817,7 +817,7 @@ class Cache(LoggingBase):
             code_package (Benchmark): The benchmark code package to update.
         """
         with self._lock:
-            language = code_package.language_name
+            language = code_package.cache_language_key
             language_version = code_package.language_version
             architecture = code_package.architecture
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
@@ -933,7 +933,7 @@ class Cache(LoggingBase):
             return
         with self._lock:
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
-            language = code_package.language_name
+            language = code_package.cache_language_key
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
