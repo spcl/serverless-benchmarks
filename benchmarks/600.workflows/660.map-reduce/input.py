@@ -16,6 +16,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buck
     mult, n_mappers = size_generators[size]
     words = ["cat", "dog", "bird", "horse", "pig"]
     lst = mult * words
+    random.seed(42)
     random.shuffle(lst)
 
     list_path = os.path.join(data_dir, "words")
