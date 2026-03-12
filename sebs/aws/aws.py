@@ -165,10 +165,7 @@ class AWS(System):
                 "{{REDIS_PASSWORD}}",
                 f'"{self.config.resources.redis_password}"',
             )
-        assert not (code_package.container_deployment and code_package.benchmark_config.container_image is not None), \
-            "Custom container image specified in benchmark config collides with container deployment option."
-        # if the containerized deployment is set to True
-        if code_package.container_deployment:
+        if code_package.container_deployment and code_package.benchmark_config.container_image is None:
             # build base image and upload to ECR
             _, container_uri = self.ecr_client.build_base_image(
                 directory,

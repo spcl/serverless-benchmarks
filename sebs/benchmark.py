@@ -639,14 +639,6 @@ class Benchmark(LoggingBase):
         ],
         is_workflow: bool,
     ) -> Tuple[bool, str, bool, str]:
-        # Check if custom container image is specified which would collide with container deployment option
-        if self.container_deployment and self.benchmark_config.container_image is not None:
-            raise RuntimeError(
-                f"Benchmark {self.benchmark} specifies custom container image "
-                f"'{self.benchmark_config.container_image}' which collides with "
-                f"container deployment option enabled in the experiment."
-            )
-
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info(
