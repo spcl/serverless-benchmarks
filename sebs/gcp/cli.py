@@ -145,7 +145,7 @@ class GCloudCLI(LoggingBase):
         """
         self.execute("gcloud auth login --cred-file=/credentials.json")
         self.execute(f"/bin/bash -c 'gcloud config set project {project_name} <<< Y'")
-        self.logging.info("gcloud CLI login succesful")
+        self.logging.info("gcloud CLI login successful")
 
     def shutdown(self) -> None:
         """Shutdown the gcloud CLI Docker container.

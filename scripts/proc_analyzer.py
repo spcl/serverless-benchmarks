@@ -66,7 +66,7 @@ class MemoryMeasurements(Measurements):
                     [cmd.format(dir=self._output_dir, counter=i)],
                     stdout = subprocess.PIPE, shell = True
                 )
-            # remove newline, seperate fields and convert into integers
+            # remove newline, separate fields and convert into integers
             self._data[i].extend(
                     map(
                         int,
