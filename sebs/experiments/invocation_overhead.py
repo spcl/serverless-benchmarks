@@ -428,7 +428,8 @@ class InvocationOverhead(Experiment):
                 # stop after 5 attempts
                 if j == 5:
                     self.logging.error(
-                        "Failing after 5 unsuccessfull attempts to " "communicate with the function!"
+                        "Failing after 5 unsuccessfull attempts to "
+                        "communicate with the function!"
                     )
                     break
                 # check if function invocation failed, and if yes: raise the exception
