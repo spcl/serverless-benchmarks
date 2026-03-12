@@ -189,6 +189,9 @@ cache
 .idea
 *.iml
 
+# VS-Code files
+.vscode/
+
 # Local config
 config/config.json
 config/redis
