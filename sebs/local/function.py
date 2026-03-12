@@ -256,4 +256,4 @@ class LocalFunction(Function):
         """
         self.logging.info(f"Stopping function container {self._instance_id}")
         self._instance.stop(timeout=0)
-        self.logging.info(f"Function container {self._instance_id} stopped succesfully")
+        self.logging.info(f"Function container {self._instance_id} stopped successfully")

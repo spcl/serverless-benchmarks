@@ -157,7 +157,7 @@ class AzureCLI(LoggingBase):
                 password,
             )
         )
-        self.logging.info("Azure login succesful")
+        self.logging.info("Azure login successful")
         return result
 
     def upload_package(self, directory: str, dest: str) -> None:

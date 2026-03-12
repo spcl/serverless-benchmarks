@@ -184,10 +184,10 @@ class Minio(PersistentStorage):
             self.configure_connection()
         except docker.errors.APIError as e:
             self.logging.error("Starting Minio storage failed! Reason: {}".format(e))
-            raise RuntimeError("Starting Minio storage unsuccesful")
+            raise RuntimeError("Starting Minio storage unsuccessful")
         except Exception as e:
             self.logging.error("Starting Minio storage failed! Unknown error: {}".format(e))
-            raise RuntimeError("Starting Minio storage unsuccesful")
+            raise RuntimeError("Starting Minio storage unsuccessful")
 
     def configure_connection(self) -> None:
         """
