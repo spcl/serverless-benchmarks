@@ -4,7 +4,7 @@
 #include <rapidjson/stringbuffer.h>
 
 #include <thread>
-#include <iostream>
+#include <chrono>
 
 rapidjson::Document function(const rapidjson::Value& json)
 {

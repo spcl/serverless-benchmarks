@@ -47,7 +47,7 @@ rapidjson::Document function(const rapidjson::Value& request) {
 
   uint64_t seed;
   if (request.HasMember("seed")) {
-    seed = (uint64_t)request["seed"].GetInt64();
+    seed = (uint64_t)request["seed"].GetUint64();
     igraph_rng_seed(igraph_rng_default(), seed);
   } else {
     std::random_device rd;

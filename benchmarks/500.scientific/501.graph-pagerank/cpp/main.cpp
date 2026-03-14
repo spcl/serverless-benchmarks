@@ -19,7 +19,7 @@ rapidjson::Document function(const rapidjson::Value& request)
 
   uint64_t seed;
   if (request.HasMember("seed")) {
-    seed = (uint64_t)request["seed"].GetInt64();
+    seed = (uint64_t)request["seed"].GetUint64();
   } else {
     double random_value = 0.0;
     seed = static_cast<uint64_t>(random_value * ULLONG_MAX);
