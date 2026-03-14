@@ -3,5 +3,5 @@
   "memory": 512,
   "languages": ["python", "cpp"],
   "modules": ["storage"],
-  "cpp_dependencies": ["torch", "opencv"]
+  "cpp_dependencies": ["sdk", "torch", "opencv"]
 }

@@ -3,5 +3,5 @@
   "memory": 256,
   "languages": ["python", "nodejs", "cpp"],
   "modules": ["storage"],
-  "cpp_dependencies": ["opencv", "libjpeg-turbo", "boost"]
+  "cpp_dependencies": ["sdk", "opencv", "libjpeg-turbo", "boost"]
 }
