@@ -29,6 +29,10 @@ aws::lambda_runtime::invocation_response handler(
 ) {
   rapidjson::Document json;
   json.Parse(req.payload.c_str());
+  if(json.HasParseError()) {
+    return aws::lambda_runtime::invocation_response::failure("Invalid JSON", "application/json");
+  }
+
 
   // HTTP trigger with API Gateway sends payload as a serialized JSON
   // stored under key 'body' in the main JSON
@@ -36,6 +40,10 @@ aws::lambda_runtime::invocation_response handler(
   if (json.HasMember("body") && json["body"].IsString()) {
     rapidjson::Document body_doc;
     body_doc.Parse(json["body"].GetString());
+    if(body_doc.HasParseError()) {
+      return aws::lambda_runtime::invocation_response::failure("Invalid JSON", "application/json");
+    }
+
     json = std::move(body_doc);
   }
 
