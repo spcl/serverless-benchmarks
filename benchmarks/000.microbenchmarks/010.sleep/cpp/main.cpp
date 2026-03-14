@@ -1,22 +1,27 @@
 
-#include <aws/core/Aws.h>
-#include <aws/core/utils/json/JsonSerializer.h>
-#include <aws/lambda-runtime/runtime.h>
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
 
 #include <thread>
 #include <iostream>
 
-Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView json)
+rapidjson::Document function(const rapidjson::Value& json)
 {
-  int sleep = json.GetInteger("sleep");
+  int sleep_time = json["sleep"].GetInt();
 
-  std::chrono::seconds timespan(sleep);
+  std::chrono::seconds timespan(sleep_time);
   std::this_thread::sleep_for(timespan);
 
-  //std::string res_json = "{ \"result\": " + std::to_string(sleep) + "}";
-  //return aws::lambda_runtime::invocation_response::success(res_json, "application/json");
-  Aws::Utils::Json::JsonValue val;
-  val.WithObject("result", std::to_string(sleep));
+  rapidjson::Document val;
+  val.SetObject();
+  val.AddMember(
+    "result",
+    rapidjson::Value(
+      std::to_string(sleep_time).c_str(),
+      val.GetAllocator()
+    ),
+    val.GetAllocator()
+  );
   return val;
 }
-

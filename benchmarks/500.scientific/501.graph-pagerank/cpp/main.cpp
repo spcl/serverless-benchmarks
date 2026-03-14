@@ -1,6 +1,7 @@
 
-#include <aws/core/Aws.h>
-#include <aws/core/utils/json/JsonSerializer.h>
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
 
 #include "function.hpp"
 #include "storage.hpp"
@@ -12,15 +13,13 @@
 #include <vector>
 #include <climits>  // Required for ULLONG_MAX
 
-Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
+rapidjson::Document function(const rapidjson::Value& request)
 {
-  sebs::Storage client_ = sebs::Storage::get_client();
-
-  auto size = request.GetInteger("size");
+  int size = request["size"].GetInt();
 
   uint64_t seed;
-  if (request.ValueExists("seed")) {
-    seed = request.GetInteger("seed");
+  if (request.HasMember("seed")) {
+    seed = (uint64_t)request["seed"].GetInt64();
   } else {
     double random_value = 0.0;
     seed = static_cast<uint64_t>(random_value * ULLONG_MAX);
@@ -31,14 +30,16 @@ Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
   igraph_real_t value = graph_pagerank
     (size, seed, graph_generation_time_ms, compute_pr_time_ms);
 
-  Aws::Utils::Json::JsonValue val;
-  Aws::Utils::Json::JsonValue result;
-  Aws::Utils::Json::JsonValue measurements;
+  rapidjson::Document val;
+  val.SetObject();
+  auto& alloc = val.GetAllocator();
 
-  measurements.WithInteger("graph_generating_time", graph_generation_time_ms);
-  measurements.WithInteger("compute_time", compute_pr_time_ms);
+  rapidjson::Value measurements(rapidjson::kObjectType);
+  measurements.AddMember("graph_generating_time", (int64_t)graph_generation_time_ms, alloc);
+  measurements.AddMember("compute_time", (int64_t)compute_pr_time_ms, alloc);
 
-  val.WithDouble("value", static_cast<double>(value));
-  val.WithObject("measurements", std::move(measurements));
+  val.AddMember("value", static_cast<double>(value), alloc);
+  val.AddMember("measurements", measurements, alloc);
+
   return val;
 }
