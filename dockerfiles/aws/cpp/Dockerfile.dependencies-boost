@@ -7,7 +7,7 @@ ENV WORKERS=${WORKERS}
 RUN dnf install -y cmake git gcc-11.5.0-5.amzn2023.0.5.x86_64 gcc-c++-11.5.0-5.amzn2023.0.5.x86_64 make tar gzip which python-devel
 RUN curl -LO https://archives.boost.io/release/1.79.0/source/boost_1_79_0.tar.gz\
       && tar -xf boost_1_79_0.tar.gz && cd boost_1_79_0\
-      && echo "using gcc : : $(which gcc10-c++) ;"  >> tools/build/src/user-config.jam\
+      && echo "using gcc : : $(which gcc) ;"  >> tools/build/src/user-config.jam
       && ./bootstrap.sh --prefix=/opt\
       && ./b2 -j${WORKERS} --prefix=/opt cxxflags="-fPIC" link=static install
 
