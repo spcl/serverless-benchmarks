@@ -48,7 +48,6 @@ rapidjson::Document function(const rapidjson::Value& request) {
   uint64_t seed;
   if (request.HasMember("seed")) {
     seed = (uint64_t)request["seed"].GetUint64();
-    igraph_rng_seed(igraph_rng_default(), seed);
   } else {
     std::random_device rd;
     seed = rd();
@@ -73,18 +72,18 @@ rapidjson::Document function(const rapidjson::Value& request) {
   auto bfs_start = timeSinceEpochMicrosec();
 
   // Return a tuple identical to the Python API output
-  // C++ API does not return the second tuple element: "The start indices of the
-  // layers in the vertex list" Thus, we have to recompute it. First, we get the
-  // order and parents - like in Python.
   //
-  // Then, since we do not have start indices of each layer, we get the distance
-  // of each vertex, and use the change point in this array to detect when a new
-  // layer was created.
-  igraph_vector_int_t order, father, dist, layers;
+  // We use igraph_bfs_simple which returns the second tuple element of Python
+  // "The start indices of the layers in the vertex list".
+  // The standard igraph_bfs does not return this information,
+  // which would force us to reconstruct the layers by inspecting
+  // the distance array (distance of vertex from root) to find the
+  // change point, which would indicate a new layer.
+  //
+  igraph_vector_int_t order, father, layers;
 
   igraph_vector_int_init(&order, 0);
   igraph_vector_int_init(&father, 0);
-  igraph_vector_int_init(&dist, 0);
   igraph_vector_int_init(&layers, 0);
 
   // Documentation: https://igraph.org/c/pdf/0.9.7/igraph-docs.pdf
@@ -110,7 +109,6 @@ rapidjson::Document function(const rapidjson::Value& request) {
   igraph_vector_int_destroy(&order);
   igraph_vector_int_destroy(&layers);
   igraph_vector_int_destroy(&father);
-  igraph_vector_int_destroy(&dist);
   igraph_destroy(&graph);
 
   return result;
