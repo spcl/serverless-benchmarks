@@ -902,6 +902,11 @@ class Benchmark(LoggingBase):
         for dependency in self._benchmark_config._cpp_dependencies:
             cmake_script += CppDependencies.to_cmake_list(dependency)
 
+        """
+            FIXME: we disabled Hiredis as this is currently not used.
+            We need a proper module for that.
+        """
+
         cmake_script += """
 
         # find_package(PkgConfig REQUIRED)
