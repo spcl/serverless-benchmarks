@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 #!/bin/bash
 
 DIR=$1
@@ -12,9 +13,13 @@ else
     FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
 fi
 
-wget -q ${FFMPEG_URL} -P ${DIR}
+if command -v wget &>/dev/null; then
+    wget -q "${FFMPEG_URL}" -P "${DIR}"
+else
+    curl -sL "${FFMPEG_URL}" -o "${DIR}/$(basename ${FFMPEG_URL})"
+fi
 
-pushd ${DIR} >/dev/null
+pushd "${DIR}" >/dev/null
 tar -xf ffmpeg-release-*-static.tar.xz
 rm *.tar.xz
 mv ffmpeg-* ffmpeg
@@ -24,4 +29,4 @@ chmod 755 ffmpeg/ffmpeg
 popd >/dev/null
 
 # copy watermark
-cp -r ${SCRIPT_DIR}/resources ${DIR}
+cp -r "${SCRIPT_DIR}/resources" "${DIR}"

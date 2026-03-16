@@ -1,5 +1,7 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 {
   "timeout": 60,
   "memory": 2048,
-  "languages": ["python"]
+  "languages": ["python"],
+  "modules": ["storage"]
 }

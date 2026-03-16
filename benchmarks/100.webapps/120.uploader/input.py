@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
 url_generators = {
     # source: mlperf fake_imagenet.sh. 230 kB
@@ -11,7 +12,7 @@ url_generators = {
 def buckets_count():
     return (0, 1)
 
-def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buckets, upload_func, nosql_func):
     input_config = {'object': {}, 'bucket': {}}
     input_config['object']['url'] = url_generators[size]
     input_config['bucket']['bucket'] = benchmarks_bucket

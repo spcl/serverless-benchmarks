@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 import glob, os
 
 def buckets_count():
@@ -12,7 +13,7 @@ def buckets_count():
     :param output_buckets:
     :param upload_func: upload function taking three params(bucket_idx, key, filepath)
 '''
-def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
     for file in glob.glob(os.path.join(data_dir, '*.mp4')):
         img = os.path.relpath(file, data_dir)
         upload_func(0, img, file)

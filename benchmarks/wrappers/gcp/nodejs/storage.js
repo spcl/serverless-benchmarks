@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 const { Storage } = require('@google-cloud/storage'),
         fs = require('fs'),
         path = require('path'),
@@ -20,7 +21,7 @@ class gcp_storage {
   upload(container, file, filepath) {
     let bucket = this.storage.bucket(container);
     let uniqueName = this.unique_name(file);
-    let options = {destination: uniqueName};
+    let options = {destination: uniqueName, resumable: false};
     return [uniqueName, bucket.upload(filepath, options)];
   };
 

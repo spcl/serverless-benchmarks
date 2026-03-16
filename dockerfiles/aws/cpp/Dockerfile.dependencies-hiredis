@@ -1,0 +1,12 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} as builder
+ARG WORKERS
+ENV WORKERS=${WORKERS}
+
+RUN dnf install -y git gcc-11.5.0-5.amzn2023.0.5.x86_64 gcc-c++-11.5.0-5.amzn2023.0.5.x86_64 make tar gzip which python-devel
+RUN git clone --branch v1.2.0 https://github.com/redis/hiredis.git && cd hiredis\
+      && PREFIX=/opt make -j${WORKERS} install
+
+FROM ${BASE_IMAGE}
+
+COPY --from=builder /opt /opt

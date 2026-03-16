@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 # Some dependencies have broken wheels
 # For example, pandas wheel for 3.10 and arm ships libraries
 # for all Linux versions and all Python versions

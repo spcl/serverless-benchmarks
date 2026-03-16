@@ -1,0 +1,29 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG VERSION
+ENV JAVA_VERSION=${VERSION}
+ENV DEBIAN_FRONTEND="noninteractive"
+
+USER root
+
+# Install Maven and build tools via apt-get (Debian-based)
+RUN apt-get update && apt-get install -y \
+    gosu \
+    maven \
+    unzip \
+    zip \
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy shared installer scripts
+RUN mkdir -p /sebs/
+COPY dockerfiles/java_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/entrypoint.sh /sebs/installer.sh
+
+# useradd and groupmod are in /usr/sbin
+ENV PATH=/usr/sbin:$PATH
+ENV SCRIPT_FILE=/mnt/function/package.sh
+CMD /bin/bash /sebs/installer.sh
+ENTRYPOINT ["/sebs/entrypoint.sh"]

@@ -11,10 +11,13 @@
   },
   "deployment": {
     "name": "openwhisk",
-    "shutdownStorage": false,
-    "removeCluster": false,
-    "wskBypassSecurity": "true",
-    "wskExec": "wsk",
-    "experimentalManifest": "false"
+    "openwhisk": {
+      "shutdownStorage": false,
+      "removeCluster": false,
+      "wskBypassSecurity": "true",
+      "wskExec": "wsk",
+      "experimentalManifest": "false",
+      "dockerhubRepository": ""
+    }
   }
 }

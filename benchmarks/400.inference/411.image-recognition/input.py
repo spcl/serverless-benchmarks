@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 import glob, os
 
 def buckets_count():
@@ -21,11 +22,13 @@ def upload_files(data_root, data_dir, upload_func):
     :param output_buckets:
     :param upload_func: upload function taking three params(bucket_idx, key, filepath)
 '''
-def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
 
     # upload model
     model_name = 'resnet50-19c8e357.pth'
     upload_func(0, model_name, os.path.join(data_dir, 'model', model_name))
+    model_name_cpp = 'resnet50.pt'
+    upload_func(0, model_name_cpp, os.path.join(data_dir, 'model', model_name_cpp))
 
     input_images = []
     resnet_path = os.path.join(data_dir, 'fake-resnet')

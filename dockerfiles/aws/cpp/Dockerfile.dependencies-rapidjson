@@ -1,0 +1,11 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} as builder
+
+RUN dnf install -y tar gzip
+RUN curl -L https://github.com/Tencent/rapidjson/archive/refs/tags/v1.1.0.tar.gz -o rapidjson.tar.gz \
+    && tar -xf rapidjson.tar.gz \
+    && mkdir -p /opt/include \
+    && cp -r rapidjson-1.1.0/include/rapidjson /opt/include/rapidjson
+
+FROM ${BASE_IMAGE}
+COPY --from=builder /opt/include/rapidjson /opt/include/rapidjson

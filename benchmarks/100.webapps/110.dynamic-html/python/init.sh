@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 #!/bin/bash
 
 DIR=$1
@@ -7,4 +8,4 @@ path="${SCRIPT_DIR}/templates/"
 if [ "$VERBOSE" = true ]; then
   echo "Update ${DIR} with static templates ${path}"
 fi
-cp -r ${SCRIPT_DIR}/templates ${DIR}
+cp -r "${SCRIPT_DIR}/templates" "${DIR}"

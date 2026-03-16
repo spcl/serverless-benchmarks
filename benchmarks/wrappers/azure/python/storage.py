@@ -1,6 +1,8 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
 import os
 import uuid
+from typing import Optional
 
 from azure.storage.blob import BlobServiceClient
 
@@ -8,10 +10,8 @@ class storage:
     instance = None
     client = None
 
-    def __init__(self):
-        self.client = BlobServiceClient.from_connection_string(
-                os.getenv('STORAGE_CONNECTION_STRING')
-            )
+    def __init__(self, connection_string: str):
+        self.client = BlobServiceClient.from_connection_string(connection_string)
 
     @staticmethod
     def unique_name(name):
@@ -52,7 +52,9 @@ class storage:
         client = self.client.get_blob_client(container=container, blob=file)
         return client.download_blob().readall()
     
-    def get_instance():
+    @staticmethod
+    def get_instance(connection_string: Optional[str] = None):
         if storage.instance is None:
-            storage.instance = storage()
+            assert connection_string is not None
+            storage.instance = storage(connection_string)
         return storage.instance

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 #!/usr/bin/env python3
 
 import argparse
@@ -62,7 +63,7 @@ try:
     ret_json = json.loads(ret.decode())
 
     users = ', '.join([x['user']['name'] for x in ret_json])
-    print(f'Login succesfull with users {users}')
+    print(f'Login successful with users {users}')
 
     if args.subscription:
         found = False
@@ -96,7 +97,7 @@ if args.subscription:
 
 status, out = container.exec_run(cmd,user="docker_user")
 if status:
-    print('Unsuccesfull principal creation!')
+    print('Unsuccessful principal creation!')
     print(out.decode())
 else:
     try:

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 import glob, os
 
 def buckets_count():
@@ -12,7 +13,7 @@ def buckets_count():
     :param output_buckets:
     :param upload_func: upload function taking three params(bucket_idx, key, filepath)
 '''
-def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
 
     for file in glob.glob(os.path.join(data_dir, '*.jpg')):
         img = os.path.relpath(file, data_dir)
@@ -20,7 +21,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
 
     #TODO: multiple datasets
     input_config = {'object': {}, 'bucket': {}}
-    input_config['object']['key'] = img
+    input_config["object"]["key"] = "6_astronomy-desktop-wallpaper-evening-1624438.jpg"
     input_config['object']['width'] = 200
     input_config['object']['height'] = 200
     input_config['bucket']['bucket'] = benchmarks_bucket

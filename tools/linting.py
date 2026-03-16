@@ -1,18 +1,28 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 #!/usr/bin/env python3
 
 import subprocess
 from sys import argv, exit
 
+
 def call(linter, source, args):
     return subprocess.call([linter, source] + args.split())
+
 
 arg = argv[1]
 print("Code formatting of with Black")
 ret = call("black", arg, "--config .black.toml")
 
+print("Check if Black has been applied correctly")
+ret = ret | call("black", arg, "--check --config .black.toml")
+
 print("flake8 linting")
-ret = ret | call("flake8", arg, "--config=.flake8.cfg --black-config=.black.toml")
+ret = ret | call("flake8", arg, "--config=.flake8.cfg")
 
 print("Check static typing")
 ret = ret | call("mypy", arg, "--config-file=.mypy.ini")
+
+print("Check documentation coverage")
+ret = ret | call("interrogate", arg, "-v --fail-under 100")
+
 exit(ret)
