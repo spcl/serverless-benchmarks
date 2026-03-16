@@ -11,18 +11,12 @@
 
 **FaaS benchmarking suite for serverless functions with automatic build, deployment, and measurements.**
 
-![Overview of SeBS features and components.](docs/overview.png)
+![Overview of SeBS features and components - experiments, platforms we support, and programming languages.](docs/overview.png)
 
 SeBS is a diverse suite of FaaS benchmarks that allows automatic performance analysis of
 commercial and open-source serverless platforms. We provide a suite of
 [benchmark applications](docs/benchmarks.md) and [experiments](docs/experiments.md)
 and use them to test and evaluate different components of FaaS systems.
-See the [installation instructions](#installation) to learn how to configure SeBS to use selected
-commercial and open-source serverless systems.
-Then, take a look at [usage instructions](docs/usage.md) to see how
-SeBS can automatically launch serverless functions and entire experiments in the cloud!
-
-
 SeBS provides support for **automatic deployment** and invocation of benchmarks on
 commercial and black-box platforms
 [AWS Lambda](https://aws.amazon.com/lambda/),
@@ -30,29 +24,71 @@ commercial and black-box platforms
 and [Google Cloud Functions](https://cloud.google.com/functions).
 Furthermore, we support the open-source platform [OpenWhisk](https://openwhisk.apache.org/)
 and offer a custom, Docker-based local evaluation platform.
-See the [documentation on cloud providers](docs/platforms.md)
-for details on configuring each platform in SeBS.
-The documentation describes in detail [the design and implementation of our
-tool](docs/design.md), and see the [modularity](docs/modularity.md)
-section to learn how SeBS can be extended with new platforms, benchmarks, and experiments.
-Find out more about our project in [a paper summary](https://mcopik.github.io/projects/sebs/).
+
+## How can SeBS help you?
+
+* Are you looking for an experimentation platform to test and analyze the performance of serverless across cloud platforms?
+* Do you need a set of standardized benchmarks for your serverless experiments and research work?
+* Do you want a fully automated pipeline for build, deployment, and measurements, with no manual effort?
+* 
+Then SeBS might just be the tool for you and your work!
+
+See the [installation instructions](#installation) and [SeBS tutorial](#tutorial) below to learn how to configure SeBS to use selected commercial and open-source serverless systems.
+Then, take a look at our documentation to see how SeBS can automatically launch serverless functions and entire experiments in the cloud!
+You can also find details about SeBS design and experimental results in [our peer-reviewed publications](#publications).
+
+* [Getting started: how to use SeBS?](docs/usage.md)
+* [Getting started: how to configure cloud and serverless platforms?](docs/platforms.md)
+* [Going deeper: which benchmark applications are offered?](docs/benchmarks.md)
+* [Going deeper: which experiments can be launched to evaluate FaaS platforms?](docs/experiments.md)
+* [Internals: how SeBS builds and deploys functions?](docs/build.md)
+* [Internals: how SeBS package is designed?](docs/design.md)
+* [Modularity: how to extend SeBS with new benchmarks, experiments, and platforms?](docs/modularity.md)
 
 Do you have further questions that were not answered by our documentation?
 Did you encounter trouble installing and using SeBS?
 Or do you want to use SeBS in your work and you need new features?
 [Join our community on Slack](https://join.slack.com/t/serverlessbenchmark/shared_invite/zt-30622ov74-_S9QeDjAJLZSe9bJC8tStw) or open a GitHub issue.
 
-For more information on how to configure, use, and extend SeBS, see our
-documentation:
 
-* [How to use SeBS?](docs/usage.md)
-* [Which benchmark applications are offered?](docs/benchmarks.md)
-* [Which experiments can be launched to evaluate FaaS platforms?](docs/experiments.md)
-* [How to configure serverless platforms?](docs/platforms.md)
-* [How SeBS builds and deploys functions?](docs/build.md)
-* [How SeBS package is designed?](docs/design.md)
-* [How to extend SeBS with new benchmarks, experiments, and platforms?](docs/modularity.md)
+## Installation
 
+Requirements:
+- Docker (at least 19)
+- Python 3.10+ with:
+    - pip
+    - venv
+- `libcurl` and its headers must be available on your system to install `pycurl`
+- Standard Linux tools and `zip` installed
+
+... and that should be all. We currently support Linux and other POSIX systems with Bash available.
+On Windows, we recommend using WSL.
+
+To install the benchmarks with a support for all platforms, use:
+
+```
+./install.py --aws --azure --gcp --openwhisk --local
+```
+
+It will create a virtual environment in `python-venv`, and install necessary Python
+dependencies and third-party dependencies. To use SeBS, you must first active the new Python
+virtual environment:
+
+```
+. python-venv/bin/activate
+```
+
+Now you can deploy serverless experiments :-)
+
+The installation of additional platforms is controlled with the `--{platform}` and `--no-{platform}`
+switches. Currently, the default behavior for `install.py` is to install only the
+local environment.
+
+To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
+
+> [!WARNING]
+> Please do not use SeBS with `sudo`. There is no requirement to use any superuser permissions. **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it (see [Docker documentation](https://docs.docker.com/engine/install/linux-postinstall/) on configuring your user to have non-sudo access to containers). Otherwise, you might see many "Connection refused" and "Permission denied" errors when using SeBS.
+ 
 ## Tutorial
 
 We provide a tutorial on basic SeBS functionality in the [SeBS-Tutorial repository](https://github.com/spcl/sebs-tutorial.git).
@@ -65,7 +101,7 @@ You can cite our software repository as well, using the citation button on the r
 
 SeBS has been originally released with the [Middleware '21 paper](https://dl.acm.org/doi/abs/10.1145/3464298.3476133).
 An extended version of our paper is [available on arXiv](https://arxiv.org/abs/2012.14132), and you can
-find more details about research work [in this paper summary](https://mcopik.github.io/projects/sebs/).
+find more details about our research work [in this paper summary](https://mcopik.github.io/projects/sebs/).
 
 ```
 @inproceedings{copik2021sebs,
@@ -87,7 +123,8 @@ find more details about research work [in this paper summary](https://mcopik.git
 ```
 
 The SeBS-Flow paper published at [EuroSys'25](https://dl.acm.org/doi/abs/10.1145/3689031.3717465)
-extends SeBS with support for serverless workflows and NoSQL database:
+extends SeBS with support for serverless workflows and NoSQL database.
+You can find workflow benchmarks on the [`feature/workflows`](https://github.com/spcl/serverless-benchmarks/tree/feature/workflows) branch   (AWS, Azure, GCP).
 
 ```
 @inproceedings{10.1145/3689031.3717465,
@@ -130,46 +167,19 @@ provides an overview of new and ongoing contributions to SeBS - benchmarks, plat
 }
 ```
 
-## Installation
+## Development
 
-Requirements:
-- Docker (at least 19)
-- Python 3.10+ with:
-    - pip
-    - venv
-- `libcurl` and its headers must be available on your system to install `pycurl`
-- Standard Linux tools and `zip` installed
+We welcome new contributions! When extending SeBS, please check first [contributor guidelines](docs/contributing.md) to learn the expected code style.
+Please feel free to get in touch with us - we are happy to provide guidance and help you to implement new features in SeBS.
 
-... and that should be all. We currently support Linux and other POSIX systems with Bash available.
-On Windows, we recommend using WSL.
+### Feature Branches
 
-To install the benchmarks with a support for all platforms, use:
+We provide several experimental features that have not yet been merged into the main branch. You can use them to get early access to upcoming benchmarks, platforms, and experiments.
+However, they can be missing some of the features from the `master` branch.
 
-```
-./install.py --aws --azure --gcp --openwhisk --local
-```
-
-It will create a virtual environment in `python-venv`, and install necessary Python
-dependencies and third-party dependencies. To use SeBS, you must first active the new Python
-virtual environment:
-
-```
-. python-venv/bin/activate
-```
-
-Now you can deploy serverless experiments :-)
-
-The installation of additional platforms is controlled with the `--{platform}` and `--no-{platform}`
-switches. Currently, the default behavior for `install.py` is to install only the
-local environment.
-
-To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
-
-> [!WARNING]
-> Please do not use SeBS with `sudo`. There is no requirement to use any superuser permissions. **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it (see [Docker documentation](https://docs.docker.com/engine/install/linux-postinstall/) on configuring your user to have non-sudo access to containers). Otherwise, you might see many "Connection refused" and "Permission denied" errors when using SeBS.
-
-> [!WARNING]
-> We use libcurl to make HTTP requests. `pycurl` will attempt to build its bindings and needs headers for that - make sure you have all development packages installed. If you see an error like this one: `src/pycurl.h:206:13: fatal error: gnutls/gnutls.h: No such file or directory`, it means that you are missing some of the dependencies.
+* [`feature/workflows`](https://github.com/spcl/serverless-benchmarks/tree/feature/workflows) with serverless workflows benchmarks (AWS, Azure, GCP).
+* [`feature_fission`](https://github.com/spcl/serverless-benchmarks/tree/feature_fission) with support for Fission platform.
+* [`oanarosca/triggers`](https://github.com/spcl/serverless-benchmarks/tree/oanarosca/triggers) with queue and storage triggers (AWS, Azure, GCP).
 
 ## Authors & Contributors
 
