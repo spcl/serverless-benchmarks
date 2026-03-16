@@ -1,4 +1,3 @@
-# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 # Stripping package code is based on https://github.com/ryfeus/lambda-packs repo
 
 PACKAGE_DIR=$1

@@ -1,4 +1,4 @@
-# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+// Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 const Mustache = require('mustache'),
 			fs = require('fs'),
 			path = require('path');
