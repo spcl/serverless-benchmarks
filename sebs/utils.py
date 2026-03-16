@@ -456,9 +456,9 @@ class LoggingBase:
 
 def has_platform(name: str) -> bool:
     """
-    Check if a specific platform is enabled via environment variable.
+    Check if a specific platform is enabled and supported.
 
-    Looks for SEBS_WITH_{name} environment variable set to 'true'.
+    We check if the required libraries for a specific platform are available.
 
     Args:
         name: Platform name to check
@@ -466,7 +466,26 @@ def has_platform(name: str) -> bool:
     Returns:
         bool: True if platform is enabled, False otherwise
     """
-    return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "true"
+    try:
+        if name == "aws":
+            import boto3  # noqa: F401
+            return True
+        elif name == "azure":
+            import azure.storage.blob  # noqa: F401
+            import azure.cosmos  # noqa: F401
+            return True
+        elif name == "gcp":
+            import google.cloud.storage  # noqa: F401
+            import google.cloud.monitoring_v3  # noqa: F401
+            import google.cloud.devtools  # noqa: F401
+            return True
+        elif name in ("local", "openwhisk"):
+            # these don't have specific dependencies
+            return True
+        else:
+            return False
+    except ImportError:
+        return False
 
 
 def is_linux() -> bool:

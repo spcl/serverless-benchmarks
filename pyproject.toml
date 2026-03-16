@@ -39,12 +39,14 @@ dependencies = [
     "pycurl>=7.43",
     "click>=7.1.2",
     "rich",
+    # needed for storage deployment
+    "minio==5.0.10",
+    "boto3"
 ]
 
 # Optional dependencies for cloud providers and developers
 [project.optional-dependencies]
 aws = [
-    "boto3",
     "botocore",
     "urllib3",
     "boto3-stubs[apigatewayv2,ecr,iam,lambda,logs,s3,sts]"
@@ -62,9 +64,6 @@ gcp = [
     "google-cloud-logging>=2.0.0",
     "google-cloud-datastore",
     "google-cloud-build>=3.35.0"
-]
-local = [
-    "minio==5.0.10"
 ]
 openwhisk = []
 all = [
@@ -130,7 +129,7 @@ packages = [
 [tool.setuptools.package-data]
 # Include all necessary non-Python files
 sebs = ["py.typed"]
-"sebs.configs" = ["*.json"]
+"sebs.configs" = ["systems.json"]
 "sebs.benchmarks" = [
     "**/*.py",
     "**/*.js",
