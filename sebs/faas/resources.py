@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """System resource management for FaaS platforms.
 
 This module provides the abstract base class for managing system-level resources

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Configuration management for benchmark experiments.
 
 This module provides the configuration class for benchmark experiments,

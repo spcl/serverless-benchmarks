@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """AWS trigger implementations for SeBS.
 
 This module provides trigger implementations for AWS Lambda functions,

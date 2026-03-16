@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """ScyllaDB NoSQL storage implementation for the Serverless Benchmarking Suite.
 
 This module implements NoSQL database storage using ScyllaDB, which provides a

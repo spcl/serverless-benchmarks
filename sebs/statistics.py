@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Statistical analysis utilities for benchmark experiments.
 
 This module provides functions for computing basic statistics and confidence

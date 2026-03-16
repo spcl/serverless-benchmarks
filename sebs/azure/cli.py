@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Azure CLI Docker container management for SeBS benchmarking.
 
 This module provides a wrapper around the Azure CLI running in a Docker container.

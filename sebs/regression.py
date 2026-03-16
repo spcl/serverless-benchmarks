@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Regression testing framework for serverless benchmarks across cloud providers.
 
 This module provides a flexible testing framework to validate benchmark functionality

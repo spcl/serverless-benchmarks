@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """System resource management for Google Cloud Platform.
 
 This module provides the GCPSystemResources class that manages all GCP resources

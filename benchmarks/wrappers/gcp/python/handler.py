@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 import datetime, io, json, os, uuid, sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Deployment management for local execution platform.
 
 This module provides the Deployment class for managing local function deployments,

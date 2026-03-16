@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 from . import nosql
 
 nosql_client = nosql.nosql.get_instance()

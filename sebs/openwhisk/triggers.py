@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Trigger implementations for OpenWhisk function invocation in SeBS.
 
 This module provides different trigger types for invoking OpenWhisk functions,

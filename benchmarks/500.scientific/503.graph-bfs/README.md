@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 # 503.graph-bfs - Graph BFS
 
 **Type:** Scientific

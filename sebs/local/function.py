@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Function and trigger implementations for local execution platform.
 
 Functions run as Docker containers with HTTP triggers for invocation.

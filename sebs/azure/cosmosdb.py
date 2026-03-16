@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Azure CosmosDB integration for SeBS NoSQL benchmarking.
 
 This module provides Azure CosmosDB integration for NoSQL benchmarks in the

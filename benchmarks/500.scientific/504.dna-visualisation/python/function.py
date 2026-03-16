@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 import datetime, io, json, os
 # using https://squiggle.readthedocs.io/en/latest/
 from squiggle import transform

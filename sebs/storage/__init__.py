@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """This module provides storage abstractions and implementations for SeBS,
 supporting both object storage (S3-compatible) and NoSQL database storage.
 

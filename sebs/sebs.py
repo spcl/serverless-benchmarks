@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Main SeBS (Serverless Benchmarking Suite) client implementation.
 
 This module provides the main interface for SeBS:

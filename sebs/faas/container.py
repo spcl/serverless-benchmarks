@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Docker container management for serverless function deployments.
 
 This module provides the DockerContainer class for building and managing

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Azure serverless platform implementation for SeBS benchmarking.
 
 This module provides the Azure implementation of the SeBS serverless

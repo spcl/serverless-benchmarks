@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """AWS S3 storage implementation for SeBS.
 
 This module provides the S3 class which implements persistent storage functionality

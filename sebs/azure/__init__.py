@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Azure integration package for SeBS benchmarking.
 
 This package provides comprehensive Azure integration for the Serverless

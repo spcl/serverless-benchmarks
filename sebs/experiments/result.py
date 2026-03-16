@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Experiment result collection and management.
 
 This module provides the Result class for managing experiment results, including:

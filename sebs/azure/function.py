@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Azure Function implementation for SeBS benchmarking.
 
 The AzureFunction class extends the base Function class and adds

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """AWS system resources management for SeBS.
 
 This module provides the AWSSystemResources class which manages AWS-specific

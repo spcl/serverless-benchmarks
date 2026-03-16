@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Configuration classes for the local execution platform.
 
 This module provides configuration classes for the SeBS local execution platform,

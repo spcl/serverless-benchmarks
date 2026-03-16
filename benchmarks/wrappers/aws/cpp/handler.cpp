@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
@@ -32,7 +33,6 @@ aws::lambda_runtime::invocation_response handler(
   if(json.HasParseError()) {
     return aws::lambda_runtime::invocation_response::failure("Invalid JSON", "application/json");
   }
-
 
   // HTTP trigger with API Gateway sends payload as a serialized JSON
   // stored under key 'body' in the main JSON

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """
 Module for NoSQL database storage abstraction in the Serverless Benchmarking Suite.
 
