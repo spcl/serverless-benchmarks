@@ -1,4 +1,3 @@
-# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 # Image Processing
 
 A simple pipeline performing basic image operations with Pillow.
