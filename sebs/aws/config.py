@@ -11,15 +11,17 @@ Key classes:
     AWSResources: Manages AWS resources like ECR repositories, IAM roles, and HTTP APIs
     AWSConfig: Main configuration container combining credentials and resources
 """
+from __future__ import annotations
 
 import base64
 import json
 import os
 import time
-from typing import cast, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, cast, Dict, List, Optional, Tuple
 
 import boto3
-from mypy_boto3_ecr import ECRClient
+if TYPE_CHECKING:
+    from mypy_boto3_ecr import ECRClient
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources

@@ -9,13 +9,15 @@ image registry operations.
 Key classes:
     ECRContainer: AWS ECR-specific container management
 """
+from __future__ import annotations
 
 import docker
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
 import boto3
 from botocore.exceptions import ClientError
-from mypy_boto3_ecr import ECRClient
+if TYPE_CHECKING:
+    from mypy_boto3_ecr import ECRClient
 
 from sebs.aws.config import AWSConfig
 from sebs.config import SeBSConfig
