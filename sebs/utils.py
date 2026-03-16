@@ -20,13 +20,59 @@ import click
 import datetime
 import platform
 
+from pathlib import Path
 from typing import List, Optional
 
 # Global constants
-PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
-DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
-PACK_CODE_APP = "pack_code_{}.sh"
+PROJECT_DIR = Path(__file__).parent
+# if we cloned from git, then path above "sebs" will contain .git folder
+IS_PACKAGE_INSTALL = not ((PROJECT_DIR.parent / ".git").exists())
 
+def get_project_root() -> Path:
+    """Get project root directory.
+
+    Returns:
+        - For git clone: repository root
+        - For package install: ~/.sebs/
+    """
+    if IS_PACKAGE_INSTALL:
+        root = Path.home() / ".sebs"
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+    return PROJECT_DIR.parent
+
+def get_benchmarks_data_path() -> Path:
+    """Get path to benchmarks-data directory.
+
+    Returns:
+        - For git clone: ./benchmarks-data/
+        - For package install: ~/.sebs/benchmarks-data/
+    """
+    return get_project_root() / "benchmarks-data"
+
+def get_resource_path(*path_parts: str) -> Path:
+    """Get path to a resource (config, benchmarks, dockerfiles, tools).
+    Resolves to path within git repository (outside of sebs)
+    or in the installed package.
+
+    Args:
+        *path_parts: Path components (e.g., "config", "systems.json")
+
+    Returns:
+        Path to the resource
+    """
+    if IS_PACKAGE_INSTALL:
+        from importlib.resources import files
+
+        # Build path from package resources
+        base = files("sebs")
+        for part in path_parts:
+            base = base / part
+
+        return Path(str(base))
+    else:
+        # Git clone mode: use relative paths from project root
+        return get_project_root() / Path(*path_parts)
 
 def project_absolute_path(*paths: str) -> str:
     """
@@ -217,7 +263,10 @@ def find_benchmark(benchmark: str, path: str) -> Optional[str]:
     Returns:
         str: Path to benchmark directory, or None if not found
     """
-    benchmarks_dir = os.path.join(PROJECT_DIR, path)
+    if path == "benchmarks-data":
+        benchmarks_dir = str(get_benchmarks_data_path())
+    else:
+        benchmarks_dir = str(get_resource_path(path))
     benchmark_path = find(benchmark, benchmarks_dir)
     return benchmark_path
 
@@ -231,7 +280,9 @@ def global_logging() -> None:
     """
     logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
     logging_date_format = "%H:%M:%S"
-    logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
+    logging.basicConfig(
+        format=logging_format, datefmt=logging_date_format, level=logging.INFO
+    )
 
 
 class ColoredWrapper:
@@ -469,15 +520,18 @@ def has_platform(name: str) -> bool:
     try:
         if name == "aws":
             import boto3  # noqa: F401
+
             return True
         elif name == "azure":
             import azure.storage.blob  # noqa: F401
             import azure.cosmos  # noqa: F401
+
             return True
         elif name == "gcp":
             import google.cloud.storage  # noqa: F401
             import google.cloud.monitoring_v3  # noqa: F401
             import google.cloud.devtools  # noqa: F401
+
             return True
         elif name in ("local", "openwhisk"):
             # these don't have specific dependencies
@@ -495,7 +549,9 @@ def is_linux() -> bool:
     Returns:
         bool: True if native Linux, False otherwise
     """
-    return platform.system() == "Linux" and "microsoft" not in platform.release().lower()
+    return (
+        platform.system() == "Linux" and "microsoft" not in platform.release().lower()
+    )
 
 
 def catch_interrupt() -> None:
