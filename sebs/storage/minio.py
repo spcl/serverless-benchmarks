@@ -21,7 +21,6 @@ from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
-from sebs.utils import project_absolute_path
 from sebs.utils import is_linux
 
 
@@ -139,7 +138,7 @@ class Minio(PersistentStorage):
         """
         # Set up data volume location
         if self._cfg.data_volume == "":
-            minio_volume = os.path.join(project_absolute_path(), "minio-volume")
+            minio_volume = os.path.join(os.getcwd(), "minio-volume")
             self._cfg.data_volume = minio_volume
         else:
             minio_volume = self._cfg.data_volume

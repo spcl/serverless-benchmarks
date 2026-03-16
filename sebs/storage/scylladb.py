@@ -131,7 +131,7 @@ class ScyllaDB(NoSQLStorage):
         #
         #
         # if self._cfg.data_volume == "":
-        #    scylladb_volume = os.path.join(project_absolute_path(), "scylladb-volume")
+        #    scylladb_volume = os.path.join(os.getcwd(), "scylladb-volume")
         # else:
         #    scylladb_volume = self._cfg.data_volume
         # scylladb_volume = os.path.abspath(scylladb_volume)

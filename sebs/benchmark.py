@@ -26,7 +26,7 @@ from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
-from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
+from sebs.utils import find_benchmark, get_resource_path, ensure_benchmarks_data, LoggingBase
 from sebs.types import BenchmarkModule, Language
 from typing import TYPE_CHECKING
 
@@ -530,6 +530,9 @@ class Benchmark(LoggingBase):
             self._is_cached_valid = False
 
         # Load input module
+        # Try to ensure benchmarks-data exists (but don't fail - some benchmarks don't need it)
+        ensure_benchmarks_data(self.logging)
+
         self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
         self._benchmark_input_module = load_benchmark_input(self._benchmark_path)
 
@@ -579,10 +582,10 @@ class Benchmark(LoggingBase):
         # wrappers
         wrapper_patterns = WRAPPERS[language]
         for pattern in wrapper_patterns:
-            wrappers = project_absolute_path(
+            wrappers = get_resource_path(
                 "benchmarks", "wrappers", deployment, language.value, pattern
             )
-            for f in glob.glob(wrappers):
+            for f in glob.glob(str(wrappers)):
                 if os.path.isdir(f):
                     for root, _, files in os.walk(f):
                         for file in files:
@@ -726,7 +729,7 @@ class Benchmark(LoggingBase):
         Args:
             output_dir: Directory where deployment files should be added
         """
-        handlers_dir = project_absolute_path(
+        handlers_dir = get_resource_path(
             "benchmarks", "wrappers", self._deployment_name, self.language_name
         )
         handlers = [

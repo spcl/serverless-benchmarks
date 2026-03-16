@@ -74,19 +74,6 @@ def get_resource_path(*path_parts: str) -> Path:
         # Git clone mode: use relative paths from project root
         return get_project_root() / Path(*path_parts)
 
-def project_absolute_path(*paths: str) -> str:
-    """
-    Join paths relative to the project root directory.
-
-    Args:
-        *paths: Path components to join
-
-    Returns:
-        str: Absolute path including the project directory
-    """
-    return os.path.join(PROJECT_DIR, *paths)
-
-
 class JSONSerializer(json.JSONEncoder):
     """
     Custom JSON encoder for objects with serialize method.
@@ -578,3 +565,65 @@ def catch_interrupt() -> None:
         sys.exit(signal.SIGINT)
 
     signal.signal(signal.SIGINT, handler)
+
+def ensure_benchmarks_data(logger: ColoredWrapper) -> Path:
+    """Ensure benchmarks-data exists, cloning if necessary.
+
+    For local installation, we use submodule to ensure that
+    benchmarks-data is initialized. For package installation,
+    we clone benchmarks-data to a home directory if it doesn't exist.
+
+    Returns:
+        Path to benchmarks-data directory
+
+    Raises:
+        RuntimeError: If cloning fails
+    """
+    data_dir = get_benchmarks_data_path()
+
+    # Check if data already exists and is not empty
+    if data_dir.exists() and any(data_dir.iterdir()):
+        return data_dir
+
+    # Create parent directory if needed
+    data_dir.parent.mkdir(parents=True, exist_ok=True)
+
+    if IS_PACKAGE_INSTALL:
+        # In package: clone to a home directory
+        url = "https://github.com/spcl/serverless-benchmarks-data.git"
+        logger.info(f"Initialize benchmarks data to {data_dir} from {url}...")
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    url,
+                    str(data_dir),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            logger.info(f"Benchmarks-data cloned from {url} successfully")
+            return data_dir
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to clone benchmarks-data: {e.stderr}") from e
+        except FileNotFoundError:
+            raise RuntimeError(
+                "git command not found. Please install git to use SeBS"
+            ) from None
+    else:
+        # Git clone mode: use submodule
+        logger.info("Initializing benchmarks data submodule...")
+        try:
+            subprocess.run(
+                ["git", "submodule", "update", "--init", "--recursive"],
+                cwd=get_project_root(),
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            logger.info("Benchmarks-data submodule initialized successfully")
+            return data_dir
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to initialize benchmarks-data submodule: {e.stderr}") from e
