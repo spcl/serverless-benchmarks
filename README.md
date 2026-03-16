@@ -15,8 +15,8 @@
 
 SeBS is a diverse suite of FaaS benchmarks that allows automatic performance analysis of
 commercial and open-source serverless platforms. We provide a suite of
-[benchmark applications](docs/benchmarks.md) and [experiments](docs/experiments.md)
-and use them to test and evaluate different components of FaaS systems.
+[benchmark applications](docs/benchmarks.md) in Python, Node.js, Java, and C++ covering workloads from web applications to scientific computing.
+With automtic [experiments](docs/experiments.md), we test and evaluate different components of FaaS systems.
 SeBS provides support for **automatic deployment** and invocation of benchmarks on
 commercial and black-box platforms
 [AWS Lambda](https://aws.amazon.com/lambda/),
@@ -30,7 +30,7 @@ and offer a custom, Docker-based local evaluation platform.
 * Are you looking for an experimentation platform to test and analyze the performance of serverless across cloud platforms?
 * Do you need a set of standardized benchmarks for your serverless experiments and research work?
 * Do you want a fully automated pipeline for build, deployment, and measurements, with no manual effort?
-* 
+
 Then SeBS might just be the tool for you and your work!
 
 See the [installation instructions](#installation) and [SeBS tutorial](#tutorial) below to learn how to configure SeBS to use selected commercial and open-source serverless systems.
@@ -126,6 +126,9 @@ The SeBS-Flow paper published at [EuroSys'25](https://dl.acm.org/doi/abs/10.1145
 extends SeBS with support for serverless workflows and NoSQL database.
 You can find workflow benchmarks on the [`feature/workflows`](https://github.com/spcl/serverless-benchmarks/tree/feature/workflows) branch   (AWS, Azure, GCP).
 
+<details>
+<summary>BibTeX citation for the SeBS-Flow paper.</summary>
+    
 ```
 @inproceedings{10.1145/3689031.3717465,
   author = {Schmid, Larissa and Copik, Marcin and Calotoiu, Alexandru and Brandner, Laurin and Koziolek, Anne and Hoefler, Torsten},
@@ -144,9 +147,14 @@ You can find workflow benchmarks on the [`feature/workflows`](https://github.com
   series = {EuroSys '25}
 }
 ```
+    
+</details>
 
 The SeBS 2.0 workshop paper published at [SESAME @ EuroSys'25](https://dl.acm.org/doi/abs/10.1145/3721465.3721867)
 provides an overview of new and ongoing contributions to SeBS - benchmarks, platforms, languages.
+
+<details>
+<summary>BibTeX citation for the SeBS 2.0 paper.</summary>
 
 ```
 @inproceedings{10.1145/3721465.3721867,
@@ -166,6 +174,8 @@ provides an overview of new and ongoing contributions to SeBS - benchmarks, plat
   series = {SESAME' 25}
 }
 ```
+
+</details>
 
 ## Development
 
