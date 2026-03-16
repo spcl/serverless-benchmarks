@@ -600,7 +600,7 @@ class Runtime:
         return {
             "language": self.language.value,
             "version": self.version,
-            "variant": self.variant.value,
+            "language-variant": self.variant.value,
         }
 
     @staticmethod
@@ -618,7 +618,7 @@ class Runtime:
         return Runtime(
             language=language,
             version=config["version"],
-            variant=Variant.for_language(language, config.get("variant", "default")),
+            variant=Variant.for_language(language, config.get("language-variant", "default")),
         )
 
 
