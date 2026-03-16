@@ -20,6 +20,7 @@ import time
 from typing import TYPE_CHECKING, cast, Dict, List, Optional, Tuple
 
 import boto3
+
 if TYPE_CHECKING:
     from mypy_boto3_ecr import ECRClient
 

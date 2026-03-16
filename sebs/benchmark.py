@@ -1305,10 +1305,12 @@ class Benchmark(LoggingBase):
             """
             if self.language == Language.CPP:
                 from sebs.cpp_dependencies import CppDependencies
-                from sebs.utils import DOCKER_DIR
 
                 template_path = os.path.join(
-                    DOCKER_DIR, self._deployment_name, "cpp", "Dockerfile.function"
+                    get_resource_path("dockerfiles"),
+                    self._deployment_name,
+                    "cpp",
+                    "Dockerfile.function",
                 )
                 with open(template_path, "r") as f:
                     dockerfile_template = f.read()

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Tuple
 
 import boto3
 from botocore.exceptions import ClientError
+
 if TYPE_CHECKING:
     from mypy_boto3_ecr import ECRClient
 

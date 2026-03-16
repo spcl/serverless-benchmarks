@@ -28,6 +28,7 @@ PROJECT_DIR = Path(__file__).parent
 # if we cloned from git, then path above "sebs" will contain .git folder
 IS_PACKAGE_INSTALL = not ((PROJECT_DIR.parent / ".git").exists())
 
+
 def get_project_root() -> Path:
     """Get project root directory.
     This points to directory where everything is located.
@@ -40,6 +41,7 @@ def get_project_root() -> Path:
         return PROJECT_DIR
     else:
         return PROJECT_DIR.parent
+
 
 def get_benchmarks_data_path() -> Path:
     """Get path to benchmarks-data directory.
@@ -55,6 +57,7 @@ def get_benchmarks_data_path() -> Path:
     else:
         path = PROJECT_DIR.parent
     return path / "benchmarks-data"
+
 
 def get_resource_path(*path_parts: str) -> Path:
     """Get path to a resource (config, benchmarks, dockerfiles, tools).
@@ -79,6 +82,7 @@ def get_resource_path(*path_parts: str) -> Path:
     else:
         # Git clone mode: use relative paths from project root
         return get_project_root() / Path(*path_parts)
+
 
 class JSONSerializer(json.JSONEncoder):
     """
@@ -273,9 +277,7 @@ def global_logging() -> None:
     """
     logging_format = "%(asctime)s,%(msecs)d %(levelname)s %(name)s: %(message)s"
     logging_date_format = "%H:%M:%S"
-    logging.basicConfig(
-        format=logging_format, datefmt=logging_date_format, level=logging.INFO
-    )
+    logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
 
 
 class ColoredWrapper:
@@ -542,9 +544,7 @@ def is_linux() -> bool:
     Returns:
         bool: True if native Linux, False otherwise
     """
-    return (
-        platform.system() == "Linux" and "microsoft" not in platform.release().lower()
-    )
+    return platform.system() == "Linux" and "microsoft" not in platform.release().lower()
 
 
 def catch_interrupt() -> None:
@@ -571,6 +571,7 @@ def catch_interrupt() -> None:
         sys.exit(signal.SIGINT)
 
     signal.signal(signal.SIGINT, handler)
+
 
 def ensure_benchmarks_data(logger: ColoredWrapper) -> Path:
     """Ensure benchmarks-data exists, cloning if necessary.
@@ -615,9 +616,7 @@ def ensure_benchmarks_data(logger: ColoredWrapper) -> Path:
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to clone benchmarks-data: {e.stderr}") from e
         except FileNotFoundError:
-            raise RuntimeError(
-                "git command not found. Please install git to use SeBS"
-            ) from None
+            raise RuntimeError("git command not found. Please install git to use SeBS") from None
     else:
         # Git clone mode: use submodule
         logger.info("Initializing benchmarks data submodule...")

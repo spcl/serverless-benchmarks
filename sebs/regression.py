@@ -542,6 +542,7 @@ class AzureTestSequencePython(
             # Initialize Azure CLI if not already done
             if not hasattr(AzureTestSequencePython, "cli"):
                 from sebs.azure.cli import AzureCLI
+
                 AzureTestSequencePython.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
@@ -620,6 +621,7 @@ class AzureTestSequenceNodejs(
             # Initialize Azure CLI if not already done
             if not hasattr(AzureTestSequenceNodejs, "cli"):
                 from sebs.azure.cli import AzureCLI
+
                 AzureTestSequenceNodejs.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
@@ -692,6 +694,7 @@ class AzureTestSequenceJava(
             needs_login = False
             if not hasattr(AzureTestSequenceJava, "cli"):
                 from sebs.azure.cli import AzureCLI
+
                 AzureTestSequenceJava.cli = AzureCLI(self.client.config, self.client.docker_client)
                 needs_login = True
 

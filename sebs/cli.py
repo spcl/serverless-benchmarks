@@ -1021,5 +1021,6 @@ def docker_push_images(
 def main():
     cli()
 
+
 if __name__ == "__main__":
     main()
