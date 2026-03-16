@@ -17,12 +17,10 @@ from sebs import SeBS
 from sebs.types import Storage as StorageTypes
 from sebs.types import NoSQLStorage as NoSQLStorageTypes
 from sebs.regression import regression_suite
-from sebs.utils import update_nested_dict, append_nested_dict, catch_interrupt
+from sebs.utils import get_project_root, update_nested_dict, append_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
 from sebs.statistics import print_stats
-
-PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 deployment_client: Optional[FaaSSystem] = None
 sebs_client: Optional[SeBS] = None
@@ -933,7 +931,7 @@ def docker_build(
     config = SeBSConfig()
 
     try:
-        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+        builder = DockerImageBuilder(config, get_project_root(), verbose=verbose)
     except docker.errors.DockerException:
         return
 
@@ -1006,7 +1004,7 @@ def docker_push_images(
     config = SeBSConfig()
 
     try:
-        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+        builder = DockerImageBuilder(config, get_project_root(), verbose=verbose)
     except docker.errors.DockerException:
         return
 

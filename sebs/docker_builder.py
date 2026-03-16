@@ -9,6 +9,7 @@ Docker images used by the SeBS benchmarking framework.
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import docker
@@ -40,7 +41,7 @@ class DockerImageBuilder(LoggingBase):
     def __init__(
         self,
         config: SeBSConfig,
-        project_dir: str,
+        project_dir: Path,
         docker_client: Optional[docker.DockerClient] = None,
         verbose: bool = False,
     ):
@@ -133,7 +134,7 @@ class DockerImageBuilder(LoggingBase):
 
         try:
             self.docker_client.images.build(
-                path=self.project_dir,
+                path=str(self.project_dir),
                 dockerfile=dockerfile,
                 buildargs=buildargs,
                 tag=image_name,

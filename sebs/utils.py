@@ -30,16 +30,16 @@ IS_PACKAGE_INSTALL = not ((PROJECT_DIR.parent / ".git").exists())
 
 def get_project_root() -> Path:
     """Get project root directory.
+    This points to directory where everything is located.
 
     Returns:
         - For git clone: repository root
-        - For package install: ~/.sebs/
+        - For package install: main installation path
     """
     if IS_PACKAGE_INSTALL:
-        root = Path.home() / ".sebs"
-        root.mkdir(parents=True, exist_ok=True)
-        return root
-    return PROJECT_DIR.parent
+        return PROJECT_DIR
+    else:
+        return PROJECT_DIR.parent
 
 def get_benchmarks_data_path() -> Path:
     """Get path to benchmarks-data directory.
@@ -48,7 +48,13 @@ def get_benchmarks_data_path() -> Path:
         - For git clone: ./benchmarks-data/
         - For package install: ~/.sebs/benchmarks-data/
     """
-    return get_project_root() / "benchmarks-data"
+    if IS_PACKAGE_INSTALL:
+        root = Path.home() / ".sebs"
+        root.mkdir(parents=True, exist_ok=True)
+        path = root
+    else:
+        path = PROJECT_DIR.parent
+    return path / "benchmarks-data"
 
 def get_resource_path(*path_parts: str) -> Path:
     """Get path to a resource (config, benchmarks, dockerfiles, tools).
