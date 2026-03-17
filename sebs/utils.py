@@ -632,3 +632,5 @@ def ensure_benchmarks_data(logger: ColoredWrapper) -> Path:
             return data_dir
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to initialize benchmarks-data submodule: {e.stderr}") from e
+        except FileNotFoundError:
+            raise RuntimeError("git command not found. Please install git to use SeBS") from None

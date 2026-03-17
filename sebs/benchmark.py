@@ -529,10 +529,10 @@ class Benchmark(LoggingBase):
         if config.update_code:
             self._is_cached_valid = False
 
-        # Load input module
-        # Try to ensure benchmarks-data exists (but don't fail - some benchmarks don't need it)
+        # Try to ensure benchmarks-data exists
         ensure_benchmarks_data(self.logging)
 
+        # Load input module
         self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
         self._benchmark_input_module = load_benchmark_input(self._benchmark_path)
 
