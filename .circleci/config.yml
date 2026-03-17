@@ -76,11 +76,13 @@ commands:
       - run:
           name: Run Regression Tests
           command: |
-            sebs benchmark regression \
+            sebs benchmark regression test \
               --config config/example.json \
               --deployment << parameters.platform >> \
               --language << parameters.language >> \
-              --language-version << parameters.version >>
+              --language-version << parameters.version >> \
+              --architecture x64 --selected-architecture \
+              --resource-prefix sebs-ci
           no_output_timeout: 5m
 
   save-results:
