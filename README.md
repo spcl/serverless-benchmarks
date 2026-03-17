@@ -55,40 +55,65 @@ Or do you want to use SeBS in your work and you need new features?
 
 Requirements:
 - Docker (at least 19)
-- Python 3.10+ with:
-    - pip
-    - venv
+- Python 3.10+ with `pip` + `venv` or `uv`
 - `libcurl` and its headers must be available on your system to install `pycurl`
 - Standard Linux tools and `zip` installed
 
-... and that should be all. We currently support Linux and other POSIX systems with Bash available.
-On Windows, we recommend using WSL.
-
-To install the benchmarks with a support for all platforms, use:
-
-```
-./install.py --aws --azure --gcp --openwhisk --local
-```
-
-It will create a virtual environment in `python-venv`, and install necessary Python
-dependencies and third-party dependencies. To use SeBS, you must first active the new Python
-virtual environment:
-
-```
-. python-venv/bin/activate
-```
-
-Now you can deploy serverless experiments :-)
-
-The installation of additional platforms is controlled with the `--{platform}` and `--no-{platform}`
-switches. Currently, the default behavior for `install.py` is to install only the
-local environment.
-
-To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
+... and that should be all. We currently support Linux and other POSIX systems with Bash available. On Windows, we recommend using WSL.
 
 > [!WARNING]
 > Please do not use SeBS with `sudo`. There is no requirement to use any superuser permissions. **Make sure** that your Docker daemon is running and your user has sufficient permissions to use it (see [Docker documentation](https://docs.docker.com/engine/install/linux-postinstall/) on configuring your user to have non-sudo access to containers). Otherwise, you might see many "Connection refused" and "Permission denied" errors when using SeBS.
- 
+
+SeBS can be installed in one of three ways:
+
+### 1. Package Install (Recommended for Users)
+
+Install SeBS directly from PyPI with your favorite tools:
+
+```bash
+pip install serverless-benchmarks
+sebs --help
+
+uv pip install serverless-benchmarks
+uv run sebs --help
+```
+
+Now you can deploy serverless experiments :-) Benchmarks data will be automatically cloned to `~/.sebs/benchmarks-data/` on first benchmark use.
+
+To verify the correctness of installation, you can use [our regression testing](docs/usage.md#regression).
+
+### 2. Git Install (For Contributors)
+
+For developers who want to modify SeBS or contribute to the project:
+
+```bash
+git clone https://github.com/spcl/serverless-benchmarks.git
+cd serverless-benchmarks
+# -e for editable install, i.e, changes are immediately visible in the package
+# [dev] adds developer dependencies, e.g., for code linting
+pip install -e .[dev]
+```
+
+### 3. Legacy Development Install
+
+This method is deprecated and will be removed in future releases. It is recommended to use the Git Install method instead.
+
+```bash
+git clone https://github.com/spcl/serverless-benchmarks.git
+cd serverless-benchmarks
+./install.py --aws --azure --gcp --openwhisk --local
+```
+
+This will create a virtual environment in `python-venv`, and install necessary Python
+dependencies and third-party dependencies. To use SeBS, you must first activate the new Python virtual environment:
+
+```bash
+. python-venv/bin/activate
+python sebs.py --help
+```
+
+The installation of additional platforms is controlled with the `--{platform}` and `--no-{platform}` switches. Currently, the default behavior for `install.py` is to install only the local environment.
+
 ## Tutorial
 
 We provide a tutorial on basic SeBS functionality in the [SeBS-Tutorial repository](https://github.com/spcl/sebs-tutorial.git).
