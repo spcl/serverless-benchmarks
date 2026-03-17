@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+"""
+    This is a legacy script that has been replaced with pyproject.toml.
+
+    Kept only for backwards compatibility, and to ease installation for users who are not familiar with Python packaging.
+"""
+
 import argparse
 import os
 import subprocess
