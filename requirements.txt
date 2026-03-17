@@ -19,5 +19,6 @@ scipy
 pycurl>=7.43
 click>=7.1.2
 rich
+patch-ng
 
 interrogate==1.7.0

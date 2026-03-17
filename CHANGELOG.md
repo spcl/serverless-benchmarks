@@ -1,7 +1,21 @@
-
-## WiP [1.2.0](https://github.com/spcl/serverless-benchmarks/compare/v1.1...v1.2) (XXXX)
+## WiP [1.3.0](https://github.com/spcl/serverless-benchmarks/compare/v1.2...v1.3) (XXX)
 
 ### Features
+
+### Bug Fixes
+
+### Improvements
+
+* Support for multiple variants of the same programming language (#286).
+
+### Deprecations
+
+### Contributors
+
+This release includes contributions from:
+* @userlaurin - language variant support (#286)
+
+## [1.2.0](https://github.com/spcl/serverless-benchmarks/compare/v1.1...v1.2) (2026-03-16)
 
 #### Container & Multi-Architecture Support
 
