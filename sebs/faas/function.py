@@ -570,6 +570,7 @@ Variant._LANG_MAP: Dict[Language, Type[Enum]] = {
     Language.NODEJS: Variant.NodeJS,
 }
 
+
 @dataclass
 class Runtime:
     """

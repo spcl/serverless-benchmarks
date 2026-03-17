@@ -1,5 +1,6 @@
 # Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 from __future__ import annotations
+
 """
 Module for handling benchmarks in the Serverless Benchmarking Suite (SeBS).
 
@@ -33,15 +34,16 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sebs.experiments.config import Config as ExperimentConfig
-    from sebs.faas.function import Variant
 
 
 class LanguageSpec:
     """
     Represents a language with its supported variants for a benchmark.
 
-    Parses the config language settings, supports both the legacy format (e.g. "python") and the new dict format:
-        {"language": "nodejs", "variants": ["default", "bun", "llrt"]}
+    Parses the config language settings, supports both the legacy format
+    (e.g. "python") and the new dict format:
+
+    {"language": "nodejs", "variants": ["default", "bun", "llrt"]}
 
     The legacy format is treated as having just the "default" variant.
     """
@@ -433,7 +435,8 @@ class Benchmark(LoggingBase):
     @property
     def cache_language_key(self) -> str:
         """
-        Add language variant to the cache key so that different variants of the same language don't conflict in cache.
+        Add language variant to the cache key so that different variants of
+        the same language don't conflict in cache.
         """
         if self._language_variant == "default":
             return self._language.value
@@ -612,7 +615,9 @@ class Benchmark(LoggingBase):
         self._uses_nosql: bool = False
 
     @staticmethod
-    def hash_directory(directory: str, deployment: str, language: Language, variant: str = "default"):
+    def hash_directory(
+        directory: str, deployment: str, language: Language, variant: str = "default"
+    ):
         """
         Compute MD5 hash of an entire directory.
 
@@ -767,7 +772,8 @@ class Benchmark(LoggingBase):
             variant_dir = os.path.join(path, self._language_variant)
             if not os.path.isdir(variant_dir):
                 raise RuntimeError(
-                    "Variant directory not found for benchmark {} language {} variant {}: {}".format(
+                    "Variant directory not found for benchmark {} language {} "
+                    "variant {}: {}".format(
                         self.benchmark, self.language_name, self._language_variant, variant_dir
                     )
                 )
@@ -797,7 +803,7 @@ class Benchmark(LoggingBase):
                 # implementation.  All files from the variant directory are copied
                 # on top of the already-placed base files.  Use this when the variant
                 # is substantially different from the default (e.g. a full rewrite).
-                for file_type in FILES[self.language_name]:
+                for file_type in FILES[self.language]:
                     for f in glob.glob(os.path.join(variant_dir, file_type)):
                         shutil.copy2(f, output_dir)
                 # version-specific package.json override for Node.js
