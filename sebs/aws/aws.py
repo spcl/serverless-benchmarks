@@ -237,7 +237,7 @@ class AWS(System):
             Language.PYTHON: ["handler.py", "requirements.txt", ".python_packages"],
             Language.NODEJS: ["handler.js", "package.json", "node_modules"],
         }
-
+        
         if language in [Language.PYTHON, Language.NODEJS]:
             package_config = CONFIG_FILES[language]
             function_dir = os.path.join(directory, "function")

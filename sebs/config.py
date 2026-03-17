@@ -154,6 +154,17 @@ class SeBSConfig:
         """
         return self._system_config[deployment_name]["architecture"]
 
+    def supported_variants(self, deployment_name: str, language_name: str) -> List[str]:
+        """
+        Return the list of language variants supported by a deployment platform.
+
+        Falls back to ``["default"]`` when the key is absent so that platforms
+        that haven't declared their variant support still work with the default
+        variant.
+        """
+        languages = self._system_config.get(deployment_name, {}).get("languages", {})
+        return languages.get(language_name, {}).get("supported_variants", ["default"])
+
     def supported_package_deployment(self, deployment_name: str) -> bool:
         """Check if package-based deployment is supported for a platform.
 

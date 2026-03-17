@@ -19,7 +19,7 @@ import json
 import concurrent.futures
 from abc import ABC
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
@@ -527,6 +527,49 @@ class Trigger(ABC, LoggingBase):
         pass
 
 
+class Variant:
+    """
+    Namespace for language-specific runtime variant enums.
+
+    Each nested class is an Enum that lists the variants supported for a given language.
+    DEFAULT = "default" is always present and represents the standard runtime.
+
+    To add variants for a new language (e.g. Java, WASM), add a new nested Enum class
+    and register it in Variant._LANG_MAP below.
+    """
+
+    class Python(Enum):
+        DEFAULT = "default"
+        PYPY = "pypy"
+
+    class NodeJS(Enum):
+        DEFAULT = "default"
+        BUN = "bun"
+        LLRT = "llrt"
+
+    @classmethod
+    def for_language(cls, language: Language, val: str) -> Enum:
+        """Deserialize a variant string for the given language."""
+        enum_cls = cls._LANG_MAP.get(language)
+        if enum_cls is None:
+            raise ValueError(f"No variants defined for language {language}")
+        for member in enum_cls:
+            if member.value == val:
+                return member
+        raise ValueError(f"Unknown variant {val!r} for language {language}")
+
+    @classmethod
+    def default(cls, language: Language) -> Enum:
+        """Return the DEFAULT variant for the given language."""
+        return cls.for_language(language, "default")
+
+
+# Populated here (after Language is defined) so forward references are resolved.
+Variant._LANG_MAP: Dict[Language, Type[Enum]] = {
+    Language.PYTHON: Variant.Python,
+    Language.NODEJS: Variant.NodeJS,
+}
+
 @dataclass
 class Runtime:
     """
@@ -541,6 +584,12 @@ class Runtime:
 
     language: Language
     version: str
+    # None sentinel: __post_init__ resolves it to the language's DEFAULT variant.
+    variant: Enum = field(default=None)
+
+    def __post_init__(self):
+        if self.variant is None and self.language is not None:
+            self.variant = Variant.default(self.language)
 
     def serialize(self) -> dict:
         """
@@ -549,7 +598,11 @@ class Runtime:
         Returns:
             dict: Dictionary representation of the runtime
         """
-        return {"language": self.language.value, "version": self.version}
+        return {
+            "language": self.language.value,
+            "version": self.version,
+            "language-variant": self.variant.value,
+        }
 
     @staticmethod
     def deserialize(config: dict) -> Runtime:
@@ -562,7 +615,12 @@ class Runtime:
         Returns:
             Runtime: New instance with the deserialized data
         """
-        return Runtime(language=Language.deserialize(config["language"]), version=config["version"])
+        language = Language.deserialize(config["language"])
+        return Runtime(
+            language=language,
+            version=config["version"],
+            variant=Variant.for_language(language, config.get("language-variant", "default")),
+        )
 
 
 T = TypeVar("T", bound="FunctionConfig")
@@ -599,7 +657,11 @@ class FunctionConfig:
         Returns:
             T: New instance of the specified FunctionConfig subclass
         """
-        runtime = Runtime(language=benchmark.language, version=benchmark.language_version)
+        runtime = Runtime(
+            language=benchmark.language,
+            version=benchmark.language_version,
+            variant=Variant.for_language(benchmark.language, benchmark.language_variant),
+        )
         architecture = Architecture.deserialize(benchmark._experiment_config._architecture)
         cfg = obj_type(
             timeout=benchmark.benchmark_config.timeout,

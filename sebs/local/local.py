@@ -248,11 +248,20 @@ class Local(System):
             RuntimeError: If port allocation fails or container won't start
         """
 
-        container_name = "{}:run.local.{}.{}".format(
-            self._system_config.docker_repository(),
-            code_package.language_name,
-            code_package.language_version,
-        )
+        variant = code_package.language_variant
+        if variant == "default":
+            container_name = "{}:run.local.{}.{}".format(
+                self._system_config.docker_repository(),
+                code_package.language_name,
+                code_package.language_version,
+            )
+        else:
+            container_name = "{}:run.local.{}.{}.{}".format(
+                self._system_config.docker_repository(),
+                code_package.language_name,
+                variant,
+                code_package.language_version,
+            )
 
         environment = {
             "CONTAINER_UID": str(os.getuid()),
