@@ -76,8 +76,9 @@ commands:
       - run:
           name: Run Regression Tests
           command: |
+            set -euo pipefail
             sebs benchmark regression test \
-              --config config/example.json \
+              --config configs/example.json \
               --deployment << parameters.platform >> \
               --language << parameters.language >> \
               --language-version << parameters.version >> \
