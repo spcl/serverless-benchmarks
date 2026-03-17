@@ -1,3 +1,4 @@
+// Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgcodecs.hpp>

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Regression testing framework for serverless benchmarks across cloud providers.
 
 This module provides a flexible testing framework to validate benchmark functionality
@@ -17,6 +18,7 @@ The module supports:
 """
 
 import copy
+import json
 import logging
 import os
 import unittest
@@ -214,6 +216,7 @@ class TestSequenceMeta(type):
 
                 # Test each trigger type
                 failure = False
+                execution_results: dict = {}
                 for trigger_type in triggers:
                     if len(func.triggers(trigger_type)) > 0:
                         trigger = func.triggers(trigger_type)[0]
@@ -236,9 +239,16 @@ class TestSequenceMeta(type):
                             logging_wrapper.info(
                                 f"{benchmark_name} success on trigger: {trigger_type}"
                             )
+                        execution_results[trigger_type.name] = ret.output
                     except RuntimeError:
                         failure = True
                         logging_wrapper.error(f"{benchmark_name} fail on trigger: {trigger_type}")
+
+                # Save JSON output for all trigger executions
+                json_filename = f"regression_{deployment_name}_{benchmark_name}"
+                json_filename += f"_{architecture}_{deployment_type}.json"
+                with open(os.path.join(self.client.output_dir, json_filename), "w") as f:
+                    json.dump(execution_results, f, indent=2)
 
                 # Clean up resources
                 deployment_client.shutdown()

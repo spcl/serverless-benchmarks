@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Configuration classes for storage backends in the Serverless Benchmarking Suite.
 
 All configuration classes support serialization/deserialization for caching

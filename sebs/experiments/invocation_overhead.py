@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Invocation overhead measurement experiment implementation.
 
 This module provides the InvocationOverhead experiment implementation, which
@@ -266,8 +267,8 @@ class InvocationOverhead(Experiment):
                     experiment.before_sample(size, input_benchmark)
 
                     for i in range(repetitions):
-                        succesful = False
-                        while not succesful:
+                        successful = False
+                        while not successful:
                             self.logging.info(f"Starting with {size} bytes, repetition {i}")
                             if result_type == "cold":
                                 self._deployment_client.enforce_cold_start(
@@ -284,7 +285,7 @@ class InvocationOverhead(Experiment):
                                     self.logging.info("cold!")
                                     continue
                             writer.writerow([size, i] + row)
-                            succesful = True
+                            successful = True
 
         time.sleep(5)
         self._storage.download_bucket(self.benchmark_input["output-bucket"], self._out_dir)
@@ -428,7 +429,8 @@ class InvocationOverhead(Experiment):
                 # stop after 5 attempts
                 if j == 5:
                     self.logging.error(
-                        "Failing after 5 unsuccesfull attempts to " "communicate with the function!"
+                        "Failing after 5 unsuccessfull attempts to "
+                        "communicate with the function!"
                     )
                     break
                 # check if function invocation failed, and if yes: raise the exception

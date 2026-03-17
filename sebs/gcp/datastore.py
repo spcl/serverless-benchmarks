@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Google Cloud Datastore/Firestore implementation for SeBS NoSQL storage.
 
 This module provides NoSQL database functionality using Google Cloud Firestore

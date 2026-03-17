@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Azure system resources management for SeBS.
 
 This module provides Azure-specific system resource management including

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """C++ dependencies supported in SeBS benchmarks."""
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ class CppDependencyConfig:
         cmake_libs: str,
         cmake_dir: Optional[str] = None,
         runtime_paths: Optional[list[str]] = None,
+        cmake_required: Optional[str] = None,
+        cmake_definitions: Optional[str] = None,
     ):
         """Initializes a new C++ dependency configuration.
 
@@ -24,11 +27,14 @@ class CppDependencyConfig:
             cmake_libs: Variable or list of libraries to link against in CMake
             cmake_dir: Additional include directory to add in CMake (if not provided by the package)
             runtime_paths: Paths to dynamic libraries that should be copied with function.
+            cmake_definitions: Preprocessor definitions to set when this dependency is used.
         """
         self.docker_img = docker_img
         self.cmake_package = cmake_package
         self.cmake_dir = cmake_dir
         self.cmake_libs = cmake_libs
+        self.cmake_required = cmake_required
+        self.cmake_definitions = cmake_definitions
         self.runtime_paths = runtime_paths or []
 
 
@@ -54,6 +60,7 @@ class CppDependencies(str, Enum):
     IGRAPH = "igraph"
     BOOST = "boost"
     HIREDIS = "hiredis"
+    RAPIDJSON = "rapidjson"
 
     @staticmethod
     def _dependency_dictionary() -> dict[str, CppDependencyConfig]:
@@ -69,6 +76,8 @@ class CppDependencies(str, Enum):
                 cmake_package="AWSSDK",
                 cmake_libs="${AWSSDK_LINK_LIBRARIES}",
                 runtime_paths=["/opt/lib64/libaws*", "/opt/lib64/libs2n*"],
+                cmake_required="s3",
+                cmake_definitions="SEBS_USE_AWS_SDK",
             ),
             CppDependencies.RUNTIME: CppDependencyConfig(
                 docker_img="dependencies-runtime.aws.cpp.all",
@@ -118,6 +127,13 @@ class CppDependencies(str, Enum):
                 cmake_libs="hiredis::hiredis",
                 runtime_paths=["/opt/lib/libhiredis*"],
             ),
+            CppDependencies.RAPIDJSON: CppDependencyConfig(
+                docker_img="dependencies-rapidjson.aws.cpp.all",
+                cmake_package=None,
+                cmake_libs="",
+                cmake_dir="/opt/include",
+                runtime_paths=[],
+            ),
         }
 
     @staticmethod
@@ -156,12 +172,39 @@ class CppDependencies(str, Enum):
         dependency_config = CppDependencies._dependency_dictionary()[dependency]
 
         find_package_cmd = ""
-        if dependency_config.cmake_package:
+        if dependency_config.cmake_package and dependency_config.cmake_required:
             find_package_cmd = """
-            find_package({cmake_package} REQUIRED)
+            find_package({cmake_package} REQUIRED COMPONENTS {required})
+            """.format(
+                cmake_package=dependency_config.cmake_package,
+                required=dependency_config.cmake_required,
+            )
+        elif dependency_config.cmake_package:
+            find_package_cmd = """
+            find_package({cmake_package})
             """.format(
                 cmake_package=dependency_config.cmake_package,
             )
+
+        link_line = (
+            ""
+            if not dependency_config.cmake_libs
+            else """
+            target_link_libraries(${{PROJECT_NAME}} PRIVATE {cmake_libs})
+        """.format(
+                cmake_libs=dependency_config.cmake_libs
+            )
+        )
+
+        definitions_line = (
+            ""
+            if not dependency_config.cmake_definitions
+            else """
+            target_compile_definitions(${{PROJECT_NAME}} PRIVATE {cmake_definitions})
+        """.format(
+                cmake_definitions=dependency_config.cmake_definitions
+            )
+        )
 
         return (
             find_package_cmd
@@ -174,11 +217,8 @@ class CppDependencies(str, Enum):
                     cmake_dir=dependency_config.cmake_dir
                 )
             )
-            + """
-            target_link_libraries(${{PROJECT_NAME}} PRIVATE {cmake_libs})
-        """.format(
-                cmake_libs=dependency_config.cmake_libs
-            )
+            + link_line
+            + definitions_line
         )
 
     @staticmethod
@@ -201,10 +241,9 @@ class CppDependencies(str, Enum):
             Complete list of dependencies needed for the benchmark
         """
         deps = {
-            CppDependencies.SDK,
             CppDependencies.RUNTIME,
             CppDependencies.BOOST,
-            CppDependencies.HIREDIS,
+            CppDependencies.RAPIDJSON,
         }
 
         deps.update(cpp_dependencies)
@@ -213,7 +252,9 @@ class CppDependencies(str, Enum):
 
     @staticmethod
     def generate_dockerfile(
-        cpp_dependencies: list[CppDependencies], dockerfile_template: str, sebs_version: str
+        cpp_dependencies: list[CppDependencies],
+        dockerfile_template: str,
+        sebs_version: str,
     ) -> str:
         """
         Generate a custom Dockerfile for C++ Lambda functions with selective dependencies.

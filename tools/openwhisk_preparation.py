@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
 import logging
 import os
@@ -308,14 +309,14 @@ def install_wsk() -> None:
         wsk_path = "{}/.local/bin/wsk".format(home_path)
         subprocess.run("go get github.com/apache/openwhisk-cli".split())
         run_check_process("go get -u github.com/jteeuwen/go-bindata/...")
-        instalation_dir = "{}/src/github.com/apache/openwhisk-cli".format(os.environ["GOPATH"])
+        installation_dir = "{}/src/github.com/apache/openwhisk-cli".format(os.environ["GOPATH"])
 
-        def custom_subproces(comand):
-            subprocess.run(comand.split(), cwd=instalation_dir, check=True)
+        def custom_subproces(command):
+            subprocess.run(command.split(), cwd=installation_dir, check=True)
 
         custom_subproces("go-bindata -pkg wski18n -o wski18n/i18n_resources.go wski18n/resources")
         custom_subproces("go build -o wsk")
-        run_check_process("ln -sf {}/wsk {}".format(instalation_dir, wsk_path))
+        run_check_process("ln -sf {}/wsk {}".format(installation_dir, wsk_path))
         run_check_process("chmod +x {}".format(wsk_path))
         logging.info("Wsk has been installed")
     except (subprocess.CalledProcessError, FileNotFoundError) as e:

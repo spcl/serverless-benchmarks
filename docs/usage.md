@@ -10,6 +10,9 @@ To enforce redeployment of code, benchmark inputs, container deployment (support
 **Note:** The cache does not support updating the cloud region. If you want to deploy benchmarks
 to a new cloud region, then use a new cache directory.
 
+> [!WARNING]
+> We use libcurl to make HTTP requests. During installation, `pycurl` will attempt to build its bindings and needs headers for that - make sure you have all development packages installed. If you see an error like this one: `src/pycurl.h:206:13: fatal error: gnutls/gnutls.h: No such file or directory`, it means that you are missing some of the dependencies.
+
 ## Benchmark
 
 ### Package

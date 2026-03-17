@@ -92,7 +92,7 @@ XXXXX
 Please follow the login instructions to generate credentials...
 To sign in, use a web browser to open the page https://microsoft.com/devicelogin and enter the code YYYYYYY to authenticate.
 
-Login succesfull with user {'name': 'ZZZZZZ', 'type': 'user'}
+Login successful with user {'name': 'ZZZZZZ', 'type': 'user'}
 Created service principal http://XXXXX
 
 AZURE_SECRET_APPLICATION_ID = XXXXXXXXXXXXXXXX

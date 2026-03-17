@@ -11,6 +11,7 @@ FROM ${BASE_REPOSITORY}:dependencies-opencv.aws.cpp.all-${SEBS_VERSION} as openc
 FROM ${BASE_REPOSITORY}:dependencies-libjpeg-turbo.aws.cpp.all-${SEBS_VERSION} as libjpeg-turbo
 FROM ${BASE_REPOSITORY}:dependencies-igraph.aws.cpp.all-${SEBS_VERSION} as igraph
 FROM ${BASE_REPOSITORY}:dependencies-torch.aws.cpp.all-${SEBS_VERSION} as torch
+FROM ${BASE_REPOSITORY}:dependencies-rapidjson.aws.cpp.all-${SEBS_VERSION} as rapidjson
 
 FROM ${BASE_IMAGE} as builder
 
@@ -39,6 +40,7 @@ COPY --from=opencv /opt/ /opt/
 COPY --from=libjpeg-turbo /opt/ /opt/
 COPY --from=igraph /opt /opt
 COPY --from=torch /opt /opt
+COPY --from=rapidjson /opt/include/rapidjson /opt/include/rapidjson
 
 # Ensure libtorch.so symlink exists for runtime compatibility
 RUN ln -sf /opt/libtorch/lib/libtorch_cpu.so /opt/libtorch/lib/libtorch.so

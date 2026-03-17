@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Local execution platform for SeBS.
 
 It runs serverless functions locally using Docker containers, providing a

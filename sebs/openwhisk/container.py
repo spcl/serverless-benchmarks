@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Docker container management for OpenWhisk functions in SeBS.
 
 Its primary focus is supporting both DockerHub and custom, local Docker registries.

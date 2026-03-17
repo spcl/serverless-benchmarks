@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """
 Module for MinIO S3-compatible storage in the Serverless Benchmarking Suite.
 
@@ -184,10 +185,10 @@ class Minio(PersistentStorage):
             self.configure_connection()
         except docker.errors.APIError as e:
             self.logging.error("Starting Minio storage failed! Reason: {}".format(e))
-            raise RuntimeError("Starting Minio storage unsuccesful")
+            raise RuntimeError("Starting Minio storage unsuccessful")
         except Exception as e:
             self.logging.error("Starting Minio storage failed! Unknown error: {}".format(e))
-            raise RuntimeError("Starting Minio storage unsuccesful")
+            raise RuntimeError("Starting Minio storage unsuccessful")
 
     def configure_connection(self) -> None:
         """

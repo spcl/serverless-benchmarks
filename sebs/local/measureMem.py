@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Memory measurement utility for Docker containers.
 
 This script periodically reads the `memory.current` file from the container's

@@ -1,5 +1,7 @@
-#include <aws/core/Aws.h>
-#include <aws/core/utils/json/JsonSerializer.h>
+// Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
 
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid.hpp>
@@ -8,6 +10,7 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <sstream>
 
 #include "utils.hpp"
 #include "storage.hpp"
@@ -38,18 +41,25 @@ std::vector<std::string> load_class_labels(const std::string& json_path)
     return std::vector<std::string>{};
   }
 
-  Aws::Utils::Json::JsonValue json_doc(file);
-  auto json_obj = json_doc.View().GetAllObjects();
-  std::vector<std::string> labels(json_obj.size());
+  std::string content((std::istreambuf_iterator<char>(file)),
+                       std::istreambuf_iterator<char>());
 
-  int i = 0;
-  for (const auto& pair : json_obj)
+  rapidjson::Document doc;
+  doc.Parse(content.c_str());
+
+  if (doc.HasParseError() || !doc.IsObject())
   {
-    int idx = std::stoi(pair.first);
-    auto class_array = pair.second.AsArray();
-    if (class_array.GetSize() >= 2)
+    std::cerr << "Failed to parse class index file: " << json_path << std::endl;
+    return std::vector<std::string>{};
+  }
+
+  std::vector<std::string> labels(doc.MemberCount());
+  for (auto& m : doc.GetObject())
+  {
+    int idx = std::stoi(m.name.GetString());
+    if (m.value.IsArray() && m.value.Size() >= 2)
     {
-      labels[idx] = class_array[1].AsString();
+      labels[idx] = m.value[1].GetString();
     }
   }
 
@@ -156,7 +166,7 @@ std::pair<int, std::string> recognize_image(cv::Mat& image)
   int predicted_idx = std::get<1>(max_result).item<int>();
 
   std::string class_name = "";
-  if (predicted_idx >= 0 && predicted_idx < class_labels.size())
+  if (predicted_idx >= 0 && predicted_idx < (int)class_labels.size())
   {
     class_name = class_labels[predicted_idx];
   }
@@ -166,51 +176,61 @@ std::pair<int, std::string> recognize_image(cv::Mat& image)
   return {predicted_idx, class_name};
 }
 
-Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
+rapidjson::Document function(const rapidjson::Value& request)
 {
   static sebs::Storage client = sebs::Storage::get_client();
 
-  auto bucket_obj = request.GetObject("bucket");
-  if (!bucket_obj.IsObject())
+  if (!request.HasMember("bucket") || !request["bucket"].IsObject())
   {
-    Aws::Utils::Json::JsonValue error;
-    error.WithString("error", "Bucket object is not valid.");
+    rapidjson::Document error;
+    error.SetObject();
+    error.AddMember("error", "Bucket object is not valid.", error.GetAllocator());
     return error;
   }
 
-  auto bucket_name = bucket_obj.GetString("bucket");
-  auto input_prefix = bucket_obj.GetString("input");
-  auto model_prefix = bucket_obj.GetString("model");
+  const auto& bucket_obj = request["bucket"];
+  std::string bucket_name = bucket_obj["bucket"].GetString();
+  std::string input_prefix = bucket_obj["input"].GetString();
+  std::string model_prefix = bucket_obj["model"].GetString();
 
-  auto object_obj = request.GetObject("object");
-  auto input_key = object_obj.GetString("input");
-  auto model_key = object_obj.GetString("model");
+  const auto& object_obj = request["object"];
+  std::string input_key = object_obj["input"].GetString();
+  std::string model_key = object_obj["model"].GetString();
 
   // Download image from storage
-  std::string input_path = std::string(input_prefix) + "/" + std::string(input_key);
+  std::string input_path = input_prefix + "/" + input_key;
   auto download_result = client.download_file(bucket_name, input_path);
   std::string image_data = std::get<0>(download_result);
   uint64_t image_download_time = std::get<1>(download_result);
 
   if (image_data.empty())
   {
-    Aws::Utils::Json::JsonValue error;
-    error.WithString("error", "Failed to download image from storage: " + input_path);
+    rapidjson::Document error;
+    error.SetObject();
+    error.AddMember(
+      "error",
+      rapidjson::Value(
+        ("Failed to download image from storage: " + input_path).c_str(),
+        error.GetAllocator()
+      ),
+      error.GetAllocator()
+    );
     return error;
   }
 
   uint64_t model_download_time = 0;
   uint64_t model_process_time = 0;
   // Hardcoded model path - we use a different ResNet format than Python.
-  std::string model_path = std::string(model_prefix) + "/resnet50.pt";
+  std::string model_path = model_prefix + "/resnet50.pt";
 
   load_model_if_needed(client, model_download_time, model_process_time, bucket_name, model_path);
 
   if (!model_initialized)
   {
-      Aws::Utils::Json::JsonValue error;
-      error.WithString("error", "Failed to load model");
-      return error;
+    rapidjson::Document error;
+    error.SetObject();
+    error.AddMember("error", "Failed to load model", error.GetAllocator());
+    return error;
   }
 
   // Process image and run inference (separate timer like Python)
@@ -220,8 +240,9 @@ Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
   cv::Mat processed_image;
   if (!load_and_preprocess_image(image_data, processed_image))
   {
-    Aws::Utils::Json::JsonValue error;
-    error.WithString("error", "Failed to load and preprocess image");
+    rapidjson::Document error;
+    error.SetObject();
+    error.AddMember("error", "Failed to load and preprocess image", error.GetAllocator());
     return error;
   }
 
@@ -233,24 +254,27 @@ Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request)
 
   if (predicted_idx < 0)
   {
-    Aws::Utils::Json::JsonValue error;
-    error.WithString("error", "Image recognition failed");
+    rapidjson::Document error;
+    error.SetObject();
+    error.AddMember("error", "Image recognition failed", error.GetAllocator());
     return error;
   }
 
-  Aws::Utils::Json::JsonValue val;
-  Aws::Utils::Json::JsonValue result;
-  Aws::Utils::Json::JsonValue measurements;
+  rapidjson::Document val;
+  val.SetObject();
+  auto& alloc = val.GetAllocator();
 
-  result.WithInteger("idx", predicted_idx);
-  result.WithString("class", class_name);
-  val.WithObject("result", result);
+  rapidjson::Value result(rapidjson::kObjectType);
+  result.AddMember("idx", predicted_idx, alloc);
+  result.AddMember("class", rapidjson::Value(class_name.c_str(), alloc), alloc);
+  val.AddMember("result", result, alloc);
 
-  measurements.WithInt64("download_time", image_download_time + model_download_time);
-  measurements.WithInt64("compute_time", process_time + model_process_time);
-  measurements.WithInt64("model_time", model_process_time);
-  measurements.WithInt64("model_download_time", model_download_time);
-  val.WithObject("measurement", measurements);
+  rapidjson::Value measurements(rapidjson::kObjectType);
+  measurements.AddMember("download_time", (int64_t)(image_download_time + model_download_time), alloc);
+  measurements.AddMember("compute_time", (int64_t)(process_time + model_process_time), alloc);
+  measurements.AddMember("model_time", (int64_t)model_process_time, alloc);
+  measurements.AddMember("model_download_time", (int64_t)model_download_time, alloc);
+  val.AddMember("measurement", measurements, alloc);
 
   return val;
 }

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Container eviction model experiment implementation.
 
 This module provides the EvictionModel experiment implementation, which

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """
 Module for NoSQL database storage abstraction in the Serverless Benchmarking Suite.
 
@@ -231,7 +232,7 @@ class NoSQLStorage(ABC, LoggingBase):
     def clear_table(self, name: str) -> str:
         """
         Clear all items from a table/container.
-        Currently not implemented for any of hte proivders.
+        Currently not implemented for any of the providers.
 
         Provider-specific implementation details:
         - AWS DynamoDB: Removing & recreating table looks like the cheapest & fastest option.

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Caching system for SeBS (Serverless Benchmarking Suite).
 
 This module provides comprehensive caching functionality for the SeBS framework,

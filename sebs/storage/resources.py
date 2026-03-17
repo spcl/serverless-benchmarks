@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Resource management for self-hosted storage deployments in SeBS.
 
 Its main responsibility is providing consistent interface and cache

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """AWS module for the Serverless Benchmarking Suite (SeBS).
 
 This module provides the AWS implementation of the SeBS framework, enabling

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Azure CLI Docker container management for SeBS benchmarking.
 
 This module provides a wrapper around the Azure CLI running in a Docker container.
@@ -157,7 +158,7 @@ class AzureCLI(LoggingBase):
                 password,
             )
         )
-        self.logging.info("Azure login succesful")
+        self.logging.info("Azure login successful")
         return result
 
     def upload_package(self, directory: str, dest: str) -> None:

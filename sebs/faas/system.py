@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """
 Module providing the core abstraction for Function-as-a-Service (FaaS) systems.
 

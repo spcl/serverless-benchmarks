@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """AWS DynamoDB NoSQL storage implementation for SeBS.
 
 This module provides the DynamoDB class which implements NoSQL storage functionality

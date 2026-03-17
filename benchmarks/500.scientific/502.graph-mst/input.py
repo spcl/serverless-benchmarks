@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 size_generators = {
     'test' : 10,
     'small' : 10000,

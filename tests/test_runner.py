@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
 import argparse
 import os

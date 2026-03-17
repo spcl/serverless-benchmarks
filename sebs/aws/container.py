@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """AWS ECR container management for SeBS.
 
 This module provides the ECRContainer class which handles Docker container

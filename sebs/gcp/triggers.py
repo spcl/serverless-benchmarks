@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Trigger implementations for Google Cloud Functions.
 
 This module provides trigger classes for invoking Cloud Functions through different

@@ -2,5 +2,6 @@
   "timeout": 120,
   "memory": 128,
   "languages": ["python", "nodejs", "java", "cpp"],
-  "modules": []
+  "modules": [],
+  "cpp_dependencies": []
 }

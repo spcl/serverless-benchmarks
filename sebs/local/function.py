@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Function and trigger implementations for local execution platform.
 
 Functions run as Docker containers with HTTP triggers for invocation.
@@ -256,4 +257,4 @@ class LocalFunction(Function):
         """
         self.logging.info(f"Stopping function container {self._instance_id}")
         self._instance.stop(timeout=0)
-        self.logging.info(f"Function container {self._instance_id} stopped succesfully")
+        self.logging.info(f"Function container {self._instance_id} stopped successfully")

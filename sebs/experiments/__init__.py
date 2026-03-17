@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Experiment implementations for serverless benchmarking.
 
 This package provides a collection of experiment implementations for

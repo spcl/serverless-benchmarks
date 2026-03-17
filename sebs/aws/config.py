@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Configuration management for AWS SeBS integration.
 
 This module provides configuration classes for AWS credentials, resources, and settings

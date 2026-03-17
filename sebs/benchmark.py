@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 from __future__ import annotations
 """
 Module for handling benchmarks in the Serverless Benchmarking Suite (SeBS).
@@ -1006,38 +1007,48 @@ class Benchmark(LoggingBase):
             output_dir: Benchmark directory
         """
 
-        cmake_script = """
+        files = ["handler.cpp", "utils.cpp", "main.cpp"]
+        if BenchmarkModule.STORAGE in self.benchmark_config.modules:
+            files.append("storage.cpp")
+        if BenchmarkModule.NOSQL in self.benchmark_config.modules:
+            files.append("key-value.cpp")
+        # TODO: add module for redis
+        files_str = " ".join(files)
+
+        cmake_script = f"""
         cmake_minimum_required(VERSION 3.9)
         set(CMAKE_CXX_STANDARD 14)
-        set(CMAKE_CXX_FLAGS "-Os")
+        # set(CMAKE_CXX_FLAGS "-Os")
         project(benchmark LANGUAGES CXX)
         set(CMAKE_CXX_STANDARD 17)
         add_executable(
-            ${PROJECT_NAME} "handler.cpp" "key-value.cpp"
-            "storage.cpp" "redis.cpp" "utils.cpp" "main.cpp"
+            ${{PROJECT_NAME}} {files_str}
         )
-        target_include_directories(${PROJECT_NAME} PRIVATE ".")
+        target_include_directories(${{PROJECT_NAME}} PRIVATE ".")
 
-        target_compile_features(${PROJECT_NAME} PRIVATE "cxx_std_14")
-        target_compile_options(${PROJECT_NAME} PRIVATE "-Wall" "-Wextra")
+        target_compile_features(${{PROJECT_NAME}} PRIVATE "cxx_std_14")
+        target_compile_options(${{PROJECT_NAME}} PRIVATE "-Wall" "-Wextra")
 
         find_package(aws-lambda-runtime)
-        target_link_libraries(${PROJECT_NAME} PRIVATE AWS::aws-lambda-runtime)
+        target_link_libraries(${{PROJECT_NAME}} PRIVATE AWS::aws-lambda-runtime)
         """
 
         for dependency in self._benchmark_config._cpp_dependencies:
             cmake_script += CppDependencies.to_cmake_list(dependency)
 
+        """
+            FIXME: we disabled Hiredis as this is currently not used.
+            We need a proper module for that.
+        """
+
         cmake_script += """
-        find_package(AWSSDK COMPONENTS s3 dynamodb core)
-        target_link_libraries(${PROJECT_NAME} PUBLIC ${AWSSDK_LINK_LIBRARIES})
 
-        find_package(PkgConfig REQUIRED)
-        set(ENV{PKG_CONFIG_PATH} "/opt/lib/pkgconfig")
-        pkg_check_modules(HIREDIS REQUIRED IMPORTED_TARGET hiredis)
+        # find_package(PkgConfig REQUIRED)
+        # set(ENV{PKG_CONFIG_PATH} "/opt/lib/pkgconfig")
+        # pkg_check_modules(HIREDIS REQUIRED IMPORTED_TARGET hiredis)
 
-        target_include_directories(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
-        target_link_libraries(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
+        # target_include_directories(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
+        # target_link_libraries(${PROJECT_NAME} PUBLIC PkgConfig::HIREDIS)
 
         # this line creates a target that packages your binary and zips it up
         aws_lambda_package_target(${PROJECT_NAME})

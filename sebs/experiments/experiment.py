@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Base abstract class for implementing serverless benchmark experiments.
 
 This module provides the base Experiment abstract class that defines the common

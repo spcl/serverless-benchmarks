@@ -1,4 +1,7 @@
-#include <aws/core/utils/json/JsonSerializer.h>
+// Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
 #include <igraph.h>
 
 #include <chrono>
@@ -8,43 +11,44 @@
 
 #include "utils.hpp"
 
-Aws::Utils::Array<Aws::Utils::Json::JsonValue>
-create_bfs_json(const igraph_vector_int_t &order,
-                const igraph_vector_int_t &layers,
-                const igraph_vector_int_t &father) {
-  Aws::Utils::Array<Aws::Utils::Json::JsonValue> mainArray(3);
+rapidjson::Value create_bfs_json(
+  const igraph_vector_int_t &order,
+  const igraph_vector_int_t &layers,
+  const igraph_vector_int_t &father,
+  rapidjson::Document::AllocatorType& alloc
+) {
+  rapidjson::Value mainArray(rapidjson::kArrayType);
 
   // Array 1: Order (visited vertices)
-  Aws::Utils::Array<Aws::Utils::Json::JsonValue> orderArray(igraph_vector_int_size(&order));
+  rapidjson::Value orderArray(rapidjson::kArrayType);
   for (int i = 0; i < igraph_vector_int_size(&order); i++) {
-    orderArray[i].AsInteger((int)VECTOR(order)[i]);
+    orderArray.PushBack(rapidjson::Value((int)VECTOR(order)[i]), alloc);
   }
-  mainArray[0].AsArray(std::move(orderArray));
+  mainArray.PushBack(orderArray, alloc);
 
   // Array 2: Layers (start indices)
-  Aws::Utils::Array<Aws::Utils::Json::JsonValue> layersArray(igraph_vector_int_size(&layers));
+  rapidjson::Value layersArray(rapidjson::kArrayType);
   for (int i = 0; i < igraph_vector_int_size(&layers); i++) {
-    layersArray[i].AsInteger((int)VECTOR(layers)[i]);
+    layersArray.PushBack(rapidjson::Value((int)VECTOR(layers)[i]), alloc);
   }
-  mainArray[1].AsArray(std::move(layersArray));
+  mainArray.PushBack(layersArray, alloc);
 
   // Array 3: Father (parent vertices)
-  Aws::Utils::Array<Aws::Utils::Json::JsonValue> fatherArray(igraph_vector_int_size(&father));
+  rapidjson::Value fatherArray(rapidjson::kArrayType);
   for (int i = 0; i < igraph_vector_int_size(&father); i++) {
-    fatherArray[i].AsInteger((int)VECTOR(father)[i]);
+    fatherArray.PushBack(rapidjson::Value((int)VECTOR(father)[i]), alloc);
   }
-  mainArray[2].AsArray(std::move(fatherArray));
+  mainArray.PushBack(fatherArray, alloc);
 
   return mainArray;
 }
 
-Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request) {
-  int size = request.GetInteger("size");
+rapidjson::Document function(const rapidjson::Value& request) {
+  int size = request["size"].GetInt();
 
   uint64_t seed;
-  if (request.ValueExists("seed")) {
-    seed = request.GetInteger("seed");
-    igraph_rng_seed(igraph_rng_default(), seed);
+  if (request.HasMember("seed")) {
+    seed = (uint64_t)request["seed"].GetUint64();
   } else {
     std::random_device rd;
     seed = rd();
@@ -69,18 +73,18 @@ Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request) {
   auto bfs_start = timeSinceEpochMicrosec();
 
   // Return a tuple identical to the Python API output
-  // C++ API does not return the second tuple element: "The start indices of the
-  // layers in the vertex list" Thus, we have to recompute it. First, we get the
-  // order and parents - like in Python.
   //
-  // Then, since we do not have start indices of each layer, we get the distance
-  // of each vertex, and use the change point in this array to detect when a new
-  // layer was created.
-  igraph_vector_int_t order, father, dist, layers;
+  // We use igraph_bfs_simple which returns the second tuple element of Python
+  // "The start indices of the layers in the vertex list".
+  // The standard igraph_bfs does not return this information,
+  // which would force us to reconstruct the layers by inspecting
+  // the distance array (distance of vertex from root) to find the
+  // change point, which would indicate a new layer.
+  //
+  igraph_vector_int_t order, father, layers;
 
   igraph_vector_int_init(&order, 0);
   igraph_vector_int_init(&father, 0);
-  igraph_vector_int_init(&dist, 0);
   igraph_vector_int_init(&layers, 0);
 
   // Documentation: https://igraph.org/c/pdf/0.9.7/igraph-docs.pdf
@@ -91,20 +95,21 @@ Aws::Utils::Json::JsonValue function(Aws::Utils::Json::JsonView request) {
   auto graph_generating_time = graph_gen_end - graph_gen_start;
   auto process_time = bfs_end - bfs_start;
 
-  Aws::Utils::Json::JsonValue result;
+  rapidjson::Document result;
+  result.SetObject();
+  auto& alloc = result.GetAllocator();
 
-  result.WithArray("result", create_bfs_json(order, layers, father));
+  result.AddMember("result", create_bfs_json(order, layers, father, alloc), alloc);
 
-  Aws::Utils::Json::JsonValue measurement;
-  measurement.WithInt64("graph_generating_time", graph_generating_time);
-  measurement.WithInt64("compute_time", process_time);
+  rapidjson::Value measurement(rapidjson::kObjectType);
+  measurement.AddMember("graph_generating_time", (int64_t)graph_generating_time, alloc);
+  measurement.AddMember("compute_time", (int64_t)process_time, alloc);
 
-  result.WithObject("measurement", std::move(measurement));
+  result.AddMember("measurement", measurement, alloc);
 
   igraph_vector_int_destroy(&order);
   igraph_vector_int_destroy(&layers);
   igraph_vector_int_destroy(&father);
-  igraph_vector_int_destroy(&dist);
   igraph_destroy(&graph);
 
   return result;

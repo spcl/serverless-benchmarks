@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """
 Function and execution model for the serverless benchmarking framework.
 

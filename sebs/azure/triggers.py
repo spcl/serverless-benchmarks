@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Azure Function triggers for SeBS benchmarking.
 
 This module provides Azure-specific trigger implementations for invoking

@@ -1,3 +1,4 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Object storage abstraction for serverless benchmarks.
 
 This module provides the PersistentStorage abstract base class for managing
