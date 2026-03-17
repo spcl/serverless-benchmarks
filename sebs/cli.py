@@ -455,32 +455,40 @@ def package(
     multiple=True,
     help="JSON configuration of deployed storage.",
 )
+@click.option(
+    "--selected-architecture/--all-architectures",
+    type=bool,
+    default=False,
+    help="Skip non-selected CPU architectures.",
+)
 @common_params
-@click.option(
-    "--cache",
-    default=os.path.join(os.path.curdir, "regression-cache"),
-    help="Location of experiments cache.",
-)
-@click.option(
-    "--output-dir",
-    default=os.path.join(os.path.curdir, "regression-output"),
-    help="Output directory for results.",
-)
-def regression(benchmark_input_size, benchmark_name, storage_configuration, **kwargs):
+def regression(
+    benchmark_input_size, benchmark_name, storage_configuration, selected_architecture, **kwargs
+):
     """Run regression test suite across benchmarks."""
+
     # for regression, deployment client is initialized locally
     # disable default initialization
+
+    from pathlib import Path
+
+    if Path(kwargs["cache"]) == Path("cache"):
+        kwargs["cache"] = os.path.join(os.path.curdir, "regression-cache")
+
     (config, output_dir, logging_filename, sebs_client, _) = parse_common_params(
         initialize_deployment=False,
         storage_configuration=storage_configuration,
         **kwargs,
     )
+    architecture = config["experiments"]["architecture"] if selected_architecture else None
     regression_suite(
         sebs_client,
         config["experiments"],
         set((config["deployment"]["name"],)),
         config,
+        kwargs["resource_prefix"],
         benchmark_name,
+        architecture,
     )
 
 

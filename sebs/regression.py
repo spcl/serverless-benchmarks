@@ -80,6 +80,8 @@ deployments_openwhisk = ["container"]
 # User-defined config passed during initialization, set in regression_suite()
 cloud_config: Optional[dict] = None
 
+RESOURCE_PREFIX = "regr"
+
 
 class TestSequenceMeta(type):
     """Metaclass for dynamically generating regression test cases.
@@ -335,7 +337,7 @@ class AWSTestSequencePython(
 
         # Synchronize resource initialization with a lock
         with AWSTestSequencePython.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -389,7 +391,7 @@ class AWSTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with AWSTestSequenceNodejs.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -432,7 +434,7 @@ class AWSTestSequenceCpp(
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with AWSTestSequenceCpp.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -483,7 +485,7 @@ class AWSTestSequenceJava(
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with AWSTestSequenceJava.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -565,7 +567,7 @@ class AzureTestSequencePython(
             deployment_client.system_resources.initialize_cli(
                 cli=AzureTestSequencePython.cli, login=True
             )
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
             return deployment_client
 
 
@@ -642,7 +644,7 @@ class AzureTestSequenceNodejs(
 
             # Initialize CLI and setup resources (no login needed - reuses Python session)
             deployment_client.system_resources.initialize_cli(cli=AzureTestSequenceNodejs.cli)
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
             return deployment_client
 
 
@@ -716,7 +718,7 @@ class AzureTestSequenceJava(
             deployment_client.system_resources.initialize_cli(
                 cli=AzureTestSequenceJava.cli, login=needs_login
             )
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
             return deployment_client
 
 
@@ -770,7 +772,7 @@ class GCPTestSequencePython(
 
         # Synchronize resource initialization with a lock
         with GCPTestSequencePython.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -824,7 +826,7 @@ class GCPTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with GCPTestSequenceNodejs.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -878,7 +880,7 @@ class GCPTestSequenceJava(
 
         # Synchronize resource initialization with a lock
         with GCPTestSequenceJava.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -936,7 +938,7 @@ class OpenWhiskTestSequencePython(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequencePython.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -994,7 +996,7 @@ class OpenWhiskTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequenceNodejs.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -1048,7 +1050,7 @@ class OpenWhiskTestSequenceJava(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequenceJava.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
         return deployment_client
 
 
@@ -1123,6 +1125,7 @@ def filter_out_benchmarks(
     language_version: str,
     architecture: str,
     deployment_type: str,
+    selected_architecture: str | None = None,
 ) -> bool:
     """Filter out benchmarks that are not supported on specific platforms.
 
@@ -1141,6 +1144,10 @@ def filter_out_benchmarks(
         bool: True if the benchmark should be included, False to filter it out
     """
     # fmt: off
+
+    # user can asks to use only a selected architecture
+    if selected_architecture is not None and selected_architecture != architecture:
+        return False
 
     # Arm architecture currently not supported for C++
     if (language == "cpp" and architecture == "arm64"):
@@ -1174,7 +1181,9 @@ def regression_suite(
     experiment_config: dict,
     providers: Set[str],
     deployment_config: dict,
+    resource_prefix: str = "regr",
     benchmark_name: Optional[str] = None,
+    selected_architecture: str | None = None,
 ):
     """Create and run a regression test suite for specified cloud providers.
 
@@ -1195,6 +1204,10 @@ def regression_suite(
     Raises:
         AssertionError: If a requested provider is not in the deployment config
     """
+
+    global RESOURCE_PREFIX
+    RESOURCE_PREFIX = resource_prefix
+
     # Create the test suite
     suite = unittest.TestSuite()
 
@@ -1279,6 +1292,7 @@ def regression_suite(
                 language_version,
                 test_architecture,
                 test_deployment_type,
+                selected_architecture,
             ):
                 print(f"Skip test {test_name} - not supported.")
                 continue
