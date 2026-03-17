@@ -1181,7 +1181,7 @@ def regression_suite(
     experiment_config: dict,
     providers: Set[str],
     deployment_config: dict,
-    resource_prefix: str = "regr",
+    resource_prefix: str | None = None,
     benchmark_name: Optional[str] = None,
     selected_architecture: str | None = None,
 ):
@@ -1206,7 +1206,8 @@ def regression_suite(
     """
 
     global RESOURCE_PREFIX
-    RESOURCE_PREFIX = resource_prefix
+    if resource_prefix is not None:
+        RESOURCE_PREFIX = resource_prefix
 
     # Create the test suite
     suite = unittest.TestSuite()

@@ -31,7 +31,7 @@ commands:
       - save_cache:
           key: sebs-cache-{{ .Branch }}
           paths:
-            - cache/
+            - regression-cache/
 
   install-sebs:
     description: "Install SeBS with platform-specific dependencies"
