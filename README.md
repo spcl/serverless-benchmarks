@@ -92,9 +92,11 @@ cd serverless-benchmarks
 # -e for editable install, i.e, changes are immediately visible in the package
 # [dev] adds developer dependencies, e.g., for code linting
 pip install -e '.[dev]'
+sebs --help
 
 # alternative
 uv sync --extra dev
+uv run sebs --help
 ```
 
 ### 3. Legacy Development Install
@@ -112,7 +114,7 @@ dependencies and third-party dependencies. To use SeBS, you must first activate 
 
 ```bash
 . python-venv/bin/activate
-./sebs/cli.py --help
+python -m sebs.cli --help
 ```
 
 The installation of additional platforms is controlled with the `--{platform}` and `--no-{platform}` switches. Currently, the default behavior for `install.py` is to install only the local environment.
