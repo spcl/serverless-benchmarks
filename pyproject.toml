@@ -26,7 +26,7 @@ classifiers = [
     "Topic :: System :: Distributed Computing",
 ]
 
-# Core dependencies
+# Core dependencies (Now includes all cloud providers by default)
 dependencies = [
     # Core framework
     "testtools>=2.4.0",
@@ -39,23 +39,20 @@ dependencies = [
     "pycurl>=7.43",
     "click>=7.1.2",
     "rich",
-    # needed for storage deployment
-    "minio==5.0.10",
-    "boto3"
-]
 
-# Optional dependencies for cloud providers and developers
-[project.optional-dependencies]
-aws = [
+    # Storage & Local
+    "minio==5.0.10",
+
+    # AWS
+    "boto3",
     "botocore",
     "urllib3",
-    "boto3-stubs[apigatewayv2,ecr,iam,lambda,logs,s3,sts]"
-]
-azure = [
+
+    # Azure
     "azure-storage-blob==12.10.0",
-    "azure-cosmos"
-]
-gcp = [
+    "azure-cosmos",
+
+    # GCP
     "grpcio",
     "google-cloud-storage>=1.32.0",
     "google-api-python-client>=1.12.5",
@@ -65,15 +62,9 @@ gcp = [
     "google-cloud-datastore",
     "google-cloud-build>=3.35.0"
 ]
-openwhisk = []
-all = [
-    "boto3", "botocore", "urllib3", "boto3-stubs[apigatewayv2,ecr,iam,lambda,logs,s3,sts]",
-    "azure-storage-blob==12.10.0", "azure-cosmos",
-    "grpcio", "google-cloud-storage>=1.32.0", "google-api-python-client>=1.12.5", 
-    "google-cloud-monitoring>=2.0.0", "google-api-python-client-stubs", 
-    "google-cloud-logging>=2.0.0", "google-cloud-datastore", "google-cloud-build>=3.35.0",
-    "minio==5.0.10"
-]
+
+# True Optional dependencies (Only installed if explicitly requested)
+[project.optional-dependencies]
 dev = [
     "flake8",
     "black==22.8.0",
@@ -82,11 +73,13 @@ dev = [
     "types-requests",
     "types-PyYAML",
     "types-urllib3",
+    "types-docker",
     "interrogate==1.7.0",
     "boto3-stubs[lambda,s3,apigatewayv2,sts,logs,iam,ecr]"
 ]
 docs = [
-    "Sphinx==8.2.3",
+    # use 8.2.3 for doc builds, but remove it for 3.10 compatibility
+    "Sphinx",
     "sphinx-rtd-theme==3.0.2",
     "myst-parser==4.0.1",
     "sphinxcontrib-mermaid==2.0.0"
