@@ -19,13 +19,13 @@ You can start the necessary storage services using the `storage` command in SeBS
 
 ```bash
 # Start only object storage
-./sebs.py storage start object config/storage.json --output-json storage_object.json
+sebs storage start object config/storage.json --output-json storage_object.json
 
 # Start only NoSQL database
-./sebs.py storage start nosql config/storage.json --output-json storage_nosql.json
+sebs storage start nosql config/storage.json --output-json storage_nosql.json
 
 # Start both storage types
-./sebs.py storage start all config/storage.json --output-json storage.json
+sebs storage start all config/storage.json --output-json storage.json
 ```
 
 The command deploys the requested storage services as Docker containers and generates a configuration file in JSON format.
@@ -136,11 +136,11 @@ By default, storage containers are retained after experiments complete. This all
 When you're done with your experiments, you can stop the storage services:
 
 ```bash
-./sebs.py storage stop object storage.json
+sebs storage stop object storage.json
 
-./sebs.py storage stop nosql storage.json
+sebs storage stop nosql storage.json
 
-./sebs.py storage stop all storage.json
+sebs storage stop all storage.json
 ```
 
 ### Erasing Volumes

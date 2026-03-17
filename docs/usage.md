@@ -21,7 +21,7 @@ If you want to simply build a function deployment, such as a full code package o
 then use the command below.
 
 ```bash
-./sebs.py benchmark build 110.dynamic-html --config config/example.json --deployment aws
+sebs benchmark build 110.dynamic-html --config config/example.json --deployment aws
 ```
 
 It will create a code package (local) or build and push a container, when `--container-deployment` flag is used (AWS only).
@@ -33,19 +33,19 @@ This command builds, deploys, and executes serverless benchmarks in the cloud.
 The example below invokes the benchmark `110.dynamic-html` on AWS via the standard HTTP trigger.
 
 ```bash
-./sebs.py benchmark invoke 110.dynamic-html test --config config/example.json --deployment aws --verbose
+sebs benchmark invoke 110.dynamic-html test --config config/example.json --deployment aws --verbose
 ```
 
 The results will be stored in `experiment.json`.
 To configure your benchmark, change settings in the config file or use command-line options.
-The full list is available by running `./sebs.py benchmark invoke --help`.
+The full list is available by running `sebs benchmark invoke --help`.
 
 ### Process
 
 To download cloud metrics and process the invocations, run:
 
 ```bash
-./sebs.py benchmark process --output-dir results
+sebs benchmark process --output-dir results
 ```
 
 This will read invocations from `experiment.json` and write the processed data to `results.json`.
@@ -55,7 +55,7 @@ This will read invocations from `experiment.json` and write the processed data t
 To summarize executions, run:
 
 ```bash
-./sebs.py benchmark statistics results.json 
+sebs benchmark statistics results.json 
 ```
 
 ## Regression
@@ -64,13 +64,13 @@ Additionally, we provide a regression option to execute all benchmarks on a give
 The example below demonstrates how to run the regression suite with `test` input size on AWS.
 
 ```bash
-./sebs.py benchmark regression test --config config/example.json --deployment aws
+sebs benchmark regression test --config config/example.json --deployment aws
 ```
 
 The regression can be executed on a single benchmark as well:
 
 ```bash
-./sebs.py benchmark regression test --config config/example.json --deployment aws --benchmark-name 120.uploader
+sebs benchmark regression test --config config/example.json --deployment aws --benchmark-name 120.uploader
 ```
 
 ## Experiment
@@ -78,7 +78,7 @@ The regression can be executed on a single benchmark as well:
 This command is used to execute benchmarks described in the paper. The example below runs the experiment **perf-cost**:
 
 ```bash
-./sebs.py experiment invoke perf-cost --config config/example.json --deployment aws
+sebs experiment invoke perf-cost --config config/example.json --deployment aws
 ```
 
 The configuration specifies that benchmark **110.dynamic-html** is executed 50 times, with 50 concurrent invocations, and both cold and warm invocations are recorded. 
@@ -97,7 +97,7 @@ The configuration specifies that benchmark **110.dynamic-html** is executed 50 t
 To download cloud metrics and process the invocations into a .csv file with data, run the process construct
 
 ```bash
-./sebs.py experiment process perf-cost --config example.json --deployment aws
+sebs experiment process perf-cost --config example.json --deployment aws
 ```
 
 [You can find more details on running experiments and analyzing results in the separate documentation.](experiments.md)
@@ -107,7 +107,7 @@ To download cloud metrics and process the invocations into a .csv file with data
 You can remove all allocated cloud resources with the following command:
 
 ```bash
-./sebs.py resource clean --config config/example.json
+sebs resource clean --config config/example.json
 ```
 
 This option is currently supported only on AWS, where it removes Lambda functions and associated HTTP APIs and CloudWatch logs,
@@ -123,7 +123,7 @@ map the container's port to port defined in the configuration on host network, a
 instance configuration to file `out_storage.json`
 
 ```bash
-./sebs.py storage start all config/storage.json --output-json out_storage.json
+sebs storage start all config/storage.json --output-json out_storage.json
 ```
 
 Then, we need to update the configuration of `local` deployment with information on the storage 
@@ -183,7 +183,7 @@ The output file will contain a JSON object that should look similar to this one:
 To launch Docker containers, use the following command - this example launches benchmark `110.dynamic-html` with size `test`:
 
 ```bash
-./sebs.py local start 110.dynamic-html test out_benchmark.json --config config/local_deployment.json --deployments 1 --remove-containers --architecture=x64
+sebs local start 110.dynamic-html test out_benchmark.json --config config/local_deployment.json --deployments 1 --remove-containers --architecture=x64
 ```
 
 The output file `out_benchmark.json` will contain the information on containers deployed and the endpoints that can be used to invoke functions:
@@ -225,8 +225,8 @@ curl $(jq -rc ".functions[0].url" out_benchmark.json) \
 To stop containers, you can use the following command:
 
 ```bash
-./sebs.py local stop out_benchmark.json
-./sebs.py storage stop all out_storage.json
+sebs local stop out_benchmark.json
+sebs storage stop all out_storage.json
 ```
 
 Note: The stopped benchmark containers won't be automatically removed 
@@ -235,13 +235,13 @@ unless the option `--remove-containers` has been passed to the `local start` com
 ### Memory Measurements
 
 The local backend allows additional continuous measurement of function containers. At the moment,
-we support memory measurements. To enable this, pass the following flag to `./sebs.py local start`
+we support memory measurements. To enable this, pass the following flag to `sebs local start`
 
 ```
 --measure-interval <val>
 ```
 
 The value specifies the time between two consecutive measurements. Measurements will be aggregated
-and written to a file when calling `./sebs.py local stop <file>`. By default, the data is written
+and written to a file when calling `sebs local stop <file>`. By default, the data is written
 to `memory_stats.json`.
 

@@ -18,6 +18,16 @@ SeBS enforces code quality through four tools:
 
 Run `tools/linting.py sebs` to apply formatting and check code quality.
 
+To use it, make sure that SeBS has been installed with development tools:
+
+```bash
+# with pip
+pip install .[dev]
+
+# with uv
+uv sync --extra dev
+```
+
 ## Docker Images
 
 SeBS uses Docker images for building functions and running benchmarks:
@@ -46,22 +56,22 @@ as these are built and pushed as part of the benchmark deployment process:
 
 ```bash
 # Build all images for all platforms
-./sebs.py docker build
+sebs docker build
 
 # Build all images for a specific platform
-./sebs.py docker build --deployment aws
+sebs docker build --deployment aws
 
 # Build images for a specific language and version
-./sebs.py docker build --deployment aws --language python --language-version 3.9
+sebs docker build --deployment aws --language python --language-version 3.9
 
 # Build specific image type
-./sebs.py docker build --deployment aws --language python --image-type build
+sebs docker build --deployment aws --language python --image-type build
 
 # Build for specific architecture
-./sebs.py docker build --deployment aws --architecture x64
+sebs docker build --deployment aws --architecture x64
 
 # Build C++ dependencies
-./sebs.py docker build --deployment local --language cpp --image-type dependencies --dependency-type opencv
+sebs docker build --deployment local --language cpp --image-type dependencies --dependency-type opencv
 ```
 
 ### Pushing Images
@@ -70,19 +80,19 @@ Push locally-built infrastructure images to DockerHub (requires authentication):
 
 ```bash
 # Push all images for a platform
-./sebs.py docker push --deployment aws
+sebs docker push --deployment aws
 ```
 
 ## Project Structure
 
 ```
 sebs/
-├── sebs.py                    # Main CLI entry point
-├── install.py                 # Installation script
+├── install.py                 # (Deprecated) Installation script
 ├── sebs/                      # Main Python package
 │   ├── __init__.py
 │   ├── sebs.py               # Core SeBS class
 │   ├── cache.py              # Caching system of cloud resources
+│   ├── cli.py                # Main CLI entry point
 │   ├── benchmark.py          # Benchmark core class
 │   ├── docker_builder.py     # Docker image build/push operations
 │   ├── config.py             # SeBS configuration management
