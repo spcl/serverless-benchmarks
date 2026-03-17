@@ -1,6 +1,4 @@
 # Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
-from __future__ import annotations
-
 """
 Module for handling benchmarks in the Serverless Benchmarking Suite (SeBS).
 
@@ -8,6 +6,7 @@ This module provides classes for benchmark configuration, code packaging, and ex
 It handles the preparation of code packages with dependencies for deployment to
 various serverless platforms, including caching mechanisms to avoid redundant builds.
 """
+from __future__ import annotations
 
 import glob
 import hashlib
@@ -49,19 +48,43 @@ class LanguageSpec:
     """
 
     def __init__(self, language: "Language", variants: List[str]):
+        """Initialize a language specification.
+
+        Args:
+            language: The programming language
+            variants: List of supported runtime variants for this language
+        """
         self._language = language
         self._variants = variants
 
     @property
     def language(self) -> "Language":
+        """Get the programming language.
+
+        Returns:
+            Language: The programming language
+        """
         return self._language
 
     @property
     def variants(self) -> List[str]:
+        """Get the list of supported runtime variants.
+
+        Returns:
+            List[str]: List of variant names (e.g., ["default", "pypy"])
+        """
         return self._variants
 
     @staticmethod
     def deserialize(val) -> LanguageSpec:
+        """Deserialize a language specification from config.
+
+        Args:
+            val: Either a string (legacy format) or dict with language and variants
+
+        Returns:
+            LanguageSpec: Deserialized language specification
+        """
         if isinstance(val, str):
             return LanguageSpec(Language.deserialize(val), ["default"])
         return LanguageSpec(
@@ -70,6 +93,11 @@ class LanguageSpec:
         )
 
     def serialize(self) -> dict:
+        """Serialize the language specification to a dictionary.
+
+        Returns:
+            dict: Dictionary with language and variants keys
+        """
         return {
             "language": self._language.value,
             "variants": self._variants,
@@ -157,6 +185,11 @@ class BenchmarkConfig:
 
     @property
     def language_specs(self) -> List[LanguageSpec]:
+        """Get the list of language specifications with their variants.
+
+        Returns:
+            List[LanguageSpec]: Language specifications for this benchmark
+        """
         return self._language_specs
 
     @property
@@ -430,6 +463,11 @@ class Benchmark(LoggingBase):
 
     @property
     def language_variant(self) -> str:
+        """Get the language runtime variant.
+
+        Returns:
+            str: The runtime variant (e.g., "default", "pypy", "bun")
+        """
         return self._language_variant
 
     @property
@@ -566,6 +604,7 @@ class Benchmark(LoggingBase):
         self._experiment_config = config
         self._language = config.runtime.language
         self._language_version = config.runtime.version
+        assert config.runtime.variant is not None
         self._language_variant = config.runtime.variant.value
         self._architecture = self._experiment_config.architecture
         self._container_deployment = config.container_deployment

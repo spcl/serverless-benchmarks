@@ -22,7 +22,7 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
+from typing import Callable, ClassVar, Dict, List, Optional, Type, TypeVar  # noqa
 
 from sebs.types import Language, Architecture
 from sebs.benchmark import Benchmark
@@ -538,11 +538,17 @@ class Variant:
     and register it in Variant._LANG_MAP below.
     """
 
+    _LANG_MAP: ClassVar[Dict[Language, Type[Enum]]]
+
     class Python(Enum):
+        """Python runtime variants."""
+
         DEFAULT = "default"
         PYPY = "pypy"
 
     class NodeJS(Enum):
+        """Node.js runtime variants."""
+
         DEFAULT = "default"
         BUN = "bun"
         LLRT = "llrt"
@@ -565,7 +571,7 @@ class Variant:
 
 
 # Populated here (after Language is defined) so forward references are resolved.
-Variant._LANG_MAP: Dict[Language, Type[Enum]] = {
+Variant._LANG_MAP = {
     Language.PYTHON: Variant.Python,
     Language.NODEJS: Variant.NodeJS,
 }
@@ -585,10 +591,10 @@ class Runtime:
 
     language: Language
     version: str
-    # None sentinel: __post_init__ resolves it to the language's DEFAULT variant.
-    variant: Enum = field(default=None)
+    variant: Optional[Enum] = field(default=None)
 
     def __post_init__(self):
+        """Initialize variant to default if not specified."""
         if self.variant is None and self.language is not None:
             self.variant = Variant.default(self.language)
 
@@ -599,6 +605,7 @@ class Runtime:
         Returns:
             dict: Dictionary representation of the runtime
         """
+        assert self.variant is not None
         return {
             "language": self.language.value,
             "version": self.version,
