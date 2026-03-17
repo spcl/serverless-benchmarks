@@ -57,7 +57,7 @@ from sebs.utils import LoggingHandlers, execute
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult
 from sebs.faas.system import System
 from sebs.faas.config import Resources
-from sebs.types import Language
+from sebs.sebs_types import Language
 
 
 class Azure(System):

@@ -24,8 +24,8 @@ from typing import Tuple
 
 from sebs.config import SeBSConfig
 from sebs.docker_builder import DockerImageBuilder
-from sebs.types import Language
-from sebs.utils import LoggingBase, execute, DOCKER_DIR
+from sebs.sebs_types import Language
+from sebs.utils import LoggingBase, execute, get_resource_path
 
 
 class DockerContainer(LoggingBase):
@@ -267,8 +267,9 @@ class DockerContainer(LoggingBase):
             shutil.move(custom_dockerfile, os.path.join(build_dir, "Dockerfile"))
         else:
             # Use template for languages without custom generation
+            dockerfile_path = get_resource_path("dockerfiles")
             shutil.copy(
-                os.path.join(DOCKER_DIR, self.name(), language.value, "Dockerfile.function"),
+                os.path.join(dockerfile_path, self.name(), language.value, "Dockerfile.function"),
                 os.path.join(build_dir, "Dockerfile"),
             )
         for fn in os.listdir(directory):

@@ -2,7 +2,7 @@
 
 For details on experiments and methodology, please refer to our papers.
 
-To run experiments, use the `sebs.py benchmark invoke <experiment> -c <config-path>` command.
+To run experiments, use the `sebs benchmark invoke <experiment> -c <config-path>` command.
 The configuration of each experiment consists of two parts: deployment and experiment.
 The specification of deployment, which is the same for all experiments, is shown below.
 Then, each benchmark has its own JSON object containing parameters specific to the experiment.
@@ -75,7 +75,7 @@ The field `benchmark` and `input-size` specifies the benchmark function to be ex
 To execute the benchmark, provide the path to the configuration:
 
 ```
-sebs.py experiment invoke perf-cost --config config/example_perf_cost.json --output-dir experiments-result
+sebs experiment invoke perf-cost --config config/example_perf_cost.json --output-dir experiments-result
 ```
 
 At the end of each configuration, you should in the output statistical results summarizing the experiment:
@@ -95,7 +95,7 @@ The full data can be found in the `experiments-result/perf-cost` directory. Each
 We support querying cloud logs to locate cloud provider billing data. SeBS achieves this by reading the experiment data obtained in the previous step, finding all invocation IDs, querying cloud log entries, and finding matching data. To process results, run:
 
 ```
-sebs.py experiment process perf-cost --config config/example_perf_cost.json --output-dir experiments-result
+sebs experiment process perf-cost --config config/example_perf_cost.json --output-dir experiments-result
 ```
 
 For example, on the AWS, you should see the following output for each experiment configuration:

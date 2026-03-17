@@ -6,7 +6,7 @@ and the external dependencies of SeBS.
 ## Directory structure
 
 
-`sebs.py` - the CLI for SeBS (see next section for details).
+`sebs/cli.py` - the CLI for SeBS (see next section for details).
 
 ### Benchmarks
 
@@ -22,7 +22,7 @@ of a function and provide cloud compatibility with those wrappers.
 ### Management
 
 `config` - JSON configuration files for SeBS, and examples of user configuration files
-provided to the `sebs.py` with flag `--config`.
+provided to the CLI driver with flag `--config`.
 
 `.black.toml, .mypy.ini, .flake8.cfg` - configuration files for PEP8 linting and verification
 of static types.
@@ -82,7 +82,7 @@ used for microarchitectural analysis of local invocations.
 
 ## CLI Interface
 
-`sebs.py benchmark invoke` - the workflow begins by creating an instance of `sebs.faas.System`
+`sebs benchmark invoke` - the workflow begins by creating an instance of `sebs.faas.System`
 for the selected platform. Then, an instance of `sebs.Benchmark` is created, and both objects
 are used to create or update function code package and upload or update input data in the cloud
 storage with the help of `sebs.faas.PersistentStorage` implementation.
@@ -90,19 +90,19 @@ In the end, an object of `sebs.faas.function.Function` is created with exposes a
 encapsulated in `sebs.faas.function.Trigger`. The function is invoked via a selected trigger,
 and the output includes a JSON file with invocation ID and results.
 
-`sebs.py benchmark process` - the JSON result from benchmark invocation is read, deserialized,
+`sebs benchmark process` - the JSON result from benchmark invocation is read, deserialized,
 and the cloud instance is queried for performance metrics related to these invocations.
 Afterward, the updated JSON is written to the output directory.
 
-`sebs.py benchmark regression` - this workflow uses the `regression_suite` function from
+`sebs benchmark regression` - this workflow uses the `regression_suite` function from
 `sebs/regresion.py` to deploy all benchmarks to the selected cloud platform.
 The function reports all errors encountered during deployment and invocation.
 
-`sebs.py experiment invoke` - an instance of `sebs.experiments.Experiment` is created,
+`sebs experiment invoke` - an instance of `sebs.experiments.Experiment` is created,
 and the `run` function implementing experiment logic is executed. The configuration of experiment
 is passed by the user in the config JSON.
 
-`sebs.py experiment process` - similarly to the benchmark processing, the cloud metrics are queried
+`sebs experiment process` - similarly to the benchmark processing, the cloud metrics are queried
 for all invocations in the experiment, and the results are stored as dataframes in .csv files.
 
 ## FaaS Interface

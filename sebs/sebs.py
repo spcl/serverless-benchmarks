@@ -17,7 +17,7 @@ from typing import Optional, Dict, Type
 
 import docker
 
-from sebs import types
+from sebs import sebs_types as types
 from sebs.local import Local
 from sebs.cache import Cache
 from sebs.config import SeBSConfig

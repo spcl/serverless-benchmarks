@@ -20,25 +20,68 @@ import click
 import datetime
 import platform
 
+from pathlib import Path
 from typing import List, Optional
 
 # Global constants
-PROJECT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
-DOCKER_DIR = os.path.join(PROJECT_DIR, "dockerfiles")
-PACK_CODE_APP = "pack_code_{}.sh"
+PROJECT_DIR = Path(__file__).parent
+# if we cloned from git, then path above "sebs" will contain .git folder
+IS_PACKAGE_INSTALL = not ((PROJECT_DIR.parent / ".git").exists())
 
 
-def project_absolute_path(*paths: str) -> str:
-    """
-    Join paths relative to the project root directory.
-
-    Args:
-        *paths: Path components to join
+def get_project_root() -> Path:
+    """Get project root directory.
+    This points to directory where everything is located.
 
     Returns:
-        str: Absolute path including the project directory
+        - For git clone: repository root
+        - For package install: main installation path
     """
-    return os.path.join(PROJECT_DIR, *paths)
+    if IS_PACKAGE_INSTALL:
+        return PROJECT_DIR
+    else:
+        return PROJECT_DIR.parent
+
+
+def get_benchmarks_data_path() -> Path:
+    """Get path to benchmarks-data directory.
+
+    Returns:
+        - For git clone: ./benchmarks-data/
+        - For package install: ~/.sebs/benchmarks-data/
+    """
+    if IS_PACKAGE_INSTALL:
+        root = Path.home() / ".sebs"
+        root.mkdir(parents=True, exist_ok=True)
+        path = root
+    else:
+        path = PROJECT_DIR.parent
+    return path / "benchmarks-data"
+
+
+def get_resource_path(*path_parts: str) -> Path:
+    """Get path to a resource (config, benchmarks, dockerfiles, tools).
+    Resolves to path within git repository (outside of sebs)
+    or in the installed package.
+
+    Args:
+        *path_parts: Path components (e.g., "config", "systems.json")
+
+    Returns:
+        Path to the resource
+    """
+    if IS_PACKAGE_INSTALL:
+        from importlib.resources import files
+
+        # Build path from package resources
+        base = files("sebs")
+        for part in path_parts:
+            base = base / part
+
+        return Path(str(base))
+    else:
+        # Git clone mode: use relative paths from project root
+        return get_project_root() / Path(*path_parts)
 
 
 class JSONSerializer(json.JSONEncoder):
@@ -217,7 +260,10 @@ def find_benchmark(benchmark: str, path: str) -> Optional[str]:
     Returns:
         str: Path to benchmark directory, or None if not found
     """
-    benchmarks_dir = os.path.join(PROJECT_DIR, path)
+    if path == "benchmarks-data":
+        benchmarks_dir = str(get_benchmarks_data_path())
+    else:
+        benchmarks_dir = str(get_resource_path(path))
     benchmark_path = find(benchmark, benchmarks_dir)
     return benchmark_path
 
@@ -456,9 +502,9 @@ class LoggingBase:
 
 def has_platform(name: str) -> bool:
     """
-    Check if a specific platform is enabled via environment variable.
+    Check if a specific platform is enabled and supported.
 
-    Looks for SEBS_WITH_{name} environment variable set to 'true'.
+    We check if the required libraries for a specific platform are available.
 
     Args:
         name: Platform name to check
@@ -466,7 +512,29 @@ def has_platform(name: str) -> bool:
     Returns:
         bool: True if platform is enabled, False otherwise
     """
-    return os.environ.get(f"SEBS_WITH_{name.upper()}", "False").lower() == "true"
+    try:
+        if name == "aws":
+            import boto3  # noqa: F401
+
+            return True
+        elif name == "azure":
+            import azure.storage.blob  # noqa: F401
+            import azure.cosmos  # noqa: F401
+
+            return True
+        elif name == "gcp":
+            import google.cloud.storage  # noqa: F401
+            import google.cloud.monitoring_v3  # noqa: F401
+            import google.cloud.devtools  # noqa: F401
+
+            return True
+        elif name in ("local", "openwhisk"):
+            # these don't have specific dependencies
+            return True
+        else:
+            return False
+    except ImportError:
+        return False
 
 
 def is_linux() -> bool:
@@ -503,3 +571,66 @@ def catch_interrupt() -> None:
         sys.exit(signal.SIGINT)
 
     signal.signal(signal.SIGINT, handler)
+
+
+def ensure_benchmarks_data(logger: ColoredWrapper) -> Path:
+    """Ensure benchmarks-data exists, cloning if necessary.
+
+    For local installation, we use submodule to ensure that
+    benchmarks-data is initialized. For package installation,
+    we clone benchmarks-data to a home directory if it doesn't exist.
+
+    Returns:
+        Path to benchmarks-data directory
+
+    Raises:
+        RuntimeError: If cloning fails
+    """
+    data_dir = get_benchmarks_data_path()
+
+    # Check if data already exists and is not empty
+    if data_dir.exists() and any(data_dir.iterdir()):
+        return data_dir
+
+    # Create parent directory if needed
+    data_dir.parent.mkdir(parents=True, exist_ok=True)
+
+    if IS_PACKAGE_INSTALL:
+        # In package: clone to a home directory
+        url = "https://github.com/spcl/serverless-benchmarks-data.git"
+        logger.info(f"Initialize benchmarks data to {data_dir} from {url}...")
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    url,
+                    str(data_dir),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            logger.info(f"Benchmarks-data cloned from {url} successfully")
+            return data_dir
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to clone benchmarks-data: {e.stderr}") from e
+        except FileNotFoundError:
+            raise RuntimeError("git command not found. Please install git to use SeBS") from None
+    else:
+        # Git clone mode: use submodule
+        logger.info("Initializing benchmarks data submodule...")
+        try:
+            subprocess.run(
+                ["git", "submodule", "update", "--init", "--recursive"],
+                cwd=get_project_root(),
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            logger.info("Benchmarks-data submodule initialized successfully")
+            return data_dir
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to initialize benchmarks-data submodule: {e.stderr}") from e
+        except FileNotFoundError:
+            raise RuntimeError("git command not found. Please install git to use SeBS") from None

@@ -27,7 +27,6 @@ import threading
 from time import sleep
 from typing import cast, Dict, Optional, Set, TYPE_CHECKING
 
-from sebs.azure.cli import AzureCLI
 from sebs.faas.function import Trigger
 from sebs.utils import ColoredWrapper
 
@@ -542,6 +541,8 @@ class AzureTestSequencePython(
 
             # Initialize Azure CLI if not already done
             if not hasattr(AzureTestSequencePython, "cli"):
+                from sebs.azure.cli import AzureCLI
+
                 AzureTestSequencePython.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
@@ -619,6 +620,8 @@ class AzureTestSequenceNodejs(
 
             # Initialize Azure CLI if not already done
             if not hasattr(AzureTestSequenceNodejs, "cli"):
+                from sebs.azure.cli import AzureCLI
+
                 AzureTestSequenceNodejs.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
@@ -690,6 +693,8 @@ class AzureTestSequenceJava(
             # Initialize Azure CLI if not already done
             needs_login = False
             if not hasattr(AzureTestSequenceJava, "cli"):
+                from sebs.azure.cli import AzureCLI
+
                 AzureTestSequenceJava.cli = AzureCLI(self.client.config, self.client.docker_client)
                 needs_login = True
 

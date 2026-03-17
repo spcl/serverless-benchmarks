@@ -52,7 +52,7 @@ from sebs.gcp.resources import GCPSystemResources
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction
 from sebs.utils import LoggingHandlers
-from sebs.types import Language
+from sebs.sebs_types import Language
 
 
 class GCP(System):

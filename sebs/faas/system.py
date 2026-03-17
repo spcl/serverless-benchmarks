@@ -25,7 +25,7 @@ from sebs.faas.resources import SystemResources
 from sebs.faas.config import Resources
 from sebs.faas.function import Function, Trigger, ExecutionResult
 from sebs.utils import LoggingBase
-from sebs.types import Language
+from sebs.sebs_types import Language
 from .config import Config
 
 

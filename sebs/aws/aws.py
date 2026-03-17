@@ -32,7 +32,7 @@ from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.system import System
-from sebs.types import Language
+from sebs.sebs_types import Language
 
 
 class AWS(System):

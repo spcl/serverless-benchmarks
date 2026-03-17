@@ -13,7 +13,7 @@ options across different cloud providers and local deployments.
 import json
 from typing import Dict, List, Optional
 
-from sebs.utils import project_absolute_path
+from sebs.utils import get_resource_path
 
 
 class SeBSConfig:
@@ -38,7 +38,8 @@ class SeBSConfig:
             FileNotFoundError: If systems.json configuration file is not found.
             json.JSONDecodeError: If systems.json contains invalid JSON.
         """
-        with open(project_absolute_path("config", "systems.json"), "r") as cfg:
+        config_path = get_resource_path("configs", "systems.json")
+        with open(config_path, "r") as cfg:
             self._system_config = json.load(cfg)
         self._image_tag_prefix = ""
 

@@ -21,7 +21,7 @@ import docker.models.containers
 from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.nosql import NoSQLStorage
-from sebs.types import NoSQLStorage as StorageType
+from sebs.sebs_types import NoSQLStorage as StorageType
 from sebs.storage.config import ScyllaDBConfig
 
 
@@ -131,7 +131,7 @@ class ScyllaDB(NoSQLStorage):
         #
         #
         # if self._cfg.data_volume == "":
-        #    scylladb_volume = os.path.join(project_absolute_path(), "scylladb-volume")
+        #    scylladb_volume = os.path.join(os.getcwd(), "scylladb-volume")
         # else:
         #    scylladb_volume = self._cfg.data_volume
         # scylladb_volume = os.path.abspath(scylladb_volume)

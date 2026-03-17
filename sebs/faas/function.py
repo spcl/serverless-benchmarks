@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, ClassVar, Dict, List, Optional, Type, TypeVar  # noqa
 
-from sebs.types import Language, Architecture
+from sebs.sebs_types import Language, Architecture
 from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 

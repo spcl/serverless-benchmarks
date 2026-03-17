@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""
+    Main CLI driver for SeBS.
+
+    Defines all entry points for the CLI interface.
+"""
 
 
 import json
@@ -14,22 +19,23 @@ import docker
 
 import sebs
 from sebs import SeBS
-from sebs.types import Storage as StorageTypes
-from sebs.types import NoSQLStorage as NoSQLStorageTypes
+from sebs.sebs_types import Storage as StorageTypes
+from sebs.sebs_types import NoSQLStorage as NoSQLStorageTypes
 from sebs.regression import regression_suite
-from sebs.utils import update_nested_dict, append_nested_dict, catch_interrupt
+from sebs.utils import get_project_root, update_nested_dict, append_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
 from sebs.statistics import print_stats
-
-PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 deployment_client: Optional[FaaSSystem] = None
 sebs_client: Optional[SeBS] = None
 
 
 class ExceptionProcesser(click.Group):
+    """Custom Click group that handles exceptions and ensures proper cleanup."""
+
     def __call__(self, *args, **kwargs):
+        """Execute the command group with exception handling and cleanup."""
         try:
             return self.main(*args, **kwargs)
         except Exception as e:
@@ -49,6 +55,8 @@ class ExceptionProcesser(click.Group):
 
 
 def simplified_common_params(func):
+    """Decorator that adds simplified common CLI parameters for basic commands."""
+
     @click.option(
         "--config",
         required=True,
@@ -75,15 +83,23 @@ def simplified_common_params(func):
         help="Benchmark language",
     )
     @click.option("--language-version", default=None, type=str, help="Benchmark language version")
-    @click.option("--language-variant", default=None, type=str, help="Benchmark language variant (e.g. bun, llrt, pypy)")
+    @click.option(
+        "--language-variant",
+        default=None,
+        type=str,
+        help="Benchmark language variant (e.g. bun, llrt, pypy)",
+    )
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        """Internal Click wrapper."""
         return func(*args, **kwargs)
 
     return wrapper
 
 
 def common_params(func):
+    """Decorator that adds full common CLI parameters for deployment commands."""
+
     @click.option(
         "--update-code/--no-update-code",
         default=False,
@@ -120,6 +136,7 @@ def common_params(func):
     @simplified_common_params
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        """Internal Click wrapper."""
         return func(*args, **kwargs)
 
     return wrapper
@@ -145,6 +162,11 @@ def parse_common_params(
     ignore_cache: bool = False,
     storage_configuration: Optional[List[str]] = None,
 ):
+    """Parse and process common CLI parameters, initialize SeBS and deployment clients.
+
+    Returns:
+        (configuration object, output directory, logging filename, sebs client, deployment client)
+    """
     global sebs_client, deployment_client
     config_obj = json.load(open(config, "r"))
     os.makedirs(output_dir, exist_ok=True)
@@ -193,11 +215,13 @@ def parse_common_params(
 
 @click.group(cls=ExceptionProcesser)
 def cli():
+    """SeBS - Serverless Benchmark Suite command-line interface."""
     pass
 
 
 @cli.group()
 def benchmark():
+    """Benchmark management commands."""
     pass
 
 
@@ -255,6 +279,7 @@ def invoke(
     image_tag_prefix,
     **kwargs,
 ):
+    """Invoke a benchmark function with specified configuration and measure performance."""
     (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
         **kwargs
     )
@@ -318,6 +343,7 @@ def invoke(
 @benchmark.command()
 @common_params
 def process(**kwargs):
+    """Process benchmark results and download cloud metrics."""
     (
         config,
         output_dir,
@@ -353,6 +379,7 @@ def process(**kwargs):
 @benchmark.command()
 @click.argument("results", type=click.Path(dir_okay=False, readable=True))
 def statistics(results):
+    """Display statistics from benchmark results file."""
     logger = logging.getLogger("Statistics")
     logger.setLevel(logging.INFO)
     logger = sebs.utils.ColoredWrapper("Statistics", logger)
@@ -386,6 +413,7 @@ def package(
     image_tag_prefix,
     **kwargs,
 ):
+    """Package a benchmark function without invoking it."""
     (
         config,
         output_dir,
@@ -439,6 +467,7 @@ def package(
     help="Output directory for results.",
 )
 def regression(benchmark_input_size, benchmark_name, storage_configuration, **kwargs):
+    """Run regression test suite across benchmarks."""
     # for regression, deployment client is initialized locally
     # disable default initialization
     (config, output_dir, logging_filename, sebs_client, _) = parse_common_params(
@@ -455,18 +484,17 @@ def regression(benchmark_input_size, benchmark_name, storage_configuration, **kw
     )
 
 
-"""
+@cli.group()
+def storage():
+    """Storage management commands for object and NoSQL storage.
+
     Storage operations have the following characteristics:
     - Two operations, start and stop.
     - Three options, object storage, NoSQL storage, and all.
     - Port and additional settings.
 
     Configuration is read from a JSON.
-"""
-
-
-@cli.group()
-def storage():
+    """
     pass
 
 
@@ -480,6 +508,7 @@ def storage():
     help="Remove containers after stopping.",
 )
 def storage_start(storage, config, output_json, remove_containers):
+    """Start local storage instances (object storage, NoSQL, or both)."""
     import docker
 
     sebs.utils.global_logging()
@@ -534,6 +563,7 @@ def storage_start(storage, config, output_json, remove_containers):
 @click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
 @click.argument("input-json", type=click.Path(exists=True, dir_okay=False, readable=True))
 def storage_stop(storage, input_json):
+    """Stop local storage instances based on configuration file."""
     sebs.utils.global_logging()
     with open(input_json, "r") as f:
         cfg = json.load(f)
@@ -567,6 +597,7 @@ def storage_stop(storage, input_json):
 
 @cli.group()
 def local():
+    """Local deployment management commands."""
     pass
 
 
@@ -681,6 +712,7 @@ def stop(input_json, output_json, **kwargs):
 
 @cli.group()
 def experiment():
+    """Experiment management commands for complex workflows."""
     pass
 
 
@@ -688,6 +720,7 @@ def experiment():
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
 @common_params
 def experiment_invoke(experiment, **kwargs):
+    """Invoke an experiment workflow."""
     (
         config,
         output_dir,
@@ -705,6 +738,7 @@ def experiment_invoke(experiment, **kwargs):
 @click.option("--extend-time-interval", type=int, default=-1)  # , help="Benchmark to be launched.")
 @common_params
 def experiment_process(experiment, extend_time_interval, **kwargs):
+    """Process experiment results and collect metrics."""
     (
         config,
         output_dir,
@@ -725,6 +759,7 @@ def experiment_process(experiment, extend_time_interval, **kwargs):
 @experiment.command("statistics")
 @click.argument("experiment-results", type=click.Path(dir_okay=True, readable=True))
 def experiment_statistics(experiment_results):
+    """Display statistics from experiment results directory."""
     logger = logging.getLogger("Statistics")
     logger.setLevel(logging.INFO)
     logger = sebs.utils.ColoredWrapper("Statistics", logger)
@@ -753,6 +788,7 @@ def experiment_statistics(experiment_results):
 
 @cli.group()
 def resources():
+    """Cloud resource management commands."""
     pass
 
 
@@ -760,6 +796,7 @@ def resources():
 @click.argument("resource", type=click.Choice(["buckets", "resource-groups"]))
 @common_params
 def resources_list(resource, **kwargs):
+    """List cloud resources such as storage buckets or resource groups."""
     (
         config,
         output_dir,
@@ -800,6 +837,7 @@ def resources_list(resource, **kwargs):
 )
 @common_params
 def resources_remove(resource, prefix, wait, dry_run, **kwargs):
+    """Remove cloud resources matching the specified prefix."""
     (
         config,
         output_dir,
@@ -850,6 +888,7 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
 )
 @common_params
 def resources_cleanup(resources_id, dry_run, **kwargs):
+    """Clean up cloud resources created by SeBS experiments."""
     (
         config,
         output_dir,
@@ -924,19 +963,14 @@ def docker_build(
     parallel,
     verbose,
 ):
-    """Build Docker images for SeBS infrastructure.
-
-    Examples:
-        sebs.py docker build --deployment aws --image-type build
-        sebs.py docker build --deployment aws --language python --language-version 3.9
-    """
+    """Build Docker images for SeBS infrastructure."""
     from sebs.config import SeBSConfig
     from sebs.docker_builder import DockerImageBuilder
 
     config = SeBSConfig()
 
     try:
-        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+        builder = DockerImageBuilder(config, get_project_root(), verbose=verbose)
     except docker.errors.DockerException:
         return
 
@@ -998,10 +1032,6 @@ def docker_push_images(
 
     This command pushes infrastructure images (build, run, manage, dependencies)
     to DockerHub. Images must be built locally first using 'docker build'.
-
-    Examples:
-        sebs.py docker push-images --deployment aws --image-type build
-        sebs.py docker push-images --deployment aws --language python --language-version 3.9
     """
     from sebs.config import SeBSConfig
     from sebs.docker_builder import DockerImageBuilder
@@ -1009,7 +1039,7 @@ def docker_push_images(
     config = SeBSConfig()
 
     try:
-        builder = DockerImageBuilder(config, PROJECT_DIR, verbose=verbose)
+        builder = DockerImageBuilder(config, get_project_root(), verbose=verbose)
     except docker.errors.DockerException:
         return
 
@@ -1023,5 +1053,10 @@ def docker_push_images(
     )
 
 
-if __name__ == "__main__":
+def main():
+    """Entry point for the SeBS CLI application."""
     cli()
+
+
+if __name__ == "__main__":
+    main()
