@@ -33,47 +33,6 @@ commands:
           paths:
             - cache/
 
-jobs:
-  linting:
-    executor:
-       name: 'python/default'
-       tag: '3.10'
-    steps:
-      - checkout
-      - restore_cache:
-          key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
-      - run:
-          command: |
-            sudo apt update && sudo apt install libcurl4-openssl-dev
-          name: Install curl-config from Ubuntu APT
-      - run:
-          command: |
-            python3 install.py --aws --azure --gcp --no-local
-          name: Install pip dependencies
-      - run:
-          command: |
-            . python-venv/bin/activate
-            black sebs --check --config .black.toml
-          name: Python code formatting with black
-      - run:
-          command: |
-            . python-venv/bin/activate
-            flake8 sebs --config=.flake8.cfg --tee --output-file flake-reports
-          name: Python code lint with flake8
-      - run:
-          command: |
-            . python-venv/bin/activate
-            mypy sebs --config-file=.mypy.ini
-          name: Python static code verification with mypy
-      - run:
-          command: |
-            . python-venv/bin/activate
-            interrogate -v --fail-under 100 sebs
-          name: Check for Python documentation coverage 
-      - store_artifacts:
-          path: flake-reports
-          destination: flake-reports
-
   install-sebs:
     description: "Install SeBS with platform-specific dependencies"
     parameters:
@@ -123,6 +82,80 @@ jobs:
               --language << parameters.language >> \
               --language-version << parameters.version >>
           no_output_timeout: 5m
+
+  save-results:
+    description: "Save benchmark results as artifacts"
+    steps:
+      - run:
+          name: Generate Test Summary
+          command: |
+            echo "Regression Test Summary" > test-summary.txt
+            echo "======================" >> test-summary.txt
+            if ls regression_*.json 1> /dev/null 2>&1; then
+              ls -1 regression_*.json | wc -l | xargs echo "Benchmarks tested:" >> test-summary.txt
+              echo "" >> test-summary.txt
+              echo "Results saved to artifacts/results/" >> test-summary.txt
+            else
+              echo "No benchmark results found" >> test-summary.txt
+            fi
+          when: always
+      - store_artifacts:
+          path: test-summary.txt
+      - run:
+          name: Collect regression results
+          command: |
+            mkdir -p results
+            if ls regression_*.json 1> /dev/null 2>&1; then
+              mv regression_*.json results/ || true
+            fi
+          when: always
+      - store_artifacts:
+          path: results
+          destination: results/
+      - store_artifacts:
+          path: cache
+          destination: cache-snapshot/
+
+jobs:
+  linting:
+    executor:
+       name: 'python/default'
+       tag: '3.10'
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
+      - run:
+          command: |
+            sudo apt update && sudo apt install libcurl4-openssl-dev
+          name: Install curl-config from Ubuntu APT
+      - run:
+          command: |
+            python3 install.py --aws --azure --gcp --no-local
+          name: Install pip dependencies
+      - run:
+          command: |
+            . python-venv/bin/activate
+            black sebs --check --config .black.toml
+          name: Python code formatting with black
+      - run:
+          command: |
+            . python-venv/bin/activate
+            flake8 sebs --config=.flake8.cfg --tee --output-file flake-reports
+          name: Python code lint with flake8
+      - run:
+          command: |
+            . python-venv/bin/activate
+            mypy sebs --config-file=.mypy.ini
+          name: Python static code verification with mypy
+      - run:
+          command: |
+            . python-venv/bin/activate
+            interrogate -v --fail-under 100 sebs
+          name: Check for Python documentation coverage 
+      - store_artifacts:
+          path: flake-reports
+          destination: flake-reports
 
   regression-aws-python311:
     executor: sebs-regression
