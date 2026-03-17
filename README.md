@@ -209,3 +209,4 @@ However, they can be missing some of the features from the `master` branch.
 * [Dillon Elste (ETH Zurich)](https://github.com/DJAntivenom) - bugfixing in C++.
 * [Mahla Sharifi](https://github.com/mahlashrifi) - contributed support for Java benchmarks.
 * [Alexander Schlieper (ETH Zurich)](https://github.com/xSurus) - improved support for Java benchmarks.
+* [Laurin Jahns (ETH Zurich)](https://github.com/userlaurin) - support for language variants.
