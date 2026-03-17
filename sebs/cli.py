@@ -83,7 +83,12 @@ def simplified_common_params(func):
         help="Benchmark language",
     )
     @click.option("--language-version", default=None, type=str, help="Benchmark language version")
-    @click.option("--language-variant", default=None, type=str, help="Benchmark language variant (e.g. bun, llrt, pypy)")
+    @click.option(
+        "--language-variant",
+        default=None,
+        type=str,
+        help="Benchmark language variant (e.g. bun, llrt, pypy)",
+    )
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         """Internal Click wrapper."""
