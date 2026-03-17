@@ -187,4 +187,6 @@ workflows:
       - regression-aws-python311:
           filters:
             branches:
-              only: master
+              only:
+                - master
+                - /feature\/.*/
