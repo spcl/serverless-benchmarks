@@ -91,7 +91,7 @@ git clone https://github.com/spcl/serverless-benchmarks.git
 cd serverless-benchmarks
 # -e for editable install, i.e, changes are immediately visible in the package
 # [dev] adds developer dependencies, e.g., for code linting
-pip install -e .[dev]
+pip install -e '.[dev]'
 
 # alternative
 uv sync --extra dev
