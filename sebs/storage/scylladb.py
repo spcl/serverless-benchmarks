@@ -21,7 +21,7 @@ import docker.models.containers
 from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.nosql import NoSQLStorage
-from sebs.types import NoSQLStorage as StorageType
+from sebs.sebs_types import NoSQLStorage as StorageType
 from sebs.storage.config import ScyllaDBConfig
 
 

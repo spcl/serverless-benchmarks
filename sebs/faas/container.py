@@ -24,7 +24,7 @@ from typing import Tuple
 
 from sebs.config import SeBSConfig
 from sebs.docker_builder import DockerImageBuilder
-from sebs.types import Language
+from sebs.sebs_types import Language
 from sebs.utils import LoggingBase, execute, get_resource_path
 
 

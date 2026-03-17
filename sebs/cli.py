@@ -19,8 +19,8 @@ import docker
 
 import sebs
 from sebs import SeBS
-from sebs.types import Storage as StorageTypes
-from sebs.types import NoSQLStorage as NoSQLStorageTypes
+from sebs.sebs_types import Storage as StorageTypes
+from sebs.sebs_types import NoSQLStorage as NoSQLStorageTypes
 from sebs.regression import regression_suite
 from sebs.utils import get_project_root, update_nested_dict, append_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem

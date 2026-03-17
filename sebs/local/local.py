@@ -36,7 +36,7 @@ from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigge
 from sebs.faas.system import System
 from sebs.faas.config import Resources
 from sebs.benchmark import Benchmark
-from sebs.types import Language
+from sebs.sebs_types import Language
 
 
 class Local(System):

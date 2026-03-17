@@ -27,7 +27,7 @@ from sebs.faas.config import Resources
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
 from sebs.utils import find_benchmark, get_resource_path, ensure_benchmarks_data, LoggingBase
-from sebs.types import BenchmarkModule, Language
+from sebs.sebs_types import BenchmarkModule, Language
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

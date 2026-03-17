@@ -28,7 +28,7 @@ from sebs.faas.config import Resources
 from .config import OpenWhiskConfig
 from .function import OpenWhiskFunction, OpenWhiskFunctionConfig
 from ..config import SeBSConfig
-from sebs.types import Language
+from sebs.sebs_types import Language
 
 
 class OpenWhisk(System):
