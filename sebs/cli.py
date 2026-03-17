@@ -11,6 +11,7 @@ import glob
 import logging
 import functools
 import os
+import sys
 import traceback
 from typing import cast, List, Optional
 
@@ -481,7 +482,7 @@ def regression(
         **kwargs,
     )
     architecture = config["experiments"]["architecture"] if selected_architecture else None
-    regression_suite(
+    has_failures = regression_suite(
         sebs_client,
         config["experiments"],
         set((config["deployment"]["name"],)),
@@ -490,6 +491,8 @@ def regression(
         benchmark_name,
         architecture,
     )
+    # Exit with non-zero code if any tests failed
+    sys.exit(1 if has_failures else 0)
 
 
 @cli.group()
