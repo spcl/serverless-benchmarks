@@ -448,6 +448,7 @@
           }
         },
         "images": [],
+        "supported_variants": ["default", "cloudflare"],
         "deployment": {
           "files": [
             "handler.py",
@@ -481,6 +482,7 @@
           }
         },
         "images": [],
+        "supported_variants": ["default", "cloudflare"],
         "deployment": {
           "files": [
             "handler.js",

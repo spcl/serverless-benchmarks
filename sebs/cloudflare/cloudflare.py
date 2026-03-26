@@ -19,6 +19,64 @@ from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.system import System
 from sebs.faas.config import Resources
+from sebs.sebs_types import Language
+
+
+class _CloudflareContainerAdapter:
+    """Duck-typed adapter that satisfies benchmark.build()'s container_client contract.
+
+    benchmark.build() calls container_client.build_base_image() when
+    container_deployment=True and asserts the client is not None.  Cloudflare
+    builds its container images inside package_code (via containers.py), not
+    through a registry-backed DockerContainer, so this adapter bridges the gap
+    without touching the framework.
+    """
+
+    def __init__(self, containers_deployment: CloudflareContainersDeployment):
+        self._containers = containers_deployment
+        # Populated by build_base_image() so create_function() can find the dir.
+        self.last_directory: Optional[str] = None
+
+    def build_base_image(
+        self,
+        directory: str,
+        language,            # sebs.sebs_types.Language enum
+        language_version: str,
+        architecture: str,
+        benchmark: str,
+        is_cached: bool,
+        builder_image: str,
+    ) -> Tuple[bool, str, float]:
+        """Delegate to containers.package_code; match benchmark.build() contract.
+
+        Returns (rebuilt, image_tag, size_mb) so that:
+            _, self._container_uri, self._code_size = container_client.build_base_image(...)
+        works correctly in benchmark.build().
+        """
+        dir_result, size_bytes, image_tag = self._containers.package_code(
+            directory,
+            language.value,      # Language enum → str
+            language_version,
+            architecture,
+            benchmark,
+        )
+        self.last_directory = dir_result
+        size_mb = size_bytes / 1024.0 / 1024.0
+        return (True, image_tag, size_mb)
+
+    def push_to_registry(
+        self,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
+    ) -> str:
+        """Return the local Docker image tag (Cloudflare containers use wrangler, not a registry)."""
+        image_name = (
+            f"{benchmark.replace('.', '-')}-{language_name}-"
+            f"{language_version.replace('.', '')}"
+        )
+        return f"{image_name}:latest"
 
 
 class Cloudflare(System):
@@ -76,6 +134,8 @@ class Cloudflare(System):
         self._containers_deployment = CloudflareContainersDeployment(
             self.logging, sebs_config, docker_client, self.system_resources
         )
+        # Adapter so benchmark.build() can call container_client.build_base_image()
+        self._container_adapter = _CloudflareContainerAdapter(self._containers_deployment)
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         """
@@ -127,6 +187,17 @@ class Cloudflare(System):
                 f"R2 must be enabled in your Cloudflare dashboard to use storage-dependent benchmarks. "
                 f"Continuing without R2 storage - only benchmarks that don't require storage will work."
             )
+
+    @property
+    def container_client(self) -> _CloudflareContainerAdapter:
+        """Return the Cloudflare-specific container build adapter.
+
+        Overrides System.container_client (which returns None) so that
+        benchmark.build() can drive container image builds via
+        _CloudflareContainerAdapter.build_base_image() without needing an
+        external container registry.
+        """
+        return self._container_adapter
 
     def _verify_credentials(self):
         """Verify that the Cloudflare API credentials are valid."""
@@ -180,45 +251,37 @@ class Cloudflare(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        container_deployment: bool,
-    ) -> Tuple[str, int, str]:
+    ) -> Tuple[str, int]:
         """
-        Package code for Cloudflare Workers deployment using Wrangler.
+        Package code for native Cloudflare Workers deployment using Wrangler.
 
-        Uses Wrangler CLI to bundle dependencies and prepare for deployment.
-        Delegates to either CloudflareWorkersDeployment or CloudflareContainersDeployment
-        based on the deployment type.
+        Called by benchmark.build() via the non-container path.  Container
+        builds are driven by _CloudflareContainerAdapter.build_base_image()
+        through the container_client property instead.
 
         Args:
             directory: Path to the code directory
-            language_name: Programming language name
+            language: Programming language enum
             language_version: Programming language version
             architecture: Target architecture (not used for Workers)
             benchmark: Benchmark name
             is_cached: Whether the code is cached
-            container_deployment: Whether to deploy as container
 
         Returns:
-            Tuple of (package_path, package_size, container_uri)
+            Tuple of (package_path, package_size)
         """
-        handler = self._get_deployment_handler(container_deployment)
-        
-        # Container deployment flow - build Docker image
-        if container_deployment:
-            self.logging.info(f"Building container image for {benchmark}")
-            return handler.package_code(
-                directory, language_name, language_version, architecture, benchmark
-            )
-        
-        # Native worker deployment flow
-        return handler.package_code(
-            directory, language_name, language_version, benchmark, is_cached
+        # Native worker deployment flow — always the cloudflare variant.
+        # workers.py returns a 3-tuple (path, size, ""); drop the unused 3rd element.
+        pkg_path, pkg_size, _ = self._workers_deployment.package_code(
+            directory, language.value, language_version, benchmark, is_cached,
+            language_variant="cloudflare",
         )
+        return (pkg_path, pkg_size)
 
     def _get_auth_headers(self) -> Dict[str, str]:
         """Get authentication headers for Cloudflare API requests."""
@@ -263,10 +326,11 @@ class Cloudflare(System):
         Returns:
             Path to the generated wrangler.toml file
         """
+        language_variant = code_package.language_variant if code_package else "cloudflare"
         handler = self._get_deployment_handler(container_deployment)
         return handler.generate_wrangler_toml(
             worker_name, package_dir, language, account_id,
-            benchmark_name, code_package, container_uri
+            benchmark_name, code_package, container_uri, language_variant,
         )
 
     def create_function(
@@ -290,7 +354,17 @@ class Cloudflare(System):
         Returns:
             CloudflareWorker instance
         """
+        # For container builds benchmark.build() goes through container_client.build_base_image(),
+        # which does NOT set code_package._code_location.  Fall back to the directory that
+        # _CloudflareContainerAdapter stored during its last build_base_image() call.
         package = code_package.code_location
+        if package is None and container_deployment:
+            package = self._container_adapter.last_directory
+        if package is None:
+            raise RuntimeError(
+                f"Code location is not set for {code_package.benchmark}. "
+                "The build step may not have completed successfully."
+            )
         benchmark = code_package.benchmark
         language = code_package.language_name
         language_runtime = code_package.language_version
@@ -408,13 +482,15 @@ class Cloudflare(System):
         # Deploy using Wrangler in container
         self.logging.info(f"Deploying worker {worker_name} using Wrangler in container...")
 
+        language_variant = code_package.language_variant if code_package else "cloudflare"
+
         try:
-            # For container deployments, always use wrangler (not pywrangler)
-            # For native deployments, use wrangler for nodejs, pywrangler for python
-            if container_deployment or language == "nodejs":
-                output = cli.wrangler_deploy(container_package_path, env=env)
-            else:  # python native
+            # pywrangler is used exclusively for the Pyodide (python cloudflare) variant.
+            # All other cases — nodejs, containers, or non-cloudflare python — use wrangler.
+            if not container_deployment and language == "python" and language_variant == "cloudflare":
                 output = cli.pywrangler_deploy(container_package_path, env=env)
+            else:
+                output = cli.wrangler_deploy(container_package_path, env=env)
 
             self.logging.info(f"Worker {worker_name} deployed successfully")
             self.logging.debug(f"Wrangler deploy output: {output}")
@@ -537,6 +613,8 @@ class Cloudflare(System):
         """
         worker = cast(CloudflareWorker, function)
         package = code_package.code_location
+        if package is None and container_deployment:
+            package = self._container_adapter.last_directory
         language = code_package.language_name
         benchmark = code_package.benchmark
 
@@ -598,10 +676,13 @@ class Cloudflare(System):
             Default function name
         """
         # Cloudflare Worker names must be lowercase and can contain hyphens
-        return (
+        name = (
             f"{code_package.benchmark}-{code_package.language_name}-"
             f"{code_package.language_version.replace('.', '')}"
         ).lower()
+        if code_package.language_variant != "default":
+            name = f"{name}-{code_package.language_variant}"
+        return name
 
     @staticmethod
     def format_function_name(name: str, container_deployment: bool = False) -> str:

@@ -9,7 +9,7 @@ try:
 except ImportError:
     # Pyodide (Python native workers) doesn't support resource module
     HAS_RESOURCE = False
-from workers import WorkerEntrypoint, Response, DurableObject
+from workers import WorkerEntrypoint, Response
 from js import fetch as js_fetch, URL
 
 ## sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
@@ -25,10 +25,6 @@ function/
     nosql.py
 
 """
-
-class KVApiObject(DurableObject):
-    def __getattr__(self, name):
-        return getattr(self.ctx.storage, name)
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request, env):
@@ -196,5 +192,3 @@ def make_benchmark_func():
     ##print()
     with open("/tmp/function.py", "w") as wf:
         wf.write(new_source)
-
-

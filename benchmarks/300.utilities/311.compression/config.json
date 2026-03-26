@@ -1,6 +1,9 @@
 {
   "timeout": 60,
   "memory": 256,
-  "languages": ["python", "nodejs"],
+  "languages": [
+    "python",
+    { "language": "nodejs", "variants": ["default", "cloudflare"] }
+  ],
   "modules": ["storage"]
 }

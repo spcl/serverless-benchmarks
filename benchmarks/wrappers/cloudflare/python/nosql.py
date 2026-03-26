@@ -122,10 +122,13 @@ class nosql_kv:
         nosql_kv.instance.env = entry.env
 
     def key_maker(self, key1, key2):
-        return f"({key1[0]},{str(key1[1])})+({key2[0]},{key2[1]})"
+        return f"{key1[1]}#{key2[1]}"
 
     def key_maker_partial(self, key1, key2):
-        return f"({key1[0]},{str(key1[1])})+({key2[0]}"
+        return f"{key1[1]}#"
+
+    def index_key(self, primary_key):
+        return f"__sebs_idx__{primary_key[1]}"
 
     def get_table(self, table_name):
         return getattr(self.env, (table_name))
@@ -137,11 +140,23 @@ class nosql_kv:
         secondary_key: Tuple[str, str],
         data: dict,
     ):
-        put_res = (
-            run_sync(self.get_table(table_name).put(
+        key_data = {**data}
+        key_data[primary_key[0]] = primary_key[1]
+        key_data[secondary_key[0]] = secondary_key[1]
+        put_res = run_sync(
+            self.get_table(table_name).put(
                 self.key_maker(primary_key, secondary_key),
-                json.dumps(data))
-            ))
+                json.dumps(key_data),
+            )
+        )
+
+        idx_raw = run_sync(self.get_table(table_name).get(self.index_key(primary_key)))
+        idx = []
+        if idx_raw is not None and len(idx_raw) > 0:
+            idx = json.loads(idx_raw)
+        if secondary_key[1] not in idx:
+            idx.append(secondary_key[1])
+            run_sync(self.get_table(table_name).put(self.index_key(primary_key), json.dumps(idx)))
         return
 
     def update(
@@ -151,11 +166,18 @@ class nosql_kv:
         secondary_key: Tuple[str, str],
         data: dict,
     ):
+        existing = self.get(table_name, primary_key, secondary_key)
+        if existing is None:
+            existing = {}
+        merged = {**existing, **data}
+        merged[primary_key[0]] = primary_key[1]
+        merged[secondary_key[0]] = secondary_key[1]
         put_res = run_sync(
             self.get_table(table_name).put(
                 self.key_maker(primary_key, secondary_key),
-                json.dumps(data)
-            ))
+                json.dumps(merged),
+            )
+        )
         return
 
     def get(
@@ -165,7 +187,11 @@ class nosql_kv:
             self.get_table(table_name).get(
                 self.key_maker(primary_key, secondary_key)
             ))
-        return get_res
+        if get_res is None:
+            return None
+        if isinstance(get_res, dict):
+            return get_res
+        return json.loads(get_res)
 
     """
         This query must involve partition key - it does not scan across partitions.
@@ -174,29 +200,33 @@ class nosql_kv:
     def query(
         self, table_name: str, primary_key: Tuple[str, str], secondary_key_name: str
     ) -> List[dict]:
-        _options = {"prefix" : self.key_maker_partial(primary_key, (secondary_key_name,) )}
-        list_res = run_sync(self.get_table(table_name).list(options=_options))
+        idx_raw = run_sync(self.get_table(table_name).get(self.index_key(primary_key)))
+        idx = []
+        if idx_raw is not None and len(idx_raw) > 0:
+            idx = json.loads(idx_raw)
 
-        keys = []
-        for key in list_res.keys:
-            keys.append(key.name)
-        ##print("keys", keys)
-        assert len(keys) <= 100
-
-
-        # todo: please use bulk sometime (it didn't work when i tried it)
         res = []
-        for key in keys:
-            
+        for secondary_key_value in idx:
+            key = f"{primary_key[1]}#{secondary_key_value}"
             get_res = run_sync(self.get_table(table_name).get(key))
-            get_res = get_res.replace("\'", "\"")
-            ##print("gr", get_res)
-        
-            res.append(json.loads(get_res))
+            if get_res is None:
+                continue
+            if isinstance(get_res, dict):
+                res.append(get_res)
+            else:
+                res.append(json.loads(get_res))
         return res
 
     def delete(self, table_name: str, primary_key: Tuple[str, str], secondary_key: Tuple[str, str]):
         run_sync(self.get_table(table_name).delete(self.key_maker(primary_key, secondary_key)))
+
+        idx_raw = run_sync(self.get_table(table_name).get(self.index_key(primary_key)))
+        idx = []
+        if idx_raw is not None and len(idx_raw) > 0:
+            idx = json.loads(idx_raw)
+        if secondary_key[1] in idx:
+            idx = [v for v in idx if v != secondary_key[1]]
+            run_sync(self.get_table(table_name).put(self.index_key(primary_key), json.dumps(idx)))
 
         return
 
@@ -209,4 +239,4 @@ class nosql_kv:
 
 
 
-nosql = nosql_do
+nosql = nosql_kv

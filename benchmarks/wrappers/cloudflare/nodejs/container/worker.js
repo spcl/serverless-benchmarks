@@ -1,46 +1,9 @@
 import { Container, getContainer } from "@cloudflare/containers";
-import { DurableObject } from "cloudflare:workers";
 
 // Container wrapper class
 export class ContainerWorker extends Container {
   defaultPort = 8080;
   sleepAfter = "30m";
-}
-
-// Durable Object for NoSQL storage (simple proxy to ctx.storage)
-export class KVApiObject extends DurableObject {
-  constructor(ctx, env) {
-    super(ctx, env);
-  }
-
-  async insert(key, value) {
-    await this.ctx.storage.put(key.join(':'), value);
-    return { success: true };
-  }
-
-  async update(key, value) {
-    await this.ctx.storage.put(key.join(':'), value);
-    return { success: true };
-  }
-
-  async get(key) {
-    const value = await this.ctx.storage.get(key.join(':'));
-    return { data: value || null };
-  }
-
-  async query(keyPrefix) {
-    const list = await this.ctx.storage.list();
-    const items = [];
-    for (const [k, v] of list) {
-      items.push(v);
-    }
-    return { items };
-  }
-
-  async delete(key) {
-    await this.ctx.storage.delete(key.join(':'));
-    return { success: true };
-  }
 }
 
 export default {
@@ -148,7 +111,7 @@ export default {
 };
 
 /**
- * Handle NoSQL (Durable Object) requests proxied from the container
+ * Handle NoSQL (KV namespace) requests proxied from the container
  * Routes:
  *  - POST /nosql/insert - insert item
  *  - POST /nosql/update - update item
@@ -165,38 +128,120 @@ async function handleNoSQLRequest(request, env) {
     const params = await request.json();
     const { table_name, primary_key, secondary_key, secondary_key_name, data } = params;
     
-    // Get Durable Object stub - table_name should match the DO class name
-    if (!env[table_name]) {
+    const table = env[table_name];
+    if (!table || typeof table.get !== 'function' || typeof table.put !== 'function') {
       return new Response(JSON.stringify({
-        error: `Durable Object binding '${table_name}' not found`
+        error: `KV namespace binding '${table_name}' not found`
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
-    // Create DO ID from primary key
-    const doId = env[table_name].idFromName(primary_key.join(':'));
-    const doStub = env[table_name].get(doId);
-    
-    // Forward operation to Durable Object
+
+    const indexKey = `__sebs_idx__${primary_key[1]}`;
+    const readIndex = async () => {
+      const raw = await table.get(indexKey);
+      if (!raw) {
+        return [];
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
+    const writeIndex = async (values) => {
+      await table.put(indexKey, JSON.stringify(values));
+    };
+
+    const prefix = `${primary_key[1]}#`;
+
     let result;
     switch (operation) {
-      case 'insert':
-        result = await doStub.insert(secondary_key, data);
+      case 'insert': {
+        const compositeKey = `${primary_key[1]}#${secondary_key[1]}`;
+        const keyData = { ...data };
+        keyData[primary_key[0]] = primary_key[1];
+        keyData[secondary_key[0]] = secondary_key[1];
+        await table.put(compositeKey, JSON.stringify(keyData));
+        const index = await readIndex();
+        if (!index.includes(secondary_key[1])) {
+          index.push(secondary_key[1]);
+          await writeIndex(index);
+        }
+        result = { success: true };
         break;
-      case 'update':
-        result = await doStub.update(secondary_key, data);
+      }
+      case 'update': {
+        const compositeKey = `${primary_key[1]}#${secondary_key[1]}`;
+        const existingRaw = await table.get(compositeKey);
+        let existing = {};
+        if (existingRaw) {
+          try {
+            existing = JSON.parse(existingRaw);
+          } catch {
+            existing = {};
+          }
+        }
+        const merged = { ...existing, ...data };
+        merged[primary_key[0]] = primary_key[1];
+        merged[secondary_key[0]] = secondary_key[1];
+        await table.put(compositeKey, JSON.stringify(merged));
+        const index = await readIndex();
+        if (!index.includes(secondary_key[1])) {
+          index.push(secondary_key[1]);
+          await writeIndex(index);
+        }
+        result = { success: true };
         break;
-      case 'get':
-        result = await doStub.get(secondary_key);
+      }
+      case 'get': {
+        const compositeKey = `${primary_key[1]}#${secondary_key[1]}`;
+        const raw = await table.get(compositeKey);
+        if (raw === null) {
+          result = { data: null };
+        } else {
+          try {
+            result = { data: JSON.parse(raw) };
+          } catch {
+            result = { data: raw };
+          }
+        }
         break;
-      case 'query':
-        result = await doStub.query(secondary_key_name);
+      }
+      case 'query': {
+        let secondaryKeys = await readIndex();
+        if (secondaryKeys.length === 0) {
+          const list = await table.list({ prefix });
+          secondaryKeys = (list.keys || []).map((k) => k.name.split('#').slice(1).join('#'));
+        }
+        const items = [];
+        for (const secondaryValue of secondaryKeys) {
+          const raw = await table.get(`${primary_key[1]}#${secondaryValue}`);
+          if (raw === null) {
+            continue;
+          }
+          try {
+            items.push(JSON.parse(raw));
+          } catch {
+            items.push(raw);
+          }
+        }
+        result = { items };
         break;
-      case 'delete':
-        result = await doStub.delete(secondary_key);
+      }
+      case 'delete': {
+        const compositeKey = `${primary_key[1]}#${secondary_key[1]}`;
+        await table.delete(compositeKey);
+        const index = await readIndex();
+        const next = index.filter((v) => v !== secondary_key[1]);
+        if (next.length !== index.length) {
+          await writeIndex(next);
+        }
+        result = { success: true };
         break;
+      }
       default:
         return new Response(JSON.stringify({
           error: 'Unknown NoSQL operation'

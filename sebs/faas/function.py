@@ -545,6 +545,7 @@ class Variant:
 
         DEFAULT = "default"
         PYPY = "pypy"
+        CLOUDFLARE = "cloudflare"
 
     class NodeJS(Enum):
         """Node.js runtime variants."""
@@ -552,6 +553,7 @@ class Variant:
         DEFAULT = "default"
         BUN = "bun"
         LLRT = "llrt"
+        CLOUDFLARE = "cloudflare"
 
     @classmethod
     def for_language(cls, language: Language, val: str) -> Enum:

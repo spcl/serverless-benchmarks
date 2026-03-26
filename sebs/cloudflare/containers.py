@@ -67,6 +67,7 @@ class CloudflareContainersDeployment:
         benchmark_name: Optional[str] = None,
         code_package: Optional[Benchmark] = None,
         container_uri: str = "",
+        language_variant: str = "default",
     ) -> str:
         """
         Generate a wrangler.toml configuration file for container workers.
@@ -104,22 +105,20 @@ class CloudflareContainersDeployment:
             self.logging.warning("Using standard-4 instance type for high resource benchmark")
             config['containers'][0]['instance_type'] = "standard-4"
         
-        # Add nosql table bindings if benchmark uses them
+        # Add nosql KV namespace bindings if benchmark uses them
         if code_package and code_package.uses_nosql:
             # Get registered nosql tables for this benchmark
             nosql_storage = self.system_resources.get_nosql_storage()
-            if nosql_storage.retrieve_cache(benchmark_name):
-                nosql_tables = nosql_storage._tables.get(benchmark_name, {})
-                
-                # Add durable object bindings for each nosql table
-                for table_name in nosql_tables.keys():
-                    config['durable_objects']['bindings'].append({
-                        'name': table_name,
-                        'class_name': 'KVApiObject'
-                    })
-                
-                # Update migrations to include KVApiObject
-                config['migrations'][0]['new_sqlite_classes'].append('KVApiObject')
+            benchmark_for_nosql = benchmark_name or code_package.benchmark
+            if nosql_storage.retrieve_cache(benchmark_for_nosql):
+                nosql_tables = nosql_storage.get_tables(benchmark_for_nosql)
+                if nosql_tables:
+                    config['kv_namespaces'] = config.get('kv_namespaces', [])
+                    for table_name, namespace_id in nosql_tables.items():
+                        config['kv_namespaces'].append({
+                            'binding': table_name,
+                            'id': namespace_id,
+                        })
         
         # Add environment variables
         if benchmark_name or (code_package and code_package.uses_nosql):
@@ -127,7 +126,7 @@ class CloudflareContainersDeployment:
             if benchmark_name:
                 config['vars']['BENCHMARK_NAME'] = benchmark_name
             if code_package and code_package.uses_nosql:
-                config['vars']['NOSQL_STORAGE_DATABASE'] = "durable_objects"
+                config['vars']['NOSQL_STORAGE_DATABASE'] = "kvstore"
         
         # Add R2 bucket binding
         try:

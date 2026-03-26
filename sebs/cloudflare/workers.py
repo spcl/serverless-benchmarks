@@ -62,6 +62,7 @@ class CloudflareWorkersDeployment:
         benchmark_name: Optional[str] = None,
         code_package: Optional[Benchmark] = None,
         container_uri: str = "",
+        language_variant: str = "cloudflare",
     ) -> str:
         """
         Generate a wrangler.toml configuration file for native workers.
@@ -86,14 +87,21 @@ class CloudflareWorkersDeployment:
         )
         with open(template_path, 'rb') as f:
             config = tomllib.load(f)
+
+        # Native workers no longer require Durable Object bindings for NoSQL.
+        config.pop('durable_objects', None)
+        config.pop('migrations', None)
         
         # Update basic configuration
         config['name'] = worker_name
-        config['main'] = "dist/handler.js" if language == "nodejs" else "handler.py"
         config['account_id'] = account_id
-        
-        # Add language-specific configuration
+
+        # Add language- and variant-specific configuration.
+        # For Node.js workers, we always bundle through build.js into dist/,
+        # regardless of language variant (default/cloudflare), because the
+        # wrangler entrypoint points to dist/handler.js.
         if language == "nodejs":
+            config['main'] = "dist/handler.js"
             config['compatibility_flags'] = ["nodejs_compat"]
             config['no_bundle'] = True
             config['build'] = {'command': 'node build.js'}
@@ -110,7 +118,24 @@ class CloudflareWorkersDeployment:
                 }
             ]
         elif language == "python":
+            config['main'] = "handler.py"
             config['compatibility_flags'] = ["python_workers"]
+        else:
+            config['main'] = "dist/handler.js" if language == "nodejs" else "handler.py"
+
+        # Add NoSQL KV namespace bindings if benchmark uses them
+        if code_package and code_package.uses_nosql:
+            benchmark_for_nosql = benchmark_name or code_package.benchmark
+            nosql_storage = self.system_resources.get_nosql_storage()
+            if nosql_storage.retrieve_cache(benchmark_for_nosql):
+                nosql_tables = nosql_storage.get_tables(benchmark_for_nosql)
+                if nosql_tables:
+                    config['kv_namespaces'] = []
+                    for table_name, namespace_id in nosql_tables.items():
+                        config['kv_namespaces'].append({
+                            'binding': table_name,
+                            'id': namespace_id,
+                        })
         
         # Add environment variables
         if benchmark_name or (code_package and code_package.uses_nosql):
@@ -118,7 +143,7 @@ class CloudflareWorkersDeployment:
             if benchmark_name:
                 config['vars']['BENCHMARK_NAME'] = benchmark_name
             if code_package and code_package.uses_nosql:
-                config['vars']['NOSQL_STORAGE_DATABASE'] = "durable_objects"
+                config['vars']['NOSQL_STORAGE_DATABASE'] = "kvstore"
         
         # Add R2 bucket binding
         try:
@@ -158,6 +183,7 @@ class CloudflareWorkersDeployment:
         language_version: str,
         benchmark: str,
         is_cached: bool,
+        language_variant: str = "cloudflare",
     ) -> Tuple[str, int, str]:
         """
         Package code for native Cloudflare Workers deployment.
@@ -196,7 +222,7 @@ class CloudflareWorkersDeployment:
 
                     # Install esbuild as a dev dependency (needed by build.js)
                     self.logging.info("Installing esbuild for custom build script...")
-                    cli.execute(f"cd {container_path} && npm install --save-dev esbuild")
+                    cli.execute(f"cd {container_path} && npm install --force esbuild")
                     self.logging.info("esbuild installed successfully")
                     
                     # Download node_modules back to host
@@ -225,7 +251,7 @@ class CloudflareWorkersDeployment:
                     
                     try:
                         cli.upload_package(directory, container_path)
-                        cli.execute(f"cd {container_path} && npm install --save-dev esbuild")
+                        cli.execute(f"cd {container_path} && npm install --force esbuild")
                         
                         # Download node_modules back to host
                         bits, stat = cli.docker_instance.get_archive(f"{container_path}/node_modules")
@@ -249,18 +275,11 @@ class CloudflareWorkersDeployment:
                 shutil.move(src, dest)
                 self.logging.info(f"move {src} to {dest}")
 
-            # move function_cloudflare.py into function.py
-            function_cloudflare_file = os.path.join(directory, "function_cloudflare.py")
-            if os.path.exists(function_cloudflare_file):
-                src = function_cloudflare_file
-                dest = os.path.join(directory, "function.py")
-                shutil.move(src, dest)
-                self.logging.info(f"move {src} to {dest}")
-
-            if os.path.exists(requirements_file):
-                with open(requirements_file, 'r') as reqf:
-                    reqtext = reqf.read()
-                supported_pkg = \
+            if language_variant == "cloudflare":
+                if os.path.exists(requirements_file):
+                    with open(requirements_file, 'r') as reqf:
+                        reqtext = reqf.read()
+                    supported_pkg = \
 ['affine', 'aiohappyeyeballs', 'aiohttp', 'aiosignal', 'altair', 'annotated-types',\
 'anyio', 'apsw', 'argon2-cffi', 'argon2-cffi-bindings', 'asciitree', 'astropy', 'astropy_iers_data',\
 'asttokens', 'async-timeout', 'atomicwrites', 'attrs', 'audioop-lts', 'autograd', 'awkward-cpp', 'b2d',\
@@ -291,15 +310,15 @@ class CloudflareWorkersDeployment:
 'tomli-w', 'toolz', 'tqdm', 'traitlets', 'traits', 'tree-sitter', 'tree-sitter-go', 'tree-sitter-java', 'tree-sitter-python',\
 'tskit', 'typing-extensions', 'tzdata', 'ujson', 'uncertainties', 'unyt', 'urllib3', 'vega-datasets', 'vrplib', 'wcwidth',\
 'webencodings', 'wordcloud', 'wrapt', 'xarray', 'xgboost', 'xlrd', 'xxhash', 'xyzservices', 'yarl', 'yt', 'zengl', 'zfpy', 'zstandard']
-                needed_pkg = []
-                for pkg in supported_pkg:
-                    if pkg.lower() in reqtext.lower():
-                        needed_pkg.append(pkg)
+                    needed_pkg = []
+                    for pkg in supported_pkg:
+                        if pkg.lower() in reqtext.lower():
+                            needed_pkg.append(pkg)
 
-                project_file = os.path.join(directory, "pyproject.toml")
-                depstr = str(needed_pkg).replace("\'", "\"")
-                with open(project_file, 'w') as pf:
-                    pf.write(f"""
+                    project_file = os.path.join(directory, "pyproject.toml")
+                    depstr = str(needed_pkg).replace("\'", "\"")
+                    with open(project_file, 'w') as pf:
+                        pf.write(f"""
 [project]
 name = "{benchmark.replace(".", "-")}-python-{language_version.replace(".", "")}"
 version = "0.1.0"
@@ -312,18 +331,18 @@ dev = [
   "workers-py",
   "workers-runtime-sdk"
 ]
-                    """)
-            # move into function dir
-            funcdir = os.path.join(directory, "function")
-            if not os.path.exists(funcdir):
-                os.makedirs(funcdir)
+                        """)
+                # Pyodide Workers require all function files in a function/ subdir
+                funcdir = os.path.join(directory, "function")
+                if not os.path.exists(funcdir):
+                    os.makedirs(funcdir)
 
-            dont_move = ["handler.py", "function", "python_modules", "pyproject.toml"]
-            for thing in os.listdir(directory):
-                if thing not in dont_move:
-                    src = os.path.join(directory, thing)
-                    dest = os.path.join(directory, "function", thing)
-                    shutil.move(src, dest)
+                dont_move = ["handler.py", "function", "python_modules", "pyproject.toml"]
+                for thing in os.listdir(directory):
+                    if thing not in dont_move:
+                        src = os.path.join(directory, thing)
+                        dest = os.path.join(directory, "function", thing)
+                        shutil.move(src, dest)
 
         # Create package structure
         CONFIG_FILES = {

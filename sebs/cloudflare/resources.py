@@ -5,7 +5,7 @@ from typing import Optional
 from sebs.cache import Cache
 from sebs.cloudflare.config import CloudflareConfig
 from sebs.cloudflare.r2 import R2
-from sebs.cloudflare.durable_objects import DurableObjects
+from sebs.cloudflare.kvstore import KVStore
 from sebs.faas.resources import SystemResources
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.nosql import NoSQLStorage
@@ -79,15 +79,14 @@ class CloudflareSystemResources(SystemResources):
 
     def get_nosql_storage(self) -> NoSQLStorage:
         """
-        Get Cloudflare Durable Objects storage instance.
+        Get Cloudflare KV storage instance.
 
-        Durable Objects provide stateful storage for Workers.
-        Note: This is a minimal implementation to satisfy SeBS requirements.
+        KV namespaces provide key-value storage for Workers.
 
         Returns:
-            DurableObjects storage instance
+            KVStore storage instance
         """
-        return DurableObjects(
+        return KVStore(
             region=self._config.region,
             cache_client=self._cache_client,
             resources=self._config.resources,

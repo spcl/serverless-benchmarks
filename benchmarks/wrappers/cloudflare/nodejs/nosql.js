@@ -1,5 +1,5 @@
 // NoSQL wrapper for Cloudflare Workers
-// Uses Durable Objects for storage
+// Uses KV namespaces for storage
 // Returns Promises that the handler will resolve
 
 class nosql {
@@ -12,31 +12,59 @@ class nosql {
     if (!nosql.instance) {
       nosql.instance = new nosql();
     }
-    
+
     if (entry && entry.env) {
       nosql.instance.env = entry.env;
+      // Share env globally so bundled copies of this module (inlined by esbuild
+      // into function.js) can also reach the live KV bindings.
+      globalThis._nosqlEnv = entry.env;
     }
   }
 
   _get_table(tableName) {
-    // Don't cache stubs - they are request-scoped and cannot be reused
-    // Always create a fresh stub for each request
-    if (!this.env) {
+    // Fall back to the global env bridge for copies of this class that were
+    // inlined by esbuild into a separate bundle (e.g. function.js) and
+    // therefore have a different static `instance` from the one initialized
+    // by handler.js via `import('./nosql.js')`.
+    const env = this.env || globalThis._nosqlEnv;
+    if (!env) {
       throw new Error(`nosql env not initialized for table ${tableName}`);
     }
-    
-    if (!this.env.DURABLE_STORE) {
-      // Debug: log what we have
-      const envKeys = Object.keys(this.env || {});
-      const durableStoreType = typeof this.env.DURABLE_STORE;
+
+    const table = env[tableName];
+    if (!table || typeof table.get !== 'function' || typeof table.put !== 'function') {
+      const envKeys = Object.keys(env || {});
       throw new Error(
-        `DURABLE_STORE binding not found. env keys: [${envKeys.join(', ')}], DURABLE_STORE type: ${durableStoreType}`
+        `KV binding '${tableName}' not found. env keys: [${envKeys.join(', ')}]`
       );
     }
-    
-    // Get a Durable Object ID based on the table name and create a fresh stub
-    const id = this.env.DURABLE_STORE.idFromName(tableName);
-    return this.env.DURABLE_STORE.get(id);
+
+    return table;
+  }
+
+  _key(primaryKey, secondaryKey) {
+    return `${primaryKey[1]}#${secondaryKey[1]}`;
+  }
+
+  _indexKey(primaryKey) {
+    return `__sebs_idx__${primaryKey[1]}`;
+  }
+
+  async _readIndex(table, primaryKey) {
+    const raw = await table.get(this._indexKey(primaryKey));
+    if (raw === null) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async _writeIndex(table, primaryKey, values) {
+    await table.put(this._indexKey(primaryKey), JSON.stringify(values));
   }
 
   // Async methods - build.js will patch function.js to await these
@@ -45,18 +73,28 @@ class nosql {
     keyData[primaryKey[0]] = primaryKey[1];
     keyData[secondaryKey[0]] = secondaryKey[1];
 
-    const durableObjStub = this._get_table(tableName);
-    const compositeKey = `${primaryKey[1]}#${secondaryKey[1]}`;
-    
-    await durableObjStub.put(compositeKey, keyData);
+    const table = this._get_table(tableName);
+    await table.put(this._key(primaryKey, secondaryKey), JSON.stringify(keyData));
+
+    const index = await this._readIndex(table, primaryKey);
+    if (!index.includes(secondaryKey[1])) {
+      index.push(secondaryKey[1]);
+      await this._writeIndex(table, primaryKey, index);
+    }
   }
 
   async get(tableName, primaryKey, secondaryKey) {
-    const durableObjStub = this._get_table(tableName);
-    const compositeKey = `${primaryKey[1]}#${secondaryKey[1]}`;
+    const table = this._get_table(tableName);
+    const raw = await table.get(this._key(primaryKey, secondaryKey));
+    if (raw === null) {
+      return null;
+    }
 
-    const result = await durableObjStub.get(compositeKey);
-    return result || null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
   }
 
   async update(tableName, primaryKey, secondaryKey, updates) {
@@ -66,25 +104,41 @@ class nosql {
   }
 
   async query(tableName, primaryKey, secondaryKeyName) {
-    const durableObjStub = this._get_table(tableName);
-    const prefix = `${primaryKey[1]}#`;
-    
-    // List all keys with the prefix
-    const allEntries = await durableObjStub.list({ prefix });
-    const results = [];
-    
-    for (const [key, value] of allEntries) {
-      results.push(value);
+    const table = this._get_table(tableName);
+    let secondaryKeys = await this._readIndex(table, primaryKey);
+
+    // Fallback for legacy namespaces without explicit index key.
+    if (secondaryKeys.length === 0) {
+      const listed = await table.list({ prefix: `${primaryKey[1]}#` });
+      secondaryKeys = (listed.keys || []).map((k) => k.name.split('#').slice(1).join('#'));
     }
-    
+
+    const results = [];
+
+    for (const secondaryValue of secondaryKeys) {
+      const raw = await table.get(`${primaryKey[1]}#${secondaryValue}`);
+      if (raw === null) {
+        continue;
+      }
+      try {
+        results.push(JSON.parse(raw));
+      } catch {
+        results.push(raw);
+      }
+    }
+
     return results;
   }
 
   async delete(tableName, primaryKey, secondaryKey) {
-    const durableObjStub = this._get_table(tableName);
-    const compositeKey = `${primaryKey[1]}#${secondaryKey[1]}`;
+    const table = this._get_table(tableName);
+    await table.delete(this._key(primaryKey, secondaryKey));
 
-    await durableObjStub.delete(compositeKey);
+    const index = await this._readIndex(table, primaryKey);
+    const next = index.filter((v) => v !== secondaryKey[1]);
+    if (next.length !== index.length) {
+      await this._writeIndex(table, primaryKey, next);
+    }
   }
 
   static get_instance() {
