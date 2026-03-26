@@ -152,7 +152,7 @@ class nosql_kv:
 
         idx_raw = run_sync(self.get_table(table_name).get(self.index_key(primary_key)))
         idx = []
-        if idx_raw is not None and len(idx_raw) > 0:
+        if idx_raw:
             idx = json.loads(idx_raw)
         if secondary_key[1] not in idx:
             idx.append(secondary_key[1])
@@ -202,7 +202,7 @@ class nosql_kv:
     ) -> List[dict]:
         idx_raw = run_sync(self.get_table(table_name).get(self.index_key(primary_key)))
         idx = []
-        if idx_raw is not None and len(idx_raw) > 0:
+        if idx_raw:
             idx = json.loads(idx_raw)
 
         res = []
@@ -222,7 +222,7 @@ class nosql_kv:
 
         idx_raw = run_sync(self.get_table(table_name).get(self.index_key(primary_key)))
         idx = []
-        if idx_raw is not None and len(idx_raw) > 0:
+        if idx_raw:
             idx = json.loads(idx_raw)
         if secondary_key[1] in idx:
             idx = [v for v in idx if v != secondary_key[1]]
