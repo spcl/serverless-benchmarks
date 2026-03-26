@@ -87,6 +87,18 @@ class Cloudflare(System):
     low-latency serverless execution globally.
     """
 
+    # Benchmarks supported per (language, container_deployment) combination.
+    # Keys are (language_name, container_deployment).
+    # A value of None means all benchmarks are supported.
+    # Benchmark IDs are matched against the numeric prefix of the benchmark name
+    # (e.g. "110" matches "110.dynamic-html").
+    SUPPORTED_BENCHMARKS: Dict[Tuple[str, bool], Optional[List[str]]] = {
+        ("python", False): ["110", "120", "130", "210", "311", "501", "502", "503"],
+        ("nodejs", False): ["110", "120", "130", "311"],
+        ("python", True):  None,   # all benchmarks supported
+        ("nodejs", True):  ["110", "120", "130", "210", "311"],
+    }
+
     _config: CloudflareConfig
 
     @staticmethod
@@ -104,6 +116,39 @@ class Cloudflare(System):
     @property
     def config(self) -> CloudflareConfig:
         return self._config
+
+    def is_benchmark_supported(self, benchmark_name: str, language: str, container_deployment: bool) -> bool:
+        """Return True if the benchmark is supported for the given language/deployment type.
+
+        Args:
+            benchmark_name: Full benchmark name, e.g. "110.dynamic-html"
+            language: Language name, e.g. "python" or "nodejs"
+            container_deployment: Whether this is a container deployment
+
+        Returns:
+            True if supported, False otherwise
+        """
+        allowed = self.SUPPORTED_BENCHMARKS.get((language, container_deployment))
+        if allowed is None:
+            # None means all benchmarks are supported
+            return True
+        # Match by numeric prefix (the part before the first dot)
+        prefix = benchmark_name.split(".")[0]
+        return prefix in allowed
+
+    def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
+        """Override to validate benchmark support before building/deploying."""
+        language = code_package.language_name
+        container_deployment = code_package.container_deployment
+        benchmark_name = code_package.benchmark
+        if not self.is_benchmark_supported(benchmark_name, language, container_deployment):
+            deployment_type = "container" if container_deployment else "worker"
+            raise RuntimeError(
+                f"Benchmark '{benchmark_name}' is not supported for "
+                f"{language} {deployment_type} deployments on Cloudflare. "
+                f"Supported benchmarks: {self.SUPPORTED_BENCHMARKS.get((language, container_deployment))}"
+            )
+        return super().get_function(code_package, func_name)
 
     def __init__(
         self,
