@@ -530,9 +530,10 @@ class Cloudflare(System):
         language_variant = code_package.language_variant if code_package else "cloudflare"
 
         try:
-            # pywrangler is used exclusively for the Pyodide (python cloudflare) variant.
-            # All other cases — nodejs, containers, or non-cloudflare python — use wrangler.
-            if not container_deployment and language == "python" and language_variant == "cloudflare":
+            # pywrangler is used for all native Python workers (packages must be
+            # synced via pyproject.toml before wrangler uploads the bundle).
+            # All other cases — nodejs, containers — use wrangler directly.
+            if not container_deployment and language == "python":
                 output = cli.pywrangler_deploy(container_package_path, env=env)
             else:
                 output = cli.wrangler_deploy(container_package_path, env=env)

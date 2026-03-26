@@ -164,6 +164,7 @@ class CloudflareWorkersDeployment:
         
         # Write wrangler.toml to package directory
         toml_path = os.path.join(package_dir, "wrangler.toml")
+        os.makedirs(package_dir, exist_ok=True)
         try:
             # Try tomli_w (writes binary)
             with open(toml_path, 'wb') as f:
@@ -275,7 +276,7 @@ class CloudflareWorkersDeployment:
                 shutil.move(src, dest)
                 self.logging.info(f"move {src} to {dest}")
 
-            if language_variant == "cloudflare":
+            if language_variant in ("cloudflare", "default"):
                 if os.path.exists(requirements_file):
                     with open(requirements_file, 'r') as reqf:
                         reqtext = reqf.read()
