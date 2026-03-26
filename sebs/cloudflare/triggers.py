@@ -1,5 +1,8 @@
 from typing import Optional
 import concurrent.futures
+import json
+from datetime import datetime
+from io import BytesIO
 
 from sebs.faas.function import Trigger, ExecutionResult
 
@@ -32,16 +35,72 @@ class HTTPTrigger(Trigger):
     def url(self, url: str):
         self._url = url
 
+    def _http_invoke(self, payload: dict, url: str, verify_ssl: bool = True) -> ExecutionResult:
+        """
+        Invoke a Cloudflare Worker via HTTP POST.
+
+        Overrides the base implementation to add a browser-like User-Agent header.
+        Cloudflare's bot-protection returns HTTP 1010 for requests that look like
+        automated tools (empty or libcurl User-Agent), so we must set one explicitly.
+        """
+        import pycurl
+
+        c = pycurl.Curl()
+        c.setopt(pycurl.HTTPHEADER, [
+            "Content-Type: application/json",
+            # Cloudflare bot-protection (error 1010) blocks requests with no/tool UA.
+            "User-Agent: Mozilla/5.0 (compatible; SeBS/1.0; +https://github.com/spcl/serverless-benchmarks)",
+        ])
+        c.setopt(pycurl.POST, 1)
+        c.setopt(pycurl.URL, url)
+        if not verify_ssl:
+            c.setopt(pycurl.SSL_VERIFYHOST, 0)
+            c.setopt(pycurl.SSL_VERIFYPEER, 0)
+        data = BytesIO()
+        c.setopt(pycurl.WRITEFUNCTION, data.write)
+
+        c.setopt(pycurl.POSTFIELDS, json.dumps(payload))
+        begin = datetime.now()
+        c.perform()
+        end = datetime.now()
+        status_code = c.getinfo(pycurl.RESPONSE_CODE)
+        conn_time = c.getinfo(pycurl.PRETRANSFER_TIME)
+        receive_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
+        c.close()
+
+        try:
+            output = json.loads(data.getvalue())
+            if "body" in output:
+                if isinstance(output["body"], dict):
+                    output = output["body"]
+                else:
+                    output = json.loads(output["body"])
+
+            if status_code != 200:
+                self.logging.error(f"Invocation on URL {url} failed!")
+                self.logging.error(f"Output: {output}")
+                raise RuntimeError(f"Failed invocation of function! Output: {output}")
+
+            self.logging.debug("Invoke of function was successful")
+            result = ExecutionResult.from_times(begin, end)
+            result.times.http_startup = conn_time
+            result.times.http_first_byte_return = receive_time
+            if "request_id" not in output:
+                raise RuntimeError(f"Cannot process allocation with output: {output}")
+            result.request_id = output["request_id"]
+            result.parse_benchmark_output(output)
+            return result
+        except json.decoder.JSONDecodeError:
+            self.logging.error(f"Invocation on URL {url} failed!")
+            raw = data.getvalue()
+            if raw:
+                self.logging.error(f"Output: {raw.decode()}")
+            else:
+                self.logging.error("No output provided!")
+            raise RuntimeError(f"Failed invocation of function! Output: {raw.decode()}")
+
     def sync_invoke(self, payload: dict) -> ExecutionResult:
-        """
-        Synchronously invoke a Cloudflare Worker via HTTP.
-        
-        Args:
-            payload: The payload to send to the worker
-            
-        Returns:
-            ExecutionResult with performance metrics extracted from the response
-        """
+        """Synchronously invoke a Cloudflare Worker via HTTP."""
         self.logging.debug(f"Invoke function {self.url}")
         result = self._http_invoke(payload, self.url)
         
