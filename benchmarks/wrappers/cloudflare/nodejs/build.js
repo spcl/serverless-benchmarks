@@ -104,55 +104,6 @@ async function customBuild() {
         mainFields: ['module', 'main'],
         treeShaking: true,
       });
-      
-      // POST-PROCESS: Replace dynamic requires with static imports
-      console.log('Post-processing to fix node: module imports...');
-      
-      for (const jsFile of jsFiles) {
-        const outPath = join(outDir, relative(srcDir, jsFile));
-        
-        if (fs.existsSync(outPath)) {
-          let content = fs.readFileSync(outPath, 'utf-8');
-          
-          // Find all node: modules being dynamically required
-          const nodeModules = new Set();
-          const requireRegex = /__require\d*\("(node:[^"]+)"\)/g;
-          let match;
-          while ((match = requireRegex.exec(content)) !== null) {
-            nodeModules.add(match[1]);
-          }
-          
-          if (nodeModules.size > 0) {
-            // Generate static imports at the top
-            let imports = '';
-            const mapping = {};
-            let i = 0;
-            for (const mod of nodeModules) {
-              const varName = `__node_${mod.replace('node:', '').replace(/[^a-z0-9]/gi, '_')}_${i++}`;
-              imports += `import * as ${varName} from '${mod}';\n`;
-              mapping[mod] = varName;
-            }
-            
-            // Add cache object
-            imports += '\nconst __node_cache = {\n';
-            for (const [mod, varName] of Object.entries(mapping)) {
-              imports += `  '${mod}': ${varName},\n`;
-            }
-            imports += '};\n\n';
-            
-            // Replace all __require calls with cache lookups
-            content = content.replace(/__require(\d*)\("(node:[^"]+)"\)/g, (match, num, mod) => {
-              return `__node_cache['${mod}']`;
-            });
-            
-            // Prepend imports to the file
-            content = imports + content;
-            
-            fs.writeFileSync(outPath, content, 'utf-8');
-            console.log(`✓ Fixed ${nodeModules.size} node: imports in ${relative(srcDir, jsFile)}`);
-          }
-        }
-      }
     }
     
     // Copy non-JS files (templates, etc.)

@@ -1,0 +1,16 @@
+FROM node:20-slim
+
+WORKDIR /worker
+
+# Copy source files (node_modules and dist are excluded via .dockerignore)
+COPY . .
+
+# Install production dependencies + esbuild (needed by build.js)
+RUN npm install --production && npm install --force esbuild
+
+# Bundle all source files with esbuild into dist/
+RUN node build.js
+
+# Patch esbuild's dynamic __require("node:…") calls to static ESM imports
+# so that the Cloudflare Workers ESM runtime can resolve built-in modules.
+RUN node postprocess.js

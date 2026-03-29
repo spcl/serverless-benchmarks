@@ -489,6 +489,7 @@
             "storage.js",
             "nosql.js",
             "build.js",
+            "postprocess.js",
             "request-polyfill.js"
           ],
           "packages": {

@@ -104,7 +104,6 @@ class CloudflareWorkersDeployment:
             config['main'] = "dist/handler.js"
             config['compatibility_flags'] = ["nodejs_compat"]
             config['no_bundle'] = True
-            config['build'] = {'command': 'node build.js'}
             config['rules'] = [
                 {
                     'type': 'ESModule',
@@ -199,74 +198,13 @@ class CloudflareWorkersDeployment:
         Returns:
             Tuple of (package_path, package_size, container_uri)
         """
-        # Install dependencies
+        # Install dependencies and bundle
         if language_name == "nodejs":
-            package_file = os.path.join(directory, "package.json")
-            node_modules = os.path.join(directory, "node_modules")
-
-            # Only install if package.json exists and node_modules doesn't
-            if os.path.exists(package_file) and not os.path.exists(node_modules):
-                self.logging.info(f"Installing Node.js dependencies in {directory}")
-                # Use CLI container for npm install - no Node.js/npm needed on host
-                cli = self._get_cli()
-                container_path = f"/tmp/npm_install/{os.path.basename(directory)}"
-                
-                try:
-                    # Upload package directory to container
-                    cli.upload_package(directory, container_path)
-                    
-                    # Install production dependencies
-                    self.logging.info("Installing npm dependencies in container...")
-                    output = cli.npm_install(container_path)
-                    self.logging.info("npm install completed successfully")
-                    self.logging.debug(f"npm output: {output}")
-
-                    # Install esbuild as a dev dependency (needed by build.js)
-                    self.logging.info("Installing esbuild for custom build script...")
-                    cli.execute(f"cd {container_path} && npm install --force esbuild")
-                    self.logging.info("esbuild installed successfully")
-                    
-                    # Download node_modules back to host
-                    bits, stat = cli.docker_instance.get_archive(f"{container_path}/node_modules")
-                    file_obj = io.BytesIO()
-                    for chunk in bits:
-                        file_obj.write(chunk)
-                    file_obj.seek(0)
-                    with tarfile.open(fileobj=file_obj) as tar:
-                        tar.extractall(directory)
-                    
-                    self.logging.info(f"Downloaded node_modules to {directory}")
-
-                except Exception as e:
-                    self.logging.error(f"npm install in container failed: {e}")
-                    raise RuntimeError(f"Failed to install Node.js dependencies: {e}")
-            elif os.path.exists(node_modules):
-                self.logging.info(f"Node.js dependencies already installed in {directory}")
-
-                # Ensure esbuild is available even for cached installations
-                esbuild_path = os.path.join(node_modules, "esbuild")
-                if not os.path.exists(esbuild_path):
-                    self.logging.info("Installing esbuild for custom build script...")
-                    cli = self._get_cli()
-                    container_path = f"/tmp/npm_install/{os.path.basename(directory)}"
-                    
-                    try:
-                        cli.upload_package(directory, container_path)
-                        cli.execute(f"cd {container_path} && npm install --force esbuild")
-                        
-                        # Download node_modules back to host
-                        bits, stat = cli.docker_instance.get_archive(f"{container_path}/node_modules")
-                        file_obj = io.BytesIO()
-                        for chunk in bits:
-                            file_obj.write(chunk)
-                        file_obj.seek(0)
-                        with tarfile.open(fileobj=file_obj) as tar:
-                            tar.extractall(directory)
-                        
-                        self.logging.info("esbuild installed successfully")
-                    except Exception as e:
-                        self.logging.error(f"Failed to install esbuild: {e}")
-                        raise RuntimeError(f"Failed to install esbuild: {e}")
+            # Build via Dockerfile.worker (npm install + esbuild + __require patching),
+            # then extract the produced dist/ back into the package directory.
+            # This mirrors how container deployments use their Dockerfile — the only
+            # difference is which Dockerfile is selected.
+            self._build_worker_and_extract_dist(directory, is_cached)
 
         elif language_name == "python":
             requirements_file = os.path.join(directory, "requirements.txt")
@@ -382,6 +320,83 @@ dev = [
         self.logging.info(f"Worker package size: {mbytes:.2f} MB (Python: missing vendored modules)")
 
         return (directory, total_size, "")
+
+    def _build_worker_and_extract_dist(self, directory: str, is_cached: bool) -> None:
+        """Build the Node.js worker bundle via Dockerfile.worker and extract dist/.
+
+        Runs npm install, esbuild (build.js), and the __require→import post-
+        processing step (postprocess.js) inside a throwaway Docker image built
+        from Dockerfile.worker.  Only the resulting dist/ directory is extracted
+        back to *directory*; intermediate artifacts (node_modules, build image)
+        stay inside Docker.
+
+        If *is_cached* is True and dist/ already exists the build is skipped.
+        """
+        import docker as docker_module
+
+        dist_dir = os.path.join(directory, "dist")
+        if is_cached and os.path.exists(dist_dir):
+            self.logging.info("Cached dist/ found — skipping worker bundle build.")
+            return
+
+        dockerfile_src = os.path.join(
+            os.path.dirname(__file__), "..", "..",
+            "dockerfiles", "cloudflare", "nodejs", "Dockerfile.worker"
+        )
+        dockerfile_dest = os.path.join(directory, "Dockerfile.worker")
+        dockerignore_dest = os.path.join(directory, ".dockerignore")
+
+        # Keep the build context lean: exclude generated / heavy artifacts.
+        dockerignore_content = "node_modules\ndist\nDockerfile.worker\n.dockerignore\n"
+        shutil.copy2(dockerfile_src, dockerfile_dest)
+        with open(dockerignore_dest, "w") as f:
+            f.write(dockerignore_content)
+
+        # Use base directory name + pid for a unique, collision-free tag.
+        image_tag = f"sebs-worker-build-{os.path.basename(directory)}-{os.getpid()}:latest"
+
+        try:
+            self.logging.info(f"Building worker bundle via Dockerfile.worker in {directory}")
+            _, build_logs = self.docker_client.images.build(
+                path=directory,
+                dockerfile="Dockerfile.worker",
+                tag=image_tag,
+                rm=True,
+            )
+            for log in build_logs:
+                if "stream" in log:
+                    self.logging.debug(log["stream"].strip())
+                elif "error" in log:
+                    raise RuntimeError(f"Docker build error: {log['error']}")
+
+            # Extract dist/ from the built image.
+            self.logging.info("Extracting built dist/ from worker build image...")
+            container = self.docker_client.containers.create(image_tag)
+            try:
+                bits, _ = container.get_archive("/worker/dist")
+                file_obj = io.BytesIO()
+                for chunk in bits:
+                    file_obj.write(chunk)
+                file_obj.seek(0)
+                if os.path.exists(dist_dir):
+                    shutil.rmtree(dist_dir)
+                with tarfile.open(fileobj=file_obj) as tar:
+                    tar.extractall(directory)
+                self.logging.info(f"dist/ extracted to {directory}")
+            finally:
+                container.remove()
+
+        except docker_module.errors.BuildError as e:
+            raise RuntimeError(f"Worker bundle build failed: {e}")
+        finally:
+            # Remove the temporary files we injected into the build context.
+            for tmp in (dockerfile_dest, dockerignore_dest):
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            try:
+                self.docker_client.images.remove(image_tag, force=True)
+            except Exception:
+                pass
 
     def shutdown(self):
         """Shutdown CLI container if initialized."""
