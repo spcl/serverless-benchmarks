@@ -550,10 +550,28 @@ class Cloudflare(System):
                     worker_name, worker_url
                 )
             
-            # The container binding needs time to propagate before first invocation
+            # Keep the container warm for a minimum provisioning window.
+            # A flat sleep lets the Durable Object hibernate, which causes the
+            # container runtime to reject the next start() call.  Instead we
+            # ping /health every few seconds so the DO stays alive.
             if container_deployment:
-                self.logging.info("Waiting 60 seconds for container to be fully provisioned (can sometimes take a bit longer)...")
-                time.sleep(60)
+                warm_seconds = 60
+                ping_interval = 5
+                account_id = env.get('CLOUDFLARE_ACCOUNT_ID')
+                worker_url = self._build_workers_dev_url(worker_name, account_id)
+                health_url = f"{worker_url}/health"
+                self.logging.info(
+                    f"Keeping container warm for {warm_seconds}s "
+                    f"(pinging {health_url} every {ping_interval}s)..."
+                )
+                deadline = time.time() + warm_seconds
+                while time.time() < deadline:
+                    try:
+                        requests.get(health_url, timeout=10)
+                    except Exception:
+                        pass
+                    remaining = deadline - time.time()
+                    time.sleep(min(ping_interval, max(0, remaining)))
 
             return {"success": True, "output": output}
 
