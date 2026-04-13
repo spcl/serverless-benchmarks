@@ -2,8 +2,20 @@
   "timeout": 10,
   "memory": 128,
   "languages": [
-    "python",
-    "nodejs",
+    {
+      "language": "python",
+      "variants": {
+        "default": "default",
+        "cloudflare": "default"
+      }
+    },
+    {
+      "language": "nodejs",
+      "variants": {
+        "default": "default",
+        "cloudflare": "default"
+      }
+    },
     "java"
   ],
   "modules": []

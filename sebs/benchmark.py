@@ -39,65 +39,90 @@ class LanguageSpec:
     """
     Represents a language with its supported variants for a benchmark.
 
-    Parses the config language settings, supports both the legacy format
-    (e.g. "python") and the new dict format:
+    Parses the config.json ``languages`` entries.  Supports three formats:
 
-    {"language": "nodejs", "variants": ["default", "bun", "llrt"]}
+    * Legacy string:  ``"python"``
+      → treated as ``{"default": "default"}``
 
-    The legacy format is treated as having just the "default" variant.
+    * New dict with simple (non-deployment-split) variants::
+
+        {"language": "nodejs", "variants": {"default": "default", "bun": "bun"}}
+
+      The value for each key is either the literal sentinel ``"default"``
+      (meaning: use the base language directory, no overlay) or a subdirectory
+      name to use as an overlay (e.g. ``"cloudflare"`` → ``nodejs/cloudflare/``).
+
+    * New dict with deployment-mode-split variants::
+
+        {
+          "language": "nodejs",
+          "variants": {
+            "default": "default",
+            "cloudflare": {"workers": "cloudflare", "containers": "default"}
+          }
+        }
+
+      When the value is itself a dict, the keys are deployment modes
+      (``"workers"`` / ``"containers"``) and the values follow the same
+      sentinel / subdirectory convention.  A missing mode key means the
+      benchmark is not supported in that deployment mode.
     """
 
-    def __init__(self, language: "Language", variants: List[str]):
-        """Initialize a language specification.
-
-        Args:
-            language: The programming language
-            variants: List of supported runtime variants for this language
-        """
+    def __init__(self, language: "Language", variants: Dict[str, Any]):
         self._language = language
         self._variants = variants
 
     @property
     def language(self) -> "Language":
-        """Get the programming language.
-
-        Returns:
-            Language: The programming language
-        """
         return self._language
 
     @property
-    def variants(self) -> List[str]:
-        """Get the list of supported runtime variants.
-
-        Returns:
-            List[str]: List of variant names (e.g., ["default", "pypy"])
-        """
+    def variants(self) -> Dict[str, Any]:
+        """Variant map: variant name → directory name or deployment-mode dict."""
         return self._variants
 
-    @staticmethod
-    def deserialize(val) -> LanguageSpec:
-        """Deserialize a language specification from config.
+    def resolve_dir(self, variant: str, container_deployment: bool) -> str:
+        """Return the source subdirectory name for *variant* + deployment mode.
 
-        Args:
-            val: Either a string (legacy format) or dict with language and variants
+        Returns ``"default"`` (sentinel) when the base language directory should
+        be used without any overlay.  Returns a subdirectory name (e.g.
+        ``"cloudflare"``) when an overlay should be applied from that subdir.
 
-        Returns:
-            LanguageSpec: Deserialized language specification
+        Raises ``RuntimeError`` when the variant or deployment mode is not
+        supported.
         """
+        entry = self._variants.get(variant)
+        if entry is None:
+            raise RuntimeError(
+                f"Variant '{variant}' not declared for language {self._language.value}"
+            )
+        if isinstance(entry, dict):
+            mode = "containers" if container_deployment else "workers"
+            dir_name = entry.get(mode)
+            if dir_name is None:
+                raise RuntimeError(
+                    f"Variant '{variant}' does not support deployment mode '{mode}' "
+                    f"for language {self._language.value}"
+                )
+            return dir_name
+        return entry  # str: "default" or a subdir name
+
+    @staticmethod
+    def deserialize(val) -> "LanguageSpec":
         if isinstance(val, str):
-            return LanguageSpec(Language.deserialize(val), ["default"])
-        return LanguageSpec(
-            Language.deserialize(val["language"]),
-            val.get("variants", ["default"]),
-        )
+            # Legacy: "python" → only the default variant
+            return LanguageSpec(Language.deserialize(val), {"default": "default"})
+        variants = val.get("variants")
+        if variants is None:
+            variants = {"default": "default"}
+        elif isinstance(variants, list):
+            # Old list format: ["default", "cloudflare"]
+            # Each name maps to itself ("default" stays as the sentinel).
+            variants = {v: v for v in variants}
+        # else: already the new dict format
+        return LanguageSpec(Language.deserialize(val["language"]), variants)
 
     def serialize(self) -> dict:
-        """Serialize the language specification to a dictionary.
-
-        Returns:
-            dict: Dictionary with language and variants keys
-        """
         return {
             "language": self._language.value,
             "variants": self._variants,
@@ -217,12 +242,19 @@ class BenchmarkConfig:
         or [] if the language has no implementation in this benchmark."""
         for spec in self._language_specs:
             if spec.language == language:
-                return spec.variants
+                return list(spec.variants.keys())
         return []
 
     def supports(self, language: Language, variant: str) -> bool:
         """Return True when language + variant combination is declared in config.json."""
         return variant in self.supported_variants(language)
+
+    def get_language_spec(self, language: Language) -> "LanguageSpec":
+        """Return the LanguageSpec for *language*, raising if not found."""
+        for spec in self._language_specs:
+            if spec.language == language:
+                return spec
+        raise RuntimeError(f"Language {language.value} not declared in benchmark config")
 
     @staticmethod
     def deserialize(json_object: dict) -> BenchmarkConfig:
@@ -811,52 +843,49 @@ class Benchmark(LoggingBase):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
 
         if self._language_variant != "default":
-            variant_dir = os.path.join(path, self._language_variant)
-            if not os.path.isdir(variant_dir):
-                raise RuntimeError(
-                    "Variant directory not found for benchmark {} language {} "
-                    "variant {}: {}".format(
-                        self.benchmark, self.language_name, self._language_variant, variant_dir
-                    )
-                )
+            lang_spec = self.benchmark_config.get_language_spec(self.language)
+            overlay_dir_name = lang_spec.resolve_dir(
+                self._language_variant, self._container_deployment
+            )
 
-            patch_file = os.path.join(variant_dir, "patch.diff")
-            if os.path.exists(patch_file):
-                # Patch-based variant: a unified diff (patch.diff) is applied on top of the
-                # default implementation.  Use this when the variant only needs small
-                # targeted changes to the base code (e.g. swapping async I/O for sync I/O
-                # in a runtime that lacks full async support).
-                # Apply unified diff on top of the already-copied base files
-                import patch_ng
-
-                pset = patch_ng.fromfile(patch_file)
-                if not pset or not pset.apply(strip=1, root=output_dir):
+            if overlay_dir_name != "default":
+                variant_dir = os.path.join(path, overlay_dir_name)
+                if not os.path.isdir(variant_dir):
                     raise RuntimeError(
-                        "Failed to apply patch {} for variant {}".format(
-                            patch_file, self._language_variant
+                        "Variant directory not found for benchmark {} language {} "
+                        "variant {}: {}".format(
+                            self.benchmark, self.language_name, self._language_variant, variant_dir
                         )
                     )
-                self.logging.info(
-                    "Applied patch for variant {} ({})".format(self._language_variant, patch_file)
-                )
-            else:
-                # Overlay-based variant: the variant directory contains a complete
-                # replacement set of source files that fully override the default
-                # implementation.  All files from the variant directory are copied
-                # on top of the already-placed base files.  Use this when the variant
-                # is substantially different from the default (e.g. a full rewrite).
-                for file_type in FILES[self.language]:
-                    for f in glob.glob(os.path.join(variant_dir, file_type)):
-                        shutil.copy2(f, output_dir)
-                # version-specific package.json override for Node.js
-                nodejs_variant_pkg = os.path.join(
-                    variant_dir, f"package.json.{self.language_version}"
-                )
-                if os.path.exists(nodejs_variant_pkg):
-                    shutil.copy2(nodejs_variant_pkg, os.path.join(output_dir, "package.json"))
-                self.logging.info(
-                    "Applied file overlay for variant {}".format(self._language_variant)
-                )
+
+                patch_file = os.path.join(variant_dir, "patch.diff")
+                if os.path.exists(patch_file):
+                    import patch_ng
+
+                    pset = patch_ng.fromfile(patch_file)
+                    if not pset or not pset.apply(strip=1, root=output_dir):
+                        raise RuntimeError(
+                            "Failed to apply patch {} for variant {}".format(
+                                patch_file, self._language_variant
+                            )
+                        )
+                    self.logging.info(
+                        "Applied patch for variant {} ({})".format(self._language_variant, patch_file)
+                    )
+                else:
+                    for file_type in FILES[self.language]:
+                        for f in glob.glob(os.path.join(variant_dir, file_type)):
+                            shutil.copy2(f, output_dir)
+                    nodejs_variant_pkg = os.path.join(
+                        variant_dir, f"package.json.{self.language_version}"
+                    )
+                    if os.path.exists(nodejs_variant_pkg):
+                        shutil.copy2(nodejs_variant_pkg, os.path.join(output_dir, "package.json"))
+                    self.logging.info(
+                        "Applied file overlay for variant {} (dir: {})".format(
+                            self._language_variant, overlay_dir_name
+                        )
+                    )
 
     def add_benchmark_data(self, output_dir: str) -> None:
         """Add benchmark-specific data and assets to output directory.

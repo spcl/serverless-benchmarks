@@ -2,8 +2,21 @@
   "timeout": 60,
   "memory": 256,
   "languages": [
-    "python",
-    { "language": "nodejs", "variants": ["default", "cloudflare"] }
+    {
+      "language": "python",
+      "variants": {
+        "default": "default",
+        "cloudflare": "default"
+      }
+    },
+    {
+      "language": "nodejs",
+      "variants": {
+        "default": "default",
+        "cloudflare": {"workers": "cloudflare", "containers": "default"}
+      }
+    }
   ],
   "modules": ["storage"]
 }
+
