@@ -585,7 +585,8 @@ class Benchmark(LoggingBase):
         """
         path = os.path.join(self.benchmark_path, self.language_name)
         self._hash_value = Benchmark.hash_directory(
-            path, self._deployment_name, self.language, self._language_variant
+            path, self._deployment_name, self.language, self._language_variant,
+            container_deployment=self._container_deployment,
         )
         return self._hash_value
 
@@ -690,7 +691,8 @@ class Benchmark(LoggingBase):
 
     @staticmethod
     def hash_directory(
-        directory: str, deployment: str, language: Language, variant: str = "default"
+        directory: str, deployment: str, language: Language, variant: str = "default",
+        container_deployment: bool = False,
     ):
         """
         Compute MD5 hash of an entire directory.
@@ -757,6 +759,15 @@ class Benchmark(LoggingBase):
                 else:
                     with open(f, "rb") as opened_file:
                         hash_sum.update(opened_file.read())
+        # For Cloudflare Python containers, also hash the nodejs/container worker.js
+        # since containers.py always copies it into the build directory regardless of language.
+        if deployment == "cloudflare" and language == Language.PYTHON and container_deployment:
+            nodejs_worker = get_resource_path(
+                "benchmarks", "wrappers", "cloudflare", "nodejs", "container", "worker.js"
+            )
+            if os.path.isfile(str(nodejs_worker)):
+                with open(str(nodejs_worker), "rb") as f:
+                    hash_sum.update(f.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:

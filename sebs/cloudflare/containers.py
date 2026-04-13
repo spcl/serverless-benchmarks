@@ -470,7 +470,7 @@ class CloudflareContainersDeployment:
         max_wait_seconds: int = 400
     ) -> bool:
         """
-        Wait for container Durable Object to be fully provisioned and ready.
+        Wait for container worker to be fully provisioned and ready.
 
         Args:
             worker_name: Name of the worker
@@ -483,7 +483,7 @@ class CloudflareContainersDeployment:
         wait_interval = 10
         start_time = time.time()
         
-        self.logging.info("Checking container Durable Object readiness via health endpoint...")
+        self.logging.info("Checking container worker readiness via health endpoint...")
         
         consecutive_failures = 0
         max_consecutive_failures = 5
@@ -498,13 +498,13 @@ class CloudflareContainersDeployment:
                 
                 # 200 = ready
                 if response.status_code == 200:
-                    self.logging.info("Container Durable Object is ready!")
+                    self.logging.info("Container worker is ready!")
                     return True
                 # 503 = not ready yet
                 elif response.status_code == 503:
                     elapsed = int(time.time() - start_time)
                     self.logging.info(
-                        f"Container Durable Object not ready yet (503 Service Unavailable)... "
+                        f"Container worker not ready yet (503 Service Unavailable)... "
                         f"({elapsed}s elapsed, will retry)"
                     )
                 # Other errors
@@ -521,7 +521,7 @@ class CloudflareContainersDeployment:
             time.sleep(wait_interval)
         
         self.logging.warning(
-            f"Container Durable Object may not be fully ready after {max_wait_seconds}s. "
+            f"Container worker may not be fully ready after {max_wait_seconds}s. "
             "First invocation may still experience initialization delay."
         )
         return False

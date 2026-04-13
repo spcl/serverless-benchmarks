@@ -1,10 +1,16 @@
 from typing import Optional
 import concurrent.futures
 import json
+import time
 from datetime import datetime
 from io import BytesIO
 
 from sebs.faas.function import Trigger, ExecutionResult
+
+
+class ContainerProvisioningError(RuntimeError):
+    """Raised when Cloudflare reports the container is still provisioning."""
+    pass
 
 
 class HTTPTrigger(Trigger):
@@ -91,21 +97,46 @@ class HTTPTrigger(Trigger):
             result.parse_benchmark_output(output)
             return result
         except json.decoder.JSONDecodeError:
-            self.logging.error(f"Invocation on URL {url} failed!")
             raw = data.getvalue()
-            if raw:
-                self.logging.error(f"Output: {raw.decode()}")
+            raw_text = raw.decode() if raw else ""
+            provisioning_phrases = (
+                "no Container instance available",
+                "provisioning the Container",
+                "currently provisioning",
+            )
+            if any(p.lower() in raw_text.lower() for p in provisioning_phrases):
+                self.logging.info(f"Container still provisioning (URL {url}): {raw_text[:120]}")
+                raise ContainerProvisioningError(
+                    f"Container not yet available: {raw_text[:200]}"
+                )
+            self.logging.error(f"Invocation on URL {url} failed!")
+            if raw_text:
+                self.logging.error(f"Output: {raw_text}")
             else:
                 self.logging.error("No output provided!")
-            raise RuntimeError(f"Failed invocation of function! Output: {raw.decode()}")
+            raise RuntimeError(f"Failed invocation of function! Output: {raw_text}")
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         """Synchronously invoke a Cloudflare Worker via HTTP."""
         self.logging.debug(f"Invoke function {self.url}")
-        result = self._http_invoke(payload, self.url)
+        max_provisioning_retries = 6
+        provisioning_retry_wait = 30  # seconds between retries
+        for attempt in range(max_provisioning_retries + 1):
+            try:
+                result = self._http_invoke(payload, self.url)
+                break
+            except ContainerProvisioningError:
+                if attempt < max_provisioning_retries:
+                    self.logging.info(
+                        f"Container still provisioning, waiting {provisioning_retry_wait}s before retry "
+                        f"(attempt {attempt + 1}/{max_provisioning_retries})..."
+                    )
+                    time.sleep(provisioning_retry_wait)
+                else:
+                    raise
         
         # Extract measurement data from the response if available
-        if result.output and 'result' in result.output:
+        if result.output and 'result' in result.output:  # type: ignore[union-attr]
             result_data = result.output['result']
             if isinstance(result_data, dict) and 'measurement' in result_data:
                 measurement = result_data['measurement']

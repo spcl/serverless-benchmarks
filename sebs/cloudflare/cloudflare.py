@@ -543,7 +543,7 @@ class Cloudflare(System):
 
             # The container binding needs time to propagate before first invocation
             if container_deployment:
-                self.logging.info("Waiting for container Durable Object to initialize...")
+                self.logging.info("Waiting for container worker to initialize...")
                 account_id = env.get('CLOUDFLARE_ACCOUNT_ID')
                 worker_url = self._build_workers_dev_url(worker_name, account_id)
                 self._containers_deployment.wait_for_durable_object_ready(

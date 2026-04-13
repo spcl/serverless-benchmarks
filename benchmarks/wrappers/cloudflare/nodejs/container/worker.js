@@ -320,18 +320,57 @@ async function handleR2Request(request, env) {
       }
     }
     
-    // All other R2 operations require both bucket and key
-    if (!bucket || !key) {
+    // Multipart upload routes only need 'key' (bucket is implicit in the R2 binding)
+    if (url.pathname === '/r2/multipart-init') {
+      // Initiate a multipart upload; returns { key, uploadId }
+      const contentType = url.searchParams.get('contentType') || 'application/octet-stream';
+      console.log(`[worker.js /r2/multipart-init] key=${key}, contentType=${contentType}`);
+      const multipart = await env.R2.createMultipartUpload(key, {
+        httpMetadata: { contentType }
+      });
+      console.log(`[worker.js /r2/multipart-init] uploadId=${multipart.uploadId}`);
       return new Response(JSON.stringify({
-        error: 'Missing bucket or key parameter'
+        key: multipart.key,
+        uploadId: multipart.uploadId
+      }), { headers: { 'Content-Type': 'application/json' } });
+
+    } else if (url.pathname === '/r2/multipart-part') {
+      // Upload one part; returns { partNumber, etag }
+      const uploadId = url.searchParams.get('uploadId');
+      const partNumber = parseInt(url.searchParams.get('partNumber'), 10);
+      console.log(`[worker.js /r2/multipart-part] key=${key}, uploadId=${uploadId}, partNumber=${partNumber}`);
+      const multipart = env.R2.resumeMultipartUpload(key, uploadId);
+      const part = await multipart.uploadPart(partNumber, request.body);
+      console.log(`[worker.js /r2/multipart-part] uploaded part ${part.partNumber}, etag=${part.etag}`);
+      return new Response(JSON.stringify({
+        partNumber: part.partNumber,
+        etag: part.etag
+      }), { headers: { 'Content-Type': 'application/json' } });
+
+    } else if (url.pathname === '/r2/multipart-complete') {
+      // Complete a multipart upload; body is JSON { parts: [{ partNumber, etag }] }
+      const uploadId = url.searchParams.get('uploadId');
+      console.log(`[worker.js /r2/multipart-complete] key=${key}, uploadId=${uploadId}`);
+      const { parts } = await request.json();
+      const multipart = env.R2.resumeMultipartUpload(key, uploadId);
+      const obj = await multipart.complete(parts);
+      console.log(`[worker.js /r2/multipart-complete] completed, size=${obj ? obj.size : '?'}`);
+      return new Response(JSON.stringify({ key: key }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Download and upload require a key (bucket is implicit in the R2 binding)
+    if (!key) {
+      return new Response(JSON.stringify({
+        error: 'Missing key parameter'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     if (url.pathname === '/r2/download') {
-      // Download from R2
       const object = await env.R2.get(key);
       
       if (!object) {
@@ -352,16 +391,19 @@ async function handleR2Request(request, env) {
       });
       
     } else if (url.pathname === '/r2/upload') {
-      // Upload to R2
+      // Upload to R2 — stream request.body directly to avoid buffering large payloads in Worker memory
       console.log(`[worker.js /r2/upload] bucket=${bucket}, key=${key}`);
       console.log(`[worker.js /r2/upload] env.R2 exists:`, !!env.R2);
-      const data = await request.arrayBuffer();
-      console.log(`[worker.js /r2/upload] Received ${data.byteLength} bytes`);
+      const contentLength = request.headers.get('Content-Length');
+      console.log(`[worker.js /r2/upload] Content-Length: ${contentLength}`);
       
       // Use the key as-is (container already generates unique keys if needed)
       try {
-        const putResult = await env.R2.put(key, data);
-        console.log(`[worker.js /r2/upload] R2.put() returned:`, putResult);
+        const putResult = await env.R2.put(key, request.body, {
+          httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
+        });
+        const size = putResult ? putResult.size : '(unknown)';
+        console.log(`[worker.js /r2/upload] R2.put() succeeded, size=${size}`);
         console.log(`[worker.js /r2/upload] Successfully uploaded to R2 with key=${key}`);
       } catch (error) {
         console.error(`[worker.js /r2/upload] R2.put() error:`, error);
