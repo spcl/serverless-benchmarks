@@ -220,8 +220,10 @@ class storage:
     def download_directory(self, bucket, prefix, local_path):
         """
         Download all files with a given prefix to a local directory.
-        Lists objects via /r2/list endpoint and downloads each one.
+        Lists objects via /r2/list endpoint and downloads each one in parallel.
         """
+        import concurrent.futures
+
         if not storage.worker_url:
             raise RuntimeError("Worker URL not set - cannot access R2")
         
@@ -241,26 +243,25 @@ class storage:
                 objects = result.get('objects', [])
                 
                 print(f"Found {len(objects)} objects with prefix '{prefix}'")
-                
-                # Download each object
-                for obj in objects:
+
+                def _download_one(obj):
                     obj_key = obj['key']
-                    # Create local file path by removing the prefix
                     relative_path = obj_key
                     if prefix and obj_key.startswith(prefix):
                         relative_path = obj_key[len(prefix):].lstrip('/')
-                    
                     local_file_path = os.path.join(local_path, relative_path)
-                    
-                    # Create directory structure if needed
                     local_dir = os.path.dirname(local_file_path)
                     if local_dir:
                         os.makedirs(local_dir, exist_ok=True)
-                    
-                    # Download the file
                     print(f"Downloading {obj_key} to {local_file_path}")
                     self.download(bucket, obj_key, local_file_path)
-                
+
+                # Download all objects in parallel (up to 16 concurrent)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+                    futures = [executor.submit(_download_one, obj) for obj in objects]
+                    for fut in concurrent.futures.as_completed(futures):
+                        fut.result()  # re-raise any exception
+
                 return local_path
                 
         except Exception as e:
