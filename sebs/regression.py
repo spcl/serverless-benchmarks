@@ -1469,8 +1469,9 @@ def regression_suite(
             # Remove unsupported benchmarks
             test_architecture = getattr(test, test_name).test_architecture  # type: ignore
             test_deployment_type = getattr(test, test_name).test_deployment_type  # type: ignore
+            test_benchmark = getattr(test, test_name).test_benchmark  # type: ignore
             if not filter_out_benchmarks(
-                test_name,
+                test_benchmark,
                 test.deployment_name,  # type: ignore
                 language,
                 language_version,
