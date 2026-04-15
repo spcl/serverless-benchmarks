@@ -7,3 +7,7 @@ size_generators = {
 
 def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
     return { 'size': size_generators[size], 'seed': 42}
+
+def validate_output(input_config: dict, output: dict) -> bool:
+    result = output.get('result')
+    return isinstance(result, float) and 0.0 <= result <= 1.0

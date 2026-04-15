@@ -45,3 +45,9 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     input_config['bucket']['input'] = input_paths[1]
     input_config['bucket']['model'] = input_paths[0]
     return input_config
+
+def validate_output(input_config: dict, output: dict) -> bool:
+    result = output.get('result', {})
+    cls = result.get('class', '')
+    idx = result.get('idx', -1)
+    return isinstance(cls, str) and len(cls) > 0 and isinstance(idx, int) and idx >= 0

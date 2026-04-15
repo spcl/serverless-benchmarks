@@ -1691,6 +1691,24 @@ class Benchmark(LoggingBase):
 
         return input_config
 
+    def validate_output(self, input_config: dict, output: dict) -> bool:
+        """Validate benchmark output against expected values.
+
+        Delegates to the benchmark's input module `validate_output` function
+        if it is defined. Returns True if no validation function is available.
+
+        Args:
+            input_config: The input configuration used to invoke the benchmark
+            output: The output returned by the benchmark function handler
+
+        Returns:
+            bool: True if the output is valid or no validator is defined,
+                  False if validation fails
+        """
+        if hasattr(self._benchmark_input_module, "validate_output"):
+            return self._benchmark_input_module.validate_output(input_config, output)
+        return True
+
     def code_package_modify(self, filename: str, data: bytes) -> None:
         """
         Updates a specific file within the code package without rebuilding
@@ -1865,6 +1883,23 @@ class BenchmarkModuleInterface:
             Dict[str, str]: Input configuration dictionary for the benchmark
         """
         pass
+
+    @staticmethod
+    def validate_output(input_config: dict, output: dict) -> bool:
+        """Validate benchmark output against expected values.
+
+        Checks that the benchmark function's output is correct for the given
+        input. This optional method can be implemented in each benchmark's
+        input.py to enable output validation during regression testing.
+
+        Args:
+            input_config: The input configuration used to invoke the benchmark
+            output: The output returned by the benchmark function handler
+
+        Returns:
+            bool: True if the output is valid, False otherwise
+        """
+        return True
 
 
 def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:

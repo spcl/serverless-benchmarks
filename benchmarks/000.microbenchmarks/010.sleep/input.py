@@ -11,3 +11,6 @@ def buckets_count():
 
 def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
     return { 'sleep': size_generators[size] }
+
+def validate_output(input_config: dict, output: dict) -> bool:
+    return output.get('result') == input_config.get('sleep')

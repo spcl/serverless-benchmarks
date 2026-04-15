@@ -26,3 +26,8 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     input_config['bucket']['input'] = input_paths[0]
     input_config['bucket']['output'] = output_paths[0]
     return input_config
+
+def validate_output(input_config: dict, output: dict) -> bool:
+    result = output.get('result', {})
+    key = result.get('key', '')
+    return isinstance(key, str) and len(key) > 0

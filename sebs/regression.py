@@ -242,9 +242,17 @@ class TestSequenceMeta(type):
                                 f"{benchmark_name} fail on trigger: {trigger_type}"
                             )
                         else:
-                            logging_wrapper.info(
-                                f"{benchmark_name} success on trigger: {trigger_type}"
-                            )
+                            output = ret.output.get("result", {})
+                            if not benchmark.validate_output(input_config, output):
+                                failure = True
+                                logging_wrapper.error(
+                                    f"{benchmark_name} output validation failed"
+                                    f" on trigger: {trigger_type}"
+                                )
+                            else:
+                                logging_wrapper.info(
+                                    f"{benchmark_name} success on trigger: {trigger_type}"
+                                )
                         execution_results[trigger_type.name] = ret.output
                     except RuntimeError:
                         failure = True

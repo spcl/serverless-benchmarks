@@ -10,3 +10,8 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     input_config = {'username': 'testname'} 
     input_config['random_len'] = size_generators[size]
     return input_config
+
+def validate_output(input_config: dict, output: dict) -> bool:
+    result = output.get('result', '')
+    username = input_config.get('username', '')
+    return isinstance(result, str) and len(result) > 0 and username in result

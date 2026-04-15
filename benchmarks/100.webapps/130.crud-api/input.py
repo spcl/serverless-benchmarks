@@ -95,3 +95,21 @@ def generate_input(
     input_config["requests"] = requests
 
     return input_config
+
+def validate_output(input_config: dict, output: dict) -> bool:
+    results = output.get('result', [])
+    requests = input_config.get('requests', [])
+    if not isinstance(results, list) or len(results) != len(requests):
+        return False
+    for request, result in zip(requests, results):
+        route = request.get('route')
+        if route == 'GET /cart/{id}':
+            if 'name' not in result or 'price' not in result or 'quantity' not in result:
+                return False
+        elif route == 'GET /cart':
+            if 'products' not in result or 'total_cost' not in result:
+                return False
+        elif route == 'PUT /cart':
+            if not isinstance(result, dict):
+                return False
+    return True
