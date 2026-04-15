@@ -347,7 +347,7 @@ class AWSResources(Resources):
         self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
         self._function_urls: Dict[str, AWSResources.FunctionURL] = {}
-        self._use_function_url: bool = False
+        self._use_function_url: bool = True
         self._function_url_auth_type: FunctionURLAuthType = FunctionURLAuthType.NONE
 
     @staticmethod
@@ -604,13 +604,13 @@ class AWSResources(Resources):
         dry_run_tag = "[DRY-RUN] " if dry_run else ""
 
         dict_copy = self._function_urls.copy()
-        for func_name, _ in dict_copy.items():
+        for func_name, func_url in dict_copy.items():
 
             self.logging.info(f"{dry_run_tag}Deleting Function URL for: {func_name}")
 
             if not dry_run:
                 self.delete_function_url(func_name, boto3_session)
-            deleted.append(func_name)
+            deleted.append(func_url.url)
 
         if not dry_run:
             for func_name in deleted:
@@ -985,7 +985,7 @@ class AWSResources(Resources):
             for key, value in dct["function-urls"].items():
                 ret._function_urls[key] = AWSResources.FunctionURL.deserialize(value)
 
-        ret._use_function_url = dct.get("use-function-url", False)
+        ret._use_function_url = dct.get("use-function-url", True)
         auth_type_str = dct.get("function-url-auth-type", "NONE")
         ret.function_url_auth_type = FunctionURLAuthType.from_string(auth_type_str)
 
