@@ -1,0 +1,126 @@
+name: Regression Job (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+      language:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    env:
+      RESOURCE_PREFIX: sebs-ci
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Restore SeBS cache
+        uses: actions/cache/restore@v4
+        with:
+          path: regression-cache/
+          key: sebs-cache-${{ github.ref_name }}-${{ inputs.platform }}-${{ inputs.language }}-${{ inputs.version }}
+          restore-keys: |
+            sebs-cache-${{ github.ref_name }}-
+
+      - name: Setup GCP credentials
+        if: inputs.platform == 'gcp'
+        run: |
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" > /tmp/gcp-credentials.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json" >> $GITHUB_ENV
+
+      - name: Setup Azure credentials
+        if: inputs.platform == 'azure'
+        run: |
+          echo "AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+          echo "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_ENV
+          echo "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" >> $GITHUB_ENV
+
+      - name: Setup AWS credentials
+        if: inputs.platform == 'aws'
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }}" >> $GITHUB_ENV
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install SeBS
+        run: uv pip install .
+
+      - name: Run regression tests
+        timeout-minutes: 5
+        run: |
+          sebs benchmark regression test \
+            --config configs/example.json \
+            --deployment ${{ inputs.platform }} \
+            --language ${{ inputs.language }} \
+            --language-version ${{ inputs.version }} \
+            --architecture x64 --selected-architecture \
+            --resource-prefix sebs-ci
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "Regression Test Summary" > test-summary.txt
+          echo "======================" >> test-summary.txt
+          echo "Platform: ${{ inputs.platform }}" >> test-summary.txt
+          echo "Language: ${{ inputs.language }}" >> test-summary.txt
+          echo "Version: ${{ inputs.version }}" >> test-summary.txt
+          echo "" >> test-summary.txt
+          if ls regression_*.json 1> /dev/null 2>&1; then
+            ls -1 regression_*.json | wc -l | xargs echo "Benchmarks tested:" >> test-summary.txt
+            echo "" >> test-summary.txt
+            echo "Results saved to artifacts/results/" >> test-summary.txt
+          else
+            echo "No benchmark results found" >> test-summary.txt
+          fi
+
+      - name: Upload test summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-summary-${{ inputs.platform }}-${{ inputs.language }}-${{ inputs.version }}
+          path: test-summary.txt
+
+      - name: Collect and upload regression results
+        if: always()
+        run: |
+          mkdir -p results
+          if ls regression_*.json 1> /dev/null 2>&1; then
+            mv regression_*.json results/ || true
+          fi
+
+      - name: Upload regression results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ inputs.platform }}-${{ inputs.language }}-${{ inputs.version }}
+          path: results/
+          if-no-files-found: ignore
+
+      - name: Upload cache snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-snapshot-${{ inputs.platform }}-${{ inputs.language }}-${{ inputs.version }}
+          path: cache/
+          if-no-files-found: ignore
+
+      - name: Save SeBS cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: regression-cache/
+          key: sebs-cache-${{ github.ref_name }}-${{ inputs.platform }}-${{ inputs.language }}-${{ inputs.version }}
