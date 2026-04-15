@@ -77,6 +77,33 @@ or in the JSON input configuration:
 }
 ```
 
+### Lambda Function URLs vs API Gateway
+
+SeBS supports two methods for HTTP-based function invocation on AWS Lambda:
+
+1. **Lambda Function URLs** (default) - Direct Lambda invocations.
+2. **API Gateway HTTP API** (optional) - Traditional approach using AWS API Gateway.
+
+SeBS used API Gateway to trigger Lambda functions. However, API Gateway has a hard timeout limit of 29 seconds, which can be restrictive for long-running benchmarks. To overcome this limitation and simplify the architecture, we added support for Lambda Function URLs, which allow direct invocation of Lambda functions without the need for API Gateway. Since we do not rely on more complex API management features, function URLs are now the default version.
+
+However, API gateway can still be used to benchmarking. The switch between both options is configured in the deployment settings:
+
+```json
+"deployment": {
+  "name": "aws",
+  "aws": {
+    "region": "us-east-1",
+    "resources": {
+      "use-function-url": true,
+      "function-url-auth-type": "NONE"
+    }
+  }
+}
+```
+
+> [!WARNING]
+> SeBS implements the "NONE" authentication mode for function URLs, making Lambda functions publicly accessible without any authentication.
+
 ## Azure Functions
 
 Azure provides a free tier for 12 months.
@@ -270,9 +297,8 @@ See the documentation on the
 and [OpenWhisk configuration](https://github.com/apache/openwhisk-deploy-kube/blob/master/docs/private-docker-registry.md)
 for details.
 
-**Warning**: this feature is experimental and has not been tested extensively.
-At the moment, it cannot be used on a `kind` cluster due to issues with
-Docker authorization on invoker nodes. [See the OpenWhisk issue for details](https://github.com/apache/openwhisk-deploy-kube/issues/721).
+> [!WARNING]
+> This feature is experimental and has not been tested extensively. At the moment, it cannot be used on a `kind` cluster due to issues with Docker authorization on invoker nodes. [See the OpenWhisk issue for details](https://github.com/apache/openwhisk-deploy-kube/issues/721).
 
 ### Code Deployment
 

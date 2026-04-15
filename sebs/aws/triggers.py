@@ -14,10 +14,19 @@ import base64
 import concurrent.futures
 import datetime
 import json
+from enum import Enum
 from typing import Dict, Optional  # noqa
 
 from sebs.aws.aws import AWS
+from sebs.aws.config import FunctionURLAuthType
 from sebs.faas.function import ExecutionResult, Trigger
+
+
+class HTTPTriggerImplementation(Enum):
+    """Internal implementation type for HTTP triggers."""
+
+    API_GATEWAY = "api_gateway"
+    FUNCTION_URL = "function_url"
 
 
 class LibraryTrigger(Trigger):
@@ -189,27 +198,70 @@ class LibraryTrigger(Trigger):
 
 
 class HTTPTrigger(Trigger):
-    """AWS API Gateway HTTP trigger for Lambda functions.
+    """AWS HTTP trigger for Lambda functions.
 
-    This trigger uses HTTP requests to invoke Lambda functions through
-    AWS API Gateway. It provides both synchronous and asynchronous
-    invocation methods.
+    This trigger uses HTTP requests to invoke Lambda functions through either
+    AWS API Gateway or Lambda Function URLs. The implementation is transparent
+    to the user - both are accessed as HTTP triggers.
 
     Attributes:
-        url: API Gateway endpoint URL
-        api_id: API Gateway API ID
+        url: HTTP endpoint URL (API Gateway or Function URL)
+        implementation: Internal implementation type (API Gateway or Function URL)
+        api_id: API Gateway API ID (only for API Gateway implementation)
+        function_name: Function name (only for Function URL implementation)
+        auth_type: Authentication type (only for Function URL implementation)
     """
 
-    def __init__(self, url: str, api_id: str) -> None:
+    def __init__(
+        self,
+        url: str,
+        implementation: HTTPTriggerImplementation = HTTPTriggerImplementation.API_GATEWAY,
+        api_id: Optional[str] = None,
+        function_name: Optional[str] = None,
+        auth_type: Optional[FunctionURLAuthType] = None,
+    ) -> None:
         """Initialize the HTTP trigger.
 
         Args:
-            url: API Gateway endpoint URL
-            api_id: API Gateway API ID
+            url: HTTP endpoint URL
+            implementation: Implementation type (API Gateway or Function URL)
+            api_id: API Gateway API ID (required for API Gateway)
+            function_name: Function name (required for Function URL)
+            auth_type: Authentication type (for Function URL, defaults to NONE)
         """
         super().__init__()
         self.url = url
+        self._implementation = implementation
         self.api_id = api_id
+        self.function_name = function_name
+        self.auth_type = auth_type if auth_type is not None else FunctionURLAuthType.NONE
+
+    @property
+    def implementation(self) -> HTTPTriggerImplementation:
+        """Get the implementation type of this HTTP trigger.
+
+        Returns:
+            HTTPTriggerImplementation: API_GATEWAY or FUNCTION_URL
+        """
+        return self._implementation
+
+    @property
+    def uses_api_gateway(self) -> bool:
+        """Check if this trigger uses API Gateway.
+
+        Returns:
+            bool: True if using API Gateway, False otherwise
+        """
+        return self._implementation == HTTPTriggerImplementation.API_GATEWAY
+
+    @property
+    def uses_function_url(self) -> bool:
+        """Check if this trigger uses Lambda Function URLs.
+
+        Returns:
+            bool: True if using Function URLs, False otherwise
+        """
+        return self._implementation == HTTPTriggerImplementation.FUNCTION_URL
 
     @staticmethod
     def typename() -> str:
@@ -232,15 +284,29 @@ class HTTPTrigger(Trigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         """Synchronously invoke the function via HTTP.
 
-        Sends an HTTP request to the API Gateway endpoint and waits
-        for the response.
+        Sends an HTTP request to the endpoint (API Gateway or Function URL)
+        and waits for the response.
 
         Args:
             payload: Dictionary payload to send to the function
 
         Returns:
             ExecutionResult: Result of the HTTP invocation
+
+        Raises:
+            NotImplementedError: If using AWS_IAM auth with Function URLs
         """
+        # Check for unsupported AWS_IAM auth with Function URLs
+        if (
+            self._implementation == HTTPTriggerImplementation.FUNCTION_URL
+            and self.auth_type == FunctionURLAuthType.AWS_IAM
+        ):
+            raise NotImplementedError(
+                "AWS_IAM auth type requires SigV4 signing, which is not yet "
+                "implemented for Function URLs. Use auth_type=NONE or "
+                "implement SigV4 signing via botocore.auth.SigV4Auth."
+            )
+
         self.logging.debug(f"Invoke function {self.url}")
         return self._http_invoke(payload, self.url)
 
@@ -263,9 +329,23 @@ class HTTPTrigger(Trigger):
         """Serialize the trigger to a dictionary.
 
         Returns:
-            dict: Serialized trigger configuration
+            dict: Serialized trigger configuration including implementation details
         """
-        return {"type": "HTTP", "url": self.url, "api-id": self.api_id}
+        base = {
+            "type": "HTTP",
+            "url": self.url,
+            "implementation": self._implementation.value,
+        }
+
+        if self._implementation == HTTPTriggerImplementation.API_GATEWAY:
+            if self.api_id is not None:
+                base["api-id"] = self.api_id
+        else:  # FUNCTION_URL
+            if self.function_name is not None:
+                base["function_name"] = self.function_name
+            base["auth_type"] = self.auth_type.value
+
+        return base
 
     @staticmethod
     def deserialize(obj: dict) -> Trigger:
@@ -277,4 +357,29 @@ class HTTPTrigger(Trigger):
         Returns:
             Trigger: Deserialized HTTPTrigger instance
         """
-        return HTTPTrigger(obj["url"], obj["api-id"])
+        # Check for implementation field (new format)
+        if "implementation" in obj:
+            impl_value = obj["implementation"]
+            implementation = HTTPTriggerImplementation(impl_value)
+
+            if implementation == HTTPTriggerImplementation.API_GATEWAY:
+                return HTTPTrigger(
+                    url=obj["url"],
+                    implementation=implementation,
+                    api_id=obj.get("api-id"),
+                )
+            else:  # FUNCTION_URL
+                auth_type_str = obj.get("auth_type", "NONE")
+                return HTTPTrigger(
+                    url=obj["url"],
+                    implementation=implementation,
+                    function_name=obj.get("function_name"),
+                    auth_type=FunctionURLAuthType.from_string(auth_type_str),
+                )
+        else:
+            # Legacy format compatibility - assume API Gateway
+            return HTTPTrigger(
+                url=obj["url"],
+                implementation=HTTPTriggerImplementation.API_GATEWAY,
+                api_id=obj.get("api-id"),
+            )

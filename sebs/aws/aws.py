@@ -692,7 +692,7 @@ class AWS(System):
     def cleanup_resources(self, dry_run: bool = False) -> dict:
         """Delete allocated resources on AWS.
         Currently it deletes the following resources:
-        * Lambda functions and its HTTP API triggers.
+        * Lambda functions and its HTTP API/Function URL triggers.
         * CloudWatch log groups of the functions.
         * DynamoDB tables created for the benchmark.
         * S3 buckets and their content created for the benchmark.
@@ -717,6 +717,10 @@ class AWS(System):
         result["Lambda functions"] = self.cleanup_functions(dry_run)
 
         result["HTTP APIs"] = self.config.resources.cleanup_http_apis(
+            self.session, self.cache_client, dry_run
+        )
+
+        result["Function URLs"] = self.config.resources.cleanup_function_urls(
             self.session, self.cache_client, dry_run
         )
 
@@ -858,7 +862,7 @@ class AWS(System):
             f"out of {results_count} invocations"
         )
 
-    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """Create a trigger for the specified function.
 
         Creates and configures a trigger based on the specified type. Currently
@@ -874,32 +878,50 @@ class AWS(System):
         Raises:
             RuntimeError: If trigger type is not supported
         """
-        from sebs.aws.triggers import HTTPTrigger
+        from sebs.aws.triggers import HTTPTrigger, HTTPTriggerImplementation
 
-        function = cast(LambdaFunction, func)
+        function = cast(LambdaFunction, function)
 
+        trigger: Trigger
         if trigger_type == Trigger.TriggerType.HTTP:
-            api_name = "{}-http-api".format(function.name)
-            http_api = self.config.resources.http_api(api_name, function, self.session)
-            # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
-            # but this is wrong - source arn must be {api-arn}/*/*
-            self.get_lambda_client().add_permission(
-                FunctionName=function.name,
-                StatementId=str(uuid.uuid1()),
-                Action="lambda:InvokeFunction",
-                Principal="apigateway.amazonaws.com",
-                SourceArn=f"{http_api.arn}/*/*",
-            )
-            trigger = HTTPTrigger(http_api.endpoint, api_name)
-            self.logging.info(
-                f"Created HTTP trigger for {func.name} function. "
-                "Sleep 5 seconds to avoid cloud errors."
-            )
-            time.sleep(5)
+            if self.config.resources.use_function_url:
+                # Use Lambda Function URL (no 29-second timeout limit)
+                func_url = self.config.resources.function_url(function, self.session)
+                trigger = HTTPTrigger(
+                    url=func_url.url,
+                    implementation=HTTPTriggerImplementation.FUNCTION_URL,
+                    function_name=func_url.function_name,
+                    auth_type=func_url.auth_type,
+                )
+                self.logging.info(f"Created Function URL trigger for {function.name} function.")
+            else:
+                # Use API Gateway (default, for backward compatibility)
+                api_name = "{}-http-api".format(function.name)
+                http_api = self.config.resources.http_api(api_name, function, self.session)
+                # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
+                # but this is wrong - source arn must be {api-arn}/*/*
+                self.get_lambda_client().add_permission(
+                    FunctionName=function.name,
+                    StatementId=str(uuid.uuid1()),
+                    Action="lambda:InvokeFunction",
+                    Principal="apigateway.amazonaws.com",
+                    SourceArn=f"{http_api.arn}/*/*",
+                )
+                trigger = HTTPTrigger(
+                    url=http_api.endpoint,
+                    implementation=HTTPTriggerImplementation.API_GATEWAY,
+                    api_id=api_name,
+                )
+                self.logging.info(
+                    f"Created HTTP API Gateway trigger for {function.name} function. "
+                    "Sleep 5 seconds to avoid cloud errors."
+                )
+                time.sleep(5)
+
             trigger.logging_handlers = self.logging_handlers
         elif trigger_type == Trigger.TriggerType.LIBRARY:
             # should already exist
-            return func.triggers(Trigger.TriggerType.LIBRARY)[0]
+            return function.triggers(Trigger.TriggerType.LIBRARY)[0]
         else:
             raise RuntimeError("Not supported!")
 

@@ -46,7 +46,11 @@
     "name": "aws",
     "aws": {
       "region": "us-east-1",
-      "lambda-role": ""
+      "lambda-role": "",
+      "resources": {
+        "use-function-url": true,
+        "function-url-auth-type": "NONE"
+      }
     },
     "azure": {
       "region": "westeurope"
