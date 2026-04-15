@@ -869,7 +869,7 @@ class AWS(System):
             f"out of {results_count} invocations"
         )
 
-    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """Create a trigger for the specified function.
 
         Creates and configures a trigger based on the specified type. Currently
@@ -885,19 +885,22 @@ class AWS(System):
         Raises:
             RuntimeError: If trigger type is not supported
         """
-        from sebs.aws.triggers import HTTPTrigger, FunctionURLTrigger
+        from sebs.aws.triggers import HTTPTrigger, HTTPTriggerImplementation
 
-        function = cast(LambdaFunction, func)
+        function = cast(LambdaFunction, function)
 
         trigger: Trigger
         if trigger_type == Trigger.TriggerType.HTTP:
             if self.config.resources.use_function_url:
                 # Use Lambda Function URL (no 29-second timeout limit)
                 func_url = self.config.resources.function_url(function, self.session)
-                trigger = FunctionURLTrigger(
-                    func_url.url, func_url.function_name, func_url.auth_type
+                trigger = HTTPTrigger(
+                    url=func_url.url,
+                    implementation=HTTPTriggerImplementation.FUNCTION_URL,
+                    function_name=func_url.function_name,
+                    auth_type=func_url.auth_type,
                 )
-                self.logging.info(f"Created Function URL trigger for {func.name} function.")
+                self.logging.info(f"Created Function URL trigger for {function.name} function.")
             else:
                 # Use API Gateway (default, for backward compatibility)
                 api_name = "{}-http-api".format(function.name)
@@ -911,9 +914,13 @@ class AWS(System):
                     Principal="apigateway.amazonaws.com",
                     SourceArn=f"{http_api.arn}/*/*",
                 )
-                trigger = HTTPTrigger(http_api.endpoint, api_name)
+                trigger = HTTPTrigger(
+                    url=http_api.endpoint,
+                    implementation=HTTPTriggerImplementation.API_GATEWAY,
+                    api_id=api_name,
+                )
                 self.logging.info(
-                    f"Created HTTP API Gateway trigger for {func.name} function. "
+                    f"Created HTTP API Gateway trigger for {function.name} function. "
                     "Sleep 5 seconds to avoid cloud errors."
                 )
                 time.sleep(5)
@@ -921,7 +928,7 @@ class AWS(System):
             trigger.logging_handlers = self.logging_handlers
         elif trigger_type == Trigger.TriggerType.LIBRARY:
             # should already exist
-            return func.triggers(Trigger.TriggerType.LIBRARY)[0]
+            return function.triggers(Trigger.TriggerType.LIBRARY)[0]
         else:
             raise RuntimeError("Not supported!")
 
