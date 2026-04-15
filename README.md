@@ -240,3 +240,4 @@ However, they can be missing some of the features from the `master` branch.
 * [Mahla Sharifi](https://github.com/mahlashrifi) - contributed support for Java benchmarks.
 * [Alexander Schlieper (ETH Zurich)](https://github.com/xSurus) - improved support for Java benchmarks.
 * [Laurin Jahns (ETH Zurich)](https://github.com/userlaurin) - support for language variants.
+* [Sharayu Rasal](https://github.com/Sharayu1418) - help with function URLs on AWS.
