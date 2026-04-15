@@ -110,6 +110,6 @@ def validate_output(input_config: dict, output: dict) -> bool:
             if 'products' not in result or 'total_cost' not in result:
                 return False
         elif route == 'PUT /cart':
-            if not isinstance(result, dict):
+            if result != {}:
                 return False
     return True
