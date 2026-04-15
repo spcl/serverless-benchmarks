@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import sebs
 from sebs.faas.function import Trigger
@@ -98,9 +98,11 @@ class AWSFunctionURL(unittest.TestCase):
         self.assertGreater(len(all_triggers), 0)
 
         function_url_trigger = all_triggers[0]
-        from sebs.aws.triggers import FunctionURLTrigger
+        from sebs.aws.triggers import HTTPTrigger
 
-        self.assertIsInstance(function_url_trigger, FunctionURLTrigger)
+        self.assertIsInstance(function_url_trigger, HTTPTrigger)
+        self.assertTrue(function_url_trigger.uses_function_url)
+        self.assertFalse(function_url_trigger.uses_api_gateway)
         self.assertTrue(function_url_trigger.url)
         self.assertTrue(function_url_trigger.url.startswith("https://"))
 
@@ -135,6 +137,76 @@ class AWSFunctionURL(unittest.TestCase):
         self.assertIn("Function URLs", cleanup_result)
         self.assertEqual(len(cleanup_result["Function URLs"]), 1)
         self.assertEqual(cleanup_result["Function URLs"][0], func_url)
+
+    def test_api_gateway_still_works(self):
+        """Test that API Gateway triggers still work alongside Function URLs.
+
+        Verifies:
+        1. A single function can have both API Gateway and Function URL triggers
+        2. Both trigger types are distinct HTTPTrigger instances
+        3. Both triggers work with invocation
+        """
+        from sebs.aws.triggers import HTTPTrigger
+
+        # Save original config
+        original_use_function_url = self.deployment_client.config.resources.use_function_url
+
+        try:
+            func = self._get_function("dual-func-url")
+
+            http_triggers = func.triggers(Trigger.TriggerType.HTTP)
+
+            # Create API Gateway trigger first
+            self.deployment_client.config.resources.use_function_url = False
+            self.deployment_client.create_trigger(func, Trigger.TriggerType.HTTP)
+
+            # Add Function URL trigger to the same function
+            self.deployment_client.config.resources.use_function_url = True
+            self.deployment_client.create_trigger(func, Trigger.TriggerType.HTTP)
+
+            # Verify we have 2 HTTP triggers
+            http_triggers = func.triggers(Trigger.TriggerType.HTTP)
+            self.assertEqual(len(http_triggers), 2)
+
+            # Find each trigger type
+            api_gw_trigger = None
+            func_url_trigger = None
+
+            for trigger in http_triggers:
+                self.assertIsInstance(trigger, HTTPTrigger)
+                trigger_aws = cast(sebs.aws.triggers.HTTPTrigger, trigger)
+                if trigger_aws.uses_api_gateway:
+                    api_gw_trigger = trigger
+                elif trigger_aws.uses_function_url:
+                    func_url_trigger = trigger
+
+            # Verify both types exist
+            self.assertIsNotNone(api_gw_trigger, "API Gateway trigger not found")
+            self.assertIsNotNone(func_url_trigger, "Function URL trigger not found")
+
+            # Verify API Gateway trigger properties
+            self.assertTrue(api_gw_trigger.uses_api_gateway)
+            self.assertFalse(api_gw_trigger.uses_function_url)
+            self.assertTrue(api_gw_trigger.url.startswith("https://"))
+
+            # Verify Function URL trigger properties
+            self.assertTrue(func_url_trigger.uses_function_url)
+            self.assertFalse(func_url_trigger.uses_api_gateway)
+            self.assertTrue(func_url_trigger.url.startswith("https://"))
+
+            # Verify different URLs
+            self.assertNotEqual(api_gw_trigger.url, func_url_trigger.url)
+
+            # Test invocation via both triggers
+            ret_api_gw = api_gw_trigger.sync_invoke(self.bench_input)
+            self.assertFalse(ret_api_gw.stats.failure)
+
+            ret_func_url = func_url_trigger.sync_invoke(self.bench_input)
+            self.assertFalse(ret_func_url.stats.failure)
+
+        finally:
+            # Restore original config
+            self.deployment_client.config.resources.use_function_url = original_use_function_url
 
 
 if __name__ == "__main__":
