@@ -603,11 +603,8 @@ class AWSResources(Resources):
         deleted: List[str] = []
         dry_run_tag = "[DRY-RUN] " if dry_run else ""
 
-        function_urls = cache_client.get_config_key(["aws", "resources", "function-urls"])
-        if function_urls is None:
-            return deleted
-
-        for func_name, func_url_data in function_urls.items():
+        dict_copy = self._function_urls.copy()
+        for func_name, _ in dict_copy.items():
 
             self.logging.info(f"{dry_run_tag}Deleting Function URL for: {func_name}")
 
