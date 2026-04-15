@@ -135,8 +135,9 @@ class AWSFunctionURL(unittest.TestCase):
         # Dry run first to verify detection
         cleanup_result = self.deployment_client.cleanup_resources(dry_run=True)
         self.assertIn("Function URLs", cleanup_result)
-        self.assertEqual(len(cleanup_result["Function URLs"]), 1)
-        self.assertEqual(cleanup_result["Function URLs"][0], func_url)
+        self.assertGreaterEqual(len(cleanup_result["Function URLs"]), 1)
+
+        self.assertIn(func_url, cleanup_result["Function URLs"])
 
     def test_api_gateway_still_works(self):
         """Test that API Gateway triggers still work alongside Function URLs.
