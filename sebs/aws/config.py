@@ -601,6 +601,7 @@ class AWSResources(Resources):
         """
 
         deleted: List[str] = []
+        deleted_functions: List[str] = []
         dry_run_tag = "[DRY-RUN] " if dry_run else ""
 
         dict_copy = self._function_urls.copy()
@@ -611,9 +612,10 @@ class AWSResources(Resources):
             if not dry_run:
                 self.delete_function_url(func_name, boto3_session)
             deleted.append(func_url.url)
+            deleted_functions.append(func_name)
 
         if not dry_run:
-            for func_name in deleted:
+            for func_name in deleted_functions:
                 cache_client.remove_config_key(["aws", "resources", "function-urls", func_name])
                 self._function_urls.pop(func_name, None)
 
