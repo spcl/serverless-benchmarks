@@ -699,7 +699,7 @@ class AWS(System):
     def cleanup_resources(self, dry_run: bool = False) -> dict:
         """Delete allocated resources on AWS.
         Currently it deletes the following resources:
-        * Lambda functions and its HTTP API triggers.
+        * Lambda functions and its HTTP API/Function URL triggers.
         * CloudWatch log groups of the functions.
         * DynamoDB tables created for the benchmark.
         * S3 buckets and their content created for the benchmark.
@@ -724,6 +724,10 @@ class AWS(System):
         result["Lambda functions"] = self.cleanup_functions(dry_run)
 
         result["HTTP APIs"] = self.config.resources.cleanup_http_apis(
+            self.session, self.cache_client, dry_run
+        )
+
+        result["Function URLs"] = self.config.resources.cleanup_function_urls(
             self.session, self.cache_client, dry_run
         )
 
@@ -885,17 +889,15 @@ class AWS(System):
 
         function = cast(LambdaFunction, func)
 
+        trigger: Trigger
         if trigger_type == Trigger.TriggerType.HTTP:
-
             if self.config.resources.use_function_url:
                 # Use Lambda Function URL (no 29-second timeout limit)
                 func_url = self.config.resources.function_url(function, self.session)
                 trigger = FunctionURLTrigger(
                     func_url.url, func_url.function_name, func_url.auth_type
                 )
-                self.logging.info(
-                    f"Created Function URL trigger for {func.name} function."
-                )
+                self.logging.info(f"Created Function URL trigger for {func.name} function.")
             else:
                 # Use API Gateway (default, for backward compatibility)
                 api_name = "{}-http-api".format(function.name)
