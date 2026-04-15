@@ -639,13 +639,6 @@ class AWS(System):
         except Exception:
             self.logging.error("Function {} does not exist!".format(func_name))
 
-    def delete_function_url(self, func_name: str) -> bool:
-        """
-        Delete the Function URL associated with a Lambda function.
-        Returns True if deleted successfully, False if it didn't exist.
-        """
-        return self.config.resources.delete_function_url(func_name, self.session)
-
     @staticmethod
     def parse_aws_report(
         log: str, requests: Union[ExecutionResult, Dict[str, ExecutionResult]]
