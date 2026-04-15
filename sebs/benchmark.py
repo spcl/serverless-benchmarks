@@ -1338,14 +1338,14 @@ class Benchmark(LoggingBase):
                         with open(tar_archive, "rb") as data:
                             container.put_archive("/mnt/function", data.read())
                         # do the build step
-                        exit_code, stdout = container.exec_run(
+                        exit_code, stdout = container.exec_run(  # type: ignore[assignment]
                             cmd="/bin/bash /sebs/installer.sh",
                             user="docker_user",
                             stdout=True,
                             stderr=True,
                         )
                         # copy updated code with package
-                        data, stat = container.get_archive("/mnt/function")
+                        data, stat = container.get_archive("/mnt/function")  # type: ignore[assignment]
                         with open(tar_archive, "wb") as output_filef:
                             for chunk in data:
                                 output_filef.write(chunk)

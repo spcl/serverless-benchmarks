@@ -129,6 +129,8 @@ class AzureCLI(LoggingBase):
             RuntimeError: If command execution fails.
         """
         exit_code, out = self.docker_instance.exec_run(cmd, user="docker_user")
+        # exec_run without stream=True always returns bytes
+        assert isinstance(out, bytes)
         if exit_code != 0:
             raise RuntimeError(
                 "Command {} failed at Azure CLI docker!\n Output {}".format(
