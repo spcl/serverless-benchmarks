@@ -288,30 +288,65 @@ class AWSResources(Resources):
             return out
 
     class FunctionURL:
+
+        """Encapsulates single instance of function URL."""
+
         def __init__(
             self,
             url: str,
             function_name: str,
             auth_type: FunctionURLAuthType = FunctionURLAuthType.NONE,
         ):
+            """Initialize AWS function URL instace.
+
+            Args:
+                url:
+                function_name:
+                auth_type:
+            """
             self._url = url
             self._function_name = function_name
             self._auth_type = auth_type
 
         @property
         def url(self) -> str:
+            """URL to invoke function with.
+
+            Returns:
+                URL
+            """
             return self._url
 
         @property
         def function_name(self) -> str:
+            """Function name.
+
+            Returns:
+                name
+            """
             return self._function_name
 
         @property
         def auth_type(self) -> FunctionURLAuthType:
+            """None (public access) or AWS_IAM.
+
+            AWS IAM requires SigV4 signing, currently not supported.
+
+            Returns:
+                Authentication type.
+            """
             return self._auth_type
 
         @staticmethod
         def deserialize(dct: dict) -> "AWSResources.FunctionURL":
+            """Deserialize JSON into instance.
+
+            Args:
+                dct: cached dictionary
+
+            Returns:
+                function URL instance
+            """
             auth_type_str = dct.get("auth_type", "NONE")
             return AWSResources.FunctionURL(
                 dct["url"],
@@ -320,6 +355,11 @@ class AWSResources(Resources):
             )
 
         def serialize(self) -> dict:
+            """Serialize instance into JSON
+
+            Returns:
+                Python dictionary
+            """
             return {
                 "url": self.url,
                 "function_name": self.function_name,
@@ -397,22 +437,36 @@ class AWSResources(Resources):
 
     @property
     def use_function_url(self) -> bool:
+        """
+        Returns:
+            true if HTTP triggers use function URLs
+            [TODO:return]
+        """
         return self._use_function_url
 
     @use_function_url.setter
     def use_function_url(self, value: bool):
+        """
+        Change HTTP Trigger type.
+        True => use function URL.
+        False => use API gateway.
+        """
         self._use_function_url = value
 
     @property
     def function_url_auth_type(self) -> FunctionURLAuthType:
+        """
+        Returns:
+            function URL authentication type (NONE or AWS_IAM)
+        """
         return self._function_url_auth_type
 
     @function_url_auth_type.setter
     def function_url_auth_type(self, value: FunctionURLAuthType):
-        if not isinstance(value, FunctionURLAuthType):
-            raise TypeError(
-                f"function_url_auth_type must be a FunctionURLAuthType enum, got {type(value)}"
-            )
+        """
+        Change function URL authentication type.
+        AWS_IAM requires SigV4 signing, currently not supported.
+        """
         self._function_url_auth_type = value
 
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:

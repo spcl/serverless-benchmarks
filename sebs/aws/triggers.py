@@ -323,7 +323,6 @@ class HTTPTrigger(Trigger):
         """
         pool = concurrent.futures.ThreadPoolExecutor()
         fut = pool.submit(self.sync_invoke, payload)
-        pool.shutdown(wait=False)
         return fut
 
     def serialize(self) -> dict:
