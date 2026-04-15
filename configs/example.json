@@ -48,7 +48,7 @@
       "region": "us-east-1",
       "lambda-role": "",
       "resources": {
-        "use-function-url": false,
+        "use-function-url": true,
         "function-url-auth-type": "NONE"
       }
     },
