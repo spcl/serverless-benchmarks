@@ -598,9 +598,11 @@ class AWS(System):
         """
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        # Extract benchmark number (e.g., "110" from "110-dynamic-html")
+        benchmark_number = code_package.benchmark.split("-")[0]
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
-            code_package.benchmark,
+            benchmark_number,
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,
