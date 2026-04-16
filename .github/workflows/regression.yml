@@ -18,6 +18,18 @@ jobs:
           - platform: aws
             language: nodejs
             version: "16"
+          - platform: gcp
+            language: python
+            version: "3.11"
+          - platform: gcp
+            language: nodejs
+            version: "18"
+          - platform: azure
+            language: python
+            version: "3.11"
+          - platform: azure
+            language: nodejs
+            version: "20"
       fail-fast: false
 
     uses: ./.github/workflows/_regression-job.yml
