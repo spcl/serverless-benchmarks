@@ -15,6 +15,9 @@ jobs:
           - platform: aws
             language: python
             version: "3.11"
+          - platform: aws
+            language: nodejs
+            version: "16"
       fail-fast: false
 
     uses: ./.github/workflows/_regression-job.yml
