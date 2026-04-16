@@ -578,6 +578,7 @@ class Benchmark(LoggingBase):
         output_dir: str,
         cache_client: Cache,
         docker_client: docker.client.DockerClient,
+        verbose: bool = False,
     ):
         """
         Initialize a Benchmark instance.
@@ -594,6 +595,7 @@ class Benchmark(LoggingBase):
             output_dir: Directory for output files
             cache_client: Cache client for caching code packages
             docker_client: Docker client for building dependencies
+            verbose: Print verbose build logs.
 
         Raises:
             RuntimeError: If the benchmark is not found or doesn't support the language
@@ -608,6 +610,7 @@ class Benchmark(LoggingBase):
         self._language_variant = config.runtime.variant.value
         self._architecture = self._experiment_config.architecture
         self._container_deployment = config.container_deployment
+        self._verbose = verbose
 
         benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not benchmark_path:
@@ -1295,16 +1298,22 @@ class Benchmark(LoggingBase):
                     try:
                         exit_code = container.wait()
                         stdout = container.logs()
-                        if exit_code["StatusCode"] != 0:
+
+                        error_log_path: str = ""
+                        if exit_code["StatusCode"] != 0 or self._verbose:
                             error_log_path = os.path.join(output_dir, "error.log")
                             with open(error_log_path, "wb") as error_file:
                                 error_file.write(stdout)
+
+                        if exit_code["StatusCode"] != 0:
                             self.logging.error(
                                 f"Build failed! Container exited with "
                                 f"code {exit_code['StatusCode']}"
                             )
                             self.logging.error(f"Logs saved to {error_log_path}")
                             raise RuntimeError("Package build failed!")
+
+                        self.logging.debug(f"Build Build logs saved to {error_log_path}")
                     finally:
                         container.remove()
 
