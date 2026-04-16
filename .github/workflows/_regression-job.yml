@@ -12,6 +12,9 @@ on:
       version:
         required: true
         type: string
+      architecture:
+        required: true
+        type: string
 
 jobs:
   test:
@@ -71,7 +74,8 @@ jobs:
             --deployment ${{ inputs.platform }} \
             --language ${{ inputs.language }} \
             --language-version ${{ inputs.version }} \
-            --architecture x64 --selected-architecture \
+            --architecture ${{ inputs.architecture }} \
+            --selected-architecture \
             --resource-prefix ci
 
       - name: Cleanup deployed functions
