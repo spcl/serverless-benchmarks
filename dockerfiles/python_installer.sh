@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 cd /mnt/function
 
 PLATFORM_ARG=""
@@ -24,5 +24,3 @@ fi
 if [[ -f "${SCRIPT_FILE}" ]]; then
   /bin/bash ${SCRIPT_FILE} .python_packages/lib/site-packages
 fi
-
-
