@@ -34,7 +34,7 @@ jobs:
             architecture: "x64"
           - platform: gcp
             language: nodejs
-            version: "18"
+            version: "20"
             architecture: "x64"
           - platform: azure
             language: python
