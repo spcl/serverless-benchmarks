@@ -897,9 +897,19 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
     default=False,
     help="Simulate run without actual deletions.",
 )
+@click.option(
+    "--resource-type",
+    type=click.Choice(["functions"]),
+    default=None,
+    help="Clean up only specific resource type. If not specified, cleans up all resources.",
+)
 @common_params
-def resources_cleanup(resources_id, dry_run, **kwargs):
-    """Clean up cloud resources created by SeBS experiments."""
+def resources_cleanup(resources_id, dry_run, resource_type, **kwargs):
+    """Clean up cloud resources created by SeBS experiments.
+
+    By default, cleans up all resources (functions, storage, etc.).
+    Use --resource-type to clean up only specific resource types.
+    """
     (
         config,
         output_dir,
@@ -909,10 +919,20 @@ def resources_cleanup(resources_id, dry_run, **kwargs):
     ) = parse_common_params(**kwargs)
 
     try:
-        result = deployment_client.cleanup_resources(dry_run=dry_run)
-        total = sum(len(v) for v in result.values())
-        action = "found" if dry_run else "deleted"
-        sebs_client.logging.info(f"Total resources {action}: {total}")
+        if resource_type == "functions":
+            # Clean up only functions
+            deleted_functions = deployment_client.cleanup_functions(dry_run=dry_run)
+            action = "found" if dry_run else "deleted"
+            sebs_client.logging.info(f"Total functions {action}: {len(deleted_functions)}")
+            if deleted_functions:
+                for func_name in deleted_functions:
+                    sebs_client.logging.info(f"  - {func_name}")
+        else:
+            # Clean up all resources (original behavior)
+            result = deployment_client.cleanup_resources(dry_run=dry_run)
+            total = sum(len(v) for v in result.values())
+            action = "found" if dry_run else "deleted"
+            sebs_client.logging.info(f"Total resources {action}: {total}")
     except NotImplementedError as e:
         sebs_client.logging.error(str(e))
 

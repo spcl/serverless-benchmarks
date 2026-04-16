@@ -43,10 +43,9 @@ jobs:
       - name: Setup Azure credentials
         if: inputs.platform == 'azure'
         run: |
-          echo "AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
-          echo "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_ENV
-          echo "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
-          echo "AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" >> $GITHUB_ENV
+          echo "AZURE_SECRET_APPLICATION_ID==${{ secrets.AZURE_SECRET_APPLICATION_ID }}" >> $GITHUB_ENV
+          echo "AZURE_SECRET_TENANT=${{ secrets.AZURE_SECRET_TENANT }}" >> $GITHUB_ENV
+          echo "AZURE_SECRET_PASSWORD=${{ secrets.AZURE_SECRET_PASSWORD }}" >> $GITHUB_ENV
 
       - name: Setup AWS credentials
         if: inputs.platform == 'aws'
@@ -74,6 +73,16 @@ jobs:
             --language-version ${{ inputs.version }} \
             --architecture x64 --selected-architecture \
             --resource-prefix ci
+
+      - name: Cleanup deployed functions
+        if: always()
+        run: |
+          source .venv/bin/activate
+          uv run sebs resources cleanup \
+            --config configs/example.json \
+            --deployment ${{ inputs.platform }} \
+            --resource-prefix ci \
+            --resource-type functions
 
       - name: Generate test summary
         if: always()
