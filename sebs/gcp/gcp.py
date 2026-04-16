@@ -69,6 +69,11 @@ class GCP(System):
         logging_handlers: Logging configuration for status reporting
     """
 
+    """
+        Google API is not the most robust - sometimes we need to retry REST operations.
+    """
+    TRANSIENT_HTTP_CODES = frozenset({429, 503})
+
     def __init__(
         self,
         system_config: SeBSConfig,
@@ -336,6 +341,9 @@ class GCP(System):
 
         After a build completes, the function may be in DEPLOY_IN_PROGRESS state
         for a short time. This function polls until the status becomes ACTIVE.
+        Furthermore, we handle HTTP errors:
+        * 503 / 429 transient backend errors — GCP Cloud Functions v1
+            can periodically returns these; they are not deployment failures.
 
         Args:
             func_name: Name of the function to check
@@ -352,17 +360,42 @@ class GCP(System):
             self.config.project_name, self.config.region, func_name
         )
         begin = time.time()
+        last_status: Optional[str] = None
 
         self.logging.info(f"Waiting for function {func_name} to become ACTIVE...")
 
         while True:
-            get_req = (
-                self.function_client.projects().locations().functions().get(name=full_func_name)
-            )
-            func_details = get_req.execute()
+
+            elapsed = time.time() - begin
+            if elapsed > timeout:
+                raise RuntimeError(
+                    f"Timeout waiting for function {func_name} to become ACTIVE "
+                    f"after {elapsed:.0f}s. Last status: {last_status}"
+                )
+
+            try:
+                get_req = (
+                    self.function_client.projects().locations().functions().get(name=full_func_name)
+                )
+                func_details = get_req.execute()
+            except HttpError as e:
+
+                status_code = e.resp.status
+                if status_code in GCP.TRANSIENT_HTTP_CODES:
+                    self.logging.warning(
+                        f"Transient error {status_code} while polling {func_name}, "
+                        f"retrying ({elapsed:.0f}s elapsed)"
+                    )
+                    time.sleep(5)  # back off a bit more for 5xx
+                    continue
+                # 404 past grace window, 403, 400, etc. — real error.
+                raise
 
             status = func_details["status"]
             current_version = int(func_details["versionId"])
+
+            if status != last_status:
+                last_status = status
 
             if status == "ACTIVE":
                 # Check version if specified
@@ -381,12 +414,6 @@ class GCP(System):
                 # Unexpected status
                 self.logging.error(f"Function {func_name} has unexpected status: {status}")
                 raise RuntimeError(f"Function {func_name} deployment failed with status: {status}")
-
-            if time.time() - begin > timeout:
-                raise RuntimeError(
-                    f"Timeout waiting for function {func_name} to become ACTIVE. "
-                    f"Current status: {status}"
-                )
 
             time.sleep(2)
 
