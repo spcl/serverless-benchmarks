@@ -1,0 +1,6 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+squiggle==0.3.1
+# Lambda images use glibc 2.26, for which there are no wheels on new packages
+# we have to fix version to prevent compilation from source
+numpy==2.2.6
+contourpy==1.3.2
