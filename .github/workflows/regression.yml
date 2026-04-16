@@ -51,4 +51,5 @@ jobs:
       platform: ${{ matrix.platform }}
       language: ${{ matrix.language }}
       version: ${{ matrix.version }}
+      architecture: ${{ matrix.architecture }}
     secrets: inherit
