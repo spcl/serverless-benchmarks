@@ -1330,7 +1330,9 @@ def filter_out_benchmarks(
         is_container = deployment_type == "container"
         allowed = _CF_SUPPORTED.get((language, is_container))
         if allowed is not None:
-            benchmark_id = benchmark.split(".")[0]
+            # benchmark is the test method name, e.g. "test_cloudflare_120.uploader_x64_workers"
+            # Extract the numeric benchmark prefix (e.g. "120") from before the first "."
+            benchmark_id = benchmark.split(".")[-2].split("_")[-1] if "." in benchmark else benchmark.split("_")[-1]
             return benchmark_id in allowed
     # fmt: on
 
@@ -1469,9 +1471,8 @@ def regression_suite(
             # Remove unsupported benchmarks
             test_architecture = getattr(test, test_name).test_architecture  # type: ignore
             test_deployment_type = getattr(test, test_name).test_deployment_type  # type: ignore
-            test_benchmark = getattr(test, test_name).test_benchmark  # type: ignore
             if not filter_out_benchmarks(
-                test_benchmark,
+                test_name,
                 test.deployment_name,  # type: ignore
                 language,
                 language_version,
