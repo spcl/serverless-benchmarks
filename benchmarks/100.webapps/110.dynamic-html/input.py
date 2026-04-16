@@ -14,4 +14,13 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
 def validate_output(input_config: dict, output: dict) -> bool:
     result = output.get('result', '')
     username = input_config.get('username', '')
-    return isinstance(result, str) and len(result) > 0 and username in result
+    random_len = input_config.get('random_len', 0)
+    if not isinstance(result, str) or len(result) == 0:
+        return False
+    if f'Welcome {username}!' not in result:
+        return False
+    if 'Data generated at:' not in result:
+        return False
+    if result.count('<li>') != random_len:
+        return False
+    return True

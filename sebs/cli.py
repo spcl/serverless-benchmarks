@@ -340,7 +340,12 @@ def invoke(
             # )
         elif validate:
             output = ret.output.get("result", {})
-            if benchmark_obj.validate_output(input_config, output):
+            storage = (
+                deployment_client.system_resources.get_storage()
+                if benchmark_obj.uses_storage
+                else None
+            )
+            if benchmark_obj.validate_output(input_config, output, storage):
                 sebs_client.logging.info(
                     f"Repetition {i + 1}/{repetitions}: output validation passed"
                 )

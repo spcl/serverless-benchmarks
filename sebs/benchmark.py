@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import glob
 import hashlib
+import inspect
 import json
 import subprocess
 import os
@@ -1691,23 +1692,34 @@ class Benchmark(LoggingBase):
 
         return input_config
 
-    def validate_output(self, input_config: dict, output: dict) -> bool:
+    def validate_output(self, input_config: dict, output: dict, storage=None) -> bool:
         """Validate benchmark output against expected values.
 
         Delegates to the benchmark's input module `validate_output` function
-        if it is defined. Returns True if no validation function is available.
+        if it is defined. Passes the optional storage client through when the
+        module's validator declares a ``storage`` parameter. Logs a warning and
+        returns False when no validation function is available.
 
         Args:
             input_config: The input configuration used to invoke the benchmark
             output: The output returned by the benchmark function handler
+            storage: Optional persistent storage client for download-based checks
 
         Returns:
-            bool: True if the output is valid or no validator is defined,
-                  False if validation fails
+            bool: True if the output is valid, False if validation fails or no
+                  validator is defined
         """
         if hasattr(self._benchmark_input_module, "validate_output"):
-            return self._benchmark_input_module.validate_output(input_config, output)
-        return True
+            fn = self._benchmark_input_module.validate_output
+            sig = inspect.signature(fn)
+            if "storage" in sig.parameters:
+                return fn(input_config, output, storage)
+            else:
+                return fn(input_config, output)
+        self.logging.warning(
+            f"Benchmark {self._benchmark} does not implement validate_output."
+        )
+        return False
 
     def code_package_modify(self, filename: str, data: bytes) -> None:
         """

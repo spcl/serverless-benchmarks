@@ -93,23 +93,51 @@ def generate_input(
             )
 
     input_config["requests"] = requests
+    input_config["size"] = size
 
     return input_config
 
 def validate_output(input_config: dict, output: dict) -> bool:
     results = output.get('result', [])
     requests = input_config.get('requests', [])
+    size = input_config.get('size', '')
     if not isinstance(results, list) or len(results) != len(requests):
         return False
+
+    # Track the expected number of items in the cart for 'large' PUT/GET sequences.
+    put_count = 0
+
     for request, result in zip(requests, results):
         route = request.get('route')
         if route == 'GET /cart/{id}':
-            if 'name' not in result or 'price' not in result or 'quantity' not in result:
+            expected_id = request.get('path', {}).get('id', '')
+            if expected_id == 'game-gothic':
+                if result.get('name') != 'Gothic Game':
+                    return False
+                if result.get('price') != 42:
+                    return False
+                if result.get('quantity') != 2:
+                    return False
+            elif not ('name' in result and 'price' in result and 'quantity' in result):
                 return False
         elif route == 'GET /cart':
-            if 'products' not in result or 'total_cost' not in result:
+            products = result.get('products')
+            if not isinstance(products, list) or len(products) == 0:
                 return False
+            if 'total_cost' not in result:
+                return False
+            if size == 'small':
+                # 4 pre-inserted products; total_cost is the sum of their prices.
+                if len(products) != 4:
+                    return False
+                if result.get('total_cost') != 42 + 142 + 1000 + 0:
+                    return False
+            elif size == 'large':
+                # Each GET follows a PUT, so the list grows by one each time.
+                if len(products) != put_count:
+                    return False
         elif route == 'PUT /cart':
             if result != {}:
                 return False
+            put_count += 1
     return True

@@ -243,7 +243,12 @@ class TestSequenceMeta(type):
                             )
                         else:
                             output = ret.output.get("result", {})
-                            if not benchmark.validate_output(input_config, output):
+                            storage = (
+                                deployment_client.system_resources.get_storage()
+                                if benchmark.uses_storage
+                                else None
+                            )
+                            if not benchmark.validate_output(input_config, output, storage):
                                 failure = True
                                 logging_wrapper.error(
                                     f"{benchmark_name} output validation failed"

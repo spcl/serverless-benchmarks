@@ -29,7 +29,29 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     input_config['bucket']['output'] = output_paths[0]
     return input_config
 
-def validate_output(input_config: dict, output: dict) -> bool:
+def validate_output(input_config: dict, output: dict, storage=None) -> bool:
     result = output.get('result', {})
     key = result.get('key', '')
-    return isinstance(key, str) and len(key) > 0
+    if not (isinstance(key, str) and len(key) > 0):
+        return False
+    if storage is None:
+        return True
+    bucket = input_config.get('bucket', {}).get('bucket', '')
+    max_width = input_config.get('object', {}).get('width', 0)
+    max_height = input_config.get('object', {}).get('height', 0)
+    import os, tempfile
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+        tmp_path = f.name
+    try:
+        storage.download(bucket, key, tmp_path)
+        if os.path.getsize(tmp_path) == 0:
+            return False
+        try:
+            from PIL import Image
+            with Image.open(tmp_path) as img:
+                w, h = img.size
+                return w <= max_width and h <= max_height and w > 0 and h > 0
+        except ImportError:
+            return True
+    finally:
+        os.unlink(tmp_path)
