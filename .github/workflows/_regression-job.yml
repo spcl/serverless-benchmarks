@@ -46,7 +46,7 @@ jobs:
       - name: Setup Azure credentials
         if: inputs.platform == 'azure'
         run: |
-          echo "AZURE_SECRET_APPLICATION_ID==${{ secrets.AZURE_SECRET_APPLICATION_ID }}" >> $GITHUB_ENV
+          echo "AZURE_SECRET_APPLICATION_ID=${{ secrets.AZURE_SECRET_APPLICATION_ID }}" >> $GITHUB_ENV
           echo "AZURE_SECRET_TENANT=${{ secrets.AZURE_SECRET_TENANT }}" >> $GITHUB_ENV
           echo "AZURE_SECRET_PASSWORD=${{ secrets.AZURE_SECRET_PASSWORD }}" >> $GITHUB_ENV
 
