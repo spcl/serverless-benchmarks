@@ -542,12 +542,14 @@ class AzureTestSequencePython(
                 )
 
             # Initialize Azure CLI if not already done
+            needs_login = False
             if not hasattr(AzureTestSequencePython, "cli"):
                 from sebs.azure.cli import AzureCLI
 
                 AzureTestSequencePython.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
+                needs_login = True
 
             # Create a copy of the config and set architecture and deployment type
             config_copy = copy.deepcopy(cloud_config)
@@ -565,7 +567,7 @@ class AzureTestSequencePython(
 
             # Initialize CLI with login and setup resources
             deployment_client.system_resources.initialize_cli(
-                cli=AzureTestSequencePython.cli, login=True
+                cli=AzureTestSequencePython.cli, login=needs_login
             )
             deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
             return deployment_client
@@ -621,12 +623,14 @@ class AzureTestSequenceNodejs(
                 )
 
             # Initialize Azure CLI if not already done
+            needs_login = False
             if not hasattr(AzureTestSequenceNodejs, "cli"):
                 from sebs.azure.cli import AzureCLI
 
                 AzureTestSequenceNodejs.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
+                needs_login = True
 
             # Create a copy of the config and set architecture and deployment type
             config_copy = copy.deepcopy(cloud_config)
@@ -643,7 +647,9 @@ class AzureTestSequenceNodejs(
             )
 
             # Initialize CLI and setup resources (no login needed - reuses Python session)
-            deployment_client.system_resources.initialize_cli(cli=AzureTestSequenceNodejs.cli)
+            deployment_client.system_resources.initialize_cli(
+                cli=AzureTestSequenceNodejs.cli, login=needs_login
+            )
             deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
             return deployment_client
 
