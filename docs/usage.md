@@ -21,7 +21,7 @@ If you want to simply build a function deployment, such as a full code package o
 then use the command below.
 
 ```bash
-sebs benchmark build 110.dynamic-html --config config/example.json --deployment aws
+sebs benchmark build 110.dynamic-html --config configs/example.json --deployment aws
 ```
 
 It will create a code package (local) or build and push a container, when `--container-deployment` flag is used (AWS only).
@@ -33,7 +33,7 @@ This command builds, deploys, and executes serverless benchmarks in the cloud.
 The example below invokes the benchmark `110.dynamic-html` on AWS via the standard HTTP trigger.
 
 ```bash
-sebs benchmark invoke 110.dynamic-html test --config config/example.json --deployment aws --verbose
+sebs benchmark invoke 110.dynamic-html test --config configs/example.json --deployment aws --verbose
 ```
 
 The results will be stored in `experiment.json`.
@@ -64,13 +64,13 @@ Additionally, we provide a regression option to execute all benchmarks on a give
 The example below demonstrates how to run the regression suite with `test` input size on AWS.
 
 ```bash
-sebs benchmark regression test --config config/example.json --deployment aws
+sebs benchmark regression test --config configs/example.json --deployment aws
 ```
 
 The regression can be executed on a single benchmark as well:
 
 ```bash
-sebs benchmark regression test --config config/example.json --deployment aws --benchmark-name 120.uploader
+sebs benchmark regression test --config configs/example.json --deployment aws --benchmark-name 120.uploader
 ```
 
 ## Experiment
@@ -78,7 +78,7 @@ sebs benchmark regression test --config config/example.json --deployment aws --b
 This command is used to execute benchmarks described in the paper. The example below runs the experiment **perf-cost**:
 
 ```bash
-sebs experiment invoke perf-cost --config config/example.json --deployment aws
+sebs experiment invoke perf-cost --config configs/example.json --deployment aws
 ```
 
 The configuration specifies that benchmark **110.dynamic-html** is executed 50 times, with 50 concurrent invocations, and both cold and warm invocations are recorded. 
@@ -107,7 +107,7 @@ sebs experiment process perf-cost --config example.json --deployment aws
 You can remove all allocated cloud resources with the following command:
 
 ```bash
-sebs resource clean --config config/example.json
+sebs resource clean --config configs/example.json
 ```
 
 This option is currently supported only on AWS, where it removes Lambda functions and associated HTTP APIs and CloudWatch logs,
@@ -123,7 +123,7 @@ map the container's port to port defined in the configuration on host network, a
 instance configuration to file `out_storage.json`
 
 ```bash
-sebs storage start all config/storage.json --output-json out_storage.json
+sebs storage start all configs/storage.json --output-json out_storage.json
 ```
 
 Then, we need to update the configuration of `local` deployment with information on the storage 
@@ -132,7 +132,7 @@ instance. The `.deployment.local` object in the configuration JSON must contain 
 this automatically with a single command by using `jq`:
 
 ```bash
-jq '.deployment.local.storage = input' config/example.json out_storage.json > config/local_deployment.json
+jq '.deployment.local.storage = input' configs/example.json out_storage.json > configs/local_deployment.json
 ```
 
 The output file will contain a JSON object that should look similar to this one:
@@ -183,7 +183,7 @@ The output file will contain a JSON object that should look similar to this one:
 To launch Docker containers, use the following command - this example launches benchmark `110.dynamic-html` with size `test`:
 
 ```bash
-sebs local start 110.dynamic-html test out_benchmark.json --config config/local_deployment.json --deployments 1 --remove-containers --architecture=x64
+sebs local start 110.dynamic-html test out_benchmark.json --config configs/local_deployment.json --deployments 1 --remove-containers --architecture=x64
 ```
 
 The output file `out_benchmark.json` will contain the information on containers deployed and the endpoints that can be used to invoke functions:
