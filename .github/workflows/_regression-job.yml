@@ -39,9 +39,9 @@ jobs:
 
       - name: Setup GCP credentials
         if: inputs.platform == 'gcp'
-        run: |
-          echo "${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" > /tmp/gcp-credentials.json
-          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json" >> $GITHUB_ENV
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
       - name: Setup Azure credentials
         if: inputs.platform == 'azure'
