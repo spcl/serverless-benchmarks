@@ -36,4 +36,5 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     input_config['bucket']['bucket'] = benchmarks_bucket
     input_config['bucket']['input'] = input_paths[0]
     input_config['bucket']['output'] = output_paths[0]
+    print(input_config)
     return input_config
