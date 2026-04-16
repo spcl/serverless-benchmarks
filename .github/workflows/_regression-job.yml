@@ -73,7 +73,7 @@ jobs:
             --language ${{ inputs.language }} \
             --language-version ${{ inputs.version }} \
             --architecture x64 --selected-architecture \
-            --resource-prefix sebs-ci
+            --resource-prefix ci
 
       - name: Generate test summary
         if: always()
