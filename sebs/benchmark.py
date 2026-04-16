@@ -1161,22 +1161,33 @@ class Benchmark(LoggingBase):
     def builder_image_name(self) -> Tuple[str, str]:
         """Image names of builder Docker images for preparing benchmarks.
 
-        We are progressively replacing all unversioned image names with versioned ones.
+        Returns two image names for fallback behavior:
+        - Current version image (tagged with current SeBS version)
+        - Previous version image (tagged with previous major SeBS version)
+
+        This allows new SeBS versions to use images from the previous stable
+        version without requiring a complete rebuild of all images.
 
         Returns:
-            Tuple of unversioned and versioned image names.
+            Tuple of (previous_version_image_name, current_version_image_name).
         """
-        unversioned_image_name = "build.{deployment}.{language}.{runtime}".format(
+        base_image_name = "build.{deployment}.{language}.{runtime}".format(
             deployment=self._deployment_name,
             language=self.language_name,
             runtime=self.language_version,
         )
-        image_name = "{base_image_name}-{sebs_version}".format(
-            base_image_name=unversioned_image_name,
-            sebs_version=self._system_config.version(),
+        # Current version image (try this first)
+        current_version_image_name = "{base}-{version}".format(
+            base=base_image_name,
+            version=self._system_config.version(),
+        )
+        # Previous major version image (fallback)
+        previous_version_image_name = "{base}-{version}".format(
+            base=base_image_name,
+            version=self._system_config.previous_version(),
         )
 
-        return unversioned_image_name, image_name
+        return previous_version_image_name, current_version_image_name
 
     def install_dependencies(self, output_dir: str) -> None:
         """Install benchmark dependencies using Docker.
@@ -1187,10 +1198,11 @@ class Benchmark(LoggingBase):
         Pulls a pre-built Docker image specific to the deployment, language, and
         runtime version. Mounts the output directory into the container and runs
         an installer script (`/sebs/installer.sh`) within the container.
-        Handles fallbacks to unversioned Docker images if versioned ones are not found.
 
-        Supports copying files to/from Docker for environments where volume mounting
-        is problematic (e.g., CircleCI).
+        Tries current SeBS version image first, falls back to previous major version
+        image if the current version image is not available. This allows new SeBS
+        versions to use images from the previous stable version without requiring
+        a complete rebuild.
 
         Args:
             output_dir: Directory containing the code package to build
@@ -1211,7 +1223,7 @@ class Benchmark(LoggingBase):
             )
         else:
             repo_name = self._system_config.docker_repository()
-            unversioned_image_name, image_name = self.builder_image_name()
+            previous_version_image_name, current_version_image_name = self.builder_image_name()
 
             def ensure_image(name: str) -> None:
                 """Internal implementation of checking for Docker image existence.
@@ -1220,7 +1232,7 @@ class Benchmark(LoggingBase):
                     name: image name
 
                 Raises:
-                    RuntimeError: when neither versioned nor unversioned images exists.
+                    RuntimeError: when image does not exist locally or cannot be pulled.
                 """
                 try:
                     self._docker_client.images.get(repo_name + ":" + name)
@@ -1235,20 +1247,22 @@ class Benchmark(LoggingBase):
                             "Docker pull of image {}:{} failed!".format(repo_name, name)
                         )
 
+            # Try current version image first, fallback to previous version if not available
+            image_name = current_version_image_name
             try:
-                ensure_image(image_name)
+                ensure_image(current_version_image_name)
             except RuntimeError as e:
                 self.logging.warning(
                     "Failed to ensure image {}, falling back to {}: {}".format(
-                        image_name, unversioned_image_name, e
+                        current_version_image_name, previous_version_image_name, e
                     )
                 )
                 try:
-                    ensure_image(unversioned_image_name)
+                    ensure_image(previous_version_image_name)
+                    # update `image_name` to the fallback image name
+                    image_name = previous_version_image_name
                 except RuntimeError:
                     raise
-                # update `image_name` in the context to the fallback image name
-                image_name = unversioned_image_name
 
             # Create set of mounted volumes
             volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
@@ -1300,8 +1314,12 @@ class Benchmark(LoggingBase):
                         stdout = container.logs()
 
                         error_log_path: str = ""
-                        if exit_code["StatusCode"] != 0 or self._verbose:
+                        if exit_code["StatusCode"] != 0:
                             error_log_path = os.path.join(output_dir, "error.log")
+                        elif self._verbose:
+                            error_log_path = os.path.join(output_dir, "build.log")
+
+                        if exit_code["StatusCode"] != 0 or self._verbose:
                             with open(error_log_path, "wb") as error_file:
                                 error_file.write(stdout)
 
