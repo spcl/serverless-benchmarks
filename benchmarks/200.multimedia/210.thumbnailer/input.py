@@ -39,7 +39,8 @@ def validate_output(input_config: dict, output: dict, storage=None) -> bool:
     bucket = input_config.get('bucket', {}).get('bucket', '')
     max_width = input_config.get('object', {}).get('width', 0)
     max_height = input_config.get('object', {}).get('height', 0)
-    import os, tempfile
+    import os
+    import tempfile
     with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
         tmp_path = f.name
     try:

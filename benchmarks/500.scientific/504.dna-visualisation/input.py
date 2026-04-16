@@ -24,7 +24,8 @@ def validate_output(input_config: dict, output: dict, storage=None) -> bool:
     if storage is None:
         return True
     bucket = input_config.get('bucket', {}).get('bucket', '')
-    import os, tempfile
+    import os
+    import tempfile
     with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as f:
         tmp_path = f.name
     try:

@@ -58,7 +58,9 @@ def validate_output(input_config: dict, output: dict, storage=None) -> bool:
         return True
     bucket = input_config.get('bucket', {}).get('bucket', '')
     uploaded_files = input_config.get('object', {}).get('uploaded_files', [])
-    import os, tempfile, zipfile
+    import os
+    import tempfile
+    import zipfile
     with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as f:
         tmp_path = f.name
     try:

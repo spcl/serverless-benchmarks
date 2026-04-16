@@ -35,7 +35,8 @@ def validate_output(input_config: dict, output: dict, storage=None) -> bool:
     if storage is None:
         return True
     bucket = input_config.get('bucket', {}).get('bucket', '')
-    import os, tempfile
+    import os
+    import tempfile
     suffix = os.path.splitext(key)[1] or '.tmp'
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
         tmp_path = f.name
