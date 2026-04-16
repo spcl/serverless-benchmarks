@@ -9,7 +9,6 @@ Docker images used by the SeBS benchmarking framework.
 import json
 import logging
 import os
-import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -18,7 +17,7 @@ from docker.errors import BuildError, DockerException
 from rich.progress import Progress, TaskID
 
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingBase
+from sebs.utils import execute, LoggingBase
 
 
 class DockerImageBuilder(LoggingBase):
@@ -100,72 +99,144 @@ class DockerImageBuilder(LoggingBase):
 
     def _execute_multiplatform_build(
         self,
+        system: str,
+        language: str,
+        version: str,
         image_name: str,
         dockerfile: str,
         buildargs: dict,
     ) -> bool:
-        """Execute multi-platform build using Docker buildx.
+        """Execute multi-platform build by building separate images and stitching them.
 
-        Builds an image for both linux/amd64 and linux/arm64 platforms
-        and pushes it as a multi-platform manifest to the registry.
+        Builds separate images for linux/amd64 and linux/arm64 with their respective
+        BASE_IMAGE values, then creates a multi-platform manifest to combine them.
 
         Args:
-            image_name: Docker image tag
-            dockerfile: path to Dockerfile
-            buildargs: custom build args
+            system: Deployment platform (e.g., 'aws')
+            language: Programming language (e.g., 'python', 'nodejs')
+            version: Language version (e.g., '3.11', '16')
+            image_name: Docker image tag (without architecture suffix)
+            dockerfile: Path to Dockerfile
+            buildargs: Base build args (BASE_IMAGE will be overridden per arch)
 
         Returns:
             True if build succeeded, False otherwise
         """
-
         self.logging.info(f"Building multi-platform image: {image_name}")
         self.logging.info("Platforms: linux/amd64, linux/arm64")
         self.logging.debug(f"Dockerfile: {dockerfile}")
-        self.logging.debug(f"Build args: {buildargs}")
 
-        # Build buildx command
-        cmd = [
+        # Get architecture-specific base images from config
+        systems_config = self.config._system_config
+        language_config = systems_config[system]["languages"][language]
+
+        if "base_images" not in language_config:
+            self.logging.error(f"No base_images found for {system}/{language}")
+            return False
+
+        base_images = language_config["base_images"]
+        if "x64" not in base_images or "arm64" not in base_images:
+            self.logging.error(f"Missing x64 or arm64 base images for {system}/{language}")
+            return False
+
+        if version not in base_images["x64"] or version not in base_images["arm64"]:
+            self.logging.error(f"Version {version} not found in base images")
+            return False
+
+        amd64_base = base_images["x64"][version]
+        arm64_base = base_images["arm64"][version]
+
+        self.logging.debug(f"AMD64 base image: {amd64_base}")
+        self.logging.debug(f"ARM64 base image: {arm64_base}")
+
+        # Architecture-specific image tags
+        amd64_image = f"{image_name}-amd64"
+        arm64_image = f"{image_name}-arm64"
+
+        # Build both architecture images
+        for platform, base_image, arch_image in [
+            ("linux/amd64", amd64_base, amd64_image),
+            ("linux/arm64", arm64_base, arm64_image),
+        ]:
+            self.logging.info(f"Building {platform} image: {arch_image}")
+
+            # Override BASE_IMAGE for this architecture
+            arch_buildargs = buildargs.copy()
+            arch_buildargs["BASE_IMAGE"] = base_image
+
+            # Build command
+            cmd = [
+                "docker",
+                "build",
+                "--platform",
+                platform,
+                "--provenance",
+                "false",
+                "-f",
+                dockerfile,
+                "-t",
+                arch_image,
+                "--push",
+            ]
+
+            # Add build args
+            for key, value in arch_buildargs.items():
+                cmd.extend(["--build-arg", f"{key}={value}"])
+
+            # Add context path
+            cmd.append(str(self.project_dir))
+
+            try:
+                execute(cmd, cwd=str(self.project_dir))
+                self.logging.info(f"Successfully built {arch_image}")
+            except RuntimeError as exc:
+                self.logging.error(f"Build failed for {arch_image}")
+                self.logging.error(f"Exit: {exc}")
+                return False
+
+        self.logging.info(f"Removing old multi-platform manifest: {image_name}")
+        manifest_cmd = [
             "docker",
-            "buildx",
-            "build",
-            "--platform",
-            "linux/amd64,linux/arm64",
-            "--push",  # Multi-platform requires push
-            "-f",
-            dockerfile,
-            "-t",
+            "manifest",
+            "rm",
             image_name,
         ]
-
-        # Add build args
-        for key, value in buildargs.items():
-            cmd.extend(["--build-arg", f"{key}={value}"])
-
-        # Add context path
-        cmd.append(str(self.project_dir))
-
         try:
-            # Run buildx command
-            result = subprocess.run(
-                cmd,
-                check=True,
-                capture_output=True,
-                text=True,
-                cwd=str(self.project_dir),
-            )
-            self.logging.info(f"Successfully built and pushed multi-platform image: {image_name}")
-            self.logging.debug(f"Buildx output: {result.stdout}")
-            return True
-        except subprocess.CalledProcessError as exc:
-            self.logging.error(f"Multi-platform build failed for {image_name}")
-            self.logging.error(f"Exit code: {exc.returncode}")
-            self.logging.error(f"Stdout: {exc.stdout}")
-            self.logging.error(f"Stderr: {exc.stderr}")
+            execute(manifest_cmd)
+            self.logging.info(f"Successfully removed old manifest {image_name}")
+        except RuntimeError:
+            # ignore, manifest might not have existed
+            pass
+
+        # Create multi-platform manifest
+        self.logging.info(f"Creating multi-platform manifest: {image_name}")
+        manifest_cmd = [
+            "docker",
+            "manifest",
+            "create",
+            image_name,
+            amd64_image,
+            arm64_image,
+        ]
+        try:
+            execute(manifest_cmd)
+            self.logging.info(f"Successfully created manifest: {image_name}")
+        except RuntimeError as exc:
+            self.logging.error(f"Manifest creation failed for {image_name}")
+            self.logging.error(f"Exit: {exc}")
             return False
-        except FileNotFoundError:
-            self.logging.error("docker buildx command not found")
-            self.logging.error("Please ensure Docker buildx is installed")
+
+        self.logging.info(f"Pushing multi-platform manifest: {image_name}")
+        push_cmd = ["docker", "manifest", "push", image_name]
+        try:
+            execute(push_cmd)
+            self.logging.info(f"Successfully created manifest: {image_name}")
+        except RuntimeError as exc:
+            self.logging.error(f"Manifest creation failed for {image_name}")
+            self.logging.error(f"Exit: {exc}")
             return False
+
+        return True
 
     def _execute_build(
         self,
@@ -225,12 +296,12 @@ class DockerImageBuilder(LoggingBase):
 
         # Check if multi-platform build should be used
         if multi_platform and self._should_use_multiplatform(system, image_type, language):
-            if version is None or version_name is None:
-                self.logging.error(
-                    f"Multi-platform build not supported for {system}/{language}/{version}"
-                )
+            if version is None or version_name is None or language is None:
+                self.logging.error("Multi-platform build requires version and language")
                 return False
-            return self._execute_multiplatform_build(image_name, dockerfile, buildargs)
+            return self._execute_multiplatform_build(
+                system, language, version, image_name, dockerfile, buildargs
+            )
 
         # Standard single-platform build
         platform_arg = platform or os.environ.get("DOCKER_DEFAULT_PLATFORM")

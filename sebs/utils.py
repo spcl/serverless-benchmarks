@@ -148,7 +148,7 @@ def execute(cmd, shell=False, cwd=None) -> str:
     Raises:
         RuntimeError: If command execution fails
     """
-    if not shell:
+    if not shell and isinstance(cmd, str):
         cmd = cmd.split()
     ret = subprocess.run(
         cmd, shell=shell, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
