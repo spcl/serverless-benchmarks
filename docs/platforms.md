@@ -33,6 +33,18 @@ However, special care is needed to build Docker containers: since installation o
 binaries based on ARM containers on x86 CPUs. To build multi-platform images, we recommend to follow official [Docker guidelines](https://docs.docker.com/build/building/multi-platform/#build-multi-platform-images) and provide static QEMU installation.
 On Ubuntu-based distributions, this requires installing an OS package and executing a single Docker command to provide seamless emulation of ARM containers.
 
+### Multi-platform Docker Images
+
+Build images, which encapsulate package building, are available as both x64 and arm64 for Python and Node.js on AWS Lambda.
+To rebuild multi-plaform images, an additional flag is needed to enable the internal `docker buildx` command:
+
+```bash
+sebs docker build --image-type build --language python --deployment aws --architecture x64 --language-version 3.11 --multi-platform
+```
+
+When rebuilding build images (not necessary for regular users, only for developers), make sure that your Docker installation supports multi-platform images,
+e.g., you use `containerd` image store.
+
 ## Cloud Account Identifiers
 
 SeBS ensures that all locally cached cloud resources are valid by storing a unique identifier associated with each cloud account. Furthermore, we store this identifier in experiment results to easily match results with the cloud account or subscription that was used to obtain them. We use non-sensitive identifiers such as account IDs on AWS, subscription IDs on Azure, and Google Cloud project IDs.

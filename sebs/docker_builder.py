@@ -9,6 +9,7 @@ Docker images used by the SeBS benchmarking framework.
 import json
 import logging
 import os
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -77,6 +78,95 @@ class DockerImageBuilder(LoggingBase):
         else:
             self.docker_client = docker_client
 
+    def _should_use_multiplatform(
+        self, system: str, image_type: str, language: Optional[str] = None
+    ) -> bool:
+        """Check if multi-platform build should be used for this image.
+
+        Multi-platform builds (x64 + arm64) are only enabled for:
+        - AWS platform
+        - Build images only
+        - Python or Node.js languages
+
+        Args:
+            system: Deployment platform (e.g., 'aws', 'gcp')
+            image_type: Type of image (e.g., 'build', 'run')
+            language: Programming language (e.g., 'python', 'nodejs')
+
+        Returns:
+            True if multi-platform build should be used, False otherwise
+        """
+        return system == "aws" and image_type == "build" and language in ["python", "nodejs"]
+
+    def _execute_multiplatform_build(
+        self,
+        image_name: str,
+        dockerfile: str,
+        buildargs: dict,
+    ) -> bool:
+        """Execute multi-platform build using Docker buildx.
+
+        Builds an image for both linux/amd64 and linux/arm64 platforms
+        and pushes it as a multi-platform manifest to the registry.
+
+        Args:
+            image_name: Docker image tag
+            dockerfile: path to Dockerfile
+            buildargs: custom build args
+
+        Returns:
+            True if build succeeded, False otherwise
+        """
+
+        self.logging.info(f"Building multi-platform image: {image_name}")
+        self.logging.info("Platforms: linux/amd64, linux/arm64")
+        self.logging.debug(f"Dockerfile: {dockerfile}")
+        self.logging.debug(f"Build args: {buildargs}")
+
+        # Build buildx command
+        cmd = [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/amd64,linux/arm64",
+            "--push",  # Multi-platform requires push
+            "-f",
+            dockerfile,
+            "-t",
+            image_name,
+        ]
+
+        # Add build args
+        for key, value in buildargs.items():
+            cmd.extend(["--build-arg", f"{key}={value}"])
+
+        # Add context path
+        cmd.append(str(self.project_dir))
+
+        try:
+            # Run buildx command
+            result = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                cwd=str(self.project_dir),
+            )
+            self.logging.info(f"Successfully built and pushed multi-platform image: {image_name}")
+            self.logging.debug(f"Buildx output: {result.stdout}")
+            return True
+        except subprocess.CalledProcessError as exc:
+            self.logging.error(f"Multi-platform build failed for {image_name}")
+            self.logging.error(f"Exit code: {exc.returncode}")
+            self.logging.error(f"Stdout: {exc.stdout}")
+            self.logging.error(f"Stderr: {exc.stderr}")
+            return False
+        except FileNotFoundError:
+            self.logging.error("docker buildx command not found")
+            self.logging.error("Please ensure Docker buildx is installed")
+            return False
+
     def _execute_build(
         self,
         system: str,
@@ -85,10 +175,14 @@ class DockerImageBuilder(LoggingBase):
         version: Optional[str] = None,
         version_name: Optional[str] = None,
         platform: Optional[str] = None,
+        multi_platform: bool = False,
         parallel: int = 1,
     ) -> bool:
         """
         Execute the actual build operation for a single image.
+
+        For AWS Python/Node.js build images, uses multi-platform build (x64 + arm64).
+        For all other images, uses standard single-platform build.
 
         Args:
             system: Deployment platform
@@ -97,11 +191,13 @@ class DockerImageBuilder(LoggingBase):
             version: Language version, optional
             version_name: Base image name for the version, optional
             platform: Docker platform override, optional
+            multi_platform: If we should build both x64 and arm64
             parallel: Number of parallel workers, default 1
 
         Returns:
             True if build succeeded, False otherwise
         """
+
         # Locate dockerfile
         if language:
             dockerfile = os.path.join(
@@ -127,6 +223,16 @@ class DockerImageBuilder(LoggingBase):
         if version_name:
             buildargs["BASE_IMAGE"] = version_name
 
+        # Check if multi-platform build should be used
+        if multi_platform and self._should_use_multiplatform(system, image_type, language):
+            if version is None or version_name is None:
+                self.logging.error(
+                    f"Multi-platform build not supported for {system}/{language}/{version}"
+                )
+                return False
+            return self._execute_multiplatform_build(image_name, dockerfile, buildargs)
+
+        # Standard single-platform build
         platform_arg = platform or os.environ.get("DOCKER_DEFAULT_PLATFORM")
 
         self.logging.debug(f"Building {image_name} from {dockerfile}")
@@ -162,6 +268,9 @@ class DockerImageBuilder(LoggingBase):
         """
         Execute the actual push operation for a single image.
 
+        Multi-platform images (AWS Python/Node.js build images) are skipped
+        as they are already pushed during the build process.
+
         Args:
             system: Deployment platform
             image_type: Type of image
@@ -172,6 +281,14 @@ class DockerImageBuilder(LoggingBase):
         Returns:
             True if push succeeded, False otherwise
         """
+        # Skip multi-platform images - they're already pushed during build
+        if self._should_use_multiplatform(system, image_type, language):
+            image_name = self.config.docker_image_name(system, image_type, language, version)
+            self.logging.info(
+                f"Skipping push for multi-platform image (already pushed): {image_name}"
+            )
+            return True
+
         # Full Docker image tag
         image_name = self.config.docker_image_name(system, image_type, language, version)
 
@@ -210,6 +327,7 @@ class DockerImageBuilder(LoggingBase):
         version: Optional[str] = None,
         version_name: Optional[str] = None,
         platform: Optional[str] = None,
+        multi_platform: bool = False,
         parallel: int = 1,
     ) -> bool:
         """
@@ -223,6 +341,7 @@ class DockerImageBuilder(LoggingBase):
             version: Language version, optional
             version_name: Base image name for the version, optional
             platform: Docker platform override, optional
+            multi_platform: If we should build both x64 and arm64
             parallel: Number of parallel workers, default 1
 
         Returns:
@@ -239,7 +358,14 @@ class DockerImageBuilder(LoggingBase):
         # Execute the appropriate operation
         if operation == "build":
             return self._execute_build(
-                system, image_type, language, version, version_name, platform, parallel
+                system,
+                image_type,
+                language,
+                version,
+                version_name,
+                platform,
+                multi_platform,
+                parallel,
             )
         elif operation == "push":
             return self._execute_push(system, image_type, language, version)
@@ -256,6 +382,7 @@ class DockerImageBuilder(LoggingBase):
         language_version: Optional[str] = None,
         image_type: Optional[str] = None,
         platform: Optional[str] = None,
+        multi_platform: bool = False,
         parallel: int = 1,
     ) -> None:
         """
@@ -270,6 +397,7 @@ class DockerImageBuilder(LoggingBase):
             language_version: Specific version to process, processes all if None
             image_type: Specific image type to process, processes all if None
             platform: Docker platform override, optional
+            multi_platform: If we should build both x64 and arm64
             parallel: Number of parallel workers, default 1
         """
         # Maps to language_version and Docker base image for that version
@@ -300,6 +428,7 @@ class DockerImageBuilder(LoggingBase):
                         language,
                         *image_config,
                         platform=platform,
+                        multi_platform=multi_platform,
                         parallel=parallel,
                     )
             else:
@@ -310,6 +439,7 @@ class DockerImageBuilder(LoggingBase):
                     language,
                     *image_config,
                     platform=platform,
+                    multi_platform=multi_platform,
                     parallel=parallel,
                 )
 
@@ -324,6 +454,7 @@ class DockerImageBuilder(LoggingBase):
         architecture: str = "x64",
         dependency_type: Optional[str] = None,
         platform: Optional[str] = None,
+        multi_platform: bool = False,
         parallel: int = 1,
     ) -> None:
         """
@@ -339,6 +470,7 @@ class DockerImageBuilder(LoggingBase):
             architecture: Target architecture, default "x64"
             dependency_type: Specific dependency for cpp (opencv, boost, etc.), optional
             platform: Docker platform override, optional
+            multi_platform: If we should build both x64 and arm64
             parallel: Number of parallel workers, default 1
         """
         if image_type == "manage":
@@ -376,6 +508,7 @@ class DockerImageBuilder(LoggingBase):
                         version,
                         base_image,
                         platform=platform,
+                        multi_platform=multi_platform,
                         parallel=parallel,
                     )
             else:
@@ -391,6 +524,7 @@ class DockerImageBuilder(LoggingBase):
                             version,
                             base_image,
                             platform=platform,
+                            multi_platform=multi_platform,
                             parallel=parallel,
                         )
         else:
@@ -407,6 +541,7 @@ class DockerImageBuilder(LoggingBase):
                         language_version=language_version,
                         image_type=image_type,
                         platform=platform,
+                        multi_platform=multi_platform,
                         parallel=parallel,
                     )
                 else:
@@ -423,13 +558,19 @@ class DockerImageBuilder(LoggingBase):
                         language_version=language_version,
                         image_type=image_type,
                         platform=platform,
+                        multi_platform=multi_platform,
                         parallel=parallel,
                     )
                 # No filters - process additional image types supported on the platform
                 if "images" in system_config:
                     for img_type, _ in system_config["images"].items():
                         self._process_image(
-                            operation, system, img_type, platform=platform, parallel=parallel
+                            operation,
+                            system,
+                            img_type,
+                            platform=platform,
+                            multi_platform=multi_platform,
+                            parallel=parallel,
                         )
 
     def _process(
@@ -442,6 +583,7 @@ class DockerImageBuilder(LoggingBase):
         architecture: str = "x64",
         dependency_type: Optional[str] = None,
         platform: Optional[str] = None,
+        multi_platform: bool = False,
         parallel: int = 1,
     ) -> None:
         """
@@ -459,6 +601,7 @@ class DockerImageBuilder(LoggingBase):
             architecture: Target architecture, default "x64"
             dependency_type: Specific dependency for cpp, optional
             platform: Docker platform override, optional
+            multi_platform: If we should build both x64 and arm64
             parallel: Number of parallel workers, default 1
         """
         systems_config = self.config._system_config
@@ -475,6 +618,7 @@ class DockerImageBuilder(LoggingBase):
                     architecture=architecture,
                     dependency_type=dependency_type,
                     platform=platform,
+                    multi_platform=multi_platform,
                     parallel=parallel,
                 )
             else:
@@ -491,6 +635,7 @@ class DockerImageBuilder(LoggingBase):
                     architecture=architecture,
                     dependency_type=dependency_type,
                     platform=platform,
+                    multi_platform=multi_platform,
                     parallel=parallel,
                 )
 
@@ -503,6 +648,7 @@ class DockerImageBuilder(LoggingBase):
         architecture: str = "x64",
         dependency_type: Optional[str] = None,
         platform: Optional[str] = None,
+        multi_platform: bool = False,
         parallel: int = 1,
     ) -> None:
         """
@@ -522,6 +668,7 @@ class DockerImageBuilder(LoggingBase):
             architecture: Target architecture, default "x64"
             dependency_type: Specific dependency for cpp, optional
             platform: Docker platform override, optional
+            multi_platform: If we should build both x64 and arm64
             parallel: Number of parallel workers, default 1
         """
         self._process(
@@ -533,6 +680,7 @@ class DockerImageBuilder(LoggingBase):
             architecture=architecture,
             dependency_type=dependency_type,
             platform=platform,
+            multi_platform=multi_platform,
             parallel=parallel,
         )
 

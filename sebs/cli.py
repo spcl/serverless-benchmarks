@@ -976,6 +976,12 @@ def docker_cmd():
     help="Optional Docker platform (e.g., linux/amd64) to override host architecture.",
 )
 @click.option(
+    "--multi-platform/--no-multi-platform",
+    default=False,
+    type=bool,
+    help="When true, build multi-platform images (requires QEMU support)",
+)
+@click.option(
     "--dependency-type",
     default=None,
     type=str,
@@ -990,6 +996,7 @@ def docker_build(
     language_version,
     architecture,
     platform,
+    multi_platform,
     dependency_type,
     parallel,
     verbose,
@@ -1013,6 +1020,7 @@ def docker_build(
         architecture=architecture,
         dependency_type=dependency_type,
         platform=platform,
+        multi_platform=multi_platform,
         parallel=parallel,
     )
 
