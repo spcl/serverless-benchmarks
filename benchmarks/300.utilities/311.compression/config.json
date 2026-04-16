@@ -13,7 +13,7 @@
       "language": "nodejs",
       "variants": {
         "default": "default",
-        "cloudflare": {"workers": "cloudflare", "containers": "default"}
+        "cloudflare": {"workers": "default", "containers": "default"}
       }
     }
   ],
