@@ -511,6 +511,44 @@ class GCP(System):
             bytes_size,
         )
 
+    def _allow_public_access(self, func_name: str, full_func_name: str) -> None:
+
+        """Configure GCP function to be publicly accessible.
+
+        Args:
+            func_name: our function name
+            full_func_name: GCP name
+
+        Raises:
+            RuntimeError:
+        """
+        allow_unauthenticated_req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .setIamPolicy(
+                resource=full_func_name,
+                body={
+                    "policy": {
+                        "bindings": [
+                            {
+                                "role": "roles/cloudfunctions.invoker",
+                                "members": ["allUsers"],
+                            }
+                        ]
+                    }
+                },
+            )
+        )
+        try:
+            allow_unauthenticated_req.execute()
+        except HttpError as e:
+            raise RuntimeError(
+                f"Failed to configure function {full_func_name} "
+                f"for unauthenticated invocations! Error: {e}"
+            )
+        self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
+
     def create_function(
         self,
         code_package: Benchmark,
@@ -612,46 +650,7 @@ class GCP(System):
             # Wait for deployment to become ACTIVE
             self._wait_for_active_status(func_name)
 
-            allow_unauthenticated_req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .setIamPolicy(
-                    resource=full_func_name,
-                    body={
-                        "policy": {
-                            "bindings": [
-                                {
-                                    "role": "roles/cloudfunctions.invoker",
-                                    "members": ["allUsers"],
-                                }
-                            ]
-                        }
-                    },
-                )
-            )
-
-            # Avoid infinite loop
-            MAX_RETRIES = 5
-            counter = 0
-            while counter < MAX_RETRIES:
-                try:
-                    allow_unauthenticated_req.execute()
-                    break
-                except HttpError:
-
-                    self.logging.info(
-                        "Sleeping for 5 seconds because the created functions is not yet available!"
-                    )
-                    time.sleep(5)
-                    counter += 1
-            else:
-                raise RuntimeError(
-                    f"Failed to configure function {full_func_name} "
-                    "for unauthenticated invocations!"
-                )
-
-            self.logging.info(f"Function {func_name} accepts now unauthenticated invocations!")
+            self._allow_public_access(func_name, full_func_name)
 
             function = GCPFunction(
                 func_name, benchmark, code_package.hash, function_cfg, code_bucket
@@ -667,6 +666,7 @@ class GCP(System):
                 cfg=function_cfg,
                 bucket=code_bucket,
             )
+            self._allow_public_access(func_name, full_func_name)
             self.update_function(function, code_package, container_deployment, container_uri)
 
         # Add LibraryTrigger to a new function
