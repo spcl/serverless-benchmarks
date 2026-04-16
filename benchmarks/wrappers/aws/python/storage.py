@@ -31,9 +31,7 @@ class storage:
         self.client.download_file(bucket, file, filepath)
 
     def download_directory(self, bucket, prefix, path):
-        print(f"DEBUG: bucket={bucket}, prefix={prefix}")
         objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        print(f"DEBUG: got {objects.get('KeyCount', 0)} keys, response keys: {list(objects.keys())}")
         # 'Contents' key is only present when objects are found
         if 'Contents' not in objects:
             raise RuntimeError(f"No objects found in bucket '{bucket}' with prefix '{prefix}'")
