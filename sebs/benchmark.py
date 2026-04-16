@@ -1247,18 +1247,17 @@ class Benchmark(LoggingBase):
                 # update `image_name` in the context to the fallback image name
                 image_name = unversioned_image_name
 
-            # Create set of mounted volumes unless Docker volumes are disabled
-            if not self._experiment_config.check_flag("docker_copy_build_files"):
-                volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
-                package_script = os.path.abspath(
-                    os.path.join(self._benchmark_path, self.language_name, "package.sh")
-                )
-                # does this benchmark has package.sh script?
-                if os.path.exists(package_script):
-                    volumes[package_script] = {
-                        "bind": "/mnt/function/package.sh",
-                        "mode": "ro",
-                    }
+            # Create set of mounted volumes
+            volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
+            package_script = os.path.abspath(
+                os.path.join(self._benchmark_path, self.language_name, "package.sh")
+            )
+            # does this benchmark has package.sh script?
+            if os.path.exists(package_script):
+                volumes[package_script] = {
+                    "bind": "/mnt/function/package.sh",
+                    "mode": "ro",
+                }
 
             # run Docker container to install packages
             PACKAGE_FILES = {
@@ -1274,91 +1273,40 @@ class Benchmark(LoggingBase):
                         "Docker build of benchmark dependencies in container "
                         "of image {repo}:{image}".format(repo=repo_name, image=image_name)
                     )
-                    uid = os.getuid()
-                    # Standard, simplest build
-                    if not self._experiment_config.check_flag("docker_copy_build_files"):
-                        self.logging.info(
-                            "Docker mount of benchmark code from path {path}".format(
-                                path=os.path.abspath(output_dir)
+                    self.logging.info(
+                        "Docker mount of benchmark code from path {path}".format(
+                            path=os.path.abspath(output_dir)
+                        )
+                    )
+                    container = self._docker_client.containers.run(
+                        "{}:{}".format(repo_name, image_name),
+                        volumes=volumes,
+                        environment={
+                            "CONTAINER_UID": str(os.getuid()),
+                            "CONTAINER_GID": str(os.getgid()),
+                            "CONTAINER_USER": "docker_user",
+                            "APP": self.benchmark,
+                            "PLATFORM": self._deployment_name.upper(),
+                            "TARGET_ARCHITECTURE": self._experiment_config._architecture,
+                        },
+                        remove=False,
+                        detach=True,
+                    )
+                    try:
+                        exit_code = container.wait()
+                        stdout = container.logs()
+                        if exit_code["StatusCode"] != 0:
+                            error_log_path = os.path.join(output_dir, "error.log")
+                            with open(error_log_path, "wb") as error_file:
+                                error_file.write(stdout)
+                            self.logging.error(
+                                f"Build failed! Container exited with "
+                                f"code {exit_code['StatusCode']}"
                             )
-                        )
-                        container = self._docker_client.containers.run(
-                            "{}:{}".format(repo_name, image_name),
-                            volumes=volumes,
-                            environment={
-                                "CONTAINER_UID": str(os.getuid()),
-                                "CONTAINER_GID": str(os.getgid()),
-                                "CONTAINER_USER": "docker_user",
-                                "APP": self.benchmark,
-                                "PLATFORM": self._deployment_name.upper(),
-                                "TARGET_ARCHITECTURE": self._experiment_config._architecture,
-                            },
-                            remove=False,
-                            detach=True,
-                        )
-                        try:
-                            exit_code = container.wait()
-                            stdout = container.logs()
-                            if exit_code["StatusCode"] != 0:
-                                error_log_path = os.path.join(output_dir, "error.log")
-                                with open(error_log_path, "wb") as error_file:
-                                    error_file.write(stdout)
-                                self.logging.error(
-                                    f"Build failed! Container exited with "
-                                    f"code {exit_code['StatusCode']}"
-                                )
-                                self.logging.error(f"Logs saved to {error_log_path}")
-                                raise RuntimeError("Package build failed!")
-                        finally:
-                            container.remove()
-                    # Hack to enable builds on platforms where Docker mounted volumes
-                    # are not supported. Example: CircleCI docker environment
-                    else:
-                        container = self._docker_client.containers.run(
-                            "{}:{}".format(repo_name, image_name),
-                            environment={"APP": self.benchmark},
-                            # user="1000:1000",
-                            user=uid,
-                            remove=True,
-                            detach=True,
-                            tty=True,
-                            command="/bin/bash",
-                        )
-                        # copy application files
-                        import tarfile
-
-                        self.logging.info(
-                            "Send benchmark code from path {path} to "
-                            "Docker instance".format(path=os.path.abspath(output_dir))
-                        )
-                        tar_archive = os.path.join(output_dir, os.path.pardir, "function.tar")
-                        with tarfile.open(tar_archive, "w") as tar:
-                            for f in os.listdir(output_dir):
-                                tar.add(os.path.join(output_dir, f), arcname=f)
-                        with open(tar_archive, "rb") as data:
-                            container.put_archive("/mnt/function", data.read())
-                        # do the build step
-                        exit_code, stdout = container.exec_run(  # type: ignore[assignment]
-                            cmd="/bin/bash /sebs/installer.sh",
-                            user="docker_user",
-                            stdout=True,
-                            stderr=True,
-                        )
-                        # copy updated code with package
-                        data, stat = container.get_archive("/mnt/function")  # type: ignore[assignment]
-                        with open(tar_archive, "wb") as output_filef:
-                            for chunk in data:
-                                output_filef.write(chunk)
-                        with tarfile.open(tar_archive, "r") as tar:
-                            tar.extractall(output_dir)
-                            # docker packs the entire directory with basename function
-                            for f in os.listdir(os.path.join(output_dir, "function")):
-                                shutil.move(
-                                    os.path.join(output_dir, "function", f),
-                                    os.path.join(output_dir, f),
-                                )
-                            shutil.rmtree(os.path.join(output_dir, "function"))
-                        container.stop()
+                            self.logging.error(f"Logs saved to {error_log_path}")
+                            raise RuntimeError("Package build failed!")
+                    finally:
+                        container.remove()
 
                     # Pass to output information on optimizing builds.
                     # Useful for AWS where packages have to obey size limits.
