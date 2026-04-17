@@ -33,6 +33,7 @@ Example:
 
 import datetime
 import json
+import random
 import re
 import os
 import shutil
@@ -335,6 +336,91 @@ class Azure(System):
         execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
         return directory, code_size
 
+    def _execute_cli_with_retry(
+        self,
+        cmd: str,
+        max_retries: int = 5,
+        base_delay: float = 1.0,
+        max_delay: float = 32.0,
+        retryable_errors: Optional[Set[str]] = None,
+    ) -> bytes:
+        """Execute Azure CLI command with retry logic for transient errors.
+
+        Handles transient CLI errors by retrying with exponential backoff
+        and jitter. Specific error patterns can be configured for retry.
+
+        Args:
+            cmd: Azure CLI command to execute
+            max_retries: Maximum number of retry attempts (default: 5)
+            base_delay: Base delay in seconds for exponential backoff (default: 1.0)
+            max_delay: Maximum delay between retries in seconds (default: 32.0)
+            retryable_errors: Set of error patterns to trigger retries
+                             (default: NotFound, TooManyRequests, find app with name)
+
+        Returns:
+            Command output as bytes
+
+        Raises:
+            RuntimeError: If the command fails with a non-retryable error or after
+                         exhausting all retry attempts
+        """
+        if retryable_errors is None:
+            retryable_errors = {
+                "NotFound",
+                "TooManyRequests",
+                "find app with name",
+                "ServiceUnavailable",
+                "InternalServerError",
+            }
+
+        attempt = 0
+        last_error = None
+
+        while attempt <= max_retries:
+            try:
+                result = self.cli_instance.execute(cmd)
+                if attempt > 0:
+                    self.logging.info(f"CLI command succeeded after {attempt} retries")
+                return result
+            except RuntimeError as e:
+                error_message = str(e)
+                last_error = e
+
+                # Check if error is retryable
+                is_retryable = any(pattern in error_message for pattern in retryable_errors)
+
+                if not is_retryable:
+                    raise
+
+                # Check if we have retries left
+                if attempt >= max_retries:
+                    self.logging.error(
+                        f"Max retries ({max_retries}) exhausted for CLI command, "
+                        f"failing with error: {error_message}"
+                    )
+                    raise
+
+                # Calculate delay with exponential backoff and jitter
+                delay = min(base_delay * (2**attempt) + random.uniform(0, 1), max_delay)
+
+                if attempt == 0:
+                    self.logging.warning(
+                        f"Transient CLI error, retrying (attempt {attempt + 1}/{max_retries}): "
+                        f"{error_message[:100]}"
+                    )
+                else:
+                    self.logging.info(
+                        f"Retry {attempt + 1}/{max_retries} after {delay:.1f}s backoff"
+                    )
+
+                time.sleep(delay)
+                attempt += 1
+
+        # This should not be reached, but just in case
+        if last_error:
+            raise last_error
+        raise RuntimeError("Unexpected state in retry logic")
+
     def publish_function(
         self,
         function: Function,
@@ -345,9 +431,9 @@ class Azure(System):
         """Publish function code to Azure Functions.
 
         Deploys the packaged function code to Azure Functions using the
-        Azure Functions CLI tools. Handles retries and URL extraction.
-        Will repeat on failure, which is useful to handle delays in
-        Azure cache updates - it can take between 30 and 60 seconds.
+        Azure Functions CLI tools. Handles retries with exponential backoff
+        and jitter for transient errors. This is useful to handle delays in
+        Azure cache updates and service availability issues.
 
         Args:
             function: Function instance to publish
@@ -361,79 +447,56 @@ class Azure(System):
         Raises:
             RuntimeError: If function publication fails or URL cannot be found.
         """
-        success = False
-        url = ""
         self.logging.info("Attempting publish of function {}".format(function.name))
-        while not success:
+
+        publish_cmd = (
+            f"bash -c 'cd {container_dest} "
+            "&& func azure functionapp publish {} --{} --no-build'".format(
+                function.name, self.AZURE_RUNTIMES[code_package.language_name]
+            )
+        )
+
+        # Execute publish command with retry if requested
+        if repeat_on_failure:
+            ret = self._execute_cli_with_retry(publish_cmd)
+        else:
+            ret = self.cli_instance.execute(publish_cmd)
+
+        self.logging.info(f"Function app publish of {function.name}, ret {ret.decode('utf-8')}")
+
+        # Extract URL from publish output
+        url = ""
+        ret_str = ret.decode("utf-8")
+        for line in ret_str.split("\n"):
+            if "Invoke url:" in line:
+                url = line.split("Invoke url:")[1].strip()
+                break
+
+        # Fallback: query function details if URL not found in publish output
+        if url == "":
+            self.logging.warning(
+                "Couldn't find function URL in the publish output: {}".format(ret.decode("utf-8"))
+            )
+            self.logging.info("Querying function details to retrieve URL")
+
+            resource_group = self.config.resources.resource_group(self.cli_instance)
+            query_cmd = (
+                "az functionapp function show --function-name handler "
+                f"--name {function.name} --resource-group {resource_group}"
+            )
+
+            # Use retry for the query as well if repeat_on_failure is enabled
+            if repeat_on_failure:
+                ret = self._execute_cli_with_retry(query_cmd)
+            else:
+                ret = self.cli_instance.execute(query_cmd)
+
+            self.logging.info(f"Function query for {function.name}! Return {ret.decode('utf-8')}")
             try:
-                ret = self.cli_instance.execute(
-                    f"bash -c 'cd {container_dest} "
-                    "&& func azure functionapp publish {} --{} --no-build'".format(
-                        function.name, self.AZURE_RUNTIMES[code_package.language_name]
-                    )
-                )
-                self.logging.error(
-                    f"Function app publish of {function.name}, ret {ret.decode('utf-8')}"
-                )
-                url = ""
-                ret_str = ret.decode("utf-8")
-                for line in ret_str.split("\n"):
-                    if "Invoke url:" in line:
-                        url = line.split("Invoke url:")[1].strip()
-                        break
+                url = json.loads(ret.decode("utf-8"))["invokeUrlTemplate"]
+            except json.decoder.JSONDecodeError:
+                raise RuntimeError(f"Couldn't find the function URL in {ret.decode('utf-8')}")
 
-                # We failed to find the URL the normal way
-                # Sometimes, the output does not include functions.
-                if url == "":
-                    self.logging.warning(
-                        "Couldnt find function URL in the output: {}".format(ret.decode("utf-8"))
-                    )
-
-                    self.logging.info("Sleeping 30 seconds before attempting another query.")
-
-                    resource_group = self.config.resources.resource_group(self.cli_instance)
-                    ret = self.cli_instance.execute(
-                        "az functionapp function show --function-name handler "
-                        f"--name {function.name} --resource-group {resource_group}"
-                    )
-                    self.logging.error(
-                        f"Function query for {function.name}! Return {ret.decode('utf-8')}"
-                    )
-                    try:
-                        url = json.loads(ret.decode("utf-8"))["invokeUrlTemplate"]
-                    except json.decoder.JSONDecodeError:
-                        raise RuntimeError(
-                            f"Couldn't find the function URL in {ret.decode('utf-8')}"
-                        )
-
-                success = True
-            except RuntimeError as e:
-                error = str(e)
-                self.logging.error(f"Failed to publish function {function.name}! Error {error}")
-                # app not found
-                # Azure changed the description as some point
-                if ("find app with name" in error or "NotFound" in error) and repeat_on_failure:
-                    # Sleep because of problems when publishing immediately
-                    # after creating function app.
-                    time.sleep(30)
-                    self.logging.info(
-                        "Sleep 30 seconds for Azure to register function app {}".format(
-                            function.name
-                        )
-                    )
-                elif ("TooManyRequests" in error) and repeat_on_failure:
-                    """
-                    One error can be "Error calling sync triggers (TooManyRequests)".
-                    """
-                    time.sleep(10)
-                    self.logging.info(
-                        "Sleep 10 seconds for Azure due too many requests for function {}".format(
-                            function.name
-                        )
-                    )
-                # escape loop. we failed!
-                else:
-                    raise e
         return url
 
     def update_function(
