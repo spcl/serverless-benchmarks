@@ -86,7 +86,8 @@ jobs:
             --config configs/example.json \
             --deployment ${{ inputs.platform }} \
             --resource-prefix ci \
-            --resource-type functions
+            --resource-type functions \
+            --cache regression-cache
 
       - name: Generate test summary
         if: always()
