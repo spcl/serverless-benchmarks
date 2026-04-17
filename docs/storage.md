@@ -149,18 +149,36 @@ R2 configuration is handled automatically by SeBS when deploying to Cloudflare W
 **Limitations:**
 - Geographic location hints (locationHint) are not currently supported. R2 buckets are created with Cloudflare's automatic location selection, which places data near where it's most frequently accessed.
 
-### Durable Objects for NoSQL
+### Container Upload Behavior (R2 Proxy)
 
-Cloudflare Durable Objects provide stateful storage for NoSQL operations required by benchmarks like the CRUD API (130.crud-api).
+For Cloudflare container deployments, benchmark code does not talk to R2 directly. Instead, container wrappers call the Worker proxy endpoints (`/r2/upload`, `/r2/multipart-init`, `/r2/multipart-part`, `/r2/multipart-complete`).
+
+**Upload strategy:**
+- Small payloads use a single upload request.
+- Large payloads use multipart upload (10 MB threshold, 10 MB part size in current wrappers).
+- Node.js container wrapper retries with multipart when single-upload fails with size/body-limit style errors.
+
+**Object keys and uniqueness:**
+- Container wrappers generate unique output keys (suffix based on UUID fragment) before upload.
+- This avoids collisions and keeps run-specific output objects distinct in regression and repeated invocations.
+
+**Content-Type behavior:**
+- Stored object metadata should reflect the real file type (for example `image/jpeg`, `image/png`) when inferable.
+- In the Node.js container path, the Worker proxy infers content type from the object key extension when the caller omits it.
+- In the Python container path, the wrapper infers content type and passes it to the Worker proxy.
+- Multipart part transport may still use `application/octet-stream`; this is expected for chunk transport and does not imply final object metadata must be octet-stream.
+
+### KVStore for NoSQL
+
+Cloudflare KV namespaces are used for NoSQL operations required by benchmarks such as CRUD API (130.crud-api).
 
 **Key Features:**
-- Strongly consistent storage
-- Low-latency access from Workers
-- Built-in coordination primitives
-- Global replication
+- Native Workers integration through KV bindings
+- Simple key-value interface compatible with SeBS NoSQL wrapper operations
+- Global edge distribution for read-heavy access patterns
 
 **Usage:**
-SeBS configures Durable Objects bindings automatically when deploying container-based Workers that require NoSQL storage. The benchmark wrappers handle the interaction with Durable Objects through the standard SeBS storage interface.
+SeBS configures KV namespace bindings automatically for Cloudflare deployments that require NoSQL storage. Benchmark wrappers access KV through the standard SeBS NoSQL interface (insert/update/get/query/delete).
 
 
 ## Lifecycle Management
