@@ -95,7 +95,9 @@ class DockerImageBuilder(LoggingBase):
         Returns:
             True if multi-platform build should be used, False otherwise
         """
-        return system == "aws" and image_type == "build" and language in ["python", "nodejs", "java"]
+        return (
+            system == "aws" and image_type == "build" and language in ["python", "nodejs", "java"]
+        )
 
     def _execute_multiplatform_build(
         self,
