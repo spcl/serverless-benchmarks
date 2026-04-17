@@ -28,6 +28,7 @@ Example:
 import docker
 import os
 import logging
+import random
 import re
 import shutil
 import time
@@ -165,6 +166,76 @@ class GCP(System):
         """
         return self.function_client
 
+    def _execute_with_retry(
+        self,
+        request,
+        max_retries: int = 5,
+        base_delay: float = 1.0,
+        max_delay: float = 32.0,
+    ) -> Dict:
+        """Execute a googleapiclient request with retry logic for transient errors.
+
+        Handles transient HTTP errors (503, 429) by retrying with exponential backoff
+        and jitter. Non-transient errors are raised immediately without retry.
+
+        Args:
+            request: googleapiclient request object to execute
+            max_retries: Maximum number of retry attempts (default: 5)
+            base_delay: Base delay in seconds for exponential backoff (default: 1.0)
+            max_delay: Maximum delay between retries in seconds (default: 32.0)
+
+        Returns:
+            Response dictionary from the API call
+
+        Raises:
+            HttpError: If the request fails with a non-transient error or after
+                      exhausting all retry attempts
+        """
+        attempt = 0
+        last_error = None
+
+        while attempt <= max_retries:
+            try:
+                result = request.execute()
+                if attempt > 0:
+                    self.logging.info(f"Request succeeded after {attempt} retries")
+                return result
+            except HttpError as e:
+                status_code = e.resp.status
+                last_error = e
+
+                # Only retry on transient errors
+                if status_code not in GCP.TRANSIENT_HTTP_CODES:
+                    raise
+
+                # Check if we have retries left
+                if attempt >= max_retries:
+                    self.logging.error(
+                        f"Max retries ({max_retries}) exhausted, failing with status {status_code}"
+                    )
+                    raise
+
+                # Calculate delay with exponential backoff and jitter
+                delay = min(base_delay * (2**attempt) + random.uniform(0, 1), max_delay)
+
+                if attempt == 0:
+                    self.logging.warning(
+                        f"Transient error {status_code}, retrying "
+                        f"(attempt {attempt + 1}/{max_retries})"
+                    )
+                else:
+                    self.logging.info(
+                        f"Retry {attempt + 1}/{max_retries} after {delay:.1f}s backoff"
+                    )
+
+                time.sleep(delay)
+                attempt += 1
+
+        # This should not be reached, but just in case
+        if last_error:
+            raise last_error
+        raise RuntimeError("Unexpected state in retry logic")
+
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
@@ -287,7 +358,7 @@ class GCP(System):
             get_req = (
                 self.function_client.projects().locations().functions().get(name=full_func_name)
             )
-            func_details = get_req.execute()
+            func_details = self._execute_with_retry(get_req)
             if "buildId" in func_details:
                 previous_build_id = func_details["buildId"]
         except HttpError:
@@ -308,7 +379,7 @@ class GCP(System):
                 get_req = (
                     self.function_client.projects().locations().functions().get(name=full_func_name)
                 )
-                func_details = get_req.execute()
+                func_details = self._execute_with_retry(get_req)
 
                 # Check if there's a new build in progress
                 if "buildId" in func_details:
@@ -373,23 +444,10 @@ class GCP(System):
                     f"after {elapsed:.0f}s. Last status: {last_status}"
                 )
 
-            try:
-                get_req = (
-                    self.function_client.projects().locations().functions().get(name=full_func_name)
-                )
-                func_details = get_req.execute()
-            except HttpError as e:
-
-                status_code = e.resp.status
-                if status_code in GCP.TRANSIENT_HTTP_CODES:
-                    self.logging.warning(
-                        f"Transient error {status_code} while polling {func_name}, "
-                        f"retrying ({elapsed:.0f}s elapsed)"
-                    )
-                    time.sleep(5)  # back off a bit more for 5xx
-                    continue
-                # 404 past grace window, 403, 400, etc. — real error.
-                raise
+            get_req = (
+                self.function_client.projects().locations().functions().get(name=full_func_name)
+            )
+            func_details = self._execute_with_retry(get_req)
 
             status = func_details["status"]
             current_version = int(func_details["versionId"])
@@ -541,7 +599,7 @@ class GCP(System):
             )
         )
         try:
-            allow_unauthenticated_req.execute()
+            self._execute_with_retry(allow_unauthenticated_req)
         except HttpError as e:
             raise RuntimeError(
                 f"Failed to configure function {full_func_name} "
@@ -607,7 +665,7 @@ class GCP(System):
         get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
 
         try:
-            get_req.execute()
+            self._execute_with_retry(get_req)
         except HttpError:
 
             envs = self._generate_function_envs(code_package)
@@ -637,7 +695,7 @@ class GCP(System):
                     },
                 )
             )
-            create_req.execute()
+            self._execute_with_retry(create_req)
             self.logging.info(
                 f"Function {func_name} is creating - GCP build&deployment is started!"
             )
@@ -707,7 +765,7 @@ class GCP(System):
             get_req = (
                 self.function_client.projects().locations().functions().get(name=full_func_name)
             )
-            func_details = get_req.execute()
+            func_details = self._execute_with_retry(get_req)
             invoke_url = func_details["httpsTrigger"]["url"]
             self.logging.info(f"Function {function.name} - HTTP trigger ready at {invoke_url}")
 
@@ -808,7 +866,7 @@ class GCP(System):
                 },
             )
         )
-        res = req.execute()
+        res = self._execute_with_retry(req)
 
         self.logging.info(f"Function {function.name} code update initiated")
 
@@ -842,7 +900,7 @@ class GCP(System):
         get_req = (
             self.function_client.projects().locations().functions().get(name=full_function_name)
         )
-        response = get_req.execute()
+        response = self._execute_with_retry(get_req)
 
         # preserve old variables while adding new ones.
         # but for conflict, we select the new one
@@ -943,7 +1001,7 @@ class GCP(System):
                 )
             )
 
-        res = req.execute()
+        res = self._execute_with_retry(req)
         expected_version = int(res["metadata"]["versionId"])
 
         self.logging.info(f"Function {function.name} configuration update initiated")
@@ -971,7 +1029,7 @@ class GCP(System):
             delete_req = (
                 self.function_client.projects().locations().functions().delete(name=full_func_name)
             )
-            delete_req.execute()
+            self._execute_with_retry(delete_req)
             self.logging.info(f"Function {func_name} deleted successfully")
         except HttpError as e:
             if e.resp.status == 404:
@@ -1256,7 +1314,7 @@ class GCP(System):
         name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
         function_client = self.get_function_client()
         status_req = function_client.projects().locations().functions().get(name=name)
-        status_res = status_req.execute()
+        status_res = self._execute_with_retry(status_req)
         if versionId == -1:
             return (status_res["status"] == "ACTIVE", status_res["versionId"])
         else:
@@ -1274,7 +1332,7 @@ class GCP(System):
         name = GCP.get_full_function_name(self.config.project_name, self.config.region, func.name)
         function_client = self.get_function_client()
         status_req = function_client.projects().locations().functions().get(name=name)
-        status_res = status_req.execute()
+        status_res = self._execute_with_retry(status_req)
         return int(status_res["versionId"])
 
     @staticmethod
