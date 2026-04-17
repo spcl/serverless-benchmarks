@@ -2,6 +2,7 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG VERSION
 ENV JAVA_VERSION=${VERSION}
+ARG TARGETARCH
 
 # useradd, groupmod, build tooling
 RUN yum install -y shadow-utils unzip tar gzip zip
