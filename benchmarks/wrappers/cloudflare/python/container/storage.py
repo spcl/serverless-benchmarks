@@ -142,9 +142,11 @@ class storage:
         # Convert to bytes if needed
         if isinstance(data, str):
             data = data.encode('utf-8')
+
+        unique_key = self.unique_name(key)
         
         try:
-            return self._upload_bytes(key, data, _guess_content_type(key))
+            return self._upload_bytes(unique_key, data, _guess_content_type(unique_key))
         except Exception as e:
             print(f"R2 upload error: {e}")
             raise RuntimeError(f"Failed to upload to R2: {e}")

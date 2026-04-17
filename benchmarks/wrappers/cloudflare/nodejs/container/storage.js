@@ -2,6 +2,14 @@ const fs = require('fs');
 const path = require('path');
 const uuid = require('uuid');
 
+const MULTIPART_THRESHOLD = 10 * 1024 * 1024;
+const PART_SIZE = 10 * 1024 * 1024;
+
+function isRetryableSingleUploadError(error) {
+  const message = error?.message || '';
+  return /HTTP 4(?:08|13|29)|request body|payload|too large|content length|body size|stream/i.test(message);
+}
+
 /**
  * Storage module for Cloudflare Node.js Containers
  * Uses HTTP proxy to access R2 storage through the Worker's R2 binding
@@ -11,9 +19,6 @@ class storage {
   constructor() {
     this.r2_enabled = true;
   }
-  
-  static worker_url = null; // Set by handler from X-Worker-URL header
-
   
   static worker_url = null; // Set by handler from X-Worker-URL header
 
@@ -41,6 +46,94 @@ class storage {
     return storage.instance;
   }
 
+  _toBuffer(data) {
+    if (Buffer.isBuffer(data)) {
+      return data;
+    }
+    if (typeof data === 'string') {
+      return Buffer.from(data, 'utf-8');
+    }
+    if (data instanceof ArrayBuffer) {
+      return Buffer.from(data);
+    }
+    return Buffer.from(String(data), 'utf-8');
+  }
+
+  async _postJson(url, body = Buffer.alloc(0), contentType = null) {
+    const options = {
+      method: 'POST',
+      body,
+    };
+
+    if (contentType) {
+      options.headers = { 'Content-Type': contentType };
+    }
+
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    }
+
+    return response.json();
+  }
+
+  async _single_upload(key, buffer) {
+    const params = new URLSearchParams({ key });
+    const url = `${storage.worker_url}/r2/upload?${params}`;
+    const result = await this._postJson(url, buffer);
+    return result.key;
+  }
+
+  async _multipart_upload(key, buffer) {
+    const initParams = new URLSearchParams({ key });
+    const initUrl = `${storage.worker_url}/r2/multipart-init?${initParams}`;
+    const init = await this._postJson(initUrl);
+    const uploadId = init.uploadId;
+    const uploadKey = init.key;
+    const completedParts = [];
+
+    for (let offset = 0, partNumber = 1; offset < buffer.length; offset += PART_SIZE, partNumber += 1) {
+      const chunk = buffer.subarray(offset, offset + PART_SIZE);
+      const partParams = new URLSearchParams({
+        key: uploadKey,
+        uploadId,
+        partNumber: String(partNumber),
+      });
+      const partUrl = `${storage.worker_url}/r2/multipart-part?${partParams}`;
+      const part = await this._postJson(partUrl, chunk, 'application/octet-stream');
+      completedParts.push({ partNumber: part.partNumber, etag: part.etag });
+    }
+
+    const completeParams = new URLSearchParams({ key: uploadKey, uploadId });
+    const completeUrl = `${storage.worker_url}/r2/multipart-complete?${completeParams}`;
+    const result = await this._postJson(
+      completeUrl,
+      Buffer.from(JSON.stringify({ parts: completedParts }), 'utf-8'),
+      'application/json'
+    );
+    return result.key;
+  }
+
+  async _upload_bytes(key, buffer) {
+    if (buffer.length > MULTIPART_THRESHOLD) {
+      return this._multipart_upload(key, buffer);
+    }
+
+    try {
+      return await this._single_upload(key, buffer);
+    } catch (error) {
+      if (!isRetryableSingleUploadError(error)) {
+        throw error;
+      }
+
+      console.warn(
+        `[storage] single upload failed for ${key}; retrying with multipart upload: ${error.message}`
+      );
+      return this._multipart_upload(key, buffer);
+    }
+  }
+
   async upload_stream(bucket, key, data) {
     if (!this.r2_enabled) {
       console.log('Warning: R2 not configured, skipping upload');
@@ -52,36 +145,10 @@ class storage {
     }
 
     const unique_key = storage.unique_name(key);
-
-    // Convert data to Buffer if needed
-    let buffer;
-    if (Buffer.isBuffer(data)) {
-      buffer = data;
-    } else if (typeof data === 'string') {
-      buffer = Buffer.from(data, 'utf-8');
-    } else if (data instanceof ArrayBuffer) {
-      buffer = Buffer.from(data);
-    } else {
-      buffer = Buffer.from(String(data), 'utf-8');
-    }
-
-    // Upload via worker proxy
-    const params = new URLSearchParams({ bucket, key: unique_key });
-    const url = `${storage.worker_url}/r2/upload?${params}`;
+    const buffer = this._toBuffer(data);
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: buffer,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-      }
-
-      const result = await response.json();
-      return result.key;
+      return await this._upload_bytes(unique_key, buffer);
     } catch (error) {
       console.error('R2 upload error:', error);
       throw new Error(`Failed to upload to R2: ${error.message}`);
@@ -152,41 +219,13 @@ class storage {
     
     console.log(`[storage._upload_stream_with_key] Worker URL: ${storage.worker_url}`);
 
-    // Convert data to Buffer if needed
-    let buffer;
-    if (Buffer.isBuffer(data)) {
-      buffer = data;
-    } else if (typeof data === 'string') {
-      buffer = Buffer.from(data, 'utf-8');
-    } else if (data instanceof ArrayBuffer) {
-      buffer = Buffer.from(data);
-    } else {
-      buffer = Buffer.from(String(data), 'utf-8');
-    }
-
-    // Upload via worker proxy
-    const params = new URLSearchParams({ bucket, key });
-    const url = `${storage.worker_url}/r2/upload?${params}`;
-    console.log(`[storage._upload_stream_with_key] Uploading to URL: ${url}, buffer size: ${buffer.length}`);
+    const buffer = this._toBuffer(data);
+    console.log(`[storage._upload_stream_with_key] Uploading key=${key}, buffer size: ${buffer.length}`);
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: buffer,
-      });
-      
-      console.log(`[storage._upload_stream_with_key] Response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[storage._upload_stream_with_key] Upload failed: ${response.status} - ${errorText}`);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`[storage._upload_stream_with_key] Upload successful, returned key: ${result.key}`);
-      return result.key;
+      const resultKey = await this._upload_bytes(key, buffer);
+      console.log(`[storage._upload_stream_with_key] Upload successful, returned key: ${resultKey}`);
+      return resultKey;
     } catch (error) {
       console.error('R2 upload error:', error);
       throw new Error(`Failed to upload to R2: ${error.message}`);
