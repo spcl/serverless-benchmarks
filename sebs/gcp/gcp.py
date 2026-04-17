@@ -955,6 +955,31 @@ class GCP(System):
 
         return current_version
 
+    def delete_function(self, func_name: str) -> None:
+        """Delete a Google Cloud Function.
+
+        Args:
+            func_name: Name of the function to delete
+        """
+        self.logging.info(f"Deleting function {func_name}")
+
+        full_func_name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+
+        try:
+            delete_req = (
+                self.function_client.projects().locations().functions().delete(name=full_func_name)
+            )
+            delete_req.execute()
+            self.logging.info(f"Function {func_name} deleted successfully")
+        except HttpError as e:
+            if e.resp.status == 404:
+                self.logging.error(f"Function {func_name} does not exist!")
+            else:
+                self.logging.error(f"Failed to delete function {func_name}: {e}")
+                raise
+
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str) -> str:
         """Generate the fully qualified function name for GCP API calls.
