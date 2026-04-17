@@ -469,7 +469,13 @@ def package(
     default=os.path.join(os.path.curdir, "regression-output"),
     help="Output directory for results.",
 )
-def regression(benchmark_input_size, benchmark_name, storage_configuration, **kwargs):
+@click.option(
+    "--deployment-type",
+    default=None,
+    type=click.Choice(["workers", "container"]),
+    help="Limit regression to a specific deployment type (workers or container).",
+)
+def regression(benchmark_input_size, benchmark_name, storage_configuration, deployment_type, **kwargs):
     """Run regression test suite across benchmarks."""
     # for regression, deployment client is initialized locally
     # disable default initialization
@@ -484,6 +490,7 @@ def regression(benchmark_input_size, benchmark_name, storage_configuration, **kw
         set((config["deployment"]["name"],)),
         config,
         benchmark_name,
+        deployment_type,
     )
 
 
