@@ -20,9 +20,10 @@ RUN apt-get clean && apt-get update \
 RUN npm install -g wrangler
 
 # Install uv (fast Python package installer) and pywrangler
-# uv install script puts the binary in ~/.local/bin by default (not ~/.cargo/bin)
+# Pin workers-py to 1.8.0: 1.9.x introduced a broken import (rich.logging.Console)
+# which does not exist in any version of rich. Remove the pin once upstream fixes it.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    /root/.local/bin/uv tool install workers-py
+    /root/.local/bin/uv tool install 'workers-py==1.8.0'
 
 # Add paths to environment
 ENV PATH="/root/.local/bin:/root/.local/share/uv/tools/workers-py/bin:${PATH}"
