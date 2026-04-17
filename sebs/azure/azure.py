@@ -372,6 +372,9 @@ class Azure(System):
                         function.name, self.AZURE_RUNTIMES[code_package.language_name]
                     )
                 )
+                self.logging.error(
+                    f"Function app publish of {function.name}, ret {ret.decode('utf-8')}"
+                )
                 url = ""
                 ret_str = ret.decode("utf-8")
                 for line in ret_str.split("\n"):
@@ -393,6 +396,9 @@ class Azure(System):
                         "az functionapp function show --function-name handler "
                         f"--name {function.name} --resource-group {resource_group}"
                     )
+                    self.logging.error(
+                        f"Function query for {function.name}! Return {ret.decode('utf-8')}"
+                    )
                     try:
                         url = json.loads(ret.decode("utf-8"))["invokeUrlTemplate"]
                     except json.decoder.JSONDecodeError:
@@ -403,6 +409,7 @@ class Azure(System):
                 success = True
             except RuntimeError as e:
                 error = str(e)
+                self.logging.error(f"Failed to publish function {function.name}! Error {error}")
                 # app not found
                 # Azure changed the description as some point
                 if ("find app with name" in error or "NotFound" in error) and repeat_on_failure:
@@ -411,6 +418,16 @@ class Azure(System):
                     time.sleep(30)
                     self.logging.info(
                         "Sleep 30 seconds for Azure to register function app {}".format(
+                            function.name
+                        )
+                    )
+                elif ("TooManyRequests" in error) and repeat_on_failure:
+                    """
+                    One error can be "Error calling sync triggers (TooManyRequests)".
+                    """
+                    time.sleep(10)
+                    self.logging.info(
+                        "Sleep 10 seconds for Azure due too many requests for function {}".format(
                             function.name
                         )
                     )
@@ -746,7 +763,7 @@ class Azure(System):
             while True:
                 try:
                     # create function app
-                    self.cli_instance.execute(
+                    ret = self.cli_instance.execute(
                         (
                             " az functionapp create --resource-group {resource_group} "
                             " --os-type Linux --consumption-plan-location {region} "
@@ -755,6 +772,7 @@ class Azure(System):
                             " --functions-version 4 "
                         ).format(**config)
                     )
+                    self.logging.error(f"Function app {func_name}, ret {ret.decode('utf-8')}")
                     self.logging.info("Azure: Created function app {}".format(func_name))
                     break
                 except RuntimeError as e:
