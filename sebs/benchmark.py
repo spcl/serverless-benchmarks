@@ -1450,7 +1450,53 @@ class Benchmark(LoggingBase):
             assert container_client is not None
 
             repo_name = self._system_config.docker_repository()
-            _, image_name = self.builder_image_name()
+            previous_version_image_name, current_version_image_name = self.builder_image_name()
+
+            # Try current version build image first, fallback to previous version
+            image_name = current_version_image_name
+            current_available = False
+            try:
+                self._docker_client.images.get(f"{repo_name}:{current_version_image_name}")
+                current_available = True
+            except Exception:
+                # Not available locally, try to pull it
+                try:
+                    self.logging.info(
+                        f"Docker pull of build image {repo_name}:{current_version_image_name}"
+                    )
+                    self._docker_client.images.pull(repo_name, current_version_image_name)
+                    current_available = True
+                except Exception:
+                    pass
+
+            if not current_available:
+                # Current version not available, try previous version
+                try:
+                    self._docker_client.images.get(f"{repo_name}:{previous_version_image_name}")
+                    image_name = previous_version_image_name
+                    self.logging.info(
+                        f"Using previous version build image {previous_version_image_name} "
+                        "(current version not available)"
+                    )
+                except Exception:
+                    # Previous version not local, try to pull it
+                    try:
+                        self.logging.info(
+                            f"Docker pull of build image {repo_name}:{previous_version_image_name}"
+                        )
+                        self._docker_client.images.pull(repo_name, previous_version_image_name)
+                        image_name = previous_version_image_name
+                        self.logging.info(
+                            f"Using previous version build image {previous_version_image_name} "
+                            "(current version not available)"
+                        )
+                    except Exception:
+                        # Neither version available - use current and let build fail
+                        self.logging.warning(
+                            f"Neither current ({current_version_image_name}) nor previous "
+                            f"({previous_version_image_name}) version build image available, "
+                            "build may fail"
+                        )
 
             """
                 Generate custom Dockerfile for C++ benchmarks
