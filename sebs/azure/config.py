@@ -654,7 +654,7 @@ class AzureResources(Resources):
                     List does not return connection string, so we need to query it separately.
                 """
                 return AzureResources.Storage.from_allocation(account_name, cli_instance)
-        except:
+        except json.JSONDecodeError:
             pass
 
         sku = "Standard_LRS"
