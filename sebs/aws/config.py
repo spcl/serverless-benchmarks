@@ -655,7 +655,6 @@ class AWSResources(Resources):
         """
 
         deleted: List[str] = []
-        deleted_functions: List[str] = []
         dry_run_tag = "[DRY-RUN] " if dry_run else ""
 
         dict_copy = self._function_urls.copy()
@@ -664,14 +663,8 @@ class AWSResources(Resources):
             self.logging.info(f"{dry_run_tag}Deleting Function URL for: {func_name}")
 
             if not dry_run:
-                self.delete_function_url(func_name, boto3_session)
+                self.delete_function_url(func_name, boto3_session, cache_client)
             deleted.append(func_url.url)
-            deleted_functions.append(func_name)
-
-        if not dry_run:
-            for func_name in deleted_functions:
-                cache_client.remove_config_key(["aws", "resources", "function-urls", func_name])
-                self._function_urls.pop(func_name, None)
 
         return deleted
 
@@ -776,7 +769,9 @@ class AWSResources(Resources):
         self._function_urls[func.name] = function_url_obj
         return function_url_obj
 
-    def delete_function_url(self, function_name: str, boto3_session: boto3.session.Session) -> bool:
+    def delete_function_url(
+        self, function_name: str, boto3_session: boto3.session.Session, cache_client: Cache
+    ) -> bool:
         """
         Delete a Lambda Function URL for the given function.
         Returns True if deleted successfully, False if it didn't exist.
@@ -812,6 +807,7 @@ class AWSResources(Resources):
             # Only runs if no exception was raised - cleanup cache
             if function_name in self._function_urls:
                 del self._function_urls[function_name]
+                cache_client.remove_config_key(["aws", "resources", "function-urls", function_name])
             return True
 
     def check_ecr_repository_exists(

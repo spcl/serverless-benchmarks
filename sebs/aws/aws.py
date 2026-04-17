@@ -638,6 +638,7 @@ class AWS(System):
         self.logging.info("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
+            self.config.resources.delete_function_url(func_name, self.session, self.cache_client)
         except Exception:
             self.logging.error("Function {} does not exist!".format(func_name))
 
