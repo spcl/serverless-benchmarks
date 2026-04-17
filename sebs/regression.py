@@ -1099,7 +1099,6 @@ class CloudflareTestSequencePythonWorkers(
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
         config_copy["experiments"]["container_deployment"] = False
-        config_copy["experiments"]["runtime"]["language-variant"] = "cloudflare"
 
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
@@ -1130,7 +1129,6 @@ class CloudflareTestSequencePythonContainers(
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
         config_copy["experiments"]["container_deployment"] = True
-        config_copy["experiments"]["runtime"]["language-variant"] = "cloudflare"
 
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
@@ -1161,7 +1159,6 @@ class CloudflareTestSequenceNodejsWorkers(
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
         config_copy["experiments"]["container_deployment"] = False
-        config_copy["experiments"]["runtime"]["language-variant"] = "cloudflare"
 
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
@@ -1192,7 +1189,6 @@ class CloudflareTestSequenceNodejsContainers(
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
         config_copy["experiments"]["container_deployment"] = True
-        config_copy["experiments"]["runtime"]["language-variant"] = "cloudflare"
 
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
@@ -1346,6 +1342,7 @@ def regression_suite(
     providers: Set[str],
     deployment_config: dict,
     benchmark_name: Optional[str] = None,
+    deployment_type: Optional[str] = None,
 ):
     """Create and run a regression test suite for specified cloud providers.
 
@@ -1438,27 +1435,31 @@ def regression_suite(
             "cloudflare" in cloud_config["deployment"]
         ), "Cloudflare provider requested but not in deployment config"
         if language == "python":
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(
-                    CloudflareTestSequencePythonWorkers
+            if deployment_type != "container":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequencePythonWorkers
+                    )
                 )
-            )
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(
-                    CloudflareTestSequencePythonContainers
+            if deployment_type != "workers":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequencePythonContainers
+                    )
                 )
-            )
         elif language == "nodejs":
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(
-                    CloudflareTestSequenceNodejsWorkers
+            if deployment_type != "container":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequenceNodejsWorkers
+                    )
                 )
-            )
-            suite.addTest(
-                unittest.defaultTestLoader.loadTestsFromTestCase(
-                    CloudflareTestSequenceNodejsContainers
+            if deployment_type != "workers":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequenceNodejsContainers
+                    )
                 )
-            )
 
     # Prepare the list of tests to run
     tests = []
@@ -1486,7 +1487,7 @@ def regression_suite(
             if not benchmark_name or (benchmark_name and benchmark_name in test_name):
                 # Set up test instance with client and config
                 test.client = sebs_client  # type: ignore
-                test.experiment_config = experiment_config.copy()  # type: ignore
+                test.experiment_config = copy.deepcopy(experiment_config)  # type: ignore
                 tests.append(test)
             else:
                 print(f"Skip test {test_name}")
