@@ -86,12 +86,12 @@ class HTTPTrigger(Trigger):
                 self.logging.info(f"Container returned 502 (still starting?), will retry...")
                 raise ContainerProvisioningError(f"502 gateway error from container worker")
             
-            # Check for Cloudflare error code 1042 (worker not ready) in JSON response
-            if isinstance(output, dict) and "error code" in str(output):
-                error_str = str(output)
-                if "1042" in error_str:
-                    self.logging.info(f"Worker returned error 1042 (not ready yet), will retry...")
-                    raise ContainerProvisioningError(f"Error 1042 from worker: {error_str}")
+            # Check for Cloudflare error code 1042 (CPU time limit / worker not ready)
+            # Output may be a plain string like "error code: 1042" rather than a dict.
+            output_str = str(output)
+            if "1042" in output_str and "error code" in output_str:
+                self.logging.info(f"Worker returned error 1042 (CPU time limit), will retry...")
+                raise ContainerProvisioningError(f"Error 1042 from worker: {output_str}")
             
             if status_code != 200:
                 self.logging.error(f"Invocation on URL {url} failed!")
@@ -115,6 +115,9 @@ class HTTPTrigger(Trigger):
                 "provisioning the Container",
                 "currently provisioning",
             )
+            if "1042" in raw_text and "error code" in raw_text:
+                self.logging.info(f"Worker returned error 1042 (CPU time limit), will retry...")
+                raise ContainerProvisioningError(f"Error 1042 from worker: {raw_text[:200]}")
             if status_code == 502 or any(p.lower() in raw_text.lower() for p in provisioning_phrases):
                 self.logging.info(f"Container still provisioning (URL {url}): {raw_text[:120]}")
                 raise ContainerProvisioningError(
