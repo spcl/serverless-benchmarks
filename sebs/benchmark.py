@@ -1471,6 +1471,9 @@ class Benchmark(LoggingBase):
                     self._benchmark_config._cpp_dependencies,
                     dockerfile_template,
                     self._system_config.version(),
+                    previous_version=self._system_config.previous_version(),
+                    docker_client=self._docker_client,
+                    docker_repository=self._system_config.docker_repository(),
                 )
                 dockerfile_path = os.path.join(self._output_dir, "Dockerfile")
                 with open(dockerfile_path, "w") as f:
