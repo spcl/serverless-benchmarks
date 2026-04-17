@@ -30,7 +30,6 @@ import os
 import logging
 import random
 import re
-import requests
 import shutil
 import time
 import math
@@ -236,79 +235,6 @@ class GCP(System):
         if last_error:
             raise last_error
         raise RuntimeError("Unexpected state in retry logic")
-
-    def _wait_for_trigger_propagation(
-        self,
-        trigger_url: str,
-        func_name: str,
-        max_retries: int = 10,
-        base_delay: float = 2.0,
-        max_delay: float = 60.0,
-    ) -> None:
-        """Wait for HTTP trigger URL to be propagated and accessible.
-
-        After creating a trigger, GCP may return the URL before it's fully
-        propagated and accessible. This method polls the URL until it responds
-        with a valid function response (415 with function-execution-id header)
-        or times out.
-
-        Args:
-            trigger_url: HTTP trigger URL to check
-            func_name: Function name for logging purposes
-            max_retries: Maximum number of retry attempts (default: 10)
-            base_delay: Base delay in seconds for exponential backoff (default: 2.0)
-            max_delay: Maximum delay between retries in seconds (default: 60.0)
-
-        Raises:
-            RuntimeError: If trigger URL is not accessible after max retries
-        """
-        attempt = 0
-        self.logging.info(f"Verifying trigger URL propagation for {func_name}")
-
-        while attempt <= max_retries:
-            try:
-                # Use HEAD request to check if function endpoint is ready
-                # A ready function returns 415 (Unsupported Media Type) for HEAD requests
-                # and includes "function-execution-id" in response headers
-                response = requests.head(trigger_url, timeout=10)
-
-                # Check for the expected response indicating function is ready
-                if response.status_code == 415 and "function-execution-id" in response.headers:
-                    self.logging.info(
-                        f"Trigger URL for {func_name} is accessible and ready "
-                        f"(verified after {attempt} attempts)"
-                    )
-                    return
-
-                # Function exists but may not be fully ready yet
-                if response.status_code != 404:
-                    self.logging.debug(
-                        f"Trigger URL returned status {response.status_code}, "
-                        f"waiting for 415 with function-execution-id header"
-                    )
-
-            except requests.exceptions.RequestException as e:
-                self.logging.debug(f"Request to trigger URL failed: {e}")
-
-            # Check if we've exhausted retries
-            if attempt >= max_retries:
-                self.logging.error(
-                    f"Trigger URL for {func_name} not accessible after {max_retries} retries"
-                )
-                raise RuntimeError(
-                    f"Trigger URL {trigger_url} not propagated after {max_retries} attempts"
-                )
-
-            # Calculate delay with exponential backoff and jitter
-            delay = min(base_delay * (2**attempt) + random.uniform(0, 1), max_delay)
-
-            self.logging.info(
-                f"Trigger URL not yet ready for {func_name}, "
-                f"retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})"
-            )
-
-            time.sleep(delay)
-            attempt += 1
 
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
@@ -842,9 +768,6 @@ class GCP(System):
             func_details = self._execute_with_retry(get_req)
             invoke_url = func_details["httpsTrigger"]["url"]
             self.logging.info(f"Function {function.name} - HTTP trigger URL: {invoke_url}")
-
-            # Wait for trigger URL to be propagated and accessible
-            self._wait_for_trigger_propagation(invoke_url, function.name)
 
             trigger = HTTPTrigger(invoke_url)
         else:
