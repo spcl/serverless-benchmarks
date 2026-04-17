@@ -807,7 +807,6 @@ class AWSResources(Resources):
             # Only runs if no exception was raised - cleanup cache
             if function_name in self._function_urls:
                 del self._function_urls[function_name]
-                cache_client.remove_config_key(["aws", "resources", "function-urls", function_name])
             return True
 
     def check_ecr_repository_exists(
@@ -1082,8 +1081,13 @@ class AWSResources(Resources):
             keys=["aws", "resources", "container_repository"],
         )
         cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
+
+        # remove old entries before writing new data.
+        cache.remove_config_key(["aws", "resources", "http-apis"])
         for name, api in self._http_apis.items():
             cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
+
+        cache.remove_config_key(["aws", "resources", "function-urls"])
         for name, func_url in self._function_urls.items():
             cache.update_config(
                 val=func_url.serialize(),
