@@ -646,14 +646,16 @@ class AzureResources(Resources):
             f"az storage account list --resource-group {resource_group} "
             f"--query \"[?starts_with(name,'{account_name}') && location=='{self._region}']\""
         )
-        print(ret)
-        resp = json.loads(ret)
-        if len(resp) > 0:
-            self.logging.info(f"Using existing storage account {account_name}")
-            """
-                List does not return connection string, so we need to query it separately.
-            """
-            return AzureResources.Storage.from_allocation(account_name, cli_instance)
+        try:
+            resp = json.loads(ret)
+            if len(resp) > 0:
+                self.logging.info(f"Using existing storage account {account_name}")
+                """
+                    List does not return connection string, so we need to query it separately.
+                """
+                return AzureResources.Storage.from_allocation(account_name, cli_instance)
+        except:
+            pass
 
         sku = "Standard_LRS"
         self.logging.info("Starting allocation of storage account {}.".format(account_name))
