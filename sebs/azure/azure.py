@@ -846,7 +846,7 @@ class Azure(System):
                         )
                     # Rethrow -> another error
                     else:
-                        raise
+                        raise e from None
         function = AzureFunction(
             name=func_name,
             benchmark=code_package.benchmark,
