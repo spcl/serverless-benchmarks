@@ -630,7 +630,7 @@ class AzureResources(Resources):
         """Internal method to create storage account.
 
         Creates a new Azure storage account with the specified name.
-        This one can be usedboth for data storage and function storage.
+        This one can be used both for data storage and function storage.
         This method does NOT update cache or add to resource collections.
 
         Args:
@@ -640,6 +640,21 @@ class AzureResources(Resources):
         Returns:
             New Storage instance for the created account.
         """
+
+        resource_group = self.resource_group(cli_instance)
+        ret = cli_instance.execute(
+            f"az storage account list --resource-group {resource_group} "
+            f"--query \"[?starts_with(name,'{account_name}') && location=='{self._region}']\""
+        )
+        print(ret)
+        resp = json.loads(ret)
+        if len(resp) > 0:
+            self.logging.info(f"Using existing storage account {account_name}")
+            """
+                List does not return connection string, so we need to query it separately.
+            """
+            return AzureResources.Storage.from_allocation(account_name, cli_instance)
+
         sku = "Standard_LRS"
         self.logging.info("Starting allocation of storage account {}.".format(account_name))
         cli_instance.execute(
