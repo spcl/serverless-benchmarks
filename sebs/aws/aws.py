@@ -645,7 +645,7 @@ class AWS(System):
     @staticmethod
     def parse_aws_report(
         log: str, requests: Union[ExecutionResult, Dict[str, ExecutionResult]]
-    ) -> str:
+    ) -> str | None:
         """Parse AWS Lambda execution report from CloudWatch logs.
 
         Extracts execution metrics from AWS Lambda log entries and updates
@@ -671,8 +671,11 @@ class AWS(System):
                 aws_vals[split[0]] = split[1].split()[0]
         if "START RequestId" in aws_vals:
             request_id = aws_vals["START RequestId"]
-        else:
+        elif "REPORT RequestId" in aws_vals:
             request_id = aws_vals["REPORT RequestId"]
+        else:
+            return None
+
         if isinstance(requests, ExecutionResult):
             output = cast(ExecutionResult, requests)
         else:
@@ -857,6 +860,13 @@ class AWS(System):
             for result_part in val:
                 if result_part["field"] == "@message":
                     request_id = AWS.parse_aws_report(result_part["value"], requests)
+
+                    if request_id is None:
+                        self.logging.error(
+                            "Request incomplete, cannot identify ID! "
+                            f"Request: {result_part['value']}"
+                        )
+
                     if request_id in requests:
                         results_processed += 1
                         requests_ids.remove(request_id)

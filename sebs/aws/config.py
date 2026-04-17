@@ -756,6 +756,7 @@ class AWSResources(Resources):
                     Action="lambda:InvokeFunctionUrl",
                     Principal="*",
                     FunctionUrlAuthType="NONE",
+                    InvokedViaFunctionUrl=True,
                 )
                 self.logging.info(
                     f"Applied public access permission for Function URL on {func.name}"
