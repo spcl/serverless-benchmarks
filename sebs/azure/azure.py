@@ -463,7 +463,7 @@ class Azure(System):
         else:
             ret = self.cli_instance.execute(publish_cmd)
 
-        self.logging.info(f"Function app publish of {function.name}, ret {ret.decode('utf-8')}")
+        self.logging.debug(f"Function app publish of {function.name}, ret {ret.decode('utf-8')}")
 
         # Extract URL from publish output
         url = ""
@@ -492,7 +492,7 @@ class Azure(System):
             else:
                 ret = self.cli_instance.execute(query_cmd)
 
-            self.logging.info(f"Function query for {function.name}! Return {ret.decode('utf-8')}")
+            self.logging.debug(f"Function query for {function.name}! Return {ret.decode('utf-8')}")
             try:
                 url = json.loads(ret.decode("utf-8"))["invokeUrlTemplate"]
             except json.decoder.JSONDecodeError:
@@ -836,7 +836,7 @@ class Azure(System):
                             " --functions-version 4 "
                         ).format(**config)
                     )
-                    self.logging.error(f"Function app {func_name}, ret {ret.decode('utf-8')}")
+                    self.logging.debug(f"Function app {func_name}, ret {ret.decode('utf-8')}")
                     self.logging.info("Azure: Created function app {}".format(func_name))
                     break
                 except RuntimeError as e:
