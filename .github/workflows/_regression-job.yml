@@ -70,17 +70,6 @@ jobs:
             --selected-architecture \
             --resource-prefix ci
 
-      - name: Cleanup deployed functions
-        if: always()
-        run: |
-          source .venv/bin/activate
-          uv run sebs resources cleanup \
-            --config configs/example.json \
-            --deployment ${{ inputs.platform }} \
-            --resource-prefix ci \
-            --resource-type functions \
-            --cache regression-cache
-
       - name: Generate test summary
         if: always()
         run: |
