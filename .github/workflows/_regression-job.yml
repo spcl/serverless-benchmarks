@@ -68,7 +68,8 @@ jobs:
             --language-version ${{ inputs.version }} \
             --architecture ${{ inputs.architecture }} \
             --selected-architecture \
-            --resource-prefix ci
+            --resource-prefix ci \
+            --filter-output
 
       - name: Generate test summary
         if: always()
