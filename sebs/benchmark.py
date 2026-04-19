@@ -1692,13 +1692,13 @@ class Benchmark(LoggingBase):
 
         return input_config
 
-    def validate_output(self, input_config: dict, output: dict, storage=None) -> bool:
+    def validate_output(self, input_config: dict, output: dict, storage=None) -> str | None:
         """Validate benchmark output against expected values.
 
         Delegates to the benchmark's input module `validate_output` function
         if it is defined. Passes the optional storage client through when the
         module's validator declares a ``storage`` parameter. Logs a warning and
-        returns False when no validation function is available.
+        returns an error message when no validation function is available.
 
         Args:
             input_config: The input configuration used to invoke the benchmark
@@ -1706,8 +1706,7 @@ class Benchmark(LoggingBase):
             storage: Optional persistent storage client for download-based checks
 
         Returns:
-            bool: True if the output is valid, False if validation fails or no
-                  validator is defined
+            None if validation passes, or a string describing the failure reason
         """
         if hasattr(self._benchmark_input_module, "validate_output"):
             fn = self._benchmark_input_module.validate_output
@@ -1716,10 +1715,8 @@ class Benchmark(LoggingBase):
                 return fn(input_config, output, storage)
             else:
                 return fn(input_config, output)
-        self.logging.warning(
-            f"Benchmark {self._benchmark} does not implement validate_output."
-        )
-        return False
+        self.logging.warning(f"Benchmark {self._benchmark} does not implement validate_output.")
+        return f"Benchmark {self._benchmark} does not implement validate_output"
 
     def code_package_modify(self, filename: str, data: bytes) -> None:
         """
@@ -1897,7 +1894,7 @@ class BenchmarkModuleInterface:
         pass
 
     @staticmethod
-    def validate_output(input_config: dict, output: dict) -> bool:
+    def validate_output(input_config: dict, output: dict) -> str | None:
         """Validate benchmark output against expected values.
 
         Checks that the benchmark function's output is correct for the given
@@ -1909,9 +1906,9 @@ class BenchmarkModuleInterface:
             output: The output returned by the benchmark function handler
 
         Returns:
-            bool: True if the output is valid, False otherwise
+            None if validation passes, or a string describing the failure reason
         """
-        return True
+        return None
 
 
 def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
