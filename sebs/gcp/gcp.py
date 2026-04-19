@@ -140,7 +140,10 @@ class GCP(System):
         return GCPFunction
 
     def initialize(
-        self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+        quiet: bool = False,
     ) -> None:
         """Initialize the GCP system for function deployment and management.
 
@@ -154,7 +157,7 @@ class GCP(System):
             resource_prefix: Optional prefix for resource naming to avoid conflicts
         """
         self.function_client = build("cloudfunctions", "v1", cache_discovery=False)
-        self.initialize_resources(select_prefix=resource_prefix)
+        self.initialize_resources(select_prefix=resource_prefix, quiet=quiet)
 
     def get_function_client(self):
         """Get the Google Cloud Functions API client.

@@ -462,9 +462,20 @@ def package(
     default=False,
     help="Skip non-selected CPU architectures.",
 )
+@click.option(
+    "--filter-output/--no-filter-output",
+    type=bool,
+    default=False,
+    help="Filter resource IDs and URls from output.",
+)
 @common_params
 def regression(
-    benchmark_input_size, benchmark_name, storage_configuration, selected_architecture, **kwargs
+    benchmark_input_size,
+    benchmark_name,
+    storage_configuration,
+    selected_architecture,
+    filter_output,
+    **kwargs,
 ):
     """Run regression test suite across benchmarks."""
 
@@ -490,6 +501,7 @@ def regression(
         kwargs["resource_prefix"],
         benchmark_name,
         architecture,
+        filter_output,
     )
     # Exit with non-zero code if any tests failed
     sys.exit(1 if has_failures else 0)

@@ -28,7 +28,7 @@ from time import sleep
 from typing import cast, Dict, Optional, Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
-from sebs.utils import ColoredWrapper
+from sebs.utils import ColoredWrapper, SensitiveDataFilter, LoggingBase
 
 if TYPE_CHECKING:
     from sebs import SeBS
@@ -81,6 +81,8 @@ deployments_openwhisk = ["container"]
 cloud_config: Optional[dict] = None
 
 RESOURCE_PREFIX = "regr"
+LOGGING_REDACTED = False
+LOGGING_REDACTOR: SensitiveDataFilter = SensitiveDataFilter()
 
 
 class TestSequenceMeta(type):
@@ -181,6 +183,9 @@ class TestSequenceMeta(type):
                 logger = logging.getLogger(log_name)
                 logger.setLevel(logging.INFO)
                 logging_wrapper = ColoredWrapper(log_name, logger)
+                if LOGGING_REDACTED:
+                    logger.addFilter(LOGGING_REDACTOR)
+                    logging_wrapper.set_filter(LOGGING_REDACTOR)
 
                 # Configure experiment settings
                 self.experiment_config["architecture"] = architecture
@@ -337,7 +342,16 @@ class AWSTestSequencePython(
 
         # Synchronize resource initialization with a lock
         with AWSTestSequencePython.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
         return deployment_client
 
 
@@ -391,7 +405,16 @@ class AWSTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with AWSTestSequenceNodejs.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
         return deployment_client
 
 
@@ -434,7 +457,16 @@ class AWSTestSequenceCpp(
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with AWSTestSequenceCpp.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
         return deployment_client
 
 
@@ -485,7 +517,16 @@ class AWSTestSequenceJava(
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with AWSTestSequenceJava.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
         return deployment_client
 
 
@@ -569,7 +610,12 @@ class AzureTestSequencePython(
             deployment_client.system_resources.initialize_cli(
                 cli=AzureTestSequencePython.cli, login=needs_login
             )
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(deployment_client.config.resources.resources_id)
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id
+                )
             return deployment_client
 
 
@@ -650,7 +696,12 @@ class AzureTestSequenceNodejs(
             deployment_client.system_resources.initialize_cli(
                 cli=AzureTestSequenceNodejs.cli, login=needs_login
             )
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(deployment_client.config.resources.resources_id)
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id
+                )
             return deployment_client
 
 
@@ -724,7 +775,12 @@ class AzureTestSequenceJava(
             deployment_client.system_resources.initialize_cli(
                 cli=AzureTestSequenceJava.cli, login=needs_login
             )
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(deployment_client.config.resources.resources_id)
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id
+                )
             return deployment_client
 
 
@@ -778,7 +834,15 @@ class GCPTestSequencePython(
 
         # Synchronize resource initialization with a lock
         with GCPTestSequencePython.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.resource_id, deployment_client.config.credentials.project_name
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
         return deployment_client
 
 
@@ -832,7 +896,15 @@ class GCPTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with GCPTestSequenceNodejs.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.resource_id, deployment_client.config.credentials.project_name
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
         return deployment_client
 
 
@@ -886,7 +958,16 @@ class GCPTestSequenceJava(
 
         # Synchronize resource initialization with a lock
         with GCPTestSequenceJava.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
         return deployment_client
 
 
@@ -944,7 +1025,7 @@ class OpenWhiskTestSequencePython(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequencePython.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
         return deployment_client
 
 
@@ -1002,7 +1083,7 @@ class OpenWhiskTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequenceNodejs.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
         return deployment_client
 
 
@@ -1056,7 +1137,7 @@ class OpenWhiskTestSequenceJava(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequenceJava.lock:
-            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX)
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
         return deployment_client
 
 
@@ -1191,6 +1272,7 @@ def regression_suite(
     resource_prefix: str | None = None,
     benchmark_name: Optional[str] = None,
     selected_architecture: str | None = None,
+    filter_output: bool = False,
 ):
     """Create and run a regression test suite for specified cloud providers.
 
@@ -1215,6 +1297,11 @@ def regression_suite(
     global RESOURCE_PREFIX
     if resource_prefix is not None:
         RESOURCE_PREFIX = resource_prefix
+
+    global LOGGING_REDACTED
+    if filter_output:
+        LOGGING_REDACTED = True
+        LoggingBase.enable_filtering()
 
     # Create the test suite
     suite = unittest.TestSuite()

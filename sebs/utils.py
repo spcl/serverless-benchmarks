@@ -19,9 +19,11 @@ import uuid
 import click
 import datetime
 import platform
+import threading
+import re
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Pattern
 
 # Global constants
 PROJECT_DIR = Path(__file__).parent
@@ -280,6 +282,123 @@ def global_logging() -> None:
     logging.basicConfig(format=logging_format, datefmt=logging_date_format, level=logging.INFO)
 
 
+class SensitiveDataFilter(logging.Filter):
+    """Logging filter that removes function URLs and resource ID from output.
+
+    Attributes:
+        _DEFAULT_URL_PATTERNS: List of patterns for URLs of functions.
+        REDACTED: String to replace with.
+    """
+
+    _DEFAULT_URL_PATTERNS: tuple[str, ...] = (
+        r"https?://[a-zA-Z0-9-]+\.execute-api\.[a-z0-9-]+\.amazonaws\.com[^\s\"']*",  # API Gateway
+        r"https?://[a-zA-Z0-9-]+\.lambda-url\.[a-z0-9-]+\.on\.aws[^\s\"']*",  # Lambda URLs
+        r"https?://[a-zA-Z0-9-]+\.azurewebsites\.net[^\s\"']*",  # Azure Functions
+        r"https?://[a-z0-9-]+-[a-z0-9-]+\.[a-z0-9-]+\.run\.app[^\s\"']*",  # GCP Cloud Run
+        r"https?://[a-zA-Z0-9-]+\.cloudfunctions\.net[^\s\"']*",  # GCP Functions
+        r"https?://[a-zA-Z0-9-]+\.workers\.dev[^\s\"']*",  # Cloudflare Workers
+    )
+
+    REDACTED = "[REDACTED]"
+
+    """Redacts serverless endpoint URLs and configurable resource IDs from logs.
+    Resource IDs can be added/removed at runtime as deployments happen.
+
+    This allows hiding exact resource names in the cloud from publically visible logs,
+    e.g., in CI workers.
+    """
+
+    def __init__(self) -> None:
+        """Initialize logging filter."""
+        super().__init__()
+        self._url_re: Pattern[str] = re.compile("|".join(SensitiveDataFilter._DEFAULT_URL_PATTERNS))
+        self._resource_id: Optional[str] = None
+        self._resource_re: Optional[Pattern[str]] = None
+
+        self._lock = threading.Lock()
+
+    def set_resource_id(self, resource_id: str, cloud_id: Optional[str] = None) -> None:
+        """Set filtering for a specific resource ID.
+
+        The function is idempotent - we can only set the resource ID once.
+        It is also thread-safe, so multiple threads doing multithreading
+        can call it many times and we initialize only once.
+        Args:
+            resource_id:
+        """
+        with self._lock:
+            if self._resource_id is not None:
+                return
+
+            self._resource_id = resource_id
+
+            from sebs.aws.aws import AWS
+            from sebs.gcp.gcp import GCP
+
+            resources_ids = set(
+                [
+                    self._resource_id,
+                    AWS.format_function_name(self._resource_id),
+                    GCP.format_function_name(self._resource_id),
+                ]
+            )
+            if cloud_id is not None:
+                resources_ids.add(cloud_id)
+            alternation = "|".join(re.escape(r) for r in resources_ids)
+            self._resource_re = re.compile(alternation)
+
+    def _scrub(self, text: str) -> str:
+        """Replace secrets with redacted.
+
+        Args:
+            text: logged messages
+
+        Returns:
+            logged messages with secrets replaced
+        """
+        text = self._url_re.sub(SensitiveDataFilter.REDACTED, text)
+        if self._resource_re is not None:
+            text = self._resource_re.sub(SensitiveDataFilter.REDACTED, text)
+        return text
+
+    def filter_string(self, msg: str) -> str:
+        """Apply redaction to custom messages.
+
+        Args:
+            msg: message
+
+        Returns:
+            message with data redacted
+        """
+        return self._scrub(msg)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Apply redaction to logging messages.
+
+        Args:
+            record: logging record
+
+        Returns:
+            always true
+        """
+        # Redact the format string itself (covers pre-formatted f-strings).
+        if isinstance(record.msg, str):
+            record.msg = self._scrub(record.msg)
+
+        # Redact lazy-formatting args: logger.info("deployed %s", url).
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {
+                    k: self._scrub(v) if isinstance(v, str) else v for k, v in record.args.items()
+                }
+            else:
+                record.args = tuple(
+                    self._scrub(a) if isinstance(a, str) else a for a in record.args
+                )
+        # never drop the record, just rewrite it
+        return True
+
+
 class ColoredWrapper:
     """
     Wrapper for logging with colored console output.
@@ -318,6 +437,7 @@ class ColoredWrapper:
         self.propagte = propagte
         self.prefix = prefix
         self._logging = logger
+        self._filter: Optional[SensitiveDataFilter] = None
 
     def debug(self, message):
         """
@@ -384,10 +504,22 @@ class ColoredWrapper:
             color: ANSI color code to use
         """
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")
+
+        if self._filter is not None:
+            message = self._filter.filter_string(message)
+
         click.echo(
             f"{color}{ColoredWrapper.BOLD}[{timestamp}]{ColoredWrapper.END} "
             f"{ColoredWrapper.BOLD}{self.prefix}{ColoredWrapper.END} {message}"
         )
+
+    def set_filter(self, filter: SensitiveDataFilter):
+        """Set custom data filter.
+
+        Args:
+            filter:
+        """
+        self._filter = filter
 
 
 class LoggingHandlers:
@@ -439,6 +571,8 @@ class LoggingBase:
         logging: ColoredWrapper for formatted console output
     """
 
+    REDACTION_FILTER: Optional[SensitiveDataFilter] = SensitiveDataFilter()
+
     def __init__(self):
         """
         Initialize the logging base with a unique identifier.
@@ -455,6 +589,29 @@ class LoggingBase:
         self._logging = logging.getLogger(self.log_name)
         self._logging.setLevel(logging.INFO)
         self.wrapper = ColoredWrapper(self.log_name, self._logging)
+
+        if LoggingBase.REDACTION_FILTER is not None:
+            self._logging.addFilter(LoggingBase.REDACTION_FILTER)
+            self.wrapper.set_filter(LoggingBase.REDACTION_FILTER)
+
+    @classmethod
+    def enable_filtering(cls) -> None:
+        """Enable sensitive data filtering for all loggers."""
+        if cls.REDACTION_FILTER is None:
+            cls.REDACTION_FILTER = SensitiveDataFilter()
+
+    @classmethod
+    def set_filtering_resource_id(cls, resource_id: str, cloud_id: Optional[str] = None) -> None:
+        """Add resource ID and cloud user IDs to logging filtering.
+
+        Args:
+            resource_id: SeBS cloud ID
+            cloud_id: cloud-specific user ID (e.g., AWS account ID or GCP project name)
+        """
+        assert (
+            cls.REDACTION_FILTER is not None
+        ), "Filtering must be enabled before setting resource ID"
+        cls.REDACTION_FILTER.set_resource_id(resource_id, cloud_id)
 
     @property
     def logging(self) -> ColoredWrapper:
@@ -495,6 +652,10 @@ class LoggingBase:
             verbose=handlers.verbosity,
             propagte=handlers.handler is not None,
         )
+
+        if LoggingBase.REDACTION_FILTER is not None:
+            self._logging.addFilter(LoggingBase.REDACTION_FILTER)
+            self.wrapper.set_filter(LoggingBase.REDACTION_FILTER)
 
         if self._logging_handlers.handler is not None:
             self._logging.addHandler(self._logging_handlers.handler)

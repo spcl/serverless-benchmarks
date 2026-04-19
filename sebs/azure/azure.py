@@ -161,6 +161,7 @@ class Azure(System):
         self,
         config: Dict[str, str] = {},
         resource_prefix: Optional[str] = None,
+        quiet: bool = False,
     ) -> None:
         """Initialize Azure system and start CLI container.
 
@@ -171,7 +172,7 @@ class Azure(System):
             config: Additional configuration parameters
             resource_prefix: Optional prefix for resource naming
         """
-        self.initialize_resources(select_prefix=resource_prefix)
+        self.initialize_resources(select_prefix=resource_prefix, quiet=quiet)
         self.allocate_shared_resource()
 
     def shutdown(self) -> None:

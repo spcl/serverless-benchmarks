@@ -105,7 +105,10 @@ class OpenWhisk(System):
                 )
 
     def initialize(
-        self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+        quiet: bool = False,
     ) -> None:
         """
         Initialize OpenWhisk system resources.
@@ -114,7 +117,7 @@ class OpenWhisk(System):
             config: Additional configuration parameters (currently unused)
             resource_prefix: Optional prefix for resource naming
         """
-        self.initialize_resources(select_prefix=resource_prefix)
+        self.initialize_resources(select_prefix=resource_prefix, quiet=quiet)
 
     @property
     def config(self) -> OpenWhiskConfig:

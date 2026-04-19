@@ -140,7 +140,12 @@ class AWS(System):
         self.storage: Optional[S3] = None
         self.nosql_storage: Optional[DynamoDB] = None
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+    def initialize(
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+        quiet: bool = False,
+    ):
         """
         Initialize AWS resources.
 
@@ -158,7 +163,7 @@ class AWS(System):
         )
         self.get_lambda_client()
         self.system_resources.initialize_session(self.session)
-        self.initialize_resources(select_prefix=resource_prefix)
+        self.initialize_resources(select_prefix=resource_prefix, quiet=quiet)
 
         self.ecr_client = ECRContainer(
             self.system_config, self.session, self.config, self.docker_client
