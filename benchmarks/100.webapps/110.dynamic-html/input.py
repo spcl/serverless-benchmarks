@@ -12,7 +12,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     return input_config
 
 def validate_output(input_config: dict, output: dict) -> bool:
-    result = output.get('result', '')
+    result = output.get('output', '')
     username = input_config.get('username', '')
     random_len = input_config.get('random_len', 0)
     if not isinstance(result, str) or len(result) == 0:
