@@ -571,7 +571,7 @@ class LoggingBase:
         logging: ColoredWrapper for formatted console output
     """
 
-    REDACTION_FILTER: Optional[SensitiveDataFilter] = SensitiveDataFilter()
+    REDACTION_FILTER: Optional[SensitiveDataFilter] = None
 
     def __init__(self):
         """
