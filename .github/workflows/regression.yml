@@ -1,0 +1,75 @@
+name: Regression Tests
+
+on:
+  push:
+    branches:
+      - master
+      - 'feature/**'
+  workflow_dispatch:
+
+jobs:
+  regression:
+    strategy:
+      matrix:
+        include:
+          - platform: aws
+            language: python
+            version: "3.11"
+            architecture: "x64"
+          - platform: aws
+            language: python
+            version: "3.11"
+            architecture: "arm64"
+          - platform: aws
+            language: nodejs
+            version: "16"
+            architecture: "x64"
+          - platform: aws
+            language: nodejs
+            version: "16"
+            architecture: "arm64"
+          - platform: aws
+            language: cpp
+            version: "all"
+            architecture: "x64"
+          - platform: aws
+            language: java
+            version: "17"
+            architecture: "x64"
+          - platform: aws
+            language: java
+            version: "17"
+            architecture: "arm64"
+          - platform: gcp
+            language: python
+            version: "3.11"
+            architecture: "x64"
+          - platform: gcp
+            language: nodejs
+            version: "20"
+            architecture: "x64"
+          - platform: gcp
+            language: java
+            version: "17"
+            architecture: "x64"
+          - platform: azure
+            language: python
+            version: "3.11"
+            architecture: "x64"
+          - platform: azure
+            language: nodejs
+            version: "20"
+            architecture: "x64"
+          - platform: azure
+            language: java
+            version: "17"
+            architecture: "x64"
+      fail-fast: false
+
+    uses: ./.github/workflows/_regression-job.yml
+    with:
+      platform: ${{ matrix.platform }}
+      language: ${{ matrix.language }}
+      version: ${{ matrix.version }}
+      architecture: ${{ matrix.architecture }}
+    secrets: inherit

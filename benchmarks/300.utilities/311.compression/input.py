@@ -32,8 +32,9 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
         upload_files(data_dir, os.path.join(data_dir, dir), upload_func)
 
     input_config = {'object': {}, 'bucket': {}}
-    input_config['object']['key'] = datasets[0]
+    input_config["object"]["key"] = "acmart-master"
     input_config['bucket']['bucket'] = benchmarks_bucket
     input_config['bucket']['input'] = input_paths[0]
     input_config['bucket']['output'] = output_paths[0]
+    print(input_config)
     return input_config

@@ -140,7 +140,12 @@ class AWS(System):
         self.storage: Optional[S3] = None
         self.nosql_storage: Optional[DynamoDB] = None
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+    def initialize(
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+        quiet: bool = False,
+    ):
         """
         Initialize AWS resources.
 
@@ -158,7 +163,7 @@ class AWS(System):
         )
         self.get_lambda_client()
         self.system_resources.initialize_session(self.session)
-        self.initialize_resources(select_prefix=resource_prefix)
+        self.initialize_resources(select_prefix=resource_prefix, quiet=quiet)
 
         self.ecr_client = ECRContainer(
             self.system_config, self.session, self.config, self.docker_client
@@ -598,9 +603,11 @@ class AWS(System):
         """
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        # Extract benchmark number (e.g., "110" from "110.dynamic-html")
+        benchmark_number = code_package.benchmark.split(".")[0]
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
-            code_package.benchmark,
+            benchmark_number,
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,
@@ -636,13 +643,14 @@ class AWS(System):
         self.logging.info("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
+            self.config.resources.delete_function_url(func_name, self.session, self.cache_client)
         except Exception:
             self.logging.error("Function {} does not exist!".format(func_name))
 
     @staticmethod
     def parse_aws_report(
         log: str, requests: Union[ExecutionResult, Dict[str, ExecutionResult]]
-    ) -> str:
+    ) -> str | None:
         """Parse AWS Lambda execution report from CloudWatch logs.
 
         Extracts execution metrics from AWS Lambda log entries and updates
@@ -668,8 +676,11 @@ class AWS(System):
                 aws_vals[split[0]] = split[1].split()[0]
         if "START RequestId" in aws_vals:
             request_id = aws_vals["START RequestId"]
-        else:
+        elif "REPORT RequestId" in aws_vals:
             request_id = aws_vals["REPORT RequestId"]
+        else:
+            return None
+
         if isinstance(requests, ExecutionResult):
             output = cast(ExecutionResult, requests)
         else:
@@ -854,6 +865,13 @@ class AWS(System):
             for result_part in val:
                 if result_part["field"] == "@message":
                     request_id = AWS.parse_aws_report(result_part["value"], requests)
+
+                    if request_id is None:
+                        self.logging.error(
+                            "Request incomplete, cannot identify ID! "
+                            f"Request: {result_part['value']}"
+                        )
+
                     if request_id in requests:
                         results_processed += 1
                         requests_ids.remove(request_id)

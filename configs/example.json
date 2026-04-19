@@ -4,7 +4,7 @@
     "update_code": false,
     "update_storage": false,
     "download_results": false,
-    "architecture": "arm64", 
+    "architecture": "x64", 
     "container_deployment": true,
     "runtime": {
       "language": "python",

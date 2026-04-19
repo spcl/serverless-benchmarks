@@ -129,7 +129,16 @@ class LibraryTrigger(Trigger):
         function_output = json.loads(ret["Payload"].read().decode("utf-8"))
 
         # AWS-specific parsing
-        AWS.parse_aws_report(log.decode("utf-8"), aws_result)
+        req_id = AWS.parse_aws_report(log.decode("utf-8"), aws_result)
+        if not req_id:
+            """
+            This problem sometimes happens on very long cold starts - the execution
+            works but AWS returns too early.
+            """
+            self.logging.error(
+                f"Unexpected AWS log format! Missing RequestID. Log: {log.decode('utf-8')}"
+            )
+
         # General benchmark output parsing
         # For some reason, the body is dict for NodeJS but a serialized JSON for Python
         if isinstance(function_output["body"], dict):

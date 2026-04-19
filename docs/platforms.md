@@ -3,7 +3,7 @@
 SeBS supports three commercial serverless platforms: AWS Lambda, Azure Functions, and Google Cloud Functions.
 Furthermore, we support the open source FaaS system OpenWhisk.
 
-The file `config/example.json` contains all parameters that users can change
+The file `configs/example.json` contains all parameters that users can change
 to customize the deployment.
 Some of these parameters, such as cloud credentials or storage instance address,
 are required.
@@ -33,6 +33,17 @@ However, special care is needed to build Docker containers: since installation o
 binaries based on ARM containers on x86 CPUs. To build multi-platform images, we recommend to follow official [Docker guidelines](https://docs.docker.com/build/building/multi-platform/#build-multi-platform-images) and provide static QEMU installation.
 On Ubuntu-based distributions, this requires installing an OS package and executing a single Docker command to provide seamless emulation of ARM containers.
 
+### Multi-platform Docker Images
+
+Build images, which encapsulate package building, are available as both x64 and arm64 for Python and Node.js on AWS Lambda.
+To rebuild multi-plaform images, an additional flag is needed to enable the internal `docker buildx` command:
+
+```bash
+sebs docker build --image-type build --language python --deployment aws --architecture x64 --language-version 3.11 --multi-platform
+```
+
+When rebuilding build images (not necessary for regular users, only for developers), make sure that your Docker installation supports multi-platform images, e.g., [you use `containerd` image store](https://docs.docker.com/engine/storage/containerd/) - old Docker installations might not change the storage type after an upgrade to Docker 29.0, where `containerd` is the default.
+
 ## Cloud Account Identifiers
 
 SeBS ensures that all locally cached cloud resources are valid by storing a unique identifier associated with each cloud account. Furthermore, we store this identifier in experiment results to easily match results with the cloud account or subscription that was used to obtain them. We use non-sensitive identifiers such as account IDs on AWS, subscription IDs on Azure, and Google Cloud project IDs.
@@ -52,7 +63,7 @@ Additionally, the account must have `AmazonAPIGatewayAdministrator` permission t
 automatically AWS HTTP trigger.
 You can provide a [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
 with permissions to access AWS Lambda and S3; otherwise, one will be created automatically.
-To use a user-defined lambda role, set the name in config JSON - see an example in `config/example.json`.
+To use a user-defined lambda role, set the name in config JSON - see an example in `configs/example.json`.
 
 You can pass the credentials either using the default AWS-specific environment variables:
 
@@ -208,7 +219,7 @@ or in the JSON input configuration:
 SeBS expects users to deploy and configure an OpenWhisk instance.
 Below, you will find example of instruction for deploying OpenWhisk instance.
 The configuration parameters of OpenWhisk for SeBS can be found
-in `config/example.json` under the key `['deployment']['openwhisk']`.
+in `configs/example.json` under the key `['deployment']['openwhisk']`.
 In the subsections below, we discuss the meaning and use of each parameter.
 To correctly deploy SeBS functions to OpenWhisk, following the
 subsections on *Toolchain* and *Docker* configuration is particularly important.
@@ -282,7 +293,7 @@ and new language versions, Docker images must be placed in the registry.
 However, pushing the image to the default `spcleth/serverless-benchmarks`
 repository on Docker Hub requires permissions.
 To use a different Docker Hub repository, change the key
-`['general']['docker_repository']` in `config/systems.json`.
+`['general']['docker_repository']` in `configs/systems.json`.
 
 Alternatively, OpenWhisk users can configure the FaaS platform to use a custom and
 private Docker registry and push new images there.

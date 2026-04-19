@@ -17,9 +17,6 @@ class AWSCreateFunction(unittest.TestCase):
                 "update_code": False,
                 "update_storage": False,
                 "download_results": False,
-                "flags": {
-                    "docker_copy_build_files": True
-                }
             },
         },
         "nodejs": {
@@ -29,9 +26,6 @@ class AWSCreateFunction(unittest.TestCase):
                 "update_code": False,
                 "update_storage": False,
                 "download_results": False,
-                "flags": {
-                    "docker_copy_build_files": True
-                }
             }
         }
     }

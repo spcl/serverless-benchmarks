@@ -578,6 +578,7 @@ class Benchmark(LoggingBase):
         output_dir: str,
         cache_client: Cache,
         docker_client: docker.client.DockerClient,
+        verbose: bool = False,
     ):
         """
         Initialize a Benchmark instance.
@@ -594,6 +595,7 @@ class Benchmark(LoggingBase):
             output_dir: Directory for output files
             cache_client: Cache client for caching code packages
             docker_client: Docker client for building dependencies
+            verbose: Print verbose build logs.
 
         Raises:
             RuntimeError: If the benchmark is not found or doesn't support the language
@@ -608,6 +610,7 @@ class Benchmark(LoggingBase):
         self._language_variant = config.runtime.variant.value
         self._architecture = self._experiment_config.architecture
         self._container_deployment = config.container_deployment
+        self._verbose = verbose
 
         benchmark_path = find_benchmark(self.benchmark, "benchmarks")
         if not benchmark_path:
@@ -1158,22 +1161,33 @@ class Benchmark(LoggingBase):
     def builder_image_name(self) -> Tuple[str, str]:
         """Image names of builder Docker images for preparing benchmarks.
 
-        We are progressively replacing all unversioned image names with versioned ones.
+        Returns two image names for fallback behavior:
+        - Current version image (tagged with current SeBS version)
+        - Previous version image (tagged with previous major SeBS version)
+
+        This allows new SeBS versions to use images from the previous stable
+        version without requiring a complete rebuild of all images.
 
         Returns:
-            Tuple of unversioned and versioned image names.
+            Tuple of (previous_version_image_name, current_version_image_name).
         """
-        unversioned_image_name = "build.{deployment}.{language}.{runtime}".format(
+        base_image_name = "build.{deployment}.{language}.{runtime}".format(
             deployment=self._deployment_name,
             language=self.language_name,
             runtime=self.language_version,
         )
-        image_name = "{base_image_name}-{sebs_version}".format(
-            base_image_name=unversioned_image_name,
-            sebs_version=self._system_config.version(),
+        # Current version image (try this first)
+        current_version_image_name = "{base}-{version}".format(
+            base=base_image_name,
+            version=self._system_config.version(),
+        )
+        # Previous major version image (fallback)
+        previous_version_image_name = "{base}-{version}".format(
+            base=base_image_name,
+            version=self._system_config.previous_version(),
         )
 
-        return unversioned_image_name, image_name
+        return previous_version_image_name, current_version_image_name
 
     def install_dependencies(self, output_dir: str) -> None:
         """Install benchmark dependencies using Docker.
@@ -1184,10 +1198,11 @@ class Benchmark(LoggingBase):
         Pulls a pre-built Docker image specific to the deployment, language, and
         runtime version. Mounts the output directory into the container and runs
         an installer script (`/sebs/installer.sh`) within the container.
-        Handles fallbacks to unversioned Docker images if versioned ones are not found.
 
-        Supports copying files to/from Docker for environments where volume mounting
-        is problematic (e.g., CircleCI).
+        Tries current SeBS version image first, falls back to previous major version
+        image if the current version image is not available. This allows new SeBS
+        versions to use images from the previous stable version without requiring
+        a complete rebuild.
 
         Args:
             output_dir: Directory containing the code package to build
@@ -1208,7 +1223,7 @@ class Benchmark(LoggingBase):
             )
         else:
             repo_name = self._system_config.docker_repository()
-            unversioned_image_name, image_name = self.builder_image_name()
+            previous_version_image_name, current_version_image_name = self.builder_image_name()
 
             def ensure_image(name: str) -> None:
                 """Internal implementation of checking for Docker image existence.
@@ -1217,7 +1232,7 @@ class Benchmark(LoggingBase):
                     name: image name
 
                 Raises:
-                    RuntimeError: when neither versioned nor unversioned images exists.
+                    RuntimeError: when image does not exist locally or cannot be pulled.
                 """
                 try:
                     self._docker_client.images.get(repo_name + ":" + name)
@@ -1232,33 +1247,34 @@ class Benchmark(LoggingBase):
                             "Docker pull of image {}:{} failed!".format(repo_name, name)
                         )
 
+            # Try current version image first, fallback to previous version if not available
+            image_name = current_version_image_name
             try:
-                ensure_image(image_name)
+                ensure_image(current_version_image_name)
             except RuntimeError as e:
                 self.logging.warning(
                     "Failed to ensure image {}, falling back to {}: {}".format(
-                        image_name, unversioned_image_name, e
+                        current_version_image_name, previous_version_image_name, e
                     )
                 )
                 try:
-                    ensure_image(unversioned_image_name)
+                    ensure_image(previous_version_image_name)
+                    # update `image_name` to the fallback image name
+                    image_name = previous_version_image_name
                 except RuntimeError:
                     raise
-                # update `image_name` in the context to the fallback image name
-                image_name = unversioned_image_name
 
-            # Create set of mounted volumes unless Docker volumes are disabled
-            if not self._experiment_config.check_flag("docker_copy_build_files"):
-                volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
-                package_script = os.path.abspath(
-                    os.path.join(self._benchmark_path, self.language_name, "package.sh")
-                )
-                # does this benchmark has package.sh script?
-                if os.path.exists(package_script):
-                    volumes[package_script] = {
-                        "bind": "/mnt/function/package.sh",
-                        "mode": "ro",
-                    }
+            # Create set of mounted volumes
+            volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
+            package_script = os.path.abspath(
+                os.path.join(self._benchmark_path, self.language_name, "package.sh")
+            )
+            # does this benchmark has package.sh script?
+            if os.path.exists(package_script):
+                volumes[package_script] = {
+                    "bind": "/mnt/function/package.sh",
+                    "mode": "ro",
+                }
 
             # run Docker container to install packages
             PACKAGE_FILES = {
@@ -1274,91 +1290,50 @@ class Benchmark(LoggingBase):
                         "Docker build of benchmark dependencies in container "
                         "of image {repo}:{image}".format(repo=repo_name, image=image_name)
                     )
-                    uid = os.getuid()
-                    # Standard, simplest build
-                    if not self._experiment_config.check_flag("docker_copy_build_files"):
-                        self.logging.info(
-                            "Docker mount of benchmark code from path {path}".format(
-                                path=os.path.abspath(output_dir)
-                            )
+                    self.logging.info(
+                        "Docker mount of benchmark code from path {path}".format(
+                            path=os.path.abspath(output_dir)
                         )
-                        container = self._docker_client.containers.run(
-                            "{}:{}".format(repo_name, image_name),
-                            volumes=volumes,
-                            environment={
-                                "CONTAINER_UID": str(os.getuid()),
-                                "CONTAINER_GID": str(os.getgid()),
-                                "CONTAINER_USER": "docker_user",
-                                "APP": self.benchmark,
-                                "PLATFORM": self._deployment_name.upper(),
-                                "TARGET_ARCHITECTURE": self._experiment_config._architecture,
-                            },
-                            remove=False,
-                            detach=True,
-                        )
-                        try:
-                            exit_code = container.wait()
-                            stdout = container.logs()
-                            if exit_code["StatusCode"] != 0:
-                                error_log_path = os.path.join(output_dir, "error.log")
-                                with open(error_log_path, "wb") as error_file:
-                                    error_file.write(stdout)
-                                self.logging.error(
-                                    f"Build failed! Container exited with "
-                                    f"code {exit_code['StatusCode']}"
-                                )
-                                self.logging.error(f"Logs saved to {error_log_path}")
-                                raise RuntimeError("Package build failed!")
-                        finally:
-                            container.remove()
-                    # Hack to enable builds on platforms where Docker mounted volumes
-                    # are not supported. Example: CircleCI docker environment
-                    else:
-                        container = self._docker_client.containers.run(
-                            "{}:{}".format(repo_name, image_name),
-                            environment={"APP": self.benchmark},
-                            # user="1000:1000",
-                            user=uid,
-                            remove=True,
-                            detach=True,
-                            tty=True,
-                            command="/bin/bash",
-                        )
-                        # copy application files
-                        import tarfile
+                    )
+                    container = self._docker_client.containers.run(
+                        "{}:{}".format(repo_name, image_name),
+                        volumes=volumes,
+                        environment={
+                            "CONTAINER_UID": str(os.getuid()),
+                            "CONTAINER_GID": str(os.getgid()),
+                            "CONTAINER_USER": "docker_user",
+                            "APP": self.benchmark,
+                            "PLATFORM": self._deployment_name.upper(),
+                            "TARGET_ARCHITECTURE": self._experiment_config._architecture,
+                        },
+                        remove=False,
+                        detach=True,
+                    )
+                    try:
+                        exit_code = container.wait()
+                        stdout = container.logs()
 
-                        self.logging.info(
-                            "Send benchmark code from path {path} to "
-                            "Docker instance".format(path=os.path.abspath(output_dir))
-                        )
-                        tar_archive = os.path.join(output_dir, os.path.pardir, "function.tar")
-                        with tarfile.open(tar_archive, "w") as tar:
-                            for f in os.listdir(output_dir):
-                                tar.add(os.path.join(output_dir, f), arcname=f)
-                        with open(tar_archive, "rb") as data:
-                            container.put_archive("/mnt/function", data.read())
-                        # do the build step
-                        exit_code, stdout = container.exec_run(
-                            cmd="/bin/bash /sebs/installer.sh",
-                            user="docker_user",
-                            stdout=True,
-                            stderr=True,
-                        )
-                        # copy updated code with package
-                        data, stat = container.get_archive("/mnt/function")
-                        with open(tar_archive, "wb") as output_filef:
-                            for chunk in data:
-                                output_filef.write(chunk)
-                        with tarfile.open(tar_archive, "r") as tar:
-                            tar.extractall(output_dir)
-                            # docker packs the entire directory with basename function
-                            for f in os.listdir(os.path.join(output_dir, "function")):
-                                shutil.move(
-                                    os.path.join(output_dir, "function", f),
-                                    os.path.join(output_dir, f),
-                                )
-                            shutil.rmtree(os.path.join(output_dir, "function"))
-                        container.stop()
+                        error_log_path: str = ""
+                        if exit_code["StatusCode"] != 0:
+                            error_log_path = os.path.join(output_dir, "error.log")
+                        elif self._verbose:
+                            error_log_path = os.path.join(output_dir, "build.log")
+
+                        if exit_code["StatusCode"] != 0 or self._verbose:
+                            with open(error_log_path, "wb") as error_file:
+                                error_file.write(stdout)
+
+                        if exit_code["StatusCode"] != 0:
+                            self.logging.error(
+                                f"Build failed! Container exited with "
+                                f"code {exit_code['StatusCode']}"
+                            )
+                            self.logging.error(f"Logs saved to {error_log_path}")
+                            raise RuntimeError("Package build failed!")
+
+                        self.logging.debug(f"Build Build logs saved to {error_log_path}")
+                    finally:
+                        container.remove()
 
                     # Pass to output information on optimizing builds.
                     # Useful for AWS where packages have to obey size limits.
@@ -1475,7 +1450,53 @@ class Benchmark(LoggingBase):
             assert container_client is not None
 
             repo_name = self._system_config.docker_repository()
-            _, image_name = self.builder_image_name()
+            previous_version_image_name, current_version_image_name = self.builder_image_name()
+
+            # Try current version build image first, fallback to previous version
+            image_name = current_version_image_name
+            current_available = False
+            try:
+                self._docker_client.images.get(f"{repo_name}:{current_version_image_name}")
+                current_available = True
+            except Exception:
+                # Not available locally, try to pull it
+                try:
+                    self.logging.info(
+                        f"Docker pull of build image {repo_name}:{current_version_image_name}"
+                    )
+                    self._docker_client.images.pull(repo_name, current_version_image_name)
+                    current_available = True
+                except Exception:
+                    pass
+
+            if not current_available:
+                # Current version not available, try previous version
+                try:
+                    self._docker_client.images.get(f"{repo_name}:{previous_version_image_name}")
+                    image_name = previous_version_image_name
+                    self.logging.info(
+                        f"Using previous version build image {previous_version_image_name} "
+                        "(current version not available)"
+                    )
+                except Exception:
+                    # Previous version not local, try to pull it
+                    try:
+                        self.logging.info(
+                            f"Docker pull of build image {repo_name}:{previous_version_image_name}"
+                        )
+                        self._docker_client.images.pull(repo_name, previous_version_image_name)
+                        image_name = previous_version_image_name
+                        self.logging.info(
+                            f"Using previous version build image {previous_version_image_name} "
+                            "(current version not available)"
+                        )
+                    except Exception:
+                        # Neither version available - use current and let build fail
+                        self.logging.warning(
+                            f"Neither current ({current_version_image_name}) nor previous "
+                            f"({previous_version_image_name}) version build image available, "
+                            "build may fail"
+                        )
 
             """
                 Generate custom Dockerfile for C++ benchmarks
@@ -1496,6 +1517,10 @@ class Benchmark(LoggingBase):
                     self._benchmark_config._cpp_dependencies,
                     dockerfile_template,
                     self._system_config.version(),
+                    previous_version=self._system_config.previous_version(),
+                    docker_client=self._docker_client,
+                    docker_repository=self._system_config.docker_repository(),
+                    logger=self.logging,
                 )
                 dockerfile_path = os.path.join(self._output_dir, "Dockerfile")
                 with open(dockerfile_path, "w") as f:

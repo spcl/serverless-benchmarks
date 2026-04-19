@@ -655,7 +655,6 @@ class AWSResources(Resources):
         """
 
         deleted: List[str] = []
-        deleted_functions: List[str] = []
         dry_run_tag = "[DRY-RUN] " if dry_run else ""
 
         dict_copy = self._function_urls.copy()
@@ -664,14 +663,8 @@ class AWSResources(Resources):
             self.logging.info(f"{dry_run_tag}Deleting Function URL for: {func_name}")
 
             if not dry_run:
-                self.delete_function_url(func_name, boto3_session)
+                self.delete_function_url(func_name, boto3_session, cache_client)
             deleted.append(func_url.url)
-            deleted_functions.append(func_name)
-
-        if not dry_run:
-            for func_name in deleted_functions:
-                cache_client.remove_config_key(["aws", "resources", "function-urls", func_name])
-                self._function_urls.pop(func_name, None)
 
         return deleted
 
@@ -776,7 +769,9 @@ class AWSResources(Resources):
         self._function_urls[func.name] = function_url_obj
         return function_url_obj
 
-    def delete_function_url(self, function_name: str, boto3_session: boto3.session.Session) -> bool:
+    def delete_function_url(
+        self, function_name: str, boto3_session: boto3.session.Session, cache_client: Cache
+    ) -> bool:
         """
         Delete a Lambda Function URL for the given function.
         Returns True if deleted successfully, False if it didn't exist.
@@ -1086,8 +1081,13 @@ class AWSResources(Resources):
             keys=["aws", "resources", "container_repository"],
         )
         cache.update_config(val=self._lambda_role, keys=["aws", "resources", "lambda-role"])
+
+        # remove old entries before writing new data.
+        cache.remove_config_key(["aws", "resources", "http-apis"])
         for name, api in self._http_apis.items():
             cache.update_config(val=api.serialize(), keys=["aws", "resources", "http-apis", name])
+
+        cache.remove_config_key(["aws", "resources", "function-urls"])
         for name, func_url in self._function_urls.items():
             cache.update_config(
                 val=func_url.serialize(),
