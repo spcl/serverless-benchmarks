@@ -837,7 +837,8 @@ class GCPTestSequencePython(
             deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
             if LOGGING_REDACTED:
                 LOGGING_REDACTOR.set_resource_id(
-                    deployment_client.resource_id, deployment_client.config.credentials.project_name
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
                 )
                 LoggingBase.set_filtering_resource_id(
                     deployment_client.config.resources.resources_id,
@@ -899,7 +900,8 @@ class GCPTestSequenceNodejs(
             deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
             if LOGGING_REDACTED:
                 LOGGING_REDACTOR.set_resource_id(
-                    deployment_client.resource_id, deployment_client.config.credentials.project_name
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
                 )
                 LoggingBase.set_filtering_resource_id(
                     deployment_client.config.resources.resources_id,
