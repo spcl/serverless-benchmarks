@@ -1,5 +1,9 @@
 # Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
-import glob, os
+import glob
+import os
+import tempfile
+
+from PIL import Image
 
 def buckets_count():
     return (1, 1)
@@ -42,8 +46,6 @@ def validate_output(input_config: dict, output: dict, storage=None) -> str | Non
     bucket = input_config.get('bucket', {}).get('bucket', '')
     max_width = input_config.get('object', {}).get('width', 0)
     max_height = input_config.get('object', {}).get('height', 0)
-    import os
-    import tempfile
 
     with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
         tmp_path = f.name
@@ -54,7 +56,6 @@ def validate_output(input_config: dict, output: dict, storage=None) -> str | Non
             return f"Downloaded thumbnail from storage is empty (bucket='{bucket}', key='{key}')"
 
         try:
-            from PIL import Image
             with Image.open(tmp_path) as img:
                 w, h = img.size
                 if w <= 0 or h <= 0:
