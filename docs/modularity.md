@@ -65,6 +65,41 @@ def generate_input(data_dir, size, input_buckets, output_buckets, upload_func):
 
 Input files for benchmark, e.g., pretrained model and test images for deep learning inference, should be added to the [benchmarks-data](https://github.com/spcl/serverless-benchmarks-data) repository. SeBS will upload all inputs to the cloud storage, as implemented in the `generate_input` function in `input.py` file. Output buckets are cleaned after experiments. Furthermore, this function should return input configuration as a dictionary that will be passed to the function at invocation.
 
+### Output Validation
+
+**IMPORTANT**: As of SeBS v1.2.1, all benchmarks must implement output validation to ensure correctness across platforms, languages, and architectures.
+
+The `validate_output()` function in `input.py` is called during regression testing or benchmark invocation (optional) to verify that benchmark results are correct. This function must be implemented for all new benchmarks. The function should return `None` when output is valid or a descriptive string explaining what failed.
+
+```python
+def validate_output(
+    input_config: dict,
+    output: dict,
+    language: str,
+    architecture: str,
+    storage = None
+) -> str | None:
+    """
+    Validate benchmark output against expected values.
+
+    Args:
+        input_config: The input configuration dict used to invoke the benchmark
+        output: The output dict returned by the benchmark function handler
+        language: Programming language used (e.g., 'python', 'nodejs', 'cpp', 'java')
+        architecture: CPU architecture (e.g., 'x64', 'arm64')
+        storage: Optional PersistentStorage client for downloading/verifying files
+
+    Returns:
+        None if validation passes, or a descriptive error string if validation fails
+    """
+```
+
+There are four basic types of validation. They are not exclusive and can be combined, e.g., benchmarks might apply checksum-based validation on outputs downloaded from cloud storage.
+* **Simple Value Validation** - for benchmarks with deterministic, self-contained output, e.g., `010.sleep`.
+* **Content Validation** - for benchmarks that generate text, HTML, or structured content, e.g., `110.dynamic-html` validates HTML structure and content.
+* **Checksum-Based Validation** - for deterministic algorithms where exact output matters. Examples: `220.video-processing` verifies that produced a correct media file with our `ffmpeg` deployment.
+* **Storage-Based Validation** - for benchmarks that produce large outputs or files in cloud storage, e.g., `310.image-processing` validates that the output image is correct by downloading it from storage and comparing it to the expected output.
+
 ### Code
 
 Place source code and internal resources in the language directory, e.g., `python` or `nodejs`. The entrypoint should be located in a file named `function.<language-extension>`, e.g., `function.py` or `function.js`, and take just one argument:
