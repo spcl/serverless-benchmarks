@@ -1,0 +1,32 @@
+FROM python:3.11-slim
+
+# curl + ca-certificates are required by the uv installer; git is sometimes
+# pulled in by workers-py when it resolves VCS-declared deps.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (fast Python package manager) and the workers-py toolchain,
+# which provides pywrangler for Pyodide-based Cloudflare Worker deploys.
+# Pinned to 1.8.0 to match Dockerfile.manage — 1.9.x introduced a broken
+# import (rich.logging.Console). Remove the pin once upstream fixes it.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    /root/.local/bin/uv tool install 'workers-py==1.8.0'
+
+ENV PATH="/root/.local/bin:/root/.local/share/uv/tools/workers-py/bin:${PATH}"
+
+WORKDIR /worker
+
+# Build context is populated by sebs; .venv / python_modules / Dockerfile.build
+# itself are excluded via the .dockerignore injected alongside this file.
+COPY . .
+
+# Validate that the generated pyproject.toml parses and that the workers-py
+# toolchain is installed and callable. Pyodide package resolution itself
+# happens at deploy time inside pywrangler (Cloudflare re-resolves Pyodide
+# packages server-side), so there is no vendored dist/ to extract — this
+# image exists purely for early failure detection on malformed packages.
+RUN if [ -f pyproject.toml ]; then \
+        python -c "import tomllib; tomllib.load(open('pyproject.toml','rb'))" && \
+        pywrangler --version; \
+    fi

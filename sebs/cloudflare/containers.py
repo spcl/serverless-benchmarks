@@ -196,7 +196,7 @@ class CloudflareContainersDeployment:
             )
         
         # Copy container wrapper files to the package directory
-        # Copy Dockerfile from dockerfiles/cloudflare/{language}/
+        # Copy Dockerfile.function from dockerfiles/cloudflare/{language}/
         dockerfile_src = os.path.join(
             os.path.dirname(__file__),
             "..",
@@ -204,7 +204,7 @@ class CloudflareContainersDeployment:
             "dockerfiles",
             "cloudflare",
             language_name,
-            "Dockerfile"
+            "Dockerfile.function"
         )
         dockerfile_dest = os.path.join(directory, "Dockerfile")
         if os.path.exists(dockerfile_src):
