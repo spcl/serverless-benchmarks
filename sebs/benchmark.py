@@ -27,6 +27,7 @@ from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
+from sebs.faas.storage import PersistentStorage
 from sebs.utils import find_benchmark, get_resource_path, ensure_benchmarks_data, LoggingBase
 from sebs.sebs_types import BenchmarkModule, Language
 from typing import TYPE_CHECKING
@@ -1691,6 +1692,31 @@ class Benchmark(LoggingBase):
 
         return input_config
 
+    def validate_output(
+        self, input_config: dict, output: dict, storage: Optional[PersistentStorage] = None
+    ) -> str | None:
+        """Validate benchmark output against expected values.
+
+        Delegates to the benchmark's input module `validate_output` function
+        if it is defined. Passes the optional storage client through when the
+        module's validator declares a ``storage`` parameter. Logs a warning and
+        returns an error message when no validation function is available.
+
+        Args:
+            input_config: The input configuration used to invoke the benchmark
+            output: The output returned by the benchmark function handler
+            storage: Optional persistent storage client for download-based checks
+
+        Returns:
+            None if validation passes, or a string describing the failure reason
+        """
+        if hasattr(self._benchmark_input_module, "validate_output"):
+            fn = self._benchmark_input_module.validate_output
+            return fn(self._benchmark_data_path, input_config, output, str(self._language), storage)
+
+        self.logging.warning(f"Benchmark {self._benchmark} does not implement validate_output.")
+        return f"Benchmark {self._benchmark} does not implement validate_output"
+
     def code_package_modify(self, filename: str, data: bytes) -> None:
         """
         Updates a specific file within the code package without rebuilding
@@ -1865,6 +1891,32 @@ class BenchmarkModuleInterface:
             Dict[str, str]: Input configuration dictionary for the benchmark
         """
         pass
+
+    @staticmethod
+    def validate_output(
+        data_dir: str | None,
+        input_config: dict,
+        output: dict,
+        language: str,
+        storage: Optional[PersistentStorage],
+    ) -> str | None:
+        """Validate benchmark output against expected values.
+
+        Checks that the benchmark function's output is correct for the given
+        input. This optional method can be implemented in each benchmark's
+        input.py to enable output validation during regression testing.
+
+        Args:
+            data_dir: Directory containing benchmark data files (if exists)
+            input_config: The input configuration used to invoke the benchmark
+            output: The output returned by the benchmark function handler
+            language: Benchmark implementation language (e.g., 'python', 'nodejs')
+            storage: Storage interface for downloading output files if needed for validation
+
+        Returns:
+            None if validation passes, or a string describing the failure reason
+        """
+        return None
 
 
 def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:

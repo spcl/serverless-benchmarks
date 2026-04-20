@@ -42,6 +42,14 @@ class nosql:
         )
         res[secondary_key[0]] = secondary_key[1]
 
+        # remove Azure-specific fields
+        res.pop("id", None)
+        res.pop("_etag", None)
+        res.pop("_rid", None)
+        res.pop("_self", None)
+        res.pop("_ts", None)
+        res.pop("_attachments", None)
+
         return res
 
     def update(

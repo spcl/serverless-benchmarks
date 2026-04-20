@@ -242,9 +242,23 @@ class TestSequenceMeta(type):
                                 f"{benchmark_name} fail on trigger: {trigger_type}"
                             )
                         else:
-                            logging_wrapper.info(
-                                f"{benchmark_name} success on trigger: {trigger_type}"
+                            output = ret.output.get("result", {})
+                            storage = (
+                                deployment_client.system_resources.get_storage()
+                                if benchmark.uses_storage
+                                else None
                             )
+                            error = benchmark.validate_output(input_config, output, storage)
+                            if error is not None:
+                                failure = True
+                                logging_wrapper.error(
+                                    f"{benchmark_name} output validation failed"
+                                    f" on trigger: {trigger_type}, reason: {error}"
+                                )
+                            else:
+                                logging_wrapper.info(
+                                    f"{benchmark_name} success on trigger: {trigger_type}"
+                                )
                         execution_results[trigger_type.name] = ret.output
                     except RuntimeError:
                         failure = True

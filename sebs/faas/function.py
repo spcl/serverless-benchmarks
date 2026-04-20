@@ -463,7 +463,9 @@ class Trigger(ABC, LoggingBase):
                 self.logging.error("Output: {}".format(data.getvalue().decode()))
             else:
                 self.logging.error("No output provided!")
-            raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
+            raise RuntimeError(
+                f"Failed invocation of function! Output: {data.getvalue().decode()}"
+            ) from None
 
     @staticmethod
     @abstractmethod

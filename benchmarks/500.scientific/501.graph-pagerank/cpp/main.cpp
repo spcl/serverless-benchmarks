@@ -39,7 +39,7 @@ rapidjson::Document function(const rapidjson::Value& request)
   measurements.AddMember("graph_generating_time", (int64_t)graph_generation_time_ms, alloc);
   measurements.AddMember("compute_time", (int64_t)compute_pr_time_ms, alloc);
 
-  val.AddMember("value", static_cast<double>(value), alloc);
+  val.AddMember("result", static_cast<double>(value), alloc);
   val.AddMember("measurements", measurements, alloc);
 
   return val;

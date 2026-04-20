@@ -22,11 +22,7 @@ def handler(event, context):
     ret = function.handler(event)
     end = datetime.datetime.now()
 
-    log_data = {
-        'output': ret['result']
-    }
-    if 'measurement' in ret:
-        log_data['measurement'] = ret['measurement']
+    log_data = ret
     if 'logs' in event:
         log_data['time'] = (end - begin) / datetime.timedelta(microseconds=1)
         results_begin = datetime.datetime.now()
