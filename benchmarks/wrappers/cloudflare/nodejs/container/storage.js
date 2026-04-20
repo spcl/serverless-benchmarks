@@ -1,7 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const uuid = require('uuid');
+const debug = require('util').debuglog('sebs');
 
+// Cloudflare Workers enforce a 100 MB request body limit at the edge.
+// Use multipart upload for payloads larger than this threshold so that
+// each individual request stays well below that limit. R2 requires parts
+// of at least 5 MB.
 const MULTIPART_THRESHOLD = 10 * 1024 * 1024;
 const PART_SIZE = 10 * 1024 * 1024;
 
@@ -11,8 +16,26 @@ function isRetryableSingleUploadError(error) {
 }
 
 /**
- * Storage module for Cloudflare Node.js Containers
- * Uses HTTP proxy to access R2 storage through the Worker's R2 binding
+ * Storage module for Cloudflare Node.js Containers.
+ *
+ * On Cloudflare, object storage (R2) is normally accessed through a Worker
+ * binding (`env.R2_BUCKET`). That binding only exists inside the Worker
+ * runtime, so a container cannot talk to R2 directly the way a Lambda or
+ * Cloud Function talks to S3/GCS with a regular SDK. Instead, the container
+ * forwards each storage operation over HTTP to the parent Worker (see
+ * worker.js), which holds the R2 binding and performs the actual
+ * get/put/list/multipart calls.
+ *
+ * R2 does expose an S3-compatible HTTPS API that a container could call
+ * without a Worker proxy, but that path requires provisioning and injecting
+ * R2 access keys into the container and diverges from how the Worker-based
+ * benchmarks access R2. Routing through the Worker keeps a single code path
+ * and credential model for both deployment types.
+ *
+ * Because of this, the HTTP endpoint depends on the Worker's URL, which is
+ * not known ahead of time. The handler receives it via the X-Worker-URL
+ * header on the incoming request and installs it here through
+ * set_worker_url() before any storage call is made.
  */
 
 class storage {
@@ -127,8 +150,10 @@ class storage {
         throw error;
       }
 
-      console.warn(
-        `[storage] single upload failed for ${key}; retrying with multipart upload: ${error.message}`
+      debug(
+        '[storage] single upload failed for %s; retrying with multipart upload: %s',
+        key,
+        error.message
       );
       return this._multipart_upload(key, buffer);
     }
@@ -136,7 +161,7 @@ class storage {
 
   async upload_stream(bucket, key, data) {
     if (!this.r2_enabled) {
-      console.log('Warning: R2 not configured, skipping upload');
+      debug('R2 not configured, skipping upload');
       return key;
     }
 
@@ -150,7 +175,7 @@ class storage {
     try {
       return await this._upload_bytes(unique_key, buffer);
     } catch (error) {
-      console.error('R2 upload error:', error);
+      debug('R2 upload error: %o', error);
       throw new Error(`Failed to upload to R2: ${error.message}`);
     }
   }
@@ -182,7 +207,7 @@ class storage {
       const arrayBuffer = await response.arrayBuffer();
       return Buffer.from(arrayBuffer);
     } catch (error) {
-      console.error('R2 download error:', error);
+      debug('R2 download error: %o', error);
       throw new Error(`Failed to download from R2: ${error.message}`);
     }
   }
@@ -199,35 +224,38 @@ class storage {
       return [unique_key, uploadPromise];
     }
 
-    console.error(`!!! [storage.upload] File not found: ${filepath}`);
+    debug('[storage.upload] File not found: %s', filepath);
     throw new Error(`upload(): file not found: ${filepath}`);
   }
 
   async _upload_stream_with_key(bucket, key, data) {
-    // Internal method that uploads with exact key (no unique naming)
-    console.log(`[storage._upload_stream_with_key] Starting upload: bucket=${bucket}, key=${key}, data_size=${data.length}`);
-    
+    debug(
+      '[storage._upload_stream_with_key] Starting upload: bucket=%s, key=%s, data_size=%d',
+      bucket,
+      key,
+      data.length
+    );
+
     if (!this.r2_enabled) {
-      console.log('Warning: R2 not configured, skipping upload');
+      debug('R2 not configured, skipping upload');
       return key;
     }
 
     if (!storage.worker_url) {
-      console.error('[storage._upload_stream_with_key] Worker URL not set!');
       throw new Error('Worker URL not set - cannot access R2');
     }
-    
-    console.log(`[storage._upload_stream_with_key] Worker URL: ${storage.worker_url}`);
+
+    debug('[storage._upload_stream_with_key] Worker URL: %s', storage.worker_url);
 
     const buffer = this._toBuffer(data);
-    console.log(`[storage._upload_stream_with_key] Uploading key=${key}, buffer size: ${buffer.length}`);
+    debug('[storage._upload_stream_with_key] Uploading key=%s, buffer size: %d', key, buffer.length);
 
     try {
       const resultKey = await this._upload_bytes(key, buffer);
-      console.log(`[storage._upload_stream_with_key] Upload successful, returned key: ${resultKey}`);
+      debug('[storage._upload_stream_with_key] Upload successful, returned key: %s', resultKey);
       return resultKey;
     } catch (error) {
-      console.error('R2 upload error:', error);
+      debug('R2 upload error: %o', error);
       throw new Error(`Failed to upload to R2: ${error.message}`);
     }
   }
@@ -246,9 +274,8 @@ class storage {
   }
 
   async download_directory(bucket, prefix, out_path) {
-    // List all objects with the prefix and download each one
     if (!this.r2_enabled) {
-      console.log('Warning: R2 not configured, skipping download_directory');
+      debug('R2 not configured, skipping download_directory');
       return;
     }
 
@@ -281,7 +308,7 @@ class storage {
         await this.download(bucket, file_name, path.join(out_path, file_name));
       }
     } catch (error) {
-      console.error('R2 download_directory error:', error);
+      debug('R2 download_directory error: %o', error);
       throw new Error(`Failed to download directory from R2: ${error.message}`);
     }
   }
