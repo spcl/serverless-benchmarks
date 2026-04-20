@@ -228,6 +228,51 @@ Cloudflare Workers support multiple languages through different deployment metho
 
 SeBS uses a containerized CLI approach for Cloudflare deployments, eliminating the need to install Node.js, npm, wrangler, pywrangler, or uv on your host system. The CLI container (`sebs/manage.cloudflare`) is automatically built on first use and contains all necessary tools. This ensures consistent behavior across platforms and simplifies setup—only Docker is required.
 
+### Deployment Architecture
+
+SeBS supports two deployment paths for Cloudflare: **script-based Workers** (native Workers runtime) and **container-based Workers** (Cloudflare's managed container runtime, fronted by a Durable-Object-backed Worker). Both paths share the same credentials, R2/KV resources, and HTTP trigger; they differ only in how code is packaged and which Cloudflare runtime executes it. The deployment type is controlled by the benchmark's `container_deployment` flag.
+
+#### Python modules (`sebs/cloudflare/`)
+
+| File | Responsibility |
+|------|----------------|
+| `cloudflare.py` | `Cloudflare(System)` facade. Verifies credentials, enforces `SUPPORTED_BENCHMARKS`, resolves the `workers.dev` URL, and dispatches `package_code`/`create_function`/`update_function` to the correct handler via `_get_deployment_handler(container_deployment)`. |
+| `workers.py` | `CloudflareWorkersDeployment` — native script packaging. Node.js is bundled with esbuild via `nodejs/Dockerfile.build`; Python generates a `pyproject.toml` and is validated via `python/Dockerfile.build` (Pyodide resolution happens server-side at deploy time). |
+| `containers.py` | `CloudflareContainersDeployment` — container packaging. Copies the per-language `Dockerfile.function` into the code directory, injects the `worker.js` orchestrator (Node-only, required by `@cloudflare/containers`), merges `package.json`, runs `npm install`, and builds a local image as a cache anchor. |
+| `cli.py` | `CloudflareCLI` — runs the `manage.cloudflare` Docker container with the Docker socket mounted and exposes `wrangler_deploy`, `pywrangler_deploy`, `npm_install`, `docker_build`, `upload_package`. Used by both deployment handlers; `cloudflare.py` never calls `wrangler` directly. |
+| `config.py` | `CloudflareCredentials` / `CloudflareConfig` — API token, account ID, R2 keys. |
+| `resources.py` | `CloudflareSystemResources` — factories for R2 and KV/Durable Objects. |
+| `function.py` | `CloudflareWorker(Function)` — cached function metadata. |
+| `triggers.py` | `HTTPTrigger` — invokes the deployed Worker at `https://{name}.{account}.workers.dev`. |
+| `r2.py`, `kvstore.py` | Object and NoSQL storage clients. |
+
+Wrangler templates live at the repo root under `templates/wrangler-worker.toml` and `templates/wrangler-container.toml`.
+
+#### Dockerfiles (`dockerfiles/cloudflare/`)
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile.manage` | Builds the `manage.cloudflare` CLI image (Node + global `wrangler` + `pywrangler` via `uv` + Docker CLI). Driven by `cli.py`. |
+| `nodejs/Dockerfile.build` | Ephemeral build image for **script-based** Node.js workers. Produces the bundled `dist/` that `workers.py` extracts back to the host package. |
+| `python/Dockerfile.build` | Ephemeral validation image for **script-based** Python workers — confirms `pywrangler` accepts the generated `pyproject.toml`. |
+| `nodejs/Dockerfile.function` | Runtime image for **container-based** Node.js functions. Parameterized via `ARG BASE_IMAGE` from `config/systems.json`. Copied into the package by `containers.py` and rebuilt by `wrangler deploy`. |
+| `python/Dockerfile.function` | Runtime image for **container-based** Python functions. Same parameterization. |
+
+#### Script-based flow (`container_deployment=false`)
+
+1. `benchmark.build()` → `Cloudflare.package_code` → `CloudflareWorkersDeployment.package_code` (builds via `Dockerfile.build`).
+2. `Cloudflare.create_function` → `_create_or_update_worker` renders `templates/wrangler-worker.toml` into the package.
+3. `CloudflareCLI.wrangler_deploy` (Node) or `pywrangler_deploy` (Python) deploys via the `manage.cloudflare` container.
+4. `HTTPTrigger` is attached using the `workers.dev` URL.
+
+#### Container-based flow (`container_deployment=true`)
+
+1. `benchmark.build()` calls `container_client.build_base_image()` on the `_CloudflareContainerAdapter` in `cloudflare.py`, which delegates to `CloudflareContainersDeployment.package_code`. It copies `{language}/Dockerfile.function` as `Dockerfile` (patching `BASE_IMAGE`), adds `worker.js`, merges `package.json`, runs `npm install` in the CLI container, and builds a local Docker image.
+2. `Cloudflare.create_function` → `_create_or_update_worker` renders `templates/wrangler-container.toml`.
+3. `CloudflareCLI.wrangler_deploy` invokes wrangler, which rebuilds the image from `Dockerfile` and pushes it to Cloudflare's managed registry, creating a Durable-Object-backed container worker.
+4. `wait_for_durable_object_ready` polls `/health` until the container reports healthy, then SeBS pings `/health` for ~60 s to keep the DO warm before the first measured invocation.
+5. `HTTPTrigger` is attached using the `workers.dev` URL.
+
 ### Trigger Support
 
 - **HTTP Trigger**: ✅ Fully supported - Workers are automatically accessible at `https://{name}.{account}.workers.dev`
