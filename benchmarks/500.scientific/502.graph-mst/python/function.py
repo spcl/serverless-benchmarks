@@ -22,7 +22,7 @@ def handler(event):
     process_time = (process_end - process_begin) / datetime.timedelta(microseconds=1)
 
     return {
-            'result': result[0],
+            'result': result,
             'measurement': {
                 'graph_generating_time': graph_generating_time,
                 'compute_time': process_time
