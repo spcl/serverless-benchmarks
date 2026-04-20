@@ -153,6 +153,9 @@ R2 configuration is handled automatically by SeBS when deploying to Cloudflare W
 
 For Cloudflare container deployments, benchmark code does not talk to R2 directly. Instead, container wrappers call the Worker proxy endpoints (`/r2/upload`, `/r2/multipart-init`, `/r2/multipart-part`, `/r2/multipart-complete`).
 
+**Why a proxy (and not a direct storage wrapper like other platforms)?**
+On other platforms (AWS/GCP/Azure), the storage wrapper can be an SDK call because the function runtime and object store share a credential/SDK surface. Cloudflare R2 is different: the supported access path for Workers is the R2 **binding** (`env.R2_BUCKET`), which is a runtime object injected only inside the Worker runtime. A Cloudflare container runs in a separate runtime and has no access to that binding, so a container-side "storage wrapper" has nowhere to call. The only direct alternative is R2's S3-compatible HTTPS API, which would require provisioning R2 access keys and shipping them into each container — a second credential model that diverges from how the native Worker benchmarks talk to R2. Routing container storage calls through the parent Worker keeps a single code path and single credential model for both deployment types; the container-side `storage.js` wrapper still exists and still exposes the SeBS storage interface, it just implements those operations by forwarding to the Worker that holds the binding.
+
 **Upload strategy:**
 - Small payloads use a single upload request.
 - Large payloads use multipart upload (10 MB threshold, 10 MB part size in current wrappers).
