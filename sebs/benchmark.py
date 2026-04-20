@@ -1712,7 +1712,7 @@ class Benchmark(LoggingBase):
         """
         if hasattr(self._benchmark_input_module, "validate_output"):
             fn = self._benchmark_input_module.validate_output
-            return fn(input_config, output, str(self._language), str(self._architecture), storage)
+            return fn(self._benchmark_data_path, input_config, output, str(self._language), storage)
 
         self.logging.warning(f"Benchmark {self._benchmark} does not implement validate_output.")
         return f"Benchmark {self._benchmark} does not implement validate_output"
@@ -1894,10 +1894,10 @@ class BenchmarkModuleInterface:
 
     @staticmethod
     def validate_output(
+        data_dir: str | None,
         input_config: dict,
         output: dict,
         language: str,
-        architecture: str,
         storage: Optional[PersistentStorage],
     ) -> str | None:
         """Validate benchmark output against expected values.
@@ -1907,10 +1907,10 @@ class BenchmarkModuleInterface:
         input.py to enable output validation during regression testing.
 
         Args:
+            data_dir: Directory containing benchmark data files (if exists)
             input_config: The input configuration used to invoke the benchmark
             output: The output returned by the benchmark function handler
             language: Benchmark implementation language (e.g., 'python', 'nodejs')
-            architecture: Target CPU architecture (e.g., 'x64', 'arm64')
             storage: Storage interface for downloading output files if needed for validation
 
         Returns:

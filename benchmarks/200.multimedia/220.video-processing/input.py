@@ -2,29 +2,27 @@
 import glob
 import os
 import tempfile
-import hashlib
+import re
+import subprocess
+from pathlib import Path
 
 def buckets_count():
     return (1, 1)
 
-# MD5 checksums for video processing output (operation, duration) -> hash
-# These checksums ensure ffmpeg produces deterministic output
-#
-# arm64 uses the same ffmpeg version, but may have different hardware acceleration,
-# which can lead to different output for some operations.
-# Hence we have separate checksums for arm64.
-# I don't think we can expect bitwise reproducibility across different architectures
-expected_checksums = {
-    "x64": {
-        ('watermark', 1): '87f3a1ef9d90f93fd24c19ad0209a913',
-        ('watermark', 3): '98286aa95fdbd7501b2cf244027c0ca2',
-        ('extract-gif', 2): '20c17009382df93f6fcbf7ba1c53def0'
-    },
-    "arm64": {
-        ('watermark', 1): '8ca34184496485d57fff67301a6e9ce5',
-        ('watermark', 3): '5024b468f44e4adcf9f479b68111f283',
-        ('extract-gif', 2): 'aea2de2f4e96ead64303a447120df9ea'
-    }
+# We are using visual similarity (SSIM) for validating the output of video processing,
+# as bitwise reproducibility is not guaranteed across different ffmpeg versions and hardware acceleration.
+# Even for the same ffmpeg version, we can get slightly differnt outputs on different architectures,
+# like x64 and arm64 on AWS, and across different clouds.
+DEFAULT_SSIM_THRESHOLDS = {
+    "mp4": 0.98,
+    "gif": 0.98,
+}
+SSIM_RE = re.compile(r"\[Parsed_ssim.*?All:([\d.]+)")
+
+OUTPUTS = {
+    ('watermark', 1): Path('outputs', 'watermark_test.mp4'),
+    ('watermark', 3): Path('outputs', 'watermark_small.mp4'),
+    ('extract-gif', 2): Path('outputs', 'city.gif'),
 }
 
 '''
@@ -60,7 +58,51 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     input_config['bucket']['output'] = output_paths[0]
     return input_config
 
-def validate_output(input_config: dict, output: dict, language: str, architecture: str, storage = None) -> str | None:
+def compare_videos(
+    result_path: Path,
+    target_path: Path,
+    is_gif: bool = False,
+) -> str | None:
+    """
+    Run ffmpeg once computing SSIM, and PSNR.
+    """
+    import imageio_ffmpeg
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+
+    filter_complex = "[0:v][1:v]ssim"
+
+    cmd = [
+        ffmpeg, "-hide_banner", "-nostats",
+        "-i", str(result_path),
+        "-i", str(target_path),
+        "-filter_complex", filter_complex,
+        "-an",                # ignore audio
+        "-f", "null", "-",    # discard output, we only want the filter metrics
+    ]
+
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True
+    )
+
+    if proc.returncode != 0:
+        return f"Validation failed: ffmpeg run failed (exit {proc.returncode}):\n{proc.stderr}"
+
+    ssim_match = SSIM_RE.search(proc.stderr)
+    if not ssim_match:
+        return f"Validation failed: could not parse SSIM from ffmpeg stderr:\n{proc.stderr}"
+
+    ssim = float(ssim_match.group(1))
+
+    ssim_threshold = DEFAULT_SSIM_THRESHOLDS['gif' if is_gif else 'mp4']
+    if ssim < ssim_threshold:
+        return f"Validation failed: SSIM {ssim:.4f} below threshold {ssim_threshold:.4f}"
+
+    return None
+
+def validate_output(data_dir: str | None, input_config: dict, output: dict, language: str, storage = None) -> str | None:
+
+    if data_dir is None:
+        return "Data directory must be provided for output validation"
 
     result = output.get('result', {})
     key = result.get('key', '')
@@ -73,28 +115,20 @@ def validate_output(input_config: dict, output: dict, language: str, architectur
 
     bucket = input_config.get('bucket', {}).get('bucket', '')
     op = input_config.get('object', {}).get('op', '')
-    duration = input_config.get('object', {}).get('duration', 0)
+    duration = input_config.get('object', {}).get('duration', '')
 
     suffix = os.path.splitext(key)[1] or '.tmp'
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
         tmp_path = f.name
-    try:
-        storage.download(bucket, key, tmp_path)
-        file_size = os.path.getsize(tmp_path)
-        if file_size == 0:
-            return f"Downloaded video output from storage is empty (bucket='{bucket}', key='{key}')"
 
-        # Check MD5 checksum if available for this operation
-        checksum_key = (op, duration)
-        if checksum_key not in expected_checksums[architecture]:
-            return f"Missing validation configuration for ({op}, {duration})!"
+        try:
+            storage.download(bucket, key, tmp_path)
+            file_size = os.path.getsize(tmp_path)
+            if file_size == 0:
+                return f"Downloaded video output from storage is empty (bucket='{bucket}', key='{key}')"
 
-        with open(tmp_path, 'rb') as f:
-            actual_md5 = hashlib.md5(f.read()).hexdigest()
-        expected_md5 = expected_checksums[architecture][checksum_key]
-        if actual_md5 != expected_md5:
-            return f"MD5 checksum mismatch for op='{op}' duration={duration}: expected '{expected_md5}' but got '{actual_md5}'"
+            target_output = Path(data_dir) / OUTPUTS[(op, duration)]
 
-        return None
-    finally:
-        os.unlink(tmp_path)
+            return compare_videos(target_output, Path(f.name), op == 'extract-gif')
+        finally:
+            os.unlink(tmp_path)
