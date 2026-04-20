@@ -97,8 +97,8 @@ def validate_output(
 There are four basic types of validation. They are not exclusive and can be combined, e.g., benchmarks might apply checksum-based validation on outputs downloaded from cloud storage.
 * **Simple Value Validation** - for benchmarks with deterministic, self-contained output, e.g., `010.sleep`.
 * **Content Validation** - for benchmarks that generate text, HTML, or structured content, e.g., `110.dynamic-html` validates HTML structure and content.
-* **Checksum-Based Validation** - for deterministic algorithms where exact output matters. Examples: graph benchmarks verify that produced result is identical with expected.
-* **Similarity-Based Validation** - for benchmarks with non-deterministic output, e.g., `220.vide-processing` uses ffmpeg which does not guarantee bitwise reproducibility. Instead, we use `ffmpeg` to validate that the produced video is is visually similar to the expected one.
+* **Checksum-Based Validation** - for deterministic algorithms where exact output matters. Examples: `120.uploader` verifies that downlodaed files are identical to expected.
+* **Similarity-Based Validation** - for benchmarks with non-deterministic output, e.g., `220.video-processing` uses ffmpeg internally which does not guarantee bitwise reproducibility. Instead, we use `ffmpeg` to validate that the produced video is is visually similar to the expected one.
 * **Storage-Based Validation** - for benchmarks that produce large outputs or files in cloud storage, e.g., `310.image-processing` validates that the output image is correct by downloading it from storage and comparing it to the expected output.
 
 ### Code
