@@ -474,7 +474,9 @@ class GCP(System):
             else:
                 # Unexpected status
                 self.logging.error(f"Function {func_name} has unexpected status: {status}")
-                raise RuntimeError(f"Function {func_name} deployment failed with status: {status}")
+                raise RuntimeError(
+                    f"Function {func_name} deployment failed with status: {status}"
+                ) from None
 
             time.sleep(2)
 
