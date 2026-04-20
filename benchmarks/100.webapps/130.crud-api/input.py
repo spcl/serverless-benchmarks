@@ -97,47 +97,87 @@ def generate_input(
 
     return input_config
 
-def validate_output(input_config: dict, output: dict) -> bool:
-    results = output.get('result', [])
+def validate_output(input_config: dict, output: dict) -> str | None:
+    results = output.get('output', [])
     requests = input_config.get('requests', [])
-    size = input_config.get('size', '')
-    if not isinstance(results, list) or len(results) != len(requests):
-        return False
 
-    # Track the expected number of items in the cart for 'large' PUT/GET sequences.
-    put_count = 0
+    if not isinstance(results, list):
+        return f"Output results is not a list (type={type(results).__name__})"
 
-    for request, result in zip(requests, results):
+    if len(results) != len(requests):
+        return f"Results count mismatch: expected {len(requests)} responses but got {len(results)}"
+
+    if len(results) == 1:
+        """
+            test input -> one result for a single cart item
+            small input -> one result for entire cart
+        """
+        request = requests[0]
+        result = results[0]
         route = request.get('route')
+
         if route == 'GET /cart/{id}':
-            expected_id = request.get('path', {}).get('id', '')
-            if expected_id == 'game-gothic':
-                if result.get('name') != 'Gothic Game':
-                    return False
-                if result.get('price') != 42:
-                    return False
-                if result.get('quantity') != 2:
-                    return False
-            elif not ('name' in result and 'price' in result and 'quantity' in result):
-                return False
+
+            expected_item = {"name": "Gothic Game", "price": 42, "quantity": 2}
+            expected_item["cart_id"] = request["body"]["cart"]
+            expected_item["product_id"] = request["path"]["id"]
+
+            if expected_item != result:
+                return f"Wrong item details for GET /cart/{{id}}: expected {expected_item} but got {result}"
+
         elif route == 'GET /cart':
-            products = result.get('products')
-            if not isinstance(products, list) or len(products) == 0:
-                return False
-            if 'total_cost' not in result:
-                return False
-            if size == 'small':
-                # 4 pre-inserted products; total_cost is the sum of their prices.
-                if len(products) != 4:
-                    return False
-                if result.get('total_cost') != 42 + 142 + 1000 + 0:
-                    return False
-            elif size == 'large':
-                # Each GET follows a PUT, so the list grows by one each time.
-                if len(products) != put_count:
-                    return False
-        elif route == 'PUT /cart':
-            if result != {}:
-                return False
-            put_count += 1
-    return True
+
+            products = [
+                ("Gothic Game", 42, 2),
+                ("Gothic 2", 142, 3),
+                ("SeBS Benchmark", 1000, 1),
+                ("Mint Linux", 0, 5)
+            ]
+            total_cost = sum([p[1] * p[2] for p in products])
+            items = sum([p[2] for p in products])
+            cart = [p[0] for p in products]
+
+            if sorted(cart) != sorted(result['products']):
+                return f"Wrong product details for GET /cart: expected {cart} but got {result['products']}"
+
+            if total_cost != result['total_cost']:
+                return f"Wrong product details for GET /cart: expected {total_cost}, but got {result['total_cost']}"
+
+            if abs(total_cost / items - result['avg_price']) > 1e-6:
+                return f"Wrong product details for GET /cart: expected {total_cost/items}, but got {result['products']}"
+        else:
+            return f"Unexpected route in single-result output: expected 'GET /cart/{{id}}' or 'GET /cart' but got '{route}'"
+    else:
+        """
+            large input -> 10 responses, 
+        """
+
+        put_results = results[0::2]
+        get_results = results[1::2]
+
+        for put_result in put_results:
+            if put_result != {}:
+                return f"PUT /cart expected empty dict {{}} but got {put_result}"
+
+        current_cost = 0
+        current_quantity = 0
+        items = []
+        for idx, get_result in enumerate(get_results):
+
+            items.append(f"Test Item {idx}")
+            current_cost += 100 * idx * idx
+            current_quantity += idx
+
+            if get_result['products'] != items:
+                return f"Wrong product details for GET /cart: expected {items} but got {get_result['products']}"
+
+            if current_cost != get_result['total_cost']:
+                return f"Wrong product details for GET /cart: expected {current_cost}, but got {get_result['total_cost']}"
+
+            if current_quantity == 0:
+                continue
+
+            if abs(current_cost / current_quantity - get_result['avg_price']) > 1e-6:
+                return f"Wrong product details for GET /cart: expected {current_cost/current_quantity}, but got {get_result['products']}"
+
+    return None
