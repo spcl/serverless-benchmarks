@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import glob
 import hashlib
-import inspect
 import json
 import subprocess
 import os
@@ -28,6 +27,7 @@ from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
+from sebs.faas.storage import PersistentStorage
 from sebs.utils import find_benchmark, get_resource_path, ensure_benchmarks_data, LoggingBase
 from sebs.sebs_types import BenchmarkModule, Language
 from typing import TYPE_CHECKING
@@ -1692,7 +1692,9 @@ class Benchmark(LoggingBase):
 
         return input_config
 
-    def validate_output(self, input_config: dict, output: dict, storage=None) -> str | None:
+    def validate_output(
+        self, input_config: dict, output: dict, storage: Optional[PersistentStorage] = None
+    ) -> str | None:
         """Validate benchmark output against expected values.
 
         Delegates to the benchmark's input module `validate_output` function
@@ -1710,11 +1712,8 @@ class Benchmark(LoggingBase):
         """
         if hasattr(self._benchmark_input_module, "validate_output"):
             fn = self._benchmark_input_module.validate_output
-            sig = inspect.signature(fn)
-            if "storage" in sig.parameters:
-                return fn(input_config, output, storage)
-            else:
-                return fn(input_config, output)
+            return fn(input_config, output, str(self._language), storage)
+
         self.logging.warning(f"Benchmark {self._benchmark} does not implement validate_output.")
         return f"Benchmark {self._benchmark} does not implement validate_output"
 
@@ -1894,7 +1893,9 @@ class BenchmarkModuleInterface:
         pass
 
     @staticmethod
-    def validate_output(input_config: dict, output: dict) -> str | None:
+    def validate_output(
+        input_config: dict, output: dict, language: str, storage: Optional[PersistentStorage]
+    ) -> str | None:
         """Validate benchmark output against expected values.
 
         Checks that the benchmark function's output is correct for the given
@@ -1904,6 +1905,8 @@ class BenchmarkModuleInterface:
         Args:
             input_config: The input configuration used to invoke the benchmark
             output: The output returned by the benchmark function handler
+            language: Benchmark implementation language (e.g., 'python', 'nodejs')
+            storage: Storage interface for downloading output files if needed for validation
 
         Returns:
             None if validation passes, or a string describing the failure reason

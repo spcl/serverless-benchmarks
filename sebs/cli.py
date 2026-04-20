@@ -345,14 +345,14 @@ def invoke(
                 if benchmark_obj.uses_storage
                 else None
             )
-            validation_error = benchmark_obj.validate_output(input_config, output, storage)
-            if validation_error is None:
+            error = benchmark_obj.validate_output(input_config, output, storage)
+            if error is None:
                 sebs_client.logging.info(
                     f"Repetition {i + 1}/{repetitions}: output validation passed"
                 )
             else:
                 sebs_client.logging.error(
-                    f"Repetition {i + 1}/{repetitions}: output validation failed: {validation_error}"
+                    f"Repetition {i + 1}/{repetitions}: output validation failed: {error}"
                 )
         result.add_invocation(func, ret)
     result.end()

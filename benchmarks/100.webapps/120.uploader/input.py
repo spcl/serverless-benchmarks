@@ -32,7 +32,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buck
     input_config['bucket']['output'] = output_buckets[0]
     return input_config
 
-def validate_output(input_config: dict, output: dict, storage=None) -> str | None:
+def validate_output(input_config: dict, output: dict, language: str, storage = None) -> str | None:
     result = output.get('output', {})
     key = result.get('key', '')
     url = input_config.get('object', {}).get('url', '')
