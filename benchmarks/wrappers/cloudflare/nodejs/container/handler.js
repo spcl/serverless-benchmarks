@@ -59,19 +59,21 @@ try {
 const PORT = process.env.PORT || 8080;
 
 const server = http.createServer(async (req, res) => {
-  // Handle favicon requests
-  if (req.url.includes('favicon')) {
-    res.writeHead(200);
-    res.end('None');
-    return;
-  }
-
   try {
     // Get unique request ID from Cloudflare (CF-Ray header)
     const crypto = require('crypto');
     const reqId = req.headers['cf-ray'] || crypto.randomUUID();
     
-    // Extract Worker URL from header for R2 and NoSQL proxy
+    // Extract Worker URL from header for R2 and NoSQL proxy.
+    //
+    // Containers run in a separate runtime from Workers and cannot access R2 or
+    // KV bindings directly — those bindings only exist in the Worker's `env`.
+    // To let the benchmark code reach storage, worker.js injects its own public
+    // origin into the X-Worker-URL header before forwarding the request here.
+    // The container-side storage/nosql modules use this URL to call back into
+    // the Worker over HTTP (e.g. POST ${workerUrl}/r2/upload), and worker.js
+    // intercepts those paths (/r2/*, /nosql/*) and performs the binding call
+    // on the container's behalf.
     const workerUrl = req.headers['x-worker-url'];
     if (workerUrl) {
       if (storage && storage.storage && storage.storage.set_worker_url) {
@@ -100,6 +102,9 @@ const server = http.createServer(async (req, res) => {
         event = JSON.parse(body);
       } catch (e) {
         console.error('Failed to parse JSON body:', e);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body', message: e.message }));
+        return;
       }
     }
 
