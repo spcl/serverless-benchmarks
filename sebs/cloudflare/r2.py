@@ -11,7 +11,7 @@ from typing import List, Optional
 class R2(PersistentStorage):
     @staticmethod
     def typename() -> str:
-        return "Cloudlfare.R2"
+        return "Cloudflare.R2"
 
     @staticmethod
     def deployment_name() -> str:
@@ -168,10 +168,21 @@ class R2(PersistentStorage):
         :param key: storage source filepath
         :param filepath: local destination filepath
         """
-        # R2 requires S3-compatible access for object operations
-        # For now, this is not fully implemented
-        self.logging.warning(f"download not fully implemented for R2 bucket {bucket_name}")
-        pass
+        s3_client = self._get_s3_client()
+        if s3_client is None:
+            self.logging.warning(f"Cannot download {key} from R2 - S3 client not available")
+            return
+
+        try:
+            dirname = os.path.dirname(filepath)
+            if dirname:
+                os.makedirs(dirname, exist_ok=True)
+            s3_client.download_file(bucket_name, key, filepath)
+            self.logging.debug(
+                f"Downloaded {key} from R2 bucket {bucket_name} to {filepath}"
+            )
+        except Exception as e:
+            self.logging.warning(f"Failed to download {key} from R2: {e}")
 
     def upload(self, bucket_name: str, filepath: str, key: str):
         """
