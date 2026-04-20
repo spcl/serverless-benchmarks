@@ -2,17 +2,18 @@
 // This handler is used when deploying as a container worker
 
 const http = require('http');
+const crypto = require('crypto');
+const Module = require('module');
 const debug = require('util').debuglog('sebs');
 
 // Monkey-patch the 'request' library to always include a User-Agent header
 // This is needed because Wikimedia (and other sites) require a User-Agent
 try {
-  const Module = require('module');
   const originalRequire = Module.prototype.require;
-  
+
   Module.prototype.require = function(id) {
     const module = originalRequire.apply(this, arguments);
-    
+
     if (id === 'request') {
       // Wrap the request function to inject default headers
       const originalRequest = module;
@@ -34,7 +35,7 @@ try {
       });
       return wrappedRequest;
     }
-    
+
     return module;
   };
 } catch (e) {
@@ -62,7 +63,6 @@ const PORT = process.env.PORT || 8080;
 const server = http.createServer(async (req, res) => {
   try {
     // Get unique request ID from Cloudflare (CF-Ray header)
-    const crypto = require('crypto');
     const reqId = req.headers['cf-ray'] || crypto.randomUUID();
     
     // Extract Worker URL from header for R2 and NoSQL proxy.
