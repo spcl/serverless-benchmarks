@@ -248,11 +248,12 @@ class TestSequenceMeta(type):
                                 if benchmark.uses_storage
                                 else None
                             )
-                            if not benchmark.validate_output(input_config, output, storage):
+                            error = benchmark.validate_output(input_config, output, storage)
+                            if error is not None:
                                 failure = True
                                 logging_wrapper.error(
                                     f"{benchmark_name} output validation failed"
-                                    f" on trigger: {trigger_type}"
+                                    f" on trigger: {trigger_type}, reason: {error}"
                                 )
                             else:
                                 logging_wrapper.info(
