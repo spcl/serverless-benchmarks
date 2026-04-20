@@ -3,16 +3,10 @@ Storage module for Cloudflare Python Containers
 Uses HTTP proxy to access R2 storage through the Worker's R2 binding
 """
 import io
-import mimetypes
 import os
 import json
 import urllib.request
 import urllib.parse
-
-def _guess_content_type(name: str) -> str:
-    """Infer MIME type from a file name, falling back to application/octet-stream."""
-    ct, _ = mimetypes.guess_type(name)
-    return ct or 'application/octet-stream'
 
 # Cloudflare Workers enforce a 100 MB request body limit at the edge.
 # Use multipart upload for payloads larger than this threshold so that
@@ -67,7 +61,7 @@ class storage:
         with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read().decode('utf-8'))
 
-    def _upload_bytes(self, key: str, data: bytes, content_type: str = 'application/octet-stream') -> str:
+    def _upload_bytes(self, key: str, data: bytes) -> str:
         """Upload *data* to the exact R2 *key* via the worker proxy.
 
         Uses a single PUT for small payloads and R2 multipart upload for
@@ -77,19 +71,19 @@ class storage:
         Returns the R2 key.
         """
         if len(data) <= _MULTIPART_THRESHOLD:
-            return self._single_upload(key, data, content_type)
-        return self._multipart_upload(key, data, content_type)
+            return self._single_upload(key, data)
+        return self._multipart_upload(key, data)
 
-    def _single_upload(self, key: str, data: bytes, content_type: str = 'application/octet-stream') -> str:
+    def _single_upload(self, key: str, data: bytes) -> str:
         params = urllib.parse.urlencode({'key': key})
         url = f"{storage.worker_url}/r2/upload?{params}"
-        result = self._post_json(url, data, content_type)
+        result = self._post_json(url, data)
         return result['key']
 
-    def _multipart_upload(self, key: str, data: bytes, content_type: str = 'application/octet-stream') -> str:
+    def _multipart_upload(self, key: str, data: bytes) -> str:
         """Split *data* into ≤_PART_SIZE chunks and use R2 multipart upload."""
         # 1. Initiate
-        params = urllib.parse.urlencode({'key': key, 'contentType': content_type})
+        params = urllib.parse.urlencode({'key': key})
         init_url = f"{storage.worker_url}/r2/multipart-init?{params}"
         init = self._post_json(init_url)
         upload_id = init['uploadId']
@@ -146,11 +140,11 @@ class storage:
         unique_key = self.unique_name(key)
         
         try:
-            return self._upload_bytes(unique_key, data, _guess_content_type(unique_key))
+            return self._upload_bytes(unique_key, data)
         except Exception as e:
             print(f"R2 upload error: {e}")
             raise RuntimeError(f"Failed to upload to R2: {e}")
-    
+
     def download_stream(self, bucket: str, key: str) -> bytes:
         """Download data from R2 via worker proxy"""
         if not self.r2_enabled:
@@ -179,11 +173,10 @@ class storage:
         """Upload file from disk with unique key generation"""
         # Generate unique key to avoid conflicts
         unique_key = self.unique_name(key)
-        content_type = _guess_content_type(filepath)
         with open(filepath, 'rb') as f:
             data = f.read()
         try:
-            self._upload_bytes(unique_key, data, content_type)
+            self._upload_bytes(unique_key, data)
         except Exception as e:
             raise RuntimeError(f"Failed to upload to R2: {e}")
         return unique_key
@@ -206,7 +199,7 @@ class storage:
             data = data.encode('utf-8')
         
         try:
-            result_key = self._upload_bytes(key, data, _guess_content_type(key))
+            result_key = self._upload_bytes(key, data)
             print(f"[storage._upload_with_key] Upload successful, key={result_key}")
         except Exception as e:
             print(f"R2 upload error: {e}")

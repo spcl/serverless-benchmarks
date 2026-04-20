@@ -165,12 +165,6 @@ On other platforms (AWS/GCP/Azure), the storage wrapper can be an SDK call becau
 - Container wrappers generate unique output keys (suffix based on UUID fragment) before upload.
 - This avoids collisions and keeps run-specific output objects distinct in regression and repeated invocations.
 
-**Content-Type behavior:**
-- Stored object metadata should reflect the real file type (for example `image/jpeg`, `image/png`) when inferable.
-- In the Node.js container path, the Worker proxy infers content type from the object key extension when the caller omits it.
-- In the Python container path, the wrapper infers content type and passes it to the Worker proxy.
-- Multipart part transport may still use `application/octet-stream`; this is expected for chunk transport and does not imply final object metadata must be octet-stream.
-
 ### KVStore for NoSQL
 
 Cloudflare KV namespaces are used for NoSQL operations required by benchmarks such as CRUD API (130.crud-api).

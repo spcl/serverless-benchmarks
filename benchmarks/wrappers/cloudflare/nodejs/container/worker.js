@@ -110,40 +110,6 @@ export default {
   }
 };
 
-const MIME_TYPES = {
-  '.bin': 'application/octet-stream',
-  '.csv': 'text/csv',
-  '.gif': 'image/gif',
-  '.htm': 'text/html',
-  '.html': 'text/html',
-  '.jpeg': 'image/jpeg',
-  '.jpg': 'image/jpeg',
-  '.json': 'application/json',
-  '.mov': 'video/quicktime',
-  '.mp3': 'audio/mpeg',
-  '.mp4': 'video/mp4',
-  '.pdf': 'application/pdf',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-  '.txt': 'text/plain',
-  '.wav': 'audio/wav',
-  '.webm': 'video/webm',
-  '.xml': 'application/xml',
-  '.zip': 'application/zip',
-};
-
-function inferContentTypeFromKey(key) {
-  if (!key) {
-    return 'application/octet-stream';
-  }
-  const dot = key.lastIndexOf('.');
-  if (dot < 0) {
-    return 'application/octet-stream';
-  }
-  const extension = key.slice(dot).toLowerCase();
-  return MIME_TYPES[extension] || 'application/octet-stream';
-}
-
 /**
  * Handle NoSQL (KV namespace) requests proxied from the container
  * Routes:
@@ -357,11 +323,8 @@ async function handleR2Request(request, env) {
     // Multipart upload routes only need 'key' (bucket is implicit in the R2 binding)
     if (url.pathname === '/r2/multipart-init') {
       // Initiate a multipart upload; returns { key, uploadId }
-      const contentType = url.searchParams.get('contentType') || inferContentTypeFromKey(key);
-      console.log(`[worker.js /r2/multipart-init] key=${key}, contentType=${contentType}`);
-      const multipart = await env.R2.createMultipartUpload(key, {
-        httpMetadata: { contentType }
-      });
+      console.log(`[worker.js /r2/multipart-init] key=${key}`);
+      const multipart = await env.R2.createMultipartUpload(key);
       console.log(`[worker.js /r2/multipart-init] uploadId=${multipart.uploadId}`);
       return new Response(JSON.stringify({
         key: multipart.key,
@@ -433,10 +396,7 @@ async function handleR2Request(request, env) {
       
       // Use the key as-is (container already generates unique keys if needed)
       try {
-        const contentType = request.headers.get('Content-Type') || inferContentTypeFromKey(key);
-        const putResult = await env.R2.put(key, request.body, {
-          httpMetadata: { contentType }
-        });
+        const putResult = await env.R2.put(key, request.body);
         const size = putResult ? putResult.size : '(unknown)';
         console.log(`[worker.js /r2/upload] R2.put() succeeded, size=${size}`);
         console.log(`[worker.js /r2/upload] Successfully uploaded to R2 with key=${key}`);
