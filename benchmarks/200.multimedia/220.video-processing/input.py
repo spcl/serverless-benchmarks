@@ -9,10 +9,22 @@ def buckets_count():
 
 # MD5 checksums for video processing output (operation, duration) -> hash
 # These checksums ensure ffmpeg produces deterministic output
+#
+# arm64 uses the same ffmpeg version, but may have different hardware acceleration,
+# which can lead to different output for some operations.
+# Hence we have separate checksums for arm64.
+# I don't think we can expect bitwise reproducibility across different architectures
 expected_checksums = {
-    ('watermark', 1): '87f3a1ef9d90f93fd24c19ad0209a913',
-    ('watermark', 3): '98286aa95fdbd7501b2cf244027c0ca2',
-    ('extract-gif', 2): '20c17009382df93f6fcbf7ba1c53def0'
+    "x64": {
+        ('watermark', 1): '87f3a1ef9d90f93fd24c19ad0209a913',
+        ('watermark', 3): '98286aa95fdbd7501b2cf244027c0ca2',
+        ('extract-gif', 2): '20c17009382df93f6fcbf7ba1c53def0'
+    },
+    "arm64": {
+        ('watermark', 1): '8ca34184496485d57fff67301a6e9ce5',
+        ('watermark', 3): '5024b468f44e4adcf9f479b68111f283',
+        ('extract-gif', 2): 'aea2de2f4e96ead64303a447120df9ea'
+    }
 }
 
 '''
@@ -48,7 +60,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     input_config['bucket']['output'] = output_paths[0]
     return input_config
 
-def validate_output(input_config: dict, output: dict, language: str, storage = None) -> str | None:
+def validate_output(input_config: dict, output: dict, language: str, architecture: str, storage = None) -> str | None:
 
     result = output.get('result', {})
     key = result.get('key', '')
@@ -74,12 +86,12 @@ def validate_output(input_config: dict, output: dict, language: str, storage = N
 
         # Check MD5 checksum if available for this operation
         checksum_key = (op, duration)
-        if checksum_key not in expected_checksums:
+        if checksum_key not in expected_checksums[architecture]:
             return f"Missing validation configuration for ({op}, {duration})!"
 
         with open(tmp_path, 'rb') as f:
             actual_md5 = hashlib.md5(f.read()).hexdigest()
-        expected_md5 = expected_checksums[checksum_key]
+        expected_md5 = expected_checksums[architecture][checksum_key]
         if actual_md5 != expected_md5:
             return f"MD5 checksum mismatch for op='{op}' duration={duration}: expected '{expected_md5}' but got '{actual_md5}'"
 
