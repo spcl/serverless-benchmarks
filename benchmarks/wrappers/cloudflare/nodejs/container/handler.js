@@ -2,6 +2,7 @@
 // This handler is used when deploying as a container worker
 
 const http = require('http');
+const debug = require('util').debuglog('sebs');
 
 // Monkey-patch the 'request' library to always include a User-Agent header
 // This is needed because Wikimedia (and other sites) require a User-Agent
@@ -122,21 +123,9 @@ const server = http.createServer(async (req, res) => {
     event['request-id'] = reqId;
     event['income-timestamp'] = incomeTimestamp;
 
-    // For debugging: check /tmp directory before and after benchmark
-    const fs = require('fs');
-
     // Call the benchmark function
     const ret = await benchmarkHandler(event);
-    
-    // Check what was downloaded
-    const tmpFiles = fs.readdirSync('/tmp');
-    for (const file of tmpFiles) {
-      const filePath = `/tmp/${file}`;
-      const stats = fs.statSync(filePath);
-      if (stats.size < 500) {
-        const content = fs.readFileSync(filePath, 'utf8');
-      }
-    }
+
 
     // Calculate elapsed time
     const end = Date.now() / 1000;
@@ -156,7 +145,8 @@ const server = http.createServer(async (req, res) => {
     const memory_mb = memUsage.heapUsed / 1024 / 1024;
     log_data.measurement.memory_used_mb = memory_mb;
 
-    console.log('Sending response with log_data:', log_data);
+    // Gated behind Node.js' built-in debuglog — enable with NODE_DEBUG=sebs
+    debug('Sending response with log_data: %o', log_data);
 
     // Send response matching Python handler format exactly
     if (event.html) {
