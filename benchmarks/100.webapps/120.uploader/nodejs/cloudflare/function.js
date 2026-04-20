@@ -1,4 +1,8 @@
 // Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+// Cloudflare Workers differ from the default Node.js version: Workers require
+// ES module syntax (no CommonJS `require`) and do not ship the `request` npm
+// package, so we use the platform-native `fetch` API and buffer the response
+// into /tmp instead of piping a stream.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { storage } from './storage';

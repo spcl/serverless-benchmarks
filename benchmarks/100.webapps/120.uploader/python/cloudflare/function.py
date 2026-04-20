@@ -1,3 +1,8 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+# Cloudflare Workers differ from the default Python version: the Workers
+# Python runtime is Pyodide-based and does not support `urllib.request`, so
+# we download via Pyodide's async `pyfetch` and wrap it with `run_sync` to
+# keep the synchronous handler signature.
 
 import datetime
 import os
