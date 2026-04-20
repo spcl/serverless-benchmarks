@@ -63,7 +63,9 @@ dependencies = [
     "google-cloud-build>=3.35.0",
 
     # benchmark verification - process image
-    "Pillow"
+    "Pillow",
+    # benchmrak verification - video processing
+    "imageio-ffmpeg>=0.4.9"
 ]
 
 # True Optional dependencies (Only installed if explicitly requested)
