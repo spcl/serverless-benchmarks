@@ -1894,7 +1894,11 @@ class BenchmarkModuleInterface:
 
     @staticmethod
     def validate_output(
-        input_config: dict, output: dict, language: str, architecture: str, storage: Optional[PersistentStorage]
+        input_config: dict,
+        output: dict,
+        language: str,
+        architecture: str,
+        storage: Optional[PersistentStorage],
     ) -> str | None:
         """Validate benchmark output against expected values.
 
