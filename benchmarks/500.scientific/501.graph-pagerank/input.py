@@ -27,7 +27,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
 
 def validate_output(input_config: dict, output: dict, language: str, storage = None) -> str | None:
 
-    result = output.get('output')
+    result = output.get('result')
 
     if not isinstance(result, (float, int)):
         return f"PageRank result is not a number (type={type(result).__name__})"

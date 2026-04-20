@@ -35,7 +35,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
 
 def validate_output(input_config: dict, output: dict, language: str, storage = None) -> str | None:
 
-    result = output.get('output', {})
+    result = output.get('result', {})
     key = result.get('key', '')
 
     if not isinstance(key, str) or len(key) == 0:

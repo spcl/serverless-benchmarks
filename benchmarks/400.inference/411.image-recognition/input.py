@@ -48,7 +48,7 @@ def validate_output(input_config: dict, output: dict, language: str, storage = N
 
     image = input_config.get('object', {}).get('input', '')
 
-    result = output.get('output', {})
+    result = output.get('result', {})
     classification = result.get('class', '')
     idx = result.get('idx', -1)
 

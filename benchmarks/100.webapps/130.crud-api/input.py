@@ -99,7 +99,7 @@ def generate_input(
 
 def validate_output(input_config: dict, output: dict, language: str, storage = None) -> str | None:
 
-    results = output.get('output', [])
+    results = output.get('result', [])
     requests = input_config.get('requests', [])
 
     if not isinstance(results, list):
