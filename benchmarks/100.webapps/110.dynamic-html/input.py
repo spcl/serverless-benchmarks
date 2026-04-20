@@ -11,7 +11,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     input_config['random_len'] = size_generators[size]
     return input_config
 
-def validate_output(input_config: dict, output: dict, language: str, storage = None) -> str | None:
+def validate_output(input_config: dict, output: dict, language: str, architecture: str, storage = None) -> str | None:
 
     result = output.get('result', '')
     username = input_config.get('username', '')

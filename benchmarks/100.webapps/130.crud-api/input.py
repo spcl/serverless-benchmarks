@@ -97,7 +97,7 @@ def generate_input(
 
     return input_config
 
-def validate_output(input_config: dict, output: dict, language: str, storage = None) -> str | None:
+def validate_output(input_config: dict, output: dict, language: str, architecture: str, storage = None) -> str | None:
 
     results = output.get('result', [])
     requests = input_config.get('requests', [])
