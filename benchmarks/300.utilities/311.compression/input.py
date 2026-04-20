@@ -41,7 +41,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths,
     input_config['bucket']['output'] = output_paths[0]
     return input_config
 
-def validate_output(input_config: dict, output: dict, language: str, architecture: str, storage = None) -> str | None:
+def validate_output(data_dir: str | None, input_config: dict, output: dict, language: str, storage = None) -> str | None:
 
     result = output.get('result', {})
     key = result.get('key', '')

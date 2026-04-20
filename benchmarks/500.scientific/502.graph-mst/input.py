@@ -20,7 +20,7 @@ expected_checksums = {
 def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
     return { 'size': size_generators[size], 'seed': 42}
 
-def validate_output(input_config: dict, output: dict, language: str, architecture: str, storage = None) -> str | None:
+def validate_output(data_dir: str | None, input_config: dict, output: dict, language: str, storage = None) -> str | None:
 
     result = output.get('result')
 
