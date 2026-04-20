@@ -1,6 +1,16 @@
 /**
- * NoSQL module for Cloudflare Node.js Containers
- * Uses HTTP proxy to access Durable Objects through the Worker's binding
+ * NoSQL module for Cloudflare Node.js Containers.
+ *
+ * On Cloudflare, NoSQL storage is mapped to KVStore. KVStore 
+ * bindings only exist inside the Worker runtime, so a container cannot talk
+ * to them directly. Instead, the container forwards each operation over HTTP
+ * to the parent Worker (see worker.js), which holds the KVStore
+ * binding and performs the actual read/write.
+ *
+ * Because of this, the HTTP endpoint depends on the Worker's URL, which is
+ * not known ahead of time. The handler receives it via the X-Worker-URL
+ * header on the incoming request and installs it here through
+ * set_worker_url() before any NoSQL call is made.
  */
 
 class nosql {
@@ -90,12 +100,7 @@ class nosql {
       secondary_key_name: secondaryKeyName,
     };
     const result = await this._make_request('query', params);
-    console.error(`[nosql.query] result:`, JSON.stringify(result));
-    console.error(`[nosql.query] result.items:`, result.items);
-    console.error(`[nosql.query] Array.isArray(result.items):`, Array.isArray(result.items));
-    const items = result.items || [];
-    console.error(`[nosql.query] returning items:`, items);
-    return items;
+    return result.items || [];
   }
 
   async delete(tableName, primaryKey, secondaryKey) {
