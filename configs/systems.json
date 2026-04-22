@@ -61,9 +61,12 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
-          "packages": []
+          "packages": {
+            "aws-sdk": "^2.1692.0"
+          }
         }
       }
     },
@@ -114,7 +117,8 @@
         "deployment": {
           "files": [
             "handler.js",
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
           "packages": {
             "uuid": "3.4.0"
@@ -216,9 +220,11 @@
         "deployment": {
           "files": [
             "handler.js",
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
           "packages": {
+            "@azure/cosmos": "^4.3.0",
             "@azure/storage-blob": "^12.0.0",
             "uuid": "3.4.0"
           }
@@ -299,9 +305,11 @@
         "deployment": {
           "files": [
             "handler.js",
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
           "packages": {
+            "@google-cloud/datastore": "^9.1.0",
             "@google-cloud/storage": "^4.0.0",
             "uuid": "3.4.0"
           }
@@ -388,9 +396,11 @@
         "deployment": {
           "files": [
             "index.js",
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
           "packages": {
+            "aws-sdk": "^2.1692.0",
             "minio": "7.0.16"
           }
         }
