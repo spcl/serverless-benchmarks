@@ -63,9 +63,6 @@ class Default(WorkerEntrypoint):
                 except IndexError:
                     event[param[0]] = None
 
-
-
-
         ## note: time fixed in worker
         income_timestamp = datetime.datetime.now().timestamp()
 
@@ -145,50 +142,3 @@ class Default(WorkerEntrypoint):
                 'environ_container_id': "no_id",
                 'request_id': req_id
             }))
-
-
-### ---------- old -------
-
-def import_from_path(module_name, file_path):
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-working_dir = os.path.dirname(__file__)
-
-class MakeAsync(ast.NodeTransformer):
-    def visit_FunctionDef(self, node):
-        if node.name != "handler":
-            return node
-        return ast.AsyncFunctionDef(
-            name=node.name,
-            args=node.args,
-            body=node.body,
-            decorator_list=node.decorator_list,
-            returns=node.returns,
-            type_params=node.type_params)
-
-class AddAwait(ast.NodeTransformer):
-    to_find = ["upload_stream", "download_stream", "upload", "download", "download_directory"]
-
-    def visit_Call(self, node):
-        if isinstance(node.func, ast.Attribute) and node.func.attr in self.to_find:
-            #print(ast.dump(node.func, indent=2))
-            return ast.Await(value=node)
-
-        return node
-
-def make_benchmark_func():
-    with open(working_dir +"/function/function.py") as f:
-        module = ast.parse(f.read())
-    module = ast.fix_missing_locations(MakeAsync().visit(module))
-    module = ast.fix_missing_locations(AddAwait().visit(module))
-    new_source = ast.unparse(module)
-    ##print("new_source:")
-    ##print(new_source)
-    ##print()
-    with open("/tmp/function.py", "w") as wf:
-        wf.write(new_source)
