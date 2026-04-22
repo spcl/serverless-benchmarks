@@ -759,8 +759,11 @@ class Benchmark(LoggingBase):
                 else:
                     with open(f, "rb") as opened_file:
                         hash_sum.update(opened_file.read())
-        # For Cloudflare Python containers, also hash the nodejs/container worker.js
-        # since containers.py always copies it into the build directory regardless of language.
+        # For Cloudflare Python containers, also hash the nodejs/container worker.js.
+        # worker.js is shared between Node.js and Python container builds
+        # (@cloudflare/containers is Node.js-only), so containers.py copies it from
+        # nodejs/container/ into every container build directory regardless of language.
+        # Python's wrapper glob would otherwise miss it and stale builds wouldn't invalidate.
         if deployment == "cloudflare" and language == Language.PYTHON and container_deployment:
             nodejs_worker = get_resource_path(
                 "benchmarks", "wrappers", "cloudflare", "nodejs", "container", "worker.js"
@@ -869,6 +872,14 @@ class Benchmark(LoggingBase):
                         )
                     )
 
+                # Variants come in two flavors and this is where we split between them:
+                # 1. Patch-based (patch.diff present): apply a unified diff on top of the
+                #    already-copied base files. Use when the variant only needs small,
+                #    targeted edits to the default implementation (e.g. swapping async I/O
+                #    for sync I/O in a runtime that lacks full async support).
+                # 2. Copy-based (no patch.diff): overlay the variant directory's files on
+                #    top of the base files, replacing any that collide. Use when the
+                #    variant diverges enough that a patch would be unwieldy.
                 patch_file = os.path.join(variant_dir, "patch.diff")
                 if os.path.exists(patch_file):
                     import patch_ng
