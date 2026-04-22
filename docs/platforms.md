@@ -183,16 +183,31 @@ Cloudflare offers a free tier for Workers with generous limits for development a
 
 ### Credentials
 
-You can authenticate with Cloudflare using an API token (recommended) or email + API key. Additionally, you need your account ID which can be found in the Cloudflare dashboard.
+SeBS supports both authentication methods Cloudflare offers. Both are
+functionally equivalent for SeBS: every API call, R2 upload, KV
+operation, and `wrangler` invocation works with either. Pick based on
+your Cloudflare account, not on SeBS features:
+
+- **API Token (recommended)**: A scoped credential you mint in the
+  Cloudflare dashboard. It can be limited to the permissions SeBS needs
+  and revoked independently, so this is the safest default for most
+  users.
+- **Email + Global API Key (legacy)**: Your account email plus the
+  Global API Key from the Cloudflare dashboard. SeBS still supports this
+  path for older setups and accounts that cannot use scoped tokens, but
+  it grants broad account access and should be handled more carefully.
+
+Regardless of which method you choose, you also need your account ID
+from the Cloudflare dashboard.
 
 You can pass credentials using environment variables:
 
 ```bash
-# Option 1: Using API Token (recommended)
+# Option 1: API Token (recommended)
 export CLOUDFLARE_API_TOKEN="your-api-token"
 export CLOUDFLARE_ACCOUNT_ID="your-account-id"
 
-# Option 2: Using Email + API Key
+# Option 2: Email + Global API Key (legacy)
 export CLOUDFLARE_EMAIL="your-email@example.com"
 export CLOUDFLARE_API_KEY="your-global-api-key"
 export CLOUDFLARE_ACCOUNT_ID="your-account-id"
