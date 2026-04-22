@@ -1,6 +1,11 @@
 """
-NoSQL module for Cloudflare Python Containers
-Uses HTTP proxy to access Durable Objects through the Worker's binding
+NoSQL module for Cloudflare Python Containers.
+
+Issues HTTP POSTs to {worker_url}/nosql/<operation>. The server side is
+implemented in benchmarks/wrappers/cloudflare/nodejs/container/worker.js
+(handleNoSQLRequest), which is copied into every container project at deploy
+time by sebs/cloudflare/containers.py because @cloudflare/containers is
+Node.js-only and wraps Python containers as well.
 """
 import json
 import urllib.request
