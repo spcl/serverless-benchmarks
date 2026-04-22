@@ -6,7 +6,7 @@ import tarfile
 import docker
 
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingBase
+from sebs.utils import LoggingBase, get_resource_path
 
 
 class CloudflareCLI(LoggingBase):
@@ -39,23 +39,22 @@ class CloudflareCLI(LoggingBase):
                 logging.info(f"Pull failed: {pull_error}. Building image locally...")
                 
                 # Find the Dockerfile path
-                dockerfile_path = os.path.join(
-                    os.path.dirname(__file__), 
-                    "..", 
-                    "..", 
-                    "dockerfiles", 
-                    "cloudflare", 
-                    "Dockerfile.manage"
+                dockerfile_path = str(
+                    get_resource_path(
+                        "dockerfiles", "cloudflare", "Dockerfile.manage"
+                    )
                 )
-                
+
                 if not os.path.exists(dockerfile_path):
                     raise RuntimeError(
                         f"Dockerfile not found at {dockerfile_path}. "
                         "Cannot build Cloudflare CLI container."
                     )
-                
-                # Build the image
-                build_path = os.path.join(os.path.dirname(__file__), "..", "..")
+
+                # Build context must contain dockerfiles/entrypoint.sh (COPY'd by
+                # Dockerfile.manage). In git mode this is the repo root; in package-
+                # install mode it is the sebs/ package dir — both hold via get_resource_path().
+                build_path = str(get_resource_path())
                 logging.info(f"Building {full_image_name} from {dockerfile_path}...")
                 
                 try:
