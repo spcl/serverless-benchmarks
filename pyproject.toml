@@ -104,6 +104,7 @@ packages = [
     "sebs.aws",
     "sebs.azure",
     "sebs.gcp",
+    "sebs.cloudflare",
     "sebs.local",
     "sebs.openwhisk",
     "sebs.faas",
@@ -146,6 +147,9 @@ sebs = ["py.typed"]
 ]
 "sebs.dockerfiles" = [
     "**/*",
+]
+"sebs.cloudflare" = [
+    "templates/*.toml",
 ]
 "sebs.tools" = [
     "**/*.py",

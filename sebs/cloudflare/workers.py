@@ -6,6 +6,7 @@ Handles packaging, deployment, and management of native Cloudflare Workers
 """
 
 import os
+import re
 import shutil
 import json
 import io
@@ -23,6 +24,8 @@ from typing import Optional, Tuple
 
 from sebs.benchmark import Benchmark
 from sebs.cloudflare.cli import CloudflareCLI
+from sebs.cloudflare.pyodide_packages import get_canonical_pyodide_name
+from sebs.utils import get_resource_path
 
 
 class CloudflareWorkersDeployment:
@@ -80,18 +83,13 @@ class CloudflareWorkersDeployment:
         """
         # Load template
         template_path = os.path.join(
-            os.path.dirname(__file__), 
-            "../..", 
-            "templates", 
+            os.path.dirname(__file__),
+            "templates",
             "wrangler-worker.toml"
         )
         with open(template_path, 'rb') as f:
             config = tomllib.load(f)
 
-        # Native workers no longer require Durable Object bindings for NoSQL.
-        config.pop('durable_objects', None)
-        config.pop('migrations', None)
-        
         # Update basic configuration
         config['name'] = worker_name
         config['account_id'] = account_id
@@ -218,59 +216,52 @@ class CloudflareWorkersDeployment:
                 if os.path.exists(requirements_file):
                     with open(requirements_file, 'r') as reqf:
                         reqtext = reqf.read()
-                    supported_pkg = \
-['affine', 'aiohappyeyeballs', 'aiohttp', 'aiosignal', 'altair', 'annotated-types',\
-'anyio', 'apsw', 'argon2-cffi', 'argon2-cffi-bindings', 'asciitree', 'astropy', 'astropy_iers_data',\
-'asttokens', 'async-timeout', 'atomicwrites', 'attrs', 'audioop-lts', 'autograd', 'awkward-cpp', 'b2d',\
-'bcrypt', 'beautifulsoup4', 'bilby.cython', 'biopython', 'bitarray', 'bitstring', 'bleach', 'blosc2', 'bokeh',\
-'boost-histogram', 'brotli', 'cachetools', 'casadi', 'cbor-diag', 'certifi', 'cffi', 'cffi_example', 'cftime',\
-'charset-normalizer', 'clarabel', 'click', 'cligj', 'clingo', 'cloudpickle', 'cmyt', 'cobs', 'colorspacious',\
-'contourpy', 'coolprop', 'coverage', 'cramjam', 'crc32c', 'cryptography', 'css-inline', 'cssselect', 'cvxpy-base', 'cycler',\
-'cysignals', 'cytoolz', 'decorator', 'demes', 'deprecation', 'diskcache', 'distlib', 'distro', 'docutils', 'donfig',\
-'ewah_bool_utils', 'exceptiongroup', 'executing', 'fastapi', 'fastcan', 'fastparquet', 'fiona', 'fonttools', 'freesasa',\
-'frozenlist', 'fsspec', 'future', 'galpy', 'gmpy2', 'gsw', 'h11', 'h3', 'h5py', 'highspy', 'html5lib', 'httpcore',\
-'httpx', 'idna', 'igraph', 'imageio', 'imgui-bundle', 'iminuit', 'iniconfig', 'inspice', 'ipython', 'jedi', 'Jinja2',\
-'jiter', 'joblib', 'jsonpatch', 'jsonpointer', 'jsonschema', 'jsonschema_specifications', 'kiwisolver',\
-'lakers-python', 'lazy_loader', 'lazy-object-proxy', 'libcst', 'lightgbm', 'logbook', 'lxml', 'lz4', 'MarkupSafe',\
-'matplotlib', 'matplotlib-inline', 'memory-allocator', 'micropip', 'mmh3', 'more-itertools', 'mpmath',\
-'msgpack', 'msgspec', 'msprime', 'multidict', 'munch', 'mypy', 'narwhals', 'ndindex', 'netcdf4', 'networkx',\
-'newick', 'nh3', 'nlopt', 'nltk', 'numcodecs', 'numpy', 'openai', 'opencv-python', 'optlang', 'orjson',\
-'packaging', 'pandas', 'parso', 'patsy', 'pcodec', 'peewee', 'pi-heif', 'Pillow', 'pillow-heif', 'pkgconfig',\
-'platformdirs', 'pluggy', 'ply', 'pplpy', 'primecountpy', 'prompt_toolkit', 'propcache', 'protobuf', 'pure-eval',\
-'py', 'pyclipper', 'pycparser', 'pycryptodome', 'pydantic', 'pydantic_core', 'pyerfa', 'pygame-ce', 'Pygments',\
-'pyheif', 'pyiceberg', 'pyinstrument', 'pylimer-tools', 'PyMuPDF', 'pynacl', 'pyodide-http', 'pyodide-unix-timezones',\
-'pyparsing', 'pyrsistent', 'pysam', 'pyshp', 'pytaglib', 'pytest', 'pytest-asyncio', 'pytest-benchmark', 'pytest_httpx',\
-'python-calamine', 'python-dateutil', 'python-flint', 'python-magic', 'python-sat', 'python-solvespace', 'pytz', 'pywavelets',\
-'pyxel', 'pyxirr', 'pyyaml', 'rasterio', 'rateslib', 'rebound', 'reboundx', 'referencing', 'regex', 'requests',\
-'retrying', 'rich', 'river', 'RobotRaconteur', 'rpds-py', 'ruamel.yaml', 'rustworkx', 'scikit-image', 'scikit-learn',\
-'scipy', 'screed', 'setuptools', 'shapely', 'simplejson', 'sisl', 'six', 'smart-open', 'sniffio', 'sortedcontainers',\
-'soundfile', 'soupsieve', 'sourmash', 'soxr', 'sparseqr', 'sqlalchemy', 'stack-data', 'starlette', 'statsmodels', 'strictyaml',\
-'svgwrite', 'swiglpk', 'sympy', 'tblib', 'termcolor', 'texttable', 'texture2ddecoder', 'threadpoolctl', 'tiktoken', 'tomli',\
-'tomli-w', 'toolz', 'tqdm', 'traitlets', 'traits', 'tree-sitter', 'tree-sitter-go', 'tree-sitter-java', 'tree-sitter-python',\
-'tskit', 'typing-extensions', 'tzdata', 'ujson', 'uncertainties', 'unyt', 'urllib3', 'vega-datasets', 'vrplib', 'wcwidth',\
-'webencodings', 'wordcloud', 'wrapt', 'xarray', 'xgboost', 'xlrd', 'xxhash', 'xyzservices', 'yarl', 'yt', 'zengl', 'zfpy', 'zstandard']
                     needed_pkg = []
-                    for pkg in supported_pkg:
-                        if pkg.lower() in reqtext.lower():
-                            needed_pkg.append(pkg)
+                    unsupported = []
+                    seen = set()
+                    for raw_line in reqtext.splitlines():
+                        line = raw_line.split("#", 1)[0].strip()
+                        if not line:
+                            continue
+                        name = re.split(r"[<>=!~;\s\[]", line, maxsplit=1)[0].strip()
+                        if not name:
+                            continue
+                        canonical = get_canonical_pyodide_name(name)
+                        if canonical is None:
+                            unsupported.append(name)
+                            continue
+                        if canonical not in seen:
+                            needed_pkg.append(canonical)
+                            seen.add(canonical)
+                    if unsupported:
+                        raise RuntimeError(
+                            "The following packages from requirements.txt are not "
+                            "supported by the Cloudflare Python Workers (Pyodide) "
+                            f"runtime: {', '.join(unsupported)}. See "
+                            "https://developers.cloudflare.com/workers/languages/python/packages/ "
+                            "for the list of supported packages."
+                        )
 
                     project_file = os.path.join(directory, "pyproject.toml")
-                    depstr = str(needed_pkg).replace("\'", "\"")
-                    with open(project_file, 'w') as pf:
-                        pf.write(f"""
-[project]
-name = "{benchmark.replace(".", "-")}-python-{language_version.replace(".", "")}"
-version = "0.1.0"
-description = "dummy description"
-requires-python = ">={language_version}"
-dependencies = {depstr}
-
-[dependency-groups]
-dev = [
-  "workers-py",
-  "workers-runtime-sdk"
-]
-                        """)
+                    pyproject_config = {
+                        "project": {
+                            "name": f"{benchmark.replace('.', '-')}-python-"
+                                    f"{language_version.replace('.', '')}",
+                            "version": "0.1.0",
+                            "description": "dummy description",
+                            "requires-python": f">={language_version}",
+                            "dependencies": needed_pkg,
+                        },
+                        "dependency-groups": {
+                            "dev": ["workers-py", "workers-runtime-sdk"],
+                        },
+                    }
+                    try:
+                        with open(project_file, 'wb') as pf:
+                            tomli_w.dump(pyproject_config, pf)
+                    except TypeError:
+                        with open(project_file, 'w') as pf:
+                            pf.write(tomli_w.dumps(pyproject_config))
                 # Pyodide Workers require all function files in a function/ subdir
                 funcdir = os.path.join(directory, "function")
                 if not os.path.exists(funcdir):
@@ -344,9 +335,8 @@ dev = [
             self.logging.info("Cached dist/ found — skipping worker bundle build.")
             return
 
-        dockerfile_src = os.path.join(
-            os.path.dirname(__file__), "..", "..",
-            "dockerfiles", "cloudflare", "nodejs", "Dockerfile.build"
+        dockerfile_src = str(
+            get_resource_path("dockerfiles", "cloudflare", "nodejs", "Dockerfile.build")
         )
         dockerfile_dest = os.path.join(directory, "Dockerfile.build")
         dockerignore_dest = os.path.join(directory, ".dockerignore")
@@ -424,9 +414,8 @@ dev = [
             self.logging.info("Cached Python build marker — skipping validation.")
             return
 
-        dockerfile_src = os.path.join(
-            os.path.dirname(__file__), "..", "..",
-            "dockerfiles", "cloudflare", "python", "Dockerfile.build"
+        dockerfile_src = str(
+            get_resource_path("dockerfiles", "cloudflare", "python", "Dockerfile.build")
         )
         dockerfile_dest = os.path.join(directory, "Dockerfile.build")
         dockerignore_dest = os.path.join(directory, ".dockerignore")
