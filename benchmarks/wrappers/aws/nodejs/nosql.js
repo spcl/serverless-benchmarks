@@ -2,11 +2,14 @@
 //
 // This is pretty much a Node.js rewrite of our Python wrapper.
 
-const aws = require("aws-sdk");
+
+
+const { DynamoDBDocument } = require("@aws-sdk/lib-dynamodb");
+const { DynamoDB } = require("@aws-sdk/client-dynamodb");
 
 class nosql {
   constructor() {
-    this.client = new aws.DynamoDB.DocumentClient();
+    this.client = DynamoDBDocument.from(new DynamoDB());
     this._tables = {};
   }
 
@@ -28,8 +31,7 @@ class nosql {
     data[primary_key[0]] = primary_key[1];
     data[secondary_key[0]] = secondary_key[1];
     await this.client
-      .put({ TableName: this._get_table(table_name), Item: data })
-      .promise();
+      .put({ TableName: this._get_table(table_name), Item: data });
   }
 
   async get(table_name, primary_key, secondary_key) {
@@ -37,8 +39,7 @@ class nosql {
     key[primary_key[0]] = primary_key[1];
     key[secondary_key[0]] = secondary_key[1];
     const res = await this.client
-      .get({ TableName: this._get_table(table_name), Key: key })
-      .promise();
+      .get({ TableName: this._get_table(table_name), Key: key });
     return res.Item;
   }
 
@@ -68,8 +69,7 @@ class nosql {
         UpdateExpression: update_expression.join(" "),
         ExpressionAttributeNames: update_names,
         ExpressionAttributeValues: update_values,
-      })
-      .promise();
+      });
   }
 
   async query(table_name, primary_key, _) {
@@ -80,8 +80,7 @@ class nosql {
         KeyConditionExpression: "#key_name = :keyvalue",
         ExpressionAttributeNames: { "#key_name": key_name },
         ExpressionAttributeValues: { ":keyvalue": primary_key[1] },
-      })
-      .promise();
+      });
     return res.Items;
   }
 
@@ -90,8 +89,7 @@ class nosql {
     key[primary_key[0]] = primary_key[1];
     key[secondary_key[0]] = secondary_key[1];
     await this.client
-      .delete({ TableName: this._get_table(table_name), Key: key })
-      .promise();
+      .delete({ TableName: this._get_table(table_name), Key: key });
   }
 
   static get_instance() {

@@ -1,16 +1,14 @@
 // Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
-const aws = require('aws-sdk'),
-      fs = require('fs'),
-      path = require('path'),
-      uuid = require('uuid'),
-      util = require('util'),
-      stream = require('stream');
+const fs = require('fs'), path = require('path'), uuid = require('uuid'), util = require('util'), stream = require('stream');
+
+const { Upload } = require('@aws-sdk/lib-storage');
+const { S3 } = require('@aws-sdk/client-s3');
 
 class aws_storage {
 
   constructor() {
-    this.S3 = new aws.S3();
+    this.S3 = new S3();
   }
 
   unique_name(file) {
@@ -23,8 +21,13 @@ class aws_storage {
     var upload_stream = fs.createReadStream(filepath);
     let uniqueName = this.unique_name(file);
     let params = {Bucket: bucket, Key: uniqueName, Body: upload_stream};
-    var upload = this.S3.upload(params);
-    return [uniqueName, upload.promise()];
+    var upload = new Upload({
+      client: this.S3,
+      params
+    });
+    return [uniqueName, // The `.promise()` call might be on an JS SDK v2 client API.
+    // If yes, please remove .promise(). If not, remove this comment.
+    upload.promise()];
   };
 
   download(bucket, file, filepath) {
@@ -37,8 +40,13 @@ class aws_storage {
     let uniqueName = this.unique_name(file);
     // putObject won't work correctly for streamed data (length has to be known before)
     // https://stackoverflow.com/questions/38442512/difference-between-upload-and-putobject-for-uploading-a-file-to-s3
-    var upload = this.S3.upload( {Bucket: bucket, Key: uniqueName, Body: write_stream} );
-    return [write_stream, upload.promise(), uniqueName];
+    var upload = new Upload({
+      client: this.S3,
+      params: {Bucket: bucket, Key: uniqueName, Body: write_stream}
+    });
+    return [write_stream, // The `.promise()` call might be on an JS SDK v2 client API.
+    // If yes, please remove .promise(). If not, remove this comment.
+    upload.promise(), uniqueName];
   };
 
   // We return a promise to match the API for other providers
@@ -47,5 +55,5 @@ class aws_storage {
     let downloaded = this.S3.getObject( {Bucket: bucket, Key: file} ).createReadStream();
     return Promise.resolve(downloaded);
   };
-};
+}
 exports.storage = aws_storage;
