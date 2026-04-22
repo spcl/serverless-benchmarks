@@ -93,6 +93,8 @@ class nosql {
   }
 
   static get_instance() {
+    // The instance is independent of the storage table,
+    // as we provide table name for each operation.
     if (!nosql.instance) {
       nosql.instance = new nosql();
     }

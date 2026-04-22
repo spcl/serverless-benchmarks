@@ -2,17 +2,32 @@
 
 const { Datastore, KEY } = require("@google-cloud/datastore");
 
+/*
+This implementation is the Node.js reimplementation of the reference
+implementation in Python. It is used for the NoSQL benchmarks.
+
+Each benchmark supports up to two keys - one for grouping items,
+and for unique identification of each item.
+
+In Google Cloud Datastore, we determine different tables by using
+its value for `kind` name.
+
+The primary key is assigned to the `kind` value.
+
+To implement sorting semantics, we use the ancestor relation:
+the sorting key is used as the parent.
+It is the assumption that all related items will have the same parent.
+*/
+
 class nosql {
   constructor(database) {
-    this._client = new Datastore({ database });
+    this._client = new Datastore({ 'databaseId': database });
   }
 
   _get_entity_key(table_name, primary_key, secondary_key) {
-    const parent_key = this._client.key([primary_key[0], primary_key[1]]);
-    return this._client.key({
-      path: [table_name, secondary_key[1]],
-      parent: parent_key,
-    });
+    return this._client.key([
+      primary_key[0], primary_key[1], table_name, secondary_key[1]
+    ]);
   }
 
   async insert(table_name, primary_key, secondary_key, data) {
@@ -21,6 +36,9 @@ class nosql {
   }
 
   async update(table_name, primary_key, secondary_key, updates) {
+    // Just like in the Python version, we don't have a direct update.
+    // Instead, we fetch the existing data, update fields, and write it.
+    // Otherwise, we would also rewrite fields that we do not want to modify.
     const key = this._get_entity_key(table_name, primary_key, secondary_key);
     let [res] = await this._client.get(key);
     if (!res) {
@@ -37,9 +55,8 @@ class nosql {
       return null;
     }
 
-    // Emulate the kind key
+    // Emulate the kind and main keys
     res[secondary_key[0]] = secondary_key[1];
-    // Emulate the main key
     res[primary_key[0]] = primary_key[1];
     return res;
   }
@@ -51,7 +68,7 @@ class nosql {
 
     // Emulate the kind key
     for (const item of res) {
-      item[secondary_key_name] = item[KEY].name;
+      item[secondary_key_name] = item[Datastore.KEY].name;
     }
 
     return res;
@@ -63,6 +80,7 @@ class nosql {
   }
 
   static get_instance(database = null) {
+    // There's one database we connect to, so we can preallocate storage instance.
     if (!nosql.instance) {
       if (!database) {
         throw new Error("NoSQL database must be provided when creating an instance.");
