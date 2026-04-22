@@ -53,7 +53,7 @@ class CloudflareContainersDeployment:
     def _get_cli(self) -> CloudflareCLI:
         """Get or initialize the Cloudflare CLI container."""
         if self._cli is None:
-            self._cli = CloudflareCLI(self.system_config, self.docker_client)
+            self._cli = CloudflareCLI.get_instance(self.system_config, self.docker_client)
             # Verify wrangler is available
             version = self._cli.check_wrangler_version()
             self.logging.info(f"Cloudflare CLI container ready: {version}")
@@ -129,21 +129,19 @@ class CloudflareContainersDeployment:
                 config['vars']['NOSQL_STORAGE_DATABASE'] = "kvstore"
         
         # Add R2 bucket binding
-        try:
-            from sebs.faas.config import Resources
-            storage = self.system_resources.get_storage()
-            bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
-            if bucket_name:
-                config['r2_buckets'] = [{
-                    'binding': 'R2',
-                    'bucket_name': bucket_name
-                }]
-                self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
-        except Exception as e:
-            self.logging.warning(
-                f"R2 bucket binding not configured: {e}. "
-                f"Benchmarks requiring file access will not work properly."
+        from sebs.faas.config import Resources
+        storage = self.system_resources.get_storage()
+        bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
+        if not bucket_name:
+            raise RuntimeError(
+                "R2 bucket binding not configured: benchmarks bucket name is empty. "
+                "Benchmarks requiring file access will not work properly."
             )
+        config['r2_buckets'] = [{
+            'binding': 'R2',
+            'bucket_name': bucket_name
+        }]
+        self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
         
         # Write wrangler.toml to package directory
         toml_path = os.path.join(package_dir, "wrangler.toml")
@@ -185,9 +183,7 @@ class CloudflareContainersDeployment:
         self.logging.info(f"Packaging container for {language_name} {language_version}")
         
         # Get wrapper directory for container files
-        wrapper_base = os.path.join(
-            os.path.dirname(__file__), "..", "..", "benchmarks", "wrappers", "cloudflare"
-        )
+        wrapper_base = str(get_resource_path("benchmarks", "wrappers", "cloudflare"))
         wrapper_container_dir = os.path.join(wrapper_base, language_name, "container")
         
         if not os.path.exists(wrapper_container_dir):
