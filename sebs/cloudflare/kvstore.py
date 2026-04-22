@@ -17,9 +17,55 @@ class KVStore(NoSQLStorage):
     """
     Cloudflare KV-backed NoSQL storage for SeBS.
 
-    This implementation maps every benchmark table to one KV namespace.
-    Data is stored as JSON values under composite keys:
-        <primary_key_value>#<secondary_key_value>
+    Cloudflare KV is a flat key-value store: there are no tables, schemas, or
+    secondary indexes. The SeBS NoSQL abstraction (modelled after DynamoDB /
+    Cosmos DB / Datastore) is therefore layered on top of KV as follows.
+
+    Table -> namespace mapping
+    --------------------------
+    Each (benchmark, logical table) pair is mapped to exactly one KV namespace
+    -- the coarsest isolation unit KV offers. Namespaces are titled
+
+        sebs-nosql-<resource_id>-<benchmark>-<table>
+
+    with each component sanitized to ``[A-Za-z0-9_-]`` and a SHA1 suffix
+    appended when the title would exceed Cloudflare's 100-character limit
+    (see ``_namespace_title``). A one-namespace-per-table layout is used
+    instead of packing multiple tables into a shared namespace because:
+
+    * Workers bind namespaces by id, so one binding per table is the natural
+      way to expose the logical table to the benchmark code.
+    * ``cleanup_tables`` / ``remove_table`` can drop a whole table by deleting
+      its namespace -- KV has no bulk-delete-by-prefix primitive.
+    * Key collisions between benchmarks or logical tables are impossible.
+
+    Key mapping
+    -----------
+    Items are stored as JSON values under composite keys:
+
+        <primary_key_value>#<secondary_key_value>    (when a secondary key exists)
+        <primary_key_value>                          (otherwise)
+
+    The primary and secondary key fields are also written back into the JSON
+    value so that clients reading an item do not have to re-parse the key.
+
+    Secondary-key indices
+    ---------------------
+    KV exposes a ``list`` API, but from inside a Worker it is paginated,
+    eventually consistent, and scales with the total namespace size -- not
+    with the number of items under a given primary key. DynamoDB-style query
+    patterns ("give me every item with primary key = X") would therefore be
+    prohibitively expensive if implemented via ``list``.
+
+    To support those queries with point reads only, ``write_to_table``
+    additionally maintains a per-primary-key index entry:
+
+        __sebs_idx__<primary_key_value> -> JSON array of secondary-key values
+
+    A query then becomes one ``GET`` for the index followed by one ``GET`` per
+    secondary value. The index is only written when a secondary key is
+    supplied; tables without a secondary key do not need it. The matching
+    read path lives in ``benchmarks/wrappers/cloudflare/*/nosql.*``.
     """
 
     NAMESPACE_ID_PATTERN = re.compile(r"^[a-fA-F0-9]{32}$")
