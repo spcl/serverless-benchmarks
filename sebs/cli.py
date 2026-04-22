@@ -472,8 +472,8 @@ def package(
 @click.option(
     "--deployment-type",
     default=None,
-    type=click.Choice(["workers", "container"]),
-    help="Limit regression to a specific deployment type (workers or container).",
+    type=click.Choice(["functions", "containers"]),
+    help="Limit regression to a specific deployment type (functions or containers).",
 )
 def regression(benchmark_input_size, benchmark_name, storage_configuration, deployment_type, **kwargs):
     """Run regression test suite across benchmarks."""
@@ -491,6 +491,7 @@ def regression(benchmark_input_size, benchmark_name, storage_configuration, depl
         config,
         benchmark_name,
         deployment_type,
+        benchmark_input_size,
     )
 
 
