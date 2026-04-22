@@ -502,6 +502,38 @@ class Benchmark(LoggingBase):
         """
         return self._language_variant
 
+    def select_variant(self, variant: str) -> None:
+        """Switch the active language variant and refresh the cache state.
+
+        Should be called before build() whenever the deployment platform
+        needs to override the variant that was set from the experiment config.
+        Re-queries the cache with the updated variant key and re-applies
+        the update_code flag if it was set.
+
+        Args:
+            variant: New variant name (e.g. "cloudflare").
+
+        Raises:
+            RuntimeError: If the variant is not declared for this benchmark.
+        """
+        if not self.benchmark_config.supports(self.language, variant):
+            raise RuntimeError(
+                f"Variant '{variant}' is not declared for benchmark "
+                f"{self.benchmark} language {self.language_name}"
+            )
+        self._language_variant = variant
+        self._output_dir = os.path.join(
+            self._output_dir_base,
+            self._language.value,
+            self._language_variant,
+            self._language_version,
+            self._architecture,
+            "container" if self._container_deployment else "package",
+        )
+        self.query_cache()
+        if self._experiment_config.update_code:
+            self._is_cached_valid = False
+
     @property
     def cache_language_key(self) -> str:
         """
@@ -661,9 +693,9 @@ class Benchmark(LoggingBase):
         self._docker_client = docker_client
         self._system_config = system_config
         self._code_location: Optional[str] = None
+        self._output_dir_base = os.path.join(output_dir, f"{benchmark}_code")
         self._output_dir = os.path.join(
-            output_dir,
-            f"{benchmark}_code",
+            self._output_dir_base,
             self._language.value,
             self._language_variant,
             self._language_version,

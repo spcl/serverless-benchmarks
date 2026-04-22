@@ -137,7 +137,7 @@ class Cloudflare(System):
         return prefix in allowed
 
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
-        """Override to validate benchmark support before building/deploying."""
+        """Override to validate benchmark support and auto-select cloudflare variant."""
         language = code_package.language_name
         container_deployment = code_package.container_deployment
         benchmark_name = code_package.benchmark
@@ -148,6 +148,20 @@ class Cloudflare(System):
                 f"{language} {deployment_type} deployments on Cloudflare. "
                 f"Supported benchmarks: {self.SUPPORTED_BENCHMARKS.get((language, container_deployment))}"
             )
+
+        # For workers deployments, auto-promote the variant from "default" to
+        # "cloudflare" when the benchmark's config.json declares a "cloudflare"
+        # variant.  Benchmark.__init__ sets the variant from the experiment config
+        # (CLI --language-variant flag), which defaults to "default".  Promoting
+        # here ensures copy_code() applies the cloudflare/ source overlay and the
+        # cache key reflects the correct variant.
+        if (
+            not container_deployment
+            and code_package.language_variant == "default"
+            and code_package.benchmark_config.supports(code_package.language, self.name())
+        ):
+            code_package.select_variant(self.name())
+
         return super().get_function(code_package, func_name)
 
     def __init__(
