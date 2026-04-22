@@ -31,6 +31,12 @@ class nosql {
       throw new Error(`nosql env not initialized for table ${tableName}`);
     }
 
+    // Unlike AWS/Azure/GCP where you instantiate a client SDK and address
+    // resources by name, Cloudflare Workers expose every bound resource
+    // (KV namespace, R2 bucket, D1 database, queue, etc.) as a property on
+    // the `env` object passed into the fetch handler. The property name is
+    // the binding name declared in wrangler.toml, so looking up a KV
+    // namespace by its table name is simply `env[tableName]`.
     const table = env[tableName];
     if (!table || typeof table.get !== 'function' || typeof table.put !== 'function') {
       const envKeys = Object.keys(env || {});
