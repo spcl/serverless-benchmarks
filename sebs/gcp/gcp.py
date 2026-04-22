@@ -35,7 +35,7 @@ import time
 import math
 import zipfile
 from datetime import datetime, timezone
-from typing import cast, Dict, Optional, Tuple, List, Type
+from typing import Any, cast, Dict, Optional, Tuple, List, Type
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -185,7 +185,9 @@ class GCP(System):
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, func_name
         )
-        return self._function_api_client().projects().locations().functions().get(name=full_func_name)
+        return (
+            self._function_api_client().projects().locations().functions().get(name=full_func_name)
+        )
 
     def _function_details(self, func_name: str) -> Dict:
         """Get the function metadata for the configured function variant."""
@@ -217,7 +219,9 @@ class GCP(System):
                     f"Timeout waiting for operation {operation_name} for function {func_name}"
                 )
 
-            op_req = self.function_client_v2.projects().locations().operations().get(name=operation_name)
+            op_req = (
+                self.function_client_v2.projects().locations().operations().get(name=operation_name)
+            )
             operation = self._execute_with_retry(op_req)
             metadata = operation.get("metadata", {})
 
@@ -501,9 +505,6 @@ class GCP(System):
         Raises:
             RuntimeError: If deployment fails or timeout is reached
         """
-        full_func_name = GCP.get_full_function_name(
-            self.config.project_name, self.config.region, func_name
-        )
         begin = time.time()
         last_status: Optional[str] = None
 
@@ -660,49 +661,48 @@ class GCP(System):
         Raises:
             RuntimeError:
         """
-        if self.uses_gen2:
-            resource = GCP.get_full_service_name(
-                self.config.project_name, self.config.region, func_name
-            )
-            allow_unauthenticated_req = (
-                self.run_client.projects()
-                .locations()
-                .services()
-                .setIamPolicy(
-                    resource=resource,
-                    body={
-                        "policy": {
-                            "bindings": [
-                                {
-                                    "role": "roles/run.invoker",
-                                    "members": ["allUsers"],
-                                }
-                            ]
-                        }
-                    },
-                )
-            )
-        else:
-            allow_unauthenticated_req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .setIamPolicy(
-                    resource=full_func_name,
-                    body={
-                        "policy": {
-                            "bindings": [
-                                {
-                                    "role": "roles/cloudfunctions.invoker",
-                                    "members": ["allUsers"],
-                                }
-                            ]
-                        }
-                    },
-                )
-            )
         try:
-            self._execute_with_retry(allow_unauthenticated_req)
+            if self.uses_gen2:
+                resource = GCP.get_full_service_name(
+                    self.config.project_name, self.config.region, func_name
+                )
+                self._execute_with_retry(
+                    self.run_client.projects()
+                    .locations()
+                    .services()
+                    .setIamPolicy(
+                        resource=resource,
+                        body={
+                            "policy": {
+                                "bindings": [
+                                    {
+                                        "role": "roles/run.invoker",
+                                        "members": ["allUsers"],
+                                    }
+                                ]
+                            }
+                        },
+                    )
+                )
+            else:
+                self._execute_with_retry(
+                    self.function_client.projects()
+                    .locations()
+                    .functions()
+                    .setIamPolicy(
+                        resource=full_func_name,
+                        body={
+                            "policy": {
+                                "bindings": [
+                                    {
+                                        "role": "roles/cloudfunctions.invoker",
+                                        "members": ["allUsers"],
+                                    }
+                                ]
+                            }
+                        },
+                    )
+                )
         except HttpError as e:
             raise RuntimeError(
                 f"Failed to configure function {full_func_name} "
@@ -774,7 +774,7 @@ class GCP(System):
             envs = self._generate_function_envs(code_package)
 
             if self.uses_gen2:
-                create_req = (
+                create_res = self._execute_with_retry(
                     self.function_client_v2.projects()
                     .locations()
                     .functions()
@@ -783,36 +783,38 @@ class GCP(System):
                             project_name=project_name, location=location
                         ),
                         functionId=func_name,
-                        body={
-                            "name": full_func_name,
-                            "buildConfig": {
-                                "entryPoint": (
-                                    "org.serverlessbench.Handler"
-                                    if code_package.language == Language.JAVA
-                                    else "handler"
-                                ),
-                                "runtime": code_package.language_name
-                                + language_runtime.replace(".", ""),
-                                "source": self._gen2_source(code_bucket, code_prefix),
+                        body=cast(
+                            Any,
+                            {
+                                "name": full_func_name,
+                                "buildConfig": {
+                                    "entryPoint": (
+                                        "org.serverlessbench.Handler"
+                                        if code_package.language == Language.JAVA
+                                        else "handler"
+                                    ),
+                                    "runtime": code_package.language_name
+                                    + language_runtime.replace(".", ""),
+                                    "source": self._gen2_source(code_bucket, code_prefix),
+                                },
+                                "serviceConfig": {
+                                    "availableMemory": self._gen2_service_memory(memory),
+                                    "timeoutSeconds": timeout,
+                                    "ingressSettings": "ALLOW_ALL",
+                                    "allTrafficOnLatestRevision": True,
+                                    "environmentVariables": envs,
+                                },
                             },
-                            "serviceConfig": {
-                                "availableMemory": self._gen2_service_memory(memory),
-                                "timeoutSeconds": timeout,
-                                "ingressSettings": "ALLOW_ALL",
-                                "allTrafficOnLatestRevision": True,
-                                "environmentVariables": envs,
-                            },
-                        },
+                        ),
                     )
                 )
-                create_res = self._execute_with_retry(create_req)
                 self.logging.info(
                     f"Function {func_name} is creating - GCP gen2 build&deployment is started!"
                 )
                 self._wait_for_operation(create_res["name"], func_name)
                 self._wait_for_active_status(func_name, timeout=180)
             else:
-                create_req = (
+                self._execute_with_retry(
                     self.function_client.projects()
                     .locations()
                     .functions()
@@ -827,7 +829,8 @@ class GCP(System):
                                 if code_package.language == Language.JAVA
                                 else "handler"
                             ),
-                            "runtime": code_package.language_name + language_runtime.replace(".", ""),
+                            "runtime": code_package.language_name
+                            + language_runtime.replace(".", ""),
                             "availableMemoryMb": memory,
                             "timeout": str(timeout) + "s",
                             "httpsTrigger": {},
@@ -837,7 +840,6 @@ class GCP(System):
                         },
                     )
                 )
-                self._execute_with_retry(create_req)
                 self.logging.info(
                     f"Function {func_name} is creating - GCP build&deployment is started!"
                 )
@@ -988,32 +990,37 @@ class GCP(System):
             self.config.project_name, self.config.region, function.name
         )
         if self.uses_gen2:
-            req = (
+            res = self._execute_with_retry(
                 self.function_client_v2.projects()
                 .locations()
                 .functions()
                 .patch(
                     name=full_func_name,
-                    body={
-                        "name": full_func_name,
-                        "buildConfig": {
-                            "entryPoint": (
-                                "org.serverlessbench.Handler"
-                                if code_package.language == Language.JAVA
-                                else "handler"
-                            ),
-                            "runtime": code_package.language_name
-                            + language_runtime.replace(".", ""),
-                            "source": self._gen2_source(bucket, code_package_name),
+                    body=cast(
+                        Any,
+                        {
+                            "name": full_func_name,
+                            "buildConfig": {
+                                "entryPoint": (
+                                    "org.serverlessbench.Handler"
+                                    if code_package.language == Language.JAVA
+                                    else "handler"
+                                ),
+                                "runtime": code_package.language_name
+                                + language_runtime.replace(".", ""),
+                                "source": self._gen2_source(bucket, code_package_name),
+                            },
+                            "serviceConfig": {
+                                "availableMemory": self._gen2_service_memory(
+                                    function.config.memory
+                                ),
+                                "timeoutSeconds": function.config.timeout,
+                                "ingressSettings": "ALLOW_ALL",
+                                "allTrafficOnLatestRevision": True,
+                                "environmentVariables": envs,
+                            },
                         },
-                        "serviceConfig": {
-                            "availableMemory": self._gen2_service_memory(function.config.memory),
-                            "timeoutSeconds": function.config.timeout,
-                            "ingressSettings": "ALLOW_ALL",
-                            "allTrafficOnLatestRevision": True,
-                            "environmentVariables": envs,
-                        },
-                    },
+                    ),
                     updateMask=(
                         "buildConfig.entryPoint,buildConfig.runtime,buildConfig.source,"
                         "serviceConfig.availableMemory,serviceConfig.timeoutSeconds,"
@@ -1022,12 +1029,11 @@ class GCP(System):
                     ),
                 )
             )
-            res = self._execute_with_retry(req)
             self.logging.info(f"Function {function.name} code update initiated")
             self._wait_for_operation(res["name"], function.name)
             self._wait_for_active_status(function.name, timeout=180)
         else:
-            req = (
+            res = self._execute_with_retry(
                 self.function_client.projects()
                 .locations()
                 .functions()
@@ -1049,7 +1055,6 @@ class GCP(System):
                     },
                 )
             )
-            res = self._execute_with_retry(req)
 
             self.logging.info(f"Function {function.name} code update initiated")
 
@@ -1080,7 +1085,9 @@ class GCP(System):
             Merged environment variables dictionary
         """
 
-        response = self._execute_with_retry(self._function_get_request(full_function_name.split("/")[-1]))
+        response = self._execute_with_retry(
+            self._function_get_request(full_function_name.split("/")[-1])
+        )
 
         # preserve old variables while adding new ones.
         # but for conflict, we select the new one
@@ -1153,12 +1160,15 @@ class GCP(System):
             envs = self._update_envs(full_func_name, envs)
 
         if self.uses_gen2:
-            service_config = {
-                "availableMemory": self._gen2_service_memory(function.config.memory),
-                "timeoutSeconds": function.config.timeout,
-                "ingressSettings": "ALLOW_ALL",
-                "allTrafficOnLatestRevision": True,
-            }
+            service_config = cast(
+                Dict,
+                {
+                    "availableMemory": self._gen2_service_memory(function.config.memory),
+                    "timeoutSeconds": function.config.timeout,
+                    "ingressSettings": "ALLOW_ALL",
+                    "allTrafficOnLatestRevision": True,
+                },
+            )
             update_mask = [
                 "serviceConfig.availableMemory",
                 "serviceConfig.timeoutSeconds",
@@ -1169,24 +1179,29 @@ class GCP(System):
                 service_config["environmentVariables"] = envs
                 update_mask.append("serviceConfig.environmentVariables")
 
-            req = (
+            res = self._execute_with_retry(
                 self.function_client_v2.projects()
                 .locations()
                 .functions()
                 .patch(
                     name=full_func_name,
                     updateMask=",".join(update_mask),
-                    body={"name": full_func_name, "serviceConfig": service_config},
+                    body=cast(
+                        Any,
+                        {
+                            "name": full_func_name,
+                            "serviceConfig": service_config,
+                        },
+                    ),
                 )
             )
-            res = self._execute_with_retry(req)
             self.logging.info(f"Function {function.name} configuration update initiated")
             self._wait_for_operation(res["name"], function.name)
             current_version = self._wait_for_active_status(function.name, timeout=180)
         else:
             if len(envs) > 0:
 
-                req = (
+                res = self._execute_with_retry(
                     self.function_client.projects()
                     .locations()
                     .functions()
@@ -1203,7 +1218,7 @@ class GCP(System):
 
             else:
 
-                req = (
+                res = self._execute_with_retry(
                     self.function_client.projects()
                     .locations()
                     .functions()
@@ -1217,7 +1232,6 @@ class GCP(System):
                     )
                 )
 
-            res = self._execute_with_retry(req)
             expected_version = int(res["metadata"]["versionId"])
 
             self.logging.info(f"Function {function.name} configuration update initiated")
@@ -1245,19 +1259,20 @@ class GCP(System):
 
         try:
             if self.uses_gen2:
-                delete_req = (
+                delete_res = self._execute_with_retry(
                     self.function_client_v2.projects()
                     .locations()
                     .functions()
                     .delete(name=full_func_name)
                 )
-                delete_res = self._execute_with_retry(delete_req)
                 self._wait_for_operation(delete_res["name"], func_name)
             else:
-                delete_req = (
-                    self.function_client.projects().locations().functions().delete(name=full_func_name)
+                self._execute_with_retry(
+                    self.function_client.projects()
+                    .locations()
+                    .functions()
+                    .delete(name=full_func_name)
                 )
-                self._execute_with_retry(delete_req)
             self.logging.info(f"Function {func_name} deleted successfully")
         except HttpError as e:
             if e.resp.status == 404:
@@ -1434,7 +1449,9 @@ class GCP(System):
         for metric in available_metrics:
 
             metrics[metric] = []
-            metric_filters = ['metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric)]
+            metric_filters = [
+                'metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric)
+            ]
 
             for metric_filter in metric_filters:
                 list_request = monitoring_v3.ListTimeSeriesRequest(
@@ -1446,7 +1463,8 @@ class GCP(System):
                 results = client.list_time_series(list_request)
                 for result in results:
                     if result.resource.labels.get("function_name") != function_name and (
-                        not self.uses_gen2 or result.resource.labels.get("service_name") != function_name
+                        not self.uses_gen2
+                        or result.resource.labels.get("service_name") != function_name
                     ):
                         continue
                     for point in result.points:
