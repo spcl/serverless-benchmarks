@@ -237,13 +237,6 @@ class R2(PersistentStorage):
         except Exception as e:
             self.logging.warning(f"Failed to upload bytes to R2: {e}")
 
-    """
-        Retrieves list of files in a bucket.
-
-        :param bucket_name:
-        :return: list of files in a given bucket
-    """
-
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         """
         Retrieves list of files in a bucket using S3-compatible API.
@@ -289,41 +282,35 @@ class R2(PersistentStorage):
         
         try:
             response = requests.get(list_buckets_uri, headers=self._get_auth_headers())
-            
-            # Log detailed error information
+
             if response.status_code == 403:
                 try:
                     error_data = response.json()
-                    self.logging.error(
-                        f"403 Forbidden accessing R2 buckets. "
-                        f"Response: {error_data}. "
-                        f"Your API token may need 'R2 Read and Write' permissions."
-                    )
-                except:
-                    self.logging.error(
-                        f"403 Forbidden accessing R2 buckets. "
-                        f"Your API token may need 'R2 Read and Write' permissions."
-                    )
-                return []
-            
+                    detail = f"Response: {error_data}. "
+                except ValueError:
+                    detail = ""
+                raise RuntimeError(
+                    f"403 Forbidden accessing R2 buckets. {detail}"
+                    "Your API token may need 'R2 Read and Write' permissions."
+                )
+
             response.raise_for_status()
-            
+
             data = response.json()
-            
+
             if not data.get("success"):
-                self.logging.error(f"Failed to list R2 buckets: {data.get('errors')}")
-                return []
-            
-            # Extract bucket names from response
+                raise RuntimeError(
+                    f"Failed to list R2 buckets: {data.get('errors')}"
+                )
+
             buckets = data.get("result", {}).get("buckets", [])
             bucket_names = [bucket["name"] for bucket in buckets]
-            
+
             self.logging.info(f"Found {len(bucket_names)} R2 buckets")
             return bucket_names
-            
+
         except requests.exceptions.RequestException as e:
-            self.logging.error(f"Error listing R2 buckets: {e}")
-            return []
+            raise RuntimeError(f"Error listing R2 buckets: {e}") from e
 
     def exists_bucket(self, bucket_name: str) -> bool:
         """
