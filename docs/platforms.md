@@ -246,7 +246,7 @@ SeBS supports two deployment paths for Cloudflare: **script-based Workers** (nat
 | `triggers.py` | `HTTPTrigger` — invokes the deployed Worker at `https://{name}.{account}.workers.dev`. |
 | `r2.py`, `kvstore.py` | Object and NoSQL storage clients. |
 
-Wrangler templates live at the repo root under `templates/wrangler-worker.toml` and `templates/wrangler-container.toml`.
+Wrangler templates live alongside the deployment code at `sebs/cloudflare/templates/wrangler-worker.toml` and `sebs/cloudflare/templates/wrangler-container.toml` so they ship with the pip-packaged `sebs`.
 
 #### Dockerfiles (`dockerfiles/cloudflare/`)
 
@@ -261,14 +261,14 @@ Wrangler templates live at the repo root under `templates/wrangler-worker.toml` 
 #### Script-based flow (`container_deployment=false`)
 
 1. `benchmark.build()` → `Cloudflare.package_code` → `CloudflareWorkersDeployment.package_code` (builds via `Dockerfile.build`).
-2. `Cloudflare.create_function` → `_create_or_update_worker` renders `templates/wrangler-worker.toml` into the package.
+2. `Cloudflare.create_function` → `_create_or_update_worker` renders `sebs/cloudflare/templates/wrangler-worker.toml` into the package.
 3. `CloudflareCLI.wrangler_deploy` (Node) or `pywrangler_deploy` (Python) deploys via the `manage.cloudflare` container.
 4. `HTTPTrigger` is attached using the `workers.dev` URL.
 
 #### Container-based flow (`container_deployment=true`)
 
 1. `benchmark.build()` calls `container_client.build_base_image()` on the `_CloudflareContainerAdapter` in `cloudflare.py`, which delegates to `CloudflareContainersDeployment.package_code`. It copies `{language}/Dockerfile.function` as `Dockerfile` (patching `BASE_IMAGE`), adds `worker.js`, merges `package.json`, runs `npm install` in the CLI container, and builds a local Docker image.
-2. `Cloudflare.create_function` → `_create_or_update_worker` renders `templates/wrangler-container.toml`.
+2. `Cloudflare.create_function` → `_create_or_update_worker` renders `sebs/cloudflare/templates/wrangler-container.toml`.
 3. `CloudflareCLI.wrangler_deploy` invokes wrangler, which rebuilds the image from `Dockerfile` and pushes it to Cloudflare's managed registry, creating a Durable-Object-backed container worker.
 4. `wait_for_durable_object_ready` polls `/health` until the container reports healthy, then SeBS pings `/health` for ~60 s to keep the DO warm before the first measured invocation.
 5. `HTTPTrigger` is attached using the `workers.dev` URL.
