@@ -1,4 +1,6 @@
 // Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+//
+// This is pretty much a Node.js rewrite of our Python wrapper.
 
 const aws = require("aws-sdk");
 
@@ -41,9 +43,6 @@ class nosql {
   }
 
   async update(table_name, primary_key, secondary_key, updates) {
-    if (Object.keys(updates).length === 0) {
-      return;
-    }
 
     const key = {};
     key[primary_key[0]] = primary_key[1];
