@@ -230,10 +230,7 @@ class storage:
         list_url = f"{storage.worker_url}/r2/list?{params}"
         
         try:
-            req = urllib.request.Request(list_url)
-            req.add_header('User-Agent', 'SeBS/1.2 (https://github.com/spcl/serverless-benchmarks) SeBS Benchmark Suite/1.2')
-            
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(list_url) as response:
                 result = json.loads(response.read().decode('utf-8'))
                 objects = result.get('objects', [])
                 
