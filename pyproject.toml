@@ -39,6 +39,9 @@ dependencies = [
     "pycurl>=7.43",
     "click>=7.1.2",
     "rich",
+    "patch-ng",
+    "tomli ; python_version < '3.11'",
+    "tomli_w",
 
     # Storage & Local
     "minio==5.0.10",
