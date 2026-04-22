@@ -28,6 +28,7 @@ import requests
 
 from sebs.benchmark import Benchmark
 from sebs.cloudflare.cli import CloudflareCLI
+from sebs.utils import get_resource_path
 
 
 class CloudflareContainersDeployment:
@@ -86,9 +87,8 @@ class CloudflareContainersDeployment:
         """
         # Load template
         template_path = os.path.join(
-            os.path.dirname(__file__), 
-            "../..", 
-            "templates", 
+            os.path.dirname(__file__),
+            "templates",
             "wrangler-container.toml"
         )
         with open(template_path, 'rb') as f:
@@ -197,14 +197,10 @@ class CloudflareContainersDeployment:
         
         # Copy container wrapper files to the package directory
         # Copy Dockerfile.function from dockerfiles/cloudflare/{language}/
-        dockerfile_src = os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "dockerfiles",
-            "cloudflare",
-            language_name,
-            "Dockerfile.function"
+        dockerfile_src = str(
+            get_resource_path(
+                "dockerfiles", "cloudflare", language_name, "Dockerfile.function"
+            )
         )
         dockerfile_dest = os.path.join(directory, "Dockerfile")
         if os.path.exists(dockerfile_src):
