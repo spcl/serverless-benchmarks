@@ -80,34 +80,10 @@ deployments_openwhisk = ["container"]
 # Cloudflare-specific configurations
 architectures_cloudflare = ["x64"]
 
-# Cloudflare workers benchmarks per language
-benchmarks_cloudflare_python_workers = [
-    "110.dynamic-html",
-    "120.uploader",
-    "130.crud-api",
-    "210.thumbnailer",
-    "311.compression",
-    "501.graph-pagerank",
-    "502.graph-mst",
-    "503.graph-bfs",
-]
-benchmarks_cloudflare_python_containers = benchmarks_python  # all benchmarks supported
-benchmarks_cloudflare_nodejs_workers = [
-    "110.dynamic-html",
-    "120.uploader",
-    "130.crud-api",
-    "311.compression",
-]
-benchmarks_cloudflare_nodejs_containers = [
-    "110.dynamic-html",
-    "120.uploader",
-    "130.crud-api",
-    "210.thumbnailer",
-    "311.compression",
-]
-
 # User-defined config passed during initialization, set in regression_suite()
 cloud_config: Optional[dict] = None
+# Input size for benchmark test data ("test" | "small" | "large"), set in regression_suite()
+benchmark_input_size: str = "test"
 
 
 class TestSequenceMeta(type):
@@ -233,7 +209,7 @@ class TestSequenceMeta(type):
                 # Prepare input data for the benchmark
                 input_config = benchmark.prepare_input(
                     deployment_client.system_resources,
-                    size="test",
+                    size=benchmark_input_size,
                     replace_existing=experiment_config.update_storage,
                 )
 
@@ -1084,7 +1060,7 @@ class OpenWhiskTestSequenceJava(
 class CloudflareTestSequencePythonWorkers(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
-    benchmarks=benchmarks_cloudflare_python_workers,
+    benchmarks=benchmarks_python,
     architectures=architectures_cloudflare,
     deployments=["workers"],
     deployment_name="cloudflare",
@@ -1114,7 +1090,7 @@ class CloudflareTestSequencePythonWorkers(
 class CloudflareTestSequencePythonContainers(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
-    benchmarks=benchmarks_cloudflare_python_containers,
+    benchmarks=benchmarks_python,
     architectures=architectures_cloudflare,
     deployments=["container"],
     deployment_name="cloudflare",
@@ -1144,7 +1120,7 @@ class CloudflareTestSequencePythonContainers(
 class CloudflareTestSequenceNodejsWorkers(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
-    benchmarks=benchmarks_cloudflare_nodejs_workers,
+    benchmarks=benchmarks_nodejs,
     architectures=architectures_cloudflare,
     deployments=["workers"],
     deployment_name="cloudflare",
@@ -1174,7 +1150,7 @@ class CloudflareTestSequenceNodejsWorkers(
 class CloudflareTestSequenceNodejsContainers(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
-    benchmarks=benchmarks_cloudflare_nodejs_containers,
+    benchmarks=benchmarks_nodejs,
     architectures=architectures_cloudflare,
     deployments=["container"],
     deployment_name="cloudflare",
@@ -1314,17 +1290,11 @@ def filter_out_benchmarks(
         return "411.image-recognition" not in benchmark
 
     # Cloudflare: only certain benchmarks are supported per language/deployment-type.
-    # Mirrors Cloudflare.SUPPORTED_BENCHMARKS in sebs/cloudflare/cloudflare.py.
     # None means all benchmarks are supported for that combination.
     if deployment_name == "cloudflare":
-        _CF_SUPPORTED: Dict[Tuple[str, bool], Optional[Set[str]]] = {
-            ("python", False): {"110", "120", "130", "210", "311", "501", "502", "503"},
-            ("nodejs", False): {"110", "120", "130", "311"},
-            ("python", True):  None,  # all supported
-            ("nodejs", True):  {"110", "120", "130", "210", "311"},
-        }
+        from sebs.cloudflare.cloudflare import Cloudflare
         is_container = deployment_type == "container"
-        allowed = _CF_SUPPORTED.get((language, is_container))
+        allowed = Cloudflare.SUPPORTED_BENCHMARKS.get((language, is_container))
         if allowed is not None:
             # benchmark is the test method name, e.g. "test_cloudflare_120.uploader_x64_workers"
             # Extract the numeric benchmark prefix (e.g. "120") from before the first "."
@@ -1343,6 +1313,7 @@ def regression_suite(
     deployment_config: dict,
     benchmark_name: Optional[str] = None,
     deployment_type: Optional[str] = None,
+    input_size: str = "test",
 ):
     """Create and run a regression test suite for specified cloud providers.
 
@@ -1366,9 +1337,10 @@ def regression_suite(
     # Create the test suite
     suite = unittest.TestSuite()
 
-    # Make cloud_config available to test classes
-    global cloud_config
+    # Make cloud_config and input size available to test classes
+    global cloud_config, benchmark_input_size
     cloud_config = deployment_config
+    benchmark_input_size = input_size
 
     # Extract runtime configuration
     language = experiment_config["runtime"]["language"]
@@ -1435,26 +1407,26 @@ def regression_suite(
             "cloudflare" in cloud_config["deployment"]
         ), "Cloudflare provider requested but not in deployment config"
         if language == "python":
-            if deployment_type != "container":
+            if deployment_type != "containers":
                 suite.addTest(
                     unittest.defaultTestLoader.loadTestsFromTestCase(
                         CloudflareTestSequencePythonWorkers
                     )
                 )
-            if deployment_type != "workers":
+            if deployment_type != "functions":
                 suite.addTest(
                     unittest.defaultTestLoader.loadTestsFromTestCase(
                         CloudflareTestSequencePythonContainers
                     )
                 )
         elif language == "nodejs":
-            if deployment_type != "container":
+            if deployment_type != "containers":
                 suite.addTest(
                     unittest.defaultTestLoader.loadTestsFromTestCase(
                         CloudflareTestSequenceNodejsWorkers
                     )
                 )
-            if deployment_type != "workers":
+            if deployment_type != "functions":
                 suite.addTest(
                     unittest.defaultTestLoader.loadTestsFromTestCase(
                         CloudflareTestSequenceNodejsContainers
