@@ -1,3 +1,9 @@
+// Shared container orchestrator for both Node.js and Python container benchmarks.
+// @cloudflare/containers is Node.js-only, so this single worker.js fronts the
+// Durable-Object-backed container regardless of the in-container handler
+// language. See sebs/cloudflare/containers.py, which copies this file from
+// benchmarks/wrappers/cloudflare/nodejs/container/ into every container build
+// directory (Python builds included).
 import { Container, getContainer } from "@cloudflare/containers";
 
 // Container wrapper class
