@@ -33,7 +33,7 @@ async function queryProducts(cartId) {
 
   for (const product of res) {
     products.push(product.name);
-    priceSum += product.price;
+    priceSum += product.price * product.quantity;
     quantitySum += product.quantity;
   }
 
@@ -74,5 +74,5 @@ exports.handler = async function(event) {
     results.push(res);
   }
 
-  return { result: results };
+  return results;
 };
