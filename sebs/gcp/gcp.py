@@ -1462,10 +1462,12 @@ class GCP(System):
 
                 results = client.list_time_series(list_request)
                 for result in results:
-                    if result.resource.labels.get("function_name") != function_name and (
-                        not self.uses_gen2
-                        or result.resource.labels.get("service_name") != function_name
-                    ):
+                    matches_function = result.resource.labels.get("function_name") == function_name
+                    matches_service = (
+                        self.uses_gen2
+                        and result.resource.labels.get("service_name") == function_name
+                    )
+                    if not (matches_function or matches_service):
                         continue
                     for point in result.points:
                         metrics[metric] += [
