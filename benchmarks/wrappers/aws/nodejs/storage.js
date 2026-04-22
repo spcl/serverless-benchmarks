@@ -2,8 +2,10 @@
 
 const fs = require('fs'), path = require('path'), uuid = require('uuid'), util = require('util'), stream = require('stream');
 
+const { pipeline } = require("stream/promises");
+
 const { Upload } = require('@aws-sdk/lib-storage');
-const { S3 } = require('@aws-sdk/client-s3');
+const { S3, GetObjectCommand} = require('@aws-sdk/client-s3');
 
 class aws_storage {
 
@@ -25,14 +27,13 @@ class aws_storage {
       client: this.S3,
       params
     });
-    return [uniqueName, // The `.promise()` call might be on an JS SDK v2 client API.
-    // If yes, please remove .promise(). If not, remove this comment.
-    upload.promise()];
+    return [uniqueName, upload.done()];
   };
 
-  download(bucket, file, filepath) {
-    var file = fs.createWriteStream(filepath);
-    this.S3.getObject( {Bucket: bucket, Key: file} ).createReadStream().pipe(file);
+  async download(bucket, file, filepath) {
+    var file_stream = fs.createWriteStream(filepath);
+    const response = await this.S3.send(new GetObjectCommand({ Bucket: bucket, Key: file }));
+    await pipeline(response.Body, file_stream);
   };
 
   uploadStream(bucket, file) {
@@ -44,16 +45,15 @@ class aws_storage {
       client: this.S3,
       params: {Bucket: bucket, Key: uniqueName, Body: write_stream}
     });
-    return [write_stream, // The `.promise()` call might be on an JS SDK v2 client API.
-    // If yes, please remove .promise(). If not, remove this comment.
-    upload.promise(), uniqueName];
+    return [write_stream, upload.done(), uniqueName];
   };
 
   // We return a promise to match the API for other providers
   downloadStream(bucket, file) {
-    // AWS.Request -> read stream
-    let downloaded = this.S3.getObject( {Bucket: bucket, Key: file} ).createReadStream();
-    return Promise.resolve(downloaded);
+    return this.S3.send(new GetObjectCommand({
+      Bucket: bucket,
+      Key: file
+    })).then(response => response.Body);
   };
 }
 exports.storage = aws_storage;
