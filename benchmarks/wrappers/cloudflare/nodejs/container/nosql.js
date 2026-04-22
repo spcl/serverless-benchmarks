@@ -14,10 +14,8 @@
  */
 
 class nosql {
-  constructor() {
-    // Container accesses Durable Objects through worker.js proxy
-  }
-  
+  constructor() {}
+
   static worker_url = null; // Set by handler from X-Worker-URL header
 
   static init_instance(entry) {
