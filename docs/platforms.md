@@ -209,10 +209,14 @@ or in the JSON input configuration:
   "name": "gcp",
   "gcp": {
     "region": "europe-west1",
+    "system-variant": "gen1",
     "credentials": "/path/to/project-credentials.json"
   }
 }
 ```
+
+The optional `system-variant` setting selects the Cloud Functions generation used for
+source deployments. Supported values are `gen1` (default) and `gen2`.
 
 ## OpenWhisk
 

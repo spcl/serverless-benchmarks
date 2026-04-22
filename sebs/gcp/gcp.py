@@ -157,6 +157,8 @@ class GCP(System):
             resource_prefix: Optional prefix for resource naming to avoid conflicts
         """
         self.function_client = build("cloudfunctions", "v1", cache_discovery=False)
+        self.function_client_v2 = build("cloudfunctions", "v2", cache_discovery=False)
+        self.run_client = build("run", "v2", cache_discovery=False)
         self.initialize_resources(select_prefix=resource_prefix, quiet=quiet)
 
     def get_function_client(self):
@@ -168,6 +170,73 @@ class GCP(System):
             Initialized Cloud Functions API client
         """
         return self.function_client
+
+    @property
+    def uses_gen2(self) -> bool:
+        """Check whether package deployments use Cloud Functions gen2."""
+        return self.config.system_variant == "gen2"
+
+    def _function_api_client(self):
+        """Return the Cloud Functions API client for the configured package variant."""
+        return self.function_client_v2 if self.uses_gen2 else self.function_client
+
+    def _function_get_request(self, func_name: str):
+        """Create a get request for the configured function variant."""
+        full_func_name = GCP.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+        return self._function_api_client().projects().locations().functions().get(name=full_func_name)
+
+    def _function_details(self, func_name: str) -> Dict:
+        """Get the function metadata for the configured function variant."""
+        return self._execute_with_retry(self._function_get_request(func_name))
+
+    def _gen2_service_memory(self, memory_mb: int) -> str:
+        """Format memory for Cloud Functions gen2 service configuration."""
+        return f"{memory_mb}Mi"
+
+    def _gen2_source(self, bucket: str, object_name: str) -> Dict[str, Dict[str, str]]:
+        """Build a Cloud Functions gen2 storage source configuration."""
+        return {"storageSource": {"bucket": bucket, "object": object_name}}
+
+    def _wait_for_operation(
+        self,
+        operation_name: str,
+        func_name: str,
+        timeout: int = 900,
+        poll_interval: int = 2,
+    ) -> Dict:
+        """Wait for a Cloud Functions gen2 operation to complete."""
+        begin = time.time()
+        build_name: Optional[str] = None
+        build_polled = False
+
+        while True:
+            if time.time() - begin > timeout:
+                raise RuntimeError(
+                    f"Timeout waiting for operation {operation_name} for function {func_name}"
+                )
+
+            op_req = self.function_client_v2.projects().locations().operations().get(name=operation_name)
+            operation = self._execute_with_retry(op_req)
+            metadata = operation.get("metadata", {})
+
+            if not build_name:
+                build_name = metadata.get("buildName")
+            if build_name and not build_polled:
+                self._poll_build_status(build_name, func_name, timeout)
+                build_polled = True
+
+            if operation.get("done"):
+                if "error" in operation:
+                    error = operation["error"]
+                    raise RuntimeError(
+                        f"Operation {operation_name} failed for function {func_name}: "
+                        f"{error.get('message', error)}"
+                    ) from None
+                return operation
+
+            time.sleep(poll_interval)
 
     def _execute_with_retry(
         self,
@@ -263,6 +332,8 @@ class GCP(System):
             code_package.language_name,
             code_package.language_version,
         )
+        if self.uses_gen2:
+            func_name = f"{func_name}-gen2"
         return GCP.format_function_name(func_name)
 
     @staticmethod
@@ -447,20 +518,24 @@ class GCP(System):
                     f"after {elapsed:.0f}s. Last status: {last_status}"
                 )
 
-            get_req = (
-                self.function_client.projects().locations().functions().get(name=full_func_name)
-            )
-            func_details = self._execute_with_retry(get_req)
-
-            status = func_details["status"]
-            current_version = int(func_details["versionId"])
+            func_details = self._function_details(func_name)
+            if self.uses_gen2:
+                status = func_details.get("state", "UNKNOWN")
+                current_version = 0
+            else:
+                status = func_details["status"]
+                current_version = int(func_details["versionId"])
 
             if status != last_status:
                 last_status = status
 
             if status == "ACTIVE":
                 # Check version if specified
-                if expected_version is not None and current_version != expected_version:
+                if (
+                    not self.uses_gen2
+                    and expected_version is not None
+                    and current_version != expected_version
+                ):
                     self.logging.warning(
                         f"Function {func_name} is ACTIVE but version mismatch: "
                         f"expected {expected_version}, got {current_version}"
@@ -585,24 +660,47 @@ class GCP(System):
         Raises:
             RuntimeError:
         """
-        allow_unauthenticated_req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .setIamPolicy(
-                resource=full_func_name,
-                body={
-                    "policy": {
-                        "bindings": [
-                            {
-                                "role": "roles/cloudfunctions.invoker",
-                                "members": ["allUsers"],
-                            }
-                        ]
-                    }
-                },
+        if self.uses_gen2:
+            resource = GCP.get_full_service_name(
+                self.config.project_name, self.config.region, func_name
             )
-        )
+            allow_unauthenticated_req = (
+                self.run_client.projects()
+                .locations()
+                .services()
+                .setIamPolicy(
+                    resource=resource,
+                    body={
+                        "policy": {
+                            "bindings": [
+                                {
+                                    "role": "roles/run.invoker",
+                                    "members": ["allUsers"],
+                                }
+                            ]
+                        }
+                    },
+                )
+            )
+        else:
+            allow_unauthenticated_req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .setIamPolicy(
+                    resource=full_func_name,
+                    body={
+                        "policy": {
+                            "bindings": [
+                                {
+                                    "role": "roles/cloudfunctions.invoker",
+                                    "members": ["allUsers"],
+                                }
+                            ]
+                        }
+                    },
+                )
+            )
         try:
             self._execute_with_retry(allow_unauthenticated_req)
         except HttpError as e:
@@ -667,7 +765,7 @@ class GCP(System):
         self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
 
         full_func_name = GCP.get_full_function_name(project_name, location, func_name)
-        get_req = self.function_client.projects().locations().functions().get(name=full_func_name)
+        get_req = self._function_get_request(func_name)
 
         try:
             self._execute_with_retry(get_req)
@@ -675,43 +773,82 @@ class GCP(System):
 
             envs = self._generate_function_envs(code_package)
 
-            create_req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .create(
-                    location="projects/{project_name}/locations/{location}".format(
-                        project_name=project_name, location=location
-                    ),
-                    body={
-                        "name": full_func_name,
-                        "entryPoint": (
-                            "org.serverlessbench.Handler"
-                            if code_package.language == Language.JAVA
-                            else "handler"
+            if self.uses_gen2:
+                create_req = (
+                    self.function_client_v2.projects()
+                    .locations()
+                    .functions()
+                    .create(
+                        parent="projects/{project_name}/locations/{location}".format(
+                            project_name=project_name, location=location
                         ),
-                        "runtime": code_package.language_name + language_runtime.replace(".", ""),
-                        "availableMemoryMb": memory,
-                        "timeout": str(timeout) + "s",
-                        "httpsTrigger": {},
-                        "ingressSettings": "ALLOW_ALL",
-                        "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
-                        "environmentVariables": envs,
-                    },
+                        functionId=func_name,
+                        body={
+                            "name": full_func_name,
+                            "buildConfig": {
+                                "entryPoint": (
+                                    "org.serverlessbench.Handler"
+                                    if code_package.language == Language.JAVA
+                                    else "handler"
+                                ),
+                                "runtime": code_package.language_name
+                                + language_runtime.replace(".", ""),
+                                "source": self._gen2_source(code_bucket, code_prefix),
+                            },
+                            "serviceConfig": {
+                                "availableMemory": self._gen2_service_memory(memory),
+                                "timeoutSeconds": timeout,
+                                "ingressSettings": "ALLOW_ALL",
+                                "allTrafficOnLatestRevision": True,
+                                "environmentVariables": envs,
+                            },
+                        },
+                    )
                 )
-            )
-            self._execute_with_retry(create_req)
-            self.logging.info(
-                f"Function {func_name} is creating - GCP build&deployment is started!"
-            )
+                create_res = self._execute_with_retry(create_req)
+                self.logging.info(
+                    f"Function {func_name} is creating - GCP gen2 build&deployment is started!"
+                )
+                self._wait_for_operation(create_res["name"], func_name)
+                self._wait_for_active_status(func_name, timeout=180)
+            else:
+                create_req = (
+                    self.function_client.projects()
+                    .locations()
+                    .functions()
+                    .create(
+                        location="projects/{project_name}/locations/{location}".format(
+                            project_name=project_name, location=location
+                        ),
+                        body={
+                            "name": full_func_name,
+                            "entryPoint": (
+                                "org.serverlessbench.Handler"
+                                if code_package.language == Language.JAVA
+                                else "handler"
+                            ),
+                            "runtime": code_package.language_name + language_runtime.replace(".", ""),
+                            "availableMemoryMb": memory,
+                            "timeout": str(timeout) + "s",
+                            "httpsTrigger": {},
+                            "ingressSettings": "ALLOW_ALL",
+                            "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
+                            "environmentVariables": envs,
+                        },
+                    )
+                )
+                self._execute_with_retry(create_req)
+                self.logging.info(
+                    f"Function {func_name} is creating - GCP build&deployment is started!"
+                )
 
-            # Poll build status until completion or failure
-            build_found = self._wait_for_build_and_poll(func_name)
-            if not build_found:
-                raise RuntimeError(f"No build operation found for {func_name}!")
+                # Poll build status until completion or failure
+                build_found = self._wait_for_build_and_poll(func_name)
+                if not build_found:
+                    raise RuntimeError(f"No build operation found for {func_name}!")
 
-            # Wait for deployment to become ACTIVE
-            self._wait_for_active_status(func_name)
+                # Wait for deployment to become ACTIVE
+                self._wait_for_active_status(func_name)
 
             self._allow_public_access(func_name, full_func_name)
 
@@ -732,12 +869,13 @@ class GCP(System):
             self._allow_public_access(func_name, full_func_name)
             self.update_function(function, code_package, container_deployment, container_uri)
 
-        # Add LibraryTrigger to a new function
-        from sebs.gcp.triggers import LibraryTrigger
+        if not self.uses_gen2:
+            # Add LibraryTrigger to a new function
+            from sebs.gcp.triggers import LibraryTrigger
 
-        trigger = LibraryTrigger(func_name, self)
-        trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(trigger)
+            trigger = LibraryTrigger(func_name, self)
+            trigger.logging_handlers = self.logging_handlers
+            function.add_trigger(trigger)
 
         return function
 
@@ -763,15 +901,15 @@ class GCP(System):
 
         if trigger_type == Trigger.TriggerType.HTTP:
 
-            # Get the HTTPS trigger URL
-            location = self.config.region
-            project_name = self.config.project_name
-            full_func_name = GCP.get_full_function_name(project_name, location, function.name)
-            get_req = (
-                self.function_client.projects().locations().functions().get(name=full_func_name)
-            )
-            func_details = self._execute_with_retry(get_req)
-            invoke_url = func_details["httpsTrigger"]["url"]
+            func_details = self._function_details(function.name)
+            if self.uses_gen2:
+                invoke_url = func_details.get("serviceConfig", {}).get("uri") or func_details.get(
+                    "url"
+                )
+                if not invoke_url:
+                    raise RuntimeError(f"Could not determine gen2 URL for {function.name}")
+            else:
+                invoke_url = func_details["httpsTrigger"]["url"]
             self.logging.info(f"Function {function.name} - HTTP trigger URL: {invoke_url}")
 
             trigger = HTTPTrigger(invoke_url)
@@ -849,43 +987,83 @@ class GCP(System):
         full_func_name = GCP.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
-        req = (
-            self.function_client.projects()
-            .locations()
-            .functions()
-            .patch(
-                name=full_func_name,
-                body={
-                    "name": full_func_name,
-                    "entryPoint": (
-                        "org.serverlessbench.Handler"
-                        if code_package.language == Language.JAVA
-                        else "handler"
+        if self.uses_gen2:
+            req = (
+                self.function_client_v2.projects()
+                .locations()
+                .functions()
+                .patch(
+                    name=full_func_name,
+                    body={
+                        "name": full_func_name,
+                        "buildConfig": {
+                            "entryPoint": (
+                                "org.serverlessbench.Handler"
+                                if code_package.language == Language.JAVA
+                                else "handler"
+                            ),
+                            "runtime": code_package.language_name
+                            + language_runtime.replace(".", ""),
+                            "source": self._gen2_source(bucket, code_package_name),
+                        },
+                        "serviceConfig": {
+                            "availableMemory": self._gen2_service_memory(function.config.memory),
+                            "timeoutSeconds": function.config.timeout,
+                            "ingressSettings": "ALLOW_ALL",
+                            "allTrafficOnLatestRevision": True,
+                            "environmentVariables": envs,
+                        },
+                    },
+                    updateMask=(
+                        "buildConfig.entryPoint,buildConfig.runtime,buildConfig.source,"
+                        "serviceConfig.availableMemory,serviceConfig.timeoutSeconds,"
+                        "serviceConfig.ingressSettings,serviceConfig.allTrafficOnLatestRevision,"
+                        "serviceConfig.environmentVariables"
                     ),
-                    "runtime": code_package.language_name + language_runtime.replace(".", ""),
-                    "availableMemoryMb": function.config.memory,
-                    "timeout": str(function.config.timeout) + "s",
-                    "httpsTrigger": {},
-                    "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
-                    "environmentVariables": envs,
-                },
+                )
             )
-        )
-        res = self._execute_with_retry(req)
-
-        self.logging.info(f"Function {function.name} code update initiated")
-
-        # Patch does not return buildName, need to wait for build to start
-        expected_version = int(res["metadata"]["versionId"])
-        build_found = self._wait_for_build_and_poll(function.name)
-        if not build_found:
-            self.logging.warning(
-                f"No build operation found for {function.name} - "
-                "this is unexpected for code updates"
+            res = self._execute_with_retry(req)
+            self.logging.info(f"Function {function.name} code update initiated")
+            self._wait_for_operation(res["name"], function.name)
+            self._wait_for_active_status(function.name, timeout=180)
+        else:
+            req = (
+                self.function_client.projects()
+                .locations()
+                .functions()
+                .patch(
+                    name=full_func_name,
+                    body={
+                        "name": full_func_name,
+                        "entryPoint": (
+                            "org.serverlessbench.Handler"
+                            if code_package.language == Language.JAVA
+                            else "handler"
+                        ),
+                        "runtime": code_package.language_name + language_runtime.replace(".", ""),
+                        "availableMemoryMb": function.config.memory,
+                        "timeout": str(function.config.timeout) + "s",
+                        "httpsTrigger": {},
+                        "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
+                        "environmentVariables": envs,
+                    },
+                )
             )
+            res = self._execute_with_retry(req)
 
-        # Wait for deployment to become ACTIVE with expected version
-        self._wait_for_active_status(function.name, expected_version)
+            self.logging.info(f"Function {function.name} code update initiated")
+
+            # Patch does not return buildName, need to wait for build to start
+            expected_version = int(res["metadata"]["versionId"])
+            build_found = self._wait_for_build_and_poll(function.name)
+            if not build_found:
+                self.logging.warning(
+                    f"No build operation found for {function.name} - "
+                    "this is unexpected for code updates"
+                )
+
+            # Wait for deployment to become ACTIVE with expected version
+            self._wait_for_active_status(function.name, expected_version)
         self.logging.info("Published new function code and configuration.")
 
     def _update_envs(self, full_function_name: str, envs: Dict) -> Dict:
@@ -902,14 +1080,15 @@ class GCP(System):
             Merged environment variables dictionary
         """
 
-        get_req = (
-            self.function_client.projects().locations().functions().get(name=full_function_name)
-        )
-        response = self._execute_with_retry(get_req)
+        response = self._execute_with_retry(self._function_get_request(full_function_name.split("/")[-1]))
 
         # preserve old variables while adding new ones.
         # but for conflict, we select the new one
-        if "environmentVariables" in response:
+        if self.uses_gen2:
+            current_envs = response.get("serviceConfig", {}).get("environmentVariables", {})
+            if current_envs:
+                envs = {**current_envs, **envs}
+        elif "environmentVariables" in response:
             envs = {**response["environmentVariables"], **envs}
 
         return envs
@@ -973,47 +1152,81 @@ class GCP(System):
         if len(envs) > 0:
             envs = self._update_envs(full_func_name, envs)
 
-        if len(envs) > 0:
+        if self.uses_gen2:
+            service_config = {
+                "availableMemory": self._gen2_service_memory(function.config.memory),
+                "timeoutSeconds": function.config.timeout,
+                "ingressSettings": "ALLOW_ALL",
+                "allTrafficOnLatestRevision": True,
+            }
+            update_mask = [
+                "serviceConfig.availableMemory",
+                "serviceConfig.timeoutSeconds",
+                "serviceConfig.ingressSettings",
+                "serviceConfig.allTrafficOnLatestRevision",
+            ]
+            if len(envs) > 0:
+                service_config["environmentVariables"] = envs
+                update_mask.append("serviceConfig.environmentVariables")
 
             req = (
-                self.function_client.projects()
+                self.function_client_v2.projects()
                 .locations()
                 .functions()
                 .patch(
                     name=full_func_name,
-                    updateMask="availableMemoryMb,timeout,environmentVariables",
-                    body={
-                        "availableMemoryMb": function.config.memory,
-                        "timeout": str(function.config.timeout) + "s",
-                        "environmentVariables": envs,
-                    },
+                    updateMask=",".join(update_mask),
+                    body={"name": full_func_name, "serviceConfig": service_config},
                 )
             )
-
+            res = self._execute_with_retry(req)
+            self.logging.info(f"Function {function.name} configuration update initiated")
+            self._wait_for_operation(res["name"], function.name)
+            current_version = self._wait_for_active_status(function.name, timeout=180)
         else:
+            if len(envs) > 0:
 
-            req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .patch(
-                    name=full_func_name,
-                    updateMask="availableMemoryMb,timeout",
-                    body={
-                        "availableMemoryMb": function.config.memory,
-                        "timeout": str(function.config.timeout) + "s",
-                    },
+                req = (
+                    self.function_client.projects()
+                    .locations()
+                    .functions()
+                    .patch(
+                        name=full_func_name,
+                        updateMask="availableMemoryMb,timeout,environmentVariables",
+                        body={
+                            "availableMemoryMb": function.config.memory,
+                            "timeout": str(function.config.timeout) + "s",
+                            "environmentVariables": envs,
+                        },
+                    )
                 )
+
+            else:
+
+                req = (
+                    self.function_client.projects()
+                    .locations()
+                    .functions()
+                    .patch(
+                        name=full_func_name,
+                        updateMask="availableMemoryMb,timeout",
+                        body={
+                            "availableMemoryMb": function.config.memory,
+                            "timeout": str(function.config.timeout) + "s",
+                        },
+                    )
+                )
+
+            res = self._execute_with_retry(req)
+            expected_version = int(res["metadata"]["versionId"])
+
+            self.logging.info(f"Function {function.name} configuration update initiated")
+
+            # Wait for deployment to become ACTIVE with expected version
+            # Configuration updates don't trigger builds but still need deployment time
+            current_version = self._wait_for_active_status(
+                function.name, expected_version, timeout=60
             )
-
-        res = self._execute_with_retry(req)
-        expected_version = int(res["metadata"]["versionId"])
-
-        self.logging.info(f"Function {function.name} configuration update initiated")
-
-        # Wait for deployment to become ACTIVE with expected version
-        # Configuration updates don't trigger builds but still need deployment time
-        current_version = self._wait_for_active_status(function.name, expected_version, timeout=60)
         self.logging.info("Published new function configuration.")
 
         return current_version
@@ -1031,10 +1244,20 @@ class GCP(System):
         )
 
         try:
-            delete_req = (
-                self.function_client.projects().locations().functions().delete(name=full_func_name)
-            )
-            self._execute_with_retry(delete_req)
+            if self.uses_gen2:
+                delete_req = (
+                    self.function_client_v2.projects()
+                    .locations()
+                    .functions()
+                    .delete(name=full_func_name)
+                )
+                delete_res = self._execute_with_retry(delete_req)
+                self._wait_for_operation(delete_res["name"], func_name)
+            else:
+                delete_req = (
+                    self.function_client.projects().locations().functions().delete(name=full_func_name)
+                )
+                self._execute_with_retry(delete_req)
             self.logging.info(f"Function {func_name} deleted successfully")
         except HttpError as e:
             if e.resp.status == 404:
@@ -1056,6 +1279,11 @@ class GCP(System):
             Fully qualified function name in GCP format
         """
         return f"projects/{project_name}/locations/{location}/functions/{func_name}"
+
+    @staticmethod
+    def get_full_service_name(project_name: str, location: str, service_name: str) -> str:
+        """Generate the fully qualified Cloud Run service name."""
+        return f"projects/{project_name}/locations/{location}/services/{service_name}"
 
     def shutdown(self) -> None:
         """Shutdown the GCP system and clean up resources.
@@ -1118,7 +1346,6 @@ class GCP(System):
         import google.cloud.logging as gcp_logging
 
         logging_client = gcp_logging.Client()
-        logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")
 
         """
             GCP accepts only single date format: 'YYYY-MM-DDTHH:MM:SSZ'.
@@ -1133,14 +1360,26 @@ class GCP(System):
             utc_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
             timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
-        invocations = logger.list_entries(
-            filter_=(
-                f'resource.labels.function_name = "{function_name}" '
+        if self.uses_gen2:
+            log_filter = (
+                "("
+                f'resource.labels.function_name = "{function_name}" OR '
+                f'resource.labels.service_name = "{function_name}"'
+                ") "
                 f'timestamp >= "{timestamps[0]}" '
                 f'timestamp <= "{timestamps[1]}"'
-            ),
-            page_size=1000,
-        )
+            )
+            invocations = logging_client.list_entries(filter_=log_filter, page_size=1000)
+        else:
+            logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")
+            invocations = logger.list_entries(
+                filter_=(
+                    f'resource.labels.function_name = "{function_name}" '
+                    f'timestamp >= "{timestamps[0]}" '
+                    f'timestamp <= "{timestamps[1]}"'
+                ),
+                page_size=1000,
+            )
         invocations_processed = 0
         if hasattr(invocations, "pages"):
             pages = list(wrapper(invocations.pages))
@@ -1150,13 +1389,16 @@ class GCP(System):
         for page in pages:  # invocations.pages:
             for invoc in page:
                 entries += 1
-                if "execution took" in invoc.payload:
-                    execution_id = invoc.labels["execution_id"]
+                payload = str(invoc.payload)
+                if "execution took" in payload:
+                    execution_id = invoc.labels.get("execution_id") if invoc.labels else None
+                    if not execution_id:
+                        continue
                     # might happen that we get invocation from another experiment
                     if execution_id not in requests:
                         continue
                     # find number of miliseconds
-                    regex_result = re.search(r"\d+ ms", invoc.payload)
+                    regex_result = re.search(r"\d+ ms", payload)
                     assert regex_result
                     exec_time = regex_result.group().split()[0]
                     # convert into microseconds
@@ -1179,8 +1421,8 @@ class GCP(System):
         client = monitoring_v3.MetricServiceClient()
         project_name = client.common_project_path(self.config.project_name)
 
-        end_time_nanos, end_time_seconds = math.modf(end_time)
-        start_time_nanos, start_time_seconds = math.modf(start_time)
+        _, end_time_seconds = math.modf(end_time)
+        _, start_time_seconds = math.modf(start_time)
 
         interval = monitoring_v3.TimeInterval(
             {
@@ -1192,16 +1434,21 @@ class GCP(System):
         for metric in available_metrics:
 
             metrics[metric] = []
+            metric_filters = ['metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric)]
 
-            list_request = monitoring_v3.ListTimeSeriesRequest(
-                name=project_name,
-                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric),
-                interval=interval,
-            )
+            for metric_filter in metric_filters:
+                list_request = monitoring_v3.ListTimeSeriesRequest(
+                    name=project_name,
+                    filter=metric_filter,
+                    interval=interval,
+                )
 
-            results = client.list_time_series(list_request)
-            for result in results:
-                if result.resource.labels.get("function_name") == function_name:
+                results = client.list_time_series(list_request)
+                for result in results:
+                    if result.resource.labels.get("function_name") != function_name and (
+                        not self.uses_gen2 or result.resource.labels.get("service_name") != function_name
+                    ):
+                        continue
                     for point in result.points:
                         metrics[metric] += [
                             {
@@ -1209,6 +1456,8 @@ class GCP(System):
                                 "executions_count": point.value.distribution_value.count,
                             }
                         ]
+                if metrics[metric]:
+                    break
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark) -> int:
         """Force a cold start by updating function configuration.
@@ -1243,6 +1492,10 @@ class GCP(System):
         """
 
         new_versions = []
+        if self.uses_gen2:
+            for func in functions:
+                self._enforce_cold_start(func, code_package)
+            return
         for func in functions:
             new_versions.append((self._enforce_cold_start(func, code_package), func))
             self.cold_start_counter -= 1
@@ -1316,10 +1569,9 @@ class GCP(System):
         Returns:
             Tuple of (is_deployed, current_version_id)
         """
-        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func_name)
-        function_client = self.get_function_client()
-        status_req = function_client.projects().locations().functions().get(name=name)
-        status_res = self._execute_with_retry(status_req)
+        status_res = self._function_details(func_name)
+        if self.uses_gen2:
+            return (status_res.get("state") == "ACTIVE", 0)
         if versionId == -1:
             return (status_res["status"] == "ACTIVE", status_res["versionId"])
         else:
@@ -1334,11 +1586,8 @@ class GCP(System):
         Returns:
             Current version ID of the function
         """
-        name = GCP.get_full_function_name(self.config.project_name, self.config.region, func.name)
-        function_client = self.get_function_client()
-        status_req = function_client.projects().locations().functions().get(name=name)
-        status_res = self._execute_with_retry(status_req)
-        return int(status_res["versionId"])
+        status_res = self._function_details(func.name)
+        return int(status_res["versionId"]) if not self.uses_gen2 else 0
 
     @staticmethod
     def helper_zip(base_directory: str, path: str, archive: zipfile.ZipFile) -> None:

@@ -65,6 +65,7 @@
     },
     "gcp": {
       "region": "europe-west1",
+      "system-variant": "gen1",
       "project_name": "",
       "credentials": ""
     },

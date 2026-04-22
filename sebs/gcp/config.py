@@ -276,6 +276,7 @@ class GCPConfig(Config):
         _resources: Allocated GCP resources
     """
 
+    SYSTEM_VARIANTS = frozenset({"gen1", "gen2"})
     _project_name: str
 
     def __init__(self, credentials: GCPCredentials, resources: GCPResources) -> None:
@@ -288,6 +289,7 @@ class GCPConfig(Config):
         super().__init__(name="gcp")
         self._credentials = credentials
         self._resources = resources
+        self._system_variant = "gen1"
 
     @property
     def region(self) -> str:
@@ -325,6 +327,11 @@ class GCPConfig(Config):
         """
         return self._resources
 
+    @property
+    def system_variant(self) -> str:
+        """Get the selected GCP package deployment variant."""
+        return self._system_variant
+
     @staticmethod
     def deserialize(config: Dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         """Deserialize GCP configuration from dictionary and cache.
@@ -355,20 +362,24 @@ class GCPConfig(Config):
             GCPConfig.initialize(config_obj, config)
 
         # mypy makes a mistake here
-        updated_keys: List[Tuple[str, List[str]]] = [("region", ["gcp", "region"])]  # type: ignore
+        updated_keys: List[Tuple[str, str, List[str]]] = [  # type: ignore
+            ("region", "region", ["gcp", "region"]),
+            ("system_variant", "system-variant", ["gcp", "system-variant"]),
+        ]
         # for each attribute here, check if its version is different than the one provided by
         # user; if yes, then update the value
-        for config_key, keys in updated_keys:
+        for attr_name, config_key, keys in updated_keys:
 
-            old_value = getattr(config_obj, config_key)
+            old_value = getattr(config_obj, attr_name)
+            new_value = config.get(config_key)
             # ignore empty values
-            if getattr(config_obj, config_key) != config[config_key] and config[config_key]:
+            if getattr(config_obj, attr_name) != new_value and new_value:
                 config_obj.logging.info(
                     f"Updating cached key {config_key} with {old_value} "
-                    f"to user-provided value {config[config_key]}."
+                    f"to user-provided value {new_value}."
                 )
-                setattr(config_obj, f"_{config_key}", config[config_key])
-                cache.update_config(val=getattr(config_obj, config_key), keys=keys)
+                setattr(config_obj, f"_{attr_name}", new_value)
+                cache.update_config(val=getattr(config_obj, attr_name), keys=keys)
 
         return config_obj
 
@@ -382,6 +393,13 @@ class GCPConfig(Config):
         """
         config = cast(GCPConfig, cfg)
         config._region = dct["region"]
+        config._system_variant = dct.get("system-variant", "gen1")
+        if config._system_variant not in GCPConfig.SYSTEM_VARIANTS:
+            raise RuntimeError(
+                "Unknown GCP system variant "
+                f"{config._system_variant!r}. Supported variants: "
+                f"{', '.join(sorted(GCPConfig.SYSTEM_VARIANTS))}."
+            )
 
     def serialize(self) -> Dict:
         """Serialize configuration to dictionary for cache storage.
@@ -393,6 +411,7 @@ class GCPConfig(Config):
         out = {
             "name": "gcp",
             "region": self._region,
+            "system-variant": self._system_variant,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }
@@ -407,5 +426,6 @@ class GCPConfig(Config):
             cache: Cache instance to update with configuration data
         """
         cache.update_config(val=self.region, keys=["gcp", "region"])
+        cache.update_config(val=self.system_variant, keys=["gcp", "system-variant"])
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
