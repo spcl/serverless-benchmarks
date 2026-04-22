@@ -64,9 +64,7 @@
             "storage.js",
             "nosql.js"
           ],
-          "packages": {
-            "aws-sdk": "^2.1692.0"
-          }
+          "packages": {}
         }
       }
     },
