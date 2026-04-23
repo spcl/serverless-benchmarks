@@ -302,7 +302,8 @@
           "files": [
             "handler.py",
             "storage.py",
-            "nosql.py"
+            "nosql.py",
+            "setup.py"
           ],
           "packages": [],
           "module_packages": {

@@ -681,10 +681,6 @@ class GCP(System):
             RuntimeError: If function creation or IAM configuration fails
         """
 
-        package = code_package.code_location
-        if package is None:
-            raise RuntimeError("Code location is not set for GCP deployment")
-
         benchmark = code_package.benchmark
         language_runtime = code_package.language_version
         timeout = code_package.benchmark_config.timeout
@@ -699,16 +695,15 @@ class GCP(System):
         if architecture == "arm64" and not container_deployment:
             raise RuntimeError("GCP does not support arm64 for non-container deployments")
 
-        code_package_name = os.path.basename(package)
-        code_package_name = f"{architecture}-{code_package_name}"
-        code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
-        code_prefix = os.path.join(benchmark, code_package_name)
-        storage_client.upload(code_bucket, package, code_prefix)
-
         if container_deployment:
             full_service_name = GCP.get_full_service_name(project_name, location, func_name)
             get_req = self.run_client.projects().locations().services().get(name=full_service_name)  # type: ignore
         else:
+
+            package = code_package.code_location
+            if package is None:
+                raise RuntimeError("Code location is not set for GCP deployment")
+
             full_func_name = GCP.get_full_function_name(project_name, location, func_name)
             code_package_name = cast(str, os.path.basename(package))
             code_package_name = f"{architecture}-{code_package_name}"
@@ -730,7 +725,9 @@ class GCP(System):
             if container_deployment:
                 # In the service model, envs is a list of objects with attributes name and value
                 envs = self._transform_service_envs(envs)  # type: ignore[assignment]
-                self.logging.info("Deploying run container service")
+                self.logging.info(
+                    f"Deploying GCP Cloud Run container service {func_name} from {container_uri}"
+                )
                 parent = f"projects/{project_name}/locations/{location}"
                 create_req = (
                     self.run_client.projects()
@@ -952,20 +949,7 @@ class GCP(System):
             RuntimeError: If function update fails after maximum retries
         """
 
-        if code_package.code_location is None:
-            raise RuntimeError("Code location is not set for GCP deployment")
-
         function = cast(GCPFunction, function)
-        language_runtime = code_package.language_version
-
-        function_cfg = FunctionConfig.from_benchmark(code_package)
-        architecture = function_cfg.architecture.value
-        code_package_name = os.path.basename(code_package.code_location)
-        storage = cast(GCPStorage, self._system_resources.get_storage())
-        code_package_name = f"{architecture}-{code_package_name}"
-
-        bucket = function.code_bucket(code_package.benchmark, storage)
-        storage.upload(bucket, code_package.code_location, code_package_name)
 
         envs = self._generate_function_envs(code_package)
 
@@ -1004,6 +988,19 @@ class GCP(System):
             )
 
         else:
+
+            if code_package.code_location is None:
+                raise RuntimeError("Code location is not set for GCP deployment")
+
+            language_runtime = code_package.language_version
+            function_cfg = FunctionConfig.from_benchmark(code_package)
+            architecture = function_cfg.architecture.value
+            code_package_name = os.path.basename(code_package.code_location)
+            code_package_name = f"{architecture}-{code_package_name}"
+
+            storage = cast(GCPStorage, self._system_resources.get_storage())
+            bucket = function.code_bucket(code_package.benchmark, storage)
+            storage.upload(bucket, code_package.code_location, code_package_name)
 
             self.logging.info(f"Uploaded new code package to {bucket}/{code_package_name}")
             full_func_name = GCP.get_full_function_name(
