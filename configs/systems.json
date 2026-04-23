@@ -69,33 +69,6 @@
             "minio": "7.0.16"
           }
         }
-      },
-      "pypy": {
-        "base_images": {
-          "x64": {
-            "3.11": "pypy:3.11"
-          },
-          "arm64": {
-            "3.11": "pypy:3.11"
-          }
-        },
-        "images": [
-          "run",
-          "build"
-        ],
-        "username": "docker_user",
-        "deployment": {
-          "files": [
-            "storage.py",
-            "nosql.py"
-          ],
-          "packages": [],
-          "module_packages": {
-            "nosql": [
-              "boto3==1.28.3"
-            ]
-          }
-        }
       }
     },
     "architecture": [
@@ -329,39 +302,7 @@
           "files": [
             "handler.py",
             "storage.py",
-            "nosql.py",
-            "setup.py"
-          ],
-          "packages": [],
-          "module_packages": {
-            "storage": [
-              "google-cloud-storage"
-            ],
-            "nosql": [
-              "google-cloud-datastore"
-            ]
-          }
-        }
-      },
-      "pypy": {
-        "base_images": {
-          "x64": {
-            "3.11": "pypy:3.11-slim"
-          },
-          "arm64": {
-            "3.11": "pypy:3.11-slim"
-          }
-        },
-        "images": [
-          "build"
-        ],
-        "username": "docker_user",
-        "deployment": {
-          "files": [
-            "handler.py",
-            "storage.py",
-            "nosql.py",
-            "setup.py"
+            "nosql.py"
           ],
           "packages": [],
           "module_packages": {
