@@ -4,5 +4,5 @@ const timer = ms => new Promise( res => setTimeout(res, ms));
 exports.handler = async function(event) {
   var sleep =  event.sleep;
   timer(sleep*1000);
-  return sleep;
+  return {result: sleep};
 };

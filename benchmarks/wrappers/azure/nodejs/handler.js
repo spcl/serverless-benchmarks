@@ -35,7 +35,7 @@ module.exports = async function(context, req) {
             end: end,
             compute_time: micro,
             results_time: 0,
-            result: {result: result},
+            result: result,
             is_cold: is_cold,
             request_id: context.invocationId
           },
