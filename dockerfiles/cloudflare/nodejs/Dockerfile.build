@@ -1,6 +1,14 @@
 ARG BASE_IMAGE=node:20-slim
 FROM ${BASE_IMAGE}
 
+# useradd, groupmod, gosu (needed by entrypoint.sh to drop privileges)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    passwd curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+ENV GOSU_VERSION=1.14
+RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-$(dpkg --print-architecture)" \
+    && chmod +x /usr/local/bin/gosu
+
 # Install esbuild globally once — benchmark source arrives via bind-mount.
 RUN npm install -g esbuild
 
@@ -9,5 +17,6 @@ COPY dockerfiles/cloudflare_nodejs_installer.sh /sebs/installer.sh
 COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/installer.sh /sebs/entrypoint.sh
 
+ENV PATH=/usr/sbin:$PATH
 CMD ["/bin/bash", "/sebs/installer.sh"]
 ENTRYPOINT ["/sebs/entrypoint.sh"]
