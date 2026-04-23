@@ -71,7 +71,22 @@ class _CloudflareContainerAdapter:
         language_version: str,
         architecture: str,
     ) -> str:
-        """Return the local Docker image tag (Cloudflare containers use wrangler, not a registry)."""
+        """
+        Return a local cache label for the container image.
+
+        Cloudflare container workers do not use a conventional image registry.
+        Instead, `wrangler deploy` reads `./Dockerfile` directly from the
+        package directory, builds the image, and pushes it to Cloudflare's
+        managed registry — all in one step.  SeBS therefore never needs to
+        push an image to an external registry before deployment; this method
+        exists only to satisfy the `ContainerSystemInterface` contract and to
+        provide a stable cache key that `Benchmark` uses to detect whether a
+        previously-built image is still valid.
+
+        The returned string is a local image tag of the form
+        ``<sanitised-benchmark-name>-<language>-<version>:latest``.  It is
+        NOT a pushable URI and is not passed to any registry client.
+        """
         image_name = (
             f"{benchmark.replace('.', '-')}-{language_name}-"
             f"{language_version.replace('.', '')}"
@@ -555,14 +570,19 @@ class Cloudflare(System):
             self.logging.info(f"Worker {worker_name} deployed successfully")
             self.logging.debug(f"Wrangler deploy output: {output}")
 
-            # The container binding needs time to propagate before first invocation
+            # Wait for the worker to become reachable before returning.
+            # Container workers expose /health; native workers are probed
+            # with a lightweight GET to confirm edge propagation.
+            account_id_val = env.get('CLOUDFLARE_ACCOUNT_ID')
+            worker_url = self._build_workers_dev_url(worker_name, account_id_val)
+
             if container_deployment:
                 self.logging.info("Waiting for container worker to initialize...")
-                account_id = env.get('CLOUDFLARE_ACCOUNT_ID')
-                worker_url = self._build_workers_dev_url(worker_name, account_id)
                 self._containers_deployment.wait_for_durable_object_ready(
                     worker_name, worker_url
                 )
+            else:
+                self._wait_for_worker_ready(worker_name, worker_url)
             
             # Keep the container warm for a minimum provisioning window.
             # A flat sleep lets the Durable Object hibernate, which causes the
@@ -593,6 +613,29 @@ class Cloudflare(System):
             error_msg = f"Wrangler deployment failed for worker {worker_name}: {str(e)}"
             self.logging.error(error_msg)
             raise RuntimeError(error_msg)
+
+    def _wait_for_worker_ready(
+        self, worker_name: str, worker_url: str,
+        max_wait_seconds: int = 60, poll_interval: int = 5
+    ) -> None:
+        """Poll a native worker until it responds, confirming edge propagation."""
+        self.logging.info(
+            f"Waiting up to {max_wait_seconds}s for worker {worker_name} to become reachable..."
+        )
+        start = time.time()
+        while time.time() - start < max_wait_seconds:
+            try:
+                resp = requests.get(worker_url, timeout=10)
+                if resp.status_code not in (502, 503, 522, 524):
+                    self.logging.info(f"Worker {worker_name} is reachable (HTTP {resp.status_code}).")
+                    return
+            except requests.exceptions.RequestException:
+                pass
+            time.sleep(poll_interval)
+        self.logging.warning(
+            f"Worker {worker_name} not confirmed reachable after {max_wait_seconds}s; "
+            "proceeding anyway — invocation retries will handle residual propagation delay."
+        )
 
     def _get_workers_dev_subdomain(self, account_id: str) -> Optional[str]:
         """Fetch the workers.dev subdomain for the given account.
