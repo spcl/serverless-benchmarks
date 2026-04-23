@@ -50,9 +50,6 @@ class nosql {
   }
 
   async update(table_name, primary_key, secondary_key, updates) {
-    if (Object.keys(updates).length === 0) {
-      return;
-    }
 
     const key = {};
     key[primary_key[0]] = primary_key[1];

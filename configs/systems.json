@@ -64,7 +64,10 @@
             "storage.js",
             "nosql.js"
           ],
-          "packages": {}
+          "packages": {
+            "aws-sdk": "2.1692.0",
+            "minio": "7.0.16"
+          }
         }
       }
     },
@@ -402,7 +405,7 @@
             "nosql.js"
           ],
           "packages": {
-            "aws-sdk": "^2.1692.0",
+            "aws-sdk": "2.1692.0",
             "minio": "7.0.16"
           }
         }
