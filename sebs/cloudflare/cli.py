@@ -2,84 +2,59 @@ import io
 import logging
 import os
 import tarfile
+from typing import Optional
 
 import docker
 
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingBase, get_resource_path
+from sebs.utils import LoggingBase
 
 
 class CloudflareCLI(LoggingBase):
     """
     Manages a Docker container with Cloudflare Wrangler and related tools pre-installed.
-    
+
     This approach isolates Cloudflare CLI tools (wrangler, pywrangler) from the host system,
     avoiding global npm/uv installations and ensuring consistent behavior across platforms.
     """
 
+    _instance: Optional["CloudflareCLI"] = None
+
+    @staticmethod
+    def get_instance(
+        system_config: SeBSConfig, docker_client: docker.client
+    ) -> "CloudflareCLI":
+        """Return the shared CloudflareCLI instance, creating it on first use.
+
+        Container and native workers deployments share one underlying CLI
+        container so that combined runs don't spawn duplicates.
+        """
+        if CloudflareCLI._instance is None:
+            CloudflareCLI._instance = CloudflareCLI(system_config, docker_client)
+        return CloudflareCLI._instance
+
     def __init__(self, system_config: SeBSConfig, docker_client: docker.client):
         super().__init__()
+        self._stopped = False
 
         repo_name = system_config.docker_repository()
         image_name = "manage.cloudflare"
-        full_image_name = repo_name + ":" + image_name
-        
-        # Try to get the image, pull if not found, build if pull fails
         try:
-            docker_client.images.get(full_image_name)
-            logging.info(f"Using existing Docker image: {full_image_name}")
+            docker_client.images.get(repo_name + ":" + image_name)
         except docker.errors.ImageNotFound:
-            # Try to pull the image first
             try:
-                logging.info(f"Pulling Docker image {full_image_name}...")
-                docker_client.images.pull(repo_name, image_name)
-                logging.info(f"Successfully pulled {full_image_name}")
-            except docker.errors.APIError as pull_error:
-                # If pull fails, try to build the image locally
-                logging.info(f"Pull failed: {pull_error}. Building image locally...")
-                
-                # Find the Dockerfile path
-                dockerfile_path = str(
-                    get_resource_path(
-                        "dockerfiles", "cloudflare", "Dockerfile.manage"
+                logging.info(
+                    "Docker pull of image {repo}:{image}".format(
+                        repo=repo_name, image=image_name
                     )
                 )
+                docker_client.images.pull(repo_name, image_name)
+            except docker.errors.APIError:
+                raise RuntimeError("Docker pull of image {} failed!".format(image_name))
 
-                if not os.path.exists(dockerfile_path):
-                    raise RuntimeError(
-                        f"Dockerfile not found at {dockerfile_path}. "
-                        "Cannot build Cloudflare CLI container."
-                    )
-
-                # Build context must contain dockerfiles/entrypoint.sh (COPY'd by
-                # Dockerfile.manage). In git mode this is the repo root; in package-
-                # install mode it is the sebs/ package dir — both hold via get_resource_path().
-                build_path = str(get_resource_path())
-                logging.info(f"Building {full_image_name} from {dockerfile_path}...")
-                
-                try:
-                    image, build_logs = docker_client.images.build(
-                        path=build_path,
-                        dockerfile=dockerfile_path,
-                        tag=full_image_name,
-                        rm=True,
-                        pull=True
-                    )
-                    
-                    # Log build output
-                    for log in build_logs:
-                        if 'stream' in log:
-                            logging.debug(log['stream'].strip())
-                    
-                    logging.info(f"Successfully built {full_image_name}")
-                except docker.errors.BuildError as build_error:
-                    raise RuntimeError(
-                        f"Failed to build Docker image {full_image_name}: {build_error}"
-                    )
-        
         # Start the container in detached mode
         self.docker_instance = docker_client.containers.run(
-            image=full_image_name,
+            image=repo_name + ":" + image_name,
             command="/bin/bash",
             environment={
                 "CONTAINER_UID": str(os.getuid()),
@@ -213,20 +188,6 @@ class CloudflareCLI(LoggingBase):
         out = self.execute(cmd, env=env)
         return out.decode("utf-8")
 
-    def npm_install(self, package_dir: str) -> str:
-        """
-        Run npm install in a directory.
-        
-        Args:
-            package_dir: Path to package directory in container
-            
-        Returns:
-            npm output
-        """
-        cmd = "cd {} && npm install".format(package_dir)
-        out = self.execute(cmd)
-        return out.decode("utf-8")
-
     def docker_build(self, package_dir: str, image_tag: str) -> str:
         """
         Build a Docker image for container deployment.
@@ -243,6 +204,11 @@ class CloudflareCLI(LoggingBase):
         return out.decode("utf-8")
 
     def shutdown(self):
-        """Shutdown Docker instance."""
+        """Shutdown Docker instance. Idempotent — safe to call multiple times."""
+        if self._stopped:
+            return
+        self._stopped = True
         self.logging.info("Stopping Cloudflare CLI Docker instance")
         self.docker_instance.stop()
+        if CloudflareCLI._instance is self:
+            CloudflareCLI._instance = None
