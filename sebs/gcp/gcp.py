@@ -51,7 +51,7 @@ from sebs.faas.system import System
 from sebs.gcp.config import GCPConfig
 from sebs.gcp.resources import GCPSystemResources
 from sebs.gcp.storage import GCPStorage
-from sebs.gcp.function import GCPFunction
+from sebs.gcp.function import GCPFunction, FunctionDeploymentType
 from sebs.gcp.container import GCRContainer
 from sebs.utils import LoggingHandlers
 from sebs.sebs_types import Language
@@ -816,18 +816,30 @@ class GCP(System):
                 self._wait_for_active_status(func_name)
                 self._allow_public_access(func_name, full_func_name, container_deployment)
 
+            deployment_type = (
+                FunctionDeploymentType.CONTAINER_GEN1
+                if container_deployment
+                else FunctionDeploymentType.FUNCTION_GEN1
+            )
+
             function = GCPFunction(
-                func_name, benchmark, code_package.hash, function_cfg, code_bucket
+                func_name, benchmark, code_package.hash, function_cfg, deployment_type, code_bucket
             )
         else:
             # if result is not empty, then function does exists
             self.logging.info("Function {} exists on GCP, update the instance.".format(func_name))
 
+            deployment_type = (
+                FunctionDeploymentType.CONTAINER_GEN1
+                if container_deployment
+                else FunctionDeploymentType.FUNCTION_GEN1
+            )
             function = GCPFunction(
                 name=func_name,
                 benchmark=benchmark,
                 code_package_hash=code_package.hash,
                 cfg=function_cfg,
+                deployment_type=deployment_type,
                 bucket=code_bucket,
             )
 

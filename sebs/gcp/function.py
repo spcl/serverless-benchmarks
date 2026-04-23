@@ -14,12 +14,54 @@ Example:
         config = FunctionConfig(memory=256, timeout=60, runtime="python39")
         function = GCPFunction("my-function", "benchmark-name", "hash123", config)
 """
+from __future__ import annotations
 
+from enum import Enum
 from typing import cast, Dict, Optional
 
 from sebs.faas.config import Resources
 from sebs.faas.function import Function, FunctionConfig
 from sebs.gcp.storage import GCPStorage
+
+
+class FunctionDeploymentType(str, Enum):
+    """Enumeration of deployment methods on GCP.
+
+    - FUNCTION_GEN1: Original Google Cloud Functions.
+    - FUNCTION_GEN2: Google Cloud Functions gen2, based on Cloud Run.
+    - CONTAINER_GEN1: Google Cloud Run containers with gVisor.
+    - CONTAINER_GEN2: Google Cloud Run containers with a full microVM.
+    """
+
+    FUNCTION_GEN1 = "function-gen1"
+    FUNCTION_GEN2 = "function-gen1"
+    CONTAINER_GEN1 = "container-gen1"
+    CONTAINER_GEN2 = "container-gen2"
+
+    @property
+    def is_container(self) -> bool:
+        return self.value in [
+            FunctionDeploymentType.CONTAINER_GEN1,
+            FunctionDeploymentType.CONTAINER_GEN2,
+        ]
+
+    @staticmethod
+    def deserialize(val: str) -> FunctionDeploymentType:
+        """Deserialize a string value to a FunctionDeploymentEngine enum.
+
+        Args:
+            val: String value to convert to enum
+
+        Returns:
+            FunctionDeploymentEngine: Corresponding enum value
+
+        Raises:
+            Exception: If the value doesn't match any enum member
+        """
+        for member in FunctionDeploymentType:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown GCP function deployment type {val}")
 
 
 class GCPFunction(Function):
@@ -38,6 +80,7 @@ class GCPFunction(Function):
         benchmark: str,
         code_package_hash: str,
         cfg: FunctionConfig,
+        deployment_type: FunctionDeploymentType,
         bucket: Optional[str] = None,
     ) -> None:
         """Initialize a GCP Cloud Function instance.
@@ -51,6 +94,7 @@ class GCPFunction(Function):
         """
         super().__init__(benchmark, name, code_package_hash, cfg)
         self.bucket = bucket
+        self._deployment_type = deployment_type
 
     @staticmethod
     def typename() -> str:
@@ -60,6 +104,10 @@ class GCPFunction(Function):
             Type name string for GCP functions
         """
         return "GCP.GCPFunction"
+
+    @property
+    def deployment_type(self) -> FunctionDeploymentType:
+        return self._deployment_type
 
     def serialize(self) -> Dict:
         """Serialize function to dictionary for cache storage.
@@ -71,6 +119,7 @@ class GCPFunction(Function):
         return {
             **super().serialize(),
             "bucket": self.bucket,
+            "deployment_type": self.deployment_type,
         }
 
     @staticmethod
@@ -98,6 +147,7 @@ class GCPFunction(Function):
             cached_config["benchmark"],
             cached_config["hash"],
             cfg,
+            cached_config["deployment_type"],
             cached_config["bucket"],
         )
         for trigger in cached_config["triggers"]:
