@@ -784,22 +784,36 @@ class GCP(System):
                     )  # type: ignore[assignment]
                 )
 
-            self._execute_with_retry(create_req)
-            self.logging.info(
-                f"Function {func_name} is creating - GCP build&deployment is started!"
-            )
-
-            # Poll build status until completion or failure
-            build_found = self._wait_for_build_and_poll(func_name)
-            if not build_found:
-                raise RuntimeError(f"No build operation found for {func_name}!")
-
-            # Wait for deployment to become ACTIVE
-            self._wait_for_active_status(func_name)
-
             if container_deployment:
+                res = create_req.execute()
+
+                self.logging.info(
+                    f"Creating Cloud Run service {func_name}, waiting for operation completion..."
+                )
+
+                op_name = res["name"]
+                op_res = (
+                    self.run_client.projects().locations().operations().wait(name=op_name).execute()
+                )
+
+                if "error" in op_res:
+                    raise RuntimeError(f"Cloud Run creation failed: {op_res['error']}")
+
+                self.logging.info(f"Cloud Run service {func_name} created and ready.")
                 self._allow_public_access(func_name, full_service_name, container_deployment)
             else:
+                self._execute_with_retry(create_req)
+                self.logging.info(
+                    f"Function {func_name} is creating - GCP build&deployment is started!"
+                )
+
+                # Poll build status until completion or failure
+                build_found = self._wait_for_build_and_poll(func_name)
+                if not build_found:
+                    raise RuntimeError(f"No build operation found for {func_name}!")
+
+                # Wait for deployment to become ACTIVE
+                self._wait_for_active_status(func_name)
                 self._allow_public_access(func_name, full_func_name, container_deployment)
 
             function = GCPFunction(
@@ -816,7 +830,11 @@ class GCP(System):
                 cfg=function_cfg,
                 bucket=code_bucket,
             )
-            self._allow_public_access(func_name, full_func_name, container_deployment)
+
+            if container_deployment:
+                self._allow_public_access(func_name, full_service_name, container_deployment)
+            else:
+                self._allow_public_access(func_name, full_func_name, container_deployment)
             self.update_function(function, code_package, container_deployment, container_uri)
 
         # Add LibraryTrigger to a new function
