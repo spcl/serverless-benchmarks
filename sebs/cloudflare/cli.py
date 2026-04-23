@@ -62,7 +62,8 @@ class CloudflareCLI(LoggingBase):
                 "CONTAINER_USER": "docker_user",
             },
             volumes={
-                # Mount Docker socket for wrangler container deployments
+                # Mount Docker socket so wrangler can build and push images to
+                # Cloudflare's registry during `wrangler deploy` for container workers.
                 "/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"}
             },
             remove=True,
@@ -186,21 +187,6 @@ class CloudflareCLI(LoggingBase):
         """
         cmd = "cd {} && pywrangler deploy".format(package_dir)
         out = self.execute(cmd, env=env)
-        return out.decode("utf-8")
-
-    def docker_build(self, package_dir: str, image_tag: str) -> str:
-        """
-        Build a Docker image for container deployment.
-        
-        Args:
-            package_dir: Path to package directory in container
-            image_tag: Tag for the Docker image
-            
-        Returns:
-            Docker build output
-        """
-        cmd = "cd {} && docker build --no-cache -t {} .".format(package_dir, image_tag)
-        out = self.execute(cmd)
         return out.decode("utf-8")
 
     def shutdown(self):
