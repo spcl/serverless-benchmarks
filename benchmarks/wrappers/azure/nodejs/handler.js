@@ -1,12 +1,17 @@
 // Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
-
 const path = require('path'), fs = require('fs');
 
+if('NOSQL_STORAGE_DATABASE' in process.env) {
+  const nosql = require('./nosql');
+  nosql.nosql.get_instance(
+    process.env['NOSQL_STORAGE_DATABASE'],
+    process.env['NOSQL_STORAGE_URL'],
+    process.env['NOSQL_STORAGE_CREDS']
+  );
+}
+
 module.exports = async function(context, req) {
-  if('connection_string' in req.body) {
-    process.env['STORAGE_CONNECTION_STRING'] = req.body.connection_string
-  }
   var begin = Date.now()/1000;
   var start = process.hrtime();
   var func = require('./function');
@@ -30,7 +35,7 @@ module.exports = async function(context, req) {
             end: end,
             compute_time: micro,
             results_time: 0,
-            result: {result: result},
+            result: result,
             is_cold: is_cold,
             request_id: context.invocationId
           },

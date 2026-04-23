@@ -61,9 +61,10 @@
         "username": "docker_user",
         "deployment": {
           "files": [
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
-          "packages": []
+          "packages": {}
         }
       }
     },
@@ -102,10 +103,14 @@
       "nodejs": {
         "base_images": {
           "x64": {
-            "16": "amazon/aws-lambda-nodejs:16.2024.09.06.14"
+            "24": "amazon/aws-lambda-nodejs:24.2026.04.22.11-x86_64",
+            "22": "amazon/aws-lambda-nodejs:22.2026.04.22.11-x86_64",
+            "20": "amazon/aws-lambda-nodejs:20.2026.04.22.11-x86_64"
           },
           "arm64": {
-            "16": "amazon/aws-lambda-nodejs:16.2024.09.06.13"
+            "24": "amazon/aws-lambda-nodejs:24.2026.04.22.11-arm64",
+            "22": "amazon/aws-lambda-nodejs:22.2026.04.22.11-arm64",
+            "20": "amazon/aws-lambda-nodejs:20.2026.04.22.11-arm64"
           }
         },
         "images": [
@@ -114,7 +119,8 @@
         "deployment": {
           "files": [
             "handler.js",
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
           "packages": {
             "uuid": "3.4.0"
@@ -216,9 +222,11 @@
         "deployment": {
           "files": [
             "handler.js",
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
           "packages": {
+            "@azure/cosmos": "^4.3.0",
             "@azure/storage-blob": "^12.0.0",
             "uuid": "3.4.0"
           }
@@ -299,9 +307,11 @@
         "deployment": {
           "files": [
             "handler.js",
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
           "packages": {
+            "@google-cloud/datastore": "^9.1.0",
             "@google-cloud/storage": "^4.0.0",
             "uuid": "3.4.0"
           }
@@ -388,9 +398,11 @@
         "deployment": {
           "files": [
             "index.js",
-            "storage.js"
+            "storage.js",
+            "nosql.js"
           ],
           "packages": {
+            "aws-sdk": "^2.1692.0",
             "minio": "7.0.16"
           }
         }

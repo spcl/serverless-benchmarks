@@ -49,7 +49,14 @@ benchmarks_python = [
     "504.dna-visualisation",  # DNA visualization
 ]
 
-benchmarks_nodejs = ["010.sleep", "110.dynamic-html", "120.uploader", "210.thumbnailer"]
+benchmarks_nodejs = [
+    "010.sleep",
+    "110.dynamic-html",
+    "120.uploader",
+    "130.crud-api",
+    "210.thumbnailer",
+    "311.compression",
+]
 
 benchmarks_java = ["010.sleep", "110.dynamic-html"]
 

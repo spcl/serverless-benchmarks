@@ -3,7 +3,7 @@ FROM ${BASE_IMAGE}
 ARG TARGETARCH
 
 # useradd, groupmod
-RUN yum install -y shadow-utils cmake curl libcurl libcurl-devel
+RUN dnf swap -y curl-minimal curl && dnf install -y shadow-utils
 ENV GOSU_VERSION 1.14
 # https://github.com/tianon/gosu/releases/tag/1.14
 # key https://keys.openpgp.org/search?q=tianon%40debian.org

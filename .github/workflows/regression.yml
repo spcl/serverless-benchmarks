@@ -22,11 +22,11 @@ jobs:
             architecture: "arm64"
           - platform: aws
             language: nodejs
-            version: "16"
+            version: "24"
             architecture: "x64"
           - platform: aws
             language: nodejs
-            version: "16"
+            version: "24"
             architecture: "arm64"
           - platform: aws
             language: cpp

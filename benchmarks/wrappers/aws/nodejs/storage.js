@@ -1,16 +1,16 @@
 // Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
-const aws = require('aws-sdk'),
-      fs = require('fs'),
-      path = require('path'),
-      uuid = require('uuid'),
-      util = require('util'),
-      stream = require('stream');
+const fs = require('fs'), path = require('path'), uuid = require('uuid'), util = require('util'), stream = require('stream');
+
+const { pipeline } = require("stream/promises");
+
+const { Upload } = require('@aws-sdk/lib-storage');
+const { S3, GetObjectCommand, ListObjectsV2Command} = require('@aws-sdk/client-s3');
 
 class aws_storage {
 
   constructor() {
-    this.S3 = new aws.S3();
+    this.S3 = new S3();
   }
 
   unique_name(file) {
@@ -23,13 +23,34 @@ class aws_storage {
     var upload_stream = fs.createReadStream(filepath);
     let uniqueName = this.unique_name(file);
     let params = {Bucket: bucket, Key: uniqueName, Body: upload_stream};
-    var upload = this.S3.upload(params);
-    return [uniqueName, upload.promise()];
+    var upload = new Upload({
+      client: this.S3,
+      params
+    });
+    return [uniqueName, upload.done()];
   };
 
-  download(bucket, file, filepath) {
-    var file = fs.createWriteStream(filepath);
-    this.S3.getObject( {Bucket: bucket, Key: file} ).createReadStream().pipe(file);
+  async download(bucket, file, filepath) {
+    var file_stream = fs.createWriteStream(filepath);
+    const response = await this.S3.send(new GetObjectCommand({ Bucket: bucket, Key: file }));
+    await pipeline(response.Body, file_stream);
+  };
+
+  async downloadDirectory(bucket, prefix, downloadPath) {
+    const response = await this.S3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }));
+
+    if (!response.Contents) {
+      throw new Error(`No objects found in bucket '${bucket}' with prefix '${prefix}'`);
+    }
+
+    const downloadPromises = response.Contents.map(obj => {
+      const fileName = obj.Key;
+      const pathToFile = path.dirname(fileName);
+      fs.mkdirSync(path.join(downloadPath, pathToFile), { recursive: true });
+      return this.download(bucket, fileName, path.join(downloadPath, fileName));
+    });
+
+    await Promise.all(downloadPromises);
   };
 
   uploadStream(bucket, file) {
@@ -37,15 +58,19 @@ class aws_storage {
     let uniqueName = this.unique_name(file);
     // putObject won't work correctly for streamed data (length has to be known before)
     // https://stackoverflow.com/questions/38442512/difference-between-upload-and-putobject-for-uploading-a-file-to-s3
-    var upload = this.S3.upload( {Bucket: bucket, Key: uniqueName, Body: write_stream} );
-    return [write_stream, upload.promise(), uniqueName];
+    var upload = new Upload({
+      client: this.S3,
+      params: {Bucket: bucket, Key: uniqueName, Body: write_stream}
+    });
+    return [write_stream, upload.done(), uniqueName];
   };
 
   // We return a promise to match the API for other providers
   downloadStream(bucket, file) {
-    // AWS.Request -> read stream
-    let downloaded = this.S3.getObject( {Bucket: bucket, Key: file} ).createReadStream();
-    return Promise.resolve(downloaded);
+    return this.S3.send(new GetObjectCommand({
+      Bucket: bucket,
+      Key: file
+    })).then(response => response.Body);
   };
-};
+}
 exports.storage = aws_storage;

@@ -2,6 +2,11 @@
 
 const path = require('path'), fs = require('fs');
 
+if('NOSQL_STORAGE_DATABASE' in process.env) {
+  const nosql = require('./function/nosql');
+  nosql.nosql.get_instance(process.env['NOSQL_STORAGE_DATABASE']);
+}
+
 exports.handler = async function(req, res) {
   var begin = Date.now()/1000;
   var start = process.hrtime();
@@ -25,7 +30,7 @@ exports.handler = async function(req, res) {
           end: end,
           compute_time: micro,
           results_time: 0,
-          result: {result: result},
+          result: result,
           is_cold: is_cold,
           request_id: req.headers["function-execution-id"]
         });

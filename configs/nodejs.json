@@ -8,7 +8,7 @@
     "container_deployment": true,
     "runtime": {
       "language": "nodejs",
-      "version": "16"
+      "version": "20"
     },
     "type": "invocation-overhead",
     "perf-cost": {
