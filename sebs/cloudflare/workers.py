@@ -9,8 +9,7 @@ import os
 import re
 import shutil
 import json
-import io
-import tarfile
+from importlib.resources import files
 try:
     import tomllib  # Python 3.11+
 except ImportError:
@@ -25,7 +24,6 @@ from typing import Optional, Tuple
 from sebs.benchmark import Benchmark
 from sebs.cloudflare.cli import CloudflareCLI
 from sebs.cloudflare.pyodide_packages import get_canonical_pyodide_name
-from sebs.utils import get_resource_path
 
 
 class CloudflareWorkersDeployment:
@@ -82,11 +80,7 @@ class CloudflareWorkersDeployment:
             Path to the generated wrangler.toml file
         """
         # Load template
-        template_path = os.path.join(
-            os.path.dirname(__file__),
-            "templates",
-            "wrangler-worker.toml"
-        )
+        template_path = files("sebs.cloudflare").joinpath("templates", "wrangler-worker.toml")
         with open(template_path, 'rb') as f:
             config = tomllib.load(f)
 
@@ -196,13 +190,14 @@ class CloudflareWorkersDeployment:
         Returns:
             Tuple of (package_path, package_size, container_uri)
         """
-        # Install dependencies and bundle
+        # Install dependencies and bundle.
+        # Dependency installation (npm install / pip install) is handled by
+        # Benchmark.install_dependencies() via the canonical SeBS build-image
+        # pipeline (bind-mount + /sebs/installer.sh).  package_code only needs
+        # to do the language-specific file preparation that happens before or
+        # after that step.
         if language_name == "nodejs":
-            # Build via Dockerfile.build (npm install + esbuild + __require patching),
-            # then extract the produced dist/ back into the package directory.
-            # This mirrors how container deployments use their Dockerfile.function — the
-            # only difference is which Dockerfile is selected.
-            self._build_worker_and_extract_dist(directory, is_cached)
+            pass  # install_dependencies handles npm install + esbuild bundle
 
         elif language_name == "python":
             requirements_file = os.path.join(directory, "requirements.txt")
@@ -274,10 +269,8 @@ class CloudflareWorkersDeployment:
                         dest = os.path.join(directory, "function", thing)
                         shutil.move(src, dest)
 
-                # Early validation: build Dockerfile.build to confirm the
-                # generated pyproject.toml parses and the workers-py toolchain
-                # is wired up.  Deploy still runs pywrangler from Dockerfile.manage.
-                self._build_python_worker(directory, is_cached)
+                # Validation (pyproject.toml parse + pywrangler check) is
+                # performed by install_dependencies via cloudflare_python_installer.sh.
 
         # Create package structure
         CONFIG_FILES = {
@@ -316,148 +309,6 @@ class CloudflareWorkersDeployment:
         self.logging.info(f"Worker package size: {mbytes:.2f} MB (Python: missing vendored modules)")
 
         return (directory, total_size, "")
-
-    def _build_worker_and_extract_dist(self, directory: str, is_cached: bool) -> None:
-        """Build the Node.js worker bundle via Dockerfile.build and extract dist/.
-
-        Runs npm install, esbuild (build.js), and the __require→import post-
-        processing step (postprocess.js) inside a throwaway Docker image built
-        from Dockerfile.build.  Only the resulting dist/ directory is extracted
-        back to *directory*; intermediate artifacts (node_modules, build image)
-        stay inside Docker.
-
-        If *is_cached* is True and dist/ already exists the build is skipped.
-        """
-        import docker as docker_module
-
-        dist_dir = os.path.join(directory, "dist")
-        if is_cached and os.path.exists(dist_dir):
-            self.logging.info("Cached dist/ found — skipping worker bundle build.")
-            return
-
-        dockerfile_src = str(
-            get_resource_path("dockerfiles", "cloudflare", "nodejs", "Dockerfile.build")
-        )
-        dockerfile_dest = os.path.join(directory, "Dockerfile.build")
-        dockerignore_dest = os.path.join(directory, ".dockerignore")
-
-        # Keep the build context lean: exclude generated / heavy artifacts.
-        dockerignore_content = "node_modules\ndist\nDockerfile.build\n.dockerignore\n"
-        shutil.copy2(dockerfile_src, dockerfile_dest)
-        with open(dockerignore_dest, "w") as f:
-            f.write(dockerignore_content)
-
-        # Use base directory name + pid for a unique, collision-free tag.
-        image_tag = f"sebs-worker-build-{os.path.basename(directory)}-{os.getpid()}:latest"
-
-        try:
-            self.logging.info(f"Building worker bundle via Dockerfile.build in {directory}")
-            _, build_logs = self.docker_client.images.build(
-                path=directory,
-                dockerfile="Dockerfile.build",
-                tag=image_tag,
-                rm=True,
-            )
-            for log in build_logs:
-                if "stream" in log:
-                    self.logging.debug(log["stream"].strip())
-                elif "error" in log:
-                    raise RuntimeError(f"Docker build error: {log['error']}")
-
-            # Extract dist/ from the built image.
-            self.logging.info("Extracting built dist/ from worker build image...")
-            container = self.docker_client.containers.create(image_tag)
-            try:
-                bits, _ = container.get_archive("/worker/dist")
-                file_obj = io.BytesIO()
-                for chunk in bits:
-                    file_obj.write(chunk)
-                file_obj.seek(0)
-                if os.path.exists(dist_dir):
-                    shutil.rmtree(dist_dir)
-                with tarfile.open(fileobj=file_obj) as tar:
-                    tar.extractall(directory)
-                self.logging.info(f"dist/ extracted to {directory}")
-            finally:
-                container.remove()
-
-        except docker_module.errors.BuildError as e:
-            raise RuntimeError(f"Worker bundle build failed: {e}")
-        finally:
-            # Remove the temporary files we injected into the build context.
-            for tmp in (dockerfile_dest, dockerignore_dest):
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-            try:
-                self.docker_client.images.remove(image_tag, force=True)
-            except Exception:
-                pass
-
-    def _build_python_worker(self, directory: str, is_cached: bool) -> None:
-        """Validate a Python worker package via Dockerfile.build.
-
-        Mirrors _build_worker_and_extract_dist for structural symmetry with
-        the Node.js flow and with Dockerfile.build layouts in other clouds.
-        Unlike Node.js (which needs esbuild + __require→import patching),
-        Pyodide Worker deploys don't require a vendored bundle — Cloudflare
-        resolves Pyodide packages server-side at deploy time via pywrangler.
-        So this image only validates that the generated pyproject.toml parses
-        and that workers-py is callable; nothing is extracted.
-
-        A marker file is used for caching: once validation succeeds it is
-        skipped on subsequent builds of the same directory.
-        """
-        import docker as docker_module
-
-        marker = os.path.join(directory, ".build-validated")
-        if is_cached and os.path.exists(marker):
-            self.logging.info("Cached Python build marker — skipping validation.")
-            return
-
-        dockerfile_src = str(
-            get_resource_path("dockerfiles", "cloudflare", "python", "Dockerfile.build")
-        )
-        dockerfile_dest = os.path.join(directory, "Dockerfile.build")
-        dockerignore_dest = os.path.join(directory, ".dockerignore")
-
-        dockerignore_content = (
-            "python_modules\n.venv\nDockerfile.build\n.dockerignore\n"
-        )
-        shutil.copy2(dockerfile_src, dockerfile_dest)
-        with open(dockerignore_dest, "w") as f:
-            f.write(dockerignore_content)
-
-        image_tag = f"sebs-python-build-{os.path.basename(directory)}-{os.getpid()}:latest"
-
-        try:
-            self.logging.info(
-                f"Validating Python worker via Dockerfile.build in {directory}"
-            )
-            _, build_logs = self.docker_client.images.build(
-                path=directory,
-                dockerfile="Dockerfile.build",
-                tag=image_tag,
-                rm=True,
-            )
-            for log in build_logs:
-                if "stream" in log:
-                    self.logging.debug(log["stream"].strip())
-                elif "error" in log:
-                    raise RuntimeError(f"Docker build error: {log['error']}")
-
-            with open(marker, "w") as f:
-                f.write("ok")
-
-        except docker_module.errors.BuildError as e:
-            raise RuntimeError(f"Python worker validation failed: {e}")
-        finally:
-            for tmp in (dockerfile_dest, dockerignore_dest):
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-            try:
-                self.docker_client.images.remove(image_tag, force=True)
-            except Exception:
-                pass
 
     def shutdown(self):
         """Shutdown CLI container if initialized."""

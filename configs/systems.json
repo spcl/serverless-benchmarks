@@ -447,7 +447,7 @@
             "3.12": "python:3.12-slim"
           }
         },
-        "images": [],
+        "images": ["build"],
         "supported_variants": ["default", "cloudflare"],
         "deployment": {
           "files": [
@@ -481,7 +481,7 @@
             "20": "node:20-slim"
           }
         },
-        "images": [],
+        "images": ["build"],
         "supported_variants": ["default", "cloudflare"],
         "deployment": {
           "files": [

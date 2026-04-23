@@ -1,4 +1,5 @@
-FROM python:3.11-slim
+ARG BASE_IMAGE=python:3.11-slim
+FROM ${BASE_IMAGE}
 
 # curl + ca-certificates are required by the uv installer; git is sometimes
 # pulled in by workers-py when it resolves VCS-declared deps.
@@ -15,18 +16,11 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
 
 ENV PATH="/root/.local/bin:/root/.local/share/uv/tools/workers-py/bin:${PATH}"
 
-WORKDIR /worker
+# Benchmark source arrives via bind-mount at /mnt/function — no COPY . . here.
+RUN mkdir -p /sebs/
+COPY dockerfiles/cloudflare_python_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/installer.sh /sebs/entrypoint.sh
 
-# Build context is populated by sebs; .venv / python_modules / Dockerfile.build
-# itself are excluded via the .dockerignore injected alongside this file.
-COPY . .
-
-# Validate that the generated pyproject.toml parses and that the workers-py
-# toolchain is installed and callable. Pyodide package resolution itself
-# happens at deploy time inside pywrangler (Cloudflare re-resolves Pyodide
-# packages server-side), so there is no vendored dist/ to extract — this
-# image exists purely for early failure detection on malformed packages.
-RUN if [ -f pyproject.toml ]; then \
-        python -c "import tomllib; tomllib.load(open('pyproject.toml','rb'))" && \
-        pywrangler --version; \
-    fi
+CMD ["/bin/bash", "/sebs/installer.sh"]
+ENTRYPOINT ["/sebs/entrypoint.sh"]

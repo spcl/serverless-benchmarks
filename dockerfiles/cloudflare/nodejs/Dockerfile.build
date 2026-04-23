@@ -1,16 +1,13 @@
-FROM node:20-slim
+ARG BASE_IMAGE=node:20-slim
+FROM ${BASE_IMAGE}
 
-WORKDIR /worker
+# Install esbuild globally once — benchmark source arrives via bind-mount.
+RUN npm install -g esbuild
 
-# Copy source files (node_modules and dist are excluded via .dockerignore)
-COPY . .
+RUN mkdir -p /sebs/
+COPY dockerfiles/cloudflare_nodejs_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/installer.sh /sebs/entrypoint.sh
 
-# Install production dependencies + esbuild (needed by build.js)
-RUN npm install --production && npm install --force esbuild
-
-# Bundle all source files with esbuild into dist/
-RUN node build.js
-
-# Patch esbuild's dynamic __require("node:…") calls to static ESM imports
-# so that the Cloudflare Workers ESM runtime can resolve built-in modules.
-RUN node postprocess.js
+CMD ["/bin/bash", "/sebs/installer.sh"]
+ENTRYPOINT ["/sebs/entrypoint.sh"]
