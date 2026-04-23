@@ -28,7 +28,21 @@ class gcp_storage {
   download(container, file, filepath) {
     let bucket = this.storage.bucket(container);
     var file = bucket.file(file);
-    file.download({destination: filepath});
+    return file.download({destination: filepath});
+  };
+
+  async downloadDirectory(container, prefix, downloadPath) {
+    let bucket = this.storage.bucket(container);
+    const [files] = await bucket.getFiles({ prefix: prefix });
+
+    const downloadPromises = files.map(file => {
+      const fileName = file.name;
+      const pathToFile = path.dirname(fileName);
+      fs.mkdirSync(path.join(downloadPath, pathToFile), { recursive: true });
+      return this.download(container, fileName, path.join(downloadPath, fileName));
+    });
+
+    await Promise.all(downloadPromises);
   };
 
   uploadStream(container, file) {

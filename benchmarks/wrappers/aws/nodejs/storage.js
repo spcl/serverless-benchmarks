@@ -5,7 +5,7 @@ const fs = require('fs'), path = require('path'), uuid = require('uuid'), util =
 const { pipeline } = require("stream/promises");
 
 const { Upload } = require('@aws-sdk/lib-storage');
-const { S3, GetObjectCommand} = require('@aws-sdk/client-s3');
+const { S3, GetObjectCommand, ListObjectsV2Command} = require('@aws-sdk/client-s3');
 
 class aws_storage {
 
@@ -34,6 +34,23 @@ class aws_storage {
     var file_stream = fs.createWriteStream(filepath);
     const response = await this.S3.send(new GetObjectCommand({ Bucket: bucket, Key: file }));
     await pipeline(response.Body, file_stream);
+  };
+
+  async downloadDirectory(bucket, prefix, downloadPath) {
+    const response = await this.S3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }));
+
+    if (!response.Contents) {
+      throw new Error(`No objects found in bucket '${bucket}' with prefix '${prefix}'`);
+    }
+
+    const downloadPromises = response.Contents.map(obj => {
+      const fileName = obj.Key;
+      const pathToFile = path.dirname(fileName);
+      fs.mkdirSync(path.join(downloadPath, pathToFile), { recursive: true });
+      return this.download(bucket, fileName, path.join(downloadPath, fileName));
+    });
+
+    await Promise.all(downloadPromises);
   };
 
   uploadStream(bucket, file) {
