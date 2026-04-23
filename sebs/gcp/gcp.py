@@ -173,6 +173,15 @@ class GCP(System):
         """
         return self.function_client
 
+    @property
+    def container_client(self) -> GCRContainer | None:
+        """Get the AWS-specific container manager that uses ECR.
+
+        Returns:
+            Container manager instance.
+        """
+        return self.gcr_client
+
     def _execute_with_retry(
         self,
         request,
