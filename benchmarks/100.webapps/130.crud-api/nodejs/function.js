@@ -74,5 +74,5 @@ exports.handler = async function(event) {
     results.push(res);
   }
 
-  return results;
+  return {"result": results}
 };
