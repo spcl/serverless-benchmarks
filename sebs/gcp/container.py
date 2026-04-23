@@ -1,7 +1,7 @@
 import docker
-from typing import Tuple
+from typing import cast, Tuple
 
-from sebs.gcp.config import GCPConfig
+from sebs.gcp.config import GCPConfig, GCPCredentials
 from sebs.config import SeBSConfig
 from sebs.faas.container import DockerContainer
 from googleapiclient.discovery import build
@@ -26,19 +26,24 @@ class GCRContainer(DockerContainer):
         docker_client: docker.client.DockerClient,
     ):
         super().__init__(system_config, docker_client)
-        self.config = config
-        self.creds = service_account.Credentials.from_service_account_file(self.config.credentials.gcp_credentials, scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        self.config: GCPConfig = config
+        self.creds = service_account.Credentials.from_service_account_file(
+            self.config.credentials.gcp_credentials,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
         self.ar_client = build("artifactregistry", "v1", credentials=self.creds)
 
     def registry_name(
         self, benchmark: str, language_name: str, language_version: str, architecture: str
     ) -> Tuple[str, str, str, str]:
-        
+
         project_id = self.config.credentials.project_name
         region = self.config.region
         registry_name = f"{region}-docker.pkg.dev/{project_id}"
-        repository_name = self.config.resources.get_container_repository(self.config, self.ar_client)
-        
+        repository_name = self.config.resources.get_container_repository(
+            self.config, self.ar_client
+        )
+
         image_tag = self.system_config.benchmark_image_tag(
             self.name(), benchmark, language_name, language_version, architecture
         )
@@ -48,29 +53,38 @@ class GCRContainer(DockerContainer):
 
     def find_image(self, repository_name, image_tag) -> bool:
         try:
-            response = self.ar_client.projects().locations().repositories().dockerImages().list(
-                parent=f"projects/{self.config.credentials.project_id}/locations/{self.config.region}/repositories/{repository_name}"
+            credentials = cast(GCPCredentials, self.config.credentials)
+            parent = (
+                f"projects/{credentials.project_name}"
+                f"/locations/{self.config.region}"
+                f"/repositories/{repository_name}"
+            )
+            response = (
+                self.ar_client.projects()
+                .locations()
+                .repositories()
+                .dockerImages()
+                .list(parent=parent)
+                .execute()
             )
             if "dockerImages" in response:
                 for image in response["dockerImages"]:
                     if "latest" in image["tags"] and image_tag in image["tags"]:
                         return True
         except HttpError as e:
-            if (e.content.code == 404):
+            if e.resp.status == 404:
                 return False
             raise e
         return False
 
-    def push_image(self, repository_uri, image_tag):        
+    def push_image(self, repository_uri, image_tag):
         self.logging.info("Authenticating Docker against Artifact Registry...")
         self.creds.refresh(Request())
         auth_token = self.creds.token
 
         try:
             self.docker_client.login(
-                username="oauth2accesstoken",
-                password=auth_token,
-                registry=repository_uri
+                username="oauth2accesstoken", password=auth_token, registry=repository_uri
             )
             super().push_image(repository_uri, image_tag)
             self.logging.info(f"Successfully pushed the image to registry {repository_uri}.")
