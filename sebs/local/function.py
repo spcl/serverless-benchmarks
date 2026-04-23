@@ -148,17 +148,17 @@ class LocalFunction(Function):
         self._port = port
 
         if is_linux():
-            self._url = "{IPAddress}:{Port}".format(
-                IPAddress=networks["bridge"]["IPAddress"], Port=port
-            )
+            self._url = networks["bridge"]["IPAddress"]
             if not self._url:
-                self.logging.error(
+                self.logging.debug(
                     f"Couldn't read the IP address of container from attributes "
                     f"{json.dumps(self._instance.attrs, indent=2)}"
                 )
                 raise RuntimeError(
-                    f"Incorrect detection of IP address for container with id {self._instance_id}"
+                    f"Incorrect detection of IP address for container with "
+                    f"id {self._instance_id}. Is the instance alive?"
                 )
+            self._url = "{IPAddress}:{Port}".format(IPAddress=self._url, Port=port)
         else:
             self._url = f"localhost:{port}"
 
