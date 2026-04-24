@@ -53,7 +53,7 @@ from sebs.gcp.resources import GCPSystemResources
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction, FunctionDeploymentType
 from sebs.gcp.container import GCRContainer
-from sebs.utils import LoggingHandlers, LoggingBase, ColoredWrapper
+from sebs.utils import LoggingHandlers, ColoredWrapper
 from sebs.sebs_types import Language
 
 
@@ -67,7 +67,7 @@ class DeploymentStrategy(Protocol):
     """
         Google API is not the most robust - sometimes we need to retry REST operations.
     """
-    TRANSIENT_HTTP_CODES = frozenset({429, 503})
+    TRANSIENT_HTTP_CODES: frozenset[int] = frozenset({429, 503})
 
     def _execute_with_retry(
         self,
@@ -297,7 +297,7 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
             config: GPC configuration
             logging: main logging handlers for status reporting
         """
-        super(LoggingBase).__init__()
+        super().__init__()
         self.storage = storage
         self.config = config
         self.logging = logging_handlers
@@ -914,6 +914,8 @@ class RunContainerStrategy(DeploymentStrategy):
         memory = function.config.memory
         timeout = function.config.timeout
 
+        self.logging.info(f"Updating Cloud Run service {function.name} with image: {container_uri}")
+
         # Cloud Run v2 Service Update
         service_body = {
             "template": {
@@ -933,16 +935,25 @@ class RunContainerStrategy(DeploymentStrategy):
             }
         }
 
+        # We are using the broad "template" for updateMask.
+        # We noticed that when using selective updates with `template.containers`,
+        # GCP would not create a new revision when using the same image tag - 
+        # even when the tag now links to a different digest.
+
         req = (
             self.run_client.projects()
             .locations()
             .services()
-            .patch(name=full_service_name, body=service_body)  # type: ignore[arg-type,assignment]
+            .patch(  # type: ignore[arg-type]
+                name=full_service_name,
+                body=service_body,  # type: ignore[arg-type]
+                updateMask="template",
+            )
         )
 
         self._operation_response = req.execute()
         self.logging.info(
-            f"Updated Cloud Run service {function.name}, waiting for operation completion..."
+            f"Patch request sent for Cloud Run service {function.name}, waiting for operation..."
         )
 
     def update_config(
@@ -976,11 +987,20 @@ class RunContainerStrategy(DeploymentStrategy):
             }
         }
 
+        # We are using the broad "template" for updateMask.
+        # We noticed that when using selective updates with `template.containers`,
+        # GCP would not create a new revision when using the same image tag - 
+        # even when the tag now links to a different digest.
+
         req = (
             self.run_client.projects()
             .locations()
             .services()
-            .patch(name=full_func_name, body=service_body)  # type: ignore[arg-type,assignment]
+            .patch(  # type: ignore[arg-type]
+                name=full_func_name,
+                body=service_body,  # type: ignore[arg-type]
+                updateMask="template",
+            )
         )
         res = req.execute()
 
@@ -1003,12 +1023,25 @@ class RunContainerStrategy(DeploymentStrategy):
             raise RuntimeError("No operation to wait for - create/update not called")
 
         op_name = self._operation_response["name"]
+        self.logging.info(f"Waiting for operation: {op_name}")
         op_res = self.run_client.projects().locations().operations().wait(name=op_name).execute()
 
         if "error" in op_res:
             raise RuntimeError(f"Cloud Run deployment failed: {op_res['error']}")
 
-        self.logging.info(f"Cloud Run service {func_name} deployed and ready.")
+        # Get service details to check revision
+        full_service_name = self.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+        svc = (
+            self.run_client.projects().locations().services().get(name=full_service_name).execute()
+        )
+
+        latest_revision = svc.get("latestReadyRevision", "unknown")
+        self.logging.info(
+            f"Cloud Run service {func_name} deployed. " f"Latest revision: {latest_revision}"
+        )
+
         delattr(self, "_operation_response")
 
     def allow_public_access(self, project_name: str, location: str, func_name: str) -> None:
