@@ -66,7 +66,32 @@
     "gcp": {
       "region": "europe-west1",
       "project_name": "",
-      "credentials": ""
+      "credentials": "",
+      "configuration": {
+        "function-gen1": {
+          "min-instances": 0,
+          "max-instances": 20
+        },
+        "function-gen2": {
+          "vcpus": 1,
+          "gcp-concurrency": 80,
+          "worker-concurrency": 80,
+          "min-instances": 0,
+          "max-instances": 20,
+          "cpu-boost": false,
+          "cpu-throttle": true
+        },
+        "container": {
+          "environment": "gen2",
+          "vcpus": 1,
+          "gcp-concurrency": 80,
+          "worker-concurrency": 80,
+          "min-instances": 0,
+          "max-instances": 20,
+          "cpu-boost": false,
+          "cpu-throttle": true
+        }
+      }
     },
     "local": {
       "storage": {

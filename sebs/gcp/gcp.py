@@ -35,7 +35,7 @@ import time
 import math
 import zipfile
 from datetime import datetime, timezone
-from typing import Any, cast, Dict, Optional, Tuple, List, Type, Protocol
+from typing import Any, cast, Dict, Optional, Tuple, List, Type, Protocol, Union
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -44,11 +44,16 @@ from google.cloud.devtools import cloudbuild_v1
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.benchmark import Benchmark
+from sebs.benchmark import Benchmark, BenchmarkConfig
 from sebs.faas.function import Function, FunctionConfig, Trigger
 from sebs.faas.config import Resources
 from sebs.faas.system import System
-from sebs.gcp.config import GCPConfig
+from sebs.gcp.config import (
+    GCPConfig,
+    GCPFunctionGen1Config,
+    GCPFunctionGen2Config,
+    GCPContainerConfig,
+)
 from sebs.gcp.resources import GCPSystemResources
 from sebs.gcp.storage import GCPStorage
 from sebs.gcp.function import GCPFunction, FunctionDeploymentType
@@ -349,6 +354,26 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
 
         self.logging.info("Uploading function {} code to {}".format(func_name, code_bucket))
 
+        dep_config = self.config.deployment_config.function_gen1_config
+
+        function_body = {
+            "name": full_func_name,
+            "entryPoint": (
+                "org.serverlessbench.Handler"
+                if code_package.language == Language.JAVA
+                else "handler"
+            ),
+            "runtime": code_package.language_name + language_runtime.replace(".", ""),
+            "availableMemoryMb": memory,
+            "timeout": str(timeout) + "s",
+            "httpsTrigger": {},
+            "ingressSettings": "ALLOW_ALL",
+            "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
+            "environmentVariables": envs,
+            "minInstances": dep_config.min_instances,
+            "maxInstances": dep_config.max_instances,
+        }
+
         create_req = (
             self.function_client.projects()
             .locations()
@@ -357,22 +382,8 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
                 location="projects/{project_name}/locations/{location}".format(
                     project_name=project_name, location=location
                 ),
-                body={
-                    "name": full_func_name,
-                    "entryPoint": (
-                        "org.serverlessbench.Handler"
-                        if code_package.language == Language.JAVA
-                        else "handler"
-                    ),
-                    "runtime": code_package.language_name + language_runtime.replace(".", ""),
-                    "availableMemoryMb": memory,
-                    "timeout": str(timeout) + "s",
-                    "httpsTrigger": {},
-                    "ingressSettings": "ALLOW_ALL",
-                    "sourceArchiveUrl": "gs://" + code_bucket + "/" + code_prefix,
-                    "environmentVariables": envs,
-                },
-            )  # type: ignore[assignment]
+                body=function_body,  # type: ignore[arg-type]
+            )
         )
 
         self._execute_with_retry(self.logging, create_req)
@@ -402,6 +413,9 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         full_func_name = self.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
+
+        dep_config = self.config.deployment_config.function_gen1_config
+
         req = (
             self.function_client.projects()
             .locations()
@@ -421,6 +435,8 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
                     "httpsTrigger": {},
                     "sourceArchiveUrl": "gs://" + bucket + "/" + code_package_name,
                     "environmentVariables": envs,
+                    "minInstances": dep_config.min_instances,
+                    "maxInstances": dep_config.max_instances,
                 },
             )
         )
@@ -431,45 +447,37 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         # Store expected version for wait_for_deployment
         self._expected_version = int(res["metadata"]["versionId"])
 
-    def update_config(
-        self,
-        function: "GCPFunction",
-        envs: Dict,
-    ) -> int:
+    def update_config(self, function: "GCPFunction", envs: Dict) -> int:
         """Update Cloud Function Gen1 configuration."""
         full_func_name = self.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
 
+        dep_config = self.config.deployment_config.function_gen1_config
+
+        body = {
+            "availableMemoryMb": function.config.memory,
+            "timeout": str(function.config.timeout) + "s",
+            "minInstances": dep_config.min_instances,
+            "maxInstances": dep_config.max_instances,
+        }
+
         if len(envs) > 0:
-            req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .patch(
-                    name=full_func_name,
-                    updateMask="availableMemoryMb,timeout,environmentVariables",
-                    body={
-                        "availableMemoryMb": function.config.memory,
-                        "timeout": str(function.config.timeout) + "s",
-                        "environmentVariables": envs,
-                    },
-                )
-            )
+            body["environmentVariables"] = envs
+            update_mask = "availableMemoryMb,timeout,environmentVariables,minInstances,maxInstances"
         else:
-            req = (
-                self.function_client.projects()
-                .locations()
-                .functions()
-                .patch(
-                    name=full_func_name,
-                    updateMask="availableMemoryMb,timeout",
-                    body={
-                        "availableMemoryMb": function.config.memory,
-                        "timeout": str(function.config.timeout) + "s",
-                    },
-                )
+            update_mask = "availableMemoryMb,timeout,minInstances,maxInstances"
+
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .patch(
+                name=full_func_name,
+                updateMask=update_mask,
+                body=body,  # type: ignore[arg-type]
             )
+        )
 
         res = self._execute_with_retry(self.logging, req)
         expected_version = int(res["metadata"]["versionId"])
@@ -840,6 +848,48 @@ class RunContainerStrategy(DeploymentStrategy):
     def _transform_service_envs(self, envs: dict) -> list:
         return [{"name": k, "value": v} for k, v in envs.items()]
 
+    def _service_body(
+        self,
+        benchmark_config: BenchmarkConfig | FunctionConfig,
+        envs_list: Dict,
+        container_uri: str,
+    ) -> Dict:
+
+        dep_config = self.config.deployment_config.container_config
+
+        timeout = benchmark_config.timeout
+        memory = benchmark_config.memory
+
+        execution_environment = f"EXECUTION_ENVIRONMENT_{dep_config.environment.upper()}"
+
+        return {
+            "template": {
+                "containers": [
+                    {
+                        "image": container_uri,  # type: ignore[typeddict-item]
+                        "ports": [{"containerPort": 8080}],
+                        "env": self._transform_service_envs(envs_list),
+                        "resources": {
+                            "limits": {
+                                "memory": f"{memory if memory >= 512 else 512}Mi",
+                                "cpu": str(dep_config.vcpus),
+                            },
+                            "cpuIdle": dep_config.cpu_throttle,
+                            "startupCpuBoost": dep_config.cpu_boost,
+                        },
+                    }
+                ],
+                "timeout": f"{timeout}s",
+                "maxInstanceRequestConcurrency": dep_config.gcp_concurrency,
+                "execution_environment": execution_environment,
+            },
+            "scaling": {
+                "minInstanceCount": dep_config.min_instances,
+                "maxInstanceCount": dep_config.max_instances,
+            },
+            "ingress": "INGRESS_TRAFFIC_ALL",
+        }
+
     def create(
         self,
         func_name: str,
@@ -854,15 +904,13 @@ class RunContainerStrategy(DeploymentStrategy):
 
         project_name = self.config.project_name
         location = self.config.region
-        timeout = code_package.benchmark_config.timeout
-        memory = code_package.benchmark_config.memory
 
-        # In the service model, envs is a list of objects with attributes name and value
-        envs_list = self._transform_service_envs(envs)  # type: ignore[assignment]
         self.logging.info(
             f"Deploying GCP Cloud Run container service {func_name} from {container_uri}"
         )
+
         parent = f"projects/{project_name}/locations/{location}"
+        service_body = self._service_body(code_package.benchmark_config, envs, container_uri)
         create_req = (
             self.run_client.projects()
             .locations()
@@ -870,25 +918,8 @@ class RunContainerStrategy(DeploymentStrategy):
             .create(
                 parent=parent,
                 serviceId=func_name,
-                body={
-                    "template": {
-                        "containers": [
-                            {
-                                "image": container_uri,  # type: ignore[typeddict-item]
-                                "ports": [{"containerPort": 8080}],
-                                "env": envs_list,  # type: ignore[typeddict-item]
-                                "resources": {
-                                    "limits": {
-                                        "memory": f"{memory if memory >= 512 else 512}Mi",
-                                    }
-                                },
-                            }
-                        ],
-                        "timeout": f"{timeout}s",
-                    },
-                    "ingress": "INGRESS_TRAFFIC_ALL",
-                },
-            )  # type: ignore
+                body=service_body,  # type: ignore[arg-type]
+            )
         )
 
         self._operation_response = create_req.execute()
@@ -898,7 +929,7 @@ class RunContainerStrategy(DeploymentStrategy):
 
     def update_code(
         self,
-        function: "GCPFunction",
+        function: GCPFunction,
         code_package: Benchmark,
         envs: Dict,
         container_uri: str | None,
@@ -911,35 +942,14 @@ class RunContainerStrategy(DeploymentStrategy):
             self.config.project_name, self.config.region, function.name
         )
 
-        memory = function.config.memory
-        timeout = function.config.timeout
-
         self.logging.info(f"Updating Cloud Run service {function.name} with image: {container_uri}")
 
-        # Cloud Run v2 Service Update
-        service_body = {
-            "template": {
-                "containers": [
-                    {
-                        "image": container_uri,
-                        "ports": [{"containerPort": 8080}],
-                        "resources": {
-                            "limits": {
-                                "memory": f"{memory if memory >= 512 else 512}Mi",
-                            }
-                        },
-                        "env": self._transform_service_envs(envs),
-                    }
-                ],
-                "timeout": f"{timeout}s",
-            }
-        }
+        service_body = self._service_body(code_package.benchmark_config, envs, container_uri)
 
         # We are using the broad "template" for updateMask.
         # We noticed that when using selective updates with `template.containers`,
-        # GCP would not create a new revision when using the same image tag - 
+        # GCP would not create a new revision when using the same image tag -
         # even when the tag now links to a different digest.
-
         req = (
             self.run_client.projects()
             .locations()
@@ -956,42 +966,23 @@ class RunContainerStrategy(DeploymentStrategy):
             f"Patch request sent for Cloud Run service {function.name}, waiting for operation..."
         )
 
-    def update_config(
-        self,
-        function: "GCPFunction",
-        envs: Dict,
-    ) -> int:
+    def update_config(self, function: GCPFunction, envs: Dict) -> int:
         """Update Cloud Run service configuration."""
+
         full_func_name = self.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
 
-        # Cloud Run Configuration Update
-        memory = function.config.memory
-        timeout = function.config.timeout
-
-        service_body = {
-            "template": {
-                "containers": [
-                    {
-                        "ports": [{"containerPort": 8080}],
-                        "resources": {
-                            "limits": {
-                                "memory": f"{memory if memory >= 512 else 512}Mi",
-                            }
-                        },
-                        "env": self._transform_service_envs(envs),
-                    }
-                ],
-                "timeout": f"{timeout}s",
-            }
-        }
-
         # We are using the broad "template" for updateMask.
         # We noticed that when using selective updates with `template.containers`,
-        # GCP would not create a new revision when using the same image tag - 
+        # GCP would not create a new revision when using the same image tag -
         # even when the tag now links to a different digest.
 
+        container_uri = function.container_uri()
+        if container_uri is None:
+            raise RuntimeError("Container URI is required for Cloud Run deployment")
+
+        service_body = self._service_body(function.config, envs, container_uri)
         req = (
             self.run_client.projects()
             .locations()
@@ -1002,15 +993,11 @@ class RunContainerStrategy(DeploymentStrategy):
                 updateMask="template",
             )
         )
-        res = req.execute()
 
+        self._operation_response = req.execute()
         self.logging.info(
-            f"Updated Cloud Run configuration {function.name}, waiting for operation..."
+            f"Patch request sent for Cloud Run config {function.name}, waiting for operation..."
         )
-        op_name = res["name"]
-        op_res = self.run_client.projects().locations().operations().wait(name=op_name).execute()
-        if "error" in op_res:
-            raise RuntimeError(f"Cloud Run config update failed: {op_res['error']}")
 
         return 0
 
@@ -1300,6 +1287,46 @@ class GCP(System):
         """
         return self.gcr_client
 
+    def _get_deployment_config(
+        self, deployment_type: FunctionDeploymentType
+    ) -> Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig]:
+        if deployment_type.is_container:
+            return self.config.deployment_config.container_config
+        else:
+            if deployment_type == FunctionDeploymentType.FUNCTION_GEN1:
+                return self.config.deployment_config.function_gen1_config
+            else:
+                return self.config.deployment_config.function_gen2_config
+
+    def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
+        """
+        Override the default implementation.
+
+        In addition to checking for timeout and language runtime - the shared config
+        - we also check if the GCP-specific config has changed.
+
+        Args:
+            cached_function: Previously cached function configuration
+            benchmark: Current benchmark configuration to compare against
+
+        Returns:
+            True if configuration has changed and function needs updating
+        """
+        changed = super().is_configuration_changed(cached_function, benchmark)
+
+        # Check if deployment config has changed
+        cached_function = cast(GCPFunction, cached_function)
+        current_dep_config = self._get_deployment_config(cached_function.deployment_type)
+
+        if cached_function.deployment_config != current_dep_config:
+            self.logging.info(
+                f"Deployment config has changed for {cached_function.name}, "
+                "will update configuration."
+            )
+            changed = True
+
+        return changed
+
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
@@ -1451,7 +1478,7 @@ class GCP(System):
         func_name: str,
         container_deployment: bool,
         container_uri: str | None,
-    ) -> "GCPFunction":
+    ) -> GCPFunction:
         """Create a new GCP Cloud Function or update existing one.
 
         Deploys a benchmark as a Cloud Function, handling code upload to Cloud Storage,
@@ -1479,6 +1506,7 @@ class GCP(System):
         function_cfg = FunctionConfig.from_benchmark(code_package)
         architecture = function_cfg.architecture.value
         code_bucket: Optional[str] = None
+        dep_config: Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig]
 
         if architecture == "arm64" and not container_deployment:
             raise RuntimeError("GCP does not support arm64 for non-container deployments")
@@ -1499,22 +1527,41 @@ class GCP(System):
             else FunctionDeploymentType.FUNCTION_GEN1
         )
 
+        dep_config = self._get_deployment_config(deployment_type)
         if not function_exists:
             # Create new function/service
             envs = self._generate_function_envs(code_package)
 
             # Get code bucket for non-container deployments
-            if not container_deployment:
-                storage_client = self._system_resources.get_storage()
-                code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
 
             strategy.create(func_name, code_package, function_cfg, envs, container_uri)
             strategy.wait_for_deployment(func_name)
             strategy.allow_public_access(project_name, location, func_name)
 
-            function = GCPFunction(
-                func_name, benchmark, code_package.hash, function_cfg, deployment_type, code_bucket
-            )
+            if not container_deployment:
+                storage_client = self._system_resources.get_storage()
+                code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+                function = GCPFunction(
+                    func_name,
+                    benchmark,
+                    code_package.hash,
+                    function_cfg,
+                    deployment_type,
+                    dep_config,
+                    code_bucket,
+                    None,
+                )
+            else:
+                function = GCPFunction(
+                    func_name,
+                    benchmark,
+                    code_package.hash,
+                    function_cfg,
+                    deployment_type,
+                    dep_config,
+                    None,
+                    container_uri,
+                )
         else:
             # Function/service exists, update it
             self.logging.info("Function {} exists on GCP, update the instance.".format(func_name))
@@ -1526,6 +1573,8 @@ class GCP(System):
                 cfg=function_cfg,
                 deployment_type=deployment_type,
                 bucket=code_bucket,
+                deployment_config=dep_config,
+                container_uri=container_uri,
             )
 
             strategy.allow_public_access(project_name, location, func_name)
@@ -1679,6 +1728,7 @@ class GCP(System):
             function: Function instance to update
             code_package: Benchmark package with configuration requirements
             env_variables: Additional environment variables to set
+            container_uri: Container image URI (for container deployments)
 
         Returns:
             Version ID of the updated function
@@ -1713,7 +1763,13 @@ class GCP(System):
             envs = strategy.update_envs(full_func_name, envs)
 
         # Update configuration using strategy
-        return strategy.update_config(function, envs)
+        res = strategy.update_config(function, envs)
+        strategy.wait_for_deployment(function.name)
+
+        current_dep_config = self._get_deployment_config(function.deployment_type)
+        function._deployment_config = current_dep_config
+
+        return res
 
     def delete_function(self, func_name: str) -> None:
         """Delete a Google Cloud Function or Cloud Run service.

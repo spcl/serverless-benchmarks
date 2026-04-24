@@ -18,6 +18,7 @@ Example:
         resources = GCPResources()
         config = GCPConfig(credentials, resources)
 """
+from __future__ import annotations
 
 import json
 import os
@@ -180,6 +181,193 @@ class GCPCredentials(Credentials):
         cache.update_config(val=self._project_id, keys=["gcp", "credentials", "project_id"])
 
 
+class GCPFunctionGen1Config:
+    """Configuration for Cloud Functions Gen1 deployments."""
+
+    def __init__(self, min_instances: int = 0, max_instances: int = 20):
+        self.min_instances = min_instances
+        self.max_instances = max_instances
+
+    def serialize(self) -> Dict:
+        return {"min-instances": self.min_instances, "max-instances": self.max_instances}
+
+    @staticmethod
+    def deserialize(dct: Dict) -> "GCPFunctionGen1Config":
+        return GCPFunctionGen1Config(
+            min_instances=dct.get("min-instances", 0), max_instances=dct.get("max-instances", 20)
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, GCPFunctionGen1Config):
+            return False
+        return (
+            self.min_instances == other.min_instances and self.max_instances == other.max_instances
+        )
+
+
+class GCPFunctionGen2Config:
+    """Configuration for Cloud Functions Gen2 deployments."""
+
+    def __init__(
+        self,
+        vcpus: int = 1,
+        gcp_concurrency: int = 80,
+        worker_concurrency: int = 80,
+        min_instances: int = 0,
+        max_instances: int = 20,
+        cpu_boost: bool = False,
+        cpu_throttle: bool = True,
+    ):
+        self.vcpus = vcpus
+        self.gcp_concurrency = gcp_concurrency
+        self.worker_concurrency = worker_concurrency
+        self.min_instances = min_instances
+        self.max_instances = max_instances
+        self.cpu_boost = cpu_boost
+        self.cpu_throttle = cpu_throttle
+
+    def serialize(self) -> Dict:
+        return {
+            "vcpus": self.vcpus,
+            "gcp-concurrency": self.gcp_concurrency,
+            "worker-concurrency": self.worker_concurrency,
+            "min-instances": self.min_instances,
+            "max-instances": self.max_instances,
+            "cpu-boost": self.cpu_boost,
+            "cpu-throttle": self.cpu_throttle,
+        }
+
+    @staticmethod
+    def deserialize(dct: Dict) -> GCPFunctionGen2Config:
+        return GCPFunctionGen2Config(
+            vcpus=dct.get("vcpus", 1),
+            gcp_concurrency=dct.get("gcp-concurrency", 80),
+            worker_concurrency=dct.get("worker-concurrency", 80),
+            min_instances=dct.get("min-instances", 0),
+            max_instances=dct.get("max-instances", 20),
+            cpu_boost=dct.get("cpu-boost", False),
+            cpu_throttle=dct.get("cpu-throttle", True),
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, GCPFunctionGen2Config):
+            return False
+        return (
+            self.vcpus == other.vcpus
+            and self.gcp_concurrency == other.gcp_concurrency
+            and self.worker_concurrency == other.worker_concurrency
+            and self.min_instances == other.min_instances
+            and self.max_instances == other.max_instances
+            and self.cpu_boost == other.cpu_boost
+            and self.cpu_throttle == other.cpu_throttle
+        )
+
+
+class GCPContainerConfig(GCPFunctionGen2Config):
+    """Configuration for Cloud Run container deployments."""
+
+    def __init__(
+        self,
+        environment: str = "gen1",
+        vcpus: int = 1,
+        gcp_concurrency: int = 80,
+        worker_concurrency: int = 80,
+        min_instances: int = 0,
+        max_instances: int = 20,
+        cpu_boost: bool = False,
+        cpu_throttle: bool = True,
+    ):
+        super().__init__(
+            vcpus,
+            gcp_concurrency,
+            worker_concurrency,
+            min_instances,
+            max_instances,
+            cpu_boost,
+            cpu_throttle,
+        )
+        self.environment = environment
+
+    def serialize(self) -> Dict:
+        return {**super().serialize(), "environment": self.environment}
+
+    @staticmethod
+    def deserialize(dct: Dict) -> GCPContainerConfig:
+        return GCPContainerConfig(
+            environment=dct["environment"],
+            vcpus=dct["vcpus"],
+            gcp_concurrency=dct["gcp-concurrency"],
+            worker_concurrency=dct["worker-concurrency"],
+            min_instances=dct["min-instances"],
+            max_instances=dct["max-instances"],
+            cpu_boost=dct["cpu-boost"],
+            cpu_throttle=dct["cpu-throttle"],
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, GCPContainerConfig):
+            return False
+        return (
+            self.environment == other.environment
+            and self.vcpus == other.vcpus
+            and self.gcp_concurrency == other.gcp_concurrency
+            and self.worker_concurrency == other.worker_concurrency
+            and self.min_instances == other.min_instances
+            and self.max_instances == other.max_instances
+            and self.cpu_boost == other.cpu_boost
+            and self.cpu_throttle == other.cpu_throttle
+        )
+
+
+class GCPConfiguration:
+    """User-provided configuration of workloads on the GCP.
+
+    Currently, this class primarily inherits functionality from the base `Resources`
+    class, as we do not need more GCP-specific resources beyond standard storage buckets.
+
+    Attributes:
+        Inherits all attributes from the base Resources class
+    """
+
+    def __init__(self) -> None:
+        self._function_gen1_config = GCPFunctionGen1Config()
+        self._function_gen2_config = GCPFunctionGen2Config()
+        self._container_config = GCPContainerConfig()
+
+    @staticmethod
+    def initialize(config: GCPConfiguration, dct: Dict) -> GCPConfiguration:
+
+        config._function_gen1_config = GCPFunctionGen1Config.deserialize(dct["function-gen1"])
+        config._function_gen2_config = GCPFunctionGen2Config.deserialize(dct["function-gen2"])
+        config._container_config = GCPContainerConfig.deserialize(dct["container"])
+
+        return config
+
+    def serialize(self) -> Dict:
+        """Serialize resources to dictionary for cache storage.
+
+        Returns:
+            Dictionary representation of resources for cache storage
+        """
+        out = {}
+        out["function-gen1"] = self._function_gen1_config.serialize()
+        out["function-gen2"] = self._function_gen2_config.serialize()
+        out["container"] = self._container_config.serialize()
+        return out
+
+    @property
+    def function_gen1_config(self) -> GCPFunctionGen1Config:
+        return self._function_gen1_config
+
+    @property
+    def function_gen2_config(self) -> GCPFunctionGen2Config:
+        return self._function_gen2_config
+
+    @property
+    def container_config(self) -> GCPContainerConfig:
+        return self._container_config
+
+
 class GCPResources(Resources):
     """Resource manager for serverless resources on Google Cloud Platform.
 
@@ -208,6 +396,7 @@ class GCPResources(Resources):
         """
         ret = cast(GCPResources, res)
         super(GCPResources, GCPResources).initialize(ret, dct)
+
         return ret
 
     def serialize(self) -> Dict:
@@ -350,6 +539,8 @@ class GCPConfig(Config):
         self._credentials = credentials
         self._resources = resources
 
+        self._deployment_config = GCPConfiguration()
+
     @property
     def region(self) -> str:
         """Get the GCP region for resource deployment.
@@ -386,6 +577,15 @@ class GCPConfig(Config):
         """
         return self._resources
 
+    @property
+    def deployment_config(self) -> GCPConfiguration:
+        """Get the deployment configuration for GCP workloads.
+
+        Returns:
+            GCPConfiguration instance containing workload deployment settings
+        """
+        return self._deployment_config
+
     @staticmethod
     def deserialize(config: Dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         """Deserialize GCP configuration from dictionary and cache.
@@ -414,6 +614,9 @@ class GCPConfig(Config):
         else:
             config_obj.logging.info("Using user-provided config for GCP")
             GCPConfig.initialize(config_obj, config)
+
+        # deployment configuration is never loaded from cache - always fresh!
+        GCPConfiguration.initialize(config_obj.deployment_config, config["configuration"])
 
         # mypy makes a mistake here
         updated_keys: List[Tuple[str, List[str]]] = [("region", ["gcp", "region"])]  # type: ignore
