@@ -9,11 +9,24 @@ from sebs.utils import LoggingHandlers
 class CloudflareCredentials(Credentials):
     """
     Cloudflare API credentials.
-    
-    Requires:
-    - API token or email + global API key
-    - Account ID
-    - Optional: R2 S3-compatible credentials for file uploads
+
+    Two mutually exclusive authentication methods are supported; both are
+    functionally equivalent for every SeBS operation (API calls, R2, KV,
+    wrangler):
+
+    - **API Token** (recommended): a scoped, revocable token created in the
+      Cloudflare dashboard.  Env: ``CLOUDFLARE_API_TOKEN``.
+    - **Email + Global API Key** (legacy): the account email plus the
+      Global API Key.  Grants broad account access; use only when scoped
+      tokens are not available.  Env: ``CLOUDFLARE_EMAIL`` +
+      ``CLOUDFLARE_API_KEY``.
+
+    Both methods additionally require ``CLOUDFLARE_ACCOUNT_ID``.
+    Optional R2 S3-compatible credentials (``CLOUDFLARE_R2_ACCESS_KEY_ID``,
+    ``CLOUDFLARE_R2_SECRET_ACCESS_KEY``) are needed for file uploads.
+
+    See ``docs/platforms.md`` (Cloudflare Workers → Credentials) for full
+    setup instructions.
     """
     
     def __init__(self, api_token: Optional[str] = None, email: Optional[str] = None, 
