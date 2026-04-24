@@ -31,21 +31,16 @@ class FunctionDeploymentType(str, Enum):
 
     - FUNCTION_GEN1: Original Google Cloud Functions.
     - FUNCTION_GEN2: Google Cloud Functions gen2, based on Cloud Run.
-    - CONTAINER_GEN1: Google Cloud Run containers with gVisor.
-    - CONTAINER_GEN2: Google Cloud Run containers with a full microVM.
+    - CONTAINER: Google Cloud Run containers.
     """
 
     FUNCTION_GEN1 = "function-gen1"
-    FUNCTION_GEN2 = "function-gen1"
-    CONTAINER_GEN1 = "container-gen1"
-    CONTAINER_GEN2 = "container-gen2"
+    FUNCTION_GEN2 = "function-gen2"
+    CONTAINER = "container"
 
     @property
     def is_container(self) -> bool:
-        return self.value in [
-            FunctionDeploymentType.CONTAINER_GEN1,
-            FunctionDeploymentType.CONTAINER_GEN2,
-        ]
+        return self == FunctionDeploymentType.CONTAINER
 
     @staticmethod
     def deserialize(val: str) -> FunctionDeploymentType:

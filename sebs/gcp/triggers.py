@@ -27,6 +27,7 @@ import time
 from typing import Dict, Optional  # noqa
 
 from sebs.gcp.gcp import GCP
+from sebs.gcp.function import FunctionDeploymentType
 from sebs.faas.function import ExecutionResult, Trigger
 
 
@@ -40,18 +41,26 @@ class LibraryTrigger(Trigger):
     Attributes:
         name: Function name to invoke
         _deployment_client: GCP client for API operations
+        _deployment_type: Type of deployment (gen1 function or container)
     """
 
-    def __init__(self, fname: str, deployment_client: Optional[GCP] = None) -> None:
+    def __init__(
+        self,
+        fname: str,
+        deployment_client: Optional[GCP] = None,
+        deployment_type: Optional[FunctionDeploymentType] = None,
+    ) -> None:
         """Initialize library trigger for direct function invocation.
 
         Args:
             fname: Name of the Cloud Function to invoke
             deployment_client: Optional GCP client for API operations
+            deployment_type: Optional deployment type (gen1 function or container)
         """
         super().__init__()
         self.name = fname
         self._deployment_client = deployment_client
+        self._deployment_type = deployment_type
 
     @staticmethod
     def typename() -> str:
@@ -84,6 +93,15 @@ class LibraryTrigger(Trigger):
         """
         self._deployment_client = deployment_client
 
+    @property
+    def deployment_type(self) -> FunctionDeploymentType:
+        assert self._deployment_type
+        return self._deployment_type
+
+    @deployment_type.setter
+    def deployment_type(self, deployment_type: FunctionDeploymentType) -> None:
+        self._deployment_type = deployment_type
+
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
         """Get the trigger type for this implementation.
@@ -96,14 +114,20 @@ class LibraryTrigger(Trigger):
     def sync_invoke(self, payload: Dict) -> ExecutionResult:
         """Synchronously invoke the Cloud Function using the API.
 
-        Waits for function deployment, then invokes via Cloud Functions API.
-        Measures execution time and handles errors.
+        Waits for function deployment, then invokes via appropriate API based on
+        deployment type:
+        - FUNCTION_GEN1: Cloud Functions v1 API
+        - CONTAINER: Cloud Run service via HTTP
+        - FUNCTION_GEN2: Not yet supported
 
         Args:
             payload: Input data to send to the function
 
         Returns:
             ExecutionResult with timing, output, and error information
+
+        Raises:
+            NotImplementedError: If deployment type is not supported
         """
 
         self.logging.info(f"Invoke function {self.name}")
@@ -116,28 +140,57 @@ class LibraryTrigger(Trigger):
             else:
                 time.sleep(5)
 
-        # GCP's fixed style for a function name
+        # Check deployment type and invoke accordingly
+        if self._deployment_type == FunctionDeploymentType.FUNCTION_GEN1:
+            return self._invoke_gen1_function(payload)
+        elif self._deployment_type == FunctionDeploymentType.CONTAINER:
+            raise NotImplementedError(
+                "LibraryTrigger does not yet support CONTAINER deployment type. "
+                "Use HTTPTrigger instead."
+            )
+        elif self._deployment_type == FunctionDeploymentType.FUNCTION_GEN2:
+            raise NotImplementedError(
+                "LibraryTrigger does not yet support FUNCTION_GEN2 deployment type. "
+                "Use HTTPTrigger instead."
+            )
+        else:
+            raise NotImplementedError(
+                f"LibraryTrigger does not support deployment type: {self._deployment_type}. "
+                "Please specify deployment_type as FUNCTION_GEN1 or CONTAINER."
+            )
+
+    def _invoke_gen1_function(self, payload: Dict) -> ExecutionResult:
+        """Invoke a Cloud Functions Gen1 function using the v1 API.
+
+        Args:
+            payload: Input data to send to the function
+
+        Returns:
+            ExecutionResult with timing, output, and error information
+        """
         config = self.deployment_client.config
         full_func_name = (
-            f"projects/{config.project_name}/locations/" f"{config.region}/functions/{self.name}"
+            f"projects/{config.project_name}/locations/{config.region}/functions/{self.name}"
         )
-        # function_client = self.deployment_client.get_function_client()
-        # req = (
-        #    function_client.projects()
-        #    .locations()
-        #    .functions()
-        #    .call(name=full_func_name, body={"data": json.dumps(payload)})
-        # )
+
+        function_client = self.deployment_client.get_function_client()
+        req = (
+            function_client.projects()
+            .locations()
+            .functions()
+            .call(name=full_func_name, body={"data": json.dumps(payload)})
+        )
+
         begin = datetime.datetime.now()
-        # res = req.execute()
-        res = {}
+        res = req.execute()
         end = datetime.datetime.now()
 
         gcp_result = ExecutionResult.from_times(begin, end)
         gcp_result.request_id = res["executionId"]
+
         if "error" in res.keys() and res["error"] != "":
-            self.logging.error("Invocation of {} failed!".format(self.name))
-            self.logging.error("Input: {}".format(payload))
+            self.logging.error(f"Invocation of {self.name} failed!")
+            self.logging.error(f"Input: {payload}")
             gcp_result.stats.failure = True
             return gcp_result
 
@@ -145,28 +198,32 @@ class LibraryTrigger(Trigger):
         gcp_result.parse_benchmark_output(output)
         return gcp_result
 
-    def async_invoke(self, payload: Dict):
+    def async_invoke(self, payload: Dict) -> concurrent.futures.Future:
         """Asynchronously invoke the Cloud Function.
 
-        Note: This method is not currently implemented for GCP's LibraryTrigger.
-        GCP's `functions.call` API is synchronous. Asynchronous behavior could
-        need to be implemented using a thread pool or similar mechanism if desired.
+        Uses a ThreadPoolExecutor to run sync_invoke in the background.
 
         Args:
             payload: Input data to send to the function
 
-        Raises:
-            NotImplementedError: Async invocation not implemented for library triggers
+        Returns:
+            Future object for the async invocation
         """
-        raise NotImplementedError()
+        pool = concurrent.futures.ThreadPoolExecutor()
+        fut = pool.submit(self.sync_invoke, payload)
+        return fut
 
     def serialize(self) -> Dict:
         """Serialize trigger to dictionary for cache storage.
 
         Returns:
-            Dictionary containing trigger type and name
+            Dictionary containing trigger type, name, and deployment type
         """
-        return {"type": "Library", "name": self.name}
+        return {
+            "type": "Library",
+            "name": self.name,
+            "deployment_type": self._deployment_type.value if self._deployment_type else None,
+        }
 
     @staticmethod
     def deserialize(obj: Dict) -> Trigger:
@@ -178,7 +235,11 @@ class LibraryTrigger(Trigger):
         Returns:
             Reconstructed LibraryTrigger instance
         """
-        return LibraryTrigger(obj["name"])
+        deployment_type = None
+        if "deployment_type" in obj and obj["deployment_type"] is not None:
+            deployment_type = FunctionDeploymentType.deserialize(obj["deployment_type"])
+
+        return LibraryTrigger(obj["name"], deployment_type=deployment_type)
 
 
 class HTTPTrigger(Trigger):

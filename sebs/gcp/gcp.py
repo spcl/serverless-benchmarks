@@ -1287,6 +1287,22 @@ class GCP(System):
         """
         return self.gcr_client
 
+    def get_function_client(self):
+        """Get the Cloud Functions v1 API client.
+
+        Returns:
+            Google Cloud Functions v1 API client
+        """
+        return self.cloud_function_gen1_strategy.function_client
+
+    def get_run_client(self):
+        """Get the Cloud Run v2 API client.
+
+        Returns:
+            Google Cloud Run v2 API client
+        """
+        return self.run_container_strategy.run_client
+
     def _get_deployment_config(
         self, deployment_type: FunctionDeploymentType
     ) -> Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig]:
@@ -1522,7 +1538,7 @@ class GCP(System):
         function_exists = strategy.function_exists(project_name, location, func_name)
 
         deployment_type = (
-            FunctionDeploymentType.CONTAINER_GEN1
+            FunctionDeploymentType.CONTAINER
             if container_deployment
             else FunctionDeploymentType.FUNCTION_GEN1
         )
@@ -1583,7 +1599,7 @@ class GCP(System):
         # Add LibraryTrigger to a new function
         from sebs.gcp.triggers import LibraryTrigger
 
-        trigger = LibraryTrigger(func_name, self)
+        trigger = LibraryTrigger(func_name, self, function.deployment_type)
         trigger.logging_handlers = self.logging_handlers
         function.add_trigger(trigger)
 
@@ -1646,8 +1662,11 @@ class GCP(System):
         from sebs.faas.function import Trigger
         from sebs.gcp.triggers import LibraryTrigger
 
+        func = cast(GCPFunction, function)
+
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             gcp_trigger = cast(LibraryTrigger, trigger)
+            gcp_trigger.deployment_type = func.deployment_type
             gcp_trigger.logging_handlers = self.logging_handlers
             gcp_trigger.deployment_client = self
 
