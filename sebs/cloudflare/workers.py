@@ -48,7 +48,7 @@ class CloudflareWorkersDeployment:
     def _get_cli(self) -> CloudflareCLI:
         """Get or initialize the Cloudflare CLI container."""
         if self._cli is None:
-            self._cli = CloudflareCLI(self.system_config, self.docker_client)
+            self._cli = CloudflareCLI.get_instance(self.system_config, self.docker_client)
             # Verify wrangler is available
             version = self._cli.check_wrangler_version()
             self.logging.info(f"Cloudflare CLI container ready: {version}")
