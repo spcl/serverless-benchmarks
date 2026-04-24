@@ -8,6 +8,7 @@ Cloudflare Workers using @cloudflare/containers.
 import os
 import shutil
 import json
+import subprocess
 
 import time
 from importlib.resources import files
@@ -22,7 +23,6 @@ except ImportError:
     import toml as tomli_w
 from typing import Optional, Tuple
 
-import docker
 import requests
 
 from sebs.benchmark import Benchmark
@@ -299,7 +299,7 @@ class CloudflareContainersDeployment:
         # succeed for container deployments, and the local image is what we push to
         # Cloudflare's registry during deploy (wrangler containers push).
         image_tag = self._build_container_image_local(
-            directory, benchmark, language_name, language_version, self._base_image or ""
+            directory, benchmark, language_name, language_version
         )
 
         # Calculate package size (approximate, as it's a source directory)
@@ -319,7 +319,6 @@ class CloudflareContainersDeployment:
         benchmark: str,
         language_name: str,
         language_version: str,
-        base_image: str = "",
     ) -> str:
         """
         Build the container image locally.
@@ -334,38 +333,26 @@ class CloudflareContainersDeployment:
         image_name = f"{benchmark.replace('.', '-')}-{language_name}-{language_version.replace('.', '')}"
         image_tag = f"{image_name}:latest"
 
-        self.logging.info(f"Building local container image: {image_tag}")
+        self.logging.info(f"Building container image {image_tag} for linux/amd64...")
 
-        buildargs = {"BASE_IMAGE": base_image} if base_image else {}
+        result = subprocess.run(
+            [
+                "docker", "buildx", "build",
+                "--platform", "linux/amd64",
+                "--load",
+                "--no-cache",
+                "-t", image_tag,
+                directory,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            self.logging.error(result.stderr)
+            raise RuntimeError(f"Docker build failed for {image_tag}:\n{result.stderr}")
 
-        try:
-            _, build_logs = self.docker_client.images.build(
-                path=directory,
-                tag=image_tag,
-                buildargs=buildargs,
-                nocache=True,
-                rm=True
-            )
-            
-            # Log build output
-            for log in build_logs:
-                if 'stream' in log:
-                    self.logging.debug(log['stream'].strip())
-                elif 'error' in log:
-                    self.logging.error(log['error'])
-            
-            self.logging.info(f"Local container image built: {image_tag}")
-            
-            return image_tag
-            
-        except docker.errors.BuildError as e:
-            error_msg = f"Docker build failed for {image_tag}: {e}"
-            self.logging.error(error_msg)
-            raise RuntimeError(error_msg)
-        except Exception as e:
-            error_msg = f"Unexpected error building Docker image {image_tag}: {e}"
-            self.logging.error(error_msg)
-            raise RuntimeError(error_msg)
+        self.logging.info(f"Container image built: {image_tag}")
+        return image_tag
 
     def wait_for_container_worker_ready(
         self,
