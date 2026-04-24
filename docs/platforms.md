@@ -268,17 +268,18 @@ Wrangler templates live alongside the deployment code at `sebs/cloudflare/templa
 | File | Purpose |
 |------|---------|
 | `Dockerfile.manage` | Builds the `manage.cloudflare` CLI image (Node + global `wrangler` + `pywrangler` via `uv` + Docker CLI). Driven by `cli.py`. |
-| `nodejs/Dockerfile.build` | Ephemeral build image for **script-based** Node.js workers. Produces the bundled `dist/` that `workers.py` extracts back to the host package. |
-| `python/Dockerfile.build` | Ephemeral validation image for **script-based** Python workers — confirms `pywrangler` accepts the generated `pyproject.toml`. |
+| `nodejs/Dockerfile.build` | Build image for **script-based** Node.js workers. Pulled once per session; benchmark source is bind-mounted to `/mnt/function` at build time and `cloudflare_nodejs_installer.sh` runs `npm install`, `esbuild`, and the benchmark's `build.js`/`postprocess.js` inside it. |
+| `python/Dockerfile.build` | Build image for **script-based** Python workers. Pulled once per session; benchmark source is bind-mounted to `/mnt/function` at build time and `cloudflare_python_installer.sh` validates that `pywrangler` accepts the generated `pyproject.toml`. |
 | `nodejs/Dockerfile.function` | Runtime image for **container-based** Node.js functions. Parameterized via `ARG BASE_IMAGE` from `config/systems.json`. Copied into the package by `containers.py` and rebuilt by `wrangler deploy`. |
 | `python/Dockerfile.function` | Runtime image for **container-based** Python functions. Same parameterization. |
 
 #### Script-based flow (`container_deployment=false`)
 
-1. `benchmark.build()` → `Cloudflare.package_code` → `CloudflareWorkersDeployment.package_code` (builds via `Dockerfile.build`).
-2. `Cloudflare.create_function` → `_create_or_update_worker` renders `sebs/cloudflare/templates/wrangler-worker.toml` into the package.
-3. `CloudflareCLI.wrangler_deploy` (Node) or `pywrangler_deploy` (Python) deploys via the `manage.cloudflare` container.
-4. `HTTPTrigger` is attached using the `workers.dev` URL.
+1. `benchmark.build()` → `CloudflareWorkersDeployment.package_code` copies source files into the package directory.
+2. `Benchmark.install_dependencies()` pulls the matching `spcleth/serverless-benchmarks:build.cloudflare.<lang>.<ver>` build image (see [Build Images](#build-images) below), bind-mounts the package directory to `/mnt/function`, and runs `/sebs/installer.sh` (`cloudflare_nodejs_installer.sh` or `cloudflare_python_installer.sh`) inside the container.
+3. `Cloudflare.create_function` → `_create_or_update_worker` renders `sebs/cloudflare/templates/wrangler-worker.toml` into the package.
+4. `CloudflareCLI.wrangler_deploy` (Node) or `pywrangler_deploy` (Python) deploys via the `manage.cloudflare` container.
+5. `HTTPTrigger` is attached using the `workers.dev` URL.
 
 #### Container-based flow (`container_deployment=true`)
 
@@ -287,6 +288,22 @@ Wrangler templates live alongside the deployment code at `sebs/cloudflare/templa
 3. `CloudflareCLI.wrangler_deploy` invokes wrangler, which rebuilds the image from `Dockerfile` and pushes it to Cloudflare's managed registry, creating a Durable-Object-backed container worker.
 4. `wait_for_durable_object_ready` polls `/health` until the container reports healthy, then SeBS pings `/health` for ~60 s to keep the DO warm before the first measured invocation.
 5. `HTTPTrigger` is attached using the `workers.dev` URL.
+
+### Build Images
+
+Script-based Worker builds use pre-built build images that are pulled once and reused across all benchmarks via bind-mounts — this is the same pattern SeBS uses for other platforms (see [build.md](build.md)). The images are tagged `spcleth/serverless-benchmarks:build.cloudflare.<lang>.<ver>` (e.g. `build.cloudflare.nodejs.18`, `build.cloudflare.python.3.12`) and are available on Docker Hub.
+
+To build and push updated images yourself (e.g. after modifying a `Dockerfile.build` or an installer script):
+
+```bash
+# Build all Cloudflare toolchain images locally
+sebs docker build --deployment cloudflare
+
+# Push them to Docker Hub (requires push access to the repository)
+sebs docker push --deployment cloudflare
+```
+
+To use a different Docker Hub repository, change `['general']['docker_repository']` in `configs/systems.json`.
 
 ### Trigger Support
 
