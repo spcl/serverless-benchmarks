@@ -6,7 +6,7 @@
       "language": "python",
       "variants": {
         "default": "default",
-        "cloudflare": "default"
+        "cloudflare": {"workers": "default", "containers": "cloudflare"}
       }
     },
     "cpp"
