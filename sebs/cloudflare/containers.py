@@ -9,9 +9,10 @@ import os
 import shutil
 import json
 import io
-import re
+
 import time
 import tarfile
+from importlib.resources import files
 try:
     import tomllib  # Python 3.11+
 except ImportError:
@@ -48,12 +49,13 @@ class CloudflareContainersDeployment:
         self.system_config = system_config
         self.docker_client = docker_client
         self.system_resources = system_resources
+        self._base_image: Optional[str] = None
         self._cli: Optional[CloudflareCLI] = None
 
     def _get_cli(self) -> CloudflareCLI:
         """Get or initialize the Cloudflare CLI container."""
         if self._cli is None:
-            self._cli = CloudflareCLI(self.system_config, self.docker_client)
+            self._cli = CloudflareCLI.get_instance(self.system_config, self.docker_client)
             # Verify wrangler is available
             version = self._cli.check_wrangler_version()
             self.logging.info(f"Cloudflare CLI container ready: {version}")
@@ -86,18 +88,18 @@ class CloudflareContainersDeployment:
             Path to the generated wrangler.toml file
         """
         # Load template
-        template_path = os.path.join(
-            os.path.dirname(__file__),
-            "templates",
-            "wrangler-container.toml"
-        )
+        template_path = files("sebs.cloudflare").joinpath("templates", "wrangler-container.toml")
         with open(template_path, 'rb') as f:
             config = tomllib.load(f)
-        
+
         # Update basic configuration
         config['name'] = worker_name
         config['account_id'] = account_id
-        
+
+        # Pass BASE_IMAGE as a build arg so wrangler uses the correct base image
+        if self._base_image:
+            config['containers'][0]['build_args'] = {"BASE_IMAGE": self._base_image}
+
         # Update container configuration with instance type if needed
         if benchmark_name and ("411.image-recognition" in benchmark_name or 
                               "311.compression" in benchmark_name or 
@@ -181,17 +183,38 @@ class CloudflareContainersDeployment:
             Tuple of (package_path, package_size, container_uri)
         """
         self.logging.info(f"Packaging container for {language_name} {language_version}")
-        
+
         # Get wrapper directory for container files
         wrapper_base = str(get_resource_path("benchmarks", "wrappers", "cloudflare"))
         wrapper_container_dir = os.path.join(wrapper_base, language_name, "container")
-        
+
         if not os.path.exists(wrapper_container_dir):
             raise RuntimeError(
                 f"Container wrapper directory not found: {wrapper_container_dir}"
             )
-        
-        # Copy container wrapper files to the package directory
+
+        # Overwrite the wrapper files staged by add_deployment_files() with the
+        # container-specific versions before doing anything else.
+        if language_name == "python":
+            for f in ["handler.py", "storage.py", "nosql.py"]:
+                src = os.path.join(wrapper_container_dir, f)
+                if os.path.exists(src):
+                    shutil.copy2(src, os.path.join(directory, f))
+
+        # For Python: move benchmark code into function/ so that relative imports
+        # work natively, matching the workers and AWS layout.
+        # handler.py and requirements.txt* stay at the top level.
+        if language_name == "python":
+            func_dir = os.path.join(directory, "function")
+            os.makedirs(func_dir, exist_ok=True)
+            open(os.path.join(func_dir, "__init__.py"), "w").close()
+            dont_move = {"function", "handler.py"}
+            for item in os.listdir(directory):
+                if item in dont_move or item.startswith("requirements"):
+                    continue
+                shutil.move(os.path.join(directory, item), os.path.join(func_dir, item))
+                self.logging.info(f"Moved {item} into function/ package")
+
         # Copy Dockerfile.function from dockerfiles/cloudflare/{language}/
         dockerfile_src = str(
             get_resource_path(
@@ -200,10 +223,6 @@ class CloudflareContainersDeployment:
         )
         dockerfile_dest = os.path.join(directory, "Dockerfile")
         if os.path.exists(dockerfile_src):
-            # Read Dockerfile and update BASE_IMAGE based on language version
-            with open(dockerfile_src, 'r') as f:
-                dockerfile_content = f.read()
-            
             # Get base image from systems.json for container deployments
             container_images = self.system_config.benchmark_container_images(
                 "cloudflare", language_name, architecture
@@ -213,114 +232,54 @@ class CloudflareContainersDeployment:
                 raise RuntimeError(
                     f"No container base image found in systems.json for {language_name} {language_version} on {architecture}"
                 )
-            
-            # Replace BASE_IMAGE default value in ARG line
-            dockerfile_content = re.sub(
-                r'ARG BASE_IMAGE=.*',
-                f'ARG BASE_IMAGE={base_image}',
-                dockerfile_content
-            )
-            
-            # Write modified Dockerfile
-            with open(dockerfile_dest, 'w') as f:
-                f.write(dockerfile_content)
-            
+            self._base_image = base_image
+
+            shutil.copy2(dockerfile_src, dockerfile_dest)
             self.logging.info(f"Copied Dockerfile from {dockerfile_src}")
-        else:
-            raise RuntimeError(f"Dockerfile not found at {dockerfile_src}")
-        
-        # Copy handler and utility files from wrapper/container
-        # Note: ALL containers use worker.js for orchestration (@cloudflare/containers is Node.js only)
-        # The handler inside the container can be Python or Node.js
-        container_files = ["handler.py" if language_name == "python" else "handler.js"]
-        
-        # For worker.js orchestration file, always use the nodejs version
+
+        # For nodejs, copy the container handler (no function/ subdir for nodejs).
+        if language_name == "nodejs":
+            handler_file = "handler.js"
+            shutil.copy2(
+                os.path.join(wrapper_container_dir, handler_file),
+                os.path.join(directory, handler_file),
+            )
+            self.logging.info(f"Copied container {handler_file}")
+
         nodejs_wrapper_dir = os.path.join(wrapper_base, "nodejs", "container")
         worker_js_src = os.path.join(nodejs_wrapper_dir, "worker.js")
-        worker_js_dest = os.path.join(directory, "worker.js")
         if os.path.exists(worker_js_src):
-            shutil.copy2(worker_js_src, worker_js_dest)
+            shutil.copy2(worker_js_src, os.path.join(directory, "worker.js"))
             self.logging.info(f"Copied worker.js orchestration file from nodejs/container")
-        
-        # Copy storage and nosql utilities from language-specific wrapper
-        if language_name == "nodejs":
-            container_files.extend(["storage.js", "nosql.js"])
-        else:
-            container_files.extend(["storage.py", "nosql.py"])
-        
-        for file in container_files:
-            src = os.path.join(wrapper_container_dir, file)
-            dest = os.path.join(directory, file)
-            if os.path.exists(src):
-                shutil.copy2(src, dest)
-                self.logging.info(f"Copied container file: {file}")
-        
-        # Check if benchmark has init.sh and copy it (needed for some benchmarks like video-processing)
-        # Look in both the benchmark root and the language-specific directory
+
+        # Copy init.sh if the benchmark needs it (e.g. video-processing downloads ffmpeg)
         from sebs.utils import find_benchmark
         benchmark_path = find_benchmark(benchmark, "benchmarks")
         if benchmark_path:
-            paths = [
-                benchmark_path,
-                os.path.join(benchmark_path, language_name),
-            ]
-            for path in paths:
+            for path in [benchmark_path, os.path.join(benchmark_path, language_name)]:
                 init_sh = os.path.join(path, "init.sh")
                 if os.path.exists(init_sh):
                     shutil.copy2(init_sh, os.path.join(directory, "init.sh"))
                     self.logging.info(f"Copied init.sh from {path}")
                     break
-        
-        # For Python containers, fix relative imports in benchmark code
-        # Containers use flat structure, so "from . import storage" must become "import storage"
-        if language_name == "python":
-            for item in os.listdir(directory):
-                if item.endswith('.py') and item not in ['handler.py', 'storage.py', 'nosql.py', 'worker.py']:
-                    file_path = os.path.join(directory, item)
-                    with open(file_path, 'r') as f:
-                        content = f.read()
-                    # Fix relative imports
-                    content = re.sub(r'from \. import ', 'import ', content)
-                    with open(file_path, 'w') as f:
-                        f.write(content)
-        
-        # For Node.js containers, transform benchmark code to be async-compatible
-        # The container wrapper uses async HTTP calls, but benchmarks expect sync
-        elif language_name == "nodejs":
-            for item in os.listdir(directory):
-                if item.endswith('.js') and item not in ['handler.js', 'storage.js', 'nosql.js', 'worker.js', 'build.js', 'request-polyfill.js']:
-                    file_path = os.path.join(directory, item)
-                    # Could add transformations here if needed
-                    pass
-        
-        # Prepare package.json for container orchestration
-        # ALL containers need @cloudflare/containers for worker.js orchestration
-        worker_package_json = {
-            "name": f"{benchmark}-worker",
-            "version": "1.0.0",
-            "dependencies": {
-                "@cloudflare/containers": "*"
-            }
-        }
-        
+
+        # ALL containers need @cloudflare/containers for worker.js orchestration.
+        # For nodejs benchmarks, preserve the existing package.json and add the
+        # dependency. For Python, create a minimal package.json with just the dep.
+        package_json_path = os.path.join(directory, "package.json")
         if language_name == "nodejs":
-            # Read the benchmark's package.json if it exists and merge dependencies
-            benchmark_package_file = os.path.join(directory, "package.json")
-            if os.path.exists(benchmark_package_file):
-                with open(benchmark_package_file, 'r') as f:
-                    benchmark_package = json.load(f)
-                # Merge dependencies
-                if "dependencies" in benchmark_package:
-                    worker_package_json["dependencies"].update(benchmark_package["dependencies"])
-            
-            # Write the combined package.json
-            with open(benchmark_package_file, 'w') as f:
-                json.dump(worker_package_json, f, indent=2)
-        else:  # Python containers also need package.json for worker.js orchestration
-            # Create package.json just for @cloudflare/containers (Python code in container)
-            package_json_path = os.path.join(directory, "package.json")
-            with open(package_json_path, 'w') as f:
-                json.dump(worker_package_json, f, indent=2)
+            if not os.path.exists(package_json_path):
+                raise RuntimeError(
+                    f"package.json not found at {package_json_path} "
+                    f"for nodejs benchmark '{benchmark}'"
+                )
+            with open(package_json_path, 'r') as f:
+                package_json = json.load(f)
+        else:
+            package_json = {}
+        package_json.setdefault("dependencies", {})["@cloudflare/containers"] = "*"
+        with open(package_json_path, 'w') as f:
+            json.dump(package_json, f, indent=2)
         
         # Install Node.js dependencies for wrangler deployment
         # Note: These are needed for wrangler to bundle worker.js, not for the container
@@ -352,58 +311,31 @@ class CloudflareContainersDeployment:
             self.logging.error(f"npm install failed: {e}")
             raise RuntimeError(f"Failed to install Node.js dependencies: {e}")
         
-        # For Python containers, also handle Python requirements
+        # For Python containers, promote the versioned requirements.txt to requirements.txt
         if language_name == "python":
-            # Python requirements will be installed in the Dockerfile
-            # Rename version-specific requirements.txt to requirements.txt
             requirements_file = os.path.join(directory, "requirements.txt")
             versioned_requirements = os.path.join(directory, f"requirements.txt.{language_version}")
-            
             if os.path.exists(versioned_requirements):
                 shutil.copy2(versioned_requirements, requirements_file)
                 self.logging.info(f"Copied requirements.txt.{language_version} to requirements.txt")
-                
-                # Fix torch wheel URLs for container compatibility
-                # Replace direct wheel URLs with proper torch installation
-                with open(requirements_file, 'r') as f:
-                    content = f.read()
-                
-                # Replace torch wheel URLs with proper installation commands
-                modified = False
-                if 'download.pytorch.org/whl' in content:
-                    # Replace direct wheel URL with pip-installable torch
-                    content = re.sub(
-                        r'https://download\.pytorch\.org/whl/[^\s]+\.whl',
-                        'torch',
-                        content
-                    )
-                    modified = True
-                
-                if modified:
-                    with open(requirements_file, 'w') as f:
-                        f.write(content)
-                    self.logging.info("Fixed torch URLs in requirements.txt for container compatibility")
-                
             elif not os.path.exists(requirements_file):
-                # Create empty requirements.txt if none exists
-                with open(requirements_file, 'w') as f:
-                    f.write("")
+                open(requirements_file, "w").close()
                 self.logging.info("Created empty requirements.txt")
         
-        # Build Docker image locally for cache compatibility
-        # wrangler will re-build/push during deployment from the Dockerfile
-        image_tag = self._build_container_image_local(directory, benchmark, language_name, language_version)
-        
+        # Deterministic image tag used as the container_uri label. wrangler reads
+        # the Dockerfile directly during deploy, so no local image is required.
+        image_name = f"{benchmark.replace('.', '-')}-{language_name}-{language_version.replace('.', '')}"
+        image_tag = f"{image_name}:latest"
+
         # Calculate package size (approximate, as it's a source directory)
         total_size = 0
         for dirpath, dirnames, filenames in os.walk(directory):
             for filename in filenames:
                 filepath = os.path.join(dirpath, filename)
                 total_size += os.path.getsize(filepath)
-        
-        self.logging.info(f"Container package prepared with local image: {image_tag}")
-        
-        # Return local image tag (wrangler will rebuild from Dockerfile during deploy)
+
+        self.logging.info(f"Container package prepared (image tag: {image_tag})")
+
         return (directory, total_size, image_tag)
     
     def _build_container_image_local(
@@ -412,25 +344,27 @@ class CloudflareContainersDeployment:
         benchmark: str,
         language_name: str,
         language_version: str,
+        base_image: str = "",
     ) -> str:
         """
         Build a Docker image locally for cache purposes.
         wrangler will rebuild from Dockerfile during deployment.
-        
+
         Returns the local image tag.
         """
         # Generate image tag
         image_name = f"{benchmark.replace('.', '-')}-{language_name}-{language_version.replace('.', '')}"
         image_tag = f"{image_name}:latest"
-        
+
         self.logging.info(f"Building local container image: {image_tag}")
-        
+
+        buildargs = {"BASE_IMAGE": base_image} if base_image else {}
+
         try:
-            # Build the Docker image using docker-py
-            # nocache=True ensures handler changes are picked up
             _, build_logs = self.docker_client.images.build(
                 path=directory,
                 tag=image_tag,
+                buildargs=buildargs,
                 nocache=True,
                 rm=True
             )
@@ -512,11 +446,10 @@ class CloudflareContainersDeployment:
             
             time.sleep(wait_interval)
         
-        self.logging.warning(
-            f"Container worker may not be fully ready after {max_wait_seconds}s. "
-            "First invocation may still experience initialization delay."
+        raise RuntimeError(
+            f"Container worker {worker_name} did not become ready after {max_wait_seconds}s. "
+            "Deployment cannot proceed without a healthy container."
         )
-        return False
 
     def shutdown(self):
         """Shutdown CLI container if initialized."""

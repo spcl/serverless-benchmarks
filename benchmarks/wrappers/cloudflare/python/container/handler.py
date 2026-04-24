@@ -51,17 +51,17 @@ urllib.request.urlopen = patched_urlopen
 print("Monkey-patched urllib.request.urlopen to add User-Agent header")
 
 # Import the benchmark handler function
-from function import handler as benchmark_handler
+from function.function import handler as benchmark_handler
 
 # Import storage and nosql if available
 try:
-    import storage
+    from function import storage
 except ImportError:
     storage = None
     print("Storage module not available")
 
 try:
-    import nosql
+    from function import nosql
 except ImportError:
     nosql = None
     print("NoSQL module not available")

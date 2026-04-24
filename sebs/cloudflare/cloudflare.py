@@ -171,8 +171,7 @@ class Cloudflare(System):
         # here ensures copy_code() applies the cloudflare/ source overlay and the
         # cache key reflects the correct variant.
         if (
-            not container_deployment
-            and code_package.language_variant == "default"
+            code_package.language_variant == "default"
             and code_package.benchmark_config.supports(code_package.language, self.name())
         ):
             code_package.select_variant(self.name())
