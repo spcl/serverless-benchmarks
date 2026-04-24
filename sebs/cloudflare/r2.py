@@ -247,25 +247,25 @@ class R2(PersistentStorage):
         """
         s3_client = self._get_s3_client()
         if s3_client is None:
-            self.logging.warning(f"Cannot list R2 bucket {bucket_name} - S3 client not available")
-            return []
-        
+            raise RuntimeError(
+                f"Cannot list R2 bucket {bucket_name} - S3 client not available. "
+                "Ensure CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY are set."
+            )
+
         try:
-            # List objects with optional prefix
             paginator = s3_client.get_paginator('list_objects_v2')
             page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
-            
+
             files = []
             for page in page_iterator:
                 if 'Contents' in page:
                     for obj in page['Contents']:
                         files.append(obj['Key'])
-            
+
             return files
-            
+
         except Exception as e:
-            self.logging.warning(f"Failed to list R2 bucket {bucket_name}: {str(e)}")
-            return []
+            raise RuntimeError(f"Failed to list R2 bucket {bucket_name}: {str(e)}") from e
 
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:
         """
