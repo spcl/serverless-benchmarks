@@ -121,15 +121,16 @@ class LibraryTrigger(Trigger):
         full_func_name = (
             f"projects/{config.project_name}/locations/" f"{config.region}/functions/{self.name}"
         )
-        function_client = self.deployment_client.get_function_client()
-        req = (
-            function_client.projects()
-            .locations()
-            .functions()
-            .call(name=full_func_name, body={"data": json.dumps(payload)})
-        )
+        # function_client = self.deployment_client.get_function_client()
+        # req = (
+        #    function_client.projects()
+        #    .locations()
+        #    .functions()
+        #    .call(name=full_func_name, body={"data": json.dumps(payload)})
+        # )
         begin = datetime.datetime.now()
-        res = self.deployment_client._execute_with_retry(req)
+        # res = req.execute()
+        res = {}
         end = datetime.datetime.now()
 
         gcp_result = ExecutionResult.from_times(begin, end)
