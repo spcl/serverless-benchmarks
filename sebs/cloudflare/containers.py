@@ -8,10 +8,8 @@ Cloudflare Workers using @cloudflare/containers.
 import os
 import shutil
 import json
-import io
 
 import time
-import tarfile
 from importlib.resources import files
 try:
     import tomllib  # Python 3.11+
@@ -96,9 +94,14 @@ class CloudflareContainersDeployment:
         config['name'] = worker_name
         config['account_id'] = account_id
 
-        # Pass BASE_IMAGE as a build arg so wrangler uses the correct base image
-        if self._base_image:
-            config['containers'][0]['build_args'] = {"BASE_IMAGE": self._base_image}
+        if container_uri and container_uri.startswith("registry.cloudflare.com"):
+            # Pre-built image already pushed to Cloudflare registry — point wrangler
+            # at it directly so it skips the Docker build step entirely.
+            config['containers'][0]['image'] = container_uri
+        else:
+            # Fallback: let wrangler build from the local Dockerfile.
+            if self._base_image:
+                config['containers'][0]['build_args'] = {"BASE_IMAGE": self._base_image}
 
         # Update container configuration with instance type if needed
         if benchmark_name and ("411.image-recognition" in benchmark_name or 
@@ -280,37 +283,7 @@ class CloudflareContainersDeployment:
         package_json.setdefault("dependencies", {})["@cloudflare/containers"] = "*"
         with open(package_json_path, 'w') as f:
             json.dump(package_json, f, indent=2)
-        
-        # Install Node.js dependencies for wrangler deployment
-        # Note: These are needed for wrangler to bundle worker.js, not for the container
-        # The container also installs them during Docker build
-        self.logging.info(f"Installing Node.js dependencies for wrangler deployment in {directory}")
-        cli = self._get_cli()
-        container_path = f"/tmp/container_npm/{os.path.basename(directory)}"
-        
-        try:
-            # Upload package directory to CLI container
-            cli.upload_package(directory, container_path)
-            
-            # Install production dependencies
-            output = cli.execute(f"cd {container_path} && npm install --production")
-            self.logging.info("npm install completed successfully")
-            self.logging.debug(f"npm output: {output.decode('utf-8')}")
-            
-            # Download node_modules back to host for wrangler
-            bits, stat = cli.docker_instance.get_archive(f"{container_path}/node_modules")
-            file_obj = io.BytesIO()
-            for chunk in bits:
-                file_obj.write(chunk)
-            file_obj.seek(0)
-            with tarfile.open(fileobj=file_obj) as tar:
-                tar.extractall(directory)
-            
-            self.logging.info(f"Downloaded node_modules to {directory} for wrangler deployment")
-        except Exception as e:
-            self.logging.error(f"npm install failed: {e}")
-            raise RuntimeError(f"Failed to install Node.js dependencies: {e}")
-        
+
         # For Python containers, promote the versioned requirements.txt to requirements.txt
         if language_name == "python":
             requirements_file = os.path.join(directory, "requirements.txt")
@@ -322,10 +295,12 @@ class CloudflareContainersDeployment:
                 open(requirements_file, "w").close()
                 self.logging.info("Created empty requirements.txt")
         
-        # Deterministic image tag used as the container_uri label. wrangler reads
-        # the Dockerfile directly during deploy, so no local image is required.
-        image_name = f"{benchmark.replace('.', '-')}-{language_name}-{language_version.replace('.', '')}"
-        image_tag = f"{image_name}:latest"
+        # Build the image locally. cache.py requires docker_client.images.get() to
+        # succeed for container deployments, and the local image is what we push to
+        # Cloudflare's registry during deploy (wrangler containers push).
+        image_tag = self._build_container_image_local(
+            directory, benchmark, language_name, language_version, self._base_image or ""
+        )
 
         # Calculate package size (approximate, as it's a source directory)
         total_size = 0
@@ -347,8 +322,11 @@ class CloudflareContainersDeployment:
         base_image: str = "",
     ) -> str:
         """
-        Build a Docker image locally for cache purposes.
-        wrangler will rebuild from Dockerfile during deployment.
+        Build the container image locally.
+
+        The local image is pushed to Cloudflare's registry via
+        `wrangler containers push` during deployment, so wrangler deploy can
+        reference it directly without rebuilding from the Dockerfile.
 
         Returns the local image tag.
         """
@@ -389,7 +367,7 @@ class CloudflareContainersDeployment:
             self.logging.error(error_msg)
             raise RuntimeError(error_msg)
 
-    def wait_for_durable_object_ready(
+    def wait_for_container_worker_ready(
         self,
         worker_name: str,
         worker_url: str,

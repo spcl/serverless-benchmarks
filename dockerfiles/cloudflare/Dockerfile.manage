@@ -16,8 +16,8 @@ RUN apt-get clean && apt-get update \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-# Install wrangler globally
-RUN npm install -g wrangler
+# Install wrangler and @cloudflare/containers globally
+RUN npm install -g wrangler @cloudflare/containers
 
 # Install uv (fast Python package installer) and pywrangler
 # Pin workers-py to 1.8.0: 1.9.x introduced a broken import (rich.logging.Console)
