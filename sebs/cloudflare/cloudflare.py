@@ -529,12 +529,9 @@ class Cloudflare(System):
         Returns:
             Worker deployment result
         """
-        # Generate wrangler.toml for this worker
-        self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name, code_package, container_deployment, container_uri)
-
         # Set up environment for Wrangler CLI in container
         env = {}
-        
+
         if self.config.credentials.api_token:
             env['CLOUDFLARE_API_TOKEN'] = self.config.credentials.api_token
         elif self.config.credentials.email and self.config.credentials.api_key:
@@ -549,13 +546,15 @@ class Cloudflare(System):
 
         # Push the locally-built container image to Cloudflare's registry so that
         # wrangler deploy can reference it directly instead of rebuilding from the
-        # Dockerfile. The registry URI replaces the local tag for wrangler.toml.
+        # Dockerfile. Must happen before generating wrangler.toml so the registry
+        # URI is written in from the start.
         if container_deployment and container_uri:
             self.logging.info(f"Pushing container image {container_uri} to Cloudflare registry...")
             container_uri = cli.containers_push(container_uri, env=env)
             self.logging.info(f"Image pushed to: {container_uri}")
-            # Regenerate wrangler.toml now that we have the registry URI
-            self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name, code_package, container_deployment, container_uri)
+
+        # Generate wrangler.toml for this worker (uses registry URI if available)
+        self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name, code_package, container_deployment, container_uri)
 
         # Upload package directory to container
         container_package_path = f"/tmp/workers/{worker_name}"
