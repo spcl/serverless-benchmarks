@@ -7,7 +7,7 @@ from typing import Optional
 import docker
 
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingBase
+from sebs.utils import LoggingBase, get_resource_path
 
 
 class CloudflareCLI(LoggingBase):
@@ -39,18 +39,41 @@ class CloudflareCLI(LoggingBase):
 
         repo_name = system_config.docker_repository()
         image_name = "manage.cloudflare"
+        full_image_name = repo_name + ":" + image_name
         try:
-            docker_client.images.get(repo_name + ":" + image_name)
+            docker_client.images.get(full_image_name)
         except docker.errors.ImageNotFound:
             try:
-                logging.info(
-                    "Docker pull of image {repo}:{image}".format(
-                        repo=repo_name, image=image_name
-                    )
-                )
+                logging.info(f"Pulling Docker image {full_image_name}...")
                 docker_client.images.pull(repo_name, image_name)
-            except docker.errors.APIError:
-                raise RuntimeError("Docker pull of image {} failed!".format(image_name))
+            except docker.errors.APIError as pull_error:
+                logging.info(f"Pull failed: {pull_error}. Building image locally...")
+                dockerfile_path = str(
+                    get_resource_path("dockerfiles", "cloudflare", "Dockerfile.manage")
+                )
+                if not os.path.exists(dockerfile_path):
+                    raise RuntimeError(
+                        f"Dockerfile not found at {dockerfile_path}. "
+                        "Cannot build Cloudflare CLI container."
+                    )
+                build_path = str(get_resource_path())
+                logging.info(f"Building {full_image_name} from {dockerfile_path}...")
+                try:
+                    _, build_logs = docker_client.images.build(
+                        path=build_path,
+                        dockerfile=dockerfile_path,
+                        tag=full_image_name,
+                        rm=True,
+                        pull=True,
+                    )
+                    for log in build_logs:
+                        if "stream" in log:
+                            logging.debug(log["stream"].strip())
+                    logging.info(f"Successfully built {full_image_name}")
+                except docker.errors.BuildError as build_error:
+                    raise RuntimeError(
+                        f"Failed to build Docker image {full_image_name}: {build_error}"
+                    )
 
         # Start the container in detached mode
         self.docker_instance = docker_client.containers.run(
@@ -158,6 +181,34 @@ class CloudflareCLI(LoggingBase):
         """
         out = self.execute("pywrangler --version")
         return out.decode("utf-8").strip()
+
+    def containers_push(self, tag: str, env: dict = None) -> str:
+        """
+        Push a locally-built image to Cloudflare's container registry.
+
+        The image must already exist locally (built by docker_client.images.build).
+        The manage container shares the host Docker socket, so it can see and push
+        local images directly.
+
+        Args:
+            tag: Local image tag (e.g. my-bench-python-312:latest)
+            env: Environment variables (must include CLOUDFLARE_API_TOKEN and
+                 CLOUDFLARE_ACCOUNT_ID)
+
+        Returns:
+            Registry URI (registry.cloudflare.com/<account>/<image>:<tag>)
+        """
+        out = self.execute(f"wrangler containers push {tag}", env=env)
+        output = out.decode("utf-8")
+        for line in output.splitlines():
+            if "registry.cloudflare.com" in line:
+                parts = line.split()
+                for part in parts:
+                    if part.startswith("registry.cloudflare.com"):
+                        return part.strip()
+        raise RuntimeError(
+            f"Could not parse registry URI from wrangler containers push output:\n{output}"
+        )
 
     def wrangler_deploy(self, package_dir: str, env: dict = None) -> str:
         """
