@@ -672,11 +672,10 @@ class Cloudflare(System):
                     self._workers_dev_subdomain = sub
                     return sub
                 else:
-                    self.logging.warning(
+                    raise RuntimeError(
                         "Could not find workers.dev subdomain in API response; "
                         "please enable the workers.dev subdomain in your Cloudflare dashboard."
                     )
-                    return None
             else:
                 self.logging.warning(
                     f"Failed to fetch workers.dev subdomain: {resp.status_code} - {resp.text}"
