@@ -695,15 +695,7 @@ class Cloudflare(System):
         """
         if account_id:
             sub = self._get_workers_dev_subdomain(account_id)
-            if sub:
-                return f"https://{worker_name}.{sub}.workers.dev"
-            else:
-                # fallback: some code historically used account_id in the host
-                self.logging.warning(
-                    "Using account ID in workers.dev URL as a fallback. "
-                    "Enable the workers.dev subdomain in Cloudflare for proper URLs."
-                )
-                return f"https://{worker_name}.{account_id}.workers.dev"
+            return f"https://{worker_name}.{sub}.workers.dev"
         # Last fallback: plain workers.dev (may not resolve without a subdomain)
         self.logging.warning(
             "No account ID available; using https://{name}.workers.dev which may not be reachable."
@@ -788,7 +780,7 @@ class Cloudflare(System):
 
         # For environment variables or KV namespaces, we would use the API here
         # For now, we'll just log that configuration update was requested
-        self.logging.info(
+        self.logging.warning(
             f"Configuration update requested for worker {worker.name}. "
             "Note: Cloudflare Workers have limited runtime configuration options."
         )
