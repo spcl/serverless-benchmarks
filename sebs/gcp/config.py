@@ -616,7 +616,8 @@ class GCPConfig(Config):
             GCPConfig.initialize(config_obj, config)
 
         # deployment configuration is never loaded from cache - always fresh!
-        GCPConfiguration.initialize(config_obj.deployment_config, config["configuration"])
+        if "configuration" in config:
+            GCPConfiguration.initialize(config_obj.deployment_config, config["configuration"])
 
         # mypy makes a mistake here
         updated_keys: List[Tuple[str, List[str]]] = [("region", ["gcp", "region"])]  # type: ignore
