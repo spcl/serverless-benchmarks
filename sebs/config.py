@@ -221,6 +221,18 @@ class SeBSConfig:
         """
         return self._system_config["general"].get("SeBS_version", "unknown")
 
+    def previous_version(self) -> str:
+        """Get the previous major SeBS framework version.
+
+        This is used as a fallback version for Docker images that haven't been
+        rebuilt for the current version. It allows new SeBS versions to use
+        images from the previous stable version without requiring a full rebuild.
+
+        Returns:
+            str: The previous major version string, or 'unknown' if not configured.
+        """
+        return self._system_config["general"].get("previous_major_version", "unknown")
+
     def docker_image_name(
         self,
         system: str,

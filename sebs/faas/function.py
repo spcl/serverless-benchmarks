@@ -463,7 +463,9 @@ class Trigger(ABC, LoggingBase):
                 self.logging.error("Output: {}".format(data.getvalue().decode()))
             else:
                 self.logging.error("No output provided!")
-            raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
+            raise RuntimeError(
+                f"Failed invocation of function! Output: {data.getvalue().decode()}"
+            ) from None
 
     @staticmethod
     @abstractmethod
@@ -555,6 +557,22 @@ class Variant:
         LLRT = "llrt"
         CLOUDFLARE = "cloudflare"
 
+    class Java(Enum):
+        """Java runtime variants.
+        Currently only JDK.
+        """
+
+        DEFAULT = "default"
+
+    class Cpp(Enum):
+        """Cpp runtime variants.
+
+        Currently only one variant,
+        compiled with gcc.
+        """
+
+        DEFAULT = "default"
+
     @classmethod
     def for_language(cls, language: Language, val: str) -> Enum:
         """Deserialize a variant string for the given language."""
@@ -576,6 +594,8 @@ class Variant:
 Variant._LANG_MAP = {
     Language.PYTHON: Variant.Python,
     Language.NODEJS: Variant.NodeJS,
+    Language.JAVA: Variant.Java,
+    Language.CPP: Variant.Cpp,
 }
 
 

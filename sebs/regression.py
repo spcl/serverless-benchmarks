@@ -28,7 +28,7 @@ from time import sleep
 from typing import cast, Dict, Optional, Set, Tuple, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
-from sebs.utils import ColoredWrapper
+from sebs.utils import ColoredWrapper, SensitiveDataFilter, LoggingBase
 
 if TYPE_CHECKING:
     from sebs import SeBS
@@ -49,7 +49,14 @@ benchmarks_python = [
     "504.dna-visualisation",  # DNA visualization
 ]
 
-benchmarks_nodejs = ["010.sleep", "110.dynamic-html", "120.uploader", "210.thumbnailer"]
+benchmarks_nodejs = [
+    "010.sleep",
+    "110.dynamic-html",
+    "120.uploader",
+    "130.crud-api",
+    "210.thumbnailer",
+    "311.compression",
+]
 
 benchmarks_java = ["010.sleep", "110.dynamic-html"]
 
@@ -84,6 +91,10 @@ architectures_cloudflare = ["x64"]
 cloud_config: Optional[dict] = None
 # Input size for benchmark test data ("test" | "small" | "large"), set in regression_suite()
 benchmark_input_size: str = "test"
+
+RESOURCE_PREFIX = "regr"
+LOGGING_REDACTED = False
+LOGGING_REDACTOR: SensitiveDataFilter = SensitiveDataFilter()
 
 
 class TestSequenceMeta(type):
@@ -184,6 +195,9 @@ class TestSequenceMeta(type):
                 logger = logging.getLogger(log_name)
                 logger.setLevel(logging.INFO)
                 logging_wrapper = ColoredWrapper(log_name, logger)
+                if LOGGING_REDACTED:
+                    logger.addFilter(LOGGING_REDACTOR)
+                    logging_wrapper.set_filter(LOGGING_REDACTOR)
 
                 # Configure experiment settings
                 self.experiment_config["architecture"] = architecture
@@ -240,9 +254,23 @@ class TestSequenceMeta(type):
                                 f"{benchmark_name} fail on trigger: {trigger_type}"
                             )
                         else:
-                            logging_wrapper.info(
-                                f"{benchmark_name} success on trigger: {trigger_type}"
+                            output = ret.output.get("result", {})
+                            storage = (
+                                deployment_client.system_resources.get_storage()
+                                if benchmark.uses_storage
+                                else None
                             )
+                            error = benchmark.validate_output(input_config, output, storage)
+                            if error is not None:
+                                failure = True
+                                logging_wrapper.error(
+                                    f"{benchmark_name} output validation failed"
+                                    f" on trigger: {trigger_type}, reason: {error}"
+                                )
+                            else:
+                                logging_wrapper.info(
+                                    f"{benchmark_name} success on trigger: {trigger_type}"
+                                )
                         execution_results[trigger_type.name] = ret.output
                     except RuntimeError:
                         failure = True
@@ -340,7 +368,16 @@ class AWSTestSequencePython(
 
         # Synchronize resource initialization with a lock
         with AWSTestSequencePython.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
         return deployment_client
 
 
@@ -394,7 +431,16 @@ class AWSTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with AWSTestSequenceNodejs.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
         return deployment_client
 
 
@@ -437,7 +483,16 @@ class AWSTestSequenceCpp(
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with AWSTestSequenceCpp.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
         return deployment_client
 
 
@@ -488,7 +543,16 @@ class AWSTestSequenceJava(
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with AWSTestSequenceJava.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
         return deployment_client
 
 
@@ -545,12 +609,14 @@ class AzureTestSequencePython(
                 )
 
             # Initialize Azure CLI if not already done
+            needs_login = False
             if not hasattr(AzureTestSequencePython, "cli"):
                 from sebs.azure.cli import AzureCLI
 
                 AzureTestSequencePython.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
+                needs_login = True
 
             # Create a copy of the config and set architecture and deployment type
             config_copy = copy.deepcopy(cloud_config)
@@ -568,9 +634,14 @@ class AzureTestSequencePython(
 
             # Initialize CLI with login and setup resources
             deployment_client.system_resources.initialize_cli(
-                cli=AzureTestSequencePython.cli, login=True
+                cli=AzureTestSequencePython.cli, login=needs_login
             )
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(deployment_client.config.resources.resources_id)
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id
+                )
             return deployment_client
 
 
@@ -624,12 +695,14 @@ class AzureTestSequenceNodejs(
                 )
 
             # Initialize Azure CLI if not already done
+            needs_login = False
             if not hasattr(AzureTestSequenceNodejs, "cli"):
                 from sebs.azure.cli import AzureCLI
 
                 AzureTestSequenceNodejs.cli = AzureCLI(
                     self.client.config, self.client.docker_client
                 )
+                needs_login = True
 
             # Create a copy of the config and set architecture and deployment type
             config_copy = copy.deepcopy(cloud_config)
@@ -646,8 +719,15 @@ class AzureTestSequenceNodejs(
             )
 
             # Initialize CLI and setup resources (no login needed - reuses Python session)
-            deployment_client.system_resources.initialize_cli(cli=AzureTestSequenceNodejs.cli)
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.system_resources.initialize_cli(
+                cli=AzureTestSequenceNodejs.cli, login=needs_login
+            )
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(deployment_client.config.resources.resources_id)
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id
+                )
             return deployment_client
 
 
@@ -721,7 +801,12 @@ class AzureTestSequenceJava(
             deployment_client.system_resources.initialize_cli(
                 cli=AzureTestSequenceJava.cli, login=needs_login
             )
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(deployment_client.config.resources.resources_id)
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id
+                )
             return deployment_client
 
 
@@ -775,7 +860,16 @@ class GCPTestSequencePython(
 
         # Synchronize resource initialization with a lock
         with GCPTestSequencePython.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
         return deployment_client
 
 
@@ -829,7 +923,16 @@ class GCPTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with GCPTestSequenceNodejs.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
         return deployment_client
 
 
@@ -883,7 +986,16 @@ class GCPTestSequenceJava(
 
         # Synchronize resource initialization with a lock
         with GCPTestSequenceJava.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
         return deployment_client
 
 
@@ -941,7 +1053,7 @@ class OpenWhiskTestSequencePython(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequencePython.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
         return deployment_client
 
 
@@ -999,7 +1111,7 @@ class OpenWhiskTestSequenceNodejs(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequenceNodejs.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
         return deployment_client
 
 
@@ -1053,7 +1165,7 @@ class OpenWhiskTestSequenceJava(
 
         # Synchronize resource initialization with a lock
         with OpenWhiskTestSequenceJava.lock:
-            deployment_client.initialize(resource_prefix="regr")
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
         return deployment_client
 
 
@@ -1248,6 +1360,7 @@ def filter_out_benchmarks(
     language_version: str,
     architecture: str,
     deployment_type: str,
+    selected_architecture: str | None = None,
 ) -> bool:
     """Filter out benchmarks that are not supported on specific platforms.
 
@@ -1267,13 +1380,18 @@ def filter_out_benchmarks(
     """
     # fmt: off
 
+    # user can asks to use only a selected architecture
+    if selected_architecture is not None and selected_architecture != architecture:
+        return False
+
     # Arm architecture currently not supported for C++
     if (language == "cpp" and architecture == "arm64"):
         return False
 
     # Filter out image recognition on newer Python versions on AWS
     if (deployment_name == "aws" and language == "python"
-            and language_version in ["3.9", "3.10", "3.11"]):
+            and language_version in ["3.9", "3.10", "3.11"]
+            and deployment_type == "package"):
         return "411.image-recognition" not in benchmark
 
     # C++ code package is too large for this benchmark
@@ -1311,9 +1429,12 @@ def regression_suite(
     experiment_config: dict,
     providers: Set[str],
     deployment_config: dict,
+    resource_prefix: str | None = None,
     benchmark_name: Optional[str] = None,
     deployment_type: Optional[str] = None,
     input_size: str = "test",
+    selected_architecture: str | None = None,
+    filter_output: bool = False,
 ):
     """Create and run a regression test suite for specified cloud providers.
 
@@ -1334,6 +1455,16 @@ def regression_suite(
     Raises:
         AssertionError: If a requested provider is not in the deployment config
     """
+
+    global RESOURCE_PREFIX
+    if resource_prefix is not None:
+        RESOURCE_PREFIX = resource_prefix
+
+    global LOGGING_REDACTED
+    if filter_output:
+        LOGGING_REDACTED = True
+        LoggingBase.enable_filtering()
+
     # Create the test suite
     suite = unittest.TestSuite()
 
@@ -1451,6 +1582,7 @@ def regression_suite(
                 language_version,
                 test_architecture,
                 test_deployment_type,
+                selected_architecture,
             ):
                 print(f"Skip test {test_name} - not supported.")
                 continue

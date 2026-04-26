@@ -255,6 +255,10 @@ class CppDependencies(str, Enum):
         cpp_dependencies: list[CppDependencies],
         dockerfile_template: str,
         sebs_version: str,
+        previous_version: str | None = None,
+        docker_client=None,
+        docker_repository: str | None = None,
+        logger=None,
     ) -> str:
         """
         Generate a custom Dockerfile for C++ Lambda functions with selective dependencies.
@@ -263,9 +267,17 @@ class CppDependencies(str, Enum):
         1. FROM statements for required dependency images
         2. COPY statements to only copy needed libraries from each dependency.
 
+        Supports version fallback: if a dependency image doesn't exist with the current
+        SeBS version, falls back to the previous major version.
+
         Args:
             cpp_dependencies: List of explicit dependencies from benchmark config
             dockerfile_template: Content of Dockerfile.function template
+            sebs_version: Current SeBS version
+            previous_version: Previous major SeBS version for fallback
+            docker_client: Docker client for checking image availability
+            docker_repository: Docker repository name
+            logger: Logger instance for logging fallback information
 
         Returns:
             Complete Dockerfile content with placeholders replaced
@@ -276,9 +288,61 @@ class CppDependencies(str, Enum):
         from_statements = []
         for dep in required_deps:
             config = dep_dict[dep]
+
+            # Determine which version to use (current or previous fallback)
+            version_to_use = sebs_version
+            if docker_client and docker_repository and previous_version:
+                current_image_tag = f"{config.docker_img}-{sebs_version}"
+                previous_image_tag = f"{config.docker_img}-{previous_version}"
+                current_image = f"{docker_repository}:{current_image_tag}"
+                previous_image = f"{docker_repository}:{previous_image_tag}"
+
+                # Try current version first (check locally, then pull)
+                current_available = False
+                try:
+                    docker_client.images.get(current_image)
+                    current_available = True
+                except Exception:
+                    # Not available locally, try to pull it
+                    try:
+                        docker_client.images.pull(docker_repository, current_image_tag)
+                        current_available = True
+                    except Exception:
+                        pass
+
+                if not current_available:
+                    # Current version not available, try previous version
+                    try:
+                        docker_client.images.get(previous_image)
+                        version_to_use = previous_version
+                        if logger:
+                            logger.info(
+                                f"Using previous version {previous_version} for "
+                                f"dependency {dep.value} (current version not available)"
+                            )
+                    except Exception:
+                        # Previous version not local, try to pull it
+                        try:
+                            docker_client.images.pull(docker_repository, previous_image_tag)
+                            version_to_use = previous_version
+                            if logger:
+                                logger.info(
+                                    f"Using previous version {previous_version} for "
+                                    f"dependency {dep.value} (current version not available)"
+                                )
+                        except Exception:
+                            # Neither version available - use current and let build fail
+                            if logger:
+                                logger.warning(
+                                    f"Neither current ({sebs_version}) nor previous "
+                                    f"({previous_version}) version available for "
+                                    f"dependency {dep.value}, build may fail"
+                                )
+                            pass
+
             # Use the short name (e.g., "sdk") as the stage alias
             from_statements.append(
-                f"FROM ${{BASE_REPOSITORY}}:{config.docker_img}-{sebs_version} as {dep.value}"
+                f"FROM ${{BASE_REPOSITORY}}:{config.docker_img}-{version_to_use} as {dep.value}"
             )
 
         copy_statements = []

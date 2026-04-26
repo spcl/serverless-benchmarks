@@ -21,6 +21,7 @@ import requests
 import shutil
 import time
 from typing import cast, Dict, List, Optional, Type, Tuple  # noqa
+from datetime import datetime
 import subprocess
 import socket
 
@@ -379,9 +380,45 @@ class Local(System):
                 attempts += 1
 
         if attempts == max_attempts:
-            raise RuntimeError(
+
+            self.logging.error(
                 f"Couldn't start {func_name} function at container "
                 f"{container.id} , running on {func.url}"
+            )
+
+            if self.remove_containers:
+                self.logging.error(
+                    "Container is set to be removed, no logs available; if the error "
+                    "persists, run function deployment without container removal."
+                )
+                raise RuntimeError(
+                    f"Couldn't start {func_name} function at container {container.id}."
+                )
+
+            assert code_package.code_location
+            output_filename = os.path.join(
+                code_package.code_location,
+                f"container_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+            )
+            try:
+                # timestamps=True adds the log time to each line
+                # tail='all' ensures we get the full history
+                logs = container.logs(
+                    stdout=True, stderr=True, stream=False, timestamps=True
+                ).decode("utf-8")
+
+                with open(output_filename, "w") as f:
+                    f.write("=" * 50 + "\n")
+                    f.write(f"ID:   {container.id}\n")
+                    f.write("=" * 50 + "\n\n")
+                    f.write(logs)
+
+            except Exception as e:
+                self.logging.error(f"Error retrieving logs for container '{container.id}': {e}")
+
+            raise RuntimeError(
+                f"Couldn't start {func_name} function at container "
+                f"{container.id}, check logs in: {output_filename}."
             )
 
         self.logging.info(

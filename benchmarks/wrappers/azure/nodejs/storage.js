@@ -1,6 +1,7 @@
 // Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
 const { BlobServiceClient } = require('@azure/storage-blob'),
+        fs = require('fs'),
         path = require('path'),
         uuid = require('uuid'),
         util = require('util'),
@@ -29,8 +30,28 @@ class azure_storage {
     return [uniqueName, blockBlobClient.uploadFile(filepath)];
   };
 
-  download(bucket, file, filepath) {
-    // TODO:
+  async download(container, file, filepath) {
+    let containerClient = this.client.getContainerClient(container);
+    let blockBlobClient = containerClient.getBlockBlobClient(file);
+    await blockBlobClient.downloadToFile(filepath);
+  };
+
+  async downloadDirectory(container, prefix, downloadPath) {
+    let containerClient = this.client.getContainerClient(container);
+    const blobs = containerClient.listBlobsFlat({ prefix: prefix });
+
+    // We don't get an array of objects, but an async iterator
+    // Thus, intead of a map, we use await-for to iterate over
+    // the blobs and create an array of promises.
+    const downloadPromises = [];
+    for await (const blob of blobs) {
+      const fileName = blob.name;
+      const pathToFile = path.dirname(fileName);
+      fs.mkdirSync(path.join(downloadPath, pathToFile), { recursive: true });
+      downloadPromises.push(this.download(container, fileName, path.join(downloadPath, fileName)));
+    }
+
+    await Promise.all(downloadPromises);
   };
 
   // We could provide additional API for just providing a byte buffer and uploading

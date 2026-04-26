@@ -117,6 +117,8 @@ class GCloudCLI(LoggingBase):
             RuntimeError: If the command fails (non-zero exit code)
         """
         exit_code, out = self.docker_instance.exec_run(cmd)
+        # exec_run without stream=True always returns bytes
+        assert isinstance(out, bytes)
         if exit_code != 0:
             raise RuntimeError(
                 "Command {} failed at gcloud CLI docker!\n Output {}".format(

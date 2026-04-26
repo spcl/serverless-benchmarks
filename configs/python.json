@@ -8,7 +8,7 @@
     "container_deployment": true,
     "runtime": {
       "language": "python",
-      "version": "3.9"
+      "version": "3.11"
     },
     "type": "invocation-overhead",
     "perf-cost": {
@@ -54,7 +54,11 @@
     "name": "aws",
     "aws": {
       "region": "us-east-1",
-      "lambda-role": ""
+      "lambda-role": "",
+      "resources": {
+        "use-function-url": true,
+        "function-url-auth-type": "NONE"
+      }
     },
     "azure": {
       "region": "westeurope"

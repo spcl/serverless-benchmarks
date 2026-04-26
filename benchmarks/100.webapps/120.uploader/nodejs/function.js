@@ -6,6 +6,8 @@ const fs = require('fs'),
 
 let storage_handler = new storage.storage();
 
+const SEBS_USER_AGENT = "SeBS/1.2 (https://github.com/spcl/serverless-benchmarks) SeBS Benchmark Suite/1.2";
+
 function streamToPromise(stream) {
   return new Promise(function(resolve, reject) {
     stream.on("close", () =>  {
@@ -23,7 +25,7 @@ exports.handler = async function(event) {
   let download_path = path.join('/tmp', upload_key)
 
   var file = fs.createWriteStream(download_path);
-  request(url).pipe(file);
+  request({url: url, headers: {'User-Agent': SEBS_USER_AGENT}}).pipe(file);
   let promise = streamToPromise(file);
   var keyName;
   let upload = promise.then(
@@ -33,5 +35,5 @@ exports.handler = async function(event) {
     }
   );
   await upload;
-  return {bucket: bucket, url: url, key: keyName}
+  return {result: {bucket: bucket, url: url, key: keyName}}
 };

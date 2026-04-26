@@ -34,11 +34,7 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     ret = function.handler(req_json)
     end = datetime.datetime.now()
 
-    log_data = {
-        'output': ret['result']
-    }
-    if 'measurement' in ret:
-        log_data['measurement'] = ret['measurement']
+    log_data = ret
     if 'logs' in req_json:
         log_data['time'] = (end - begin) / datetime.timedelta(microseconds=1)
         results_begin = datetime.datetime.now()

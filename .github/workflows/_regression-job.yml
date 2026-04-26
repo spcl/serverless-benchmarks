@@ -1,0 +1,121 @@
+name: Regression Job (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+      language:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      architecture:
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ${{ inputs.architecture == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+
+    env:
+      RESOURCE_PREFIX: ci
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup GCP credentials
+        if: inputs.platform == 'gcp'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+
+      - name: Setup Azure credentials
+        if: inputs.platform == 'azure'
+        run: |
+          echo "AZURE_SECRET_APPLICATION_ID=${{ secrets.AZURE_SECRET_APPLICATION_ID }}" >> $GITHUB_ENV
+          echo "AZURE_SECRET_TENANT=${{ secrets.AZURE_SECRET_TENANT }}" >> $GITHUB_ENV
+          echo "AZURE_SECRET_PASSWORD=${{ secrets.AZURE_SECRET_PASSWORD }}" >> $GITHUB_ENV
+
+      - name: Setup AWS credentials
+        if: inputs.platform == 'aws'
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }}" >> $GITHUB_ENV
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Create virtual environment and install SeBS
+        run: |
+          uv venv
+          uv pip install .
+
+      - name: Run regression tests
+        timeout-minutes: 10
+        run: |
+          source .venv/bin/activate
+          uv run sebs benchmark regression test \
+            --config configs/example.json \
+            --deployment ${{ inputs.platform }} \
+            --language ${{ inputs.language }} \
+            --language-version ${{ inputs.version }} \
+            --architecture ${{ inputs.architecture }} \
+            --selected-architecture \
+            --resource-prefix ci \
+            --filter-output
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "Regression Test Summary" > test-summary.txt
+          echo "======================" >> test-summary.txt
+          echo "Platform: ${{ inputs.platform }}" >> test-summary.txt
+          echo "Language: ${{ inputs.language }}" >> test-summary.txt
+          echo "Version: ${{ inputs.version }}" >> test-summary.txt
+          echo "" >> test-summary.txt
+          if ls regression_*.json 1> /dev/null 2>&1; then
+            ls -1 regression_*.json | wc -l | xargs echo "Benchmarks tested:" >> test-summary.txt
+            echo "" >> test-summary.txt
+            echo "Results saved to artifacts/results/" >> test-summary.txt
+          else
+            echo "No benchmark results found" >> test-summary.txt
+          fi
+
+      - name: Upload test summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-summary-${{ inputs.platform }}-${{ inputs.language }}-${{ inputs.version }}
+          path: test-summary.txt
+
+      - name: Collect and upload regression results
+        if: always()
+        run: |
+          mkdir -p results
+          if ls regression_*.json 1> /dev/null 2>&1; then
+            mv regression_*.json results/ || true
+          fi
+
+      - name: Upload regression results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ inputs.platform }}-${{ inputs.language }}-${{ inputs.version }}
+          path: results/
+          if-no-files-found: ignore
+
+      - name: Upload cache snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-snapshot-${{ inputs.platform }}-${{ inputs.language }}-${{ inputs.version }}
+          path: regression-cache/
+          if-no-files-found: ignore
+
