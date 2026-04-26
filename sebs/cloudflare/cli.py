@@ -221,7 +221,7 @@ class CloudflareCLI(LoggingBase):
         Returns:
             Deployment output
         """
-        cmd = "cd {} && wrangler deploy".format(package_dir)
+        cmd = "cd {} && npm install && wrangler deploy".format(package_dir)
         out = self.execute(cmd, env=env)
         return out.decode("utf-8")
 
