@@ -188,7 +188,9 @@ class ScyllaDB(NoSQLStorage):
 
             if attempts == max_attempts:
                 self.logging.error("Failed to launch ScyllaDB!")
-                self.logging.error(f"Last result of nodetool status: {out}")
+                # exec_run without stream=True always returns bytes
+                assert isinstance(out, bytes)
+                self.logging.error(f"Last result of nodetool status: {out.decode('utf-8')}")
                 raise RuntimeError("Failed to launch ScyllaDB!")
 
             self.configure_connection()

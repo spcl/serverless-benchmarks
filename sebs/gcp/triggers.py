@@ -129,7 +129,7 @@ class LibraryTrigger(Trigger):
             .call(name=full_func_name, body={"data": json.dumps(payload)})
         )
         begin = datetime.datetime.now()
-        res = req.execute()
+        res = self.deployment_client._execute_with_retry(req)
         end = datetime.datetime.now()
 
         gcp_result = ExecutionResult.from_times(begin, end)

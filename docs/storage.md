@@ -19,13 +19,13 @@ You can start the necessary storage services using the `storage` command in SeBS
 
 ```bash
 # Start only object storage
-sebs storage start object config/storage.json --output-json storage_object.json
+sebs storage start object configs/storage.json --output-json storage_object.json
 
 # Start only NoSQL database
-sebs storage start nosql config/storage.json --output-json storage_nosql.json
+sebs storage start nosql configs/storage.json --output-json storage_nosql.json
 
 # Start both storage types
-sebs storage start all config/storage.json --output-json storage.json
+sebs storage start all configs/storage.json --output-json storage.json
 ```
 
 The command deploys the requested storage services as Docker containers and generates a configuration file in JSON format.
@@ -87,7 +87,7 @@ For example, for an external address `10.10.1.15` (a LAN-local address on CloudL
 
 ```bash
 # For a LAN-local address (e.g., on CloudLab)
-jq --slurpfile file1 storage.json '.deployment.openwhisk.storage = $file1[0] | .deployment.openwhisk.storage.object.minio.address = "10.10.1.15:9011"' config/example.json > config/openwhisk.json
+jq --slurpfile file1 storage.json '.deployment.openwhisk.storage = $file1[0] | .deployment.openwhisk.storage.object.minio.address = "10.10.1.15:9011"' configs/example.json > configs/openwhisk.json
 ```
 
 You can validate the configuration of Minio with an HTTP request by using `curl`:
@@ -112,7 +112,7 @@ Here, we again assume the external IP address of the system is `10.10.1.15`, and
 
 ```bash
 # For a LAN-local address (e.g., on CloudLab)
-jq '.deployment.openwhisk.storage.nosql.scylladb.address = "10.10.1.15:9012"' config/openwhisk.json | sponge config/openwhisk.json
+jq '.deployment.openwhisk.storage.nosql.scylladb.address = "10.10.1.15:9012"' configs/openwhisk.json | sponge configs/openwhisk.json
 ```
 
 You can validate the configuration of ScyllaDB with an HTTP request by using `curl`:

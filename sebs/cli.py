@@ -11,6 +11,7 @@ import glob
 import logging
 import functools
 import os
+import sys
 import traceback
 from typing import cast, List, Optional
 
@@ -270,6 +271,11 @@ def benchmark():
     multiple=True,
     help="JSON configuration of deployed storage.",
 )
+@click.option(
+    "--validate/--no-validate",
+    default=False,
+    help="Validate benchmark output after each invocation.",
+)
 @common_params
 def invoke(
     benchmark,
@@ -280,6 +286,7 @@ def invoke(
     timeout,
     function_name,
     image_tag_prefix,
+    validate,
     **kwargs,
 ):
     """Invoke a benchmark function with specified configuration and measure performance."""
@@ -334,6 +341,22 @@ def invoke(
             # deployment_client.get_invocation_error(
             #    function_name=func.name, start_time=start_time, end_time=end_time
             # )
+        elif validate:
+            output = ret.output.get("result", {})
+            storage = (
+                deployment_client.system_resources.get_storage()
+                if benchmark_obj.uses_storage
+                else None
+            )
+            error = benchmark_obj.validate_output(input_config, output, storage)
+            if error is None:
+                sebs_client.logging.info(
+                    f"Repetition {i + 1}/{repetitions}: output validation passed"
+                )
+            else:
+                sebs_client.logging.error(
+                    f"Repetition {i + 1}/{repetitions}: output validation failed: {error}"
+                )
         result.add_invocation(func, ret)
     result.end()
 
@@ -458,6 +481,18 @@ def package(
     multiple=True,
     help="JSON configuration of deployed storage.",
 )
+@click.option(
+    "--selected-architecture/--all-architectures",
+    type=bool,
+    default=False,
+    help="Skip non-selected CPU architectures.",
+)
+@click.option(
+    "--filter-output/--no-filter-output",
+    type=bool,
+    default=False,
+    help="Filter resource IDs and URls from output.",
+)
 @common_params
 @click.option(
     "--cache",
@@ -475,24 +510,45 @@ def package(
     type=click.Choice(["functions", "containers"]),
     help="Limit regression to a specific deployment type (functions or containers).",
 )
-def regression(benchmark_input_size, benchmark_name, storage_configuration, deployment_type, **kwargs):
+def regression(
+    benchmark_input_size,
+    benchmark_name,
+    storage_configuration,
+    selected_architecture,
+    filter_output,
+    deployment_type,
+    **kwargs,
+):
     """Run regression test suite across benchmarks."""
+
     # for regression, deployment client is initialized locally
     # disable default initialization
+
+    from pathlib import Path
+
+    if Path(kwargs["cache"]) == Path("cache"):
+        kwargs["cache"] = os.path.join(os.path.curdir, "regression-cache")
+
     (config, output_dir, logging_filename, sebs_client, _) = parse_common_params(
         initialize_deployment=False,
         storage_configuration=storage_configuration,
         **kwargs,
     )
-    regression_suite(
+    architecture = config["experiments"]["architecture"] if selected_architecture else None
+    has_failures = regression_suite(
         sebs_client,
         config["experiments"],
         set((config["deployment"]["name"],)),
         config,
+        kwargs["resource_prefix"],
         benchmark_name,
         deployment_type,
         benchmark_input_size,
+        architecture,
+        filter_output,
     )
+    # Exit with non-zero code if any tests failed
+    sys.exit(1 if has_failures else 0)
 
 
 @cli.group()
@@ -897,9 +953,19 @@ def resources_remove(resource, prefix, wait, dry_run, **kwargs):
     default=False,
     help="Simulate run without actual deletions.",
 )
+@click.option(
+    "--resource-type",
+    type=click.Choice(["functions"]),
+    default=None,
+    help="Clean up only specific resource type. If not specified, cleans up all resources.",
+)
 @common_params
-def resources_cleanup(resources_id, dry_run, **kwargs):
-    """Clean up cloud resources created by SeBS experiments."""
+def resources_cleanup(resources_id, dry_run, resource_type, **kwargs):
+    """Clean up cloud resources created by SeBS experiments.
+
+    By default, cleans up all resources (functions, storage, etc.).
+    Use --resource-type to clean up only specific resource types.
+    """
     (
         config,
         output_dir,
@@ -909,10 +975,20 @@ def resources_cleanup(resources_id, dry_run, **kwargs):
     ) = parse_common_params(**kwargs)
 
     try:
-        result = deployment_client.cleanup_resources(dry_run=dry_run)
-        total = sum(len(v) for v in result.values())
-        action = "found" if dry_run else "deleted"
-        sebs_client.logging.info(f"Total resources {action}: {total}")
+        if resource_type == "functions":
+            # Clean up only functions
+            deleted_functions = deployment_client.cleanup_functions(dry_run=dry_run)
+            action = "found" if dry_run else "deleted"
+            sebs_client.logging.info(f"Total functions {action}: {len(deleted_functions)}")
+            if deleted_functions:
+                for func_name in deleted_functions:
+                    sebs_client.logging.info(f"  - {func_name}")
+        else:
+            # Clean up all resources (original behavior)
+            result = deployment_client.cleanup_resources(dry_run=dry_run)
+            total = sum(len(v) for v in result.values())
+            action = "found" if dry_run else "deleted"
+            sebs_client.logging.info(f"Total resources {action}: {total}")
     except NotImplementedError as e:
         sebs_client.logging.error(str(e))
 
@@ -956,6 +1032,12 @@ def docker_cmd():
     help="Optional Docker platform (e.g., linux/amd64) to override host architecture.",
 )
 @click.option(
+    "--multi-platform/--no-multi-platform",
+    default=False,
+    type=bool,
+    help="When true, build multi-platform images (requires QEMU support)",
+)
+@click.option(
     "--dependency-type",
     default=None,
     type=str,
@@ -970,6 +1052,7 @@ def docker_build(
     language_version,
     architecture,
     platform,
+    multi_platform,
     dependency_type,
     parallel,
     verbose,
@@ -993,6 +1076,7 @@ def docker_build(
         architecture=architecture,
         dependency_type=dependency_type,
         platform=platform,
+        multi_platform=multi_platform,
         parallel=parallel,
     )
 

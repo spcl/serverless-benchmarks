@@ -198,7 +198,7 @@ class System(ABC, LoggingBase):
         """
         raise NotImplementedError(f"Resource cleanup not implemented for {self.name()}")
 
-    def initialize_resources(self, select_prefix: Optional[str]):
+    def initialize_resources(self, select_prefix: Optional[str], quiet: bool = False):
         """
         Initialize cloud resources for the deployment.
 
@@ -213,9 +213,10 @@ class System(ABC, LoggingBase):
         """
         # User provided resources or found in cache
         if self.config.resources.has_resources_id:
-            self.logging.info(
-                f"Using existing resource name: {self.config.resources.resources_id}."
-            )
+            if not quiet:
+                self.logging.info(
+                    f"Using existing resource name: {self.config.resources.resources_id}."
+                )
             return
 
         # Now search for existing resources
@@ -225,15 +226,16 @@ class System(ABC, LoggingBase):
         if select_prefix is not None:
             for dep in deployments:
                 if select_prefix in dep:
-                    self.logging.info(
-                        f"Using existing deployment {dep} that matches prefix {select_prefix}!"
-                    )
+                    if not quiet:
+                        self.logging.info(
+                            f"Using existing deployment {dep} that matches prefix {select_prefix}!"
+                        )
                     self.config.resources.resources_id = dep
                     return
 
         # We warn users that we create a new resource ID
         # They can use them with a new config
-        if len(deployments) > 0:
+        if len(deployments) > 0 and not quiet:
             self.logging.warning(
                 f"We found {len(deployments)} existing deployments! "
                 "If you want to use any of them, please abort, and "
@@ -248,12 +250,18 @@ class System(ABC, LoggingBase):
         else:
             res_id = str(uuid.uuid1())[0:8]
         self.config.resources.resources_id = res_id
-        self.logging.info(f"Generating unique resource name {res_id}")
+        if not quiet:
+            self.logging.info(f"Generating unique resource name {res_id}")
 
         # Ensure that the bucket is created - this allocates the new resource
         self.system_resources.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+    def initialize(
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+        quiet: bool = False,
+    ):
         """
         Initialize the system.
 

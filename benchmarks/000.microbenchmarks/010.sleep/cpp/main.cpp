@@ -18,10 +18,7 @@ rapidjson::Document function(const rapidjson::Value& json)
   val.SetObject();
   val.AddMember(
     "result",
-    rapidjson::Value(
-      std::to_string(sleep_time).c_str(),
-      val.GetAllocator()
-    ),
+    rapidjson::Value(sleep_time),
     val.GetAllocator()
   );
   return val;

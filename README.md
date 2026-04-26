@@ -1,5 +1,6 @@
 
-[![CircleCI](https://circleci.com/gh/spcl/serverless-benchmarks.svg?style=shield)](https://circleci.com/gh/spcl/serverless-benchmarks)
+[![Code Linting](https://github.com/spcl/serverless-benchmarks/actions/workflows/lint.yml/badge.svg)](https://github.com/spcl/serverless-benchmarks/actions)
+[![Regression](https://github.com/spcl/serverless-benchmarks/actions/workflows/regression.yml/badge.svg)](https://github.com/spcl/serverless-benchmarks/actions)
 [![Documentation Status](https://readthedocs.org/projects/sebs/badge/?version=latest)](https://sebs.readthedocs.io/en/latest/?badge=latest)
 ![Release](https://img.shields.io/github/v/release/spcl/serverless-benchmarks)
 ![License](https://img.shields.io/github/license/spcl/serverless-benchmarks)
@@ -240,3 +241,5 @@ However, they can be missing some of the features from the `master` branch.
 * [Mahla Sharifi](https://github.com/mahlashrifi) - contributed support for Java benchmarks.
 * [Alexander Schlieper (ETH Zurich)](https://github.com/xSurus) - improved support for Java benchmarks.
 * [Laurin Jahns (ETH Zurich)](https://github.com/userlaurin) - support for language variants.
+* [Sharayu Rasal](https://github.com/Sharayu1418) - help with function URLs on AWS.
+* [Livio D'Agostini](https://github.com/ldzgch) - new implementations of benchmarks in Node.js.

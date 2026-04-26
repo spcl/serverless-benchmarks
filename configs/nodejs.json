@@ -4,11 +4,11 @@
     "update_code": false,
     "update_storage": false,
     "download_results": false,
-    "architecture": "arm64",
+    "architecture": "x64",
     "container_deployment": true,
     "runtime": {
       "language": "nodejs",
-      "version": "16"
+      "version": "20"
     },
     "type": "invocation-overhead",
     "perf-cost": {
@@ -54,7 +54,11 @@
     "name": "aws",
     "aws": {
       "region": "us-east-1",
-      "lambda-role": ""
+      "lambda-role": "",
+      "resources": {
+        "use-function-url": true,
+        "function-url-auth-type": "NONE"
+      }
     },
     "azure": {
       "region": "westeurope"

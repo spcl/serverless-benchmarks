@@ -1,0 +1,55 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linting:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install system dependencies
+        run: sudo apt update && sudo apt install -y libcurl4-openssl-dev
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
+      - name: Install SeBS with dev dependencies
+        run: uv sync --extra dev
+
+      - name: Python code formatting with black
+        run: uv run black sebs --check --config .black.toml
+
+      - name: Python code lint with flake8
+        run: uv run flake8 sebs --config=.flake8.cfg --tee --output-file flake-reports
+
+      - name: Python static code verification with mypy
+        run: uv run mypy sebs --config-file=.mypy.ini
+
+      - name: Check for Python documentation coverage
+        run: uv run interrogate -v --fail-under 100 sebs
+
+      - name: Upload flake8 reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flake-reports
+          path: flake-reports

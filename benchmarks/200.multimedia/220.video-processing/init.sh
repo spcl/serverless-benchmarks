@@ -7,6 +7,8 @@ TARGET_ARCHITECTURE=$3
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
+# This currently points to 7.0.2 - will likely change in the future, but we do not have
+# a persistent link.
 if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]]; then
     FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz"
 else

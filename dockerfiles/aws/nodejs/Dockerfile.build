@@ -1,12 +1,13 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
+ARG TARGETARCH
 
 # useradd, groupmod
-RUN yum install -y shadow-utils cmake curl libcurl libcurl-devel
+RUN dnf swap -y curl-minimal curl && dnf install -y shadow-utils
 ENV GOSU_VERSION 1.14
 # https://github.com/tianon/gosu/releases/tag/1.14
 # key https://keys.openpgp.org/search?q=tianon%40debian.org
-RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-amd64" \
+RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-${TARGETARCH}" \
     && chmod +x /usr/local/bin/gosu
 RUN mkdir -p /sebs/
 COPY dockerfiles/nodejs_installer.sh /sebs/installer.sh

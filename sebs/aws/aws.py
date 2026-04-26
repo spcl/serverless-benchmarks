@@ -140,7 +140,12 @@ class AWS(System):
         self.storage: Optional[S3] = None
         self.nosql_storage: Optional[DynamoDB] = None
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+    def initialize(
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+        quiet: bool = False,
+    ):
         """
         Initialize AWS resources.
 
@@ -158,7 +163,7 @@ class AWS(System):
         )
         self.get_lambda_client()
         self.system_resources.initialize_session(self.session)
-        self.initialize_resources(select_prefix=resource_prefix)
+        self.initialize_resources(select_prefix=resource_prefix, quiet=quiet)
 
         self.ecr_client = ECRContainer(
             self.system_config, self.session, self.config, self.docker_client
@@ -598,9 +603,11 @@ class AWS(System):
         """
         # Create function name
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
+        # Extract benchmark number (e.g., "110" from "110.dynamic-html")
+        benchmark_number = code_package.benchmark.split(".")[0]
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
-            code_package.benchmark,
+            benchmark_number,
             code_package.language_name,
             code_package.language_version,
             code_package.architecture,
@@ -636,13 +643,14 @@ class AWS(System):
         self.logging.info("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)
+            self.config.resources.delete_function_url(func_name, self.session, self.cache_client)
         except Exception:
             self.logging.error("Function {} does not exist!".format(func_name))
 
     @staticmethod
     def parse_aws_report(
         log: str, requests: Union[ExecutionResult, Dict[str, ExecutionResult]]
-    ) -> str:
+    ) -> str | None:
         """Parse AWS Lambda execution report from CloudWatch logs.
 
         Extracts execution metrics from AWS Lambda log entries and updates
@@ -668,8 +676,11 @@ class AWS(System):
                 aws_vals[split[0]] = split[1].split()[0]
         if "START RequestId" in aws_vals:
             request_id = aws_vals["START RequestId"]
-        else:
+        elif "REPORT RequestId" in aws_vals:
             request_id = aws_vals["REPORT RequestId"]
+        else:
+            return None
+
         if isinstance(requests, ExecutionResult):
             output = cast(ExecutionResult, requests)
         else:
@@ -692,7 +703,7 @@ class AWS(System):
     def cleanup_resources(self, dry_run: bool = False) -> dict:
         """Delete allocated resources on AWS.
         Currently it deletes the following resources:
-        * Lambda functions and its HTTP API triggers.
+        * Lambda functions and its HTTP API/Function URL triggers.
         * CloudWatch log groups of the functions.
         * DynamoDB tables created for the benchmark.
         * S3 buckets and their content created for the benchmark.
@@ -717,6 +728,10 @@ class AWS(System):
         result["Lambda functions"] = self.cleanup_functions(dry_run)
 
         result["HTTP APIs"] = self.config.resources.cleanup_http_apis(
+            self.session, self.cache_client, dry_run
+        )
+
+        result["Function URLs"] = self.config.resources.cleanup_function_urls(
             self.session, self.cache_client, dry_run
         )
 
@@ -850,6 +865,13 @@ class AWS(System):
             for result_part in val:
                 if result_part["field"] == "@message":
                     request_id = AWS.parse_aws_report(result_part["value"], requests)
+
+                    if request_id is None:
+                        self.logging.error(
+                            "Request incomplete, cannot identify ID! "
+                            f"Request: {result_part['value']}"
+                        )
+
                     if request_id in requests:
                         results_processed += 1
                         requests_ids.remove(request_id)
@@ -858,7 +880,7 @@ class AWS(System):
             f"out of {results_count} invocations"
         )
 
-    def create_trigger(self, func: Function, trigger_type: Trigger.TriggerType) -> Trigger:
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """Create a trigger for the specified function.
 
         Creates and configures a trigger based on the specified type. Currently
@@ -874,32 +896,50 @@ class AWS(System):
         Raises:
             RuntimeError: If trigger type is not supported
         """
-        from sebs.aws.triggers import HTTPTrigger
+        from sebs.aws.triggers import HTTPTrigger, HTTPTriggerImplementation
 
-        function = cast(LambdaFunction, func)
+        function = cast(LambdaFunction, function)
 
+        trigger: Trigger
         if trigger_type == Trigger.TriggerType.HTTP:
-            api_name = "{}-http-api".format(function.name)
-            http_api = self.config.resources.http_api(api_name, function, self.session)
-            # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
-            # but this is wrong - source arn must be {api-arn}/*/*
-            self.get_lambda_client().add_permission(
-                FunctionName=function.name,
-                StatementId=str(uuid.uuid1()),
-                Action="lambda:InvokeFunction",
-                Principal="apigateway.amazonaws.com",
-                SourceArn=f"{http_api.arn}/*/*",
-            )
-            trigger = HTTPTrigger(http_api.endpoint, api_name)
-            self.logging.info(
-                f"Created HTTP trigger for {func.name} function. "
-                "Sleep 5 seconds to avoid cloud errors."
-            )
-            time.sleep(5)
+            if self.config.resources.use_function_url:
+                # Use Lambda Function URL (no 29-second timeout limit)
+                func_url = self.config.resources.function_url(function, self.session)
+                trigger = HTTPTrigger(
+                    url=func_url.url,
+                    implementation=HTTPTriggerImplementation.FUNCTION_URL,
+                    function_name=func_url.function_name,
+                    auth_type=func_url.auth_type,
+                )
+                self.logging.info(f"Created Function URL trigger for {function.name} function.")
+            else:
+                # Use API Gateway (default, for backward compatibility)
+                api_name = "{}-http-api".format(function.name)
+                http_api = self.config.resources.http_api(api_name, function, self.session)
+                # https://aws.amazon.com/blogs/compute/announcing-http-apis-for-amazon-api-gateway/
+                # but this is wrong - source arn must be {api-arn}/*/*
+                self.get_lambda_client().add_permission(
+                    FunctionName=function.name,
+                    StatementId=str(uuid.uuid1()),
+                    Action="lambda:InvokeFunction",
+                    Principal="apigateway.amazonaws.com",
+                    SourceArn=f"{http_api.arn}/*/*",
+                )
+                trigger = HTTPTrigger(
+                    url=http_api.endpoint,
+                    implementation=HTTPTriggerImplementation.API_GATEWAY,
+                    api_id=api_name,
+                )
+                self.logging.info(
+                    f"Created HTTP API Gateway trigger for {function.name} function. "
+                    "Sleep 5 seconds to avoid cloud errors."
+                )
+                time.sleep(5)
+
             trigger.logging_handlers = self.logging_handlers
         elif trigger_type == Trigger.TriggerType.LIBRARY:
             # should already exist
-            return func.triggers(Trigger.TriggerType.LIBRARY)[0]
+            return function.triggers(Trigger.TriggerType.LIBRARY)[0]
         else:
             raise RuntimeError("Not supported!")
 

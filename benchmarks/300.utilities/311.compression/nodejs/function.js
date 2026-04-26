@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const zlib = require('zlib');
+const archiver = require('archiver');
 const { v4: uuidv4 } = require('uuid');
 const storage = require('./storage');
 
@@ -32,59 +32,36 @@ function parseDirectory(directory) {
 }
 
 /**
- * Create a simple tar.gz archive from a directory using native zlib
- * This creates a gzip-compressed tar archive without external dependencies
+ * Create a zip archive from a directory using archiver
  * @param {string} sourceDir - Directory to compress
  * @param {string} outputPath - Path for the output archive file
  * @returns {Promise<void>}
  */
-async function createTarGzArchive(sourceDir, outputPath) {
-  // Create a simple tar-like format (concatenated files with headers)
-  const files = [];
-  
-  function collectFiles(dir, baseDir = '') {
-    const entries = fs.readdirSync(dir);
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry);
-      const relativePath = path.join(baseDir, entry);
-      const stat = fs.statSync(fullPath);
-      
-      if (stat.isDirectory()) {
-        collectFiles(fullPath, relativePath);
-      } else {
-        files.push({
-          path: relativePath,
-          fullPath: fullPath,
-          size: stat.size
-        });
-      }
-    }
-  }
-  
-  collectFiles(sourceDir);
-  
-  // Create a concatenated buffer of all files with simple headers
-  const chunks = [];
-  for (const file of files) {
-    const content = fs.readFileSync(file.fullPath);
-    // Simple header: filename length (4 bytes) + filename + content length (4 bytes) + content
-    const pathBuffer = Buffer.from(file.path);
-    const pathLengthBuffer = Buffer.allocUnsafe(4);
-    pathLengthBuffer.writeUInt32BE(pathBuffer.length, 0);
-    const contentLengthBuffer = Buffer.allocUnsafe(4);
-    contentLengthBuffer.writeUInt32BE(content.length, 0);
-    
-    chunks.push(pathLengthBuffer);
-    chunks.push(pathBuffer);
-    chunks.push(contentLengthBuffer);
-    chunks.push(content);
-  }
-  
-  const combined = Buffer.concat(chunks);
-  
-  // Compress using gzip
-  const compressed = zlib.gzipSync(combined, { level: 9 });
-  fs.writeFileSync(outputPath, compressed);
+async function createZipArchive(sourceDir, outputPath) {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(outputPath);
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // Maximum compression
+    });
+
+    output.on('close', () => {
+      resolve();
+    });
+
+    archive.on('error', (err) => {
+      reject(err);
+    });
+
+    archive.pipe(output);
+
+    // Add all files from the directory, excluding the archive itself
+    archive.glob('**/*', {
+      cwd: sourceDir,
+      ignore: [path.basename(outputPath)]
+    });
+
+    archive.finalize();
+  });
 }
 
 exports.handler = async function(event) {
@@ -99,7 +76,7 @@ exports.handler = async function(event) {
 
   // Download directory from storage
   const s3_download_begin = Date.now();
-  await storage_handler.download_directory(bucket, path.join(input_prefix, key), download_path);
+  await storage_handler.downloadDirectory(bucket, path.join(input_prefix, key), download_path);
   const s3_download_stop = Date.now();
   
   // Calculate size of downloaded files
@@ -107,9 +84,9 @@ exports.handler = async function(event) {
 
   // Compress directory
   const compress_begin = Date.now();
-  const archive_name = `${key}.tar.gz`;
+  const archive_name = `${key}.zip`;
   const archive_path = path.join(download_path, archive_name);
-  await createTarGzArchive(download_path, archive_path);
+  await createZipArchive(download_path, archive_path);
   const compress_end = Date.now();
 
   // Get archive size

@@ -226,7 +226,7 @@ class Datastore(NoSQLStorage):
         if res.database_client is None:
             res.database_client = datastore.Client(database=res.database)
 
-        parent_key = res.database_client.key(secondary_key[0], secondary_key[1])
+        parent_key = res.database_client.key(primary_key[0], primary_key[1])
         key = res.database_client.key(
             # kind determines the table
             table_name,

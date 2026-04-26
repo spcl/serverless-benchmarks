@@ -32,6 +32,9 @@ class storage:
 
     def download_directory(self, bucket, prefix, path):
         objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        # 'Contents' key is only present when objects are found
+        if 'Contents' not in objects:
+            raise RuntimeError(f"No objects found in bucket '{bucket}' with prefix '{prefix}'")
         for obj in objects['Contents']:
             file_name = obj['Key']
             path_to_file = os.path.dirname(file_name)

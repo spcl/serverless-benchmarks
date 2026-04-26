@@ -11,6 +11,7 @@ Key classes:
     AzureResources: Manages Azure resource allocation and lifecycle
     AzureConfig: Combines credentials and resources for Azure deployment
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -444,6 +445,35 @@ class AzureResources(Resources):
             self.logging.error(ret.decode())
             raise RuntimeError("Failed to delete the resource group!")
 
+    def delete_storage_account(
+        self, cli_instance: AzureCLI, account: AzureResources.Storage
+    ) -> None:
+        """Delete Azure storage account.
+
+        Args:
+            cli_instance: Azure CLI instance for executing deletion
+            account: Storage account to delete
+
+        Raises:
+            RuntimeError: If deletion fails.
+        """
+
+        storage_account_name = account.account_name
+        try:
+            cli_instance.execute(
+                f"az storage account delete --name {storage_account_name} "
+                f"--resource-group {self._resource_group} --yes"
+            )
+            self.logging.info(f"Storage account {storage_account_name} deleted successfully.")
+
+            # delete the account from our list
+            self._storage_accounts = [
+                acc for acc in self._storage_accounts if acc.account_name != storage_account_name
+            ]
+        except RuntimeError as e:
+            self.logging.error(f"Failed to delete the storage account {storage_account_name}!")
+            self.logging.error(f"Error: {e}")
+
     def cosmosdb_account(self, cli_instance: AzureCLI) -> CosmosDBAccount:
         """Get or create CosmosDB account for NoSQL storage.
 
@@ -600,7 +630,7 @@ class AzureResources(Resources):
         """Internal method to create storage account.
 
         Creates a new Azure storage account with the specified name.
-        This one can be usedboth for data storage and function storage.
+        This one can be used both for data storage and function storage.
         This method does NOT update cache or add to resource collections.
 
         Args:
@@ -610,6 +640,23 @@ class AzureResources(Resources):
         Returns:
             New Storage instance for the created account.
         """
+
+        resource_group = self.resource_group(cli_instance)
+        ret = cli_instance.execute(
+            f"az storage account list --resource-group {resource_group} "
+            f"--query \"[?starts_with(name,'{account_name}') && location=='{self._region}']\""
+        )
+        try:
+            resp = json.loads(ret)
+            if len(resp) > 0:
+                self.logging.info(f"Using existing storage account {account_name}")
+                """
+                    List does not return connection string, so we need to query it separately.
+                """
+                return AzureResources.Storage.from_allocation(account_name, cli_instance)
+        except json.JSONDecodeError:
+            pass
+
         sku = "Standard_LRS"
         self.logging.info("Starting allocation of storage account {}.".format(account_name))
         cli_instance.execute(
@@ -674,8 +721,7 @@ class AzureResources(Resources):
             Dictionary containing all resource configuration data.
         """
         out = super().serialize()
-        if len(self._storage_accounts) > 0:
-            out["storage_accounts"] = [x.serialize() for x in self._storage_accounts]
+        out["storage_accounts"] = [x.serialize() for x in self._storage_accounts]
         if self._resource_group:
             out["resource_group"] = self._resource_group
         if self._cosmosdb_account:

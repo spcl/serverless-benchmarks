@@ -230,7 +230,13 @@ class S3(PersistentStorage):
             filepath: Local path where the file should be saved
         """
         self.logging.info("Download {}:{} to {}".format(bucket_name, key, filepath))
-        self.client.download_file(Bucket=bucket_name, Key=key, Filename=filepath)
+        try:
+            self.client.download_file(Bucket=bucket_name, Key=key, Filename=filepath)
+        except self.client.exceptions.ClientError as error:
+            raise RuntimeError(
+                f"Failed to download {key} from bucket {bucket_name}, "
+                f"reason: {error.response['Error']['Message']}"
+            ) from None
 
     def exists_bucket(self, bucket_name: str) -> bool:
         """Check if an S3 bucket exists and is accessible.

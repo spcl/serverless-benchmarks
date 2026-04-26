@@ -23,7 +23,7 @@ exports.handler = async function(event) {
     fs.readFile(file, "utf-8",
       function(err, data) {
         if(err) reject(err);
-        resolve(Mustache.render(data, input));
+        resolve({result: Mustache.render(data, input)});
       }
     );
   });

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "serverless-benchmarks"
-version = "1.2.0"
+version = "1.2.1"
 description = "Serverless Benchmark Suite"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -63,7 +63,12 @@ dependencies = [
     "google-api-python-client-stubs",
     "google-cloud-logging>=2.0.0",
     "google-cloud-datastore",
-    "google-cloud-build>=3.35.0"
+    "google-cloud-build>=3.35.0",
+
+    # benchmark verification - process image
+    "Pillow",
+    # benchmrak verification - video processing
+    "imageio-ffmpeg>=0.4.9"
 ]
 
 # True Optional dependencies (Only installed if explicitly requested)
