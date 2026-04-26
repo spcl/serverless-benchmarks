@@ -6,10 +6,10 @@ from sebs.faas.function import Function, FunctionConfig
 class CloudflareWorker(Function):
     """
     Cloudflare Workers function implementation.
-    
+
     A Cloudflare Worker is a serverless function that runs on Cloudflare's edge network.
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -52,10 +52,10 @@ class CloudflareWorker(Function):
             cfg,
             cached_config.get("account_id"),
         )
-        
+
         for trigger in cached_config["triggers"]:
             trigger_type = HTTPTrigger if trigger["type"] == HTTPTrigger.typename() else None
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
-        
+
         return ret

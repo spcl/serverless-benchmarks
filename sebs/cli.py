@@ -189,7 +189,9 @@ def parse_common_params(
     # Only override container_deployment if explicitly set via CLI
     # If not in config, use CLI default (False)
     if container_deployment or "container_deployment" not in config_obj.get("experiments", {}):
-        update_nested_dict(config_obj, ["experiments", "container_deployment"], container_deployment)
+        update_nested_dict(
+            config_obj, ["experiments", "container_deployment"], container_deployment
+        )
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)

@@ -12,6 +12,7 @@ import subprocess
 
 import time
 from importlib.resources import files
+
 try:
     import tomllib  # Python 3.11+
 except ImportError:
@@ -87,29 +88,31 @@ class CloudflareContainersDeployment:
         """
         # Load template
         template_path = files("sebs.cloudflare").joinpath("templates", "wrangler-container.toml")
-        with open(template_path, 'rb') as f:
+        with open(template_path, "rb") as f:
             config = tomllib.load(f)
 
         # Update basic configuration
-        config['name'] = worker_name
-        config['account_id'] = account_id
+        config["name"] = worker_name
+        config["account_id"] = account_id
 
         if container_uri and container_uri.startswith("registry.cloudflare.com"):
             # Pre-built image already pushed to Cloudflare registry — point wrangler
             # at it directly so it skips the Docker build step entirely.
-            config['containers'][0]['image'] = container_uri
+            config["containers"][0]["image"] = container_uri
         else:
             # Fallback: let wrangler build from the local Dockerfile.
             if self._base_image:
-                config['containers'][0]['build_args'] = {"BASE_IMAGE": self._base_image}
+                config["containers"][0]["build_args"] = {"BASE_IMAGE": self._base_image}
 
         # Update container configuration with instance type if needed
-        if benchmark_name and ("411.image-recognition" in benchmark_name or 
-                              "311.compression" in benchmark_name or 
-                              "504.dna-visualisation" in benchmark_name):
+        if benchmark_name and (
+            "411.image-recognition" in benchmark_name
+            or "311.compression" in benchmark_name
+            or "504.dna-visualisation" in benchmark_name
+        ):
             self.logging.warning("Using standard-4 instance type for high resource benchmark")
-            config['containers'][0]['instance_type'] = "standard-4"
-        
+            config["containers"][0]["instance_type"] = "standard-4"
+
         # Add nosql KV namespace bindings if benchmark uses them
         if code_package and code_package.uses_nosql:
             # Get registered nosql tables for this benchmark
@@ -118,23 +121,26 @@ class CloudflareContainersDeployment:
             if nosql_storage.retrieve_cache(benchmark_for_nosql):
                 nosql_tables = nosql_storage.get_tables(benchmark_for_nosql)
                 if nosql_tables:
-                    config['kv_namespaces'] = config.get('kv_namespaces', [])
+                    config["kv_namespaces"] = config.get("kv_namespaces", [])
                     for table_name, namespace_id in nosql_tables.items():
-                        config['kv_namespaces'].append({
-                            'binding': table_name,
-                            'id': namespace_id,
-                        })
-        
+                        config["kv_namespaces"].append(
+                            {
+                                "binding": table_name,
+                                "id": namespace_id,
+                            }
+                        )
+
         # Add environment variables
         if benchmark_name or (code_package and code_package.uses_nosql):
-            config['vars'] = {}
+            config["vars"] = {}
             if benchmark_name:
-                config['vars']['BENCHMARK_NAME'] = benchmark_name
+                config["vars"]["BENCHMARK_NAME"] = benchmark_name
             if code_package and code_package.uses_nosql:
-                config['vars']['NOSQL_STORAGE_DATABASE'] = "kvstore"
-        
+                config["vars"]["NOSQL_STORAGE_DATABASE"] = "kvstore"
+
         # Add R2 bucket binding
         from sebs.faas.config import Resources
+
         storage = self.system_resources.get_storage()
         bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
         if not bucket_name:
@@ -142,23 +148,20 @@ class CloudflareContainersDeployment:
                 "R2 bucket binding not configured: benchmarks bucket name is empty. "
                 "Benchmarks requiring file access will not work properly."
             )
-        config['r2_buckets'] = [{
-            'binding': 'R2',
-            'bucket_name': bucket_name
-        }]
+        config["r2_buckets"] = [{"binding": "R2", "bucket_name": bucket_name}]
         self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
-        
+
         # Write wrangler.toml to package directory
         toml_path = os.path.join(package_dir, "wrangler.toml")
         try:
             # Try tomli_w (writes binary)
-            with open(toml_path, 'wb') as f:
+            with open(toml_path, "wb") as f:
                 tomli_w.dump(config, f)
         except TypeError:
             # Fallback to toml library (writes text)
-            with open(toml_path, 'w') as f:
+            with open(toml_path, "w") as f:
                 f.write(tomli_w.dumps(config))
-        
+
         self.logging.info(f"Generated wrangler.toml at {toml_path}")
         return toml_path
 
@@ -172,7 +175,7 @@ class CloudflareContainersDeployment:
     ) -> Tuple[str, int, str]:
         """
         Package code for Cloudflare container worker deployment.
-        
+
         Builds a Docker image and returns the image tag for deployment.
 
         Args:
@@ -192,9 +195,7 @@ class CloudflareContainersDeployment:
         wrapper_container_dir = os.path.join(wrapper_base, language_name, "container")
 
         if not os.path.exists(wrapper_container_dir):
-            raise RuntimeError(
-                f"Container wrapper directory not found: {wrapper_container_dir}"
-            )
+            raise RuntimeError(f"Container wrapper directory not found: {wrapper_container_dir}")
 
         # Overwrite the wrapper files staged by add_deployment_files() with the
         # container-specific versions before doing anything else.
@@ -220,9 +221,7 @@ class CloudflareContainersDeployment:
 
         # Copy Dockerfile.function from dockerfiles/cloudflare/{language}/
         dockerfile_src = str(
-            get_resource_path(
-                "dockerfiles", "cloudflare", language_name, "Dockerfile.function"
-            )
+            get_resource_path("dockerfiles", "cloudflare", language_name, "Dockerfile.function")
         )
         dockerfile_dest = os.path.join(directory, "Dockerfile")
         if os.path.exists(dockerfile_src):
@@ -257,6 +256,7 @@ class CloudflareContainersDeployment:
 
         # Copy init.sh if the benchmark needs it (e.g. video-processing downloads ffmpeg)
         from sebs.utils import find_benchmark
+
         benchmark_path = find_benchmark(benchmark, "benchmarks")
         if benchmark_path:
             for path in [benchmark_path, os.path.join(benchmark_path, language_name)]:
@@ -276,12 +276,12 @@ class CloudflareContainersDeployment:
                     f"package.json not found at {package_json_path} "
                     f"for nodejs benchmark '{benchmark}'"
                 )
-            with open(package_json_path, 'r') as f:
+            with open(package_json_path, "r") as f:
                 package_json = json.load(f)
         else:
             package_json = {}
         package_json.setdefault("dependencies", {})["@cloudflare/containers"] = "*"
-        with open(package_json_path, 'w') as f:
+        with open(package_json_path, "w") as f:
             json.dump(package_json, f, indent=2)
 
         # For Python containers, promote the versioned requirements.txt to requirements.txt
@@ -294,7 +294,7 @@ class CloudflareContainersDeployment:
             elif not os.path.exists(requirements_file):
                 open(requirements_file, "w").close()
                 self.logging.info("Created empty requirements.txt")
-        
+
         # Build the image locally. cache.py requires docker_client.images.get() to
         # succeed for container deployments, and the local image is what we push to
         # Cloudflare's registry during deploy (wrangler containers push).
@@ -312,7 +312,7 @@ class CloudflareContainersDeployment:
         self.logging.info(f"Container package prepared (image tag: {image_tag})")
 
         return (directory, total_size, image_tag)
-    
+
     def _build_container_image_local(
         self,
         directory: str,
@@ -330,7 +330,9 @@ class CloudflareContainersDeployment:
         Returns the local image tag.
         """
         # Generate image tag
-        image_name = f"{benchmark.replace('.', '-')}-{language_name}-{language_version.replace('.', '')}"
+        image_name = (
+            f"{benchmark.replace('.', '-')}-{language_name}-{language_version.replace('.', '')}"
+        )
         version_tag = time.strftime("%Y%m%d-%H%M%S")
         image_tag = f"{image_name}:{version_tag}"
 
@@ -338,11 +340,15 @@ class CloudflareContainersDeployment:
 
         result = subprocess.run(
             [
-                "docker", "buildx", "build",
-                "--platform", "linux/amd64",
+                "docker",
+                "buildx",
+                "build",
+                "--platform",
+                "linux/amd64",
                 "--load",
                 "--no-cache",
-                "-t", image_tag,
+                "-t",
+                image_tag,
                 directory,
             ],
             capture_output=True,
@@ -356,10 +362,7 @@ class CloudflareContainersDeployment:
         return image_tag
 
     def wait_for_container_worker_ready(
-        self,
-        worker_name: str,
-        worker_url: str,
-        max_wait_seconds: int = 400
+        self, worker_name: str, worker_url: str, max_wait_seconds: int = 400
     ) -> bool:
         """
         Wait for container worker to be fully provisioned and ready.
@@ -374,20 +377,17 @@ class CloudflareContainersDeployment:
         """
         wait_interval = 10
         start_time = time.time()
-        
+
         self.logging.info("Checking container worker readiness via health endpoint...")
-        
+
         consecutive_failures = 0
         max_consecutive_failures = 5
-        
+
         while time.time() - start_time < max_wait_seconds:
             try:
                 # Use health check endpoint
-                response = requests.get(
-                    f"{worker_url}/health",
-                    timeout=60
-                )
-                
+                response = requests.get(f"{worker_url}/health", timeout=60)
+
                 # 200 = ready
                 if response.status_code == 200:
                     self.logging.info("Container worker is ready!")
@@ -401,17 +401,21 @@ class CloudflareContainersDeployment:
                     )
                 # Other errors
                 else:
-                    self.logging.warning(f"Unexpected status {response.status_code}: {response.text[:100]}")
-                    
+                    self.logging.warning(
+                        f"Unexpected status {response.status_code}: {response.text[:100]}"
+                    )
+
             except requests.exceptions.Timeout:
                 elapsed = int(time.time() - start_time)
-                self.logging.info(f"Health check timeout (container may be starting)... ({elapsed}s elapsed)")
+                self.logging.info(
+                    f"Health check timeout (container may be starting)... ({elapsed}s elapsed)"
+                )
             except requests.exceptions.RequestException as e:
                 elapsed = int(time.time() - start_time)
                 self.logging.debug(f"Connection error ({elapsed}s): {str(e)[:100]}")
-            
+
             time.sleep(wait_interval)
-        
+
         raise RuntimeError(
             f"Container worker {worker_name} did not become ready after {max_wait_seconds}s. "
             "Deployment cannot proceed without a healthy container."

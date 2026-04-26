@@ -21,9 +21,7 @@ class CloudflareCLI(LoggingBase):
     _instance: Optional["CloudflareCLI"] = None
 
     @staticmethod
-    def get_instance(
-        system_config: SeBSConfig, docker_client: docker.client
-    ) -> "CloudflareCLI":
+    def get_instance(system_config: SeBSConfig, docker_client: docker.client) -> "CloudflareCLI":
         """Return the shared CloudflareCLI instance, creating it on first use.
 
         Container and native workers deployments share one underlying CLI
@@ -95,9 +93,9 @@ class CloudflareCLI(LoggingBase):
             detach=True,
             tty=True,
         )
-        
+
         self.logging.info(f"Started Cloudflare CLI container: {self.docker_instance.id}.")
-        
+
         # Wait for container to be ready
         while True:
             try:
@@ -115,20 +113,20 @@ class CloudflareCLI(LoggingBase):
         """
         Execute the given command in Cloudflare CLI container.
         Throws an exception on failure (commands are expected to execute successfully).
-        
+
         Args:
             cmd: Shell command to execute
             env: Optional environment variables dict
-            
+
         Returns:
             Command output as bytes
         """
         # Wrap command in sh -c to support shell features like cd, pipes, etc.
         shell_cmd = ["/bin/sh", "-c", cmd]
         exit_code, out = self.docker_instance.exec_run(
-            shell_cmd, 
+            shell_cmd,
             user="root",  # Run as root since entrypoint creates docker_user but we don't wait for it
-            environment=env
+            environment=env,
         )
         if exit_code != 0:
             raise RuntimeError(
@@ -141,7 +139,7 @@ class CloudflareCLI(LoggingBase):
     def upload_package(self, directory: str, dest: str):
         """
         Upload a directory to the Docker container.
-        
+
         This is not an efficient and memory-intensive implementation.
         So far, we didn't have very large functions that require many gigabytes.
 
@@ -156,7 +154,7 @@ class CloudflareCLI(LoggingBase):
         with tarfile.open(fileobj=handle, mode="w:gz") as tar:
             for f in os.listdir(directory):
                 tar.add(os.path.join(directory, f), arcname=f)
-        
+
         # Move to the beginning of memory before writing
         handle.seek(0)
         self.execute("mkdir -p {}".format(dest))
@@ -165,7 +163,7 @@ class CloudflareCLI(LoggingBase):
     def check_wrangler_version(self) -> str:
         """
         Check wrangler version.
-        
+
         Returns:
             Version string
         """
@@ -175,7 +173,7 @@ class CloudflareCLI(LoggingBase):
     def check_pywrangler_version(self) -> str:
         """
         Check pywrangler version.
-        
+
         Returns:
             Version string
         """
@@ -213,11 +211,11 @@ class CloudflareCLI(LoggingBase):
     def wrangler_deploy(self, package_dir: str, env: dict = None) -> str:
         """
         Deploy a worker using wrangler.
-        
+
         Args:
             package_dir: Path to package directory in container
             env: Environment variables for deployment
-            
+
         Returns:
             Deployment output
         """
@@ -228,11 +226,11 @@ class CloudflareCLI(LoggingBase):
     def pywrangler_deploy(self, package_dir: str, env: dict = None) -> str:
         """
         Deploy a Python worker using pywrangler.
-        
+
         Args:
             package_dir: Path to package directory in container
             env: Environment variables for deployment
-            
+
         Returns:
             Deployment output
         """

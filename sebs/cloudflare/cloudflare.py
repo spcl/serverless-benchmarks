@@ -40,7 +40,7 @@ class _CloudflareContainerAdapter:
     def build_base_image(
         self,
         directory: str,
-        language,            # sebs.sebs_types.Language enum
+        language,  # sebs.sebs_types.Language enum
         language_version: str,
         architecture: str,
         benchmark: str,
@@ -55,7 +55,7 @@ class _CloudflareContainerAdapter:
         """
         dir_result, size_bytes, image_tag = self._containers.package_code(
             directory,
-            language.value,      # Language enum → str
+            language.value,  # Language enum → str
             language_version,
             architecture,
             benchmark,
@@ -88,8 +88,7 @@ class _CloudflareContainerAdapter:
         NOT a pushable URI and is not passed to any registry client.
         """
         image_name = (
-            f"{benchmark.replace('.', '-')}-{language_name}-"
-            f"{language_version.replace('.', '')}"
+            f"{benchmark.replace('.', '-')}-{language_name}-" f"{language_version.replace('.', '')}"
         )
         return f"{image_name}:latest"
 
@@ -110,8 +109,8 @@ class Cloudflare(System):
     SUPPORTED_BENCHMARKS: Dict[Tuple[str, bool], Optional[List[str]]] = {
         ("python", False): ["110", "120", "130", "210", "311", "501", "502", "503"],
         ("nodejs", False): ["110", "120", "130", "311"],
-        ("python", True):  None,   # all benchmarks supported
-        ("nodejs", True):  ["110", "120", "130", "210", "311"],
+        ("python", True): None,  # all benchmarks supported
+        ("nodejs", True): ["110", "120", "130", "210", "311"],
     }
 
     _config: CloudflareConfig
@@ -132,7 +131,9 @@ class Cloudflare(System):
     def config(self) -> CloudflareConfig:
         return self._config
 
-    def is_benchmark_supported(self, benchmark_name: str, language: str, container_deployment: bool) -> bool:
+    def is_benchmark_supported(
+        self, benchmark_name: str, language: str, container_deployment: bool
+    ) -> bool:
         """Return True if the benchmark is supported for the given language/deployment type.
 
         Args:
@@ -170,9 +171,8 @@ class Cloudflare(System):
         # (CLI --language-variant flag), which defaults to "default".  Promoting
         # here ensures copy_code() applies the cloudflare/ source overlay and the
         # cache key reflects the correct variant.
-        if (
-            code_package.language_variant == "default"
-            and code_package.benchmark_config.supports(code_package.language, self.name())
+        if code_package.language_variant == "default" and code_package.benchmark_config.supports(
+            code_package.language, self.name()
         ):
             code_package.select_variant(self.name())
 
@@ -195,11 +195,11 @@ class Cloudflare(System):
         self.logging_handlers = logger_handlers
         self._config = config
         self._api_base_url = "https://api.cloudflare.com/client/v4"
-        # cached workers.dev subdomain for the account 
+        # cached workers.dev subdomain for the account
         # This is different from the account ID and is required to build
         # public worker URLs like <name>.<subdomain>.workers.dev
         self._workers_dev_subdomain: Optional[str] = None
-        
+
         # Initialize deployment handlers
         self._workers_deployment = CloudflareWorkersDeployment(
             self.logging, sebs_config, docker_client, self.system_resources
@@ -275,7 +275,9 @@ class Cloudflare(System):
     def _verify_credentials(self):
         """Verify that the Cloudflare API credentials are valid."""
         # Check if credentials are set
-        if not self.config.credentials.api_token and not (self.config.credentials.email and self.config.credentials.api_key):
+        if not self.config.credentials.api_token and not (
+            self.config.credentials.email and self.config.credentials.api_key
+        ):
             raise RuntimeError(
                 "Cloudflare API credentials are not set. Please set CLOUDFLARE_API_TOKEN "
                 "and CLOUDFLARE_ACCOUNT_ID environment variables."
@@ -291,10 +293,16 @@ class Cloudflare(System):
 
         # Log credential type being used (without exposing the actual token)
         if self.config.credentials.api_token:
-            token_preview = self.config.credentials.api_token[:8] + "..." if len(self.config.credentials.api_token) > 8 else "***"
+            token_preview = (
+                self.config.credentials.api_token[:8] + "..."
+                if len(self.config.credentials.api_token) > 8
+                else "***"
+            )
             self.logging.info(f"Using API Token authentication (starts with: {token_preview})")
         else:
-            self.logging.info(f"Using Email + API Key authentication (email: {self.config.credentials.email})")
+            self.logging.info(
+                f"Using Email + API Key authentication (email: {self.config.credentials.email})"
+            )
 
         response = requests.get(f"{self._api_base_url}/user/tokens/verify", headers=headers)
 
@@ -305,13 +313,13 @@ class Cloudflare(System):
             )
 
         self.logging.info("Cloudflare credentials verified successfully")
-    
+
     def _get_deployment_handler(self, container_deployment: bool):
         """Get the appropriate deployment handler based on deployment type.
-        
+
         Args:
             container_deployment: Whether this is a container deployment
-            
+
         Returns:
             CloudflareWorkersDeployment or CloudflareContainersDeployment
         """
@@ -319,7 +327,6 @@ class Cloudflare(System):
             return self._containers_deployment
         else:
             return self._workers_deployment
-
 
     def package_code(
         self,
@@ -351,7 +358,11 @@ class Cloudflare(System):
         # Native worker deployment flow — always the cloudflare variant.
         # workers.py returns a 3-tuple (path, size, ""); drop the unused 3rd element.
         pkg_path, pkg_size, _ = self._workers_deployment.package_code(
-            directory, language.value, language_version, benchmark, is_cached,
+            directory,
+            language.value,
+            language_version,
+            benchmark,
+            is_cached,
             language_variant="cloudflare",
         )
         return (pkg_path, pkg_size)
@@ -402,8 +413,14 @@ class Cloudflare(System):
         language_variant = code_package.language_variant if code_package else "cloudflare"
         handler = self._get_deployment_handler(container_deployment)
         return handler.generate_wrangler_toml(
-            worker_name, package_dir, language, account_id,
-            benchmark_name, code_package, container_uri, language_variant,
+            worker_name,
+            package_dir,
+            language,
+            account_id,
+            benchmark_name,
+            code_package,
+            container_uri,
+            language_variant,
         )
 
     def create_function(
@@ -469,7 +486,16 @@ class Cloudflare(System):
             self.logging.info(f"Creating new worker {func_name}")
 
             # Create the worker with all package files
-            self._create_or_update_worker(func_name, package, account_id, language, benchmark, code_package, container_deployment, container_uri)
+            self._create_or_update_worker(
+                func_name,
+                package,
+                account_id,
+                language,
+                benchmark,
+                code_package,
+                container_deployment,
+                container_uri,
+            )
 
             worker = CloudflareWorker(
                 func_name,
@@ -512,7 +538,15 @@ class Cloudflare(System):
             return None
 
     def _create_or_update_worker(
-        self, worker_name: str, package_dir: str, account_id: str, language: str, benchmark_name: Optional[str] = None, code_package: Optional[Benchmark] = None, container_deployment: bool = False, container_uri: str = ""
+        self,
+        worker_name: str,
+        package_dir: str,
+        account_id: str,
+        language: str,
+        benchmark_name: Optional[str] = None,
+        code_package: Optional[Benchmark] = None,
+        container_deployment: bool = False,
+        container_uri: str = "",
     ) -> dict:
         """Create or update a Cloudflare Worker using Wrangler CLI in container.
 
@@ -533,12 +567,12 @@ class Cloudflare(System):
         env = {}
 
         if self.config.credentials.api_token:
-            env['CLOUDFLARE_API_TOKEN'] = self.config.credentials.api_token
+            env["CLOUDFLARE_API_TOKEN"] = self.config.credentials.api_token
         elif self.config.credentials.email and self.config.credentials.api_key:
-            env['CLOUDFLARE_EMAIL'] = self.config.credentials.email
-            env['CLOUDFLARE_API_KEY'] = self.config.credentials.api_key
+            env["CLOUDFLARE_EMAIL"] = self.config.credentials.email
+            env["CLOUDFLARE_API_KEY"] = self.config.credentials.api_key
 
-        env['CLOUDFLARE_ACCOUNT_ID'] = account_id
+        env["CLOUDFLARE_ACCOUNT_ID"] = account_id
 
         # Get CLI container instance from appropriate deployment handler
         handler = self._get_deployment_handler(container_deployment)
@@ -554,7 +588,16 @@ class Cloudflare(System):
             self.logging.info(f"Image pushed to: {container_uri}")
 
         # Generate wrangler.toml for this worker (uses registry URI if available)
-        self._generate_wrangler_toml(worker_name, package_dir, language, account_id, benchmark_name, code_package, container_deployment, container_uri)
+        self._generate_wrangler_toml(
+            worker_name,
+            package_dir,
+            language,
+            account_id,
+            benchmark_name,
+            code_package,
+            container_deployment,
+            container_uri,
+        )
 
         # Upload package directory to container
         container_package_path = f"/tmp/workers/{worker_name}"
@@ -581,17 +624,15 @@ class Cloudflare(System):
             # Wait for the worker to become reachable before returning.
             # Container workers expose /health; native workers are probed
             # with a lightweight GET to confirm edge propagation.
-            account_id_val = env.get('CLOUDFLARE_ACCOUNT_ID')
+            account_id_val = env.get("CLOUDFLARE_ACCOUNT_ID")
             worker_url = self._build_workers_dev_url(worker_name, account_id_val)
 
             if container_deployment:
                 self.logging.info("Waiting for container worker to initialize...")
-                self._containers_deployment.wait_for_container_worker_ready(
-                    worker_name, worker_url
-                )
+                self._containers_deployment.wait_for_container_worker_ready(worker_name, worker_url)
             else:
                 self._wait_for_worker_ready(worker_name, worker_url)
-            
+
             # Keep the container warm for a minimum provisioning window.
             # A flat sleep lets the Durable Object hibernate, which causes the
             # container runtime to reject the next start() call.  Instead we
@@ -599,7 +640,7 @@ class Cloudflare(System):
             if container_deployment:
                 warm_seconds = 60
                 ping_interval = 5
-                account_id = env.get('CLOUDFLARE_ACCOUNT_ID')
+                account_id = env.get("CLOUDFLARE_ACCOUNT_ID")
                 worker_url = self._build_workers_dev_url(worker_name, account_id)
                 health_url = f"{worker_url}/health"
                 self.logging.info(
@@ -623,8 +664,7 @@ class Cloudflare(System):
             raise RuntimeError(error_msg)
 
     def _wait_for_worker_ready(
-        self, worker_name: str, worker_url: str,
-        max_wait_seconds: int = 60, poll_interval: int = 5
+        self, worker_name: str, worker_url: str, max_wait_seconds: int = 60, poll_interval: int = 5
     ) -> None:
         """Poll a native worker until it responds, confirming edge propagation."""
         self.logging.info(
@@ -635,7 +675,9 @@ class Cloudflare(System):
             try:
                 resp = requests.get(worker_url, timeout=10)
                 if resp.status_code not in (502, 503, 522, 524):
-                    self.logging.info(f"Worker {worker_name} is reachable (HTTP {resp.status_code}).")
+                    self.logging.info(
+                        f"Worker {worker_name} is reachable (HTTP {resp.status_code})."
+                    )
                     return
             except requests.exceptions.RequestException:
                 pass
@@ -747,19 +789,28 @@ class Cloudflare(System):
         # Containers don't support runtime memory configuration changes
         # Detect container deployment by checking if worker name starts with "container-"
         is_container = worker.name.startswith("container-")
-        
+
         if is_container:
-            self.logging.info(f"Skipping redeployment for container worker {worker.name} - containers don't support runtime memory updates")
+            self.logging.info(
+                f"Skipping redeployment for container worker {worker.name} - containers don't support runtime memory updates"
+            )
         else:
-            self._create_or_update_worker(worker.name, package, account_id, language, benchmark, code_package, container_deployment, container_uri)
+            self._create_or_update_worker(
+                worker.name,
+                package,
+                account_id,
+                language,
+                benchmark,
+                code_package,
+                container_deployment,
+                container_uri,
+            )
             self.logging.info(f"Updated worker {worker.name}")
 
         # Update configuration if needed (no-op for containers since they don't support runtime memory changes)
         self.update_function_configuration(worker, code_package)
 
-    def update_function_configuration(
-        self, cached_function: Function, benchmark: Benchmark
-    ):
+    def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
         """
         Update the configuration of a Cloudflare Worker.
 
@@ -823,15 +874,15 @@ class Cloudflare(System):
             Formatted name
         """
         # Convert to lowercase and replace invalid characters
-        formatted = name.lower().replace('_', '-').replace('.', '-')
+        formatted = name.lower().replace("_", "-").replace(".", "-")
         # Remove any characters that aren't alphanumeric or hyphen
-        formatted = ''.join(c for c in formatted if c.isalnum() or c == '-')
+        formatted = "".join(c for c in formatted if c.isalnum() or c == "-")
         # Remove leading/trailing hyphens
-        formatted = formatted.strip('-')
+        formatted = formatted.strip("-")
         # Ensure container worker names don't start with a digit (Cloudflare requirement)
         # Only add prefix for container workers to differentiate from native workers
         if container_deployment and formatted and formatted[0].isdigit():
-            formatted = 'container-' + formatted
+            formatted = "container-" + formatted
         return formatted
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
@@ -850,7 +901,6 @@ class Cloudflare(System):
             "Cloudflare Workers do not support forced cold starts. "
             "Workers are automatically instantiated on-demand at edge locations."
         )
-        
 
     def download_metrics(
         self,
@@ -880,8 +930,7 @@ class Cloudflare(System):
             return
 
         self.logging.info(
-            f"Extracting metrics from {len(requests)} invocations "
-            f"of worker {function_name}"
+            f"Extracting metrics from {len(requests)} invocations " f"of worker {function_name}"
         )
 
         # Aggregate statistics from all requests
@@ -924,31 +973,31 @@ class Cloudflare(System):
                 result.billing.gb_seconds = int(gb_seconds * 1_000_000)  # micro GB-seconds
 
         # Calculate statistics
-        metrics['cloudflare'] = {
-            'total_invocations': total_invocations,
-            'cold_starts': cold_starts,
-            'warm_starts': warm_starts,
-            'data_source': 'response_measurements',
-            'note': 'Per-invocation metrics extracted from benchmark response'
+        metrics["cloudflare"] = {
+            "total_invocations": total_invocations,
+            "cold_starts": cold_starts,
+            "warm_starts": warm_starts,
+            "data_source": "response_measurements",
+            "note": "Per-invocation metrics extracted from benchmark response",
         }
 
         if cpu_times:
-            metrics['cloudflare']['avg_cpu_time_us'] = sum(cpu_times) // len(cpu_times)
-            metrics['cloudflare']['min_cpu_time_us'] = min(cpu_times)
-            metrics['cloudflare']['max_cpu_time_us'] = max(cpu_times)
-            metrics['cloudflare']['cpu_time_measurements'] = len(cpu_times)
+            metrics["cloudflare"]["avg_cpu_time_us"] = sum(cpu_times) // len(cpu_times)
+            metrics["cloudflare"]["min_cpu_time_us"] = min(cpu_times)
+            metrics["cloudflare"]["max_cpu_time_us"] = max(cpu_times)
+            metrics["cloudflare"]["cpu_time_measurements"] = len(cpu_times)
 
         if wall_times:
-            metrics['cloudflare']['avg_wall_time_us'] = sum(wall_times) // len(wall_times)
-            metrics['cloudflare']['min_wall_time_us'] = min(wall_times)
-            metrics['cloudflare']['max_wall_time_us'] = max(wall_times)
-            metrics['cloudflare']['wall_time_measurements'] = len(wall_times)
+            metrics["cloudflare"]["avg_wall_time_us"] = sum(wall_times) // len(wall_times)
+            metrics["cloudflare"]["min_wall_time_us"] = min(wall_times)
+            metrics["cloudflare"]["max_wall_time_us"] = max(wall_times)
+            metrics["cloudflare"]["wall_time_measurements"] = len(wall_times)
 
         if memory_values:
-            metrics['cloudflare']['avg_memory_mb'] = sum(memory_values) / len(memory_values)
-            metrics['cloudflare']['min_memory_mb'] = min(memory_values)
-            metrics['cloudflare']['max_memory_mb'] = max(memory_values)
-            metrics['cloudflare']['memory_measurements'] = len(memory_values)
+            metrics["cloudflare"]["avg_memory_mb"] = sum(memory_values) / len(memory_values)
+            metrics["cloudflare"]["min_memory_mb"] = min(memory_values)
+            metrics["cloudflare"]["max_memory_mb"] = max(memory_values)
+            metrics["cloudflare"]["memory_measurements"] = len(memory_values)
 
         self.logging.info(
             f"Extracted metrics from {total_invocations} invocations: "
@@ -963,9 +1012,7 @@ class Cloudflare(System):
             avg_wall_ms = sum(wall_times) / len(wall_times) / 1000.0
             self.logging.info(f"Average wall time: {avg_wall_ms:.2f} ms")
 
-    def create_trigger(
-        self, function: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """
         Create a trigger for a Cloudflare Worker.
 
@@ -1002,7 +1049,7 @@ class Cloudflare(System):
             self.config.update_cache(self.cache_client)
         finally:
             self.cache_client.unlock()
-        
+
         # Shutdown deployment handler CLI containers
         self._workers_deployment.shutdown()
         self._containers_deployment.shutdown()

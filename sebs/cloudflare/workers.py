@@ -10,6 +10,7 @@ import re
 import shutil
 import json
 from importlib.resources import files
+
 try:
     import tomllib  # Python 3.11+
 except ImportError:
@@ -81,38 +82,30 @@ class CloudflareWorkersDeployment:
         """
         # Load template
         template_path = files("sebs.cloudflare").joinpath("templates", "wrangler-worker.toml")
-        with open(template_path, 'rb') as f:
+        with open(template_path, "rb") as f:
             config = tomllib.load(f)
 
         # Update basic configuration
-        config['name'] = worker_name
-        config['account_id'] = account_id
+        config["name"] = worker_name
+        config["account_id"] = account_id
 
         # Add language- and variant-specific configuration.
         # For Node.js workers, we always bundle through build.js into dist/,
         # regardless of language variant (default/cloudflare), because the
         # wrangler entrypoint points to dist/handler.js.
         if language == "nodejs":
-            config['main'] = "dist/handler.js"
-            config['compatibility_flags'] = ["nodejs_compat"]
-            config['no_bundle'] = True
-            config['rules'] = [
-                {
-                    'type': 'ESModule',
-                    'globs': ['**/*.js'],
-                    'fallthrough': True
-                },
-                {
-                    'type': 'Text',
-                    'globs': ['**/*.html'],
-                    'fallthrough': True
-                }
+            config["main"] = "dist/handler.js"
+            config["compatibility_flags"] = ["nodejs_compat"]
+            config["no_bundle"] = True
+            config["rules"] = [
+                {"type": "ESModule", "globs": ["**/*.js"], "fallthrough": True},
+                {"type": "Text", "globs": ["**/*.html"], "fallthrough": True},
             ]
         elif language == "python":
-            config['main'] = "handler.py"
-            config['compatibility_flags'] = ["python_workers"]
+            config["main"] = "handler.py"
+            config["compatibility_flags"] = ["python_workers"]
         else:
-            config['main'] = "dist/handler.js" if language == "nodejs" else "handler.py"
+            config["main"] = "dist/handler.js" if language == "nodejs" else "handler.py"
 
         # Add NoSQL KV namespace bindings if benchmark uses them
         if code_package and code_package.uses_nosql:
@@ -121,50 +114,50 @@ class CloudflareWorkersDeployment:
             if nosql_storage.retrieve_cache(benchmark_for_nosql):
                 nosql_tables = nosql_storage.get_tables(benchmark_for_nosql)
                 if nosql_tables:
-                    config['kv_namespaces'] = []
+                    config["kv_namespaces"] = []
                     for table_name, namespace_id in nosql_tables.items():
-                        config['kv_namespaces'].append({
-                            'binding': table_name,
-                            'id': namespace_id,
-                        })
-        
+                        config["kv_namespaces"].append(
+                            {
+                                "binding": table_name,
+                                "id": namespace_id,
+                            }
+                        )
+
         # Add environment variables
         if benchmark_name or (code_package and code_package.uses_nosql):
-            config['vars'] = {}
+            config["vars"] = {}
             if benchmark_name:
-                config['vars']['BENCHMARK_NAME'] = benchmark_name
+                config["vars"]["BENCHMARK_NAME"] = benchmark_name
             if code_package and code_package.uses_nosql:
-                config['vars']['NOSQL_STORAGE_DATABASE'] = "kvstore"
-        
+                config["vars"]["NOSQL_STORAGE_DATABASE"] = "kvstore"
+
         # Add R2 bucket binding
         try:
             from sebs.faas.config import Resources
+
             storage = self.system_resources.get_storage()
             bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
             if bucket_name:
-                config['r2_buckets'] = [{
-                    'binding': 'R2',
-                    'bucket_name': bucket_name
-                }]
+                config["r2_buckets"] = [{"binding": "R2", "bucket_name": bucket_name}]
                 self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
         except Exception as e:
             self.logging.warning(
                 f"R2 bucket binding not configured: {e}. "
                 f"Benchmarks requiring file access will not work properly."
             )
-        
+
         # Write wrangler.toml to package directory
         toml_path = os.path.join(package_dir, "wrangler.toml")
         os.makedirs(package_dir, exist_ok=True)
         try:
             # Try tomli_w (writes binary)
-            with open(toml_path, 'wb') as f:
+            with open(toml_path, "wb") as f:
                 tomli_w.dump(config, f)
         except TypeError:
             # Fallback to toml library (writes text)
-            with open(toml_path, 'w') as f:
+            with open(toml_path, "w") as f:
                 f.write(tomli_w.dumps(config))
-        
+
         self.logging.info(f"Generated wrangler.toml at {toml_path}")
         return toml_path
 
@@ -209,7 +202,7 @@ class CloudflareWorkersDeployment:
 
             if language_variant in ("cloudflare", "default"):
                 if os.path.exists(requirements_file):
-                    with open(requirements_file, 'r') as reqf:
+                    with open(requirements_file, "r") as reqf:
                         reqtext = reqf.read()
                     needed_pkg = []
                     unsupported = []
@@ -241,7 +234,7 @@ class CloudflareWorkersDeployment:
                     pyproject_config = {
                         "project": {
                             "name": f"{benchmark.replace('.', '-')}-python-"
-                                    f"{language_version.replace('.', '')}",
+                            f"{language_version.replace('.', '')}",
                             "version": "0.1.0",
                             "description": "dummy description",
                             "requires-python": f">={language_version}",
@@ -252,10 +245,10 @@ class CloudflareWorkersDeployment:
                         },
                     }
                     try:
-                        with open(project_file, 'wb') as pf:
+                        with open(project_file, "wb") as pf:
                             tomli_w.dump(pyproject_config, pf)
                     except TypeError:
-                        with open(project_file, 'w') as pf:
+                        with open(project_file, "w") as pf:
                             pf.write(tomli_w.dumps(pyproject_config))
                 # Pyodide Workers require all function files in a function/ subdir
                 funcdir = os.path.join(directory, "function")
@@ -306,7 +299,9 @@ class CloudflareWorkersDeployment:
                 total_size += os.path.getsize(filepath)
 
         mbytes = total_size / 1024.0 / 1024.0
-        self.logging.info(f"Worker package size: {mbytes:.2f} MB (Python: missing vendored modules)")
+        self.logging.info(
+            f"Worker package size: {mbytes:.2f} MB (Python: missing vendored modules)"
+        )
 
         return (directory, total_size, "")
 

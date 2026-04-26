@@ -618,7 +618,10 @@ class Benchmark(LoggingBase):
         """
         path = os.path.join(self.benchmark_path, self.language_name)
         self._hash_value = Benchmark.hash_directory(
-            path, self._deployment_name, self.language, self._language_variant,
+            path,
+            self._deployment_name,
+            self.language,
+            self._language_variant,
             container_deployment=self._container_deployment,
         )
         return self._hash_value
@@ -727,7 +730,10 @@ class Benchmark(LoggingBase):
 
     @staticmethod
     def hash_directory(
-        directory: str, deployment: str, language: Language, variant: str = "default",
+        directory: str,
+        deployment: str,
+        language: Language,
+        variant: str = "default",
         container_deployment: bool = False,
     ):
         """
@@ -928,7 +934,9 @@ class Benchmark(LoggingBase):
                             )
                         )
                     self.logging.info(
-                        "Applied patch for variant {} ({})".format(self._language_variant, patch_file)
+                        "Applied patch for variant {} ({})".format(
+                            self._language_variant, patch_file
+                        )
                     )
                 else:
                     for file_type in FILES[self.language]:

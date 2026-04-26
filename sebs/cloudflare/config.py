@@ -28,12 +28,18 @@ class CloudflareCredentials(Credentials):
     See ``docs/platforms.md`` (Cloudflare Workers → Credentials) for full
     setup instructions.
     """
-    
-    def __init__(self, api_token: Optional[str] = None, email: Optional[str] = None, 
-                 api_key: Optional[str] = None, account_id: Optional[str] = None,
-                 r2_access_key_id: Optional[str] = None, r2_secret_access_key: Optional[str] = None):
+
+    def __init__(
+        self,
+        api_token: Optional[str] = None,
+        email: Optional[str] = None,
+        api_key: Optional[str] = None,
+        account_id: Optional[str] = None,
+        r2_access_key_id: Optional[str] = None,
+        r2_secret_access_key: Optional[str] = None,
+    ):
         super().__init__()
-        
+
         self._api_token = api_token
         self._email = email
         self._api_key = api_key
@@ -77,7 +83,7 @@ class CloudflareCredentials(Credentials):
             dct.get("api_key"),
             dct.get("account_id"),
             dct.get("r2_access_key_id"),
-            dct.get("r2_secret_access_key")
+            dct.get("r2_secret_access_key"),
         )
 
     @staticmethod
@@ -98,7 +104,7 @@ class CloudflareCredentials(Credentials):
                 api_token=os.environ["CLOUDFLARE_API_TOKEN"],
                 account_id=os.environ.get("CLOUDFLARE_ACCOUNT_ID"),
                 r2_access_key_id=os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID"),
-                r2_secret_access_key=os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
+                r2_secret_access_key=os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY"),
             )
         elif "CLOUDFLARE_EMAIL" in os.environ and "CLOUDFLARE_API_KEY" in os.environ:
             ret = CloudflareCredentials(
@@ -106,7 +112,7 @@ class CloudflareCredentials(Credentials):
                 api_key=os.environ["CLOUDFLARE_API_KEY"],
                 account_id=os.environ.get("CLOUDFLARE_ACCOUNT_ID"),
                 r2_access_key_id=os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID"),
-                r2_secret_access_key=os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
+                r2_secret_access_key=os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY"),
             )
         else:
             raise RuntimeError(
@@ -124,14 +130,15 @@ class CloudflareCredentials(Credentials):
             raise RuntimeError(
                 f"Cloudflare login credentials do not match the account {account_id} in cache!"
             )
-        
+
         ret.logging_handlers = handlers
         return ret
 
     def update_cache(self, cache: Cache):
         if self._account_id:
-            cache.update_config(val=self._account_id, 
-                              keys=["cloudflare", "credentials", "account_id"])
+            cache.update_config(
+                val=self._account_id, keys=["cloudflare", "credentials", "account_id"]
+            )
 
     def serialize(self) -> dict:
         out = {}
@@ -144,7 +151,7 @@ class CloudflareResources(Resources):
     """
     Resources for Cloudflare Workers deployment.
     """
-    
+
     def __init__(self):
         super().__init__(name="cloudflare")
         self._namespace_id: Optional[str] = None
@@ -165,10 +172,10 @@ class CloudflareResources(Resources):
     def initialize(res: Resources, dct: dict):
         ret = cast(CloudflareResources, res)
         super(CloudflareResources, CloudflareResources).initialize(ret, dct)
-        
+
         if "namespace_id" in dct:
             ret._namespace_id = dct["namespace_id"]
-        
+
         return ret
 
     def serialize(self) -> dict:
@@ -181,8 +188,7 @@ class CloudflareResources(Resources):
         super().update_cache(cache)
         if self._namespace_id:
             cache.update_config(
-                val=self._namespace_id, 
-                keys=["cloudflare", "resources", "namespace_id"]
+                val=self._namespace_id, keys=["cloudflare", "resources", "namespace_id"]
             )
 
     @staticmethod
@@ -200,7 +206,9 @@ class CloudflareResources(Resources):
             if "resources" in config:
                 CloudflareResources.initialize(ret, config["resources"])
                 ret.logging_handlers = handlers
-                ret.logging.info("No cached resources for Cloudflare found, using user configuration.")
+                ret.logging.info(
+                    "No cached resources for Cloudflare found, using user configuration."
+                )
             else:
                 CloudflareResources.initialize(ret, {})
                 ret.logging_handlers = handlers
@@ -213,7 +221,7 @@ class CloudflareConfig(Config):
     """
     Configuration for Cloudflare Workers platform.
     """
-    
+
     def __init__(self, credentials: CloudflareCredentials, resources: CloudflareResources):
         super().__init__(name="cloudflare")
         self._credentials = credentials
@@ -240,13 +248,15 @@ class CloudflareConfig(Config):
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
         cached_config = cache.get_config("cloudflare")
-        credentials = cast(CloudflareCredentials, 
-                          CloudflareCredentials.deserialize(config, cache, handlers))
-        resources = cast(CloudflareResources, 
-                        CloudflareResources.deserialize(config, cache, handlers))
+        credentials = cast(
+            CloudflareCredentials, CloudflareCredentials.deserialize(config, cache, handlers)
+        )
+        resources = cast(
+            CloudflareResources, CloudflareResources.deserialize(config, cache, handlers)
+        )
         config_obj = CloudflareConfig(credentials, resources)
         config_obj.logging_handlers = handlers
-        
+
         # Load cached values
         if cached_config:
             config_obj.logging.info("Using cached config for Cloudflare")

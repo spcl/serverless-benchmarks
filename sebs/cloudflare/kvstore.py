@@ -187,7 +187,9 @@ class KVStore(NoSQLStorage):
         if response.content:
             payload = response.json()
             if not payload.get("success"):
-                raise RuntimeError(f"Failed to delete KV namespace {namespace_id}: {payload.get('errors')}")
+                raise RuntimeError(
+                    f"Failed to delete KV namespace {namespace_id}: {payload.get('errors')}"
+                )
 
     @staticmethod
     def _compose_key(
@@ -321,7 +323,9 @@ class KVStore(NoSQLStorage):
 
         namespace_id = payload.get("result", {}).get("id")
         if not namespace_id:
-            raise RuntimeError(f"Cloudflare KV API did not return namespace id for {namespace_title}")
+            raise RuntimeError(
+                f"Cloudflare KV API did not return namespace id for {namespace_title}"
+            )
 
         self._tables[benchmark][name] = namespace_id
         self.logging.info(

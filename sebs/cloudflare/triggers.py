@@ -10,6 +10,7 @@ from sebs.faas.function import Trigger, ExecutionResult
 
 class ContainerProvisioningError(RuntimeError):
     """Raised when Cloudflare reports the container is still provisioning."""
+
     pass
 
 
@@ -18,7 +19,7 @@ class HTTPTrigger(Trigger):
     HTTP trigger for Cloudflare Workers.
     Workers are automatically accessible via HTTPS endpoints.
     """
-    
+
     def __init__(self, worker_name: str, url: Optional[str] = None):
         super().__init__()
         self.worker_name = worker_name
@@ -52,11 +53,14 @@ class HTTPTrigger(Trigger):
         import pycurl
 
         c = pycurl.Curl()
-        c.setopt(pycurl.HTTPHEADER, [
-            "Content-Type: application/json",
-            # Cloudflare bot-protection (error 1010) blocks requests with no/tool UA.
-            "User-Agent: Mozilla/5.0 (compatible; SeBS/1.0; +https://github.com/spcl/serverless-benchmarks)",
-        ])
+        c.setopt(
+            pycurl.HTTPHEADER,
+            [
+                "Content-Type: application/json",
+                # Cloudflare bot-protection (error 1010) blocks requests with no/tool UA.
+                "User-Agent: Mozilla/5.0 (compatible; SeBS/1.0; +https://github.com/spcl/serverless-benchmarks)",
+            ],
+        )
         c.setopt(pycurl.POST, 1)
         c.setopt(pycurl.URL, url)
         if not verify_ssl:
@@ -85,14 +89,14 @@ class HTTPTrigger(Trigger):
             if status_code == 502:
                 self.logging.info(f"Container returned 502 (still starting?), will retry...")
                 raise ContainerProvisioningError(f"502 gateway error from container worker")
-            
+
             # Check for Cloudflare error code 1042 (CPU time limit / worker not ready)
             # Output may be a plain string like "error code: 1042" rather than a dict.
             output_str = str(output)
             if "1042" in output_str and "error code" in output_str:
                 self.logging.info(f"Worker returned error 1042 (CPU time limit), will retry...")
                 raise ContainerProvisioningError(f"Error 1042 from worker: {output_str}")
-            
+
             if status_code != 200:
                 self.logging.error(f"Invocation on URL {url} failed!")
                 self.logging.error(f"Output: {output}")
@@ -118,11 +122,11 @@ class HTTPTrigger(Trigger):
             if "1042" in raw_text and "error code" in raw_text:
                 self.logging.info(f"Worker returned error 1042 (CPU time limit), will retry...")
                 raise ContainerProvisioningError(f"Error 1042 from worker: {raw_text[:200]}")
-            if status_code == 502 or any(p.lower() in raw_text.lower() for p in provisioning_phrases):
+            if status_code == 502 or any(
+                p.lower() in raw_text.lower() for p in provisioning_phrases
+            ):
                 self.logging.info(f"Container still provisioning (URL {url}): {raw_text[:120]}")
-                raise ContainerProvisioningError(
-                    f"Container not yet available: {raw_text[:200]}"
-                )
+                raise ContainerProvisioningError(f"Container not yet available: {raw_text[:200]}")
             self.logging.error(f"Invocation on URL {url} failed!")
             if raw_text:
                 self.logging.error(f"Output: {raw_text}")
@@ -148,40 +152,40 @@ class HTTPTrigger(Trigger):
                     time.sleep(provisioning_retry_wait)
                 else:
                     raise
-        
+
         # Extract measurement data from the response if available
-        if result.output and 'result' in result.output:  # type: ignore[union-attr]
-            result_data = result.output['result']
-            if isinstance(result_data, dict) and 'measurement' in result_data:
-                measurement = result_data['measurement']
-                
+        if result.output and "result" in result.output:  # type: ignore[union-attr]
+            result_data = result.output["result"]
+            if isinstance(result_data, dict) and "measurement" in result_data:
+                measurement = result_data["measurement"]
+
                 # Extract timing metrics if provided by the benchmark
                 if isinstance(measurement, dict):
                     # CPU time in microseconds
-                    if 'cpu_time_us' in measurement:
-                        result.provider_times.execution = measurement['cpu_time_us']
-                    elif 'cpu_time_ms' in measurement:
-                        result.provider_times.execution = int(measurement['cpu_time_ms'] * 1000)
-                    
+                    if "cpu_time_us" in measurement:
+                        result.provider_times.execution = measurement["cpu_time_us"]
+                    elif "cpu_time_ms" in measurement:
+                        result.provider_times.execution = int(measurement["cpu_time_ms"] * 1000)
+
                     # Wall time in microseconds
-                    if 'wall_time_us' in measurement:
-                        result.times.benchmark = measurement['wall_time_us']
-                    elif 'wall_time_ms' in measurement:
-                        result.times.benchmark = int(measurement['wall_time_ms'] * 1000)
-                    
+                    if "wall_time_us" in measurement:
+                        result.times.benchmark = measurement["wall_time_us"]
+                    elif "wall_time_ms" in measurement:
+                        result.times.benchmark = int(measurement["wall_time_ms"] * 1000)
+
                     # Cold/warm start detection
-                    if 'is_cold' in measurement:
-                        result.stats.cold_start = measurement['is_cold']
-                    
+                    if "is_cold" in measurement:
+                        result.stats.cold_start = measurement["is_cold"]
+
                     # Memory usage if available
-                    if 'memory_used_mb' in measurement:
-                        result.stats.memory_used = measurement['memory_used_mb']
-                    
+                    if "memory_used_mb" in measurement:
+                        result.stats.memory_used = measurement["memory_used_mb"]
+
                     # Store the full measurement for later analysis
-                    result.output['measurement'] = measurement
-                    
+                    result.output["measurement"] = measurement
+
                     self.logging.debug(f"Extracted measurements: {measurement}")
-        
+
         return result
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:
