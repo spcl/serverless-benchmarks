@@ -283,11 +283,17 @@ Wrangler templates live alongside the deployment code at `sebs/cloudflare/templa
 
 #### Container-based flow (`container_deployment=true`)
 
-1. `benchmark.build()` calls `container_client.build_base_image()` on the `_CloudflareContainerAdapter` in `cloudflare.py`, which delegates to `CloudflareContainersDeployment.package_code`. It copies `{language}/Dockerfile.function` as `Dockerfile`, adds `worker.js`, merges `package.json`, and runs `npm install` in the CLI container. The correct `BASE_IMAGE` is passed via Docker build args (resolved from `systems.json`) rather than patching the Dockerfile.
-2. `Cloudflare.create_function` → `_create_or_update_worker` renders `sebs/cloudflare/templates/wrangler-container.toml`.
-3. `CloudflareCLI.wrangler_deploy` invokes wrangler, which rebuilds the image from `Dockerfile` and pushes it to Cloudflare's managed registry, creating a Durable-Object-backed container worker.
-4. `wait_for_durable_object_ready` polls `/health` until the container reports healthy, then SeBS pings `/health` for ~60 s to keep the DO warm before the first measured invocation.
-5. `HTTPTrigger` is attached using the `workers.dev` URL.
+1. **Local image build** — `benchmark.build()` calls `container_client.build_base_image()` on the `_CloudflareContainerAdapter` in `cloudflare.py`, which delegates to `CloudflareContainersDeployment.package_code`. It copies `{language}/Dockerfile.function` as `Dockerfile`, adds `worker.js`, merges `package.json`, and builds a local Docker image tagged `<name>:<timestamp>` (e.g. `my-benchmark-python-312:20260426-130338`). The correct `BASE_IMAGE` is passed via Docker build args (resolved from `systems.json`). A timestamp tag is used instead of `:latest` because Cloudflare's registry explicitly rejects `:latest` tags.
+
+2. **Registry push** — `Cloudflare.create_function` → `_create_or_update_worker` calls `CloudflareCLI.containers_push(<name>:<timestamp>)`, which runs `wrangler containers push` inside the `manage.cloudflare` container. Wrangler uploads the locally-built image to Cloudflare's managed registry and returns the full registry URI: `registry.cloudflare.com/<account_id>/<name>:<timestamp>`.
+
+3. **`wrangler.toml` generation** — `_generate_wrangler_toml` renders `sebs/cloudflare/templates/wrangler-container.toml`. The template defaults to `image = "./Dockerfile"` (a local build path). When a registry URI is available, `containers.py` replaces this field with the registry URI (`config['containers'][0]['image'] = container_uri`), so wrangler points directly at the pre-pushed image and skips rebuilding the Dockerfile entirely.
+
+4. **Deploy** — `CloudflareCLI.wrangler_deploy` runs `npm install && wrangler deploy` inside the `manage.cloudflare` container. `npm install` materializes `node_modules/@cloudflare/containers` (listed in `package.json`) so that wrangler's bundler can resolve the `worker.js` import. Wrangler then deploys the Worker script and creates the Durable-Object-backed container worker backed by the registry image.
+
+5. `wait_for_durable_object_ready` polls `/health` until the container reports healthy, then SeBS pings `/health` for ~60 s to keep the Durable Object alive during the container provisioning window before the first measured invocation.
+
+6. `HTTPTrigger` is attached using the `workers.dev` URL.
 
 ### Build Images
 
