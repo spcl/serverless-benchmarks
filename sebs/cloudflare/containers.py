@@ -331,7 +331,8 @@ class CloudflareContainersDeployment:
         """
         # Generate image tag
         image_name = f"{benchmark.replace('.', '-')}-{language_name}-{language_version.replace('.', '')}"
-        image_tag = f"{image_name}:latest"
+        version_tag = time.strftime("%Y%m%d-%H%M%S")
+        image_tag = f"{image_name}:{version_tag}"
 
         self.logging.info(f"Building container image {image_tag} for linux/amd64...")
 
