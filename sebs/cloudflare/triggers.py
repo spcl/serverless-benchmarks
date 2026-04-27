@@ -148,8 +148,8 @@ class HTTPTrigger(Trigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
         """Synchronously invoke a Cloudflare Worker via HTTP."""
         self.logging.debug(f"Invoke function {self.url}")
-        max_provisioning_retries = 6
-        provisioning_retry_wait = 30  # seconds between retries
+        max_provisioning_retries = 10
+        provisioning_retry_wait = 60  # seconds between retries
         for attempt in range(max_provisioning_retries + 1):
             try:
                 result = self._http_invoke(payload, self.url)

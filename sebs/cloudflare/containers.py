@@ -384,7 +384,7 @@ class CloudflareContainersDeployment:
         Returns:
             True if ready, False if timeout
         """
-        wait_interval = 10
+        wait_interval = 20
         start_time = time.time()
 
         self.logging.info("Checking container worker readiness via health endpoint...")
