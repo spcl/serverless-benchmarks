@@ -83,7 +83,7 @@ const nodeBuiltinsPlugin = {
     // Benchmarks commonly `require('fs')`, `require('path')`, etc. Workers
     // reject those bare specifiers; rewrite them to the `node:`-prefixed
     // form and mark them external so the runtime resolves them.
-    build.onResolve({ filter: /^(fs|querystring|path|crypto|stream|buffer|util|events|http|https|net|tls|zlib|os|child_process|tty|assert|url)$/ }, (args) => {
+    build.onResolve({ filter: /^(fs|querystring|path|crypto|stream|buffer|util|events|http|https|net|tls|zlib|os|child_process|tty|assert|url|constants)$/ }, (args) => {
       return { path: 'node:' + args.path, external: true };
     });
 
@@ -95,6 +95,13 @@ const nodeBuiltinsPlugin = {
       return {
         path: resolve(wrapperDir, 'request-polyfill.js')
       };
+    });
+
+    // `graceful-fs` monkey-patches the `fs` module at runtime, which Workers
+    // rejects ("object is not extensible"). Redirect it straight to node:fs
+    // so the patching never runs and consumers get the same API.
+    build.onResolve({ filter: /^graceful-fs$/ }, () => {
+      return { path: 'node:fs', external: true };
     });
   }
 };
