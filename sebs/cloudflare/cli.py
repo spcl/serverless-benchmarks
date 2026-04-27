@@ -1,13 +1,15 @@
+import atexit
 import io
 import logging
 import os
 import tarfile
+import threading
 from typing import Optional
 
 import docker
 
 from sebs.config import SeBSConfig
-from sebs.utils import LoggingBase, get_resource_path
+from sebs.utils import LoggingBase
 
 
 class CloudflareCLI(LoggingBase):
@@ -19,6 +21,7 @@ class CloudflareCLI(LoggingBase):
     """
 
     _instance: Optional["CloudflareCLI"] = None
+    _lock: threading.Lock = threading.Lock()
 
     @staticmethod
     def get_instance(system_config: SeBSConfig, docker_client: docker.client) -> "CloudflareCLI":
@@ -26,9 +29,13 @@ class CloudflareCLI(LoggingBase):
 
         Container and native workers deployments share one underlying CLI
         container so that combined runs don't spawn duplicates.
+        Thread-safe: the first caller builds the container; concurrent callers wait.
         """
         if CloudflareCLI._instance is None:
-            CloudflareCLI._instance = CloudflareCLI(system_config, docker_client)
+            with CloudflareCLI._lock:
+                if CloudflareCLI._instance is None:
+                    CloudflareCLI._instance = CloudflareCLI(system_config, docker_client)
+                    atexit.register(CloudflareCLI.shutdown_instance)
         return CloudflareCLI._instance
 
     def __init__(self, system_config: SeBSConfig, docker_client: docker.client):
@@ -37,41 +44,16 @@ class CloudflareCLI(LoggingBase):
 
         repo_name = system_config.docker_repository()
         image_name = "manage.cloudflare"
-        full_image_name = repo_name + ":" + image_name
         try:
-            docker_client.images.get(full_image_name)
+            docker_client.images.get(repo_name + ":" + image_name)
         except docker.errors.ImageNotFound:
             try:
-                logging.info(f"Pulling Docker image {full_image_name}...")
-                docker_client.images.pull(repo_name, image_name)
-            except docker.errors.APIError as pull_error:
-                logging.info(f"Pull failed: {pull_error}. Building image locally...")
-                dockerfile_path = str(
-                    get_resource_path("dockerfiles", "cloudflare", "Dockerfile.manage")
+                logging.info(
+                    "Docker pull of image {repo}:{image}".format(repo=repo_name, image=image_name)
                 )
-                if not os.path.exists(dockerfile_path):
-                    raise RuntimeError(
-                        f"Dockerfile not found at {dockerfile_path}. "
-                        "Cannot build Cloudflare CLI container."
-                    )
-                build_path = str(get_resource_path())
-                logging.info(f"Building {full_image_name} from {dockerfile_path}...")
-                try:
-                    _, build_logs = docker_client.images.build(
-                        path=build_path,
-                        dockerfile=dockerfile_path,
-                        tag=full_image_name,
-                        rm=True,
-                        pull=True,
-                    )
-                    for log in build_logs:
-                        if "stream" in log:
-                            logging.debug(log["stream"].strip())
-                    logging.info(f"Successfully built {full_image_name}")
-                except docker.errors.BuildError as build_error:
-                    raise RuntimeError(
-                        f"Failed to build Docker image {full_image_name}: {build_error}"
-                    )
+                docker_client.images.pull(repo_name, image_name)
+            except docker.errors.APIError:
+                raise RuntimeError("Docker pull of image {} failed!".format(image_name))
 
         # Start the container in detached mode
         self.docker_instance = docker_client.containers.run(
@@ -238,12 +220,19 @@ class CloudflareCLI(LoggingBase):
         out = self.execute(cmd, env=env)
         return out.decode("utf-8")
 
-    def shutdown(self):
-        """Shutdown Docker instance. Idempotent — safe to call multiple times."""
-        if self._stopped:
-            return
-        self._stopped = True
-        self.logging.info("Stopping Cloudflare CLI Docker instance")
-        self.docker_instance.stop()
-        if CloudflareCLI._instance is self:
+    @staticmethod
+    def shutdown_instance():
+        """Stop the shared CLI container and clear the singleton.
+
+        Call this once at process teardown, after all parallel benchmarks
+        have finished.  Individual deployment handlers must NOT call this —
+        they should just drop their local reference.
+        """
+        with CloudflareCLI._lock:
+            instance = CloudflareCLI._instance
             CloudflareCLI._instance = None
+
+        if instance is not None and not instance._stopped:
+            instance._stopped = True
+            instance.logging.info("Stopping Cloudflare CLI Docker instance")
+            instance.docker_instance.stop()

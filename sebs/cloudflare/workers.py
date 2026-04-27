@@ -306,7 +306,6 @@ class CloudflareWorkersDeployment:
         return (directory, total_size, "")
 
     def shutdown(self):
-        """Shutdown CLI container if initialized."""
-        if self._cli is not None:
-            self._cli.shutdown()
-            self._cli = None
+        """Drop the local CLI reference. The shared container is owned by CloudflareCLI;
+        call CloudflareCLI.shutdown_instance() once at process teardown."""
+        self._cli = None

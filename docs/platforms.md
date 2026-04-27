@@ -279,7 +279,23 @@ Cloudflare Workers support multiple languages through different deployment metho
 
 ### CLI Container
 
-SeBS uses a containerized CLI approach for Cloudflare deployments, eliminating the need to install Node.js, npm, wrangler, pywrangler, or uv on your host system. The CLI container (`sebs/manage.cloudflare`) is automatically built on first use and contains all necessary tools. This ensures consistent behavior across platforms and simplifies setup—only Docker is required.
+SeBS uses a containerized CLI approach for Cloudflare deployments, eliminating the need to install Node.js, npm, wrangler, pywrangler, or uv on your host system. The CLI container (`spcleth/serverless-benchmarks:manage.cloudflare`) is pulled from Docker Hub on first use and contains all necessary tools. This ensures consistent behavior across platforms and simplifies setup — only Docker is required.
+
+To build and push an updated `manage.cloudflare` image (developers only):
+
+```bash
+sebs docker build --deployment cloudflare --image-type manage
+sebs docker push --deployment cloudflare --image-type manage
+```
+
+#### Shared singleton and lifecycle
+
+`CloudflareCLI` is a process-wide singleton: both the script-based (`workers.py`) and container-based (`containers.py`) deployment handlers share a single `manage.cloudflare` Docker container. The first call to `CloudflareCLI.get_instance()` starts the container and registers a shutdown hook via `atexit`; subsequent calls from any handler or thread return the already-running instance.
+
+This has two consequences:
+
+- **Thread safety during creation** — `get_instance()` uses a double-checked lock so that when multiple benchmarks run in parallel (e.g. during `sebs regression`), only one thread starts the container while the others wait.
+- **Lifecycle** — individual deployment handlers (and `Cloudflare.shutdown()`) drop their local reference to the instance but do not stop the container. The container is stopped exactly once at process exit by the `atexit` hook, regardless of whether SeBS is invoked directly (`sebs benchmark invoke`) or through the regression suite.
 
 ### Deployment Architecture
 

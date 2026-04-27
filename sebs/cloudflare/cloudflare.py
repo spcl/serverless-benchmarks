@@ -1050,6 +1050,5 @@ class Cloudflare(System):
         finally:
             self.cache_client.unlock()
 
-        # Shutdown deployment handler CLI containers
         self._workers_deployment.shutdown()
         self._containers_deployment.shutdown()
