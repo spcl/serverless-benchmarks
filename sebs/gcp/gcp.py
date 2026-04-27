@@ -687,12 +687,10 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         else:
             pages = [list(wrapper(invocations))]
 
-        print(requests)
         entries = 0
         for page in pages:
             for invoc in page:
                 entries += 1
-                print(invoc)
                 if "execution took" not in invoc.payload:
                     continue
                 execution_id = invoc.labels["execution_id"]
@@ -2022,9 +2020,15 @@ class GCP(System):
             metrics: Dictionary to populate with collected metrics
         """
 
+        functions = self.cache_client.get_all_functions(self.name())
+        if function_name not in functions:
+            raise RuntimeError(f"Function {function_name} not found in cache!")
+
+        function = GCPFunction.deserialize(functions[function_name])
+
         strategy = (
             self.run_container_strategy
-            if "-" in function_name
+            if function.deployment_type.is_container
             else self.cloud_function_gen1_strategy
         )
         strategy.download_execution_metrics(function_name, start_time, end_time, requests)
