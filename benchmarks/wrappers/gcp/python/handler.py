@@ -22,7 +22,7 @@ def handler(req):
     req_id = _extract_trace_id(req) or req.headers.get('Function-Execution-Id')
 
 
-    req_json = req.get_json() or {}
+    req_json = req.get_json()
     req_json['request-id'] = req_id
     req_json['income-timestamp'] = income_timestamp
     begin = datetime.datetime.now()

@@ -7,6 +7,8 @@ ENV TZ="Europe/Zurich"
 
 COPY --from=tianon/gosu:1.19-debian /usr/local/bin/gosu /usr/local/bin/gosu
 
+USER root
+
 RUN apt-get update\
   && apt-get install -y --no-install-recommends gcc build-essential libxml2 libxml2-dev zlib1g-dev gpg-agent zip\
   && apt-get purge -y --auto-remove
