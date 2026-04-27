@@ -243,14 +243,14 @@ class GCPFunctionGen2Config:
     @staticmethod
     def deserialize(dct: Dict) -> GCPFunctionGen2Config:
         return GCPFunctionGen2Config(
-            vcpus=dct.get("vcpus", 1),
-            gcp_concurrency=dct.get("gcp-concurrency", 80),
-            worker_concurrency=dct.get("worker-concurrency", 80),
-            worker_threads=dct.get("worker-threads", 8),
-            min_instances=dct.get("min-instances", 0),
-            max_instances=dct.get("max-instances", 20),
-            cpu_boost=dct.get("cpu-boost", False),
-            cpu_throttle=dct.get("cpu-throttle", True),
+            vcpus=dct["vcpus"],
+            gcp_concurrency=dct["gcp-concurrency"],
+            worker_concurrency=dct["worker-concurrency"],
+            worker_threads=dct["worker-threads"],
+            min_instances=dct["min-instances"],
+            max_instances=dct["max-instances"],
+            cpu_boost=dct["cpu-boost"],
+            cpu_throttle=dct["cpu-throttle"]
         )
 
     def __eq__(self, other: object) -> bool:
@@ -305,7 +305,7 @@ class GCPContainerConfig(GCPFunctionGen2Config):
             vcpus=dct["vcpus"],
             gcp_concurrency=dct["gcp-concurrency"],
             worker_concurrency=dct["worker-concurrency"],
-            worker_threads=dct.get("worker-threads", 8),
+            worker_threads=dct["worker-threads"],
             min_instances=dct["min-instances"],
             max_instances=dct["max-instances"],
             cpu_boost=dct["cpu-boost"],
