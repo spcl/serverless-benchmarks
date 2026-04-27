@@ -1680,8 +1680,8 @@ class GCP(System):
         code_bucket: Optional[str] = None
         dep_config: Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig]
 
-        if architecture == "arm64" and not container_deployment:
-            raise RuntimeError("GCP does not support arm64 for non-container deployments")
+        if architecture == "arm64":
+            raise RuntimeError("GCP does not support arm64 deployments")
 
         # Select deployment strategy
         strategy = (
