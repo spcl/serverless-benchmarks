@@ -11,7 +11,7 @@ import shutil
 from importlib.resources import files
 
 try:
-    import tomllib  # Python 3.11+
+    import tomllib  # type: ignore[import-not-found]  # Python 3.11+
 except ImportError:
     import tomli as tomllib  # type: ignore[no-redef]  # Fallback for older Python
 try:
@@ -79,7 +79,7 @@ class CloudflareWorkersDeployment:
             Path to the generated wrangler.toml file
         """
         # Load template
-        template_path = files("sebs.cloudflare").joinpath("templates", "wrangler-worker.toml")
+        template_path = files("sebs.cloudflare").joinpath("templates").joinpath("wrangler-worker.toml")
         with template_path.open("rb") as f:
             config = tomllib.load(f)
 

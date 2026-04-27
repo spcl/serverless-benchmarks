@@ -190,7 +190,7 @@ class Cloudflare(System):
         sebs_config: SeBSConfig,
         config: CloudflareConfig,
         cache_client: Cache,
-        docker_client: docker.client,
+        docker_client: docker.client.DockerClient,
         logger_handlers: LoggingHandlers,
     ):
         super().__init__(
