@@ -117,6 +117,7 @@ class CloudflareCLI(LoggingBase):
             user="root",
             environment=env,
         )
+        assert isinstance(out, bytes)
         if exit_code != 0:
             raise RuntimeError(
                 "Command {} failed at Cloudflare CLI docker!\n Output {}".format(
