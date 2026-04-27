@@ -31,6 +31,11 @@ from sebs.faas.function import ExecutionResult, Trigger
 
 
 def normalize_request_id(res: ExecutionResult) -> None:
+    """Normalize the request identifier to the trace ID format used by GCP logs.
+
+    Args:
+        res: Execution result object to update in place.
+    """
     # In GCP, we used to return the request id directly.
     # However, containers have function request id, but they
     # are not visible in logs - we cannot use them for query.
@@ -105,11 +110,21 @@ class LibraryTrigger(Trigger):
 
     @property
     def deployment_type(self) -> FunctionDeploymentType:
+        """Get the deployment type associated with this trigger.
+
+        Returns:
+            Deployment type currently associated with the trigger.
+        """
         assert self._deployment_type
         return self._deployment_type
 
     @deployment_type.setter
     def deployment_type(self, deployment_type: FunctionDeploymentType) -> None:
+        """Set the deployment type associated with this trigger.
+
+        Args:
+            deployment_type: Deployment type to associate with the trigger.
+        """
         self._deployment_type = deployment_type
 
     @staticmethod

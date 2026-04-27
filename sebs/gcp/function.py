@@ -40,6 +40,11 @@ class FunctionDeploymentType(str, Enum):
 
     @property
     def is_container(self) -> bool:
+        """Return whether the deployment type is container-based.
+
+        Returns:
+            True if the deployment uses Cloud Run containers, otherwise False.
+        """
         return self == FunctionDeploymentType.CONTAINER
 
     @staticmethod
@@ -110,12 +115,22 @@ class GCPFunction(Function):
 
     @property
     def deployment_type(self) -> FunctionDeploymentType:
+        """Get the deployment type for this function.
+
+        Returns:
+            Deployment type enum for the function.
+        """
         return self._deployment_type
 
     @property
     def deployment_config(
         self,
     ) -> Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig]:
+        """Get the deployment-specific configuration for this function.
+
+        Returns:
+            Deployment-specific configuration object.
+        """
         return self._deployment_config
 
     def serialize(self) -> Dict:
@@ -190,9 +205,19 @@ class GCPFunction(Function):
         return ret
 
     def container_uri(self) -> str | None:
+        """Return the container image URI if this function uses one.
+
+        Returns:
+            Container image URI, or ``None`` for non-container deployments.
+        """
         return self._container_uri
 
     def set_container_uri(self, container_uri: str | None) -> None:
+        """Update the container image URI for this function.
+
+        Args:
+            container_uri: Container image URI to store, or ``None``.
+        """
         self._container_uri = container_uri
 
     def code_bucket(self, benchmark: str, storage_client: GCPStorage) -> str:

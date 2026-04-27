@@ -185,19 +185,46 @@ class GCPFunctionGen1Config:
     """Configuration for Cloud Functions Gen1 deployments."""
 
     def __init__(self, min_instances: int = 0, max_instances: int = 20):
+        """Initialize Gen1 scaling settings.
+
+        Args:
+            min_instances: Minimum number of instances to keep warm.
+            max_instances: Maximum number of instances allowed.
+        """
         self.min_instances = min_instances
         self.max_instances = max_instances
 
     def serialize(self) -> Dict:
+        """Serialize the Gen1 configuration.
+
+        Returns:
+            Dictionary containing the serialized Gen1 settings.
+        """
         return {"min-instances": self.min_instances, "max-instances": self.max_instances}
 
     @staticmethod
     def deserialize(dct: Dict) -> "GCPFunctionGen1Config":
+        """Deserialize a Gen1 configuration.
+
+        Args:
+            dct: Serialized Gen1 configuration.
+
+        Returns:
+            Deserialized Gen1 configuration object.
+        """
         return GCPFunctionGen1Config(
             min_instances=dct.get("min-instances", 0), max_instances=dct.get("max-instances", 20)
         )
 
     def __eq__(self, other: object) -> bool:
+        """Compare two Gen1 configurations.
+
+        Args:
+            other: Configuration object to compare against.
+
+        Returns:
+            True if both objects have the same Gen1 settings, otherwise False.
+        """
         if not isinstance(other, GCPFunctionGen1Config):
             return False
         return (
@@ -219,6 +246,18 @@ class GCPFunctionGen2Config:
         cpu_boost: bool = False,
         cpu_throttle: bool = True,
     ):
+        """Initialize Gen2 runtime and scaling settings.
+
+        Args:
+            vcpus: Number of virtual CPUs assigned to the function.
+            gcp_concurrency: Cloud Functions concurrency setting.
+            worker_concurrency: Worker count used by the runtime server.
+            worker_threads: Thread count used by the runtime server.
+            min_instances: Minimum number of warm instances.
+            max_instances: Maximum number of instances allowed.
+            cpu_boost: Whether startup CPU boost is enabled.
+            cpu_throttle: Whether CPU throttling is enabled when idle.
+        """
         self.vcpus = vcpus
         self.gcp_concurrency = gcp_concurrency
         self.worker_concurrency = worker_concurrency
@@ -229,6 +268,11 @@ class GCPFunctionGen2Config:
         self.cpu_throttle = cpu_throttle
 
     def serialize(self) -> Dict:
+        """Serialize the Gen2 configuration.
+
+        Returns:
+            Dictionary containing the serialized Gen2 settings.
+        """
         return {
             "vcpus": self.vcpus,
             "gcp-concurrency": self.gcp_concurrency,
@@ -242,6 +286,14 @@ class GCPFunctionGen2Config:
 
     @staticmethod
     def deserialize(dct: Dict) -> GCPFunctionGen2Config:
+        """Deserialize a Gen2 configuration.
+
+        Args:
+            dct: Serialized Gen2 configuration.
+
+        Returns:
+            Deserialized Gen2 configuration object.
+        """
         return GCPFunctionGen2Config(
             vcpus=dct["vcpus"],
             gcp_concurrency=dct["gcp-concurrency"],
@@ -254,6 +306,14 @@ class GCPFunctionGen2Config:
         )
 
     def __eq__(self, other: object) -> bool:
+        """Compare two Gen2 configurations.
+
+        Args:
+            other: Configuration object to compare against.
+
+        Returns:
+            True if both objects have the same Gen2 settings, otherwise False.
+        """
         if not isinstance(other, GCPFunctionGen2Config):
             return False
         return (
@@ -283,6 +343,19 @@ class GCPContainerConfig(GCPFunctionGen2Config):
         cpu_boost: bool = False,
         cpu_throttle: bool = True,
     ):
+        """Initialize Cloud Run container settings.
+
+        Args:
+            environment: Cloud Run execution environment name.
+            vcpus: Number of virtual CPUs assigned to the container.
+            gcp_concurrency: Cloud Run request concurrency limit.
+            worker_concurrency: Worker count used by the runtime server.
+            worker_threads: Thread count used by the runtime server.
+            min_instances: Minimum number of warm instances.
+            max_instances: Maximum number of instances allowed.
+            cpu_boost: Whether startup CPU boost is enabled.
+            cpu_throttle: Whether CPU throttling is enabled when idle.
+        """
         super().__init__(
             vcpus,
             gcp_concurrency,
@@ -296,10 +369,23 @@ class GCPContainerConfig(GCPFunctionGen2Config):
         self.environment = environment
 
     def serialize(self) -> Dict:
+        """Serialize the container configuration.
+
+        Returns:
+            Dictionary containing the serialized container settings.
+        """
         return {**super().serialize(), "environment": self.environment}
 
     @staticmethod
     def deserialize(dct: Dict) -> GCPContainerConfig:
+        """Deserialize a container configuration.
+
+        Args:
+            dct: Serialized container configuration.
+
+        Returns:
+            Deserialized container configuration object.
+        """
         return GCPContainerConfig(
             environment=dct["environment"],
             vcpus=dct["vcpus"],
@@ -313,6 +399,14 @@ class GCPContainerConfig(GCPFunctionGen2Config):
         )
 
     def __eq__(self, other: object) -> bool:
+        """Compare two container configurations.
+
+        Args:
+            other: Configuration object to compare against.
+
+        Returns:
+            True if both objects have the same container settings, otherwise False.
+        """
         if not isinstance(other, GCPContainerConfig):
             return False
         return (
@@ -339,12 +433,22 @@ class GCPConfiguration:
     """
 
     def __init__(self) -> None:
+        """Initialize default GCP deployment configuration."""
         self._function_gen1_config = GCPFunctionGen1Config()
         self._function_gen2_config = GCPFunctionGen2Config()
         self._container_config = GCPContainerConfig()
 
     @staticmethod
     def initialize(config: GCPConfiguration, dct: Dict) -> GCPConfiguration:
+        """Populate a configuration object from serialized data.
+
+        Args:
+            config: Configuration object to populate.
+            dct: Serialized deployment configuration.
+
+        Returns:
+            The populated configuration object.
+        """
 
         config._function_gen1_config = GCPFunctionGen1Config.deserialize(dct["function-gen1"])
         config._function_gen2_config = GCPFunctionGen2Config.deserialize(dct["function-gen2"])
@@ -366,14 +470,29 @@ class GCPConfiguration:
 
     @property
     def function_gen1_config(self) -> GCPFunctionGen1Config:
+        """Get the Gen1 deployment configuration.
+
+        Returns:
+            Gen1 deployment configuration object.
+        """
         return self._function_gen1_config
 
     @property
     def function_gen2_config(self) -> GCPFunctionGen2Config:
+        """Get the Gen2 deployment configuration.
+
+        Returns:
+            Gen2 deployment configuration object.
+        """
         return self._function_gen2_config
 
     @property
     def container_config(self) -> GCPContainerConfig:
+        """Get the Cloud Run container configuration.
+
+        Returns:
+            Cloud Run container deployment configuration object.
+        """
         return self._container_config
 
 
@@ -463,10 +582,12 @@ class GCPResources(Resources):
 
     @property
     def container_repository(self) -> str:
+        """Get the Artifact Registry repository name for containers."""
         assert self._container_repository is not None, "Container repository has not been set yet!"
         return self._container_repository
 
     def check_container_repository_exists(self, config: Config, ar_client):
+        """Check whether the configured container repository exists."""
         try:
             credentials = cast(GCPCredentials, config.credentials)
             parent = f"projects/{credentials.project_name}/locations/{config.region}"
@@ -482,6 +603,7 @@ class GCPResources(Resources):
                 raise e
 
     def create_container_repository(self, ar_client, parent):
+        """Create the Artifact Registry repository for benchmark containers."""
         request_body = {"format": "DOCKER", "description": "Container repository for SEBS"}
         self._container_repository = f"sebs-benchmarks-{self._resources_id}"
         operation = (
@@ -512,6 +634,7 @@ class GCPResources(Resources):
             raise TimeoutError("Timed out waiting for container repository creation.")
 
     def get_container_repository(self, config: Config, ar_client):
+        """Get or create the Artifact Registry repository for container images."""
         if self._container_repository is not None:
             return self._container_repository
 

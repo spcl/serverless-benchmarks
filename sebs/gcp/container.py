@@ -1,3 +1,5 @@
+"""Cloud Run container helpers for Google Cloud Platform deployments."""
+
 import docker
 from typing import cast, Tuple
 
@@ -11,12 +13,24 @@ from google.auth.transport.requests import Request
 
 
 class GCRContainer(DockerContainer):
+    """Cloud Run container helper for building and pushing GCP images."""
+
     @staticmethod
     def name():
+        """Return the deployment name used for GCP container images.
+
+        Returns:
+            The string ``"gcp"``.
+        """
         return "gcp"
 
     @staticmethod
     def typename() -> str:
+        """Return the runtime type name for serialization.
+
+        Returns:
+            Runtime type identifier used by SeBS serialization.
+        """
         return "GCP.GCRContainer"
 
     def __init__(
@@ -25,6 +39,13 @@ class GCRContainer(DockerContainer):
         config: GCPConfig,
         docker_client: docker.client.DockerClient,
     ):
+        """Initialize the GCP container helper.
+
+        Args:
+            system_config: SeBS system configuration.
+            config: GCP deployment configuration.
+            docker_client: Docker client used for local image operations.
+        """
         super().__init__(system_config, docker_client)
         self.config: GCPConfig = config
         self.creds = service_account.Credentials.from_service_account_file(
@@ -36,6 +57,17 @@ class GCRContainer(DockerContainer):
     def registry_name(
         self, benchmark: str, language_name: str, language_version: str, architecture: str
     ) -> Tuple[str, str, str, str]:
+        """Build the Artifact Registry path for a benchmark image.
+
+        Args:
+            benchmark: Benchmark name.
+            language_name: Programming language name.
+            language_version: Runtime version string.
+            architecture: Target CPU architecture.
+
+        Returns:
+            Tuple of registry name, repository name, image tag, and full image URI.
+        """
 
         project_id = self.config.credentials.project_name
         region = self.config.region
@@ -52,6 +84,15 @@ class GCRContainer(DockerContainer):
         return registry_name, repository_name, image_tag, image_uri
 
     def find_image(self, repository_name, image_tag) -> bool:
+        """Check whether a tagged image already exists in Artifact Registry.
+
+        Args:
+            repository_name: Artifact Registry repository name.
+            image_tag: Docker image tag to look up.
+
+        Returns:
+            True if the image tag exists in the repository, otherwise False.
+        """
         try:
             credentials = cast(GCPCredentials, self.config.credentials)
             parent = (
@@ -84,6 +125,17 @@ class GCRContainer(DockerContainer):
         language_version: str,
         architecture: str,
     ) -> str:
+        """Push a benchmark image and resolve it to an immutable digest URI.
+
+        Args:
+            benchmark: Benchmark name.
+            language_name: Programming language name.
+            language_version: Runtime version string.
+            architecture: Target CPU architecture.
+
+        Returns:
+            Immutable image URI if Docker exposes a digest, otherwise the tag URI.
+        """
         image_uri = super().push_to_registry(
             benchmark, language_name, language_version, architecture
         )
@@ -99,6 +151,20 @@ class GCRContainer(DockerContainer):
         is_cached: bool,
         builder_image: str,
     ) -> Tuple[bool, str, float]:
+        """Build the benchmark image and resolve the final image URI.
+
+        Args:
+            directory: Benchmark source directory.
+            language: Benchmark language enum.
+            language_version: Runtime version string.
+            architecture: Target CPU architecture.
+            benchmark: Benchmark name.
+            is_cached: Whether the build can reuse a cached image.
+            builder_image: Builder image to use for the build stage.
+
+        Returns:
+            Tuple of rebuild flag, image URI, and image size in MB.
+        """
         rebuilt, image_uri, size_mb = super().build_base_image(
             directory,
             language,
@@ -111,7 +177,14 @@ class GCRContainer(DockerContainer):
         return rebuilt, self.resolve_image_uri(image_uri), size_mb
 
     def resolve_image_uri(self, image_uri: str) -> str:
-        """Resolve a tag URI to an immutable digest URI when Docker exposes one."""
+        """Resolve a tag URI to an immutable digest URI when Docker exposes one.
+
+        Args:
+            image_uri: Image URI to inspect.
+
+        Returns:
+            Digest URI if available, otherwise the original tag URI.
+        """
         if "@sha256:" in image_uri:
             return image_uri
 
@@ -136,6 +209,15 @@ class GCRContainer(DockerContainer):
         return image_uri
 
     def push_image(self, repository_uri, image_tag):
+        """Authenticate to Artifact Registry and push the built image.
+
+        Args:
+            repository_uri: Artifact Registry repository URI.
+            image_tag: Docker image tag to push.
+
+        Raises:
+            RuntimeError: If the push operation fails.
+        """
         self.logging.info("Authenticating Docker against Artifact Registry...")
         self.creds.refresh(Request())
         auth_token = self.creds.token
