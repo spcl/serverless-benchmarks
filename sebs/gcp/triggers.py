@@ -30,6 +30,17 @@ from sebs.gcp.function import FunctionDeploymentType
 from sebs.faas.function import ExecutionResult, Trigger
 
 
+def normalize_request_id(res: ExecutionResult) -> None:
+    # In GCP, we used to return the request id directly.
+    # However, containers have function request id, but they
+    # are not visible in logs - we cannot use them for query.
+    #
+    # However, both functions and containers have trace id,
+    # which needs to be slightly converted.
+    if "/" in res.request_id:
+        res.request_id = res.request_id.split("/", 1)[0]
+
+
 class LibraryTrigger(Trigger):
     """Direct Cloud Functions API trigger for synchronous invocation.
 
@@ -187,6 +198,9 @@ class LibraryTrigger(Trigger):
 
         output = json.loads(res["result"])
         gcp_result.parse_benchmark_output(output)
+
+        normalize_request_id(gcp_result)
+
         return gcp_result
 
     def async_invoke(self, payload: Dict) -> concurrent.futures.Future:
@@ -279,7 +293,9 @@ class HTTPTrigger(Trigger):
         Returns:
             ExecutionResult from the HTTP invocation
         """
-        return self._http_invoke(payload, self.url)
+        res = self._http_invoke(payload, self.url)
+        normalize_request_id(res)
+        return res
 
     def async_invoke(self, payload: Dict) -> concurrent.futures.Future:
         """Asynchronously invoke the Cloud Function via HTTP.
