@@ -279,8 +279,6 @@ class HTTPTrigger(Trigger):
         Returns:
             ExecutionResult from the HTTP invocation
         """
-
-        self.logging.debug(f"Invoke function {self.url}")
         return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: Dict) -> concurrent.futures.Future:
