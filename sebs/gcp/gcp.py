@@ -245,6 +245,10 @@ class DeploymentStrategy(Protocol):
         """
         ...
 
+    def generate_runtime_envs(self) -> Dict:
+        """Generate deployment-runtime environment variables."""
+        ...
+
     def is_deployed(
         self,
         func_name: str,
@@ -585,6 +589,9 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
             envs = {**response["environmentVariables"], **envs}  # type: ignore[typeddict-item]
 
         return envs
+
+    def generate_runtime_envs(self) -> Dict:
+        return {}
 
     def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
         """Check if Cloud Function is deployed and optionally verify its version.
@@ -1205,6 +1212,13 @@ class RunContainerStrategy(DeploymentStrategy):
         envs = {**existing_envs, **envs}
         return envs
 
+    def generate_runtime_envs(self) -> Dict:
+        dep_config = self.config.deployment_config.container_config
+        return {
+            "GUNICORN_WORKERS": str(dep_config.worker_concurrency),
+            "GUNICORN_THREADS": str(dep_config.worker_threads),
+        }
+
     def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
         """Check if Cloud Run service is deployed.
 
@@ -1704,7 +1718,10 @@ class GCP(System):
         dep_config = self._get_deployment_config(deployment_type)
         if not function_exists:
             # Create new function/service
-            envs = self._generate_function_envs(code_package)
+            envs = {
+                **self._generate_function_envs(code_package),
+                **strategy.generate_runtime_envs(),
+            }
 
             # Get code bucket for non-container deployments
 
@@ -1862,7 +1879,10 @@ class GCP(System):
         )
 
         # Generate environment variables
-        envs = self._generate_function_envs(code_package)
+        envs = {
+            **self._generate_function_envs(code_package),
+            **strategy.generate_runtime_envs(),
+        }
 
         # Update code using strategy
         strategy.update_code(function, code_package, envs, container_uri)
@@ -1933,7 +1953,10 @@ class GCP(System):
         )
 
         # Prepare environment variables
-        envs = self._generate_function_envs(code_package)
+        envs = {
+            **self._generate_function_envs(code_package),
+            **strategy.generate_runtime_envs(),
+        }
         envs = {**envs, **env_variables}
 
         # GCP might overwrite existing variables
@@ -1960,7 +1983,9 @@ class GCP(System):
         # v1 functions don't allow hyphens, new functions don't allow underscores
         gcp_function = cast(GCPFunction, function)
         strategy = (
-            self.run_container_strategy if gcp_function.deployment_type.is_container else self.cloud_function_gen1_strategy
+            self.run_container_strategy
+            if gcp_function.deployment_type.is_container
+            else self.cloud_function_gen1_strategy
         )
 
         strategy.delete_function(function.name)
@@ -2155,7 +2180,9 @@ class GCP(System):
         # v1 functions don't allow hyphens, new functions don't allow underscores
         gcp_function = cast(GCPFunction, function)
         strategy = (
-            self.run_container_strategy if gcp_function.deployment_type.is_container else self.cloud_function_gen1_strategy
+            self.run_container_strategy
+            if gcp_function.deployment_type.is_container
+            else self.cloud_function_gen1_strategy
         )
 
         return strategy.is_deployed(function.name, versionId)

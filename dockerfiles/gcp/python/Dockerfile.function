@@ -8,7 +8,8 @@ COPY . function/
 
 ENV PLATFORM_ARG=""
 
-RUN pip install functions-framework
+RUN pip install --no-cache-dir functions-framework gunicorn \
+    && pip cache purge
 
 RUN touch function/__init__.py \
     && if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]]; then \
@@ -33,7 +34,12 @@ RUN touch function/__init__.py \
         pip cache purge; \
     fi
 
+RUN printf '%s\n' \
+    'from functions_framework import create_app' \
+    'app = create_app(target="handler", source="function/handler.py")' \
+    > /ff_app.py
+
 
 ENV PYTHONPATH="/"
 
-CMD ["functions-framework", "--target=handler", "--source=function/handler.py"]
+CMD ["sh", "-c", "exec gunicorn --bind :${PORT:-8080} --workers ${GUNICORN_WORKERS:-1} --threads ${GUNICORN_THREADS:-8} --timeout 0 ff_app:app"]
