@@ -4,6 +4,8 @@ ARG VERSION
 
 COPY --from=tianon/gosu:1.19-debian /usr/local/bin/gosu /usr/local/bin/gosu
 
+USER root
+
 RUN mkdir -p /sebs/
 COPY dockerfiles/nodejs_installer.sh /sebs/installer.sh
 COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
