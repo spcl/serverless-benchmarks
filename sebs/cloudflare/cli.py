@@ -24,7 +24,9 @@ class CloudflareCLI(LoggingBase):
     _lock: threading.Lock = threading.Lock()
 
     @staticmethod
-    def get_instance(system_config: SeBSConfig, docker_client: docker.client.DockerClient) -> "CloudflareCLI":
+    def get_instance(
+        system_config: SeBSConfig, docker_client: docker.client.DockerClient
+    ) -> "CloudflareCLI":
         """Return the shared CloudflareCLI instance, creating it on first use.
 
         Container and native workers deployments share one underlying CLI

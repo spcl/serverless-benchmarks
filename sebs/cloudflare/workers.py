@@ -79,7 +79,9 @@ class CloudflareWorkersDeployment:
             Path to the generated wrangler.toml file
         """
         # Load template
-        template_path = files("sebs.cloudflare").joinpath("templates").joinpath("wrangler-worker.toml")
+        template_path = (
+            files("sebs.cloudflare").joinpath("templates").joinpath("wrangler-worker.toml")
+        )
         with template_path.open("rb") as f:
             config = tomllib.load(f)
 
