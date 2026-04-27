@@ -675,12 +675,6 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
             page_size=1000,
         )
 
-        print(
-            f'resource.labels.function_name = "{function_name}" '
-            f'timestamp >= "{timestamps[0]}" '
-            f'timestamp <= "{timestamps[1]}"'
-        )
-
         invocations_processed = 0
         if hasattr(invocations, "pages"):
             pages = list(wrapper(invocations.pages))
@@ -693,20 +687,27 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
                 entries += 1
                 if "execution took" not in invoc.payload:
                     continue
-                execution_id = invoc.labels["execution_id"]
-                if execution_id not in requests:
+                trace_id = self._extract_trace_id(invoc)
+                if trace_id is None or trace_id not in requests:
                     continue
 
                 regex_result = re.search(r"\d+ ms", invoc.payload)
                 assert regex_result
                 exec_time = regex_result.group().split()[0]
-                requests[execution_id].provider_times.execution = int(exec_time) * 1000
+                requests[trace_id].provider_times.execution = int(exec_time) * 1000
                 invocations_processed += 1
 
         self.logging.info(
             f"GCP Gen1: Received {entries} entries, found time metrics for "
             f"{invocations_processed} out of {len(requests.keys())} invocations."
         )
+
+    @staticmethod
+    def _extract_trace_id(entry) -> Optional[str]:
+        trace = getattr(entry, "trace", None)
+        if not isinstance(trace, str) or "/traces/" not in trace:
+            return None
+        return trace.rsplit("/traces/", 1)[1]
 
     def _wait_for_build_and_poll(
         self, func_name: str, timeout: int = 300, poll_interval: int = 2
