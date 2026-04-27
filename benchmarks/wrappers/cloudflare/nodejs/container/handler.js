@@ -133,7 +133,7 @@ const server = http.createServer(async (req, res) => {
     const micro = elapsed * 1000; // Convert milliseconds to microseconds
 
     // Build log_data similar to native handler
-    const log_data = { output: ret && ret.result !== undefined ? ret.result : ret };
+    const log_data = { result: ret && ret.result !== undefined ? ret.result : ret };
     if (ret && ret.measurement !== undefined) {
       log_data.measurement = ret.measurement;
     } else {

@@ -92,7 +92,7 @@ class Default(WorkerEntrypoint):
         ret = function.handler(event)
 
         log_data = {
-            'output': ret['result']
+            'result': ret['result']
         }
         if 'measurement' in ret:
             log_data['measurement'] = ret['measurement']

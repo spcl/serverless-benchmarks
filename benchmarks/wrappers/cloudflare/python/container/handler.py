@@ -138,7 +138,7 @@ class ContainerHandler(BaseHTTPRequestHandler):
             
             # Prepare response matching native handler format exactly
             log_data = {
-                'output': result['result']
+                'result': result['result']
             }
             if 'measurement' in result:
                 log_data['measurement'] = result['measurement']
