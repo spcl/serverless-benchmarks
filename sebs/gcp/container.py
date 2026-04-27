@@ -77,6 +77,64 @@ class GCRContainer(DockerContainer):
             raise e
         return False
 
+    def push_to_registry(
+        self,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
+    ) -> str:
+        image_uri = super().push_to_registry(
+            benchmark, language_name, language_version, architecture
+        )
+        return self.resolve_image_uri(image_uri)
+
+    def build_base_image(
+        self,
+        directory: str,
+        language,
+        language_version: str,
+        architecture: str,
+        benchmark: str,
+        is_cached: bool,
+        builder_image: str,
+    ) -> Tuple[bool, str, float]:
+        rebuilt, image_uri, size_mb = super().build_base_image(
+            directory,
+            language,
+            language_version,
+            architecture,
+            benchmark,
+            is_cached,
+            builder_image,
+        )
+        return rebuilt, self.resolve_image_uri(image_uri), size_mb
+
+    def resolve_image_uri(self, image_uri: str) -> str:
+        """Resolve a tag URI to an immutable digest URI when Docker exposes one."""
+        if "@sha256:" in image_uri:
+            return image_uri
+
+        repository = image_uri.rsplit(":", 1)[0]
+        try:
+            image = self.docker_client.images.get(image_uri)
+        except docker.errors.ImageNotFound:
+            self.logging.warning(
+                f"Could not inspect pushed image {image_uri}; deploying mutable tag reference."
+            )
+            return image_uri
+
+        repo_digests = image.attrs.get("RepoDigests", [])
+        for digest_uri in repo_digests:
+            if digest_uri.split("@", 1)[0] == repository:
+                self.logging.info(f"Resolved image {image_uri} to digest {digest_uri}")
+                return digest_uri
+
+        self.logging.warning(
+            f"No registry digest found for {image_uri}; deploying mutable tag reference."
+        )
+        return image_uri
+
     def push_image(self, repository_uri, image_tag):
         self.logging.info("Authenticating Docker against Artifact Registry...")
         self.creds.refresh(Request())
