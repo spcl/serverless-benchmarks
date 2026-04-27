@@ -12,12 +12,17 @@ if 'NOSQL_STORAGE_DATABASE' in os.environ:
     )
 
 
+def _extract_trace_id(req):
+    trace_context = req.headers.get('X-Cloud-Trace-Context', '')
+    return trace_context.split('/', 1)[0]
+
+
 def handler(req):
     income_timestamp = datetime.datetime.now().timestamp()
-    req_id = req.headers.get('Function-Execution-Id')
+    req_id = _extract_trace_id(req) or req.headers.get('Function-Execution-Id')
 
 
-    req_json = req.get_json()
+    req_json = req.get_json() or {}
     req_json['request-id'] = req_id
     req_json['income-timestamp'] = income_timestamp
     begin = datetime.datetime.now()
