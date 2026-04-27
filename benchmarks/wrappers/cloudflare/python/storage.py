@@ -1,11 +1,7 @@
 import io
 import os
 import uuid
-import asyncio
-import base64
-from pyodide.ffi import to_js, jsnull, run_sync, JsProxy
-from pyodide.webloop import WebLoop
-import js
+from pyodide.ffi import to_js, jsnull, run_sync
 
 from workers import WorkerEntrypoint
 
@@ -77,18 +73,10 @@ class storage:
 
     async def aupload_stream(self, bucket, key, data):
         unique_key = storage.unique_name(key)
-        # Handle BytesIO objects - extract bytes
         if hasattr(data, 'getvalue'):
             data = data.getvalue()
-        # Convert bytes to Blob using base64 encoding as intermediate step
         if isinstance(data, bytes):
-            # Encode as base64
-            b64_str = base64.b64encode(data).decode('ascii')
-            # Create a Response from base64, then get the blob
-            # This creates a proper JavaScript Blob that R2 will accept
-            response = await js.fetch(f"data:application/octet-stream;base64,{b64_str}")
-            blob = await response.blob()
-            data_js = blob
+            data_js = to_js(data)
         else:
             data_js = str(data)
         bobj = self.get_bucket(bucket)
