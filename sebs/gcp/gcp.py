@@ -336,8 +336,10 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         try:
             self._execute_with_retry(self.logging, get_req)
             return True
-        except HttpError:
-            return False
+        except HttpError as e:
+            if e.resp.status == 404:
+                return False
+            raise RuntimeError(f"Error checking function existence: {e}") from None
 
     def create(
         self,
@@ -455,11 +457,8 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
             )
         )
 
-        res = self._execute_with_retry(self.logging, req)
+        self._execute_with_retry(self.logging, req)
         self.logging.info(f"Function {function.name} code update initiated")
-
-        # Store expected version for wait_for_deployment
-        self._expected_version = int(res["metadata"]["versionId"])
 
     def update_config(self, function: "GCPFunction", envs: Dict) -> int:
         """Update Cloud Function Gen1 configuration."""
@@ -1089,6 +1088,8 @@ class RunContainerStrategy(DeploymentStrategy):
             f"Patch request sent for Cloud Run config {function.name}, waiting for operation..."
         )
 
+        self.wait_for_deployment(function.name)
+
         return 0
 
     def wait_for_deployment(
@@ -1449,7 +1450,7 @@ class GCP(System):
 
     @property
     def container_client(self) -> GCRContainer | None:
-        """Get the AWS-specific container manager that uses ECR.
+        """Get the GCP-specific container manager that uses Artifact Registry.
 
         Returns:
             Container manager instance.
@@ -1969,7 +1970,6 @@ class GCP(System):
 
         # Update configuration using strategy
         res = strategy.update_config(function, envs)
-        strategy.wait_for_deployment(function.name)
 
         current_dep_config = self._get_deployment_config(function.deployment_type)
         function._deployment_config = current_dep_config
