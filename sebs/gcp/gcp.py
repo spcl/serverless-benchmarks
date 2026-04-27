@@ -74,8 +74,8 @@ class DeploymentStrategy(Protocol):
     """
     TRANSIENT_HTTP_CODES: frozenset[int] = frozenset({429, 503})
 
+    @staticmethod
     def _execute_with_retry(
-        self,
         logging: ColoredWrapper,
         request,
         max_retries: int = 5,
@@ -114,7 +114,7 @@ class DeploymentStrategy(Protocol):
                 last_error = e
 
                 # Only retry on transient errors
-                if status_code not in self.TRANSIENT_HTTP_CODES:
+                if status_code not in DeploymentStrategy.TRANSIENT_HTTP_CODES:
                     raise
 
                 # Check if we have retries left
@@ -1773,11 +1773,13 @@ class GCP(System):
             self.update_function(function, code_package, container_deployment, container_uri)
 
         # Add LibraryTrigger to a new function
-        from sebs.gcp.triggers import LibraryTrigger
+        # Not supported on containers
+        if not container_deployment:
+            from sebs.gcp.triggers import LibraryTrigger
 
-        trigger = LibraryTrigger(func_name, self, function.deployment_type)
-        trigger.logging_handlers = self.logging_handlers
-        function.add_trigger(trigger)
+            trigger = LibraryTrigger(func_name, self, function.deployment_type)
+            trigger.logging_handlers = self.logging_handlers
+            function.add_trigger(trigger)
 
         return function
 

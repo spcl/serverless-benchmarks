@@ -69,7 +69,7 @@ class GCRContainer(DockerContainer):
             )
             if "dockerImages" in response:
                 for image in response["dockerImages"]:
-                    if "latest" in image["tags"] and image_tag in image["tags"]:
+                    if image_tag in image.get("tags", []):
                         return True
         except HttpError as e:
             if e.resp.status == 404:
