@@ -25,7 +25,7 @@ import unittest
 import testtools
 import threading
 from time import sleep
-from typing import cast, Dict, Optional, Set, Tuple, TYPE_CHECKING
+from typing import cast, Dict, Optional, Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
 from sebs.utils import ColoredWrapper, SensitiveDataFilter, LoggingBase
@@ -1416,7 +1416,10 @@ def filter_out_benchmarks(
         if allowed is not None:
             # benchmark is the test method name, e.g. "test_cloudflare_120.uploader_x64_workers"
             # Extract the numeric benchmark prefix (e.g. "120") from before the first "."
-            benchmark_id = benchmark.split(".")[-2].split("_")[-1] if "." in benchmark else benchmark.split("_")[-1]
+            if "." in benchmark:
+                benchmark_id = benchmark.split(".")[-2].split("_")[-1]
+            else:
+                benchmark_id = benchmark.split("_")[-1]
             return benchmark_id in allowed
     # fmt: on
 

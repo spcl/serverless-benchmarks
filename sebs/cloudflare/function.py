@@ -1,4 +1,4 @@
-from typing import Optional, cast
+from typing import Optional
 
 from sebs.faas.function import Function, FunctionConfig
 
@@ -39,7 +39,6 @@ class CloudflareWorker(Function):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "CloudflareWorker":
-        from sebs.faas.function import Trigger
         from sebs.cloudflare.triggers import HTTPTrigger
 
         cfg = FunctionConfig.deserialize(cached_config["config"])

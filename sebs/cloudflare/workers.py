@@ -8,7 +8,6 @@ Handles packaging, deployment, and management of native Cloudflare Workers
 import os
 import re
 import shutil
-import json
 from importlib.resources import files
 
 try:
@@ -288,7 +287,8 @@ class CloudflareWorkersDeployment:
                 )
             raise RuntimeError(
                 f"Handler file {handler_file} not found in {directory}. "
-                f"Available files: {', '.join(os.listdir(directory)) if os.path.exists(directory) else 'none'}"
+                f"Available files: "
+                f"{', '.join(os.listdir(directory)) if os.path.exists(directory) else 'none'}"
             )
 
         # Calculate total size of the package directory

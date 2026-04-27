@@ -1,5 +1,4 @@
 import docker
-
 from typing import Optional
 
 from sebs.cache import Cache
@@ -10,7 +9,6 @@ from sebs.faas.resources import SystemResources
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.nosql import NoSQLStorage
 from sebs.utils import LoggingHandlers
-import json
 
 
 class CloudflareSystemResources(SystemResources):

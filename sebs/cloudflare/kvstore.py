@@ -97,7 +97,8 @@ class KVStore(NoSQLStorage):
         return account_id
 
     def _kv_api_base(self) -> str:
-        return f"https://api.cloudflare.com/client/v4/accounts/{self._account_id()}/storage/kv/namespaces"
+        account = self._account_id()
+        return f"https://api.cloudflare.com/client/v4/accounts/{account}/storage/kv/namespaces"
 
     def _get_auth_headers(self, content_type: str = "application/json") -> dict[str, str]:
         """Get authentication headers for Cloudflare API requests."""
@@ -134,7 +135,7 @@ class KVStore(NoSQLStorage):
             f"sebs-nosql-{self._sanitize_component(self._resource_id())}-"
             f"{self._sanitize_component(benchmark)}-{self._sanitize_component(table)}"
         )
-        # Cloudflare KV namespace title has length constraints. Keep a deterministic suffix if truncated.
+        # KV namespace title has length constraints; keep a deterministic suffix if truncated.
         max_len = 100
         if len(title) > max_len:
             digest = hashlib.sha1(title.encode("utf-8")).hexdigest()[:12]
@@ -204,8 +205,9 @@ class KVStore(NoSQLStorage):
         return f"__sebs_idx__{primary_value}"
 
     def _read_index(self, namespace_id: str, primary_value: str) -> List[str]:
+        index_key = quote(self._index_key(primary_value), safe="")
         response = requests.get(
-            f"{self._kv_api_base()}/{namespace_id}/values/{quote(self._index_key(primary_value), safe='')}",
+            f"{self._kv_api_base()}/{namespace_id}/values/{index_key}",
             headers=self._get_auth_headers(),
         )
         if response.status_code == 404:
@@ -227,8 +229,9 @@ class KVStore(NoSQLStorage):
         return [str(v) for v in parsed]
 
     def _write_index(self, namespace_id: str, primary_value: str, values: List[str]) -> None:
+        index_key = quote(self._index_key(primary_value), safe="")
         response = requests.put(
-            f"{self._kv_api_base()}/{namespace_id}/values/{quote(self._index_key(primary_value), safe='')}",
+            f"{self._kv_api_base()}/{namespace_id}/values/{index_key}",
             data=json.dumps(values, separators=(",", ":")).encode("utf-8"),
             headers=self._get_auth_headers(content_type="text/plain;charset=UTF-8"),
         )
@@ -370,7 +373,8 @@ class KVStore(NoSQLStorage):
 
     def clear_table(self, name: str) -> str:
         self.logging.warning(
-            "Cloudflare KV clear_table is not implemented. Use remove_table() + create_table() instead."
+            "clear_table is not implemented for Cloudflare KV. "
+            "Use remove_table() + create_table() instead."
         )
         return name
 

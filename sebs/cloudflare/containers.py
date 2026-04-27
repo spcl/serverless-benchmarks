@@ -232,7 +232,8 @@ class CloudflareContainersDeployment:
             base_image = container_images.get(language_version)
             if not base_image:
                 raise RuntimeError(
-                    f"No container base image found in systems.json for {language_name} {language_version} on {architecture}"
+                    f"No container base image found in systems.json for "
+                    f"{language_name} {language_version} on {architecture}"
                 )
             self._base_image = base_image
 
@@ -252,7 +253,7 @@ class CloudflareContainersDeployment:
         worker_js_src = os.path.join(nodejs_wrapper_dir, "worker.js")
         if os.path.exists(worker_js_src):
             shutil.copy2(worker_js_src, os.path.join(directory, "worker.js"))
-            self.logging.info(f"Copied worker.js orchestration file from nodejs/container")
+            self.logging.info("Copied worker.js orchestration file from nodejs/container")
 
         # Copy init.sh if the benchmark needs it (e.g. video-processing downloads ffmpeg)
         from sebs.utils import find_benchmark
@@ -379,9 +380,6 @@ class CloudflareContainersDeployment:
         start_time = time.time()
 
         self.logging.info("Checking container worker readiness via health endpoint...")
-
-        consecutive_failures = 0
-        max_consecutive_failures = 5
 
         while time.time() - start_time < max_wait_seconds:
             try:

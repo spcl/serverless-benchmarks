@@ -1,7 +1,5 @@
-import os
 import uuid
 import time
-from datetime import datetime
 from typing import cast, Dict, List, Optional, Tuple, Type
 
 import docker
@@ -162,7 +160,8 @@ class Cloudflare(System):
             raise RuntimeError(
                 f"Benchmark '{benchmark_name}' is not supported for "
                 f"{language} {deployment_type} deployments on Cloudflare. "
-                f"Supported benchmarks: {self.SUPPORTED_BENCHMARKS.get((language, container_deployment))}"
+                "Supported benchmarks: "
+                f"{self.SUPPORTED_BENCHMARKS.get((language, container_deployment))}"
             )
 
         # For workers deployments, auto-promote the variant from "default" to
@@ -257,8 +256,9 @@ class Cloudflare(System):
         except Exception as e:
             self.logging.warning(
                 f"R2 storage initialization failed: {e}. "
-                f"R2 must be enabled in your Cloudflare dashboard to use storage-dependent benchmarks. "
-                f"Continuing without R2 storage - only benchmarks that don't require storage will work."
+                "R2 must be enabled in your Cloudflare dashboard "
+                "to use storage-dependent benchmarks. "
+                "Continuing without R2 - only benchmarks that don't require storage will work."
             )
 
     @property
@@ -308,8 +308,9 @@ class Cloudflare(System):
 
         if response.status_code != 200:
             raise RuntimeError(
-                f"Failed to verify Cloudflare credentials: {response.status_code} - {response.text}\n"
-                f"Please check that your CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are correct."
+                f"Failed to verify Cloudflare credentials: "
+                f"{response.status_code} - {response.text}\n"
+                "Please check that your CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are correct."
             )
 
         self.logging.info("Cloudflare credentials verified successfully")
@@ -529,7 +530,7 @@ class Cloudflare(System):
         if response.status_code == 200:
             try:
                 return response.json().get("result")
-            except:
+            except Exception:
                 return None
         elif response.status_code == 404:
             return None
@@ -606,8 +607,6 @@ class Cloudflare(System):
 
         # Deploy using Wrangler in container
         self.logging.info(f"Deploying worker {worker_name} using Wrangler in container...")
-
-        language_variant = code_package.language_variant if code_package else "cloudflare"
 
         try:
             # pywrangler is used for all native Python workers (packages must be
@@ -729,8 +728,6 @@ class Cloudflare(System):
         Args:
             function: The cached function
         """
-        from sebs.cloudflare.triggers import HTTPTrigger
-
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
 
@@ -769,7 +766,8 @@ class Cloudflare(System):
 
         if is_container:
             self.logging.info(
-                f"Skipping redeployment for container worker {worker.name} - containers don't support runtime memory updates"
+                f"Skipping redeployment for container worker {worker.name} - "
+                "containers don't support runtime memory updates"
             )
         else:
             self._create_or_update_worker(
@@ -784,7 +782,7 @@ class Cloudflare(System):
             )
             self.logging.info(f"Updated worker {worker.name}")
 
-        # Update configuration if needed (no-op for containers since they don't support runtime memory changes)
+        # Update configuration if needed (no-op for containers: no runtime memory changes)
         self.update_function_configuration(worker, code_package)
 
     def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
@@ -845,7 +843,8 @@ class Cloudflare(System):
 
         Args:
             name: The original name
-            container_deployment: Whether this is a container worker (adds 'w-' prefix if name starts with digit)
+            container_deployment: Whether this is a container worker
+                (adds 'w-' prefix if name starts with digit)
 
         Returns:
             Formatted name

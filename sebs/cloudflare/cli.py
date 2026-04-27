@@ -107,7 +107,8 @@ class CloudflareCLI(LoggingBase):
         shell_cmd = ["/bin/sh", "-c", cmd]
         exit_code, out = self.docker_instance.exec_run(
             shell_cmd,
-            user="root",  # Run as root since entrypoint creates docker_user but we don't wait for it
+            # Run as root since entrypoint creates docker_user but we don't wait for it
+            user="root",
             environment=env,
         )
         if exit_code != 0:

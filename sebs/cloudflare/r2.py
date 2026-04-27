@@ -1,4 +1,3 @@
-import json
 import os
 
 import requests
@@ -68,7 +67,8 @@ class R2(PersistentStorage):
         if not self._credentials.r2_access_key_id or not self._credentials.r2_secret_access_key:
             self.logging.warning(
                 "R2 S3-compatible API credentials not configured. "
-                "Set CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY environment variables."
+                "Set CLOUDFLARE_R2_ACCESS_KEY_ID and "
+                "CLOUDFLARE_R2_SECRET_ACCESS_KEY environment variables."
             )
             return None
 
@@ -134,7 +134,7 @@ class R2(PersistentStorage):
                         f"R2 bucket creation failed. Status: {create_bucket_response.status_code}, "
                         f"Response: {error_data}"
                     )
-                except:
+                except Exception:
                     self.logging.error(
                         f"R2 bucket creation failed. Status: {create_bucket_response.status_code}, "
                         f"Response: {create_bucket_response.text}"
@@ -212,7 +212,7 @@ class R2(PersistentStorage):
         """
         s3_client = self._get_s3_client()
         if s3_client is None:
-            self.logging.warning(f"Cannot upload bytes to R2 - S3 client not available")
+            self.logging.warning("Cannot upload bytes to R2 - S3 client not available")
             return
 
         try:

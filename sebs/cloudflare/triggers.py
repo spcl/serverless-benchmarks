@@ -58,7 +58,8 @@ class HTTPTrigger(Trigger):
             [
                 "Content-Type: application/json",
                 # Cloudflare bot-protection (error 1010) blocks requests with no/tool UA.
-                "User-Agent: Mozilla/5.0 (compatible; SeBS/1.0; +https://github.com/spcl/serverless-benchmarks)",
+                "User-Agent: Mozilla/5.0 (compatible; SeBS/1.0; "
+                "+https://github.com/spcl/serverless-benchmarks)",
             ],
         )
         c.setopt(pycurl.POST, 1)
@@ -87,14 +88,14 @@ class HTTPTrigger(Trigger):
                     output = json.loads(output["body"])
 
             if status_code == 502:
-                self.logging.info(f"Container returned 502 (still starting?), will retry...")
-                raise ContainerProvisioningError(f"502 gateway error from container worker")
+                self.logging.info("Container returned 502 (still starting?), will retry...")
+                raise ContainerProvisioningError("502 gateway error from container worker")
 
             # Check for Cloudflare error code 1042 (CPU time limit / worker not ready)
             # Output may be a plain string like "error code: 1042" rather than a dict.
             output_str = str(output)
             if "1042" in output_str and "error code" in output_str:
-                self.logging.info(f"Worker returned error 1042 (CPU time limit), will retry...")
+                self.logging.info("Worker returned error 1042 (CPU time limit), will retry...")
                 raise ContainerProvisioningError(f"Error 1042 from worker: {output_str}")
 
             if status_code != 200:
@@ -120,7 +121,7 @@ class HTTPTrigger(Trigger):
                 "currently provisioning",
             )
             if "1042" in raw_text and "error code" in raw_text:
-                self.logging.info(f"Worker returned error 1042 (CPU time limit), will retry...")
+                self.logging.info("Worker returned error 1042 (CPU time limit), will retry...")
                 raise ContainerProvisioningError(f"Error 1042 from worker: {raw_text[:200]}")
             if status_code == 502 or any(
                 p.lower() in raw_text.lower() for p in provisioning_phrases
@@ -146,8 +147,8 @@ class HTTPTrigger(Trigger):
             except ContainerProvisioningError:
                 if attempt < max_provisioning_retries:
                     self.logging.info(
-                        f"Container still provisioning, waiting {provisioning_retry_wait}s before retry "
-                        f"(attempt {attempt + 1}/{max_provisioning_retries})..."
+                        f"Container still provisioning, waiting {provisioning_retry_wait}s "
+                        f"before retry (attempt {attempt + 1}/{max_provisioning_retries})..."
                     )
                     time.sleep(provisioning_retry_wait)
                 else:
