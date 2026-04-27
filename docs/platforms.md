@@ -387,6 +387,7 @@ To use a different Docker Hub repository, change `['general']['docker_repository
   | standard-2 | 1 | 6 GiB | 12 GB |
   | standard-3 | 2 | 8 GiB | 16 GB |
   | standard-4 | 4 | 12 GiB | 20 GB |
+- **Wall-Clock Timing**: Cloudflare Workers freezes `Date.now()` and `performance.now()` between I/O operations as a timing side-channel mitigation, so the clock does not advance inside pure-compute sections. To record a meaningful wall-clock `compute_time`, the handler issues a throwaway self-fetch (a `HEAD /favicon` request) before sampling the end time. This I/O call unfreezes the timer. See the [Cloudflare security model docs](https://developers.cloudflare.com/workers/reference/security-model/#step-1-disallow-timers-and-multi-threading) for details.
 - **Metrics Collection**: Uses response-based per-invocation metrics. During each function invocation, the worker handler measures performance metrics (CPU time, wall time, memory usage) and embeds them directly in the JSON response. SeBS extracts these metrics immediately from each response. When `download_metrics()` is called for postprocessing, it only aggregates the metrics that were already collected during invocations—no additional data is fetched from external services. This approach provides immediate per-invocation granularity without delays. Note that while Cloudflare does expose an Analytics Engine, it only provides aggregated metrics without individual request-level data, making it unsuitable for detailed benchmarking purposes.
 
 ### Storage Configuration
