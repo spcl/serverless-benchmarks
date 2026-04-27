@@ -99,7 +99,7 @@ class R2(PersistentStorage):
     def _create_bucket(
         self, name: str, buckets: Optional[List[str]] = None, randomize_name: bool = False
     ) -> str:
-        for bucket_name in (buckets or []):
+        for bucket_name in buckets or []:
             if name in bucket_name:
                 self.logging.info(
                     "Bucket {} for {} already exists, skipping.".format(bucket_name, name)
