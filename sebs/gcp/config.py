@@ -213,6 +213,7 @@ class GCPFunctionGen2Config:
         vcpus: int = 1,
         gcp_concurrency: int = 80,
         worker_concurrency: int = 80,
+        worker_threads: int = 8,
         min_instances: int = 0,
         max_instances: int = 20,
         cpu_boost: bool = False,
@@ -221,6 +222,7 @@ class GCPFunctionGen2Config:
         self.vcpus = vcpus
         self.gcp_concurrency = gcp_concurrency
         self.worker_concurrency = worker_concurrency
+        self.worker_threads = worker_threads
         self.min_instances = min_instances
         self.max_instances = max_instances
         self.cpu_boost = cpu_boost
@@ -231,6 +233,7 @@ class GCPFunctionGen2Config:
             "vcpus": self.vcpus,
             "gcp-concurrency": self.gcp_concurrency,
             "worker-concurrency": self.worker_concurrency,
+            "worker-threads": self.worker_threads,
             "min-instances": self.min_instances,
             "max-instances": self.max_instances,
             "cpu-boost": self.cpu_boost,
@@ -243,6 +246,7 @@ class GCPFunctionGen2Config:
             vcpus=dct.get("vcpus", 1),
             gcp_concurrency=dct.get("gcp-concurrency", 80),
             worker_concurrency=dct.get("worker-concurrency", 80),
+            worker_threads=dct.get("worker-threads", 8),
             min_instances=dct.get("min-instances", 0),
             max_instances=dct.get("max-instances", 20),
             cpu_boost=dct.get("cpu-boost", False),
@@ -256,6 +260,7 @@ class GCPFunctionGen2Config:
             self.vcpus == other.vcpus
             and self.gcp_concurrency == other.gcp_concurrency
             and self.worker_concurrency == other.worker_concurrency
+            and self.worker_threads == other.worker_threads
             and self.min_instances == other.min_instances
             and self.max_instances == other.max_instances
             and self.cpu_boost == other.cpu_boost
@@ -272,6 +277,7 @@ class GCPContainerConfig(GCPFunctionGen2Config):
         vcpus: int = 1,
         gcp_concurrency: int = 80,
         worker_concurrency: int = 80,
+        worker_threads: int = 8,
         min_instances: int = 0,
         max_instances: int = 20,
         cpu_boost: bool = False,
@@ -281,6 +287,7 @@ class GCPContainerConfig(GCPFunctionGen2Config):
             vcpus,
             gcp_concurrency,
             worker_concurrency,
+            worker_threads,
             min_instances,
             max_instances,
             cpu_boost,
@@ -298,6 +305,7 @@ class GCPContainerConfig(GCPFunctionGen2Config):
             vcpus=dct["vcpus"],
             gcp_concurrency=dct["gcp-concurrency"],
             worker_concurrency=dct["worker-concurrency"],
+            worker_threads=dct.get("worker-threads", 8),
             min_instances=dct["min-instances"],
             max_instances=dct["max-instances"],
             cpu_boost=dct["cpu-boost"],
@@ -312,6 +320,7 @@ class GCPContainerConfig(GCPFunctionGen2Config):
             and self.vcpus == other.vcpus
             and self.gcp_concurrency == other.gcp_concurrency
             and self.worker_concurrency == other.worker_concurrency
+            and self.worker_threads == other.worker_threads
             and self.min_instances == other.min_instances
             and self.max_instances == other.max_instances
             and self.cpu_boost == other.cpu_boost

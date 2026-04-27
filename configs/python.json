@@ -75,7 +75,8 @@
         "function-gen2": {
           "vcpus": 1,
           "gcp-concurrency": 80,
-          "worker-concurrency": 80,
+          "worker-concurrency": 1,
+          "worker-threads": 8,
           "min-instances": 0,
           "max-instances": 20,
           "cpu-boost": false,
@@ -84,8 +85,9 @@
         "container": {
           "environment": "gen2",
           "vcpus": 1,
-          "gcp-concurrency": 80,
+          "gcp-concurrency": 1,
           "worker-concurrency": 80,
+          "worker-threads": 8,
           "min-instances": 0,
           "max-instances": 20,
           "cpu-boost": false,
