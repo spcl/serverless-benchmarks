@@ -1005,7 +1005,7 @@ def docker_cmd():
 @click.option(
     "--deployment",
     default=None,
-    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk", "cloudflare"]),
     help="Deployment platform to build images for",
 )
 @click.option(
@@ -1087,7 +1087,7 @@ def docker_build(
 @click.option(
     "--deployment",
     default=None,
-    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk", "cloudflare"]),
     help="Deployment platform to push images for",
 )
 @click.option(
