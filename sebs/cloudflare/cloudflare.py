@@ -1,3 +1,4 @@
+import os
 import uuid
 import time
 from typing import cast, Dict, List, Optional, Tuple, Type
@@ -175,6 +176,13 @@ class Cloudflare(System):
         ):
             code_package.select_variant(self.name())
 
+        # The cache stores functions under their formatted name (e.g.
+        # "container-311-compression-nodejs-18"), but callers pass the
+        # unformatted default name.  Format it here so the cache lookup in
+        # super().get_function() finds the right entry.
+        if func_name is not None:
+            func_name = self.format_function_name(func_name, container_deployment)
+
         return super().get_function(code_package, func_name)
 
     def __init__(
@@ -209,7 +217,12 @@ class Cloudflare(System):
         # Adapter so benchmark.build() can call container_client.build_base_image()
         self._container_adapter = _CloudflareContainerAdapter(self._containers_deployment)
 
-    def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
+    def initialize(
+        self,
+        config: Dict[str, str] = {},
+        resource_prefix: Optional[str] = None,
+        quiet: bool = False,
+    ):
         """
         Initialize the Cloudflare Workers platform.
 
@@ -221,7 +234,7 @@ class Cloudflare(System):
         self._verify_credentials()
         self.initialize_resources(select_prefix=resource_prefix)
 
-    def initialize_resources(self, select_prefix: Optional[str] = None):
+    def initialize_resources(self, select_prefix: Optional[str] = None, quiet: bool = False):
         """
         Initialize Cloudflare resources.
 
@@ -262,7 +275,7 @@ class Cloudflare(System):
             )
 
     @property
-    def container_client(self) -> _CloudflareContainerAdapter:
+    def container_client(self) -> _CloudflareContainerAdapter:  # type: ignore[override]
         """Return the Cloudflare-specific container build adapter.
 
         Overrides System.container_client (which returns None) so that
@@ -393,7 +406,7 @@ class Cloudflare(System):
         benchmark_name: Optional[str] = None,
         code_package: Optional[Benchmark] = None,
         container_deployment: bool = False,
-        container_uri: str = "",
+        container_uri: Optional[str] = None,
     ) -> str:
         """
         Generate wrangler.toml by delegating to the appropriate deployment handler.
@@ -429,7 +442,7 @@ class Cloudflare(System):
         code_package: Benchmark,
         func_name: str,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ) -> CloudflareWorker:
         """
         Create a new Cloudflare Worker.
@@ -446,16 +459,21 @@ class Cloudflare(System):
             CloudflareWorker instance
         """
         # For container builds benchmark.build() goes through container_client.build_base_image(),
-        # which does NOT set code_package._code_location.  Fall back to the directory that
-        # _CloudflareContainerAdapter stored during its last build_base_image() call.
+        # which does NOT set code_package._code_location.  Fall back in order:
+        # 1. _CloudflareContainerAdapter.last_directory (set when build actually ran this session)
+        # 2. code_package._output_dir (the on-disk build directory from a previous session —
+        #    build() leaves it in place when the image cache is valid and the build is skipped)
         package = code_package.code_location
         if package is None and container_deployment:
             package = self._container_adapter.last_directory
-        if package is None:
-            raise RuntimeError(
-                f"Code location is not set for {code_package.benchmark}. "
-                "The build step may not have completed successfully."
-            )
+        if package is None and container_deployment:
+            output_dir = code_package._output_dir
+            if os.path.isdir(output_dir):
+                package = output_dir
+                self.logging.info(
+                    f"Using existing output directory for {code_package.benchmark}: {package}"
+                )
+
         benchmark = code_package.benchmark
         language = code_package.language_name
         language_runtime = code_package.language_version
@@ -469,6 +487,12 @@ class Cloudflare(System):
 
         # Check if worker already exists
         existing_worker = self._get_worker(func_name, account_id)
+
+        if package is None:
+            raise RuntimeError(
+                f"Code location is not set for {code_package.benchmark}. "
+                "The build step may not have completed successfully."
+            )
 
         if existing_worker:
             self.logging.info(f"Worker {func_name} already exists, updating it")
@@ -547,7 +571,7 @@ class Cloudflare(System):
         benchmark_name: Optional[str] = None,
         code_package: Optional[Benchmark] = None,
         container_deployment: bool = False,
-        container_uri: str = "",
+        container_uri: str | None = None,
     ) -> dict:
         """Create or update a Cloudflare Worker using Wrangler CLI in container.
 
@@ -736,7 +760,7 @@ class Cloudflare(System):
         function: Function,
         code_package: Benchmark,
         container_deployment: bool,
-        container_uri: str,
+        container_uri: str | None,
     ):
         """
         Update an existing Cloudflare Worker.
@@ -770,6 +794,11 @@ class Cloudflare(System):
                 "containers don't support runtime memory updates"
             )
         else:
+            if package is None:
+                raise RuntimeError(
+                    f"Code location is not set for {benchmark}. "
+                    "The build step may not have completed successfully."
+                )
             self._create_or_update_worker(
                 worker.name,
                 package,

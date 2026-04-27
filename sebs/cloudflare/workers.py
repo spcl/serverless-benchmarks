@@ -13,12 +13,11 @@ from importlib.resources import files
 try:
     import tomllib  # Python 3.11+
 except ImportError:
-    import tomli as tomllib  # Fallback for older Python
+    import tomli as tomllib  # type: ignore[no-redef]  # Fallback for older Python
 try:
     import tomli_w
 except ImportError:
-    # Fallback to basic TOML writing if tomli_w not available
-    import toml as tomli_w
+    import toml as tomli_w  # type: ignore[no-redef, import-untyped]
 from typing import Optional, Tuple
 
 from sebs.benchmark import Benchmark
@@ -62,7 +61,7 @@ class CloudflareWorkersDeployment:
         account_id: str,
         benchmark_name: Optional[str] = None,
         code_package: Optional[Benchmark] = None,
-        container_uri: str = "",
+        container_uri: Optional[str] = None,
         language_variant: str = "cloudflare",
     ) -> str:
         """
@@ -81,7 +80,7 @@ class CloudflareWorkersDeployment:
         """
         # Load template
         template_path = files("sebs.cloudflare").joinpath("templates", "wrangler-worker.toml")
-        with open(template_path, "rb") as f:
+        with template_path.open("rb") as f:
             config = tomllib.load(f)
 
         # Update basic configuration

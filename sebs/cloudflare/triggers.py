@@ -98,6 +98,14 @@ class HTTPTrigger(Trigger):
                 self.logging.info("Worker returned error 1042 (CPU time limit), will retry...")
                 raise ContainerProvisioningError(f"Error 1042 from worker: {output_str}")
 
+            container_not_ready_phrases = (
+                "The container is not running",
+                "Failed to start container",
+            )
+            if any(p in output_str for p in container_not_ready_phrases):
+                self.logging.info("Container not yet running, will retry...")
+                raise ContainerProvisioningError(f"Container startup error: {output_str[:200]}")
+
             if status_code != 200:
                 self.logging.error(f"Invocation on URL {url} failed!")
                 self.logging.error(f"Output: {output}")
@@ -119,6 +127,8 @@ class HTTPTrigger(Trigger):
                 "no Container instance available",
                 "provisioning the Container",
                 "currently provisioning",
+                "The container is not running",
+                "Failed to start container",
             )
             if "1042" in raw_text and "error code" in raw_text:
                 self.logging.info("Worker returned error 1042 (CPU time limit), will retry...")

@@ -624,6 +624,7 @@ class Benchmark(LoggingBase):
             self._language_variant,
             container_deployment=self._container_deployment,
         )
+        assert self._hash_value is not None
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -811,8 +812,8 @@ class Benchmark(LoggingBase):
                 "benchmarks", "wrappers", "cloudflare", "nodejs", "container", "worker.js"
             )
             if os.path.isfile(str(nodejs_worker)):
-                with open(str(nodejs_worker), "rb") as f:
-                    hash_sum.update(f.read())
+                with open(str(nodejs_worker), "rb") as worker_file:
+                    hash_sum.update(worker_file.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:

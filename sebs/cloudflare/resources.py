@@ -1,8 +1,8 @@
 import docker
-from typing import Optional
+from typing import Optional, cast
 
 from sebs.cache import Cache
-from sebs.cloudflare.config import CloudflareConfig
+from sebs.cloudflare.config import CloudflareConfig, CloudflareCredentials
 from sebs.cloudflare.r2 import R2
 from sebs.cloudflare.kvstore import KVStore
 from sebs.faas.resources import SystemResources
@@ -33,19 +33,20 @@ class CloudflareSystemResources(SystemResources):
 
     @property
     def config(self) -> CloudflareConfig:
-        return self._config
+        return cast(CloudflareConfig, self._config)
 
     def _get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers for Cloudflare API requests."""
-        if self._config.credentials.api_token:
+        credentials = cast(CloudflareCredentials, self._config.credentials)
+        if credentials.api_token:
             return {
-                "Authorization": f"Bearer {self._config.credentials.api_token}",
+                "Authorization": f"Bearer {credentials.api_token}",
                 "Content-Type": "application/json",
             }
-        elif self._config.credentials.email and self._config.credentials.api_key:
+        elif credentials.email and credentials.api_key:
             return {
-                "X-Auth-Email": self._config.credentials.email,
-                "X-Auth-Key": self._config.credentials.api_key,
+                "X-Auth-Email": credentials.email,
+                "X-Auth-Key": credentials.api_key,
                 "Content-Type": "application/json",
             }
         else:
@@ -72,7 +73,7 @@ class CloudflareSystemResources(SystemResources):
             cache_client=self._cache_client,
             resources=self._config.resources,
             replace_existing=replace_existing,
-            credentials=self._config.credentials,
+            credentials=cast(CloudflareCredentials, self._config.credentials),
         )
 
     def get_nosql_storage(self) -> NoSQLStorage:
@@ -88,5 +89,5 @@ class CloudflareSystemResources(SystemResources):
             region=self._config.region,
             cache_client=self._cache_client,
             resources=self._config.resources,
-            credentials=self._config.credentials,
+            credentials=cast(CloudflareCredentials, self._config.credentials),
         )

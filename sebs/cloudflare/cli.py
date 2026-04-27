@@ -91,7 +91,7 @@ class CloudflareCLI(LoggingBase):
     def typename() -> str:
         return "Cloudflare.CLI"
 
-    def execute(self, cmd: str, env: dict = None):
+    def execute(self, cmd: str, env: Optional[dict] = None):
         """
         Execute the given command in Cloudflare CLI container.
         Throws an exception on failure (commands are expected to execute successfully).
@@ -163,7 +163,7 @@ class CloudflareCLI(LoggingBase):
         out = self.execute("pywrangler --version")
         return out.decode("utf-8").strip()
 
-    def containers_push(self, tag: str, env: dict = None) -> str:
+    def containers_push(self, tag: str, env: Optional[dict] = None) -> str:
         """
         Push a locally-built image to Cloudflare's container registry.
 
@@ -191,7 +191,7 @@ class CloudflareCLI(LoggingBase):
             f"Could not parse registry URI from wrangler containers push output:\n{output}"
         )
 
-    def wrangler_deploy(self, package_dir: str, env: dict = None) -> str:
+    def wrangler_deploy(self, package_dir: str, env: Optional[dict] = None) -> str:
         """
         Deploy a worker using wrangler.
 
@@ -206,7 +206,7 @@ class CloudflareCLI(LoggingBase):
         out = self.execute(cmd, env=env)
         return out.decode("utf-8")
 
-    def pywrangler_deploy(self, package_dir: str, env: dict = None) -> str:
+    def pywrangler_deploy(self, package_dir: str, env: Optional[dict] = None) -> str:
         """
         Deploy a Python worker using pywrangler.
 

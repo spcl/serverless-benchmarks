@@ -16,12 +16,11 @@ from importlib.resources import files
 try:
     import tomllib  # Python 3.11+
 except ImportError:
-    import tomli as tomllib  # Fallback for older Python
+    import tomli as tomllib  # type: ignore[no-redef]  # Fallback for older Python
 try:
     import tomli_w
 except ImportError:
-    # Fallback to basic TOML writing if tomli_w not available
-    import toml as tomli_w
+    import toml as tomli_w  # type: ignore[no-redef, import-untyped]
 from typing import Optional, Tuple
 
 import requests
@@ -68,7 +67,7 @@ class CloudflareContainersDeployment:
         account_id: str,
         benchmark_name: Optional[str] = None,
         code_package: Optional[Benchmark] = None,
-        container_uri: str = "",
+        container_uri: Optional[str] = None,
         language_variant: str = "default",
     ) -> str:
         """
@@ -88,7 +87,7 @@ class CloudflareContainersDeployment:
         """
         # Load template
         template_path = files("sebs.cloudflare").joinpath("templates", "wrangler-container.toml")
-        with open(template_path, "rb") as f:
+        with template_path.open("rb") as f:
             config = tomllib.load(f)
 
         # Update basic configuration
@@ -204,6 +203,15 @@ class CloudflareContainersDeployment:
                 src = os.path.join(wrapper_container_dir, f)
                 if os.path.exists(src):
                     shutil.copy2(src, os.path.join(directory, f))
+        elif language_name == "nodejs":
+            # add_deployment_files() stages the ESM workers variants of
+            # storage.js and nosql.js; replace them with the CJS container
+            # versions so the Node.js HTTP server can require() them.
+            for f in ["storage.js", "nosql.js"]:
+                src = os.path.join(wrapper_container_dir, f)
+                if os.path.exists(src):
+                    shutil.copy2(src, os.path.join(directory, f))
+                    self.logging.info(f"Replaced {f} with container-specific version")
 
         # For Python: move benchmark code into function/ so that relative imports
         # work natively, matching the workers and AWS layout.
@@ -277,13 +285,13 @@ class CloudflareContainersDeployment:
                     f"package.json not found at {package_json_path} "
                     f"for nodejs benchmark '{benchmark}'"
                 )
-            with open(package_json_path, "r") as f:
-                package_json = json.load(f)
+            with open(package_json_path, "r") as pkg_r:
+                package_json = json.load(pkg_r)
         else:
             package_json = {}
         package_json.setdefault("dependencies", {})["@cloudflare/containers"] = "*"
-        with open(package_json_path, "w") as f:
-            json.dump(package_json, f, indent=2)
+        with open(package_json_path, "w") as pkg_w:
+            json.dump(package_json, pkg_w, indent=2)
 
         # For Python containers, promote the versioned requirements.txt to requirements.txt
         if language_name == "python":
