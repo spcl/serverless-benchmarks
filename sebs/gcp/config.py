@@ -250,7 +250,7 @@ class GCPFunctionGen2Config:
             min_instances=dct["min-instances"],
             max_instances=dct["max-instances"],
             cpu_boost=dct["cpu-boost"],
-            cpu_throttle=dct["cpu-throttle"]
+            cpu_throttle=dct["cpu-throttle"],
         )
 
     def __eq__(self, other: object) -> bool:
@@ -476,7 +476,7 @@ class GCPResources(Resources):
             return True
         except HttpError as e:
             if e.resp.status == 404:
-                self.logging.error("Container repository does not exist.")
+                self.logging.info("Container repository does not exist.")
                 return False
             else:
                 raise e
@@ -492,7 +492,10 @@ class GCPResources(Resources):
             .execute()
         )
 
-        while True:
+        attempt = 0
+        max_retries = 10
+
+        while attempt < max_retries:
             # Operations for AR are global or location specific
             op_name = operation["name"]
             op = ar_client.projects().locations().operations().get(name=op_name).execute()
@@ -503,6 +506,10 @@ class GCPResources(Resources):
                 self.logging.info("Repository created successfully.")
                 break
             time.sleep(2)
+            attempt += 1
+
+        if attempt == max_retries:
+            raise TimeoutError("Timed out waiting for container repository creation.")
 
     def get_container_repository(self, config: Config, ar_client):
         if self._container_repository is not None:
