@@ -201,10 +201,10 @@ class CloudflareWorkersDeployment:
                 self.logging.info(f"move {src} to {dest}")
 
             if language_variant in ("cloudflare", "default"):
+                needed_pkg = []
                 if os.path.exists(requirements_file):
                     with open(requirements_file, "r") as reqf:
                         reqtext = reqf.read()
-                    needed_pkg = []
                     unsupported = []
                     seen = set()
                     for raw_line in reqtext.splitlines():
@@ -230,26 +230,26 @@ class CloudflareWorkersDeployment:
                             "for the list of supported packages."
                         )
 
-                    project_file = os.path.join(directory, "pyproject.toml")
-                    pyproject_config = {
-                        "project": {
-                            "name": f"{benchmark.replace('.', '-')}-python-"
-                            f"{language_version.replace('.', '')}",
-                            "version": "0.1.0",
-                            "description": "dummy description",
-                            "requires-python": f">={language_version}",
-                            "dependencies": needed_pkg,
-                        },
-                        "dependency-groups": {
-                            "dev": ["workers-py", "workers-runtime-sdk"],
-                        },
-                    }
-                    try:
-                        with open(project_file, "wb") as pf:
-                            tomli_w.dump(pyproject_config, pf)
-                    except TypeError:
-                        with open(project_file, "w") as pf:
-                            pf.write(tomli_w.dumps(pyproject_config))
+                project_file = os.path.join(directory, "pyproject.toml")
+                pyproject_config = {
+                    "project": {
+                        "name": f"{benchmark.replace('.', '-')}-python-"
+                        f"{language_version.replace('.', '')}",
+                        "version": "0.1.0",
+                        "description": "dummy description",
+                        "requires-python": f">={language_version}",
+                        "dependencies": needed_pkg,
+                    },
+                    "dependency-groups": {
+                        "dev": ["workers-py", "workers-runtime-sdk"],
+                    },
+                }
+                try:
+                    with open(project_file, "wb") as pf:
+                        tomli_w.dump(pyproject_config, pf)
+                except TypeError:
+                    with open(project_file, "w") as pf:
+                        pf.write(tomli_w.dumps(pyproject_config))
                 # Pyodide Workers require all function files in a function/ subdir
                 funcdir = os.path.join(directory, "function")
                 if not os.path.exists(funcdir):
