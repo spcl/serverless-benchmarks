@@ -522,6 +522,11 @@
         }
       }
     },
+    "images": {
+      "manage": {
+        "username": "docker_user"
+      }
+    },
     "architecture": ["x64"],
     "deployments": ["package", "container"]
   }
