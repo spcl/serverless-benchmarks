@@ -31,5 +31,5 @@ export const handler = async function(event) {
   );
   await uploadPromise;
 
-  return {bucket: bucket, url: url, key: keyName};
+  return {result: {bucket: bucket, url: url, key: keyName}};
 };
