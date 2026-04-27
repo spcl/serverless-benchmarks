@@ -1524,6 +1524,8 @@ class GCP(System):
             code_package.language_version,
             code_package.architecture,
         )
+        if code_package.container_deployment:
+            func_name = f"{func_name}-docker"
         return (
             GCP.format_function_name(func_name)
             if not code_package.container_deployment
@@ -1948,7 +1950,7 @@ class GCP(System):
 
         return res
 
-    def delete_function(self, func_name: str) -> None:
+    def delete_function(self, function: Function) -> None:
         """Delete a Google Cloud Function or Cloud Run service.
 
         Args:
@@ -1956,11 +1958,12 @@ class GCP(System):
         """
         # Select deployment strategy based on function name
         # v1 functions don't allow hyphens, new functions don't allow underscores
+        gcp_function = cast(GCPFunction, function)
         strategy = (
-            self.run_container_strategy if "-" in func_name else self.cloud_function_gen1_strategy
+            self.run_container_strategy if gcp_function.deployment_type.is_container else self.cloud_function_gen1_strategy
         )
 
-        strategy.delete_function(func_name)
+        strategy.delete_function(function.name)
 
     def shutdown(self) -> None:
         """Shutdown the GCP system and clean up resources.
@@ -2084,7 +2087,7 @@ class GCP(System):
         deployment_done = False
         while not deployment_done:
             for versionId, func in new_versions:
-                is_deployed, last_version = self.is_deployed(func.name, versionId)
+                is_deployed, last_version = self.is_deployed(func, versionId)
                 if not is_deployed:
                     undeployed_functions.append((versionId, func))
             deployed = len(new_versions) - len(undeployed_functions)
@@ -2124,7 +2127,7 @@ class GCP(System):
         deployment_done = False
         while not deployment_done:
             for func in undeployed_functions_before:
-                is_deployed, last_version = self.is_deployed(func.name)
+                is_deployed, last_version = self.is_deployed(func)
                 if not is_deployed:
                     undeployed_functions.append(func)
             deployed = len(undeployed_functions_before) - len(undeployed_functions)
@@ -2139,7 +2142,7 @@ class GCP(System):
 
         return functions
 
-    def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
+    def is_deployed(self, function: Function, versionId: int = -1) -> Tuple[bool, int]:
         """Check if a function is deployed and optionally verify its version.
         Args:
             func_name: Name of the function to check
@@ -2150,11 +2153,12 @@ class GCP(System):
         """
         # Select deployment strategy based on function name
         # v1 functions don't allow hyphens, new functions don't allow underscores
+        gcp_function = cast(GCPFunction, function)
         strategy = (
-            self.run_container_strategy if "-" in func_name else self.cloud_function_gen1_strategy
+            self.run_container_strategy if gcp_function.deployment_type.is_container else self.cloud_function_gen1_strategy
         )
 
-        return strategy.is_deployed(func_name, versionId)
+        return strategy.is_deployed(function.name, versionId)
 
     @staticmethod
     def helper_zip(base_directory: str, path: str, archive: zipfile.ZipFile) -> None:

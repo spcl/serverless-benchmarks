@@ -668,12 +668,14 @@ class Azure(System):
             "Updating function's memory and timeout configuration is not supported."
         )
 
-    def delete_function(self, func_name: str) -> None:
+    def delete_function(self, function: Function) -> None:
         """Delete an Azure Function App and its associated storage account.
 
         Args:
             func_name: Name of the Azure Function App to delete
         """
+
+        func_name = function.name
         self.logging.info(f"Deleting function app {func_name}")
 
         """

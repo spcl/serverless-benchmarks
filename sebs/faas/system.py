@@ -719,7 +719,7 @@ class System(ABC, LoggingBase):
         """
         pass
 
-    def delete_function(self, func_name: str) -> None:
+    def delete_function(self, function: Function) -> None:
         """Delete cloud deployment of a function.
 
         Args:
@@ -741,7 +741,7 @@ class System(ABC, LoggingBase):
 
         for name, func in functions.items():
             if not dry_run:
-                self.delete_function(name)
+                self.delete_function(func)
             deleted.append(name)
 
         if dry_run:
