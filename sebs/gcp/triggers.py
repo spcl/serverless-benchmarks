@@ -23,7 +23,6 @@ Example:
 import concurrent.futures
 import datetime
 import json
-import time
 from typing import Dict, Optional  # noqa
 
 from sebs.gcp.gcp import GCP
@@ -131,14 +130,6 @@ class LibraryTrigger(Trigger):
         """
 
         self.logging.info(f"Invoke function {self.name}")
-
-        # Verify that the function is deployed
-        deployed = False
-        while not deployed:
-            if self.deployment_client.is_deployed(self.name):
-                deployed = True
-            else:
-                time.sleep(5)
 
         # Check deployment type and invoke accordingly
         if self._deployment_type == FunctionDeploymentType.FUNCTION_GEN1:
