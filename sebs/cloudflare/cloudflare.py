@@ -747,13 +747,24 @@ class Cloudflare(System):
         """
         Handle a function retrieved from cache.
 
-        Refreshes triggers and logging handlers.
+        Refreshes triggers and logging handlers, and verifies the worker still
+        exists on Cloudflare. If it has been deleted remotely, clear the hash
+        so the caller's hash-mismatch path triggers a full redeployment.
 
         Args:
             function: The cached function
         """
         for trigger in function.triggers(Trigger.TriggerType.HTTP):
             trigger.logging_handlers = self.logging_handlers
+
+        worker = cast(CloudflareWorker, function)
+        account_id = worker.account_id or self.config.credentials.account_id
+        if account_id and not self._get_worker(worker.name, account_id):
+            self.logging.info(
+                f"Cached worker {worker.name} no longer exists on Cloudflare "
+                "— will redeploy."
+            )
+            function.code_package_hash = ""
 
     def update_function(
         self,
@@ -783,33 +794,26 @@ class Cloudflare(System):
         if not account_id:
             raise RuntimeError("Account ID is required to update worker")
 
-        # For container deployments, skip redeployment if code hasn't changed
-        # Containers don't support runtime memory configuration changes
-        # Detect container deployment by checking if worker name starts with "container-"
-        is_container = worker.name.startswith("container-")
-
-        if is_container:
-            self.logging.info(
-                f"Skipping redeployment for container worker {worker.name} - "
-                "containers don't support runtime memory updates"
+        if package is None and container_deployment:
+            output_dir = code_package._output_dir
+            if os.path.isdir(output_dir):
+                package = output_dir
+        if package is None:
+            raise RuntimeError(
+                f"Code location is not set for {benchmark}. "
+                "The build step may not have completed successfully."
             )
-        else:
-            if package is None:
-                raise RuntimeError(
-                    f"Code location is not set for {benchmark}. "
-                    "The build step may not have completed successfully."
-                )
-            self._create_or_update_worker(
-                worker.name,
-                package,
-                account_id,
-                language,
-                benchmark,
-                code_package,
-                container_deployment,
-                container_uri,
-            )
-            self.logging.info(f"Updated worker {worker.name}")
+        self._create_or_update_worker(
+            worker.name,
+            package,
+            account_id,
+            language,
+            benchmark,
+            code_package,
+            container_deployment,
+            container_uri,
+        )
+        self.logging.info(f"Updated worker {worker.name}")
 
         # Update configuration if needed (no-op for containers: no runtime memory changes)
         self.update_function_configuration(worker, code_package)
