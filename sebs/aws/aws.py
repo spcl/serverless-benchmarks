@@ -634,13 +634,12 @@ class AWS(System):
         func_name = func_name.replace(".", "_")
         return func_name
 
-    def delete_function(self, function: Function) -> None:
+    def delete_function(self, func_name: str, function: Dict) -> None:
         """Delete an AWS Lambda function.
 
         Args:
             func_name: Name of the function to delete
         """
-        func_name = function.name
         self.logging.info("Deleting function {}".format(func_name))
         try:
             self.client.delete_function(FunctionName=func_name)

@@ -1973,7 +1973,7 @@ class GCP(System):
 
         return res
 
-    def delete_function(self, function: Function) -> None:
+    def delete_function(self, func_name: str, function: Dict) -> None:
         """Delete a Google Cloud Function or Cloud Run service.
 
         Args:
@@ -1981,14 +1981,14 @@ class GCP(System):
         """
         # Select deployment strategy based on function name
         # v1 functions don't allow hyphens, new functions don't allow underscores
-        gcp_function = cast(GCPFunction, function)
+        gcp_function = GCPFunction.deserialize(function)
         strategy = (
             self.run_container_strategy
             if gcp_function.deployment_type.is_container
             else self.cloud_function_gen1_strategy
         )
 
-        strategy.delete_function(function.name)
+        strategy.delete_function(func_name)
 
     def shutdown(self) -> None:
         """Shutdown the GCP system and clean up resources.
