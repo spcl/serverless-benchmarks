@@ -1181,6 +1181,7 @@ class CloudflareTestSequencePythonWorkers(
     """Test suite for Python benchmarks on Cloudflare Workers."""
 
     def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Python workers."""
         deployment_name = "cloudflare"
         assert cloud_config, "Cloud configuration is required"
 
@@ -1211,6 +1212,7 @@ class CloudflareTestSequencePythonContainers(
     """Test suite for Python benchmarks on Cloudflare Containers."""
 
     def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Python containers."""
         deployment_name = "cloudflare"
         assert cloud_config, "Cloud configuration is required"
 
@@ -1241,6 +1243,7 @@ class CloudflareTestSequenceNodejsWorkers(
     """Test suite for Node.js benchmarks on Cloudflare Workers."""
 
     def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Node.js workers."""
         deployment_name = "cloudflare"
         assert cloud_config, "Cloud configuration is required"
 
@@ -1271,6 +1274,7 @@ class CloudflareTestSequenceNodejsContainers(
     """Test suite for Node.js benchmarks on Cloudflare Containers."""
 
     def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Node.js containers."""
         deployment_name = "cloudflare"
         assert cloud_config, "Cloud configuration is required"
 

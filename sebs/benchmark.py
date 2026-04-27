@@ -70,11 +70,13 @@ class LanguageSpec:
     """
 
     def __init__(self, language: "Language", variants: Dict[str, Any]):
+        """Store the language and its variant-to-directory mapping."""
         self._language = language
         self._variants = variants
 
     @property
     def language(self) -> "Language":
+        """The programming language this spec applies to."""
         return self._language
 
     @property
@@ -110,6 +112,7 @@ class LanguageSpec:
 
     @staticmethod
     def deserialize(val) -> "LanguageSpec":
+        """Build a LanguageSpec from a config.json language entry (string or dict)."""
         if isinstance(val, str):
             # Legacy: "python" → only the default variant
             return LanguageSpec(Language.deserialize(val), {"default": "default"})
@@ -124,6 +127,7 @@ class LanguageSpec:
         return LanguageSpec(Language.deserialize(val["language"]), variants)
 
     def serialize(self) -> dict:
+        """Return a serializable dict of the language and its variant mapping."""
         return {
             "language": self._language.value,
             "variants": self._variants,

@@ -1,3 +1,5 @@
+"""Cloudflare KV namespace-backed NoSQL storage implementation."""
+
 import hashlib
 import json
 import re
@@ -72,10 +74,12 @@ class KVStore(NoSQLStorage):
 
     @staticmethod
     def typename() -> str:
+        """Return the canonical type name for this storage class."""
         return "Cloudflare.KVStore"
 
     @staticmethod
     def deployment_name() -> str:
+        """Return the deployment platform name."""
         return "cloudflare"
 
     def __init__(
@@ -85,18 +89,21 @@ class KVStore(NoSQLStorage):
         resources: Resources,
         credentials: CloudflareCredentials,
     ):
+        """Initialize KV storage with Cloudflare credentials."""
         super().__init__(region, cache_client, resources)
         self._credentials = credentials
         # benchmark -> logical table name -> KV namespace id
         self._tables: Dict[str, Dict[str, str]] = defaultdict(dict)
 
     def _account_id(self) -> str:
+        """Return the account ID, raising if not configured."""
         account_id = self._credentials.account_id
         if not account_id:
             raise RuntimeError("Cloudflare account ID is required for KV operations")
         return account_id
 
     def _kv_api_base(self) -> str:
+        """Return the base URL for the Cloudflare KV namespace API."""
         account = self._account_id()
         return f"https://api.cloudflare.com/client/v4/accounts/{account}/storage/kv/namespaces"
 
@@ -118,19 +125,23 @@ class KVStore(NoSQLStorage):
 
     @classmethod
     def _is_namespace_id(cls, value: str) -> bool:
+        """Return True if value matches the 32-character hex namespace ID pattern."""
         return bool(cls.NAMESPACE_ID_PATTERN.fullmatch(value))
 
     def _resource_id(self) -> str:
+        """Return the resource prefix used in namespace titles."""
         if self._cloud_resources.has_resources_id:
             return self._cloud_resources.resources_id
         return "default"
 
     @staticmethod
     def _sanitize_component(value: str) -> str:
+        """Replace characters not allowed in KV namespace titles with hyphens."""
         sanitized = re.sub(r"[^A-Za-z0-9_-]", "-", value)
         return sanitized.strip("-") or "default"
 
     def _namespace_title(self, benchmark: str, table: str) -> str:
+        """Build a deterministic KV namespace title for the given benchmark and table."""
         title = (
             f"sebs-nosql-{self._sanitize_component(self._resource_id())}-"
             f"{self._sanitize_component(benchmark)}-{self._sanitize_component(table)}"
@@ -143,6 +154,7 @@ class KVStore(NoSQLStorage):
         return title
 
     def _list_namespaces(self) -> List[dict]:
+        """Fetch all KV namespaces for the account, following pagination."""
         namespaces: List[dict] = []
         page = 1
         per_page = 100
@@ -171,12 +183,14 @@ class KVStore(NoSQLStorage):
         return namespaces
 
     def _find_namespace_id_by_title(self, title: str) -> Optional[str]:
+        """Return the namespace ID whose title matches, or None if not found."""
         for namespace in self._list_namespaces():
             if namespace.get("title") == title:
                 return namespace.get("id")
         return None
 
     def _delete_namespace(self, namespace_id: str) -> None:
+        """Delete the KV namespace with the given ID, ignoring 404 responses."""
         response = requests.delete(
             f"{self._kv_api_base()}/{namespace_id}",
             headers=self._get_auth_headers(),
@@ -196,15 +210,18 @@ class KVStore(NoSQLStorage):
     def _compose_key(
         primary_key: Tuple[str, str], secondary_key: Optional[Tuple[str, str]] = None
     ) -> str:
+        """Build the KV storage key from primary and optional secondary key tuples."""
         if secondary_key is None:
             return str(primary_key[1])
         return f"{primary_key[1]}#{secondary_key[1]}"
 
     @staticmethod
     def _index_key(primary_value: str) -> str:
+        """Return the KV key used to store the secondary-key index for a primary value."""
         return f"__sebs_idx__{primary_value}"
 
     def _read_index(self, namespace_id: str, primary_value: str) -> List[str]:
+        """Fetch the list of secondary-key values stored in the index for primary_value."""
         index_key = quote(self._index_key(primary_value), safe="")
         response = requests.get(
             f"{self._kv_api_base()}/{namespace_id}/values/{index_key}",
@@ -229,6 +246,7 @@ class KVStore(NoSQLStorage):
         return [str(v) for v in parsed]
 
     def _write_index(self, namespace_id: str, primary_value: str, values: List[str]) -> None:
+        """Persist the secondary-key index for primary_value to KV storage."""
         index_key = quote(self._index_key(primary_value), safe="")
         response = requests.put(
             f"{self._kv_api_base()}/{namespace_id}/values/{index_key}",
@@ -238,13 +256,16 @@ class KVStore(NoSQLStorage):
         response.raise_for_status()
 
     def _get_tables(self) -> Dict[str, List[str]]:
+        """Return all cached table names grouped by benchmark."""
         tables = self.cache_client.get_nosql_configs(self.deployment_name())
         return {benchmark: list(v.values()) for benchmark, v in tables.items()}
 
     def get_tables(self, benchmark: str) -> Dict[str, str]:
+        """Return the table-name-to-namespace-ID mapping for the given benchmark."""
         return self._tables[benchmark]
 
     def _get_table_name(self, benchmark: str, table: str) -> Optional[str]:
+        """Return the namespace ID for the given benchmark and logical table name, or None."""
         if benchmark not in self._tables:
             return None
         if table not in self._tables[benchmark]:
@@ -252,6 +273,7 @@ class KVStore(NoSQLStorage):
         return self._tables[benchmark][table]
 
     def retrieve_cache(self, benchmark: str) -> bool:
+        """Load cached KV namespace mappings for a benchmark; return True if found."""
         if benchmark in self._tables:
             return True
 
@@ -277,6 +299,7 @@ class KVStore(NoSQLStorage):
         return True
 
     def update_cache(self, benchmark: str):
+        """Persist the current KV namespace mappings for a benchmark to the cache."""
         self.cache_client.update_nosql(
             self.deployment_name(),
             benchmark,
@@ -287,6 +310,7 @@ class KVStore(NoSQLStorage):
     def create_table(
         self, benchmark: str, name: str, primary_key: str, secondary_key: Optional[str] = None
     ) -> str:
+        """Create or reuse a KV namespace for the given benchmark and table name."""
         # Unused in KV namespace allocation, kept for interface compatibility
         _ = primary_key, secondary_key
 
@@ -344,6 +368,7 @@ class KVStore(NoSQLStorage):
         primary_key: Tuple[str, str],
         secondary_key: Optional[Tuple[str, str]] = None,
     ):
+        """Write a record to the KV namespace, updating the secondary-key index if needed."""
         namespace_id = self._get_table_name(benchmark, table)
         if not namespace_id:
             raise ValueError(f"Table {table} not found for benchmark {benchmark}")
@@ -372,6 +397,7 @@ class KVStore(NoSQLStorage):
                 self._write_index(namespace_id, primary_value, index_values)
 
     def clear_table(self, name: str) -> str:
+        """Log a warning; KV does not support bulk clear — use remove_table + create_table."""
         self.logging.warning(
             "clear_table is not implemented for Cloudflare KV. "
             "Use remove_table() + create_table() instead."
@@ -379,6 +405,7 @@ class KVStore(NoSQLStorage):
         return name
 
     def remove_table(self, name: str) -> str:
+        """Delete the KV namespace identified by logical name or namespace ID."""
         benchmark_to_modify: Optional[str] = None
         logical_name_to_delete: Optional[str] = None
         namespace_id_to_delete: Optional[str] = None
@@ -410,4 +437,5 @@ class KVStore(NoSQLStorage):
         return name
 
     def envs(self) -> dict:
+        """Return environment variables required by benchmarks to access KV storage."""
         return {"NOSQL_STORAGE_DATABASE": "kvstore"}

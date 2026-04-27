@@ -16,7 +16,7 @@ from importlib.resources import files
 try:
     import tomllib  # type: ignore[import-not-found]  # Python 3.11+
 except ImportError:
-    import tomli as tomllib  # type: ignore[no-redef]  # Fallback for older Python
+    import tomli as tomllib  # type: ignore[no-redef, import-not-found]  # Fallback for older Python
 try:
     import tomli_w
 except ImportError:

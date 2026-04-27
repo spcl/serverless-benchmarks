@@ -1,3 +1,5 @@
+"""Cloudflare system resources manager."""
+
 import docker
 from typing import Optional, cast
 
@@ -27,12 +29,14 @@ class CloudflareSystemResources(SystemResources):
         docker_client: docker.client.DockerClient,
         logging_handlers: LoggingHandlers,
     ):
+        """Initialize Cloudflare system resources with config and logging handlers."""
         super().__init__(config, cache_client, docker_client)
         self._config = config
         self.logging_handlers = logging_handlers
 
     @property
     def config(self) -> CloudflareConfig:
+        """Return the Cloudflare-specific platform configuration."""
         return cast(CloudflareConfig, self._config)
 
     def _get_auth_headers(self) -> dict[str, str]:

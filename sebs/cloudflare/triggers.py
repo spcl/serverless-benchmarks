@@ -1,3 +1,5 @@
+"""HTTP trigger implementation for Cloudflare Workers."""
+
 from typing import Optional
 import concurrent.futures
 import json
@@ -21,25 +23,30 @@ class HTTPTrigger(Trigger):
     """
 
     def __init__(self, worker_name: str, url: Optional[str] = None):
+        """Initialize the HTTP trigger with the worker name and optional URL."""
         super().__init__()
         self.worker_name = worker_name
         self._url = url
 
     @staticmethod
     def typename() -> str:
+        """Return the canonical type name for this trigger class."""
         return "Cloudflare.HTTPTrigger"
 
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
+        """Return the trigger type enum value."""
         return Trigger.TriggerType.HTTP
 
     @property
     def url(self) -> str:
+        """HTTPS endpoint URL for invoking the worker."""
         assert self._url is not None, "HTTP trigger URL has not been set"
         return self._url
 
     @url.setter
     def url(self, url: str):
+        """Set the HTTPS endpoint URL for the worker."""
         self._url = url
 
     def _http_invoke(self, payload: dict, url: str, verify_ssl: bool = True) -> ExecutionResult:
@@ -208,6 +215,7 @@ class HTTPTrigger(Trigger):
         return fut
 
     def serialize(self) -> dict:
+        """Return a serializable dict with the trigger type, worker name, and URL."""
         return {
             "type": self.typename(),
             "worker_name": self.worker_name,
@@ -216,5 +224,6 @@ class HTTPTrigger(Trigger):
 
     @staticmethod
     def deserialize(obj: dict) -> "HTTPTrigger":
+        """Reconstruct an HTTPTrigger from a serialized dict."""
         trigger = HTTPTrigger(obj["worker_name"], obj.get("url"))
         return trigger

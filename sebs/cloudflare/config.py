@@ -1,3 +1,5 @@
+"""Configuration classes for the Cloudflare Workers platform."""
+
 import os
 from typing import Optional, cast
 
@@ -38,6 +40,7 @@ class CloudflareCredentials(Credentials):
         r2_access_key_id: Optional[str] = None,
         r2_secret_access_key: Optional[str] = None,
     ):
+        """Store Cloudflare API credentials supplied at construction time."""
         super().__init__()
 
         self._api_token = api_token
@@ -49,34 +52,42 @@ class CloudflareCredentials(Credentials):
 
     @staticmethod
     def typename() -> str:
+        """Return the canonical type name for this credentials class."""
         return "Cloudflare.Credentials"
 
     @property
     def api_token(self) -> Optional[str]:
+        """Scoped API token for Cloudflare authentication."""
         return self._api_token
 
     @property
     def email(self) -> Optional[str]:
+        """Account email used with the Global API Key authentication method."""
         return self._email
 
     @property
     def api_key(self) -> Optional[str]:
+        """Global API Key used with the email authentication method."""
         return self._api_key
 
     @property
     def account_id(self) -> Optional[str]:
+        """Cloudflare account ID required for all API operations."""
         return self._account_id
 
     @property
     def r2_access_key_id(self) -> Optional[str]:
+        """S3-compatible access key ID for R2 bucket operations."""
         return self._r2_access_key_id
 
     @property
     def r2_secret_access_key(self) -> Optional[str]:
+        """S3-compatible secret access key for R2 bucket operations."""
         return self._r2_secret_access_key
 
     @staticmethod
     def initialize(dct: dict) -> "CloudflareCredentials":
+        """Build a CloudflareCredentials instance from a plain dictionary."""
         return CloudflareCredentials(
             dct.get("api_token"),
             dct.get("email"),
@@ -88,6 +99,7 @@ class CloudflareCredentials(Credentials):
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
+        """Load credentials from config dict, falling back to environment variables."""
         cached_config = cache.get_config("cloudflare")
         ret: CloudflareCredentials
         account_id: Optional[str] = None
@@ -135,12 +147,14 @@ class CloudflareCredentials(Credentials):
         return ret
 
     def update_cache(self, cache: Cache):
+        """Persist the account ID to the local cache."""
         if self._account_id:
             cache.update_config(
                 val=self._account_id, keys=["cloudflare", "credentials", "account_id"]
             )
 
     def serialize(self) -> dict:
+        """Return a serializable dict of non-secret credential fields."""
         out = {}
         if self._account_id:
             out["account_id"] = self._account_id
@@ -153,23 +167,28 @@ class CloudflareResources(Resources):
     """
 
     def __init__(self):
+        """Initialize Cloudflare resources with no namespace ID assigned."""
         super().__init__(name="cloudflare")
         self._namespace_id: Optional[str] = None
 
     @staticmethod
     def typename() -> str:
+        """Return the canonical type name for this resources class."""
         return "Cloudflare.Resources"
 
     @property
     def namespace_id(self) -> Optional[str]:
+        """KV namespace ID associated with this resource deployment."""
         return self._namespace_id
 
     @namespace_id.setter
     def namespace_id(self, value: str):
+        """Set the KV namespace ID for this resource deployment."""
         self._namespace_id = value
 
     @staticmethod
     def initialize(res: Resources, dct: dict):
+        """Populate a CloudflareResources instance from a config dictionary."""
         ret = cast(CloudflareResources, res)
         super(CloudflareResources, CloudflareResources).initialize(ret, dct)
 
@@ -179,12 +198,14 @@ class CloudflareResources(Resources):
         return ret
 
     def serialize(self) -> dict:
+        """Return a serializable dict of Cloudflare resource fields."""
         out = {**super().serialize()}
         if self._namespace_id:
             out["namespace_id"] = self._namespace_id
         return out
 
     def update_cache(self, cache: Cache):
+        """Persist resource IDs to the local cache."""
         super().update_cache(cache)
         if self._namespace_id:
             cache.update_config(
@@ -193,6 +214,7 @@ class CloudflareResources(Resources):
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Resources:
+        """Load resources from cached or user-provided configuration."""
         ret = CloudflareResources()
         cached_config = cache.get_config("cloudflare")
 
@@ -223,30 +245,36 @@ class CloudflareConfig(Config):
     """
 
     def __init__(self, credentials: CloudflareCredentials, resources: CloudflareResources):
+        """Initialize configuration with the given credentials and resources."""
         super().__init__(name="cloudflare")
         self._credentials = credentials
         self._resources = resources
 
     @staticmethod
     def typename() -> str:
+        """Return the canonical type name for this configuration class."""
         return "Cloudflare.Config"
 
     @property
     def credentials(self) -> CloudflareCredentials:
+        """Cloudflare API credentials for this configuration."""
         return self._credentials
 
     @property
     def resources(self) -> CloudflareResources:
+        """Cloudflare resource identifiers for this deployment."""
         return self._resources
 
     @staticmethod
     def initialize(cfg: Config, dct: dict):
+        """Apply region and other fields from a config dictionary to an existing instance."""
         config = cast(CloudflareConfig, cfg)
         # Cloudflare Workers are globally distributed, no region needed
         config._region = dct.get("region", "global")
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
+        """Build a CloudflareConfig from user config and cache, resolving credentials."""
         cached_config = cache.get_config("cloudflare")
         credentials = cast(
             CloudflareCredentials, CloudflareCredentials.deserialize(config, cache, handlers)
@@ -269,11 +297,13 @@ class CloudflareConfig(Config):
         return config_obj
 
     def update_cache(self, cache: Cache):
+        """Persist region, credentials, and resources to the local cache."""
         cache.update_config(val=self.region, keys=["cloudflare", "region"])
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
 
     def serialize(self) -> dict:
+        """Return a serializable dict of the full Cloudflare configuration."""
         out = {
             "name": "cloudflare",
             "region": self._region,

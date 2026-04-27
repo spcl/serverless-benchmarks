@@ -1,3 +1,5 @@
+"""Cloudflare R2 object storage implementation."""
+
 import os
 
 import requests
@@ -10,20 +12,26 @@ from typing import List, Optional
 
 
 class R2(PersistentStorage):
+    """Cloudflare R2 object storage backend for SeBS benchmarks."""
+
     @staticmethod
     def typename() -> str:
+        """Return the canonical type name for this storage class."""
         return "Cloudflare.R2"
 
     @staticmethod
     def deployment_name() -> str:
+        """Return the deployment platform name."""
         return "cloudflare"
 
     @property
     def replace_existing(self) -> bool:
+        """Whether existing objects should be overwritten on upload."""
         return self._replace_existing
 
     @replace_existing.setter
     def replace_existing(self, val: bool):
+        """Set whether existing objects should be overwritten on upload."""
         self._replace_existing = val
 
     def __init__(
@@ -34,6 +42,7 @@ class R2(PersistentStorage):
         replace_existing: bool,
         credentials: CloudflareCredentials,
     ):
+        """Initialize R2 storage with Cloudflare credentials."""
         super().__init__(region, cache_client, resources, replace_existing)
         self._credentials = credentials
         self._s3_client = None
@@ -94,11 +103,13 @@ class R2(PersistentStorage):
             return None
 
     def correct_name(self, name: str) -> str:
+        """Return the bucket name unchanged; R2 does not require name transformations."""
         return name
 
     def _create_bucket(
         self, name: str, buckets: Optional[List[str]] = None, randomize_name: bool = False
     ) -> str:
+        """Create an R2 bucket, reusing an existing one if the name is already present."""
         for bucket_name in buckets or []:
             if name in bucket_name:
                 self.logging.info(

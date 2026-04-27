@@ -1,3 +1,5 @@
+"""Cloudflare Workers platform implementation for SeBS."""
+
 import os
 import uuid
 import time
@@ -32,6 +34,7 @@ class _CloudflareContainerAdapter:
     """
 
     def __init__(self, containers_deployment: CloudflareContainersDeployment):
+        """Initialize the adapter with the given containers deployment handler."""
         self._containers = containers_deployment
         # Populated by build_base_image() so create_function() can find the dir.
         self.last_directory: Optional[str] = None
@@ -116,18 +119,22 @@ class Cloudflare(System):
 
     @staticmethod
     def name():
+        """Return the platform name used in configuration and cache keys."""
         return "cloudflare"
 
     @staticmethod
     def typename():
+        """Return the human-readable type name for this platform."""
         return "Cloudflare"
 
     @staticmethod
     def function_type() -> "Type[Function]":
+        """Return the Function subclass used by this platform."""
         return CloudflareWorker
 
     @property
     def config(self) -> CloudflareConfig:
+        """Return the Cloudflare-specific platform configuration."""
         return self._config
 
     def is_benchmark_supported(
@@ -193,6 +200,7 @@ class Cloudflare(System):
         docker_client: docker.client.DockerClient,
         logger_handlers: LoggingHandlers,
     ):
+        """Initialize the Cloudflare platform with credentials and deployment handlers."""
         super().__init__(
             sebs_config,
             cache_client,

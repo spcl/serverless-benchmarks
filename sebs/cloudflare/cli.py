@@ -1,3 +1,5 @@
+"""Cloudflare CLI container management for wrangler-based deployments."""
+
 import atexit
 import io
 import logging
@@ -41,6 +43,7 @@ class CloudflareCLI(LoggingBase):
         return CloudflareCLI._instance
 
     def __init__(self, system_config: SeBSConfig, docker_client: docker.client.DockerClient):
+        """Pull the manage image if needed and start the CLI container."""
         super().__init__()
         self._stopped = False
 
@@ -95,6 +98,7 @@ class CloudflareCLI(LoggingBase):
 
     @staticmethod
     def typename() -> str:
+        """Return the canonical type name for this class."""
         return "Cloudflare.CLI"
 
     def execute(self, cmd: str, env: Optional[dict] = None):

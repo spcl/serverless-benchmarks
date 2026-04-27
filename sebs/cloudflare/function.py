@@ -1,3 +1,5 @@
+"""Cloudflare Workers function and trigger definitions."""
+
 from typing import Optional
 
 from sebs.faas.function import Function, FunctionConfig
@@ -20,6 +22,7 @@ class CloudflareWorker(Function):
         cfg: FunctionConfig,
         account_id: Optional[str] = None,
     ):
+        """Create a CloudflareWorker with the given script ID, runtime, and account."""
         super().__init__(benchmark, name, code_package_hash, cfg)
         self.script_id = script_id
         self.runtime = runtime
@@ -27,9 +30,11 @@ class CloudflareWorker(Function):
 
     @staticmethod
     def typename() -> str:
+        """Return the canonical type name for this function class."""
         return "Cloudflare.Worker"
 
     def serialize(self) -> dict:
+        """Return a serializable dict including script ID, runtime, and account."""
         return {
             **super().serialize(),
             "script_id": self.script_id,
@@ -39,6 +44,7 @@ class CloudflareWorker(Function):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "CloudflareWorker":
+        """Reconstruct a CloudflareWorker from a cached configuration dict."""
         from sebs.cloudflare.triggers import HTTPTrigger
 
         cfg = FunctionConfig.deserialize(cached_config["config"])
