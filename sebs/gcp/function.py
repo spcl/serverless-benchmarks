@@ -192,6 +192,9 @@ class GCPFunction(Function):
     def container_uri(self) -> str | None:
         return self._container_uri
 
+    def set_container_uri(self, container_uri: str | None) -> None:
+        self._container_uri = container_uri
+
     def code_bucket(self, benchmark: str, storage_client: GCPStorage) -> str:
         """Get or create the Cloud Storage bucket for function code.
 
