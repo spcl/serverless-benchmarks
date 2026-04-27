@@ -238,10 +238,7 @@ class storage:
 
                 def _download_one(obj):
                     obj_key = obj['key']
-                    relative_path = obj_key
-                    if prefix and obj_key.startswith(prefix):
-                        relative_path = obj_key[len(prefix):].lstrip('/')
-                    local_file_path = os.path.join(local_path, relative_path)
+                    local_file_path = os.path.join(local_path, obj_key)
                     local_dir = os.path.dirname(local_file_path)
                     if local_dir:
                         os.makedirs(local_dir, exist_ok=True)

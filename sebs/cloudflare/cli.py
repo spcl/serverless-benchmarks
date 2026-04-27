@@ -43,21 +43,25 @@ class CloudflareCLI(LoggingBase):
         self._stopped = False
 
         repo_name = system_config.docker_repository()
+        sebs_version = system_config.version()
         image_name = "manage.cloudflare"
+        versioned_tag = f"{image_name}-{sebs_version}"
         try:
-            docker_client.images.get(repo_name + ":" + image_name)
+            docker_client.images.get(repo_name + ":" + versioned_tag)
         except docker.errors.ImageNotFound:
+            logging.info(
+                "Docker pull of image {repo}:{tag}".format(repo=repo_name, tag=versioned_tag)
+            )
             try:
-                logging.info(
-                    "Docker pull of image {repo}:{image}".format(repo=repo_name, image=image_name)
+                docker_client.images.pull(repo_name, tag=versioned_tag)
+            except (docker.errors.APIError, docker.errors.ImageNotFound) as e:
+                raise RuntimeError(
+                    "Docker pull of image {}:{} failed: {}".format(repo_name, versioned_tag, e)
                 )
-                docker_client.images.pull(repo_name, image_name)
-            except docker.errors.APIError:
-                raise RuntimeError("Docker pull of image {} failed!".format(image_name))
 
         # Start the container in detached mode
         self.docker_instance = docker_client.containers.run(
-            image=repo_name + ":" + image_name,
+            image=repo_name + ":" + versioned_tag,
             command="/bin/bash",
             environment={
                 "CONTAINER_UID": str(os.getuid()),
