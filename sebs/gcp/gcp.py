@@ -289,6 +289,16 @@ class DeploymentStrategy(Protocol):
     def function_exists(self, project_name: str, location: str, func_name: str) -> Any:
         ...
 
+    def download_execution_metrics(
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict,
+    ) -> None:
+        """Populate provider execution times for completed invocations."""
+        ...
+
 
 class CloudFunctionGen1Strategy(DeploymentStrategy):
     """Deployment strategy for Google Cloud Functions Gen1."""
@@ -618,6 +628,80 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
             else:
                 self.logging.error(f"Failed to delete function {func_name}: {e}")
                 raise
+
+    def download_execution_metrics(
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict,
+    ) -> None:
+        """Download execution times for Cloud Functions Gen1 from Cloud Logging."""
+
+        from google.api_core import exceptions
+        from time import sleep
+        import google.cloud.logging as gcp_logging
+
+        def wrapper(gen):
+            while True:
+                try:
+                    yield next(gen)
+                except StopIteration:
+                    break
+                except exceptions.ResourceExhausted:
+                    self.logging.info("Google Cloud resources exhausted, sleeping 30s")
+                    sleep(30)
+
+        timestamps = []
+        for timestamp in [start_time, end_time + 5]:
+            utc_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+        logging_client = gcp_logging.Client()
+        logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")
+        invocations = logger.list_entries(
+            filter_=(
+                f'resource.labels.function_name = "{function_name}" '
+                f'timestamp >= "{timestamps[0]}" '
+                f'timestamp <= "{timestamps[1]}"'
+            ),
+            page_size=1000,
+        )
+
+        print(
+            f'resource.labels.function_name = "{function_name}" '
+            f'timestamp >= "{timestamps[0]}" '
+            f'timestamp <= "{timestamps[1]}"'
+        )
+
+        invocations_processed = 0
+        if hasattr(invocations, "pages"):
+            pages = list(wrapper(invocations.pages))
+        else:
+            pages = [list(wrapper(invocations))]
+
+        print(requests)
+        entries = 0
+        for page in pages:
+            for invoc in page:
+                entries += 1
+                print(invoc)
+                if "execution took" not in invoc.payload:
+                    continue
+                execution_id = invoc.labels["execution_id"]
+                if execution_id not in requests:
+                    continue
+
+                regex_result = re.search(r"\d+ ms", invoc.payload)
+                assert regex_result
+                exec_time = regex_result.group().split()[0]
+                requests[execution_id].provider_times.execution = int(exec_time) * 1000
+                invocations_processed += 1
+
+        self.logging.info(
+            f"GCP Gen1: Received {entries} entries, found time metrics for "
+            f"{invocations_processed} out of {len(requests.keys())} invocations."
+        )
 
     def _wait_for_build_and_poll(
         self, func_name: str, timeout: int = 300, poll_interval: int = 2
@@ -1169,6 +1253,78 @@ class RunContainerStrategy(DeploymentStrategy):
                 self.logging.error(f"Failed to delete Cloud Run service {func_name}: {e}")
                 raise
 
+    def download_execution_metrics(
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict,
+    ) -> None:
+        """Download execution times for Cloud Run from request logs."""
+        import google.cloud.logging as gcp_logging
+
+        service_name = function_name.replace("_", "-").lower()
+
+        timestamps = []
+        for timestamp in [start_time, end_time + 1]:
+            utc_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+        logging_client = gcp_logging.Client()
+        entries = logging_client.list_entries(
+            filter_=(
+                'resource.type = "cloud_run_revision" '
+                'logName = "projects/'
+                f'{self.config.project_name}/logs/run.googleapis.com%2Frequests" '
+                f'resource.labels.service_name = "{service_name}" '
+                f'timestamp >= "{timestamps[0]}" '
+                f'timestamp <= "{timestamps[1]}"'
+            ),
+            page_size=1000,
+        )
+
+        found_metrics = 0
+        total_entries = 0
+        for entry in entries:
+            total_entries += 1
+            trace_id = self._extract_trace_id(entry)
+            if trace_id is None or trace_id not in requests:
+                continue
+
+            execution_time_us = self._extract_latency_us(entry)
+            if execution_time_us is None:
+                continue
+
+            requests[trace_id].provider_times.execution = execution_time_us
+            found_metrics += 1
+
+        self.logging.info(
+            f"GCP Cloud Run: Received {total_entries} log entries, found time metrics for "
+            f"{found_metrics} out of {len(requests.keys())} invocations."
+        )
+
+    @staticmethod
+    def _extract_trace_id(entry) -> Optional[str]:
+        trace = getattr(entry, "trace", None)
+        if not isinstance(trace, str) or "/traces/" not in trace:
+            return None
+        return trace.rsplit("/traces/", 1)[1]
+
+    @staticmethod
+    def _extract_latency_us(entry) -> Optional[int]:
+        http_request = getattr(entry, "http_request", None)
+        if http_request is None:
+            return None
+
+        latency = http_request.get("latency")
+        if not isinstance(latency, str):
+            return None
+
+        try:
+            return int(float(latency[:-1]) * 1_000_000)
+        except (ValueError, TypeError):
+            return None
+
 
 class GCP(System):
     """Google Cloud Platform serverless system implementation.
@@ -1708,6 +1864,8 @@ class GCP(System):
 
         # Update code using strategy
         strategy.update_code(function, code_package, envs, container_uri)
+        if container_deployment:
+            function.set_container_uri(container_uri)
         strategy.wait_for_deployment(function.name)
 
     def _generate_function_envs(self, code_package: Benchmark) -> Dict:
@@ -1834,85 +1992,12 @@ class GCP(System):
             metrics: Dictionary to populate with collected metrics
         """
 
-        from google.api_core import exceptions
-        from time import sleep
-
-        def wrapper(gen):
-            """Generator function to extract all results from GCP API paginated responses.
-            If we exhaust resource, we sleep 30 seconds before a retry.
-
-            Args:
-                gen: generator of HTTP responses
-
-            Yields:
-                each HTTP response
-            """
-            while True:
-                try:
-                    yield next(gen)
-                except StopIteration:
-                    break
-                except exceptions.ResourceExhausted:
-                    self.logging.info("Google Cloud resources exhausted, sleeping 30s")
-                    sleep(30)
-
-        """
-            Use GCP's logging system to find execution time of each function invocation.
-
-            There shouldn't be problem of waiting for complete results,
-            since logs appear very quickly here.
-        """
-        import google.cloud.logging as gcp_logging
-
-        logging_client = gcp_logging.Client()
-        logger = logging_client.logger("cloudfunctions.googleapis.com%2Fcloud-functions")
-
-        """
-            GCP accepts only single date format: 'YYYY-MM-DDTHH:MM:SSZ'.
-            Thus, we first convert timestamp to UTC timezone.
-            Then, we generate correct format.
-
-            Add 1 second to end time to ensure that removing
-            milliseconds doesn't affect query.
-        """
-        timestamps = []
-        for timestamp in [start_time, end_time + 1]:
-            utc_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-            timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
-
-        invocations = logger.list_entries(
-            filter_=(
-                f'resource.labels.function_name = "{function_name}" '
-                f'timestamp >= "{timestamps[0]}" '
-                f'timestamp <= "{timestamps[1]}"'
-            ),
-            page_size=1000,
+        strategy = (
+            self.run_container_strategy
+            if "-" in function_name
+            else self.cloud_function_gen1_strategy
         )
-        invocations_processed = 0
-        if hasattr(invocations, "pages"):
-            pages = list(wrapper(invocations.pages))
-        else:
-            pages = [list(wrapper(invocations))]
-        entries = 0
-        for page in pages:  # invocations.pages:
-            for invoc in page:
-                entries += 1
-                if "execution took" in invoc.payload:
-                    execution_id = invoc.labels["execution_id"]
-                    # might happen that we get invocation from another experiment
-                    if execution_id not in requests:
-                        continue
-                    # find number of miliseconds
-                    regex_result = re.search(r"\d+ ms", invoc.payload)
-                    assert regex_result
-                    exec_time = regex_result.group().split()[0]
-                    # convert into microseconds
-                    requests[execution_id].provider_times.execution = int(exec_time) * 1000
-                    invocations_processed += 1
-        self.logging.info(
-            f"GCP: Received {entries} entries, found time metrics for {invocations_processed} "
-            f"out of {len(requests.keys())} invocations."
-        )
+        strategy.download_execution_metrics(function_name, start_time, end_time, requests)
 
         """
             Use metrics to find estimated values for maximum memory used, active instances
