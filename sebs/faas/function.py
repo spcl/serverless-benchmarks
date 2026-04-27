@@ -327,6 +327,15 @@ class ExecutionResult:
             / timedelta(microseconds=1)
         )
 
+        # In GCP, we used to return the request id directly.
+        # However, containers have function request id, but they
+        # are not visible in logs - we cannot use them for query.
+        #
+        # However, both functions and containers have trace id,
+        # which needs to be slightly converted.
+        if "/" in self.request_id:
+            self.request_id = self.request_id.split("/", 1)[0]
+
     @staticmethod
     def deserialize(cached_config: dict) -> "ExecutionResult":
         """

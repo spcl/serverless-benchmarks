@@ -17,12 +17,17 @@ import java.time.Instant;
 public class Handler implements HttpFunction {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String FUNCTION_EXECUTION_ID_HEADER = "Function-Execution-Id";
+    private static final String TRACE_CONTEXT_HEADER = "X-Cloud-Trace-Context";
 
     @Override
     public void service(HttpRequest request, HttpResponse response)
             throws IOException {
 
         Instant beginTs = Instant.now();
+        String requestId = request.getFirstHeader(TRACE_CONTEXT_HEADER)
+          .or(() -> request.getFirstHeader(FUNCTION_EXECUTION_ID_HEADER))
+          .orElse("");
 
         // Normalize request from GCP HTTP format
         Map<String, Object> normalized = normalizeRequest(request);
@@ -51,7 +56,7 @@ public class Handler implements HttpFunction {
         body.put("is_cold", ColdStartTracker.isCold());
         body.put("container_id", containerId);
         body.put("cold_start_var", coldStartVar);
-        body.put("request_id", request.getFirstHeader("Function-Execution-Id").orElse(""));
+        body.put("request_id", requestId);
 
         // Write JSON response
         response.setContentType("application/json");

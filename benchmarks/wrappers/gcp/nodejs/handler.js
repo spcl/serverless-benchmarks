@@ -7,15 +7,10 @@ if('NOSQL_STORAGE_DATABASE' in process.env) {
   nosql.nosql.get_instance(process.env['NOSQL_STORAGE_DATABASE']);
 }
 
-function extractTraceId(req) {
-  const traceContext = req.headers["x-cloud-trace-context"] || "";
-  return traceContext.split("/", 1)[0];
-}
-
 exports.handler = async function(req, res) {
   var begin = Date.now()/1000;
   var start = process.hrtime();
-  var requestId = extractTraceId(req) || req.headers["function-execution-id"];
+  var requestId = req.headers["x-cloud-trace-context"] || req.headers["function-execution-id"];
   var func = require('./function/function')
   var ret = func.handler(req.body);
   return ret.then(
