@@ -291,6 +291,16 @@ class DeploymentStrategy(Protocol):
         ...
 
     def function_exists(self, project_name: str, location: str, func_name: str) -> Any:
+        """Check whether the function or service exists.
+
+        Args:
+            project_name: GCP project ID.
+            location: GCP region/location.
+            func_name: Function or service name.
+
+        Returns:
+            True if the resource exists, otherwise False.
+        """
         ...
 
     def download_execution_metrics(
@@ -300,7 +310,14 @@ class DeploymentStrategy(Protocol):
         end_time: int,
         requests: Dict,
     ) -> None:
-        """Populate provider execution times for completed invocations."""
+        """Populate provider execution times for completed invocations.
+
+        Args:
+            function_name: Function or service name.
+            start_time: Start timestamp for metric collection.
+            end_time: End timestamp for metric collection.
+            requests: Invocation results keyed by request ID.
+        """
         ...
 
 
@@ -325,9 +342,29 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
 
     @staticmethod
     def get_full_function_name(project_name: str, location: str, func_name: str) -> str:
+        """Build the fully qualified Cloud Functions resource name.
+
+        Args:
+            project_name: GCP project ID.
+            location: GCP region/location.
+            func_name: Function name.
+
+        Returns:
+            Fully qualified Cloud Functions resource name.
+        """
         return f"projects/{project_name}/locations/{location}/functions/{func_name}"
 
     def function_exists(self, project_name: str, location: str, func_name: str) -> Any:
+        """Check whether the Cloud Function exists.
+
+        Args:
+            project_name: GCP project ID.
+            location: GCP region/location.
+            func_name: Function name.
+
+        Returns:
+            True if the function exists, otherwise False.
+        """
         full_resource_name = self.get_full_function_name(project_name, location, func_name)
         get_req = (
             self.function_client.projects().locations().functions().get(name=full_resource_name)
@@ -590,6 +627,11 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         return envs
 
     def generate_runtime_envs(self) -> Dict:
+        """Return runtime environment variables for Gen1 deployments.
+
+        Returns:
+            Empty dictionary because Gen1 does not require runtime overrides.
+        """
         return {}
 
     def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
@@ -649,6 +691,7 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         import google.cloud.logging as gcp_logging
 
         def wrapper(gen):
+            """Yield entries while backing off on transient quota errors."""
             while True:
                 try:
                     yield next(gen)
@@ -703,6 +746,14 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
 
     @staticmethod
     def _extract_trace_id(entry) -> Optional[str]:
+        """Extract the trace ID from a Cloud Functions log entry.
+
+        Args:
+            entry: Log entry to inspect.
+
+        Returns:
+            Trace ID if present, otherwise ``None``.
+        """
         trace = getattr(entry, "trace", None)
         if not isinstance(trace, str) or "/traces/" not in trace:
             return None
@@ -922,9 +973,29 @@ class RunContainerStrategy(DeploymentStrategy):
 
     @staticmethod
     def get_full_function_name(project_name: str, location: str, service_name: str) -> str:
+        """Build the fully qualified Cloud Run service resource name.
+
+        Args:
+            project_name: GCP project ID.
+            location: GCP region/location.
+            service_name: Cloud Run service name.
+
+        Returns:
+            Fully qualified Cloud Run service resource name.
+        """
         return f"projects/{project_name}/locations/{location}/services/{service_name}"
 
     def function_exists(self, project_name: str, location: str, func_name: str) -> Any:
+        """Check whether the Cloud Run service exists.
+
+        Args:
+            project_name: GCP project ID.
+            location: GCP region/location.
+            func_name: Cloud Run service name.
+
+        Returns:
+            True if the service exists, otherwise False.
+        """
         full_resource_name = self.get_full_function_name(project_name, location, func_name)
         get_req = self.run_client.projects().locations().services().get(name=full_resource_name)
 
@@ -935,6 +1006,14 @@ class RunContainerStrategy(DeploymentStrategy):
             return False
 
     def _transform_service_envs(self, envs: dict) -> list:
+        """Convert environment variables into the Cloud Run API format.
+
+        Args:
+            envs: Key-value environment mapping.
+
+        Returns:
+            List of Cloud Run environment variable descriptors.
+        """
         return [{"name": k, "value": v} for k, v in envs.items()]
 
     def _service_body(
@@ -943,6 +1022,16 @@ class RunContainerStrategy(DeploymentStrategy):
         envs_list: Dict,
         container_uri: str,
     ) -> Dict:
+        """Build the Cloud Run service body for create and update requests.
+
+        Args:
+            benchmark_config: Benchmark or function configuration providing memory and timeout.
+            envs_list: Environment variables to inject into the container.
+            container_uri: Container image URI to deploy.
+
+        Returns:
+            Cloud Run service body payload.
+        """
 
         dep_config = self.config.deployment_config.container_config
 
@@ -1213,6 +1302,11 @@ class RunContainerStrategy(DeploymentStrategy):
         return envs
 
     def generate_runtime_envs(self) -> Dict:
+        """Return runtime environment variables for Cloud Run deployments.
+
+        Returns:
+            Runtime environment variables for Gunicorn worker configuration.
+        """
         dep_config = self.config.deployment_config.container_config
         return {
             "GUNICORN_WORKERS": str(dep_config.worker_concurrency),
@@ -1319,6 +1413,14 @@ class RunContainerStrategy(DeploymentStrategy):
 
     @staticmethod
     def _extract_trace_id(entry) -> Optional[str]:
+        """Extract the trace ID from a Cloud Run log entry.
+
+        Args:
+            entry: Log entry to inspect.
+
+        Returns:
+            Trace ID if present, otherwise ``None``.
+        """
         trace = getattr(entry, "trace", None)
         if not isinstance(trace, str) or "/traces/" not in trace:
             return None
@@ -1326,6 +1428,14 @@ class RunContainerStrategy(DeploymentStrategy):
 
     @staticmethod
     def _extract_latency_us(entry) -> Optional[int]:
+        """Extract request latency from a Cloud Run log entry in microseconds.
+
+        Args:
+            entry: Log entry to inspect.
+
+        Returns:
+            Request latency in microseconds, or ``None`` if unavailable.
+        """
         http_request = getattr(entry, "http_request", None)
         if http_request is None:
             return None
@@ -1476,6 +1586,14 @@ class GCP(System):
     def _get_deployment_config(
         self, deployment_type: FunctionDeploymentType
     ) -> Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig]:
+        """Return the deployment config that matches the requested deployment type.
+
+        Args:
+            deployment_type: Deployment type to resolve.
+
+        Returns:
+            Deployment configuration object for the requested type.
+        """
         if deployment_type.is_container:
             return self.config.deployment_config.container_config
         else:
