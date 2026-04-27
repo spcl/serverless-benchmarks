@@ -340,7 +340,7 @@
         "base_images": {
           "x64": {
             "11": "us-central1-docker.pkg.dev/serverless-runtimes/google-18-full/runtimes/java11:deprecated-public-image-java11_20260217_11_0_RC00",
-            "17": "us-central1-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/java17:java17_20260215_17_0_RC00"
+            "17": "us-central1-docker.pkg.dev/serverless-runtimes/google-22/runtimes/java17:java17_20260405_17_0_RC00"
           }
         },
         "images": [
