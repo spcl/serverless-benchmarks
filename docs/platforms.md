@@ -217,6 +217,9 @@ or in the JSON input configuration:
 
 ## Cloudflare Workers
 
+> [!NOTE]
+> **Terminology mapping**: SeBS uses the term *function* throughout its CLI and configuration. On Cloudflare, the equivalent unit of deployment is a **Worker**. Wherever SeBS refers to a function (e.g. `--function-name`, `create_function`, `CloudflareWorker`), it refers to a Cloudflare Worker script deployed to `{name}.{account}.workers.dev`.
+
 Cloudflare offers a free tier for Workers with generous limits for development and testing. To use Cloudflare Workers with SeBS, you need to create a Cloudflare account and obtain API credentials.
 
 ### Credentials
