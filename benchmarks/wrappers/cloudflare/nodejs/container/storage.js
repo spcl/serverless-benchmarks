@@ -313,6 +313,10 @@ class storage {
     }
   }
 
+  async downloadDirectory(bucket, prefix, out_path) {
+    return this.download_directory(bucket, prefix, out_path);
+  }
+
   uploadStream(bucket, key) {
     // Return [stream, promise, unique_key] to match native wrapper API
     const unique_key = storage.unique_name(key);

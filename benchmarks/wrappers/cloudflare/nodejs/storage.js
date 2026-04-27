@@ -127,6 +127,10 @@ class storage {
     }
   }
 
+  async downloadDirectory(bucket, prefix, out_path) {
+    return this.download_directory(bucket, prefix, out_path);
+  }
+
   async upload_stream(__bucket, key, data) {
     const instance = storage.instance || this;
     const unique_key = storage.unique_name(key);
