@@ -761,8 +761,7 @@ class Cloudflare(System):
         account_id = worker.account_id or self.config.credentials.account_id
         if account_id and not self._get_worker(worker.name, account_id):
             self.logging.info(
-                f"Cached worker {worker.name} no longer exists on Cloudflare "
-                "— will redeploy."
+                f"Cached worker {worker.name} no longer exists on Cloudflare " "— will redeploy."
             )
             function.code_package_hash = ""
 
