@@ -668,7 +668,7 @@ class Azure(System):
             "Updating function's memory and timeout configuration is not supported."
         )
 
-    def delete_function(self, func_name: str) -> None:
+    def delete_function(self, func_name: str, function: Dict) -> None:
         """Delete an Azure Function App and its associated storage account.
 
         Args:
@@ -680,14 +680,7 @@ class Azure(System):
             For Azure, we need to retrieve the associated storage account.
             Each function has its own storage account.
         """
-        all_functions = self.cache_client.get_all_functions(self.name())
-        if func_name not in all_functions:
-            self.logging.error(
-                f"Failed to find function {func_name} in functions: {all_functions.keys()}."
-            )
-            raise RuntimeError(f"Failed to find function {func_name} in cache.")
-
-        function = cast(AzureFunction, self.function_type().deserialize(all_functions[func_name]))
+        function_obj = cast(AzureFunction, self.function_type().deserialize(function))
 
         try:
             self.cli_instance.execute(
@@ -700,10 +693,12 @@ class Azure(System):
             raise e
 
         self.logging.info(
-            f"Deleting storage account {function.function_storage.account_name} "
+            f"Deleting storage account {function_obj.function_storage.account_name} "
             f"associated with function {func_name}"
         )
-        self.config.resources.delete_storage_account(self.cli_instance, function.function_storage)
+        self.config.resources.delete_storage_account(
+            self.cli_instance, function_obj.function_storage
+        )
 
     def _mount_function_code(self, code_package: Benchmark) -> str:
         """Mount function code package in Azure CLI container.

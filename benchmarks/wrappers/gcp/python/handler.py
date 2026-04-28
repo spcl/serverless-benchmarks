@@ -11,11 +11,9 @@ if 'NOSQL_STORAGE_DATABASE' in os.environ:
         os.environ['NOSQL_STORAGE_DATABASE']
     )
 
-
 def handler(req):
     income_timestamp = datetime.datetime.now().timestamp()
-    req_id = req.headers.get('Function-Execution-Id')
-
+    req_id = req.headers.get('X-Cloud-Trace-Context') or req.headers.get('Function-Execution-Id')
 
     req_json = req.get_json()
     req_json['request-id'] = req_id

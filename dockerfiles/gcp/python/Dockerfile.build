@@ -5,11 +5,12 @@ ENV PYTHON_VERSION=${VERSION}
 ENV DEBIAN_FRONTEND="noninteractive"
 ENV TZ="Europe/Zurich"
 
+COPY --from=tianon/gosu:1.19-debian /usr/local/bin/gosu /usr/local/bin/gosu
+
+USER root
+
 RUN apt-get update\
-  && apt-get install -y --no-install-recommends gosu gcc build-essential libxml2 libxml2-dev zlib1g-dev software-properties-common gpg-agent zip\
-  && add-apt-repository -y ppa:deadsnakes/ppa\
-  && apt-get update\
-  && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-venv python${PYTHON_VERSION}-dev\
+  && apt-get install -y --no-install-recommends gcc build-essential libxml2 libxml2-dev zlib1g-dev gpg-agent zip\
   && apt-get purge -y --auto-remove
 
 #RUN export PATH=/opt/python3.7/bin:/opt/python3.6/bin:/opt/python3.5/bin:/opt/python3.4/bin:$PATH

@@ -634,7 +634,7 @@ class AWS(System):
         func_name = func_name.replace(".", "_")
         return func_name
 
-    def delete_function(self, func_name: str) -> None:
+    def delete_function(self, func_name: str, function: Dict) -> None:
         """Delete an AWS Lambda function.
 
         Args:

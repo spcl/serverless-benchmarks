@@ -1,0 +1,46 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE as builder
+ARG VERSION
+ENV JAVA_VERSION=${VERSION}
+ENV JAVA_INVOKER_VERSION=2.0.1
+
+WORKDIR /workspace
+
+COPY . function/
+USER root
+
+# Install Maven 3.x (maven package may be old, install from Apache directly)
+RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz | tar -xz -C /opt && \
+    ln -s /opt/apache-maven-3.9.6 /opt/maven && \
+    ln -s /opt/maven/bin/mvn /usr/local/bin/mvn
+ENV PATH=/opt/maven/bin:$PATH
+
+RUN POM_PATH=$(find /workspace/function -maxdepth 3 -name "pom.xml" | head -n1) && \
+    if [ "$JAVA_VERSION" = "11" ]; then \
+        export JAVA_INVOKER_VERSION="1.4.3"; \
+    else \
+        export JAVA_INVOKER_VERSION="2.0.1"; \
+    fi && \
+    if [ -n "${POM_PATH}" ]; then \
+      mvn -f "${POM_PATH}" -DskipTests clean package && \
+      POM_DIR=$(dirname "${POM_PATH}") && \
+      cp "${POM_DIR}/target/function.jar" /workspace/function.jar && \
+      mvn -q dependency:copy \
+        -Dartifact=com.google.cloud.functions.invoker:java-function-invoker:${JAVA_INVOKER_VERSION} \
+        -DoutputDirectory=/workspace; \
+    else \
+      echo "No pom.xml found!" && \
+      exit 1; \
+    fi && \
+    mv /workspace/java-function-invoker-${JAVA_INVOKER_VERSION}.jar /workspace/java-function-invoker.jar
+
+FROM $BASE_IMAGE
+
+WORKDIR /workspace
+
+COPY --from=builder /workspace/function.jar /workspace/function.jar
+COPY --from=builder /workspace/java-function-invoker.jar /workspace/java-function-invoker.jar
+
+ENV JAVA_TOOL_OPTIONS="-XX:+TieredCompilation -XX:TieredStopAtLevel=1"
+
+CMD ["sh", "-c", "exec java -jar /workspace/java-function-invoker.jar --classpath /workspace/function.jar --target org.serverlessbench.Handler --port ${PORT:-8080}"]

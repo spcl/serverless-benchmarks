@@ -1,12 +1,10 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG VERSION
-ENV NVM_DIR=/nvm
 
-#RUN install_node --ignore-verification-failure v${VERSION}
-RUN apt-get update && apt-get install -y gosu wget
-RUN mkdir -p ${NVM_DIR} && wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-RUN . ${NVM_DIR}/nvm.sh && nvm install ${VERSION} && nvm alias default ${VERSION} && nvm use default
+COPY --from=tianon/gosu:1.19-debian /usr/local/bin/gosu /usr/local/bin/gosu
+
+USER root
 
 RUN mkdir -p /sebs/
 COPY dockerfiles/nodejs_installer.sh /sebs/installer.sh
