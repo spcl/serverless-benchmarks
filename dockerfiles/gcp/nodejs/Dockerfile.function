@@ -5,8 +5,8 @@ WORKDIR /workspace
 
 USER root
 
-COPY . /workspace/
-RUN mkdir function/ && mv function.js storage.js nosql.js function/
+COPY . function/
+RUN mv function/handler.js function/package.json /workspace
 
 ENV NODE_ENV=production
 
