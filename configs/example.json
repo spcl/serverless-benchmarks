@@ -60,6 +60,7 @@
       "project_name": "",
       "credentials": "",
       "configuration": {
+        "package-deployment-type": "function-gen1",
         "function-gen1": {
           "min-instances": 0,
           "max-instances": 20
