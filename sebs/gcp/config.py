@@ -437,7 +437,6 @@ class GCPConfiguration:
         self._function_gen1_config: GCPFunctionGen1Config
         self._function_gen2_config: GCPFunctionGen2Config
         self._container_config: GCPContainerConfig
-        self._package_deployment_type: str = "function-gen1"
 
     @staticmethod
     def initialize(config: GCPConfiguration, dct: Dict) -> GCPConfiguration:
@@ -454,13 +453,6 @@ class GCPConfiguration:
         config._function_gen1_config = GCPFunctionGen1Config.deserialize(dct["function-gen1"])
         config._function_gen2_config = GCPFunctionGen2Config.deserialize(dct["function-gen2"])
         config._container_config = GCPContainerConfig.deserialize(dct["container"])
-        config._package_deployment_type = dct.get("package-deployment-type", "function-gen1")
-
-        if config._package_deployment_type not in ("function-gen1", "function-gen2"):
-            raise ValueError(
-                "Invalid GCP package deployment type "
-                f"{config._package_deployment_type}. Expected function-gen1 or function-gen2."
-            )
 
         return config
 
@@ -474,7 +466,6 @@ class GCPConfiguration:
         out["function-gen1"] = self._function_gen1_config.serialize()
         out["function-gen2"] = self._function_gen2_config.serialize()
         out["container"] = self._container_config.serialize()
-        out["package-deployment-type"] = self._package_deployment_type
         return out
 
     @property
@@ -503,11 +494,6 @@ class GCPConfiguration:
             Cloud Run container deployment configuration object.
         """
         return self._container_config
-
-    @property
-    def package_deployment_type(self) -> str:
-        """Get the package deployment selector used when container mode is disabled."""
-        return self._package_deployment_type
 
 
 class GCPResources(Resources):

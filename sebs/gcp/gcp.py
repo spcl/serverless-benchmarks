@@ -46,6 +46,7 @@ from google.cloud.devtools import cloudbuild_v1
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark, BenchmarkConfig
+from sebs.experiments.config import SystemVariant
 from sebs.faas.function import Function, FunctionConfig, Trigger
 from sebs.faas.config import Resources
 from sebs.faas.system import System
@@ -2258,29 +2259,27 @@ class GCP(System):
         """
         return self.run_container_strategy.run_client
 
-    def _resolve_deployment_type(self, container_deployment: bool) -> FunctionDeploymentType:
+    def _resolve_deployment_type(self, system_variant: SystemVariant) -> FunctionDeploymentType:
         """Resolve the effective GCP deployment type for a benchmark.
 
         Args:
-            container_deployment: Whether the experiment selected container mode.
+            system_variant: Experiment deployment variant.
 
         Returns:
-            Effective deployment type after applying GCP-local package settings.
+            Effective deployment type for GCP.
         """
-        return FunctionDeploymentType.resolve(
-            container_deployment, self.config.deployment_config.package_deployment_type
-        )
+        return FunctionDeploymentType.deserialize(system_variant.value)
 
-    def system_variant_suffix(self, container_deployment: bool) -> Optional[str]:
+    def system_variant_suffix(self, system_variant: SystemVariant) -> Optional[str]:
         """Return a provider-local system variant suffix for GCP package variants.
 
         Args:
-            container_deployment: Whether the benchmark uses container deployment.
+            system_variant: Selected deployment variant.
 
         Returns:
             Short suffix for GCP package variants, otherwise ``None``.
         """
-        deployment_type = self._resolve_deployment_type(container_deployment)
+        deployment_type = self._resolve_deployment_type(system_variant)
         if deployment_type == FunctionDeploymentType.FUNCTION_GEN1:
             return "gen1"
         if deployment_type == FunctionDeploymentType.FUNCTION_GEN2:
@@ -2339,7 +2338,7 @@ class GCP(System):
 
         # Check if deployment config has changed
         cached_function = cast(GCPFunction, cached_function)
-        expected_deployment_type = self._resolve_deployment_type(benchmark.container_deployment)
+        expected_deployment_type = self._resolve_deployment_type(benchmark.system_variant)
         if cached_function.deployment_type != expected_deployment_type:
             self.logging.info(
                 f"Deployment type has changed for {cached_function.name}: "
@@ -2372,7 +2371,7 @@ class GCP(System):
             str: if the cached function does not fit the requested deployment type.
         """
         gcp_function = cast(GCPFunction, cached_function)
-        expected_deployment_type = self._resolve_deployment_type(benchmark.container_deployment)
+        expected_deployment_type = self._resolve_deployment_type(benchmark.system_variant)
 
         if gcp_function.deployment_type != expected_deployment_type:
             return (
@@ -2409,7 +2408,7 @@ class GCP(System):
             code_package.language_version,
             code_package.architecture,
         )
-        deployment_type = self._resolve_deployment_type(code_package.container_deployment)
+        deployment_type = self._resolve_deployment_type(code_package.system_variant)
         if deployment_type == FunctionDeploymentType.CONTAINER:
             func_name = f"{func_name}-docker"
         elif deployment_type == FunctionDeploymentType.FUNCTION_GEN1:
@@ -2540,7 +2539,7 @@ class GCP(System):
         self,
         code_package: Benchmark,
         func_name: str,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> GCPFunction:
         """Create a new GCP Cloud Function or update existing one.
@@ -2553,14 +2552,14 @@ class GCP(System):
         Args:
             code_package: Benchmark package with code and configuration
             func_name: Name for the Cloud Function
-            container_deployment: Whether to use container deployment (unsupported)
+            system_variant: Selected deployment variant
             container_uri: Container image URI (unused for GCP)
 
         Returns:
             GCPFunction instance representing the deployed function
 
         Raises:
-            NotImplementedError: If container_deployment is True
+            NotImplementedError: If the deployment variant is unsupported
             RuntimeError: If function creation or IAM configuration fails
         """
 
@@ -2575,7 +2574,7 @@ class GCP(System):
         if architecture == "arm64":
             raise RuntimeError("GCP does not support arm64 deployments")
 
-        deployment_type = self._resolve_deployment_type(container_deployment)
+        deployment_type = self._resolve_deployment_type(system_variant)
         strategy = self._strategy_for_deployment_type(deployment_type)
 
         # Check if function/service already exists
@@ -2635,7 +2634,7 @@ class GCP(System):
             )
 
             strategy.allow_public_access(project_name, location, func_name)
-            self.update_function(function, code_package, container_deployment, container_uri)
+            self.update_function(function, code_package, system_variant, container_uri)
 
         # Add LibraryTrigger to a new function
         # Not supported on containers
@@ -2713,7 +2712,7 @@ class GCP(System):
         self,
         function: Function,
         code_package: Benchmark,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> None:
         """Update an existing Cloud Function with new code and configuration.
@@ -2725,11 +2724,11 @@ class GCP(System):
         Args:
             function: Existing function instance to update
             code_package: New benchmark package with updated code
-            container_deployment: Whether to use container deployment (unsupported)
+            system_variant: Selected deployment variant
             container_uri: Container image URI (unused)
 
         Raises:
-            NotImplementedError: If container_deployment is True
+            NotImplementedError: If the deployment variant is unsupported
             RuntimeError: If function update fails after maximum retries
         """
 
@@ -2746,7 +2745,7 @@ class GCP(System):
 
         # Update code using strategy
         strategy.update_code(function, code_package, envs, container_uri)
-        if container_deployment:
+        if system_variant.is_container:
             function.set_container_uri(container_uri)
         strategy.wait_for_deployment(function.name)
 
