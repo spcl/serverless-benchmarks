@@ -33,6 +33,7 @@ import re
 import shutil
 import time
 import math
+import urllib.request
 import zipfile
 from datetime import datetime, timezone
 from typing import Any, cast, Dict, Optional, Tuple, List, Type, Protocol, Union
@@ -332,6 +333,185 @@ class DeploymentStrategy(Protocol):
             metrics: Dictionary mapping metric names to found values.
         """
         ...
+
+
+class CloudRunMetricsHelper:
+    """Helpers shared by Cloud Run services and Cloud Functions gen2."""
+
+    @staticmethod
+    def download_execution_metrics(
+        logging: ColoredWrapper,
+        project_name: str,
+        service_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict,
+        label: str,
+    ) -> None:
+        """Download execution times from Cloud Run request logs."""
+        import google.cloud.logging as gcp_logging
+
+        timestamps = []
+        for timestamp in [start_time, end_time + 1]:
+            utc_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+        logging_client = gcp_logging.Client()
+        entries = logging_client.list_entries(
+            filter_=(
+                'resource.type = "cloud_run_revision" '
+                'logName = "projects/'
+                f'{project_name}/logs/run.googleapis.com%2Frequests" '
+                f'resource.labels.service_name = "{service_name}" '
+                f'timestamp >= "{timestamps[0]}" '
+                f'timestamp <= "{timestamps[1]}"'
+            ),
+            page_size=1000,
+        )
+
+        found_metrics = 0
+        total_entries = 0
+        for entry in entries:
+            total_entries += 1
+            trace_id = CloudRunMetricsHelper.extract_trace_id(entry)
+            if trace_id is None or trace_id not in requests:
+                continue
+
+            execution_time_us = CloudRunMetricsHelper.extract_latency_us(entry)
+            if execution_time_us is None:
+                continue
+
+            requests[trace_id].provider_times.execution = execution_time_us
+            found_metrics += 1
+
+        logging.info(
+            f"{label}: Received {total_entries} log entries, found time metrics for "
+            f"{found_metrics} out of {len(requests.keys())} invocations."
+        )
+
+    @staticmethod
+    def download_metrics(
+        project_name: str,
+        service_name: str,
+        start_time: int,
+        end_time: int,
+        metrics: Dict,
+    ) -> None:
+        """Download Cloud Run monitoring metrics."""
+        available_metrics = [
+            ("container/billable_instance_time", "delta", "double"),
+            ("container/instance_count", "gauge", "int64"),
+            ("container/max_request_concurrencies", "delta", "distribution"),
+            ("container/memory/utilizations", "delta", "distribution"),
+            ("container/cpu/utilizations", "delta", "distribution"),
+            ("container/cpu/allocation_time", "delta", "double"),
+            ("container/memory/allocation_time", "delta", "double"),
+            ("container/network/sent_bytes_count", "delta", "int64"),
+            ("container/network/received_bytes_count", "delta", "int64"),
+            ("container/startup_latencies", "delta", "distribution"),
+            ("request_count", "delta", "int64"),
+            ("request_latencies", "distribution", "distribution"),
+            ("request_latency/e2e_latencies", "delta", "distribution"),
+            ("request_latency/ingress_to_region", "delta", "distribution"),
+            ("request_latency/pending", "delta", "distribution"),
+            ("request_latency/response_egress", "delta", "distribution"),
+            ("request_latency/routing", "delta", "distribution"),
+            ("request_latency/user_execution", "delta", "distribution"),
+        ]
+
+        client = monitoring_v3.MetricServiceClient()
+        project_path = client.common_project_path(project_name)
+
+        _, end_time_seconds = math.modf(end_time)
+        _, start_time_seconds = math.modf(start_time)
+        interval = monitoring_v3.TimeInterval(
+            {
+                "end_time": {"seconds": int(end_time_seconds) + 300},
+                "start_time": {"seconds": int(start_time_seconds)},
+            }
+        )
+
+        for metric, kind, value_type in available_metrics:
+            metrics[metric] = []
+            flt = (
+                f'metric.type = "run.googleapis.com/{metric}" '
+                f'AND resource.type = "cloud_run_revision" '
+                f'AND resource.labels.service_name = "{service_name}"'
+            )
+            list_request = monitoring_v3.ListTimeSeriesRequest(
+                name=project_path,
+                filter=flt,
+                interval=interval,
+                view=monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
+            )
+            for result in client.list_time_series(list_request):
+                revision = result.resource.labels.get("revision_name")
+                for point in result.points:
+                    if value_type == "distribution":
+                        sq_dev = point.value.distribution_value.sum_of_squared_deviation
+                        metrics[metric].append(
+                            {
+                                "kind": kind,
+                                "revision": revision,
+                                "mean_value": point.value.distribution_value.mean,
+                                "squared_deviations": sq_dev,
+                                "count": point.value.distribution_value.count,
+                                "ts": point.interval.end_time.timestamp(),
+                            }
+                        )
+                    else:
+                        value: int | float
+                        value = (
+                            point.value.int64_value
+                            if value_type == "int64"
+                            else point.value.double_value
+                        )
+                        metrics[metric].append(
+                            {
+                                "revision": revision,
+                                "value": value,
+                                "kind": kind,
+                                "ts": point.interval.end_time.timestamp(),
+                            }
+                        )
+
+    @staticmethod
+    def extract_trace_id(entry) -> Optional[str]:
+        """Extract the trace ID from a Cloud Run log entry.
+
+        Args:
+            entry: Log entry to inspect.
+
+        Returns:
+            Trace ID if present, otherwise ``None``.
+        """
+        trace = getattr(entry, "trace", None)
+        if not isinstance(trace, str) or "/traces/" not in trace:
+            return None
+        return trace.rsplit("/traces/", 1)[1]
+
+    @staticmethod
+    def extract_latency_us(entry) -> Optional[int]:
+        """Extract request latency from a Cloud Run log entry.
+
+        Args:
+            entry: Log entry to inspect.
+
+        Returns:
+            Request latency in microseconds, or ``None`` if unavailable.
+        """
+        http_request = getattr(entry, "http_request", None)
+        if http_request is None:
+            return None
+
+        latency = http_request.get("latency")
+        if not isinstance(latency, str):
+            return None
+
+        try:
+            return int(float(latency[:-1]) * 1_000_000)
+        except (ValueError, TypeError):
+            return None
 
 
 class CloudFunctionGen1Strategy(DeploymentStrategy):
@@ -1429,174 +1609,517 @@ class RunContainerStrategy(DeploymentStrategy):
         requests: Dict,
     ) -> None:
         """Download execution times for Cloud Run from request logs."""
-        import google.cloud.logging as gcp_logging
-
         service_name = function_name.replace("_", "-").lower()
-
-        timestamps = []
-        for timestamp in [start_time, end_time + 1]:
-            utc_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-            timestamps.append(utc_date.strftime("%Y-%m-%dT%H:%M:%SZ"))
-
-        logging_client = gcp_logging.Client()
-        entries = logging_client.list_entries(
-            filter_=(
-                'resource.type = "cloud_run_revision" '
-                'logName = "projects/'
-                f'{self.config.project_name}/logs/run.googleapis.com%2Frequests" '
-                f'resource.labels.service_name = "{service_name}" '
-                f'timestamp >= "{timestamps[0]}" '
-                f'timestamp <= "{timestamps[1]}"'
-            ),
-            page_size=1000,
-        )
-
-        found_metrics = 0
-        total_entries = 0
-        for entry in entries:
-            total_entries += 1
-            trace_id = self._extract_trace_id(entry)
-            if trace_id is None or trace_id not in requests:
-                continue
-
-            execution_time_us = self._extract_latency_us(entry)
-            if execution_time_us is None:
-                continue
-
-            requests[trace_id].provider_times.execution = execution_time_us
-            found_metrics += 1
-
-        self.logging.info(
-            f"GCP Cloud Run: Received {total_entries} log entries, found time metrics for "
-            f"{found_metrics} out of {len(requests.keys())} invocations."
+        CloudRunMetricsHelper.download_execution_metrics(
+            self.logging,
+            self.config.project_name,
+            service_name,
+            start_time,
+            end_time,
+            requests,
+            "GCP Cloud Run",
         )
 
     def download_metrics(
         self, function_name: str, start_time: int, end_time: int, metrics: Dict
     ) -> None:
-        """
-        Download monitoring metrics for Cloud Functions Gen1.
-        Use metrics to find estimated values for maximum memory used, active instances
-        and network traffic.
-        https://cloud.google.com/monitoring/api/metrics_gcp#gcp-cloudfunctions
-        """
-        # (metric_path, kind) — kind is "distribution" or "int64"
-        available_metrics = [
-            ("container/billable_instance_time", "delta", "double"),  # seconds
-            ("container/instance_count", "gauge", "int64"),
-            ("container/max_request_concurrencies", "delta", "distribution"),
-            ("container/memory/utilizations", "delta", "distribution"),  # fraction
-            ("container/cpu/utilizations", "delta", "distribution"),  # fraction
-            ("container/cpu/allocation_time", "delta", "double"),  # seconds
-            ("container/memory/allocation_time", "delta", "double"),  # gigabyte-seconds
-            ("container/network/sent_bytes_count", "delta", "int64"),  # bytes (delta)
-            ("container/network/received_bytes_count", "delta", "int64"),  # bytes (delta)
-            ("container/startup_latencies", "delta", "distribution"),  # ms, cold start
-            ("request_count", "delta", "int64"),
-            ("request_latencies", "distribution", "distribution"),  # ms
-            ("request_latency/e2e_latencies", "delta", "distribution"),  # ms
-            ("request_latency/ingress_to_region", "delta", "distribution"),  # ms
-            ("request_latency/pending", "delta", "distribution"),  # ms
-            ("request_latency/response_egress", "delta", "distribution"),  # ms
-            ("request_latency/routing", "delta", "distribution"),  # ms
-            ("request_latency/user_execution", "delta", "distribution"),  # ms
-        ]
+        """Download monitoring metrics for a Cloud Run service.
 
-        client = monitoring_v3.MetricServiceClient()
-        project_name = client.common_project_path(self.config.project_name)
-
-        _, end_time_seconds = math.modf(end_time)
-        _, start_time_seconds = math.modf(start_time)
-        interval = monitoring_v3.TimeInterval(
-            {
-                # some metrics are reported with a delay
-                "end_time": {"seconds": int(end_time_seconds) + 300},
-                "start_time": {"seconds": int(start_time_seconds)},
-            }
+        Args:
+            function_name: Name of the deployed service.
+            start_time: Start timestamp for metric collection.
+            end_time: End timestamp for metric collection.
+            metrics: Dictionary to populate with monitoring samples.
+        """
+        service_name = function_name.replace("_", "-").lower()
+        CloudRunMetricsHelper.download_metrics(
+            self.config.project_name, service_name, start_time, end_time, metrics
         )
 
-        for metric, kind, value_type in available_metrics:
-            metrics[metric] = []
-            # Filter on resource.type AND service_name server-side — much faster than
-            # pulling every revision in the project and filtering client-side.
-            flt = (
-                f'metric.type = "run.googleapis.com/{metric}" '
-                f'AND resource.type = "cloud_run_revision" '
-                f'AND resource.labels.service_name = "{function_name}"'
-            )
-            list_request = monitoring_v3.ListTimeSeriesRequest(
-                name=project_name,
-                filter=flt,
-                interval=interval,
-                view=monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
-            )
-            for result in client.list_time_series(list_request):
-                revision = result.resource.labels.get("revision_name")
-                for point in result.points:
-                    if value_type == "distribution":
-                        sq_dev = point.value.distribution_value.sum_of_squared_deviation
-                        metrics[metric].append(
-                            {
-                                "kind": kind,
-                                "revision": revision,
-                                "mean_value": point.value.distribution_value.mean,
-                                "squared_deviations": sq_dev,
-                                "count": point.value.distribution_value.count,
-                                "ts": point.interval.end_time.timestamp(),
-                            }
-                        )
-                    else:
-                        value: int | float
-                        if value_type == "int64":
-                            value = point.value.int64_value
-                        else:
-                            value = point.value.double_value
-                        metrics[metric].append(
-                            {
-                                "revision": revision,
-                                "value": value,
-                                "kind": kind,
-                                "ts": point.interval.end_time.timestamp(),
-                            }
-                        )
 
-    @staticmethod
-    def _extract_trace_id(entry) -> Optional[str]:
-        """Extract the trace ID from a Cloud Run log entry.
+class CloudFunctionGen2Strategy(DeploymentStrategy):
+    """Deployment strategy for Google Cloud Functions Gen2 package deployments."""
+
+    def __init__(self, config: GCPConfig, logging_handlers: ColoredWrapper):
+        """Initialize the Gen2 deployment strategy.
 
         Args:
-            entry: Log entry to inspect.
-
-        Returns:
-            Trace ID if present, otherwise ``None``.
+            config: GCP deployment configuration.
+            logging_handlers: Logging wrapper used for status reporting.
         """
-        trace = getattr(entry, "trace", None)
-        if not isinstance(trace, str) or "/traces/" not in trace:
-            return None
-        return trace.rsplit("/traces/", 1)[1]
+        self.config = config
+        self.logging = logging_handlers
+        self.function_client = build("cloudfunctions", "v2", cache_discovery=False)
+        self.run_client = build("run", "v2", cache_discovery=False)
 
     @staticmethod
-    def _extract_latency_us(entry) -> Optional[int]:
-        """Extract request latency from a Cloud Run log entry in microseconds.
+    def get_full_function_name(project_name: str, location: str, func_name: str) -> str:
+        """Build the fully qualified Cloud Functions Gen2 resource name.
 
         Args:
-            entry: Log entry to inspect.
+            project_name: GCP project ID.
+            location: GCP region/location.
+            func_name: Function name.
 
         Returns:
-            Request latency in microseconds, or ``None`` if unavailable.
+            Fully qualified Cloud Functions Gen2 resource name.
         """
-        http_request = getattr(entry, "http_request", None)
-        if http_request is None:
-            return None
+        return f"projects/{project_name}/locations/{location}/functions/{func_name}"
 
-        latency = http_request.get("latency")
-        if not isinstance(latency, str):
-            return None
+    def function_exists(self, project_name: str, location: str, func_name: str) -> Any:
+        """Check whether the Cloud Functions Gen2 resource exists.
 
+        Args:
+            project_name: GCP project ID.
+            location: GCP region/location.
+            func_name: Function name.
+
+        Returns:
+            True if the function exists, otherwise False.
+        """
+        full_resource_name = self.get_full_function_name(project_name, location, func_name)
+        get_req = (
+            self.function_client.projects().locations().functions().get(name=full_resource_name)
+        )
         try:
-            return int(float(latency[:-1]) * 1_000_000)
-        except (ValueError, TypeError):
-            return None
+            self._execute_with_retry(self.logging, get_req)
+            return True
+        except HttpError as e:
+            if e.resp.status == 404:
+                return False
+            raise RuntimeError(f"Error checking function existence: {e}") from None
+
+    def _entry_point(self, code_package: Benchmark) -> str:
+        """Resolve the runtime entry point for a benchmark package.
+
+        Args:
+            code_package: Benchmark package being deployed.
+
+        Returns:
+            Entry point name expected by the deployed runtime.
+        """
+        return (
+            "org.serverlessbench.Handler" if code_package.language == Language.JAVA else "handler"
+        )
+
+    def _runtime(self, code_package: Benchmark) -> str:
+        """Resolve the Cloud Functions Gen2 runtime identifier.
+
+        Args:
+            code_package: Benchmark package being deployed.
+
+        Returns:
+            Runtime identifier string for the GCP API.
+        """
+        return code_package.language_name + code_package.language_version.replace(".", "")
+
+    def _service_config(
+        self, benchmark_config: BenchmarkConfig | FunctionConfig, envs: Dict
+    ) -> Dict:
+        """Build the Gen2 service configuration payload.
+
+        Args:
+            benchmark_config: Benchmark or function configuration with memory and timeout.
+            envs: Environment variables to configure on the service.
+
+        Returns:
+            Service configuration payload for Cloud Functions Gen2.
+        """
+        dep_config = self.config.deployment_config.function_gen2_config
+        return {
+            "availableMemory": f"{benchmark_config.memory}Mi",
+            "timeoutSeconds": benchmark_config.timeout,
+            "environmentVariables": envs,
+            "minInstanceCount": dep_config.min_instances,
+            "maxInstanceCount": dep_config.max_instances,
+            "availableCpu": str(dep_config.vcpus),
+            "maxInstanceRequestConcurrency": dep_config.gcp_concurrency,
+            "ingressSettings": "ALLOW_ALL",
+            "allTrafficOnLatestRevision": True,
+        }
+
+    def _build_body(
+        self,
+        func_name: str,
+        code_package: Benchmark,
+        envs: Dict,
+        storage_source: Dict,
+    ) -> Dict:
+        """Build the full Cloud Functions Gen2 create or patch payload.
+
+        Args:
+            func_name: Function name.
+            code_package: Benchmark package being deployed.
+            envs: Environment variables for the service.
+            storage_source: Uploaded source archive descriptor.
+
+        Returns:
+            Full function resource payload.
+        """
+        return {
+            "name": self.get_full_function_name(
+                self.config.project_name, self.config.region, func_name
+            ),
+            "buildConfig": {
+                "runtime": self._runtime(code_package),
+                "entryPoint": self._entry_point(code_package),
+                "source": {"storageSource": storage_source},
+            },
+            "serviceConfig": self._service_config(code_package.benchmark_config, envs),
+        }
+
+    def _generate_upload_url(self) -> Dict:
+        """Request a signed upload URL for a Gen2 source archive.
+
+        Returns:
+            Upload metadata returned by the Cloud Functions Gen2 API.
+        """
+        parent = f"projects/{self.config.project_name}/locations/{self.config.region}"
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .generateUploadUrl(parent=parent, body={"environment": "GEN_2"})
+        )
+        return self._execute_with_retry(self.logging, req)
+
+    def _upload_zip_archive(self, package_path: str) -> Dict:
+        """Upload a ZIP archive to the signed Gen2 source upload URL.
+
+        Args:
+            package_path: Path to the ZIP archive to upload.
+
+        Returns:
+            Storage source descriptor referencing the uploaded archive.
+        """
+        upload_info = self._generate_upload_url()
+        with open(package_path, "rb") as package_fp:
+            request = urllib.request.Request(
+                upload_info["uploadUrl"],
+                data=package_fp.read(),
+                method="PUT",
+                headers={"Content-Type": "application/zip"},
+            )
+            with urllib.request.urlopen(request) as response:
+                if response.status not in (200, 201):
+                    raise RuntimeError(
+                        f"Upload of package archive failed with HTTP {response.status}"
+                    )
+        return cast(Dict, upload_info["storageSource"])
+
+    def create(
+        self,
+        func_name: str,
+        code_package: Benchmark,
+        function_cfg: FunctionConfig,
+        envs: Dict,
+        container_uri: str | None,
+    ) -> None:
+        """Create a new Cloud Functions Gen2 deployment.
+
+        Args:
+            func_name: Function name to create.
+            code_package: Benchmark package with code to deploy.
+            function_cfg: Function configuration.
+            envs: Environment variables for the function service.
+            container_uri: Unused for package deployments.
+        """
+        if code_package.code_location is None:
+            raise RuntimeError("Code location is not set for GCP deployment")
+
+        parent = f"projects/{self.config.project_name}/locations/{self.config.region}"
+        storage_source = self._upload_zip_archive(code_package.code_location)
+        function_body = self._build_body(func_name, code_package, envs, storage_source)
+        create_req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .create(parent=parent, functionId=func_name, body=function_body)
+        )
+        self._operation_response = self._execute_with_retry(self.logging, create_req)
+        self.logging.info(f"Function {func_name} is creating through Cloud Functions Gen2")
+
+    def update_code(
+        self,
+        function: GCPFunction,
+        code_package: Benchmark,
+        envs: Dict,
+        container_uri: str | None,
+    ) -> None:
+        """Update the code of an existing Cloud Functions Gen2 deployment.
+
+        Args:
+            function: Existing deployed function.
+            code_package: New benchmark package to upload.
+            envs: Environment variables for the updated service.
+            container_uri: Unused for package deployments.
+        """
+        if code_package.code_location is None:
+            raise RuntimeError("Code location is not set for GCP deployment")
+
+        full_func_name = self.get_full_function_name(
+            self.config.project_name, self.config.region, function.name
+        )
+        storage_source = self._upload_zip_archive(code_package.code_location)
+        function_body = self._build_body(function.name, code_package, envs, storage_source)
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .patch(
+                name=full_func_name,
+                body=function_body,
+                updateMask="buildConfig.runtime,buildConfig.entryPoint,"
+                "buildConfig.source.storageSource,serviceConfig",
+            )
+        )
+        self._operation_response = self._execute_with_retry(self.logging, req)
+        self.logging.info(f"Function {function.name} code update initiated for Gen2")
+
+    def update_config(self, function: GCPFunction, envs: Dict) -> int:
+        """Update configuration of an existing Cloud Functions Gen2 deployment.
+
+        Args:
+            function: Deployed function to update.
+            envs: Full environment variable map to apply.
+
+        Returns:
+            Placeholder version value for interface compatibility.
+        """
+        full_func_name = self.get_full_function_name(
+            self.config.project_name, self.config.region, function.name
+        )
+        body = {"serviceConfig": self._service_config(function.config, envs)}
+        req = (
+            self.function_client.projects()
+            .locations()
+            .functions()
+            .patch(
+                name=full_func_name,
+                body=body,
+                updateMask="serviceConfig",
+            )
+        )
+        self._operation_response = self._execute_with_retry(self.logging, req)
+        self.wait_for_deployment(function.name)
+        return 0
+
+    def wait_for_deployment(self, func_name: str) -> None:
+        """Wait for the active create or patch operation to complete.
+
+        Args:
+            func_name: Function name being deployed.
+        """
+        if not hasattr(self, "_operation_response"):
+            raise RuntimeError("No operation to wait for - create/update not called")
+
+        op_name = self._operation_response["name"]
+        begin = time.time()
+        while True:
+            op_req = self.function_client.projects().locations().operations().get(name=op_name)
+            op_res = self._execute_with_retry(self.logging, op_req)
+            if op_res.get("done"):
+                if "error" in op_res:
+                    raise RuntimeError(f"Cloud Functions Gen2 deployment failed: {op_res['error']}")
+                break
+            if time.time() - begin > 600:
+                raise RuntimeError(f"Timeout waiting for Cloud Functions Gen2 operation {op_name}")
+            time.sleep(3)
+
+        self._wait_for_active_status(func_name)
+        delattr(self, "_operation_response")
+
+    def _wait_for_active_status(self, func_name: str, timeout: int = 300) -> None:
+        """Poll the Gen2 function until it reaches the ACTIVE state.
+
+        Args:
+            func_name: Function name to monitor.
+            timeout: Maximum wait time in seconds.
+        """
+        full_func_name = self.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+        begin = time.time()
+        last_state: Optional[str] = None
+        while True:
+            req = self.function_client.projects().locations().functions().get(name=full_func_name)
+            func_details = self._execute_with_retry(self.logging, req)
+            state = func_details.get("state")
+            if state != last_state:
+                self.logging.info(f"Function {func_name} state: {state}")
+                last_state = cast(Optional[str], state)
+
+            if state == "ACTIVE" and func_details.get("serviceConfig", {}).get("uri"):
+                return
+            if state in ("FAILED", "UNKNOWN"):
+                raise RuntimeError(
+                    f"Function {func_name} deployment failed with state {state}: "
+                    f"{func_details.get('stateMessages', [])}"
+                )
+            if time.time() - begin > timeout:
+                raise RuntimeError(
+                    "Timeout waiting for function "
+                    f"{func_name} to become ACTIVE. Last state: {state}"
+                )
+            time.sleep(3)
+
+    def allow_public_access(self, project_name: str, location: str, func_name: str) -> None:
+        """Grant public invocation access to the underlying Cloud Run service.
+
+        Args:
+            project_name: GCP project ID.
+            location: GCP region/location.
+            func_name: Function name whose backing service should be public.
+        """
+        service_name = func_name.replace("_", "-").lower()
+        full_service_name = f"projects/{project_name}/locations/{location}/services/{service_name}"
+        req = (
+            self.run_client.projects()
+            .locations()
+            .services()
+            .setIamPolicy(
+                resource=full_service_name,
+                body={
+                    "policy": {
+                        "bindings": [
+                            {
+                                "role": "roles/run.invoker",
+                                "members": ["allUsers"],
+                            }
+                        ]
+                    }
+                },
+            )
+        )
+        self._execute_with_retry(self.logging, req)
+
+    def create_trigger(self, func_name: str) -> str:
+        """Return the HTTPS trigger URL for a Gen2 function.
+
+        Args:
+            func_name: Function name.
+
+        Returns:
+            Public invoke URL for the function.
+        """
+        full_func_name = self.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+        req = self.function_client.projects().locations().functions().get(name=full_func_name)
+        func_details = self._execute_with_retry(self.logging, req)
+        invoke_url = func_details["serviceConfig"]["uri"]
+        self.logging.info(f"Function {func_name} - HTTP trigger URL: {invoke_url}")
+        return invoke_url
+
+    def update_envs(self, full_function_name: str, envs: Dict) -> Dict:
+        """Merge new environment variables with existing Gen2 service variables.
+
+        Args:
+            full_function_name: Fully qualified function name.
+            envs: New environment variables to add or override.
+
+        Returns:
+            Merged environment variables dictionary.
+        """
+        req = self.function_client.projects().locations().functions().get(name=full_function_name)
+        response = self._execute_with_retry(self.logging, req)
+        existing_envs = response.get("serviceConfig", {}).get("environmentVariables", {})
+        return {**existing_envs, **envs}
+
+    def generate_runtime_envs(self) -> Dict:
+        """Return runtime environment overrides for Gen2 package deployments.
+
+        Returns:
+            Environment variables controlling Gunicorn worker settings.
+        """
+        dep_config = self.config.deployment_config.function_gen2_config
+        return {
+            "GUNICORN_WORKERS": str(dep_config.worker_concurrency),
+            "GUNICORN_THREADS": str(dep_config.worker_threads),
+        }
+
+    def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
+        """Check whether a Gen2 function is deployed and ready.
+
+        Args:
+            func_name: Function name to inspect.
+            versionId: Unused for Gen2 deployments.
+
+        Returns:
+            Tuple of readiness flag and placeholder version value.
+        """
+        full_func_name = self.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+        try:
+            req = self.function_client.projects().locations().functions().get(name=full_func_name)
+            func_details = self._execute_with_retry(self.logging, req)
+            is_ready = func_details.get("state") == "ACTIVE" and "uri" in func_details.get(
+                "serviceConfig", {}
+            )
+            return (is_ready, 0)
+        except HttpError:
+            return (False, -1)
+
+    def delete_function(self, func_name: str) -> None:
+        """Delete a Cloud Functions Gen2 deployment.
+
+        Args:
+            func_name: Function name to delete.
+        """
+        full_func_name = self.get_full_function_name(
+            self.config.project_name, self.config.region, func_name
+        )
+        try:
+            req = (
+                self.function_client.projects().locations().functions().delete(name=full_func_name)
+            )
+            self._execute_with_retry(self.logging, req)
+        except HttpError as e:
+            if e.resp.status != 404:
+                raise
+
+    def download_execution_metrics(
+        self,
+        function_name: str,
+        start_time: int,
+        end_time: int,
+        requests: Dict,
+    ) -> None:
+        """Download execution timings for a Gen2 function from request logs.
+
+        Args:
+            function_name: Function name whose backing service is queried.
+            start_time: Start timestamp for log collection.
+            end_time: End timestamp for log collection.
+            requests: Invocation results keyed by request ID.
+        """
+        service_name = function_name.replace("_", "-").lower()
+        CloudRunMetricsHelper.download_execution_metrics(
+            self.logging,
+            self.config.project_name,
+            service_name,
+            start_time,
+            end_time,
+            requests,
+            "GCP Cloud Functions Gen2",
+        )
+
+    def download_metrics(
+        self, function_name: str, start_time: int, end_time: int, metrics: Dict
+    ) -> None:
+        """Download monitoring metrics for a Gen2 function.
+
+        Args:
+            function_name: Function name whose backing service is queried.
+            start_time: Start timestamp for metric collection.
+            end_time: End timestamp for metric collection.
+            metrics: Dictionary to populate with monitoring samples.
+        """
+        service_name = function_name.replace("_", "-").lower()
+        CloudRunMetricsHelper.download_metrics(
+            self.config.project_name, service_name, start_time, end_time, metrics
+        )
 
 
 class GCP(System):
@@ -1703,6 +2226,7 @@ class GCP(System):
         self.cloud_function_gen1_strategy = CloudFunctionGen1Strategy(
             storage, self._config, self.logging
         )
+        self.cloud_function_gen2_strategy = CloudFunctionGen2Strategy(self._config, self.logging)
         self.run_container_strategy = RunContainerStrategy(self._config, self.logging)
 
         self.gcr_client = GCRContainer(self.system_config, self.config, self.docker_client)
@@ -1731,6 +2255,50 @@ class GCP(System):
             Google Cloud Run v2 API client
         """
         return self.run_container_strategy.run_client
+
+    def _resolve_deployment_type(self, container_deployment: bool) -> FunctionDeploymentType:
+        """Resolve the effective GCP deployment type for a benchmark.
+
+        Args:
+            container_deployment: Whether the experiment selected container mode.
+
+        Returns:
+            Effective deployment type after applying GCP-local package settings.
+        """
+        return FunctionDeploymentType.resolve(
+            container_deployment, self.config.deployment_config.package_deployment_type
+        )
+
+    def system_variant_suffix(self, container_deployment: bool) -> Optional[str]:
+        """Return a provider-local system variant suffix for GCP package variants.
+
+        Args:
+            container_deployment: Whether the benchmark uses container deployment.
+
+        Returns:
+            Short suffix for GCP package variants, otherwise ``None``.
+        """
+        deployment_type = self._resolve_deployment_type(container_deployment)
+        if deployment_type == FunctionDeploymentType.FUNCTION_GEN1:
+            return "gen1"
+        if deployment_type == FunctionDeploymentType.FUNCTION_GEN2:
+            return "gen2"
+        return None
+
+    def _strategy_for_deployment_type(self, deployment_type: FunctionDeploymentType):
+        """Return the deployment strategy for a resolved GCP deployment type.
+
+        Args:
+            deployment_type: Effective deployment type to dispatch.
+
+        Returns:
+            Deployment strategy object handling the requested mode.
+        """
+        if deployment_type == FunctionDeploymentType.CONTAINER:
+            return self.run_container_strategy
+        if deployment_type == FunctionDeploymentType.FUNCTION_GEN2:
+            return self.cloud_function_gen2_strategy
+        return self.cloud_function_gen1_strategy
 
     def _get_deployment_config(
         self, deployment_type: FunctionDeploymentType
@@ -1769,6 +2337,15 @@ class GCP(System):
 
         # Check if deployment config has changed
         cached_function = cast(GCPFunction, cached_function)
+        expected_deployment_type = self._resolve_deployment_type(benchmark.container_deployment)
+        if cached_function.deployment_type != expected_deployment_type:
+            self.logging.info(
+                f"Deployment type has changed for {cached_function.name}: "
+                f"cached function uses {cached_function.deployment_type.value}, "
+                f"requested deployment is {expected_deployment_type.value}."
+            )
+            changed = True
+
         current_dep_config = self._get_deployment_config(cached_function.deployment_type)
 
         if cached_function.deployment_config != current_dep_config:
@@ -1779,6 +2356,29 @@ class GCP(System):
             changed = True
 
         return changed
+
+    def can_reuse_cached_function(
+        self, cached_function: Function, benchmark: Benchmark
+    ) -> Optional[str]:
+        """Check whether a cached GCP function matches the requested deployment mode.
+
+        Args:
+            cached_function: Cached function selected from SeBS cache.
+            benchmark: Benchmark requesting the function.
+
+        Returns:
+            str: if the cached function does not fit the requested deployment type.
+        """
+        gcp_function = cast(GCPFunction, cached_function)
+        expected_deployment_type = self._resolve_deployment_type(benchmark.container_deployment)
+
+        if gcp_function.deployment_type != expected_deployment_type:
+            return (
+                f"cached deployment type {gcp_function.deployment_type.value} "
+                f"does not match requested deployment type {expected_deployment_type.value}"
+            )
+
+        return None
 
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
@@ -1807,11 +2407,16 @@ class GCP(System):
             code_package.language_version,
             code_package.architecture,
         )
-        if code_package.container_deployment:
+        deployment_type = self._resolve_deployment_type(code_package.container_deployment)
+        if deployment_type == FunctionDeploymentType.CONTAINER:
             func_name = f"{func_name}-docker"
+        elif deployment_type == FunctionDeploymentType.FUNCTION_GEN1:
+            func_name = f"{func_name}-gen1"
+        elif deployment_type == FunctionDeploymentType.FUNCTION_GEN2:
+            func_name = f"{func_name}-gen2"
         return (
             GCP.format_function_name(func_name)
-            if not code_package.container_deployment
+            if deployment_type != FunctionDeploymentType.CONTAINER
             else func_name.replace(".", "-")
         )
 
@@ -1968,21 +2573,11 @@ class GCP(System):
         if architecture == "arm64":
             raise RuntimeError("GCP does not support arm64 deployments")
 
-        # Select deployment strategy
-        strategy = (
-            self.run_container_strategy
-            if container_deployment
-            else self.cloud_function_gen1_strategy
-        )
+        deployment_type = self._resolve_deployment_type(container_deployment)
+        strategy = self._strategy_for_deployment_type(deployment_type)
 
         # Check if function/service already exists
         function_exists = strategy.function_exists(project_name, location, func_name)
-
-        deployment_type = (
-            FunctionDeploymentType.CONTAINER
-            if container_deployment
-            else FunctionDeploymentType.FUNCTION_GEN1
-        )
 
         dep_config = self._get_deployment_config(deployment_type)
         if not function_exists:
@@ -1998,7 +2593,7 @@ class GCP(System):
             strategy.wait_for_deployment(func_name)
             strategy.allow_public_access(project_name, location, func_name)
 
-            if not container_deployment:
+            if not deployment_type.is_container:
                 storage_client = self._system_resources.get_storage()
                 code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
                 function = GCPFunction(
@@ -2042,7 +2637,7 @@ class GCP(System):
 
         # Add LibraryTrigger to a new function
         # Not supported on containers
-        if not container_deployment:
+        if deployment_type == FunctionDeploymentType.FUNCTION_GEN1:
             from sebs.gcp.triggers import LibraryTrigger
 
             trigger = LibraryTrigger(func_name, self, function.deployment_type)
@@ -2077,11 +2672,7 @@ class GCP(System):
             self.logging.info(f"Function {function.name} - waiting for deployment...")
 
             # Select deployment strategy
-            strategy = (
-                self.run_container_strategy
-                if gcp_function.deployment_type.is_container
-                else self.cloud_function_gen1_strategy
-            )
+            strategy = self._strategy_for_deployment_type(gcp_function.deployment_type)
 
             # Get trigger URL from strategy
             invoke_url = strategy.create_trigger(function.name)
@@ -2143,11 +2734,7 @@ class GCP(System):
         function = cast(GCPFunction, function)
 
         # Select deployment strategy
-        strategy = (
-            self.run_container_strategy
-            if container_deployment
-            else self.cloud_function_gen1_strategy
-        )
+        strategy = self._strategy_for_deployment_type(function.deployment_type)
 
         # Generate environment variables
         envs = {
@@ -2212,11 +2799,7 @@ class GCP(System):
         function = cast(GCPFunction, function)
 
         # Select deployment strategy
-        strategy = (
-            self.run_container_strategy
-            if code_package.container_deployment
-            else self.cloud_function_gen1_strategy
-        )
+        strategy = self._strategy_for_deployment_type(function.deployment_type)
 
         # Get full resource name for env merging
         full_func_name = strategy.get_full_function_name(
@@ -2252,11 +2835,7 @@ class GCP(System):
         # Select deployment strategy based on function name
         # v1 functions don't allow hyphens, new functions don't allow underscores
         gcp_function = GCPFunction.deserialize(function)
-        strategy = (
-            self.run_container_strategy
-            if gcp_function.deployment_type.is_container
-            else self.cloud_function_gen1_strategy
-        )
+        strategy = self._strategy_for_deployment_type(gcp_function.deployment_type)
 
         strategy.delete_function(func_name)
 
@@ -2296,11 +2875,7 @@ class GCP(System):
 
         function = GCPFunction.deserialize(functions[function_name])
 
-        strategy = (
-            self.run_container_strategy
-            if function.deployment_type.is_container
-            else self.cloud_function_gen1_strategy
-        )
+        strategy = self._strategy_for_deployment_type(function.deployment_type)
         strategy.download_execution_metrics(function_name, start_time, end_time, requests)
 
         strategy.download_metrics(function_name, start_time, end_time, metrics)
@@ -2414,11 +2989,7 @@ class GCP(System):
         # Select deployment strategy based on function name
         # v1 functions don't allow hyphens, new functions don't allow underscores
         gcp_function = cast(GCPFunction, function)
-        strategy = (
-            self.run_container_strategy
-            if gcp_function.deployment_type.is_container
-            else self.cloud_function_gen1_strategy
-        )
+        strategy = self._strategy_for_deployment_type(gcp_function.deployment_type)
 
         return strategy.is_deployed(function.name, versionId)
 
