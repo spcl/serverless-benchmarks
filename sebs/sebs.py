@@ -227,17 +227,9 @@ class SeBS(LoggingBase):
                 )
             )
 
-        # Validate deployment type - container
-        if config["experiments"][
-            "container_deployment"
-        ] and not self._config.supported_container_deployment(name):
-            raise RuntimeError(f"Container deployment is not supported in {name}.")
-
-        # Validate deployment type - package
-        if not config["experiments"][
-            "container_deployment"
-        ] and not self._config.supported_package_deployment(name):
-            raise RuntimeError(f"Code package deployment is not supported in {name}.")
+        selected_variant = config["experiments"]["system_variant"]
+        if selected_variant not in self._config.supported_system_variants(name):
+            raise RuntimeError(f"System variant {selected_variant} is not supported in {name}.")
 
         # Set up logging and create deployment configuration
         handlers = self.generate_logging_handlers(logging_filename)
@@ -368,7 +360,7 @@ class SeBS(LoggingBase):
             self._output_dir,
             self.cache_client,
             self.docker_client,
-            deployment.system_variant_suffix(config.container_deployment),
+            deployment.system_variant_suffix(config.system_variant),
             self.verbose,
         )
 

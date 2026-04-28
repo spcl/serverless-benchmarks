@@ -166,27 +166,9 @@ class SeBSConfig:
         languages = self._system_config.get(deployment_name, {}).get("languages", {})
         return languages.get(language_name, {}).get("supported_variants", ["default"])
 
-    def supported_package_deployment(self, deployment_name: str) -> bool:
-        """Check if package-based deployment is supported for a platform.
-
-        Args:
-            deployment_name (str): Name of the deployment platform (e.g., 'aws', 'azure').
-
-        Returns:
-            bool: True if package deployment is supported, False otherwise.
-        """
-        return "package" in self._system_config[deployment_name]["deployments"]
-
-    def supported_container_deployment(self, deployment_name: str) -> bool:
-        """Check if container-based deployment is supported for a platform.
-
-        Args:
-            deployment_name (str): Name of the deployment platform (e.g., 'aws', 'azure').
-
-        Returns:
-            bool: True if container deployment is supported, False otherwise.
-        """
-        return "container" in self._system_config[deployment_name]["deployments"]
+    def supported_system_variants(self, deployment_name: str) -> List[str]:
+        """Return the supported deployment variants for a platform."""
+        return self._system_config[deployment_name]["deployments"]
 
     def benchmark_base_images(
         self, deployment_name: str, language_name: str, architecture: str
