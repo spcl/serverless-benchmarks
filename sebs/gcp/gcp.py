@@ -1536,12 +1536,13 @@ class RunContainerStrategy(DeploymentStrategy):
                 revision = result.resource.labels.get("revision_name")
                 for point in result.points:
                     if value_type == "distribution":
+                        sq_dev = point.value.distribution_value.sum_of_squared_deviation
                         metrics[metric].append(
                             {
                                 "kind": kind,
                                 "revision": revision,
                                 "mean_value": point.value.distribution_value.mean,
-                                "squared_deviations": point.value.distribution_value.sum_of_squared_deviation,
+                                "squared_deviations": sq_dev,
                                 "count": point.value.distribution_value.count,
                                 "ts": point.interval.end_time.timestamp(),
                             }
