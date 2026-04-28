@@ -29,6 +29,7 @@ from sebs.utils import execute
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.experiments.config import SystemVariant
 from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.system import System
@@ -321,7 +322,7 @@ class AWS(System):
         self,
         code_package: Benchmark,
         func_name: str,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> "LambdaFunction":
         """
@@ -333,8 +334,8 @@ class AWS(System):
         Args:
             code_package: Benchmark code package
             func_name: Name of the function
-            container_deployment: Whether to use container deployment
-            container_uri: URI of the container image (if container_deployment=True)
+            system_variant: Selected deployment variant
+            container_uri: URI of the container image (if container deployment is selected)
 
         Returns:
             LambdaFunction: The created or updated Lambda function
@@ -366,7 +367,7 @@ class AWS(System):
                 self.config.resources.lambda_role(self.session),
                 function_cfg,
             )
-            self.update_function(lambda_function, code_package, container_deployment, container_uri)
+            self.update_function(lambda_function, code_package, system_variant, container_uri)
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
         except self.client.exceptions.ResourceNotFoundException:
@@ -379,7 +380,7 @@ class AWS(System):
                 "Code": {},
             }
 
-            if container_deployment:
+            if system_variant.is_container:
                 create_function_params["PackageType"] = "Image"
                 create_function_params["Code"] = {"ImageUri": container_uri}
                 self.logging.info(
@@ -467,7 +468,7 @@ class AWS(System):
         self,
         function: Function,
         code_package: Benchmark,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ):
         """
@@ -480,13 +481,13 @@ class AWS(System):
         Args:
             function: The function to update
             code_package: Benchmark code package
-            container_deployment: Whether to use container deployment
-            container_uri: URI of the container image (if container_deployment=True)
+            system_variant: Selected deployment variant
+            container_uri: URI of the container image (if container deployment is selected)
         """
         name = function.name
         function = cast(LambdaFunction, function)
 
-        if container_deployment:
+        if system_variant.is_container:
             self.client.update_function_code(FunctionName=name, ImageUri=container_uri)
         else:
             code_size = code_package.code_size
@@ -612,7 +613,7 @@ class AWS(System):
             code_package.language_version,
             code_package.architecture,
         )
-        if code_package.container_deployment:
+        if code_package.system_variant.is_container:
             func_name = f"{func_name}-docker"
         return AWS.format_function_name(func_name)
 

@@ -740,7 +740,7 @@ class Cache(LoggingBase):
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
 
-            package_type = "docker" if code_package.container_deployment else "package"
+            package_type = "docker" if code_package.system_variant.is_container else "package"
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(
                 benchmark_dir,
@@ -785,7 +785,7 @@ class Cache(LoggingBase):
                 }
 
                 key = f"{language_version}-{architecture}"
-                if code_package.container_deployment:
+                if code_package.system_variant.is_container:
                     image = self.docker_client.images.get(code_package.container_uri)
                     language_config["image-uri"] = code_package.container_uri
                     language_config["image-id"] = image.id
@@ -817,7 +817,7 @@ class Cache(LoggingBase):
                         if deployment_name in cached_config:
                             # language known, platform known, extend dictionary
                             if language in cached_config[deployment_name]:
-                                if code_package.container_deployment:
+                                if code_package.system_variant.is_container:
                                     cached_config[deployment_name][language]["containers"][
                                         key
                                     ] = language_config
@@ -866,7 +866,7 @@ class Cache(LoggingBase):
             architecture = code_package.architecture
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
 
-            package_type = "docker" if code_package.container_deployment else "package"
+            package_type = "docker" if code_package.system_variant.is_container else "package"
             # Check if cache directory for this deployment exist
             cached_dir = os.path.join(
                 benchmark_dir,
@@ -893,7 +893,7 @@ class Cache(LoggingBase):
                 created a code package earlier (which creates a directory), but not a container.
             """
             key = f"{language_version}-{architecture}"
-            if code_package.container_deployment:
+            if code_package.system_variant.is_container:
                 main_key = "containers"
             else:
                 main_key = "code_package"
@@ -940,7 +940,7 @@ class Cache(LoggingBase):
                 config[deployment_name][language][main_key][key]["hash"] = code_package.hash
                 config[deployment_name][language][main_key][key]["size"] = code_package.code_size
 
-                if code_package.container_deployment:
+                if code_package.system_variant.is_container:
                     image = self.docker_client.images.get(code_package.container_uri)
                     config[deployment_name][language][main_key][key]["image-id"] = image.id
                     config[deployment_name][language][main_key][key][

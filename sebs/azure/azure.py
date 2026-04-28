@@ -54,6 +54,7 @@ from sebs.faas.function import Trigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.experiments.config import SystemVariant
 from sebs.utils import LoggingHandlers, execute
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult
 from sebs.faas.system import System
@@ -237,7 +238,7 @@ class Azure(System):
             architecture: Target architecture (currently unused)
             benchmark: Name of the benchmark
             is_cached: Whether the package is from cache
-            container_deployment: Whether to use container deployment
+            system_variant: Selected deployment variant
 
         Returns:
             Tuple of (directory_path, code_size_bytes, container_uri)
@@ -504,7 +505,7 @@ class Azure(System):
         self,
         function: Function,
         code_package: Benchmark,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> None:
         """Update existing Azure Function with new code.
@@ -517,14 +518,14 @@ class Azure(System):
         Args:
             function: Function instance to update
             code_package: New benchmark code package
-            container_deployment: Whether using container deployment
+            system_variant: Selected deployment variant
             container_uri: Container URI (unused for Azure)
 
         Raises:
             NotImplementedError: If container deployment is requested.
         """
 
-        if container_deployment:
+        if system_variant.is_container:
             raise NotImplementedError("Container deployment is not supported in Azure")
 
         assert code_package.has_input_processed
@@ -752,7 +753,7 @@ class Azure(System):
         self,
         code_package: Benchmark,
         func_name: str,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> AzureFunction:
         """Create new Azure Function.
@@ -764,7 +765,7 @@ class Azure(System):
         Args:
             code_package: Benchmark code package to deploy
             func_name: Name for the Azure Function App
-            container_deployment: Whether to use container deployment
+            system_variant: Selected deployment variant
             container_uri: Container URI (unused for Azure)
 
         Returns:
@@ -775,7 +776,7 @@ class Azure(System):
             RuntimeError: If function creation fails.
         """
 
-        if container_deployment:
+        if system_variant.is_container:
             raise NotImplementedError("Container deployment is not supported in Azure")
 
         language = code_package.language_name
@@ -852,7 +853,7 @@ class Azure(System):
         )
 
         # update existing function app
-        self.update_function(function, code_package, container_deployment, container_uri)
+        self.update_function(function, code_package, system_variant, container_uri)
 
         self.cache_client.add_function(
             deployment_name=self.name(),
