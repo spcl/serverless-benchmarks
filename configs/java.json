@@ -5,10 +5,10 @@
     "update_storage": false,
     "download_results": false,
     "architecture": "x64",
-    "container_deployment": false,
+    "system_variant": "package",
     "runtime": {
-        "language": "java",
-        "version": "11"
+      "language": "java",
+      "version": "11"
     },
     "type": "invocation-overhead",
     "perf-cost": {
@@ -60,7 +60,6 @@
       "project_name": "",
       "credentials": "",
       "configuration": {
-        "package-deployment-type": "function-gen1",
         "function-gen1": {
           "min-instances": 0,
           "max-instances": 20

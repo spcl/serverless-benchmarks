@@ -5,7 +5,7 @@
     "update_storage": false,
     "download_results": false,
     "architecture": "x64",
-    "container_deployment": true,
+    "system_variant": "package",
     "runtime": {
       "language": "nodejs",
       "version": "20"
@@ -68,7 +68,6 @@
       "project_name": "",
       "credentials": "",
       "configuration": {
-        "package-deployment-type": "function-gen1",
         "function-gen1": {
           "min-instances": 0,
           "max-instances": 20
