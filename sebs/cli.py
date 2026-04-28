@@ -124,11 +124,6 @@ def common_params(func):
         help="Target architecture",
     )
     @click.option(
-        "--container-deployment/--no-container-deployment",
-        default=None,
-        help="Override whether functions should be deployed as container images.",
-    )
-    @click.option(
         "--system-variant",
         default=None,
         type=str,
@@ -163,7 +158,6 @@ def parse_common_params(
     language_version,
     language_variant,
     architecture,
-    container_deployment,
     system_variant,
     resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
@@ -193,19 +187,7 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
     update_nested_dict(config_obj, ["experiments", "architecture"], architecture)
-    update_nested_dict(config_obj, ["experiments", "container_deployment"], container_deployment)
-
-    selected_deployment = config_obj.get("deployment", {}).get("name")
-    if selected_deployment == "gcp":
-        update_nested_dict(
-            config_obj,
-            ["deployment", "gcp", "configuration", "package-deployment-type"],
-            system_variant,
-        )
-    else:
-        raise RuntimeError(
-            f"Unsupported deployment {selected_deployment} for system variant configuration."
-        )
+    update_nested_dict(config_obj, ["experiments", "system_variant"], system_variant)
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)
@@ -714,7 +696,7 @@ def start(
         update_storage=False,
         deployment="local",
         storage_configuration=storage_configuration,
-        container_deployment=False,
+        system_variant="package",
         architecture=architecture,
         **kwargs,
     )
