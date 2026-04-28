@@ -189,6 +189,12 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "architecture"], architecture)
     update_nested_dict(config_obj, ["experiments", "system_variant"], system_variant)
 
+    selected_deployment = config_obj.get("deployment", {}).get("name")
+    if selected_deployment and "system_variant" not in config_obj.get("experiments", {}):
+        config_obj["experiments"]["system_variant"] = sebs_client.config.default_system_variant(
+            selected_deployment
+        )
+
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)
 

@@ -170,6 +170,22 @@ class SeBSConfig:
         """Return the supported deployment variants for a platform."""
         return self._system_config[deployment_name]["deployments"]
 
+    def default_system_variant(self, deployment_name: str) -> str:
+        """Return the default deployment variant for a platform.
+
+        The default is the first declared variant in ``systems.json``.
+
+        Args:
+            deployment_name: Name of the deployment platform.
+
+        Returns:
+            Default deployment variant for the platform.
+        """
+        variants = self.supported_system_variants(deployment_name)
+        if not variants:
+            raise RuntimeError(f"Deployment {deployment_name} has no configured system variants.")
+        return variants[0]
+
     def benchmark_base_images(
         self, deployment_name: str, language_name: str, architecture: str
     ) -> Dict[str, str]:

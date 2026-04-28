@@ -227,6 +227,9 @@ class SeBS(LoggingBase):
                 )
             )
 
+        if "system_variant" not in config["experiments"]:
+            config["experiments"]["system_variant"] = self._config.default_system_variant(name)
+
         selected_variant = config["experiments"]["system_variant"]
         if selected_variant not in self._config.supported_system_variants(name):
             raise RuntimeError(f"System variant {selected_variant} is not supported in {name}.")
