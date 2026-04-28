@@ -48,6 +48,15 @@ class FunctionDeploymentType(str, Enum):
         return self == FunctionDeploymentType.CONTAINER
 
     @staticmethod
+    def resolve(
+        container_deployment: bool, package_deployment_type: str
+    ) -> "FunctionDeploymentType":
+        """Resolve the effective GCP deployment type from experiment and GCP-local config."""
+        if container_deployment:
+            return FunctionDeploymentType.CONTAINER
+        return FunctionDeploymentType.deserialize(package_deployment_type)
+
+    @staticmethod
     def deserialize(val: str) -> FunctionDeploymentType:
         """Deserialize a string value to a FunctionDeploymentEngine enum.
 

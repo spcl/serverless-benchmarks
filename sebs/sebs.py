@@ -368,6 +368,7 @@ class SeBS(LoggingBase):
             self._output_dir,
             self.cache_client,
             self.docker_client,
+            deployment.system_variant_suffix(config.container_deployment),
             self.verbose,
         )
 
