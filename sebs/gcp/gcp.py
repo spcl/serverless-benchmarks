@@ -1480,8 +1480,6 @@ class RunContainerStrategy(DeploymentStrategy):
         and network traffic.
         https://cloud.google.com/monitoring/api/metrics_gcp#gcp-cloudfunctions
         """
-        # Set expected metrics here
-        available_metrics = ["execution_times", "user_memory_bytes", "network_egress"]
         # (metric_path, kind) — kind is "distribution" or "int64"
         available_metrics = [
             ("container/billable_instance_time", "delta", "double"),  # seconds
@@ -1548,6 +1546,7 @@ class RunContainerStrategy(DeploymentStrategy):
                             }
                         )
                     else:
+                        value: int | float
                         if value_type == "int64":
                             value = point.value.int64_value
                         else:
