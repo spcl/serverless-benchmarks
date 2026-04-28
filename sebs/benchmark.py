@@ -477,9 +477,12 @@ class Benchmark(LoggingBase):
         Add language variant to the cache key so that different variants of
         the same language don't conflict in cache.
         """
-        if self._language_variant == "default":
-            return self._language.value
-        return f"{self._language.value}_{self._language_variant}"
+        base_key = self._language.value
+        if self._language_variant != "default":
+            base_key = f"{base_key}_{self._language_variant}"
+        if self._system_variant_suffix:
+            return f"{base_key}_{self._system_variant_suffix}"
+        return base_key
 
     @property
     def language_version(self) -> str:
@@ -579,6 +582,7 @@ class Benchmark(LoggingBase):
         output_dir: str,
         cache_client: Cache,
         docker_client: docker.client.DockerClient,
+        system_variant_suffix: Optional[str] = None,
         verbose: bool = False,
     ):
         """
@@ -596,6 +600,7 @@ class Benchmark(LoggingBase):
             output_dir: Directory for output files
             cache_client: Cache client for caching code packages
             docker_client: Docker client for building dependencies
+            system_variant_suffix: Optional provider-local system variant suffix
             verbose: Print verbose build logs.
 
         Raises:
@@ -611,6 +616,7 @@ class Benchmark(LoggingBase):
         self._language_variant = config.runtime.variant.value
         self._architecture = self._experiment_config.architecture
         self._container_deployment = config.container_deployment
+        self._system_variant_suffix = system_variant_suffix
         self._verbose = verbose
 
         benchmark_path = find_benchmark(self.benchmark, "benchmarks")
@@ -639,7 +645,15 @@ class Benchmark(LoggingBase):
             self._language_variant,
             self._language_version,
             self._architecture,
-            "container" if self._container_deployment else "package",
+            (
+                "container"
+                if self._container_deployment
+                else (
+                    f"package_{self._system_variant_suffix}"
+                    if self._system_variant_suffix
+                    else "package"
+                )
+            ),
         )
         self._container_uri: Optional[str] = None
 
