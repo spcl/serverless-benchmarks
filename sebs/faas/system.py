@@ -154,6 +154,10 @@ class System(ABC, LoggingBase):
         """
         return None
 
+    def system_variant_suffix(self, container_deployment: bool) -> Optional[str]:
+        """Return an optional provider-local system variant suffix."""
+        return None
+
     @property
     def system_resources(self) -> SystemResources:
         """
@@ -489,6 +493,14 @@ class System(ABC, LoggingBase):
                 )
                 self.logging.error(e)
                 is_function_cached = False
+            else:
+                err_msg = self.can_reuse_cached_function(function, code_package)
+                if err_msg is not None:
+                    self.logging.info(
+                        f"Cached function {func_name} is not compatible with the current "
+                        f"deployment configuration and will be replaced. Reason: {err_msg}"
+                    )
+                    is_function_cached = False
 
         # Create new function if not cached or deserialize failed
         if not is_function_cached:
@@ -613,6 +625,20 @@ class System(ABC, LoggingBase):
                 setattr(cached_function.config.runtime, lang_attr[1], new_val)
 
         return changed
+
+    def can_reuse_cached_function(
+        self, cached_function: Function, benchmark: Benchmark
+    ) -> Optional[str]:
+        """Check whether a cached function can be reused as-is.
+
+        Args:
+            cached_function: Cached function selected from SeBS cache.
+            benchmark: Benchmark requesting the function.
+
+        Returns:
+            string explaining why the function cannot be reused, or None if it can be reused.
+        """
+        return None
 
     @abstractmethod
     def default_function_name(
