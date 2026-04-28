@@ -1,6 +1,6 @@
 {
   "timeout": 60,
-  "memory": 512,
+  "memory": 768,
   "languages": ["python", "cpp"],
   "modules": ["storage"],
   "cpp_dependencies": ["sdk", "torch", "opencv"]
