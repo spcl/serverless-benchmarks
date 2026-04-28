@@ -203,7 +203,9 @@ def parse_common_params(
             system_variant,
         )
     else:
-        raise RuntimeError(f"Unsupported deployment {selected_deployment} for system variant configuration.")
+        raise RuntimeError(
+            f"Unsupported deployment {selected_deployment} for system variant configuration."
+        )
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)
