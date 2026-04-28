@@ -74,7 +74,7 @@ deployments_aws = ["package", "container"]
 
 # GCP-specific configurations
 architectures_gcp = ["x64"]
-deployments_gcp = ["package", "container"]
+deployments_gcp = ["function-gen1", "function-gen2", "container"]
 
 # Azure-specific configurations
 architectures_azure = ["x64"]
@@ -90,6 +90,30 @@ cloud_config: Optional[dict] = None
 RESOURCE_PREFIX = "regr"
 LOGGING_REDACTED = False
 LOGGING_REDACTOR: SensitiveDataFilter = SensitiveDataFilter()
+
+
+def configure_regression_deployment(
+    config_copy: dict, deployment_name: str, deployment_type: str
+) -> str:
+    """Inject provider-local deployment configuration for a regression variant."""
+    config_copy["experiments"]["system_variant"] = deployment_type
+    return deployment_type
+
+
+def execution_group_key(test: unittest.TestCase) -> tuple[str, str]:
+    """Return the execution group for a test case.
+
+    GCP variants are split into separate groups so they do not execute at the same
+    time. All other providers share a single provider-wide group and may still run
+    concurrently with each other.
+    """
+    deployment_name = test.deployment_name  # type: ignore[attr-defined]
+    test_name = cast(unittest.TestCase, test)._testMethodName
+    deployment_type = getattr(test, test_name).test_deployment_type  # type: ignore[attr-defined]
+
+    if deployment_name == "gcp":
+        return deployment_name, deployment_type
+    return deployment_name, "all"
 
 
 class TestSequenceMeta(type):
@@ -196,7 +220,7 @@ class TestSequenceMeta(type):
 
                 # Configure experiment settings
                 self.experiment_config["architecture"] = architecture
-                self.experiment_config["container_deployment"] = deployment_type == "container"
+                self.experiment_config["system_variant"] = deployment_type
 
                 # Get deployment client for the specific cloud provider
                 deployment_client = self.get_deployment(
@@ -352,7 +376,7 @@ class AWSTestSequencePython(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
 
         # Create a log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
@@ -415,7 +439,7 @@ class AWSTestSequenceNodejs(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
 
         # Create a log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
@@ -470,7 +494,7 @@ class AWSTestSequenceCpp(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
 
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
@@ -530,7 +554,7 @@ class AWSTestSequenceJava(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
 
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
         deployment_client = self.client.get_deployment(
@@ -616,7 +640,7 @@ class AzureTestSequencePython(
             # Create a copy of the config and set architecture and deployment type
             config_copy = copy.deepcopy(cloud_config)
             config_copy["experiments"]["architecture"] = architecture
-            config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+            config_copy["experiments"]["system_variant"] = deployment_type
 
             # Create log file name and get deployment client
             f = f"regression_{deployment_name}_{benchmark_name}_"
@@ -702,7 +726,7 @@ class AzureTestSequenceNodejs(
             # Create a copy of the config and set architecture and deployment type
             config_copy = copy.deepcopy(cloud_config)
             config_copy["experiments"]["architecture"] = architecture
-            config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+            config_copy["experiments"]["system_variant"] = deployment_type
 
             # Create log file name and get deployment client
             f = f"regression_{deployment_name}_{benchmark_name}_"
@@ -781,7 +805,7 @@ class AzureTestSequenceJava(
             # Create a copy of the config and set architecture and deployment type
             config_copy = copy.deepcopy(cloud_config)
             config_copy["experiments"]["architecture"] = architecture
-            config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+            config_copy["experiments"]["system_variant"] = deployment_type
 
             # Create log file name and get deployment client
             f = f"regression_{deployment_name}_{benchmark_name}_"
@@ -844,7 +868,7 @@ class GCPTestSequencePython(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
 
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
@@ -907,7 +931,7 @@ class GCPTestSequenceNodejs(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
 
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
@@ -970,7 +994,7 @@ class GCPTestSequenceJava(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
 
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
@@ -1037,7 +1061,7 @@ class OpenWhiskTestSequencePython(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        config_copy["experiments"]["system_variant"] = deployment_type
 
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
@@ -1095,7 +1119,7 @@ class OpenWhiskTestSequenceNodejs(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        config_copy["experiments"]["system_variant"] = deployment_type
 
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
@@ -1149,7 +1173,7 @@ class OpenWhiskTestSequenceJava(
         # Create a copy of the config and set architecture and deployment type
         config_copy = copy.deepcopy(cloud_config)
         config_copy["experiments"]["architecture"] = architecture
-        config_copy["experiments"]["container_deployment"] = deployment_type == "container"
+        config_copy["experiments"]["system_variant"] = deployment_type
 
         # Create log file name based on test parameters
         f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
@@ -1280,7 +1304,7 @@ def filter_out_benchmarks(
     # Filter out image recognition on newer Python versions on GCP
     if (deployment_name == "gcp" and language == "python"
             and language_version in ["3.8", "3.9", "3.10", "3.11", "3.12"]
-            and deployment_type == "package"):
+            and deployment_type.startswith("package")):
         return "411.image-recognition" not in benchmark
     # fmt: on
 
@@ -1425,13 +1449,31 @@ def regression_suite(
             else:
                 print(f"Skip test {test_name}")
 
-    # Create a concurrent test suite for parallel execution
-    concurrent_suite = testtools.ConcurrentStreamTestSuite(lambda: ((test, None) for test in tests))
     result = TracingStreamResult()
 
     # Run the tests
     result.startTestRun()
-    concurrent_suite.run(result)
+    gcp_grouped_tests: Dict[tuple[str, str], list] = {}
+    other_tests = []
+    for test in tests:
+        group_key = execution_group_key(test)
+        if group_key[0] == "gcp":
+            gcp_grouped_tests.setdefault(group_key, []).append(test)
+        else:
+            other_tests.append(test)
+
+    if other_tests:
+        concurrent_suite = testtools.ConcurrentStreamTestSuite(
+            lambda: ((test, None) for test in other_tests)
+        )
+        concurrent_suite.run(result)
+
+    for (_, deployment_type), group_tests in sorted(gcp_grouped_tests.items()):
+        print(f"Running regression group provider=gcp, system_variant={deployment_type}, tests={len(group_tests)}")
+        concurrent_suite = testtools.ConcurrentStreamTestSuite(
+            lambda group_tests=group_tests: ((test, None) for test in group_tests)
+        )
+        concurrent_suite.run(result)
     result.stopTestRun()
 
     # Report results
