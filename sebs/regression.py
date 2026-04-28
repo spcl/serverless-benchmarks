@@ -74,7 +74,7 @@ deployments_aws = ["package", "container"]
 
 # GCP-specific configurations
 architectures_gcp = ["x64"]
-deployments_gcp = ["package"]
+deployments_gcp = ["package", "container"]
 
 # Azure-specific configurations
 architectures_azure = ["x64"]
@@ -1279,7 +1279,8 @@ def filter_out_benchmarks(
 
     # Filter out image recognition on newer Python versions on GCP
     if (deployment_name == "gcp" and language == "python"
-            and language_version in ["3.8", "3.9", "3.10", "3.11", "3.12"]):
+            and language_version in ["3.8", "3.9", "3.10", "3.11", "3.12"]
+            and deployment_type == "package"):
         return "411.image-recognition" not in benchmark
     # fmt: on
 
