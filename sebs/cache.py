@@ -29,6 +29,7 @@ import json
 import os
 import shutil
 import threading
+import tempfile
 from typing import Any, Callable, Dict, List, Mapping, Optional, TYPE_CHECKING  # noqa
 
 from sebs.utils import LoggingBase, serialize
@@ -113,6 +114,9 @@ class Cache(LoggingBase):
         docker_client (docker.DockerClient): Docker client for container operations.
     """
 
+    _lock_registry_guard = threading.Lock()
+    _lock_registry: Dict[str, threading.RLock] = {}
+
     def __init__(self, cache_dir: str, docker_client: docker.DockerClient) -> None:
         """Initialize the Cache with directory and Docker client.
 
@@ -131,7 +135,7 @@ class Cache(LoggingBase):
         self.cache_dir = os.path.abspath(cache_dir)
         self.ignore_functions: bool = False
         self.ignore_storage: bool = False
-        self._lock = threading.RLock()
+        self._lock = self._cache_dir_lock(self.cache_dir)
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir, exist_ok=True)
         else:
@@ -145,6 +149,48 @@ class Cache(LoggingBase):
             str: The cache type name.
         """
         return "Cache"
+
+    @classmethod
+    def _cache_dir_lock(cls, cache_dir: str) -> threading.RLock:
+        """Return a shared lock for all Cache instances pointing at one cache dir."""
+        with cls._lock_registry_guard:
+            if cache_dir not in cls._lock_registry:
+                cls._lock_registry[cache_dir] = threading.RLock()
+            return cls._lock_registry[cache_dir]
+
+    @staticmethod
+    def _write_json_atomic(path: str, data: Any) -> None:
+        """Atomically replace a JSON file after fully writing it to a temp file."""
+        directory = os.path.dirname(path)
+        os.makedirs(directory, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=".tmp-", suffix=".json")
+        try:
+            with os.fdopen(fd, "w") as fp:
+                json.dump(data, fp, indent=2)
+                fp.flush()
+                os.fsync(fp.fileno())
+            os.replace(tmp_path, path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
+
+    @staticmethod
+    def _write_serialized_atomic(path: str, data: Dict[str, Any]) -> None:
+        """Atomically replace a JSON file using the SeBS serializer."""
+        directory = os.path.dirname(path)
+        os.makedirs(directory, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=".tmp-", suffix=".json")
+        try:
+            with os.fdopen(fd, "w") as fp:
+                fp.write(serialize(data))
+                fp.flush()
+                os.fsync(fp.fileno())
+            os.replace(tmp_path, path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
     def load_config(self) -> None:
         """Load cached cloud configurations from disk.
@@ -200,12 +246,12 @@ class Cache(LoggingBase):
         JSON files in the cache directory.
         """
         if self.config_updated:
-            for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
-                if cloud in self.cached_config:
-                    cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
-                    self.logging.info("Update cached config {}".format(cloud_config_file))
-                    with open(cloud_config_file, "w") as out:
-                        json.dump(self.cached_config[cloud], out, indent=2)
+            with self._lock:
+                for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
+                    if cloud in self.cached_config:
+                        cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
+                        self.logging.info("Update cached config {}".format(cloud_config_file))
+                        self._write_json_atomic(cloud_config_file, self.cached_config[cloud])
 
     def get_benchmark_config(self, deployment: str, benchmark: str) -> Optional[Dict[str, Any]]:
         """Access cached configuration of a benchmark.
@@ -217,13 +263,14 @@ class Cache(LoggingBase):
         Returns:
             Optional[Dict[str, Any]]: Benchmark configuration or None if not found.
         """
-        benchmark_dir = os.path.join(self.cache_dir, benchmark)
-        if os.path.exists(benchmark_dir):
-            config_file = os.path.join(benchmark_dir, "config.json")
-            if os.path.exists(config_file):
-                with open(config_file, "r") as fp:
-                    cfg = json.load(fp)
-                    return cfg[deployment] if deployment in cfg else None
+        with self._lock:
+            benchmark_dir = os.path.join(self.cache_dir, benchmark)
+            if os.path.exists(benchmark_dir):
+                config_file = os.path.join(benchmark_dir, "config.json")
+                if os.path.exists(config_file):
+                    with open(config_file, "r") as fp:
+                        cfg = json.load(fp)
+                        return cfg[deployment] if deployment in cfg else None
         return None
 
     def get_code_package(
@@ -322,8 +369,7 @@ class Cache(LoggingBase):
                         modified = True
 
                 if modified:
-                    with open(config_path, "w") as fp:
-                        json.dump(config, fp, indent=2)
+                    self._write_json_atomic(config_path, config)
 
     def update_container_uri(
         self,
@@ -358,8 +404,7 @@ class Cache(LoggingBase):
             key = f"{language_version}-{architecture}"
             config[deployment][language]["containers"][key]["image-uri"] = uri
 
-            with open(config_path, "w") as fp:
-                json.dump(config, fp, indent=2)
+            self._write_json_atomic(config_path, config)
 
     def get_functions(
         self, deployment: str, benchmark: str, language: str
@@ -398,25 +443,26 @@ class Cache(LoggingBase):
         if not os.path.exists(self.cache_dir) or self.ignore_functions:
             return result
 
-        for entry in os.listdir(self.cache_dir):
-            config_path = os.path.join(self.cache_dir, entry, "config.json")
-            if not os.path.exists(config_path):
-                continue
-
-            with open(config_path, "r") as fp:
-                config = json.load(fp)
-
-            dep_cfg = config.get(deployment)
-            if dep_cfg is None:
-                continue
-
-            for lang_cfg in dep_cfg.values():
-                if lang_cfg is None:
+        with self._lock:
+            for entry in os.listdir(self.cache_dir):
+                config_path = os.path.join(self.cache_dir, entry, "config.json")
+                if not os.path.exists(config_path):
                     continue
 
-                functions = lang_cfg.get("functions")
-                if functions is not None:
-                    result.update(functions)
+                with open(config_path, "r") as fp:
+                    config = json.load(fp)
+
+                dep_cfg = config.get(deployment)
+                if dep_cfg is None:
+                    continue
+
+                for lang_cfg in dep_cfg.values():
+                    if lang_cfg is None:
+                        continue
+
+                    functions = lang_cfg.get("functions")
+                    if functions is not None:
+                        result.update(functions)
 
         return result
 
@@ -461,21 +507,22 @@ class Cache(LoggingBase):
         if not os.path.exists(self.cache_dir):
             return result
 
-        for entry in os.listdir(self.cache_dir):
-            config_path = os.path.join(self.cache_dir, entry, "config.json")
-            if not os.path.exists(config_path):
-                continue
+        with self._lock:
+            for entry in os.listdir(self.cache_dir):
+                config_path = os.path.join(self.cache_dir, entry, "config.json")
+                if not os.path.exists(config_path):
+                    continue
 
-            with open(config_path, "r") as fp:
-                config = json.load(fp)
+                with open(config_path, "r") as fp:
+                    config = json.load(fp)
 
-            dep_cfg = config.get(deployment)
-            if dep_cfg is None:
-                continue
+                dep_cfg = config.get(deployment)
+                if dep_cfg is None:
+                    continue
 
-            nosql = dep_cfg.get("nosql")
-            if nosql is not None:
-                result.update(nosql)
+                nosql = dep_cfg.get("nosql")
+                if nosql is not None:
+                    result.update(nosql)
 
         return result
 
@@ -549,8 +596,7 @@ class Cache(LoggingBase):
             self.logging.info(f"Deleting function {function_name} from cache")
             del lang_cfg["functions"][function_name]
 
-            with open(config_path, "w") as fp:
-                json.dump(config, fp, indent=2)
+            self._write_json_atomic(config_path, config)
 
     def remove_storage(self, deployment: str):
         """Remove storage config entries across all benchmarks for a deployment.
@@ -589,8 +635,7 @@ class Cache(LoggingBase):
 
                 if deployment in config and resource in config[deployment]:
                     del config[deployment][resource]
-                    with open(config_path, "w") as fp:
-                        json.dump(config, fp, indent=2)
+                    self._write_json_atomic(config_path, config)
 
     def get_config_key(self, keys: List[str]) -> Optional[Any]:
         """Return the value at a nested key path in the cached configuration.
@@ -666,8 +711,7 @@ class Cache(LoggingBase):
             else:
                 cached_config[deployment] = {resource: config}
 
-            with open(config_file, "w") as fp:
-                json.dump(cached_config, fp, indent=2)
+            self._write_json_atomic(config_file, cached_config)
 
     def add_code_package(
         self,
@@ -791,8 +835,7 @@ class Cache(LoggingBase):
                             # language unknown, platform unknown - add new dictionary
                             cached_config[deployment_name] = config[deployment_name]
                         config = cached_config
-                with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
-                    json.dump(config, fp, indent=2)
+                self._write_json_atomic(os.path.join(benchmark_dir, "config.json"), config)
 
             else:
                 # TODO: update
@@ -904,8 +947,7 @@ class Cache(LoggingBase):
                         "image-uri"
                     ] = code_package.container_uri
 
-                with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
-                    json.dump(config, fp, indent=2)
+                self._write_json_atomic(os.path.join(benchmark_dir, "config.json"), config)
             else:
                 self.add_code_package(deployment_name, code_package)
 
@@ -949,8 +991,7 @@ class Cache(LoggingBase):
                             functions_config
                         )
                     config = cached_config
-                with open(cache_config, "w") as fp:
-                    fp.write(serialize(config))
+                self._write_serialized_atomic(cache_config, config)
             else:
                 raise RuntimeError(
                     "Can't cache function {} for a non-existing code package!".format(function.name)
@@ -986,8 +1027,7 @@ class Cache(LoggingBase):
                                     cached_config[deployment][language]["functions"][
                                         name
                                     ] = function.serialize()
-                with open(cache_config, "w") as fp:
-                    fp.write(serialize(cached_config))
+                self._write_serialized_atomic(cache_config, cached_config)
             else:
                 raise RuntimeError(
                     "Can't cache function {} for a non-existing code package!".format(function.name)
