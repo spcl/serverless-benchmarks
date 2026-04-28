@@ -185,8 +185,7 @@
       "arm64"
     ],
     "deployments": [
-      "function-gen1",
-      "function-gen2",
+      "package",
       "container"
     ]
   },
@@ -370,7 +369,8 @@
       "arm64"
     ],
     "deployments": [
-      "package",
+      "function-gen1",
+      "function-gen2",
       "container"
     ]
   },

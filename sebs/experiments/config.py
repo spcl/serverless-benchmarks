@@ -12,6 +12,7 @@ handling settings such as:
 The Config class handles serialization and deserialization of experiment
 configurations, allowing them to be loaded from and saved to configuration files.
 """
+from __future__ import annotations
 
 from typing import Dict
 
@@ -48,10 +49,8 @@ class SystemVariant:
         return self._value
 
     @staticmethod
-    def deserialize(value: str | "SystemVariant") -> "SystemVariant":
-        """Deserialize a deployment variant from a string or passthrough object."""
-        if isinstance(value, SystemVariant):
-            return value
+    def deserialize(value: str) -> SystemVariant:
+        """Deserialize a deployment variant from a string."""
         return SystemVariant(value)
 
     def __eq__(self, other: object) -> bool:
