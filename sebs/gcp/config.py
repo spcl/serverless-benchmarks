@@ -237,14 +237,14 @@ class GCPFunctionGen2Config:
 
     def __init__(
         self,
-        vcpus: int = 1,
-        gcp_concurrency: int = 80,
-        worker_concurrency: int = 80,
-        worker_threads: int = 8,
-        min_instances: int = 0,
-        max_instances: int = 20,
-        cpu_boost: bool = False,
-        cpu_throttle: bool = True,
+        vcpus: int,
+        gcp_concurrency: int,
+        worker_concurrency: int,
+        worker_threads: int,
+        min_instances: int,
+        max_instances: int,
+        cpu_boost: bool,
+        cpu_throttle: bool,
     ):
         """Initialize Gen2 runtime and scaling settings.
 
@@ -333,15 +333,15 @@ class GCPContainerConfig(GCPFunctionGen2Config):
 
     def __init__(
         self,
-        environment: str = "gen1",
-        vcpus: int = 1,
-        gcp_concurrency: int = 80,
-        worker_concurrency: int = 80,
-        worker_threads: int = 8,
-        min_instances: int = 0,
-        max_instances: int = 20,
-        cpu_boost: bool = False,
-        cpu_throttle: bool = True,
+        environment: str,
+        vcpus: int,
+        gcp_concurrency: int,
+        worker_concurrency: int,
+        worker_threads: int,
+        min_instances: int,
+        max_instances: int,
+        cpu_boost: bool,
+        cpu_throttle: bool,
     ):
         """Initialize Cloud Run container settings.
 
@@ -434,9 +434,9 @@ class GCPConfiguration:
 
     def __init__(self) -> None:
         """Initialize default GCP deployment configuration."""
-        self._function_gen1_config = GCPFunctionGen1Config()
-        self._function_gen2_config = GCPFunctionGen2Config()
-        self._container_config = GCPContainerConfig()
+        self._function_gen1_config: GCPFunctionGen1Config
+        self._function_gen2_config: GCPFunctionGen2Config
+        self._container_config: GCPContainerConfig
 
     @staticmethod
     def initialize(config: GCPConfiguration, dct: Dict) -> GCPConfiguration:
