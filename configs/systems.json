@@ -365,8 +365,7 @@
       }
     },
     "architecture": [
-      "x64",
-      "arm64"
+      "x64"
     ],
     "deployments": [
       "function-gen1",
