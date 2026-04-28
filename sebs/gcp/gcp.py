@@ -1834,7 +1834,9 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
             self.function_client.projects()
             .locations()
             .functions()
-            .create(parent=parent, functionId=func_name, body=function_body)
+            .create(
+                parent=parent, functionId=func_name, body=function_body  # type: ignore[arg-type]
+            )
         )
         self._operation_response = self._execute_with_retry(self.logging, create_req)
         self.logging.info(f"Function {func_name} is creating through Cloud Functions Gen2")
@@ -1868,7 +1870,7 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
             .functions()
             .patch(
                 name=full_func_name,
-                body=function_body,
+                body=function_body,  # type: ignore[arg-type]
                 updateMask="buildConfig.runtime,buildConfig.entryPoint,"
                 "buildConfig.source.storageSource,serviceConfig",
             )
@@ -1896,7 +1898,7 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
             .functions()
             .patch(
                 name=full_func_name,
-                body=body,
+                body=body,  # type: ignore[arg-type]
                 updateMask="serviceConfig",
             )
         )
