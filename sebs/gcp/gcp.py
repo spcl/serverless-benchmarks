@@ -320,6 +320,19 @@ class DeploymentStrategy(Protocol):
         """
         ...
 
+    def download_metrics(
+        self, function_name: str, start_time: int, end_time: int, metrics: Dict
+    ) -> None:
+        """Populate metrics with data from cloud monitoring.
+
+        Args:
+            function_name: Function or service name.
+            start_time: Start timestamp for metric collection.
+            end_time: End timestamp for metric collection.
+            metrics: Dictionary mapping metric names to found values.
+        """
+        ...
+
 
 class CloudFunctionGen1Strategy(DeploymentStrategy):
     """Deployment strategy for Google Cloud Functions Gen1."""
@@ -743,6 +756,53 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
             f"GCP Gen1: Received {entries} entries, found time metrics for "
             f"{invocations_processed} out of {len(requests.keys())} invocations."
         )
+
+    def download_metrics(
+        self, function_name: str, start_time: int, end_time: int, metrics: Dict
+    ) -> None:
+        """
+        Download monitoring metrics for Cloud Functions Gen1.
+        Use metrics to find estimated values for maximum memory used, active instances
+        and network traffic.
+        https://cloud.google.com/monitoring/api/metrics_gcp#gcp-cloudfunctions
+        """
+
+        # Set expected metrics here
+        available_metrics = ["execution_times", "user_memory_bytes", "network_egress"]
+
+        client = monitoring_v3.MetricServiceClient()
+        project_name = client.common_project_path(self.config.project_name)
+
+        end_time_nanos, end_time_seconds = math.modf(end_time)
+        start_time_nanos, start_time_seconds = math.modf(start_time)
+
+        interval = monitoring_v3.TimeInterval(
+            {
+                "end_time": {"seconds": int(end_time_seconds) + 60},
+                "start_time": {"seconds": int(start_time_seconds)},
+            }
+        )
+
+        for metric in available_metrics:
+
+            metrics[metric] = []
+
+            list_request = monitoring_v3.ListTimeSeriesRequest(
+                name=project_name,
+                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric),
+                interval=interval,
+            )
+
+            results = client.list_time_series(list_request)
+            for result in results:
+                if result.resource.labels.get("function_name") == function_name:
+                    for point in result.points:
+                        metrics[metric] += [
+                            {
+                                "mean_value": point.value.distribution_value.mean,
+                                "executions_count": point.value.distribution_value.count,
+                            }
+                        ]
 
     @staticmethod
     def _extract_trace_id(entry) -> Optional[str]:
@@ -1410,6 +1470,95 @@ class RunContainerStrategy(DeploymentStrategy):
             f"GCP Cloud Run: Received {total_entries} log entries, found time metrics for "
             f"{found_metrics} out of {len(requests.keys())} invocations."
         )
+
+    def download_metrics(
+        self, function_name: str, start_time: int, end_time: int, metrics: Dict
+    ) -> None:
+        """
+        Download monitoring metrics for Cloud Functions Gen1.
+        Use metrics to find estimated values for maximum memory used, active instances
+        and network traffic.
+        https://cloud.google.com/monitoring/api/metrics_gcp#gcp-cloudfunctions
+        """
+        # Set expected metrics here
+        available_metrics = ["execution_times", "user_memory_bytes", "network_egress"]
+        # (metric_path, kind) — kind is "distribution" or "int64"
+        available_metrics = [
+            ("container/billable_instance_time", "delta", "double"),  # seconds
+            ("container/instance_count", "gauge", "int64"),
+            ("container/max_request_concurrencies", "delta", "distribution"),
+            ("container/memory/utilizations", "delta", "distribution"),  # fraction
+            ("container/cpu/utilizations", "delta", "distribution"),  # fraction
+            ("container/cpu/allocation_time", "delta", "double"),  # seconds
+            ("container/memory/allocation_time", "delta", "double"),  # gigabyte-seconds
+            ("container/network/sent_bytes_count", "delta", "int64"),  # bytes (delta)
+            ("container/network/received_bytes_count", "delta", "int64"),  # bytes (delta)
+            ("container/startup_latencies", "delta", "distribution"),  # ms, cold start
+            ("request_count", "delta", "int64"),
+            ("request_latencies", "distribution", "distribution"),  # ms
+            ("request_latency/e2e_latencies", "delta", "distribution"),  # ms
+            ("request_latency/ingress_to_region", "delta", "distribution"),  # ms
+            ("request_latency/pending", "delta", "distribution"),  # ms
+            ("request_latency/response_egress", "delta", "distribution"),  # ms
+            ("request_latency/routing", "delta", "distribution"),  # ms
+            ("request_latency/user_execution", "delta", "distribution"),  # ms
+        ]
+
+        client = monitoring_v3.MetricServiceClient()
+        project_name = client.common_project_path(self.config.project_name)
+
+        _, end_time_seconds = math.modf(end_time)
+        _, start_time_seconds = math.modf(start_time)
+        interval = monitoring_v3.TimeInterval(
+            {
+                # some metrics are reported with a delay
+                "end_time": {"seconds": int(end_time_seconds) + 300},
+                "start_time": {"seconds": int(start_time_seconds)},
+            }
+        )
+
+        for metric, kind, value_type in available_metrics:
+            metrics[metric] = []
+            # Filter on resource.type AND service_name server-side — much faster than
+            # pulling every revision in the project and filtering client-side.
+            flt = (
+                f'metric.type = "run.googleapis.com/{metric}" '
+                f'AND resource.type = "cloud_run_revision" '
+                f'AND resource.labels.service_name = "{function_name}"'
+            )
+            list_request = monitoring_v3.ListTimeSeriesRequest(
+                name=project_name,
+                filter=flt,
+                interval=interval,
+                view=monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
+            )
+            for result in client.list_time_series(list_request):
+                revision = result.resource.labels.get("revision_name")
+                for point in result.points:
+                    if value_type == "distribution":
+                        metrics[metric].append(
+                            {
+                                "kind": kind,
+                                "revision": revision,
+                                "mean_value": point.value.distribution_value.mean,
+                                "squared_deviations": point.value.distribution_value.sum_of_squared_deviation,
+                                "count": point.value.distribution_value.count,
+                                "ts": point.interval.end_time.timestamp(),
+                            }
+                        )
+                    else:
+                        if value_type == "int64":
+                            value = point.value.int64_value
+                        else:
+                            value = point.value.double_value
+                        metrics[metric].append(
+                            {
+                                "revision": revision,
+                                "value": value,
+                                "kind": kind,
+                                "ts": point.interval.end_time.timestamp(),
+                            }
+                        )
 
     @staticmethod
     def _extract_trace_id(entry) -> Optional[str]:
@@ -2154,48 +2303,7 @@ class GCP(System):
         )
         strategy.download_execution_metrics(function_name, start_time, end_time, requests)
 
-        """
-            Use metrics to find estimated values for maximum memory used, active instances
-            and network traffic.
-            https://cloud.google.com/monitoring/api/metrics_gcp#gcp-cloudfunctions
-        """
-
-        # Set expected metrics here
-        available_metrics = ["execution_times", "user_memory_bytes", "network_egress"]
-
-        client = monitoring_v3.MetricServiceClient()
-        project_name = client.common_project_path(self.config.project_name)
-
-        end_time_nanos, end_time_seconds = math.modf(end_time)
-        start_time_nanos, start_time_seconds = math.modf(start_time)
-
-        interval = monitoring_v3.TimeInterval(
-            {
-                "end_time": {"seconds": int(end_time_seconds) + 60},
-                "start_time": {"seconds": int(start_time_seconds)},
-            }
-        )
-
-        for metric in available_metrics:
-
-            metrics[metric] = []
-
-            list_request = monitoring_v3.ListTimeSeriesRequest(
-                name=project_name,
-                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric),
-                interval=interval,
-            )
-
-            results = client.list_time_series(list_request)
-            for result in results:
-                if result.resource.labels.get("function_name") == function_name:
-                    for point in result.points:
-                        metrics[metric] += [
-                            {
-                                "mean_value": point.value.distribution_value.mean,
-                                "executions_count": point.value.distribution_value.count,
-                            }
-                        ]
+        strategy.download_metrics(function_name, start_time, end_time, metrics)
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark) -> int:
         """Force a cold start by updating function configuration.
