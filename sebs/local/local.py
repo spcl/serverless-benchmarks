@@ -184,7 +184,7 @@ class Local(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
         """Package function code for local execution.
 
         Creates a compatible code package structure for local execution that

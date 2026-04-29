@@ -192,7 +192,7 @@ class AWS(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
         """
         Package code for deployment to AWS Lambda.
 

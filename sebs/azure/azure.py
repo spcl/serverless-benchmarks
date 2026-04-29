@@ -221,7 +221,7 @@ class Azure(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
         """Package function code for Azure Functions deployment.
 
         Creates the proper directory structure and configuration files

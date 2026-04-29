@@ -2451,7 +2451,7 @@ class GCP(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
         """Package benchmark code for GCP Cloud Functions deployment.
 
         Transforms the benchmark code directory structure to meet GCP Cloud Functions

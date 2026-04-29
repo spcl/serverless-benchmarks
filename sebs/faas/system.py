@@ -289,7 +289,7 @@ class System(ABC, LoggingBase):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
         """
         Apply system-specific code packaging to prepare a deployment package.
 
@@ -319,7 +319,7 @@ class System(ABC, LoggingBase):
 
     def finalize_container_build(
         self,
-    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
+    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, float]] | None:
         """Default behavior of container deployment is that no code package is needed.
         Thus, we return None to signal that.
 

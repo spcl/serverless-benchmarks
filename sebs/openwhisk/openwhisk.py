@@ -205,7 +205,7 @@ class OpenWhisk(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
 
         """
         Package benchmark code for OpenWhisk deployment.
@@ -308,7 +308,7 @@ class OpenWhisk(System):
 
     def finalize_container_build(
         self,
-    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
+    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, float]] | None:
         """
         Regardless of Docker image status, we need to create .zip file
         to allow registration of function with OpenWhisk.

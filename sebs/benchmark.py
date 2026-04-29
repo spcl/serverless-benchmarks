@@ -443,7 +443,7 @@ class Benchmark(LoggingBase):
         return self._container_uri
 
     @property
-    def language(self) -> "Language":
+    def language(self) -> Language:
         """
         Get the programming language for the benchmark.
 
@@ -470,19 +470,6 @@ class Benchmark(LoggingBase):
             str: The runtime variant (e.g., "default", "pypy", "bun")
         """
         return self._language_variant
-
-    @property
-    def cache_language_key(self) -> str:
-        """
-        Add language variant to the cache key so that different variants of
-        the same language don't conflict in cache.
-        """
-        base_key = self._language.value
-        if self._language_variant != "default":
-            base_key = f"{base_key}_{self._language_variant}"
-        if self._system_variant_suffix:
-            return f"{base_key}_{self._system_variant_suffix}"
-        return base_key
 
     @property
     def language_version(self) -> str:
@@ -771,7 +758,7 @@ class Benchmark(LoggingBase):
             self._code_package = self._cache_client.get_code_package(
                 deployment=self._deployment_name,
                 benchmark=self._benchmark,
-                language=self.cache_language_key,
+                language=self.language,
                 language_version=self.language_version,
                 architecture=self.architecture,
             )
@@ -779,7 +766,7 @@ class Benchmark(LoggingBase):
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
             benchmark=self._benchmark,
-            language=self.cache_language_key,
+            language=self.language,
         )
 
         if self._code_package is not None:
@@ -1150,7 +1137,7 @@ class Benchmark(LoggingBase):
             raise NotImplementedError
 
     @staticmethod
-    def directory_size(directory: str) -> int:
+    def directory_size(directory: str) -> float:
         """Calculate total size of all files in a directory.
 
         Recursively calculates the total size in bytes of all files
@@ -1166,7 +1153,7 @@ class Benchmark(LoggingBase):
 
         root = Path(directory)
         sizes = [f.stat().st_size for f in root.glob("**/*") if f.is_file()]
-        return sum(sizes)
+        return sum(sizes) / 1024.0 / 1024.0
 
     def builder_image_name(self) -> Tuple[str, str]:
         """Image names of builder Docker images for preparing benchmarks.
@@ -1356,7 +1343,7 @@ class Benchmark(LoggingBase):
                     self.logging.error(f"Docker mount volumes: {volumes}")
                     raise e from None
 
-    def recalculate_code_size(self) -> int:
+    def recalculate_code_size(self) -> float:
         """Recalculate and update the code package size.
 
         Measures the current size of the output directory and updates
@@ -1370,9 +1357,9 @@ class Benchmark(LoggingBase):
 
     def build(
         self,
-        package_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, int]],
+        package_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, float]],
         container_client: DockerContainer | None,
-        container_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, int]]
+        container_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, float]]
         | None,
     ) -> Tuple[bool, str | None, SystemVariant, str | None]:
         """Build the complete benchmark deployment package.
