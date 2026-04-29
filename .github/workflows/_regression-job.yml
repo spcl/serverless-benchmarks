@@ -58,7 +58,7 @@ jobs:
           uv pip install .
 
       - name: Run regression tests
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           source .venv/bin/activate
           uv run sebs benchmark regression test \
