@@ -26,6 +26,16 @@ class SystemVariant:
     property for logic that only cares about the package vs container split.
     """
 
+    ALL_SYSTEM_VARIANTS = [
+        # default everywhere but OpenWhisk and GCP
+        "package",
+        # Lambda, OpenWhisk, and GCP
+        "container",
+        # GCP specific
+        "function-gen1",
+        "function-gen2",
+    ]
+
     def __init__(self, value: str):
         """Initialize the system variant.
 
@@ -51,6 +61,8 @@ class SystemVariant:
     @staticmethod
     def deserialize(value: str) -> SystemVariant:
         """Deserialize a deployment variant from a string."""
+        if value not in SystemVariant.ALL_SYSTEM_VARIANTS:
+            raise ValueError(f"Invalid system variant: {value}")
         return SystemVariant(value)
 
     def __eq__(self, other: object) -> bool:
