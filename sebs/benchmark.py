@@ -526,6 +526,11 @@ class Benchmark(LoggingBase):
         """Return the selected deployment variant for this benchmark."""
         return self._system_variant
 
+    @property
+    def system_variant_suffix(self) -> str | None:
+        """Return the selected deployment variant for this benchmark."""
+        return self._system_variant_suffix
+
     @property  # noqa: A003
     def hash(self) -> str:
         """
@@ -745,23 +750,11 @@ class Benchmark(LoggingBase):
         whether the cache exists and if it's still valid (hash matches).
         """
         if self.system_variant.is_container:
-            self._code_package = self._cache_client.get_container(
-                deployment=self._deployment_name,
-                benchmark=self._benchmark,
-                language=self.language,
-                language_version=self.language_version,
-                architecture=self.architecture,
-            )
+            self._code_package = self._cache_client.get_container(self._deployment_name, self)
             if self._code_package is not None:
                 self._container_uri = self._code_package["image-uri"]
         else:
-            self._code_package = self._cache_client.get_code_package(
-                deployment=self._deployment_name,
-                benchmark=self._benchmark,
-                language=self.language,
-                language_version=self.language_version,
-                architecture=self.architecture,
-            )
+            self._code_package = self._cache_client.get_code_package(self._deployment_name, self)
 
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
