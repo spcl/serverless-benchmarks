@@ -378,13 +378,21 @@ class CloudflareContainersDeployment:
         """
         Wait for container worker to be fully provisioned and ready.
 
+        Polls /health instead of issuing a benchmark request directly because container
+        startup time is highly variable.  A 200 from /health confirms that (1) the Worker
+        is reachable and (2) the Durable Object / container binding is instantiated — at
+        which point only a short gap remains before the benchmark handler is fully ready.
+        That residual gap is covered by the sync_invoke retry loop in triggers.py, keeping
+        the retry window small and predictable rather than spanning the entire provisioning
+        window from scratch.
+
         Args:
             worker_name: Name of the worker
             worker_url: URL of the worker
             max_wait_seconds: Maximum time to wait in seconds
 
         Returns:
-            True if ready, False if timeout
+            True if ready, raises RuntimeError on timeout
         """
         wait_interval = 20
         start_time = time.time()

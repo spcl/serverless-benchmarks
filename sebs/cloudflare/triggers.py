@@ -153,7 +153,15 @@ class HTTPTrigger(Trigger):
             raise RuntimeError(f"Failed invocation of function! Output: {raw_text}")
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
-        """Synchronously invoke a Cloudflare Worker via HTTP."""
+        """
+        Synchronously invoke a Cloudflare Worker via HTTP.
+
+        Retries on ContainerProvisioningError to cover the short gap between the /health
+        check passing (Worker + Durable Object up) and the benchmark handler being fully
+        ready.  The /health gate in containers.py absorbs the unpredictable bulk of
+        container startup; the retry budget here only needs to bridge the remaining,
+        much shorter window.
+        """
         self.logging.debug(f"Invoke function {self.url}")
         max_provisioning_retries = 10
         provisioning_retry_wait = 60  # seconds between retries

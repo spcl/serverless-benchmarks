@@ -16,7 +16,17 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     
-    // Health check endpoint
+    // Health check endpoint — used by the SeBS harness (sebs/cloudflare/containers.py)
+    // to detect when the worker is provisioned before running benchmarks.
+    //
+    // Why a dedicated endpoint: a first successful benchmark HTTP response (HTTP 200) would
+    // also confirm the worker is up, but container startup time is highly variable, so the
+    // harness cannot know how long to wait before attempting that first call.  The /health
+    // endpoint gives a defined starting point: a 200 here means (1) the Cloudflare Worker
+    // itself is reachable AND (2) the Durable Object / container binding is instantiated.
+    // Only a short gap remains until the benchmark handler is fully ready, which
+    // sync_invoke retries in triggers.py can cover cheaply — instead of retrying across
+    // the entire variable-length provisioning window.
     if (url.pathname === '/health' || url.pathname === '/_health') {
       try {
         const containerId = 'default';
