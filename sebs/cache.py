@@ -849,6 +849,10 @@ class Cache(LoggingBase):
                             cached_config[deployment_name][language] = config
 
                         config = cached_config
+                else:
+                    # entirely new entry
+                    language = base_keys[0]
+                    config = {deployment_name: {language: config}}
                 self._write_json_atomic(os.path.join(benchmark_dir, "config.json"), config)
 
             else:
