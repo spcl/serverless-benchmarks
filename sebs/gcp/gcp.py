@@ -2036,9 +2036,11 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
             Environment variables controlling Gunicorn worker settings.
         """
         dep_config = self.config.deployment_config.function_gen2_config
+        # gen2 uses its own environment variables
+        # https://github.com/GoogleCloudPlatform/functions-framework-python/issues/241
         return {
-            "GUNICORN_WORKERS": str(dep_config.worker_concurrency),
-            "GUNICORN_THREADS": str(dep_config.worker_threads),
+            "WORKERS": str(dep_config.worker_concurrency),
+            "THREADS": str(dep_config.worker_threads),
         }
 
     def is_deployed(self, func_name: str, versionId: int = -1) -> Tuple[bool, int]:
