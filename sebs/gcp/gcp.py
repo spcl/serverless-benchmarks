@@ -959,7 +959,7 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
 
         interval = monitoring_v3.TimeInterval(
             {
-                "end_time": {"seconds": int(end_time_seconds) + 60},
+                "end_time": {"seconds": int(end_time_seconds) + 300},
                 "start_time": {"seconds": int(start_time_seconds)},
             }
         )
@@ -967,23 +967,27 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         for metric in available_metrics:
 
             metrics[metric] = []
+            flt = (
+                f'metric.type = "cloudfunctions.googleapis.com/function/{metric}" '
+                f'AND resource.type = "cloud_function" '
+                f'AND resource.labels.function_name = "{function_name}"'
+            )
 
             list_request = monitoring_v3.ListTimeSeriesRequest(
                 name=project_name,
-                filter='metric.type = "cloudfunctions.googleapis.com/function/{}"'.format(metric),
+                filter=flt,
                 interval=interval,
             )
 
             results = client.list_time_series(list_request)
             for result in results:
-                if result.resource.labels.get("function_name") == function_name:
-                    for point in result.points:
-                        metrics[metric] += [
-                            {
-                                "mean_value": point.value.distribution_value.mean,
-                                "executions_count": point.value.distribution_value.count,
-                            }
-                        ]
+                for point in result.points:
+                    metrics[metric] += [
+                        {
+                            "mean_value": point.value.distribution_value.mean,
+                            "executions_count": point.value.distribution_value.count,
+                        }
+                    ]
 
     @staticmethod
     def _extract_trace_id(entry) -> Optional[str]:
