@@ -366,6 +366,20 @@ class Cache(LoggingBase):
         Args:
             deployment (str): Deployment platform name.
         """
+
+        def clear_nested_container_uris(obj: Dict[str, Any]) -> bool:
+            """Internal method - recursively check for all image-uri.
+            Simpler method then walking all nested variants of containers."""
+            modified = False
+            if "image-uri" in obj:
+                obj["image-uri"] = None
+                return True
+
+            for value in obj.values():
+                if isinstance(value, dict):
+                    modified = clear_nested_container_uris(value) or modified
+            return modified
+
         with self._lock:
             if not os.path.exists(self.cache_dir):
                 return
@@ -389,21 +403,13 @@ class Cache(LoggingBase):
                     containers = lang_cfg.get("containers")
                     if containers is None:
                         continue
-                    for container_cfg in containers.values():
-                        container_cfg["image-uri"] = None
-                        modified = True
+                    modified = clear_nested_container_uris(containers) or modified
 
                 if modified:
                     self._write_json_atomic(config_path, config)
 
     def update_container_uri(
-        self,
-        deployment: str,
-        benchmark: str,
-        language: str,
-        language_version: str,
-        architecture: str,
-        uri: str,
+        self, deployment_name: str, code_package: "Benchmark", uri: str
     ) -> None:
         """Update the image-uri for a specific cached container entry.
 
@@ -411,23 +417,24 @@ class Cache(LoggingBase):
         the registry to be accessible for cloud deployment.
 
         Args:
-            deployment (str): Deployment platform name.
-            benchmark (str): Benchmark name.
-            language (str): Programming language.
-            language_version (str): Language version.
-            architecture (str): Target architecture.
+            deployment_name (str): Deployment platform name.
+            code_package (Benchmark): Benchmark package identifying the cache entry.
             uri (str): New image URI to store.
         """
         with self._lock:
-            config_path = os.path.join(self.cache_dir, benchmark, "config.json")
+            config_path = os.path.join(self.cache_dir, code_package.benchmark, "config.json")
             if not os.path.exists(config_path):
                 return
 
             with open(config_path, "r") as fp:
                 config = json.load(fp)
 
-            key = f"{language_version}-{architecture}"
-            config[deployment][language]["containers"][key]["image-uri"] = uri
+            base_keys, extra_keys = self.code_cache_keys(code_package)
+            keys = [deployment_name, *base_keys, *extra_keys]
+            if not keys_exist(config, keys):
+                return
+
+            keys_get(config, keys)["image-uri"] = uri
 
             self._write_json_atomic(config_path, config)
 

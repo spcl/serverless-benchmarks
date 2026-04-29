@@ -1390,10 +1390,7 @@ class Benchmark(LoggingBase):
                     )
                     self._cache_client.update_container_uri(
                         self._deployment_name,
-                        self._benchmark,
-                        self.language_name,
-                        self.language_version,
-                        self.architecture,
+                        self,
                         self._container_uri,
                     )
                 self.logging.info(
