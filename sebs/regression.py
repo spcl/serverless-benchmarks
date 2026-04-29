@@ -25,7 +25,7 @@ import unittest
 import testtools
 import threading
 from time import sleep
-from typing import cast, Dict, Optional, Set, TYPE_CHECKING
+from typing import cast, Dict, List, Optional, Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
 from sebs.utils import ColoredWrapper, SensitiveDataFilter, LoggingBase
@@ -1418,12 +1418,13 @@ def regression_suite(
             )
 
     # Prepare the list of tests to run
-    tests = []
+    tests: List[unittest.TestCase] = []
     # mypy is confused here about the type
     for case in suite:
         for test in case:  # type: ignore
             # Get the test method name
-            test_name = cast(unittest.TestCase, test)._testMethodName
+            test_case = cast(unittest.TestCase, test)
+            test_name = test_case._testMethodName
 
             # Remove unsupported benchmarks
             test_architecture = getattr(test, test_name).test_architecture  # type: ignore
@@ -1445,7 +1446,7 @@ def regression_suite(
                 # Set up test instance with client and config
                 test.client = sebs_client  # type: ignore
                 test.experiment_config = experiment_config.copy()  # type: ignore
-                tests.append(test)
+                tests.append(test_case)
             else:
                 print(f"Skip test {test_name}")
 
@@ -1469,9 +1470,12 @@ def regression_suite(
         concurrent_suite.run(result)
 
     for (_, deployment_type), group_tests in sorted(gcp_grouped_tests.items()):
-        print(f"Running regression group provider=gcp, system_variant={deployment_type}, tests={len(group_tests)}")
+        print(
+            f"Running regression group provider=gcp, "
+            f"system_variant={deployment_type}, tests={len(group_tests)}"
+        )
         concurrent_suite = testtools.ConcurrentStreamTestSuite(
-            lambda group_tests=group_tests: ((test, None) for test in group_tests)
+            lambda group_tests=group_tests: ((test, None) for test in group_tests)  # type: ignore
         )
         concurrent_suite.run(result)
     result.stopTestRun()
