@@ -761,7 +761,7 @@ class Benchmark(LoggingBase):
             self._code_package = self._cache_client.get_container(
                 deployment=self._deployment_name,
                 benchmark=self._benchmark,
-                language=self.cache_language_key,
+                language=self.language,
                 language_version=self.language_version,
                 architecture=self.architecture,
             )
