@@ -33,7 +33,7 @@ from sebs.sebs_types import BenchmarkModule, Language
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from sebs.experiments.config import Config as ExperimentConfig
+    from sebs.experiments.config import Config as ExperimentConfig, SystemVariant
 
 
 class LanguageSpec:
@@ -286,7 +286,7 @@ class Benchmark(LoggingBase):
         uses_storage: Whether the benchmark uses cloud storage
         uses_nosql: Whether the benchmark uses NoSQL databases
         architecture: CPU architecture of the deployment target
-        container_deployment: Whether using container deployment
+        system_variant: Deployment variant selected for the target provider
 
     """
 
@@ -443,7 +443,7 @@ class Benchmark(LoggingBase):
         return self._container_uri
 
     @property
-    def language(self) -> "Language":
+    def language(self) -> Language:
         """
         Get the programming language for the benchmark.
 
@@ -470,16 +470,6 @@ class Benchmark(LoggingBase):
             str: The runtime variant (e.g., "default", "pypy", "bun")
         """
         return self._language_variant
-
-    @property
-    def cache_language_key(self) -> str:
-        """
-        Add language variant to the cache key so that different variants of
-        the same language don't conflict in cache.
-        """
-        if self._language_variant == "default":
-            return self._language.value
-        return f"{self._language.value}_{self._language_variant}"
 
     @property
     def language_version(self) -> str:
@@ -532,14 +522,14 @@ class Benchmark(LoggingBase):
         return self._architecture
 
     @property
-    def container_deployment(self) -> bool:
-        """
-        Check if using container deployment.
+    def system_variant(self) -> SystemVariant:
+        """Return the selected deployment variant for this benchmark."""
+        return self._system_variant
 
-        Returns:
-            bool: True if using container deployment, False otherwise
-        """
-        return self._container_deployment
+    @property
+    def system_variant_suffix(self) -> str | None:
+        """Return the selected deployment variant for this benchmark."""
+        return self._system_variant_suffix
 
     @property  # noqa: A003
     def hash(self) -> str:
@@ -579,6 +569,7 @@ class Benchmark(LoggingBase):
         output_dir: str,
         cache_client: Cache,
         docker_client: docker.client.DockerClient,
+        system_variant_suffix: Optional[str] = None,
         verbose: bool = False,
     ):
         """
@@ -596,6 +587,7 @@ class Benchmark(LoggingBase):
             output_dir: Directory for output files
             cache_client: Cache client for caching code packages
             docker_client: Docker client for building dependencies
+            system_variant_suffix: Optional provider-local system variant suffix
             verbose: Print verbose build logs.
 
         Raises:
@@ -610,7 +602,8 @@ class Benchmark(LoggingBase):
         assert config.runtime.variant is not None
         self._language_variant = config.runtime.variant.value
         self._architecture = self._experiment_config.architecture
-        self._container_deployment = config.container_deployment
+        self._system_variant = config.system_variant
+        self._system_variant_suffix = system_variant_suffix
         self._verbose = verbose
 
         benchmark_path = find_benchmark(self.benchmark, "benchmarks")
@@ -639,7 +632,15 @@ class Benchmark(LoggingBase):
             self._language_variant,
             self._language_version,
             self._architecture,
-            "container" if self._container_deployment else "package",
+            (
+                "container"
+                if self._system_variant.is_container
+                else (
+                    f"package_{self._system_variant_suffix}"
+                    if self._system_variant_suffix
+                    else "package"
+                )
+            ),
         )
         self._container_uri: Optional[str] = None
 
@@ -748,29 +749,17 @@ class Benchmark(LoggingBase):
         and deployment combination. Updates the cache status fields based on
         whether the cache exists and if it's still valid (hash matches).
         """
-        if self.container_deployment:
-            self._code_package = self._cache_client.get_container(
-                deployment=self._deployment_name,
-                benchmark=self._benchmark,
-                language=self.cache_language_key,
-                language_version=self.language_version,
-                architecture=self.architecture,
-            )
+        if self.system_variant.is_container:
+            self._code_package = self._cache_client.get_container(self._deployment_name, self)
             if self._code_package is not None:
                 self._container_uri = self._code_package["image-uri"]
         else:
-            self._code_package = self._cache_client.get_code_package(
-                deployment=self._deployment_name,
-                benchmark=self._benchmark,
-                language=self.cache_language_key,
-                language_version=self.language_version,
-                architecture=self.architecture,
-            )
+            self._code_package = self._cache_client.get_code_package(self._deployment_name, self)
 
         self._functions = self._cache_client.get_functions(
             deployment=self._deployment_name,
             benchmark=self._benchmark,
-            language=self.cache_language_key,
+            language=self.language,
         )
 
         if self._code_package is not None:
@@ -1141,7 +1130,7 @@ class Benchmark(LoggingBase):
             raise NotImplementedError
 
     @staticmethod
-    def directory_size(directory: str) -> int:
+    def directory_size(directory: str) -> float:
         """Calculate total size of all files in a directory.
 
         Recursively calculates the total size in bytes of all files
@@ -1157,7 +1146,7 @@ class Benchmark(LoggingBase):
 
         root = Path(directory)
         sizes = [f.stat().st_size for f in root.glob("**/*") if f.is_file()]
-        return sum(sizes)
+        return sum(sizes) / 1024.0 / 1024.0
 
     def builder_image_name(self) -> Tuple[str, str]:
         """Image names of builder Docker images for preparing benchmarks.
@@ -1347,7 +1336,7 @@ class Benchmark(LoggingBase):
                     self.logging.error(f"Docker mount volumes: {volumes}")
                     raise e from None
 
-    def recalculate_code_size(self) -> int:
+    def recalculate_code_size(self) -> float:
         """Recalculate and update the code package size.
 
         Measures the current size of the output directory and updates
@@ -1361,11 +1350,11 @@ class Benchmark(LoggingBase):
 
     def build(
         self,
-        package_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, int]],
+        package_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, float]],
         container_client: DockerContainer | None,
-        container_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, int]]
+        container_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, float]]
         | None,
-    ) -> Tuple[bool, str | None, bool, str | None]:
+    ) -> Tuple[bool, str | None, SystemVariant, str | None]:
         """Build the complete benchmark deployment package.
 
         Orchestrates the entire build process for a benchmark, including:
@@ -1385,12 +1374,12 @@ class Benchmark(LoggingBase):
             Tuple containing:
                 - bool: Whether a new build was performed (False if cached)
                 - str: Path to the built code package
-                - bool: Whether this is a container deployment
+                - SystemVariant: Selected deployment variant
                 - str: Container URI (empty string if not container deployment)
         """
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
-            if self.container_deployment:
+            if self.system_variant.is_container:
                 if self._container_uri is None:
                     assert container_client is not None
                     self._container_uri = container_client.push_to_registry(
@@ -1401,10 +1390,7 @@ class Benchmark(LoggingBase):
                     )
                     self._cache_client.update_container_uri(
                         self._deployment_name,
-                        self._benchmark,
-                        self.language_name,
-                        self.language_version,
-                        self.architecture,
+                        self,
                         self._container_uri,
                     )
                 self.logging.info(
@@ -1412,12 +1398,12 @@ class Benchmark(LoggingBase):
                         self.benchmark, self.container_uri
                     )
                 )
-                return False, None, self.container_deployment, self.container_uri
+                return False, None, self.system_variant, self.container_uri
             else:
                 self.logging.info(
                     "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
                 )
-                return False, self.code_location, self.container_deployment, None
+                return False, self.code_location, self.system_variant, None
 
         msg = (
             "no cached code package/container."
@@ -1447,7 +1433,7 @@ class Benchmark(LoggingBase):
         """
 
         self._container_uri = None
-        if self.container_deployment:
+        if self.system_variant.is_container:
             assert container_client is not None
 
             repo_name = self._system_config.docker_repository()
@@ -1594,7 +1580,7 @@ class Benchmark(LoggingBase):
         return (
             True,
             self._code_location,
-            self._container_deployment,
+            self._system_variant,
             self._container_uri,
         )
 
@@ -1732,7 +1718,7 @@ class Benchmark(LoggingBase):
         Raises:
             NotImplementedError: If the code package is not a ZIP archive
         """
-        if not self.container_deployment and self.code_package_is_archive():
+        if not self.system_variant.is_container and self.code_package_is_archive():
             assert self.code_location is not None
             self._update_zip(self.code_location, filename, data)
             new_size = self.code_package_recompute_size() / 1024.0 / 1024.0
@@ -1750,7 +1736,7 @@ class Benchmark(LoggingBase):
             bool: True if package is a ZIP archive, False if it's a directory
         """
 
-        if self.container_deployment:
+        if self.system_variant.is_container:
             return False
 
         code_location = self.code_location
@@ -1769,7 +1755,7 @@ class Benchmark(LoggingBase):
         Returns:
             float: Updated package size in bytes
         """
-        if self.container_deployment:
+        if self.system_variant.is_container:
             raise NotImplementedError()
 
         if self.code_location is None:

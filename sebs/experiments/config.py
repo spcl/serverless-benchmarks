@@ -12,10 +12,64 @@ handling settings such as:
 The Config class handles serialization and deserialization of experiment
 configurations, allowing them to be loaded from and saved to configuration files.
 """
+from __future__ import annotations
 
 from typing import Dict
 
 from sebs.faas.function import Runtime
+
+
+class SystemVariant:
+    """Deployment variant selected for an experiment.
+
+    The variant is provider-specific, but exposes a shared ``is_container``
+    property for logic that only cares about the package vs container split.
+    """
+
+    ALL_SYSTEM_VARIANTS = [
+        # default everywhere but OpenWhisk and GCP
+        "package",
+        # Lambda, OpenWhisk, and GCP
+        "container",
+        # GCP specific
+        "function-gen1",
+        "function-gen2",
+    ]
+
+    def __init__(self, value: str):
+        """Initialize the system variant.
+
+        Args:
+            value: Provider-specific deployment variant name.
+        """
+        self._value = value
+
+    @property
+    def value(self) -> str:
+        """Get the provider-specific deployment variant name."""
+        return self._value
+
+    @property
+    def is_container(self) -> bool:
+        """Return whether this deployment variant uses containers."""
+        return self._value == "container"
+
+    def serialize(self) -> str:
+        """Serialize the deployment variant to a string."""
+        return self._value
+
+    @staticmethod
+    def deserialize(value: str) -> SystemVariant:
+        """Deserialize a deployment variant from a string."""
+        if value not in SystemVariant.ALL_SYSTEM_VARIANTS:
+            raise ValueError(f"Invalid system variant: {value}")
+        return SystemVariant(value)
+
+    def __eq__(self, other: object) -> bool:
+        """Compare two system variants."""
+        if not isinstance(other, SystemVariant):
+            return False
+        return self.value == other.value
 
 
 class Config:
@@ -28,7 +82,7 @@ class Config:
     Attributes:
         _update_code: Whether to update function code
         _update_storage: Whether to update storage resources
-        _container_deployment: Whether to use container-based deployment
+        _system_variant: Deployment variant selected for the target provider
         _download_results: Whether to download experiment results
         _architecture: CPU architecture (e.g., "x64", "arm64")
         _flags: Dictionary of boolean flags for custom settings
@@ -40,7 +94,7 @@ class Config:
         """Initialize a new experiment configuration with default values."""
         self._update_code: bool = False
         self._update_storage: bool = False
-        self._container_deployment: bool = False
+        self._system_variant = SystemVariant("package")
         self._download_results: bool = False
         self._architecture: str = "x64"
         self._flags: Dict[str, bool] = {}
@@ -107,13 +161,9 @@ class Config:
         return self._architecture
 
     @property
-    def container_deployment(self) -> bool:
-        """Get whether to use container-based deployment.
-
-        Returns:
-            True if container-based deployment should be used, False otherwise
-        """
-        return self._container_deployment
+    def system_variant(self) -> SystemVariant:
+        """Get the selected deployment variant."""
+        return self._system_variant
 
     def experiment_settings(self, name: str) -> dict:
         """Get settings for a specific experiment.
@@ -146,7 +196,7 @@ class Config:
             "flags": self._flags,
             "experiments": self._experiment_configs,
             "architecture": self._architecture,
-            "container_deployment": self._container_deployment,
+            "system_variant": self._system_variant.serialize(),
         }
         return out
 
@@ -173,7 +223,11 @@ class Config:
         cfg._update_code = config["update_code"]
         cfg._update_storage = config["update_storage"]
         cfg._download_results = config["download_results"]
-        cfg._container_deployment = config["container_deployment"]
+        if "system_variant" in config:
+            cfg._system_variant = SystemVariant.deserialize(config["system_variant"])
+        else:
+            legacy_is_container = config.get("container_deployment", False)
+            cfg._system_variant = SystemVariant("container" if legacy_is_container else "package")
         cfg._runtime = Runtime.deserialize(config["runtime"])
         cfg._flags = config["flags"] if "flags" in config else {}
         cfg._architecture = config["architecture"]

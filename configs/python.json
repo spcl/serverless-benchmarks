@@ -5,7 +5,7 @@
     "update_storage": false,
     "download_results": false,
     "architecture": "x64",
-    "container_deployment": true,
+    "system_variant": "package",
     "runtime": {
       "language": "python",
       "version": "3.11"

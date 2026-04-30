@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import cast, Dict, List, Optional, Tuple
+from typing import cast, Any, Dict, List, Optional, Tuple
 import time
 from googleapiclient.errors import HttpError
 
@@ -462,7 +462,7 @@ class GCPConfiguration:
         Returns:
             Dictionary representation of resources for cache storage
         """
-        out = {}
+        out: Dict[str, Any] = {}
         out["function-gen1"] = self._function_gen1_config.serialize()
         out["function-gen2"] = self._function_gen2_config.serialize()
         out["container"] = self._container_config.serialize()

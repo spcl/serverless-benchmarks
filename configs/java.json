@@ -5,10 +5,10 @@
     "update_storage": false,
     "download_results": false,
     "architecture": "x64",
-    "container_deployment": false,
+    "system_variant": "package",
     "runtime": {
-        "language": "java",
-        "version": "11"
+      "language": "java",
+      "version": "11"
     },
     "type": "invocation-overhead",
     "perf-cost": {

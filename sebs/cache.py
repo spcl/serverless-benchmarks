@@ -29,7 +29,8 @@ import json
 import os
 import shutil
 import threading
-from typing import Any, Callable, Dict, List, Mapping, Optional, TYPE_CHECKING  # noqa
+import tempfile
+from typing import Any, Dict, List, Mapping, Optional, Tuple, TYPE_CHECKING  # noqa
 
 from sebs.utils import LoggingBase, serialize
 
@@ -96,6 +97,47 @@ def update_dict(cfg: Dict[str, Any], val: Any, keys: List[str]) -> None:
     update(cfg, map_keys(cfg, val, keys))
 
 
+def keys_exist(obj: Dict, keys: List[Any]) -> bool:
+    """Find if a nested object exists in a dictionary.
+
+    example: {key1: {key2: {key3: value}}}
+    for [key1, key2, key3] -> True
+
+    Args:
+        obj: dictionary
+        keys: dynamic list of nested keys
+
+    Returns:
+        true if the nested object exists
+    """
+    for key in keys:
+        if isinstance(obj, Dict) and key in obj:
+            obj = obj[key]
+        else:
+            return False
+    return True
+
+
+def keys_get(obj: Dict, keys: List[Any]) -> Any:
+    """Find if a nested object exists in a dictionary.
+
+    example: {key1: {key2: {key3: value}}}
+    for [key1, key2, key3] -> True
+
+    Args:
+        obj: dictionary
+        keys: dynamic list of nested keys
+
+    Returns:
+        true if the nested object exists
+    """
+    current = obj
+    for key in keys:
+        if isinstance(current, Dict) and key in current:
+            current = current[key]
+    return current
+
+
 class Cache(LoggingBase):
     """Persistent caching system for SeBS benchmark configurations and deployments.
 
@@ -112,6 +154,9 @@ class Cache(LoggingBase):
         ignore_storage (bool): Flag to skip storage resource caching.
         docker_client (docker.DockerClient): Docker client for container operations.
     """
+
+    _lock_registry_guard = threading.Lock()
+    _lock_registry: Dict[str, threading.RLock] = {}
 
     def __init__(self, cache_dir: str, docker_client: docker.DockerClient) -> None:
         """Initialize the Cache with directory and Docker client.
@@ -131,7 +176,7 @@ class Cache(LoggingBase):
         self.cache_dir = os.path.abspath(cache_dir)
         self.ignore_functions: bool = False
         self.ignore_storage: bool = False
-        self._lock = threading.RLock()
+        self._lock = self._cache_dir_lock(self.cache_dir)
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir, exist_ok=True)
         else:
@@ -145,6 +190,48 @@ class Cache(LoggingBase):
             str: The cache type name.
         """
         return "Cache"
+
+    @classmethod
+    def _cache_dir_lock(cls, cache_dir: str) -> threading.RLock:
+        """Return a shared lock for all Cache instances pointing at one cache dir."""
+        with cls._lock_registry_guard:
+            if cache_dir not in cls._lock_registry:
+                cls._lock_registry[cache_dir] = threading.RLock()
+            return cls._lock_registry[cache_dir]
+
+    @staticmethod
+    def _write_json_atomic(path: str, data: Any) -> None:
+        """Atomically replace a JSON file after fully writing it to a temp file."""
+        directory = os.path.dirname(path)
+        os.makedirs(directory, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=".tmp-", suffix=".json")
+        try:
+            with os.fdopen(fd, "w") as fp:
+                json.dump(data, fp, indent=2)
+                fp.flush()
+                os.fsync(fp.fileno())
+            os.replace(tmp_path, path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
+
+    @staticmethod
+    def _write_serialized_atomic(path: str, data: Dict[str, Any]) -> None:
+        """Atomically replace a JSON file using the SeBS serializer."""
+        directory = os.path.dirname(path)
+        os.makedirs(directory, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=".tmp-", suffix=".json")
+        try:
+            with os.fdopen(fd, "w") as fp:
+                fp.write(serialize(data))
+                fp.flush()
+                os.fsync(fp.fileno())
+            os.replace(tmp_path, path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
     def load_config(self) -> None:
         """Load cached cloud configurations from disk.
@@ -200,12 +287,12 @@ class Cache(LoggingBase):
         JSON files in the cache directory.
         """
         if self.config_updated:
-            for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
-                if cloud in self.cached_config:
-                    cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
-                    self.logging.info("Update cached config {}".format(cloud_config_file))
-                    with open(cloud_config_file, "w") as out:
-                        json.dump(self.cached_config[cloud], out, indent=2)
+            with self._lock:
+                for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
+                    if cloud in self.cached_config:
+                        cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
+                        self.logging.info("Update cached config {}".format(cloud_config_file))
+                        self._write_json_atomic(cloud_config_file, self.cached_config[cloud])
 
     def get_benchmark_config(self, deployment: str, benchmark: str) -> Optional[Dict[str, Any]]:
         """Access cached configuration of a benchmark.
@@ -217,68 +304,53 @@ class Cache(LoggingBase):
         Returns:
             Optional[Dict[str, Any]]: Benchmark configuration or None if not found.
         """
-        benchmark_dir = os.path.join(self.cache_dir, benchmark)
-        if os.path.exists(benchmark_dir):
-            config_file = os.path.join(benchmark_dir, "config.json")
-            if os.path.exists(config_file):
-                with open(config_file, "r") as fp:
-                    cfg = json.load(fp)
-                    return cfg[deployment] if deployment in cfg else None
+        with self._lock:
+            benchmark_dir = os.path.join(self.cache_dir, benchmark)
+            if os.path.exists(benchmark_dir):
+                config_file = os.path.join(benchmark_dir, "config.json")
+                if os.path.exists(config_file):
+                    with open(config_file, "r") as fp:
+                        cfg = json.load(fp)
+                        return cfg[deployment] if deployment in cfg else None
         return None
 
     def get_code_package(
-        self,
-        deployment: str,
-        benchmark: str,
-        language: str,
-        language_version: str,
-        architecture: str,
+        self, deployment_name: str, code_package: "Benchmark"
     ) -> Optional[Dict[str, Any]]:
         """Access cached version of benchmark code package.
 
         Args:
             deployment (str): Deployment platform name.
-            benchmark (str): Benchmark name.
-            language (str): Programming language.
-            language_version (str): Language version.
-            architecture (str): Target architecture.
+            code_package (Benchmark): Benchmark package.
 
         Returns:
             Optional[Dict[str, Any]]: Code package configuration or None if not found.
         """
-        cfg = self.get_benchmark_config(deployment, benchmark)
+        cfg = self.get_benchmark_config(deployment_name, code_package.benchmark)
 
-        key = f"{language_version}-{architecture}"
-        if cfg and language in cfg and key in cfg[language]["code_package"]:
-            return cfg[language]["code_package"][key]
+        base_keys, extra_keys = self.code_cache_keys(code_package)
+        if cfg and keys_exist(cfg, [*base_keys, *extra_keys]):
+            return keys_get(cfg, [*base_keys, *extra_keys])
         else:
             return None
 
     def get_container(
-        self,
-        deployment: str,
-        benchmark: str,
-        language: str,
-        language_version: str,
-        architecture: str,
+        self, deployment_name: str, code_package: "Benchmark"
     ) -> Optional[Dict[str, Any]]:
         """Access cached container configuration for a benchmark.
 
         Args:
             deployment (str): Deployment platform name.
-            benchmark (str): Benchmark name.
-            language (str): Programming language.
-            language_version (str): Language version.
-            architecture (str): Target architecture.
+            code_package (Benchmark): Benchmark package.
 
         Returns:
             Optional[Dict[str, Any]]: Container configuration or None if not found.
         """
-        cfg = self.get_benchmark_config(deployment, benchmark)
+        cfg = self.get_benchmark_config(deployment_name, code_package.benchmark)
 
-        key = f"{language_version}-{architecture}"
-        if cfg and language in cfg and key in cfg[language]["containers"]:
-            return cfg[language]["containers"][key]
+        base_keys, extra_keys = self.code_cache_keys(code_package)
+        if cfg and keys_exist(cfg, [*base_keys, *extra_keys]):
+            return keys_get(cfg, [*base_keys, *extra_keys])
         else:
             return None
 
@@ -294,6 +366,20 @@ class Cache(LoggingBase):
         Args:
             deployment (str): Deployment platform name.
         """
+
+        def clear_nested_container_uris(obj: Dict[str, Any]) -> bool:
+            """Internal method - recursively check for all image-uri.
+            Simpler method then walking all nested variants of containers."""
+            modified = False
+            if "image-uri" in obj:
+                obj["image-uri"] = None
+                return True
+
+            for value in obj.values():
+                if isinstance(value, dict):
+                    modified = clear_nested_container_uris(value) or modified
+            return modified
+
         with self._lock:
             if not os.path.exists(self.cache_dir):
                 return
@@ -317,22 +403,13 @@ class Cache(LoggingBase):
                     containers = lang_cfg.get("containers")
                     if containers is None:
                         continue
-                    for container_cfg in containers.values():
-                        container_cfg["image-uri"] = None
-                        modified = True
+                    modified = clear_nested_container_uris(containers) or modified
 
                 if modified:
-                    with open(config_path, "w") as fp:
-                        json.dump(config, fp, indent=2)
+                    self._write_json_atomic(config_path, config)
 
     def update_container_uri(
-        self,
-        deployment: str,
-        benchmark: str,
-        language: str,
-        language_version: str,
-        architecture: str,
-        uri: str,
+        self, deployment_name: str, code_package: "Benchmark", uri: str
     ) -> None:
         """Update the image-uri for a specific cached container entry.
 
@@ -340,26 +417,26 @@ class Cache(LoggingBase):
         the registry to be accessible for cloud deployment.
 
         Args:
-            deployment (str): Deployment platform name.
-            benchmark (str): Benchmark name.
-            language (str): Programming language.
-            language_version (str): Language version.
-            architecture (str): Target architecture.
+            deployment_name (str): Deployment platform name.
+            code_package (Benchmark): Benchmark package identifying the cache entry.
             uri (str): New image URI to store.
         """
         with self._lock:
-            config_path = os.path.join(self.cache_dir, benchmark, "config.json")
+            config_path = os.path.join(self.cache_dir, code_package.benchmark, "config.json")
             if not os.path.exists(config_path):
                 return
 
             with open(config_path, "r") as fp:
                 config = json.load(fp)
 
-            key = f"{language_version}-{architecture}"
-            config[deployment][language]["containers"][key]["image-uri"] = uri
+            base_keys, extra_keys = self.code_cache_keys(code_package)
+            keys = [deployment_name, *base_keys, *extra_keys]
+            if not keys_exist(config, keys):
+                return
 
-            with open(config_path, "w") as fp:
-                json.dump(config, fp, indent=2)
+            keys_get(config, keys)["image-uri"] = uri
+
+            self._write_json_atomic(config_path, config)
 
     def get_functions(
         self, deployment: str, benchmark: str, language: str
@@ -398,25 +475,26 @@ class Cache(LoggingBase):
         if not os.path.exists(self.cache_dir) or self.ignore_functions:
             return result
 
-        for entry in os.listdir(self.cache_dir):
-            config_path = os.path.join(self.cache_dir, entry, "config.json")
-            if not os.path.exists(config_path):
-                continue
-
-            with open(config_path, "r") as fp:
-                config = json.load(fp)
-
-            dep_cfg = config.get(deployment)
-            if dep_cfg is None:
-                continue
-
-            for lang_cfg in dep_cfg.values():
-                if lang_cfg is None:
+        with self._lock:
+            for entry in os.listdir(self.cache_dir):
+                config_path = os.path.join(self.cache_dir, entry, "config.json")
+                if not os.path.exists(config_path):
                     continue
 
-                functions = lang_cfg.get("functions")
-                if functions is not None:
-                    result.update(functions)
+                with open(config_path, "r") as fp:
+                    config = json.load(fp)
+
+                dep_cfg = config.get(deployment)
+                if dep_cfg is None:
+                    continue
+
+                for lang_cfg in dep_cfg.values():
+                    if lang_cfg is None:
+                        continue
+
+                    functions = lang_cfg.get("functions")
+                    if functions is not None:
+                        result.update(functions)
 
         return result
 
@@ -461,21 +539,22 @@ class Cache(LoggingBase):
         if not os.path.exists(self.cache_dir):
             return result
 
-        for entry in os.listdir(self.cache_dir):
-            config_path = os.path.join(self.cache_dir, entry, "config.json")
-            if not os.path.exists(config_path):
-                continue
+        with self._lock:
+            for entry in os.listdir(self.cache_dir):
+                config_path = os.path.join(self.cache_dir, entry, "config.json")
+                if not os.path.exists(config_path):
+                    continue
 
-            with open(config_path, "r") as fp:
-                config = json.load(fp)
+                with open(config_path, "r") as fp:
+                    config = json.load(fp)
 
-            dep_cfg = config.get(deployment)
-            if dep_cfg is None:
-                continue
+                dep_cfg = config.get(deployment)
+                if dep_cfg is None:
+                    continue
 
-            nosql = dep_cfg.get("nosql")
-            if nosql is not None:
-                result.update(nosql)
+                nosql = dep_cfg.get("nosql")
+                if nosql is not None:
+                    result.update(nosql)
 
         return result
 
@@ -549,8 +628,7 @@ class Cache(LoggingBase):
             self.logging.info(f"Deleting function {function_name} from cache")
             del lang_cfg["functions"][function_name]
 
-            with open(config_path, "w") as fp:
-                json.dump(config, fp, indent=2)
+            self._write_json_atomic(config_path, config)
 
     def remove_storage(self, deployment: str):
         """Remove storage config entries across all benchmarks for a deployment.
@@ -589,8 +667,7 @@ class Cache(LoggingBase):
 
                 if deployment in config and resource in config[deployment]:
                     del config[deployment][resource]
-                    with open(config_path, "w") as fp:
-                        json.dump(config, fp, indent=2)
+                    self._write_json_atomic(config_path, config)
 
     def get_config_key(self, keys: List[str]) -> Optional[Any]:
         """Return the value at a nested key path in the cached configuration.
@@ -666,8 +743,25 @@ class Cache(LoggingBase):
             else:
                 cached_config[deployment] = {resource: config}
 
-            with open(config_file, "w") as fp:
-                json.dump(cached_config, fp, indent=2)
+            self._write_json_atomic(config_file, cached_config)
+
+    @staticmethod
+    def code_cache_keys(code_package: "Benchmark") -> Tuple[List[str], List[str]]:
+        """
+        Add language and system variant suffixes to the package cache key so
+        differing build artifacts do not conflict in cache.
+        """
+        base_key = [code_package.language.value]
+        base_key.append(
+            "containers" if code_package.system_variant.is_container else "code_package"
+        )
+        extra_keys = []
+        extra_keys.append(code_package.language_variant)
+        if code_package.system_variant_suffix is not None:
+            extra_keys.append(code_package.system_variant_suffix)
+        extra_keys.append(code_package.language_version)
+        extra_keys.append(code_package.architecture)
+        return base_key, extra_keys
 
     def add_code_package(
         self,
@@ -689,23 +783,12 @@ class Cache(LoggingBase):
             RuntimeError: If cached application already exists for the deployment.
         """
         with self._lock:
-            language = code_package.cache_language_key
-            language_version = code_package.language_version
-            architecture = code_package.architecture
-
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
 
-            package_type = "docker" if code_package.container_deployment else "package"
             # Check if cache directory for this deployment exist
-            cached_dir = os.path.join(
-                benchmark_dir,
-                deployment_name,
-                language,
-                language_version,
-                architecture,
-                package_type,
-            )
+            base_keys, extra_keys = self.code_cache_keys(code_package)
+            cached_dir = os.path.join(benchmark_dir, deployment_name, *base_keys, *extra_keys)
 
             if not os.path.exists(cached_dir):
                 os.makedirs(cached_dir, exist_ok=True)
@@ -740,62 +823,46 @@ class Cache(LoggingBase):
                     "modified": date,
                 }
 
-                key = f"{language_version}-{architecture}"
-                if code_package.container_deployment:
+                config: Dict[str, Any] = {
+                    "containers": {},
+                    "code_package": {},
+                    "functions": {},
+                }
+                if code_package.system_variant.is_container:
                     image = self.docker_client.images.get(code_package.container_uri)
                     language_config["image-uri"] = code_package.container_uri
                     language_config["image-id"] = image.id
 
-                    config = {
-                        deployment_name: {
-                            language: {
-                                "containers": {key: language_config},
-                                "code_package": {},
-                                "functions": {},
-                            }
-                        }
-                    }
+                    update_dict(config["containers"], language_config, extra_keys)
                 else:
-                    config = {
-                        deployment_name: {
-                            language: {
-                                "code_package": {key: language_config},
-                                "containers": {},
-                                "functions": {},
-                            }
-                        }
-                    }
+                    update_dict(config["code_package"], language_config, extra_keys)
 
                 # make sure to not replace other entries
                 if os.path.exists(os.path.join(benchmark_dir, "config.json")):
                     with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
                         cached_config = json.load(fp)
-                        if deployment_name in cached_config:
-                            # language known, platform known, extend dictionary
-                            if language in cached_config[deployment_name]:
-                                if code_package.container_deployment:
-                                    cached_config[deployment_name][language]["containers"][
-                                        key
-                                    ] = language_config
-                                else:
-                                    cached_config[deployment_name][language]["code_package"][
-                                        key
-                                    ] = language_config
 
-                            # language unknown, platform known - add new dictionary
-                            else:
-                                cached_config[deployment_name][language] = config[deployment_name][
-                                    language
-                                ]
+                        keys = [*base_keys, *extra_keys]
+                        language = keys[0]
+                        if language in cached_config[deployment_name]:
+                            # language known - add code package,
+                            # but do not overwrite existing entries
+                            update_dict(
+                                cached_config[deployment_name][language], language_config, keys[1:]
+                            )
                         else:
-                            # language unknown, platform unknown - add new dictionary
-                            cached_config[deployment_name] = config[deployment_name]
+                            # language unknown - add new dictionary
+                            # everything else needs to be initialized
+                            cached_config[deployment_name][language] = config
+
                         config = cached_config
-                with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
-                    json.dump(config, fp, indent=2)
+                else:
+                    # entirely new entry
+                    language = base_keys[0]
+                    config = {deployment_name: {language: config}}
+                self._write_json_atomic(os.path.join(benchmark_dir, "config.json"), config)
 
             else:
-                # TODO: update
                 raise RuntimeError(
                     "Cached application {} for {} already exists!".format(
                         code_package.benchmark, deployment_name
@@ -818,21 +885,11 @@ class Cache(LoggingBase):
             code_package (Benchmark): The benchmark code package to update.
         """
         with self._lock:
-            language = code_package.cache_language_key
-            language_version = code_package.language_version
-            architecture = code_package.architecture
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
 
-            package_type = "docker" if code_package.container_deployment else "package"
             # Check if cache directory for this deployment exist
-            cached_dir = os.path.join(
-                benchmark_dir,
-                deployment_name,
-                language,
-                language_version,
-                architecture,
-                package_type,
-            )
+            base_keys, extra_keys = self.code_cache_keys(code_package)
+            cached_dir = os.path.join(benchmark_dir, deployment_name, *base_keys, *extra_keys)
 
             config_location = os.path.join(benchmark_dir, "config.json")
 
@@ -849,22 +906,12 @@ class Cache(LoggingBase):
                 A simple check of directory existence is insufficient, as we might have
                 created a code package earlier (which creates a directory), but not a container.
             """
-            key = f"{language_version}-{architecture}"
-            if code_package.container_deployment:
-                main_key = "containers"
-            else:
-                main_key = "code_package"
-
-            package_exists = True
-            try:
-                config[deployment_name][language][main_key][key]
-            except KeyError:
-                package_exists = False
-
+            package_exists = keys_exist(config, [deployment_name, *base_keys, *extra_keys])
+            if not package_exists:
                 """
-                    We have no such cache entry - fallback.
-                    However, we still have directory, a possible leftover after crash.
-                    Whatever was left, we remove it since we have no information what is there.
+                We have no such cache entry - fallback.
+                However, we still have directory, a possible leftover after crash.
+                Whatever was left, we remove it since we have no information what is there.
                 """
                 if os.path.exists(cached_dir):
                     shutil.rmtree(cached_dir)
@@ -893,19 +940,17 @@ class Cache(LoggingBase):
                 else:
                     self.logging.info(f"Caching container pushed to: {code_package.container_uri}")
 
-                config[deployment_name][language][main_key][key]["date"]["modified"] = date
-                config[deployment_name][language][main_key][key]["hash"] = code_package.hash
-                config[deployment_name][language][main_key][key]["size"] = code_package.code_size
+                cached_config = keys_get(config, [deployment_name, *base_keys, *extra_keys])
+                cached_config["date"]["modified"] = date
+                cached_config["hash"] = code_package.hash
+                cached_config["size"] = code_package.code_size
 
-                if code_package.container_deployment:
+                if code_package.system_variant.is_container:
                     image = self.docker_client.images.get(code_package.container_uri)
-                    config[deployment_name][language][main_key][key]["image-id"] = image.id
-                    config[deployment_name][language][main_key][key][
-                        "image-uri"
-                    ] = code_package.container_uri
+                    cached_config["image-id"] = image.id
+                    cached_config["image-uri"] = code_package.container_uri
 
-                with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
-                    json.dump(config, fp, indent=2)
+                self._write_json_atomic(os.path.join(benchmark_dir, "config.json"), config)
             else:
                 self.add_code_package(deployment_name, code_package)
 
@@ -934,7 +979,7 @@ class Cache(LoggingBase):
             return
         with self._lock:
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
-            language = code_package.cache_language_key
+            language = language_name
             cache_config = os.path.join(benchmark_dir, "config.json")
 
             if os.path.exists(cache_config):
@@ -942,15 +987,20 @@ class Cache(LoggingBase):
 
                 with open(cache_config, "r") as fp:
                     cached_config = json.load(fp)
-                    if "functions" not in cached_config[deployment_name][language]:
+                    if language not in cached_config[deployment_name]:
+                        cached_config[deployment_name][language] = {
+                            "functions": functions_config,
+                            "code_package": {},
+                            "containers": {},
+                        }
+                    elif "functions" not in cached_config[deployment_name][language]:
                         cached_config[deployment_name][language]["functions"] = functions_config
                     else:
                         cached_config[deployment_name][language]["functions"].update(
                             functions_config
                         )
                     config = cached_config
-                with open(cache_config, "w") as fp:
-                    fp.write(serialize(config))
+                self._write_serialized_atomic(cache_config, config)
             else:
                 raise RuntimeError(
                     "Can't cache function {} for a non-existing code package!".format(function.name)
@@ -986,8 +1036,7 @@ class Cache(LoggingBase):
                                     cached_config[deployment][language]["functions"][
                                         name
                                     ] = function.serialize()
-                with open(cache_config, "w") as fp:
-                    fp.write(serialize(cached_config))
+                self._write_serialized_atomic(cache_config, cached_config)
             else:
                 raise RuntimeError(
                     "Can't cache function {} for a non-existing code package!".format(function.name)

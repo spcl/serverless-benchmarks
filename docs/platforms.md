@@ -217,12 +217,11 @@ or in the JSON input configuration:
 
 ### Deployment Modes
 
-SeBS models two GCP deployment targets:
+SeBS models three GCP deployment targets:
 
 1. `function-gen1`: the first Google Cloud Functions Gen1 path.
-2. `container`: direct container deployment to Cloud Run.
-
-We plan also to add support for `function-gen2`, the current Google Cloud Functions Gen2 path.
+2. `function-gen2`: Google Cloud Functions Gen2 package deployment.
+3. `container`: direct container deployment to Cloud Run.
 These deployment types intentionally share a single GCP backend in SeBS, but they are not identical in packaging, naming, scaling, or performance behavior.
 
 On GCP, there are two different concurrency layers that should not be confused:
@@ -258,6 +257,37 @@ Gen1 configuration currently exposes instance-scaling controls:
 ```
 
 Use Gen1 when you want the most established GCP path in SeBS and do not need container-level runtime tuning.
+
+### Function Gen2
+
+Gen2 reuses the same local ZIP packaging flow as Gen1, but deploys through the Cloud Functions v2 API. It is selected directly through the experiment-level `system_variant`:
+
+```json
+"deployment": {
+  "name": "gcp",
+  "gcp": {
+    "region": "europe-west1",
+    "project_name": "your-gcp-project-id",
+    "credentials": "/path/to/project-credentials.json",
+    "configuration": {
+      "function-gen2": {
+        "vcpus": 1,
+        "gcp-concurrency": 80,
+        "worker-concurrency": 1,
+        "worker-threads": 8,
+        "min-instances": 0,
+        "max-instances": 20,
+        "cpu-boost": false,
+        "cpu-throttle": true
+      }
+    }
+  }
+}
+```
+
+Set `experiments.system_variant` to one of `function-gen1`, `function-gen2`, or `container`. From the CLI and regression workflows, the same selection is exposed through the generic `--system-variant` option.
+
+Gen1 and Gen2 package deployments use separate SeBS cache identities and separate cloud function names with short `-gen1` and `-gen2` suffixes. This avoids control-plane races when switching between package modes. In practice, regression and benchmark runs should still select one GCP package mode at a time for a given run.
 
 ### Cloud Run Container Deployments
 
@@ -298,7 +328,8 @@ Cloud Run containers can [execute in two environments](https://docs.cloud.google
 
 The current GCP backend has the following practical limits:
 * Gen1 is the primary managed-functions deployment path today.
-* Gen2 is planned and partially modeled in configuration, but not yet fully deployed through a dedicated strategy.
+* Gen2 supports the ZIP package deployment path and HTTP triggers.
+* Library-trigger direct invocation remains Gen1-only.
 * Cloud Run containers are implemented today and provide the most tuning control.
 * GCP deployments currently reject `arm64`, as arm64 instances are not available for GCR.
 * C++ packaging is not supported on GCP (but possible to be implemented on containers).

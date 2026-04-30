@@ -16,6 +16,7 @@ import docker
 
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
+from sebs.experiments.config import SystemVariant
 from sebs.faas import System
 from sebs.faas.function import Function, ExecutionResult, Trigger
 from sebs.openwhisk.container import OpenWhiskContainer
@@ -204,7 +205,7 @@ class OpenWhisk(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
 
         """
         Package benchmark code for OpenWhisk deployment.
@@ -307,7 +308,7 @@ class OpenWhisk(System):
 
     def finalize_container_build(
         self,
-    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
+    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, float]] | None:
         """
         Regardless of Docker image status, we need to create .zip file
         to allow registration of function with OpenWhisk.
@@ -368,7 +369,7 @@ class OpenWhisk(System):
         self,
         code_package: Benchmark,
         func_name: str,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> "OpenWhiskFunction":
         """
@@ -381,7 +382,7 @@ class OpenWhisk(System):
         Args:
             code_package: Benchmark configuration and code package
             func_name: Name for the OpenWhisk action
-            container_deployment: Whether to use container-based deployment
+            system_variant: Selected deployment variant
             container_uri: URI of the Docker image for the function
 
         Returns:
@@ -391,7 +392,7 @@ class OpenWhisk(System):
             RuntimeError: If WSK CLI is not accessible or function creation fails
         """
 
-        if not container_deployment:
+        if not system_variant.is_container:
             raise RuntimeError("Non-container deployment is not supported in OpenWhisk!")
 
         self.logging.info("Creating function as an action in OpenWhisk.")
@@ -425,7 +426,7 @@ class OpenWhisk(System):
                 )
                 # Update function - we don't know what version is stored
                 self.logging.info(f"Retrieved existing OpenWhisk action {func_name}.")
-                self.update_function(res, code_package, container_deployment, container_uri)
+                self.update_function(res, code_package, system_variant, container_uri)
             else:
                 try:
                     self.logging.info(f"Creating new OpenWhisk action {func_name}")
@@ -502,7 +503,7 @@ class OpenWhisk(System):
         self,
         function: Function,
         code_package: Benchmark,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> None:
         """
@@ -511,13 +512,13 @@ class OpenWhisk(System):
         Args:
             function: Existing function to update
             code_package: New benchmark configuration and code package
-            container_deployment: Whether to use container-based deployment
+            system_variant: Selected deployment variant
             container_uri: URI of the new Docker image
 
         Raises:
             RuntimeError: If WSK CLI is not accessible or update fails
         """
-        if not container_deployment:
+        if not system_variant.is_container:
             raise RuntimeError(
                 "Code location must be set for OpenWhisk action! "
                 "OpenWhisk requires container deployment with a code package."
