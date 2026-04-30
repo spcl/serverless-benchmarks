@@ -18,6 +18,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
+from sebs.experiments.config import SystemVariant
 from sebs.faas.system import System
 from sebs.faas.config import Resources
 from sebs.sebs_types import Language
@@ -161,7 +162,7 @@ class Cloudflare(System):
     def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
         """Override to validate benchmark support and auto-select cloudflare variant."""
         language = code_package.language_name
-        container_deployment = code_package.container_deployment
+        container_deployment = code_package.system_variant.is_container
         benchmark_name = code_package.benchmark
         if not self.is_benchmark_supported(benchmark_name, language, container_deployment):
             deployment_type = "container" if container_deployment else "worker"
@@ -449,7 +450,7 @@ class Cloudflare(System):
         self,
         code_package: Benchmark,
         func_name: str,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> CloudflareWorker:
         """
@@ -460,12 +461,13 @@ class Cloudflare(System):
         Args:
             code_package: Benchmark containing the function code
             func_name: Name of the worker
-            container_deployment: Whether to deploy as container
+            system_variant: Selected deployment variant
             container_uri: URI of container image
 
         Returns:
             CloudflareWorker instance
         """
+        container_deployment = system_variant.is_container
         # For container builds benchmark.build() goes through container_client.build_base_image(),
         # which does NOT set code_package._code_location.  Fall back in order:
         # 1. _CloudflareContainerAdapter.last_directory (set when build actually ran this session)
@@ -513,7 +515,7 @@ class Cloudflare(System):
                 function_cfg,
                 account_id,
             )
-            self.update_function(worker, code_package, container_deployment, container_uri)
+            self.update_function(worker, code_package, system_variant, container_uri)
             worker.updated_code = True
         else:
             self.logging.info(f"Creating new worker {func_name}")
@@ -777,7 +779,7 @@ class Cloudflare(System):
         self,
         function: Function,
         code_package: Benchmark,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ):
         """
@@ -786,9 +788,10 @@ class Cloudflare(System):
         Args:
             function: Existing function instance to update
             code_package: New benchmark containing the function code
-            container_deployment: Whether to deploy as container
+            system_variant: Selected deployment variant
             container_uri: URI of container image
         """
+        container_deployment = system_variant.is_container
         worker = cast(CloudflareWorker, function)
         package = code_package.code_location
         if package is None and container_deployment:

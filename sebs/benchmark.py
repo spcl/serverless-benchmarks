@@ -533,7 +533,7 @@ class Benchmark(LoggingBase):
             self._language_variant,
             self._language_version,
             self._architecture,
-            "container" if self._container_deployment else "package",
+            "container" if self._system_variant.is_container else "package",
         )
         self.query_cache()
         if self._experiment_config.update_code:
@@ -616,7 +616,7 @@ class Benchmark(LoggingBase):
             self._deployment_name,
             self.language,
             self._language_variant,
-            container_deployment=self._container_deployment,
+            container_deployment=self._system_variant.is_container,
         )
         assert self._hash_value is not None
         return self._hash_value
@@ -895,7 +895,7 @@ class Benchmark(LoggingBase):
         if self._language_variant != "default":
             lang_spec = self.benchmark_config.get_language_spec(self.language)
             overlay_dir_name = lang_spec.resolve_dir(
-                self._language_variant, self._container_deployment
+                self._language_variant, self._system_variant.is_container
             )
 
             if overlay_dir_name != "default":
