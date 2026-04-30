@@ -10,6 +10,7 @@ if('NOSQL_STORAGE_DATABASE' in process.env) {
 exports.handler = async function(req, res) {
   var begin = Date.now()/1000;
   var start = process.hrtime();
+  var requestId = req.headers["x-cloud-trace-context"] || req.headers["function-execution-id"];
   var func = require('./function/function')
   var ret = func.handler(req.body);
   return ret.then(
@@ -32,7 +33,7 @@ exports.handler = async function(req, res) {
           results_time: 0,
           result: result,
           is_cold: is_cold,
-          request_id: req.headers["function-execution-id"]
+          request_id: requestId
         });
     },
     (error) => {

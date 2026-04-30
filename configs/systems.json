@@ -183,8 +183,14 @@
         }
       }
     },
-    "architecture": ["x64", "arm64"],
-    "deployments": ["package", "container"]
+    "architecture": [
+      "x64",
+      "arm64"
+    ],
+    "deployments": [
+      "package",
+      "container"
+    ]
   },
   "azure": {
     "languages": {
@@ -269,17 +275,21 @@
         "username": "docker_user"
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "package"
+    ]
   },
   "gcp": {
     "languages": {
       "python": {
         "base_images": {
           "x64": {
-            "3.10": "ubuntu:22.04",
-            "3.11": "ubuntu:22.04",
-            "3.12": "ubuntu:22.04"
+            "3.10": "us-central1-docker.pkg.dev/serverless-runtimes/google-22/runtimes/python310@sha256:88ac475abc994f60c6d156e2fcce443396e581fc984e154b5f8608e3298a7d18",
+            "3.11": "us-central1-docker.pkg.dev/serverless-runtimes/google-22/runtimes/python311@sha256:3c346ccf7b0de6c3df6cda05378e96532de1cfb82aaf1e823dc1cc0ca674f61c",
+            "3.12": "us-central1-docker.pkg.dev/serverless-runtimes/google-22/runtimes/python312@sha256:5aa81b77d8361b4b82e3d59f08c834ffb354ccbb7ddf4eff8bb22ce26dee477f"
           }
         },
         "images": [
@@ -290,15 +300,16 @@
           "files": [
             "handler.py",
             "storage.py",
-            "nosql.py"
+            "nosql.py",
+            "setup.py"
           ],
           "packages": [],
           "module_packages": {
             "storage": [
-              "google-cloud-storage"
+              "google-cloud-storage==3.10.1"
             ],
             "nosql": [
-              "google-cloud-datastore"
+              "google-cloud-datastore==2.24.0"
             ]
           }
         }
@@ -306,8 +317,9 @@
       "nodejs": {
         "base_images": {
           "x64": {
-            "18": "ubuntu:22.04",
-            "20": "ubuntu:22.04"
+            "20": "us-central1-docker.pkg.dev/serverless-runtimes/google-22/runtimes/nodejs20@sha256:504eb1f482bb62a9c3524bfebada43db93105d7fe6447dc7c96a9f4423e79908",
+            "22": "us-central1-docker.pkg.dev/serverless-runtimes/google-22/runtimes/nodejs22@sha256:56a74d24510c0f4d0da44e13226a150821a84440ddfbf89b52ea620ca729db07",
+            "24": "us-central1-docker.pkg.dev/serverless-runtimes/google-24/runtimes/nodejs24@sha256:8309735602e6228412ba362959f63eebcac9fe5e9a114eb1e63b7febef13030c"
           }
         },
         "images": [
@@ -321,8 +333,8 @@
             "nosql.js"
           ],
           "packages": {
-            "@google-cloud/datastore": "^9.1.0",
-            "@google-cloud/storage": "^4.0.0",
+            "@google-cloud/datastore": "9.1.0",
+            "@google-cloud/storage": "4.0.0",
             "uuid": "3.4.0"
           }
         }
@@ -331,7 +343,7 @@
         "base_images": {
           "x64": {
             "11": "us-central1-docker.pkg.dev/serverless-runtimes/google-18-full/runtimes/java11:deprecated-public-image-java11_20260217_11_0_RC00",
-            "17": "us-central1-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/java17:java17_20260215_17_0_RC00"
+            "17": "us-central1-docker.pkg.dev/serverless-runtimes/google-22/runtimes/java17:java17_20260405_17_0_RC00"
           }
         },
         "images": [
@@ -355,8 +367,14 @@
         "username": "docker_user"
       }
     },
-    "architecture": ["x64"],
-    "deployments": ["package"]
+    "architecture": [
+      "x64"
+    ],
+    "deployments": [
+      "function-gen1",
+      "function-gen2",
+      "container"
+    ]
   },
   "openwhisk": {
     "languages": {

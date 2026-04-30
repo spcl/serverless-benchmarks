@@ -1,0 +1,17 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
+
+WORKDIR /workspace
+
+USER root
+
+COPY . function/
+RUN mv function/handler.js function/package.json /workspace
+
+ENV NODE_ENV=production
+
+RUN npm install --no-package-lock --omit=dev \
+    && npm install --no-save --no-package-lock --omit=dev @google-cloud/functions-framework@5.0.2 \
+    && npm cache clean --force
+
+CMD ["node", "./node_modules/@google-cloud/functions-framework/build/src/main.js", "--target=handler", "--source=handler.js"]

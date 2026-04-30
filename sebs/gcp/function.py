@@ -14,12 +14,56 @@ Example:
         config = FunctionConfig(memory=256, timeout=60, runtime="python39")
         function = GCPFunction("my-function", "benchmark-name", "hash123", config)
 """
+from __future__ import annotations
 
-from typing import cast, Dict, Optional
+from enum import Enum
+from typing import cast, Dict, Optional, Union
 
 from sebs.faas.config import Resources
 from sebs.faas.function import Function, FunctionConfig
 from sebs.gcp.storage import GCPStorage
+
+from sebs.gcp.config import GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig
+
+
+class FunctionDeploymentType(str, Enum):
+    """Enumeration of deployment methods on GCP.
+
+    - FUNCTION_GEN1: Original Google Cloud Functions.
+    - FUNCTION_GEN2: Google Cloud Functions gen2, based on Cloud Run.
+    - CONTAINER: Google Cloud Run containers.
+    """
+
+    FUNCTION_GEN1 = "function-gen1"
+    FUNCTION_GEN2 = "function-gen2"
+    CONTAINER = "container"
+
+    @property
+    def is_container(self) -> bool:
+        """Return whether the deployment type is container-based.
+
+        Returns:
+            True if the deployment uses Cloud Run containers, otherwise False.
+        """
+        return self == FunctionDeploymentType.CONTAINER
+
+    @staticmethod
+    def deserialize(val: str) -> FunctionDeploymentType:
+        """Deserialize a string value to a FunctionDeploymentEngine enum.
+
+        Args:
+            val: String value to convert to enum
+
+        Returns:
+            FunctionDeploymentEngine: Corresponding enum value
+
+        Raises:
+            Exception: If the value doesn't match any enum member
+        """
+        for member in FunctionDeploymentType:
+            if member.value == val:
+                return member
+        raise Exception(f"Unknown GCP function deployment type {val}")
 
 
 class GCPFunction(Function):
@@ -38,7 +82,10 @@ class GCPFunction(Function):
         benchmark: str,
         code_package_hash: str,
         cfg: FunctionConfig,
+        deployment_type: FunctionDeploymentType,
+        deployment_config: Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig],
         bucket: Optional[str] = None,
+        container_uri: Optional[str] = None,
     ) -> None:
         """Initialize a GCP Cloud Function instance.
 
@@ -47,10 +94,15 @@ class GCPFunction(Function):
             benchmark: Name of the benchmark this function implements
             code_package_hash: Hash of the code package for version tracking
             cfg: Function configuration (memory, timeout, etc.)
+            deployment_type: Type of deployment (function-gen1, container-gen1, etc.)
             bucket: Optional Cloud Storage bucket name for code storage
+            deployment_config: Deployment-specific configuration
         """
         super().__init__(benchmark, name, code_package_hash, cfg)
         self.bucket = bucket
+        self._container_uri = container_uri
+        self._deployment_type = deployment_type
+        self._deployment_config = deployment_config
 
     @staticmethod
     def typename() -> str:
@@ -61,6 +113,26 @@ class GCPFunction(Function):
         """
         return "GCP.GCPFunction"
 
+    @property
+    def deployment_type(self) -> FunctionDeploymentType:
+        """Get the deployment type for this function.
+
+        Returns:
+            Deployment type enum for the function.
+        """
+        return self._deployment_type
+
+    @property
+    def deployment_config(
+        self,
+    ) -> Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig]:
+        """Get the deployment-specific configuration for this function.
+
+        Returns:
+            Deployment-specific configuration object.
+        """
+        return self._deployment_config
+
     def serialize(self) -> Dict:
         """Serialize function to dictionary for cache storage.
         Adds code bucket in cloud storage.
@@ -68,10 +140,14 @@ class GCPFunction(Function):
         Returns:
             Dictionary containing function state including bucket information
         """
-        return {
+        out = {
             **super().serialize(),
+            "container-uri": self._container_uri,
             "bucket": self.bucket,
+            "deployment_type": self.deployment_type,
+            "deployment_config": self._deployment_config.serialize(),
         }
+        return out
 
     @staticmethod
     def deserialize(cached_config: Dict) -> "GCPFunction":
@@ -91,14 +167,33 @@ class GCPFunction(Function):
         """
         from sebs.faas.function import Trigger
         from sebs.gcp.triggers import LibraryTrigger, HTTPTrigger
+        from sebs.gcp.config import (
+            GCPFunctionGen1Config,
+            GCPFunctionGen2Config,
+            GCPContainerConfig,
+        )
 
         cfg = FunctionConfig.deserialize(cached_config["config"])
+        deployment_type = FunctionDeploymentType.deserialize(cached_config["deployment_type"])
+
+        dep_cfg_dict = cached_config["deployment_config"]
+        deployment_config: Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig]
+        if deployment_type == FunctionDeploymentType.FUNCTION_GEN1:
+            deployment_config = GCPFunctionGen1Config.deserialize(dep_cfg_dict)
+        elif deployment_type == FunctionDeploymentType.FUNCTION_GEN2:
+            deployment_config = GCPFunctionGen2Config.deserialize(dep_cfg_dict)
+        else:
+            deployment_config = GCPContainerConfig.deserialize(dep_cfg_dict)
+
         ret = GCPFunction(
             cached_config["name"],
             cached_config["benchmark"],
             cached_config["hash"],
             cfg,
+            deployment_type,
+            deployment_config,
             cached_config["bucket"],
+            cached_config["container-uri"],
         )
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
@@ -108,6 +203,22 @@ class GCPFunction(Function):
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret
+
+    def container_uri(self) -> str | None:
+        """Return the container image URI if this function uses one.
+
+        Returns:
+            Container image URI, or ``None`` for non-container deployments.
+        """
+        return self._container_uri
+
+    def set_container_uri(self, container_uri: str | None) -> None:
+        """Update the container image URI for this function.
+
+        Args:
+            container_uri: Container image URI to store, or ``None``.
+        """
+        self._container_uri = container_uri
 
     def code_bucket(self, benchmark: str, storage_client: GCPStorage) -> str:
         """Get or create the Cloud Storage bucket for function code.

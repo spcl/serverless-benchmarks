@@ -375,7 +375,7 @@ This function has been retrieved from the cache and requires refreshing function
 In practice, this is often limited to updating logging handlers - see existing implementations for details.
 
 ```python
-    def update_function(self, function: Function, code_package: Benchmark, container_deployment: bool, container_uri: str):
+    def update_function(self, function: Function, code_package: Benchmark, system_variant: SystemVariant, container_uri: str | None):
 ```
 
 This function updates the function's code and configuration in the platform.

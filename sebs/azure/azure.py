@@ -54,6 +54,7 @@ from sebs.faas.function import Trigger
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.experiments.config import SystemVariant
 from sebs.utils import LoggingHandlers, execute
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult
 from sebs.faas.system import System
@@ -220,7 +221,7 @@ class Azure(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
         """Package function code for Azure Functions deployment.
 
         Creates the proper directory structure and configuration files
@@ -237,7 +238,7 @@ class Azure(System):
             architecture: Target architecture (currently unused)
             benchmark: Name of the benchmark
             is_cached: Whether the package is from cache
-            container_deployment: Whether to use container deployment
+            system_variant: Selected deployment variant
 
         Returns:
             Tuple of (directory_path, code_size_bytes, container_uri)
@@ -504,7 +505,7 @@ class Azure(System):
         self,
         function: Function,
         code_package: Benchmark,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> None:
         """Update existing Azure Function with new code.
@@ -517,14 +518,14 @@ class Azure(System):
         Args:
             function: Function instance to update
             code_package: New benchmark code package
-            container_deployment: Whether using container deployment
+            system_variant: Selected deployment variant
             container_uri: Container URI (unused for Azure)
 
         Raises:
             NotImplementedError: If container deployment is requested.
         """
 
-        if container_deployment:
+        if system_variant.is_container:
             raise NotImplementedError("Container deployment is not supported in Azure")
 
         assert code_package.has_input_processed
@@ -668,7 +669,7 @@ class Azure(System):
             "Updating function's memory and timeout configuration is not supported."
         )
 
-    def delete_function(self, func_name: str) -> None:
+    def delete_function(self, func_name: str, function: Dict) -> None:
         """Delete an Azure Function App and its associated storage account.
 
         Args:
@@ -680,14 +681,7 @@ class Azure(System):
             For Azure, we need to retrieve the associated storage account.
             Each function has its own storage account.
         """
-        all_functions = self.cache_client.get_all_functions(self.name())
-        if func_name not in all_functions:
-            self.logging.error(
-                f"Failed to find function {func_name} in functions: {all_functions.keys()}."
-            )
-            raise RuntimeError(f"Failed to find function {func_name} in cache.")
-
-        function = cast(AzureFunction, self.function_type().deserialize(all_functions[func_name]))
+        function_obj = cast(AzureFunction, self.function_type().deserialize(function))
 
         try:
             self.cli_instance.execute(
@@ -700,10 +694,12 @@ class Azure(System):
             raise e
 
         self.logging.info(
-            f"Deleting storage account {function.function_storage.account_name} "
+            f"Deleting storage account {function_obj.function_storage.account_name} "
             f"associated with function {func_name}"
         )
-        self.config.resources.delete_storage_account(self.cli_instance, function.function_storage)
+        self.config.resources.delete_storage_account(
+            self.cli_instance, function_obj.function_storage
+        )
 
     def _mount_function_code(self, code_package: Benchmark) -> str:
         """Mount function code package in Azure CLI container.
@@ -757,7 +753,7 @@ class Azure(System):
         self,
         code_package: Benchmark,
         func_name: str,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> AzureFunction:
         """Create new Azure Function.
@@ -769,7 +765,7 @@ class Azure(System):
         Args:
             code_package: Benchmark code package to deploy
             func_name: Name for the Azure Function App
-            container_deployment: Whether to use container deployment
+            system_variant: Selected deployment variant
             container_uri: Container URI (unused for Azure)
 
         Returns:
@@ -780,7 +776,7 @@ class Azure(System):
             RuntimeError: If function creation fails.
         """
 
-        if container_deployment:
+        if system_variant.is_container:
             raise NotImplementedError("Container deployment is not supported in Azure")
 
         language = code_package.language_name
@@ -857,7 +853,7 @@ class Azure(System):
         )
 
         # update existing function app
-        self.update_function(function, code_package, container_deployment, container_uri)
+        self.update_function(function, code_package, system_variant, container_uri)
 
         self.cache_client.add_function(
             deployment_name=self.name(),

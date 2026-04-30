@@ -92,7 +92,10 @@ class CodePackageSize:
         arr = bytearray((random.getrandbits(8) for i in range(size)))
         self._benchmark.code_package_modify("randomdata.bin", bytes(arr))
         function = self._deployment_client.get_function(self._benchmark)
-        self._deployment_client.update_function(function, self._benchmark, False, "")
+        # FIXME: we might want a change in the future - support containers
+        self._deployment_client.update_function(
+            function, self._benchmark, self._benchmark.system_variant, ""
+        )
 
 
 class PayloadSize:

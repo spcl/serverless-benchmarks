@@ -20,6 +20,7 @@ import docker
 from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.experiments.config import SystemVariant
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
 from sebs.faas.config import Resources
@@ -154,6 +155,10 @@ class System(ABC, LoggingBase):
         """
         return None
 
+    def system_variant_suffix(self, system_variant: SystemVariant) -> Optional[str]:
+        """Return an optional provider-local system variant suffix."""
+        return None
+
     @property
     def system_resources(self) -> SystemResources:
         """
@@ -284,7 +289,7 @@ class System(ABC, LoggingBase):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
         """
         Apply system-specific code packaging to prepare a deployment package.
 
@@ -314,7 +319,7 @@ class System(ABC, LoggingBase):
 
     def finalize_container_build(
         self,
-    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, int]] | None:
+    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, float]] | None:
         """Default behavior of container deployment is that no code package is needed.
         Thus, we return None to signal that.
 
@@ -330,7 +335,7 @@ class System(ABC, LoggingBase):
         self,
         code_package: Benchmark,
         func_name: str,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> Function:
         """
@@ -341,14 +346,14 @@ class System(ABC, LoggingBase):
         Args:
             code_package: Benchmark containing the function code
             func_name: Name of the function
-            container_deployment: Whether to deploy as a container
+            system_variant: Selected deployment variant
             container_uri: URI of the container image
 
         Returns:
             Function: Created function instance
 
         Raises:
-            NotImplementedError: If container deployment is requested but not supported
+            NotImplementedError: If the deployment variant is not supported
         """
         pass
 
@@ -372,7 +377,7 @@ class System(ABC, LoggingBase):
         self,
         function: Function,
         code_package: Benchmark,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ):
         """
@@ -381,11 +386,11 @@ class System(ABC, LoggingBase):
         Args:
             function: Existing function instance to update
             code_package: New benchmark containing the function code
-            container_deployment: Whether to deploy as a container
+            system_variant: Selected deployment variant
             container_uri: URI of the container image
 
         Raises:
-            NotImplementedError: If container deployment is requested but not supported
+            NotImplementedError: If the deployment variant is not supported
         """
         pass
 
@@ -413,14 +418,14 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
-        _, code_package_loc, container_deployment, container_uri = code_package.build(
+        _, code_package_loc, system_variant, container_uri = code_package.build(
             self.package_code, self.container_client, self.finalize_container_build()
         )
         if code_package_loc is not None:
             self.logging.info(
                 f"Created code package for function {func_name} at {code_package_loc}"
             )
-        if container_deployment:
+        if system_variant.is_container:
             self.logging.info(
                 f"Created container deployment for function {func_name}: {container_uri}"
             )
@@ -468,7 +473,7 @@ class System(ABC, LoggingBase):
             func_name = self.default_function_name(code_package)
 
         # Build the code package
-        rebuilt, _, container_deployment, container_uri = code_package.build(
+        rebuilt, _, system_variant, container_uri = code_package.build(
             self.package_code, self.container_client, self.finalize_container_build()
         )
 
@@ -489,6 +494,14 @@ class System(ABC, LoggingBase):
                 )
                 self.logging.error(e)
                 is_function_cached = False
+            else:
+                err_msg = self.can_reuse_cached_function(function, code_package)
+                if err_msg is not None:
+                    self.logging.info(
+                        f"Cached function {func_name} is not compatible with the current "
+                        f"deployment configuration and will be replaced. Reason: {err_msg}"
+                    )
+                    is_function_cached = False
 
         # Create new function if not cached or deserialize failed
         if not is_function_cached:
@@ -498,9 +511,7 @@ class System(ABC, LoggingBase):
                 else "function {} not found in cache.".format(func_name)
             )
             self.logging.info("Creating new function! Reason: " + msg)
-            function = self.create_function(
-                code_package, func_name, container_deployment, container_uri
-            )
+            function = self.create_function(code_package, func_name, system_variant, container_uri)
             self.cache_client.add_function(
                 deployment_name=self.name(),
                 language_name=code_package.language_name,
@@ -512,7 +523,7 @@ class System(ABC, LoggingBase):
         else:
             assert function is not None
             self.cached_function(function)
-            if code_package.container_deployment:
+            if code_package.system_variant.is_container:
                 self.logging.info(
                     f"Using cached function {func_name} container {code_package.container_uri}"
                 )
@@ -541,7 +552,7 @@ class System(ABC, LoggingBase):
                     )
 
                 # Update function code
-                self.update_function(function, code_package, container_deployment, container_uri)
+                self.update_function(function, code_package, system_variant, container_uri)
                 function.code_package_hash = code_package.hash
                 function.updated_code = True
                 self.cache_client.add_function(
@@ -613,6 +624,20 @@ class System(ABC, LoggingBase):
                 setattr(cached_function.config.runtime, lang_attr[1], new_val)
 
         return changed
+
+    def can_reuse_cached_function(
+        self, cached_function: Function, benchmark: Benchmark
+    ) -> Optional[str]:
+        """Check whether a cached function can be reused as-is.
+
+        Args:
+            cached_function: Cached function selected from SeBS cache.
+            benchmark: Benchmark requesting the function.
+
+        Returns:
+            string explaining why the function cannot be reused, or None if it can be reused.
+        """
+        return None
 
     @abstractmethod
     def default_function_name(
@@ -719,7 +744,7 @@ class System(ABC, LoggingBase):
         """
         pass
 
-    def delete_function(self, func_name: str) -> None:
+    def delete_function(self, func_name: str, function: Dict) -> None:
         """Delete cloud deployment of a function.
 
         Args:
@@ -741,7 +766,7 @@ class System(ABC, LoggingBase):
 
         for name, func in functions.items():
             if not dry_run:
-                self.delete_function(name)
+                self.delete_function(name, func)
             deleted.append(name)
 
         if dry_run:

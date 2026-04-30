@@ -29,6 +29,7 @@ import docker
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.experiments.config import SystemVariant
 from sebs.storage.resources import SelfHostedSystemResources
 from sebs.utils import LoggingHandlers, is_linux
 from sebs.local.config import LocalConfig
@@ -183,7 +184,7 @@ class Local(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, float]:
         """Package function code for local execution.
 
         Creates a compatible code package structure for local execution that
@@ -431,7 +432,7 @@ class Local(System):
         self,
         code_package: Benchmark,
         func_name: str,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> "LocalFunction":
         """Create a new function deployment. In practice, it starts a new Docker container.
@@ -439,7 +440,7 @@ class Local(System):
         Args:
             code_package: Benchmark code package to deploy
             func_name: Name for the function
-            container_deployment: Whether to use container deployment (unsupported)
+            system_variant: Selected deployment variant
             container_uri: Container URI (unused for local)
 
         Returns:
@@ -448,7 +449,7 @@ class Local(System):
         Raises:
             NotImplementedError: If container deployment is requested
         """
-        if container_deployment:
+        if system_variant.is_container:
             raise NotImplementedError("Container deployment is not supported in Local")
         return self._start_container(code_package, func_name, None)
 
@@ -456,7 +457,7 @@ class Local(System):
         self,
         function: Function,
         code_package: Benchmark,
-        container_deployment: bool,
+        system_variant: SystemVariant,
         container_uri: str | None,
     ) -> None:
         """Update an existing function with new code.
@@ -466,10 +467,10 @@ class Local(System):
         Args:
             function: Existing function to update
             code_package: New benchmark code package
-            container_deployment: Whether to use container deployment (unused)
+            system_variant: Selected deployment variant
             container_uri: Container URI (unused)
         """
-        if container_deployment:
+        if system_variant.is_container:
             raise NotImplementedError("Container deployment is not supported in Local")
 
         func = cast(LocalFunction, function)

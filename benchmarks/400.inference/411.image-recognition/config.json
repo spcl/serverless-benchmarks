@@ -1,6 +1,6 @@
 {
   "timeout": 60,
-  "memory": 512,
+  "memory": 768,
   "languages": [
     {
       "language": "python",

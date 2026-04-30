@@ -176,8 +176,10 @@ class PerfCost(Experiment):
             self._deployment_client.update_function(
                 self._function,
                 self._benchmark,
-                self._benchmark.container_deployment,
-                self._benchmark.container_uri if self._benchmark.container_deployment else "",
+                self._benchmark.system_variant,
+                self._benchmark.container_uri
+                if self._benchmark.system_variant.is_container
+                else "",
             )
             self._sebs_client.cache_client.update_function(self._function)
             # Run experiment with this memory configuration

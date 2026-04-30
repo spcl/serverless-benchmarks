@@ -124,9 +124,10 @@ def common_params(func):
         help="Target architecture",
     )
     @click.option(
-        "--container-deployment/--no-container-deployment",
-        default=False,
-        help="Deploy functions as container images (AWS only).",
+        "--system-variant",
+        default=None,
+        type=str,
+        help="Optional system-specific deployment variant interpreted by the selected platform.",
     )
     @click.option(
         "--resource-prefix",
@@ -157,7 +158,7 @@ def parse_common_params(
     language_version,
     language_variant,
     architecture,
-    container_deployment,
+    system_variant,
     resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
@@ -186,11 +187,12 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
     update_nested_dict(config_obj, ["experiments", "architecture"], architecture)
-    # Only override container_deployment if explicitly set via CLI
-    # If not in config, use CLI default (False)
-    if container_deployment or "container_deployment" not in config_obj.get("experiments", {}):
-        update_nested_dict(
-            config_obj, ["experiments", "container_deployment"], container_deployment
+    update_nested_dict(config_obj, ["experiments", "system_variant"], system_variant)
+
+    selected_deployment = config_obj.get("deployment", {}).get("name")
+    if selected_deployment and "system_variant" not in config_obj.get("experiments", {}):
+        config_obj["experiments"]["system_variant"] = sebs_client.config.default_system_variant(
+            selected_deployment
         )
 
     # set the path the configuration was loaded from
@@ -719,7 +721,7 @@ def start(
         update_storage=False,
         deployment="local",
         storage_configuration=storage_configuration,
-        container_deployment=False,
+        system_variant="package",
         architecture=architecture,
         **kwargs,
     )

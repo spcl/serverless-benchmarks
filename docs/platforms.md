@@ -210,10 +210,130 @@ or in the JSON input configuration:
   "name": "gcp",
   "gcp": {
     "region": "europe-west1",
+    "project_name": "your-gcp-project-id",
     "credentials": "/path/to/project-credentials.json"
   }
 }
 ```
+
+### Deployment Modes
+
+SeBS models three GCP deployment targets:
+
+1. `function-gen1`: the first Google Cloud Functions Gen1 path.
+2. `function-gen2`: Google Cloud Functions Gen2 package deployment.
+3. `container`: direct container deployment to Cloud Run.
+These deployment types intentionally share a single GCP backend in SeBS, but they are not identical in packaging, naming, scaling, or performance behavior.
+
+On GCP, there are two different concurrency layers that should not be confused:
+* platform concurrency: how many requests GCP may send to one instance (`gcp-concurrency`)
+* runtime concurrency: how many requests the language server is prepared to process internally (`worker-concurrency`, `worker-threads`)
+This design is intentional. A single Cloud Run concurrency number is not enough to reason about performance if the application server is underprovisioned or overprovisioned relative to the platform.
+
+### Function Gen1
+
+Gen1 is the currently implemented Google-managed function deployment path in SeBS. The packaging flow is ZIP-based:
+* benchmark sources are moved into a `function/` subdirectory,
+* the language wrapper file is renamed to the GCP-required entrypoint name (`main.py` for Python, `index.js` for Node.js),
+* the whole directory is archived and uploaded to Cloud Storage,
+* Cloud Functions Gen1 is then updated from the uploaded archive.
+
+Gen1 configuration currently exposes instance-scaling controls:
+
+```json
+"deployment": {
+  "name": "gcp",
+  "gcp": {
+    "region": "europe-west1",
+    "project_name": "your-gcp-project-id",
+    "credentials": "/path/to/project-credentials.json",
+    "configuration": {
+      "function-gen1": {
+        "min-instances": 0,
+        "max-instances": 20
+      }
+    }
+  }
+}
+```
+
+Use Gen1 when you want the most established GCP path in SeBS and do not need container-level runtime tuning.
+
+### Function Gen2
+
+Gen2 reuses the same local ZIP packaging flow as Gen1, but deploys through the Cloud Functions v2 API. It is selected directly through the experiment-level `system_variant`:
+
+```json
+"deployment": {
+  "name": "gcp",
+  "gcp": {
+    "region": "europe-west1",
+    "project_name": "your-gcp-project-id",
+    "credentials": "/path/to/project-credentials.json",
+    "configuration": {
+      "function-gen2": {
+        "vcpus": 1,
+        "gcp-concurrency": 80,
+        "worker-concurrency": 1,
+        "worker-threads": 8,
+        "min-instances": 0,
+        "max-instances": 20,
+        "cpu-boost": false,
+        "cpu-throttle": true
+      }
+    }
+  }
+}
+```
+
+Set `experiments.system_variant` to one of `function-gen1`, `function-gen2`, or `container`. From the CLI and regression workflows, the same selection is exposed through the generic `--system-variant` option.
+
+Gen1 and Gen2 package deployments use separate SeBS cache identities and separate cloud function names with short `-gen1` and `-gen2` suffixes. This avoids control-plane races when switching between package modes. In practice, regression and benchmark runs should still select one GCP package mode at a time for a given run.
+
+### Cloud Run Container Deployments
+
+Container deployments are the currently implemented Cloud Run-based path in SeBS. They are selected with container deployment and use a provider-specific function image built from `Dockerfile.function`.
+At the deployment level, SeBS configures Cloud Run service properties:
+
+```json
+"deployment": {
+  "name": "gcp",
+  "gcp": {
+    "region": "europe-west1",
+    "project_name": "your-gcp-project-id",
+    "credentials": "/path/to/project-credentials.json",
+    "configuration": {
+      "container": {
+        "environment": "gen2",
+        "vcpus": 1,
+        "gcp-concurrency": 80,
+        "worker-concurrency": 80,
+        "worker-threads": 8,
+        "min-instances": 0,
+        "max-instances": 20,
+        "cpu-boost": false,
+        "cpu-throttle": true
+      }
+    }
+  }
+}
+```
+
+For Python, SeBS uses [`functions-framework`](https://github.com/GoogleCloudPlatform/functions-framework-python) behind `gunicorn` rather than the framework's default development server, as [recommended by Cloud Run performance guidance](https://docs.cloud.google.com/run/docs/tips/python).
+For Node.js, SeBS uses [`@google-cloud/functions-framework`](https://github.com/GoogleCloudPlatform/functions-framework-nodejs) started directly with `node` rather than via `npm start`, [as recommended by Cloud Run performance guidance](https://docs.cloud.google.com/run/docs/tips/nodejs).
+For Java, we use [`java-function-invoker`](https://mvnrepository.com/artifact/com.google.cloud.functions.invoker/java-function-invoker), and we disable tiered compilation to speed up startup time, [as recommended by Cloud Run performance guidance](https://docs.cloud.google.com/run/docs/tips/java).
+
+Cloud Run containers can [execute in two environments](https://docs.cloud.google.com/run/docs/configuring/execution-environment): gVisor-based gen1, and VM-based gen2.
+
+### Current Limitations
+
+The current GCP backend has the following practical limits:
+* Gen1 is the primary managed-functions deployment path today.
+* Gen2 supports the ZIP package deployment path and HTTP triggers.
+* Library-trigger direct invocation remains Gen1-only.
+* Cloud Run containers are implemented today and provide the most tuning control.
+* GCP deployments currently reject `arm64`, as arm64 instances are not available for GCR.
+* C++ packaging is not supported on GCP (but possible to be implemented on containers).
 
 ## Cloudflare Workers
 
