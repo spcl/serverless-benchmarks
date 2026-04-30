@@ -1,0 +1,10 @@
+{
+  "name": "cloudflare-container-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Container Worker wrapper",
+  "main": "worker.js",
+  "type": "module",
+  "dependencies": {
+    "@cloudflare/containers": "^1.0.0"
+  }
+}

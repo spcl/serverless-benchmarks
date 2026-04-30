@@ -114,7 +114,7 @@ def common_params(func):
     @click.option(
         "--deployment",
         default=None,
-        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
+        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk", "cloudflare"]),
         help="Cloud deployment to use.",
     )
     @click.option(
@@ -498,12 +498,29 @@ def package(
     help="Filter resource IDs and URls from output.",
 )
 @common_params
+@click.option(
+    "--cache",
+    default=os.path.join(os.path.curdir, "regression-cache"),
+    help="Location of experiments cache.",
+)
+@click.option(
+    "--output-dir",
+    default=os.path.join(os.path.curdir, "regression-output"),
+    help="Output directory for results.",
+)
+@click.option(
+    "--deployment-type",
+    default=None,
+    type=click.Choice(["functions", "containers"]),
+    help="Limit regression to a specific deployment type (functions or containers).",
+)
 def regression(
     benchmark_input_size,
     benchmark_name,
     storage_configuration,
     selected_architecture,
     filter_output,
+    deployment_type,
     **kwargs,
 ):
     """Run regression test suite across benchmarks."""
@@ -529,6 +546,8 @@ def regression(
         config,
         kwargs["resource_prefix"],
         benchmark_name,
+        deployment_type,
+        benchmark_input_size,
         architecture,
         filter_output,
     )
@@ -988,7 +1007,7 @@ def docker_cmd():
 @click.option(
     "--deployment",
     default=None,
-    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk", "cloudflare"]),
     help="Deployment platform to build images for",
 )
 @click.option(
@@ -1070,7 +1089,7 @@ def docker_build(
 @click.option(
     "--deployment",
     default=None,
-    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk", "cloudflare"]),
     help="Deployment platform to push images for",
 )
 @click.option(

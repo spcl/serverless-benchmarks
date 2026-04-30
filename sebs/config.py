@@ -203,6 +203,16 @@ class SeBSConfig:
             architecture
         ]
 
+    def benchmark_container_images(
+        self, deployment_name: str, language_name: str, architecture: str
+    ) -> Dict[str, str]:
+        """Get container base images for container deployments."""
+        return (
+            self._system_config[deployment_name]["languages"][language_name]
+            .get("container_images", {})
+            .get(architecture, {})
+        )
+
     def version(self) -> str:
         """Get the SeBS framework version.
 

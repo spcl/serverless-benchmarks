@@ -1,6 +1,6 @@
 # Platform Configuration
 
-SeBS supports three commercial serverless platforms: AWS Lambda, Azure Functions, and Google Cloud Functions.
+SeBS supports four commercial serverless platforms: AWS Lambda, Azure Functions, Google Cloud Functions, and Cloudflare Workers.
 Furthermore, we support the open source FaaS system OpenWhisk.
 
 The file `configs/example.json` contains all parameters that users can change
@@ -17,6 +17,7 @@ Supported platforms:
 * [Amazon Web Services (AWS) Lambda](#aws-lambda)
 * [Microsoft Azure Functions](#azure-functions)
 * [Google Cloud (GCP) Functions](#google-cloud-functions)
+* [Cloudflare Workers](#cloudflare-workers)
 * [OpenWhisk](#openwhisk)
 
 ## Storage Configuration
@@ -333,6 +334,185 @@ The current GCP backend has the following practical limits:
 * Cloud Run containers are implemented today and provide the most tuning control.
 * GCP deployments currently reject `arm64`, as arm64 instances are not available for GCR.
 * C++ packaging is not supported on GCP (but possible to be implemented on containers).
+
+## Cloudflare Workers
+
+> [!NOTE]
+> **Terminology mapping**: SeBS uses the term *function* throughout its CLI and configuration. On Cloudflare, the equivalent unit of deployment is a **Worker**. Wherever SeBS refers to a function (e.g. `--function-name`, `create_function`, `CloudflareWorker`), it refers to a Cloudflare Worker script deployed to `{name}.{account}.workers.dev`.
+
+Cloudflare offers a free tier for Workers with generous limits for development and testing. To use Cloudflare Workers with SeBS, you need to create a Cloudflare account and obtain API credentials.
+
+### Credentials
+
+SeBS supports both authentication methods Cloudflare offers. Both are
+functionally equivalent for SeBS: every API call, R2 upload, KV
+operation, and `wrangler` invocation works with either. Pick based on
+your Cloudflare account, not on SeBS features:
+
+- **API Token (recommended)**: A scoped credential you mint in the
+  Cloudflare dashboard. It can be limited to the permissions SeBS needs
+  and revoked independently, so this is the safest default for most
+  users.
+- **Email + Global API Key (legacy)**: Your account email plus the
+  Global API Key from the Cloudflare dashboard. SeBS still supports this
+  path for older setups and accounts that cannot use scoped tokens, but
+  it grants broad account access and should be handled more carefully.
+
+Regardless of which method you choose, you also need your account ID
+from the Cloudflare dashboard.
+
+You can pass credentials using environment variables:
+
+```bash
+# Option 1: API Token (recommended)
+export CLOUDFLARE_API_TOKEN="your-api-token"
+export CLOUDFLARE_ACCOUNT_ID="your-account-id"
+
+# Option 2: Email + Global API Key (legacy)
+export CLOUDFLARE_EMAIL="your-email@example.com"
+export CLOUDFLARE_API_KEY="your-global-api-key"
+export CLOUDFLARE_ACCOUNT_ID="your-account-id"
+```
+
+or in the JSON configuration file:
+
+```json
+"deployment": {
+  "name": "cloudflare",
+  "cloudflare": {
+    "credentials": {
+      "api_token": "your-api-token",
+      "account_id": "your-account-id"
+    },
+    "resources": {
+      "resources_id": "unique-resource-id"
+    }
+  }
+}
+```
+
+**Note**: The `resources_id` is used to uniquely identify and track resources created by SeBS for a specific deployment.
+
+### Language Support
+
+Cloudflare Workers support multiple languages through different deployment methods:
+
+- **JavaScript/Node.js**: Supported via script-based deployment or container-based deployment using Wrangler CLI
+- **Python**: Supported via script-based deployment or container-based deployment using Wrangler CLI
+
+### CLI Container
+
+SeBS uses a containerized CLI approach for Cloudflare deployments, eliminating the need to install Node.js, npm, wrangler, pywrangler, or uv on your host system. The CLI container (`spcleth/serverless-benchmarks:manage.cloudflare`) is pulled from Docker Hub on first use and contains all necessary tools. This ensures consistent behavior across platforms and simplifies setup — only Docker is required.
+
+To build and push an updated `manage.cloudflare` image (developers only):
+
+```bash
+sebs docker build --deployment cloudflare --image-type manage
+sebs docker push --deployment cloudflare --image-type manage
+```
+
+#### Shared singleton and lifecycle
+
+`CloudflareCLI` is a process-wide singleton: both the script-based (`workers.py`) and container-based (`containers.py`) deployment handlers share a single `manage.cloudflare` Docker container. The first call to `CloudflareCLI.get_instance()` starts the container and registers a shutdown hook via `atexit`; subsequent calls from any handler or thread return the already-running instance.
+
+This has two consequences:
+
+- **Thread safety during creation** — `get_instance()` uses a double-checked lock so that when multiple benchmarks run in parallel (e.g. during `sebs regression`), only one thread starts the container while the others wait.
+- **Lifecycle** — individual deployment handlers (and `Cloudflare.shutdown()`) drop their local reference to the instance but do not stop the container. The container is stopped exactly once at process exit by the `atexit` hook, regardless of whether SeBS is invoked directly (`sebs benchmark invoke`) or through the regression suite.
+
+### Deployment Architecture
+
+SeBS supports two deployment paths for Cloudflare: **script-based Workers** (native Workers runtime) and **container-based Workers** (Cloudflare's managed container runtime, fronted by a Durable-Object-backed Worker). Both paths share the same credentials, R2/KV resources, and HTTP trigger; they differ only in how code is packaged and which Cloudflare runtime executes it. The deployment type is controlled by the benchmark's `container_deployment` flag.
+
+#### Python modules (`sebs/cloudflare/`)
+
+| File | Responsibility |
+|------|----------------|
+| `cloudflare.py` | `Cloudflare(System)` facade. Verifies credentials, enforces `SUPPORTED_BENCHMARKS`, resolves the `workers.dev` URL, and dispatches `package_code`/`create_function`/`update_function` to the correct handler via `_get_deployment_handler(container_deployment)`. |
+| `workers.py` | `CloudflareWorkersDeployment` — native script packaging. Node.js is bundled with esbuild via `nodejs/Dockerfile.build`; Python generates a `pyproject.toml` and is validated via `python/Dockerfile.build` (Pyodide resolution happens server-side at deploy time). |
+| `containers.py` | `CloudflareContainersDeployment` — container packaging. Copies the per-language `Dockerfile.function` into the code directory, injects the `worker.js` orchestrator (Node-only, required by `@cloudflare/containers`), merges `package.json`, runs `npm install`, and builds a local image as a cache anchor. |
+| `cli.py` | `CloudflareCLI` — runs the `manage.cloudflare` Docker container with the Docker socket mounted and exposes `wrangler_deploy`, `pywrangler_deploy`, `docker_build`, `upload_package`. Used by both deployment handlers; `cloudflare.py` never calls `wrangler` directly. |
+| `config.py` | `CloudflareCredentials` / `CloudflareConfig` — API token, account ID, R2 keys. |
+| `resources.py` | `CloudflareSystemResources` — factories for R2 and KV/Durable Objects. |
+| `function.py` | `CloudflareWorker(Function)` — cached function metadata. |
+| `triggers.py` | `HTTPTrigger` — invokes the deployed Worker at `https://{name}.{account}.workers.dev`. |
+| `r2.py`, `kvstore.py` | Object and NoSQL storage clients. |
+
+Wrangler templates live alongside the deployment code at `sebs/cloudflare/templates/wrangler-worker.toml` and `sebs/cloudflare/templates/wrangler-container.toml` so they ship with the pip-packaged `sebs`.
+
+#### Dockerfiles (`dockerfiles/cloudflare/`)
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile.manage` | Builds the `manage.cloudflare` CLI image (Node + global `wrangler` + `pywrangler` via `uv` + Docker CLI). Driven by `cli.py`. |
+| `nodejs/Dockerfile.build` | Build image for **script-based** Node.js workers. Pulled once per session; benchmark source is bind-mounted to `/mnt/function` at build time and `cloudflare_nodejs_installer.sh` runs `npm install`, `esbuild`, and the benchmark's `build.js`/`postprocess.js` inside it. |
+| `python/Dockerfile.build` | Build image for **script-based** Python workers. Pulled once per session; benchmark source is bind-mounted to `/mnt/function` at build time and `cloudflare_python_installer.sh` validates that `pywrangler` accepts the generated `pyproject.toml`. |
+| `nodejs/Dockerfile.function` | Runtime image for **container-based** Node.js functions. Parameterized via `ARG BASE_IMAGE` from `config/systems.json`. Copied into the package by `containers.py` and rebuilt by `wrangler deploy`. |
+| `python/Dockerfile.function` | Runtime image for **container-based** Python functions. Same parameterization. |
+
+#### Script-based flow (`container_deployment=false`)
+
+1. `benchmark.build()` → `CloudflareWorkersDeployment.package_code` copies source files into the package directory.
+2. `Benchmark.install_dependencies()` pulls the matching `spcleth/serverless-benchmarks:build.cloudflare.<lang>.<ver>` build image (see [Build Images](#build-images) below), bind-mounts the package directory to `/mnt/function`, and runs `/sebs/installer.sh` (`cloudflare_nodejs_installer.sh` or `cloudflare_python_installer.sh`) inside the container.
+3. `Cloudflare.create_function` → `_create_or_update_worker` renders `sebs/cloudflare/templates/wrangler-worker.toml` into the package.
+4. `CloudflareCLI.wrangler_deploy` (Node) or `pywrangler_deploy` (Python) deploys via the `manage.cloudflare` container.
+5. `HTTPTrigger` is attached using the `workers.dev` URL.
+
+#### Container-based flow (`container_deployment=true`)
+
+1. **Local image build** — `benchmark.build()` calls `container_client.build_base_image()` on the `_CloudflareContainerAdapter` in `cloudflare.py`, which delegates to `CloudflareContainersDeployment.package_code`. It copies `{language}/Dockerfile.function` as `Dockerfile`, adds `worker.js`, merges `package.json`, and builds a local Docker image tagged `<name>:<timestamp>` (e.g. `my-benchmark-python-312:20260426-130338`). The correct `BASE_IMAGE` is passed via Docker build args (resolved from `systems.json`). A timestamp tag is used instead of `:latest` because Cloudflare's registry explicitly rejects `:latest` tags.
+
+2. **Registry push** — `Cloudflare.create_function` → `_create_or_update_worker` calls `CloudflareCLI.containers_push(<name>:<timestamp>)`, which runs `wrangler containers push` inside the `manage.cloudflare` container. Wrangler uploads the locally-built image to Cloudflare's managed registry and returns the full registry URI: `registry.cloudflare.com/<account_id>/<name>:<timestamp>`.
+
+3. **`wrangler.toml` generation** — `_generate_wrangler_toml` renders `sebs/cloudflare/templates/wrangler-container.toml`. The template defaults to `image = "./Dockerfile"` (a local build path). When a registry URI is available, `containers.py` replaces this field with the registry URI (`config['containers'][0]['image'] = container_uri`), so wrangler points directly at the pre-pushed image and skips rebuilding the Dockerfile entirely.
+
+4. **Deploy** — `CloudflareCLI.wrangler_deploy` runs `npm install && wrangler deploy` inside the `manage.cloudflare` container. `npm install` materializes `node_modules/@cloudflare/containers` (listed in `package.json`) so that wrangler's bundler can resolve the `worker.js` import. Wrangler then deploys the Worker script and creates the Durable-Object-backed container worker backed by the registry image.
+
+5. `wait_for_durable_object_ready` polls `/health` until the container reports healthy, then SeBS pings `/health` for ~60 s to keep the Durable Object alive during the container provisioning window before the first measured invocation.
+
+6. `HTTPTrigger` is attached using the `workers.dev` URL.
+
+### Build Images
+
+Script-based Worker builds use pre-built build images that are pulled once and reused across all benchmarks via bind-mounts — this is the same pattern SeBS uses for other platforms (see [build.md](build.md)). The images are tagged `spcleth/serverless-benchmarks:build.cloudflare.<lang>.<ver>` (e.g. `build.cloudflare.nodejs.18`, `build.cloudflare.python.3.12`) and are available on Docker Hub.
+
+To build and push updated images yourself (e.g. after modifying a `Dockerfile.build` or an installer script):
+
+```bash
+# Build all Cloudflare toolchain images locally
+sebs docker build --deployment cloudflare
+
+# Push them to Docker Hub (requires push access to the repository)
+sebs docker push --deployment cloudflare
+```
+
+To use a different Docker Hub repository, change `['general']['docker_repository']` in `configs/systems.json`.
+
+### Trigger Support
+
+- **HTTP Trigger**: ✅ Fully supported - Workers are automatically accessible at `https://{name}.{account}.workers.dev`
+- **Library Trigger**: ❌ Not currently supported
+
+### Platform Limitations
+
+- **Cold Start Detection**: Cloudflare does not expose cold start information. All invocations report `is_cold: false` in the metrics. This limitation means cold start metrics are not available for Cloudflare Workers benchmarks.
+- **Memory/Timeout Configuration (Workers)**: Managed by Cloudflare (128MB memory, 30s CPU time on free tier)
+- **Memory/Timeout Configuration (Containers)**: Managed by Cloudflare, available in different tiers:
+
+  | Instance Type | vCPU | Memory | Disk |
+  |---------------|------|--------|------|
+  | lite | 1/16 | 256 MiB | 2 GB |
+  | basic | 1/4 | 1 GiB | 4 GB |
+  | standard-1 | 1/2 | 4 GiB | 8 GB |
+  | standard-2 | 1 | 6 GiB | 12 GB |
+  | standard-3 | 2 | 8 GiB | 16 GB |
+  | standard-4 | 4 | 12 GiB | 20 GB |
+- **Wall-Clock Timing**: Cloudflare Workers freezes `Date.now()` and `performance.now()` between I/O operations as a timing side-channel mitigation, so the clock does not advance inside pure-compute sections. To record a meaningful wall-clock `compute_time`, the handler issues a throwaway self-fetch (a `HEAD /favicon` request) before sampling the end time. This I/O call unfreezes the timer. See the [Cloudflare security model docs](https://developers.cloudflare.com/workers/reference/security-model/#step-1-disallow-timers-and-multi-threading) for details.
+- **Metrics Collection**: Uses response-based per-invocation metrics. During each function invocation, the worker handler measures performance metrics (CPU time, wall time, memory usage) and embeds them directly in the JSON response. SeBS extracts these metrics immediately from each response. When `download_metrics()` is called for postprocessing, it only aggregates the metrics that were already collected during invocations—no additional data is fetched from external services. This approach provides immediate per-invocation granularity without delays. Note that while Cloudflare does expose an Analytics Engine, it only provides aggregated metrics without individual request-level data, making it unsuitable for detailed benchmarking purposes.
+
+### Storage Configuration
+
+Cloudflare Workers integrate with Cloudflare R2 for object storage and Durable Objects for NoSQL storage. For detailed storage configuration, see the [storage documentation](storage.md#cloudflare-storage).
 
 ## OpenWhisk
 
