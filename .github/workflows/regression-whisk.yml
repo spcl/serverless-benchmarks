@@ -1,0 +1,203 @@
+name: OpenWhisk on kind — registry smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - 'feature/**'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      KIND_VERSION: v0.27.0
+      KIND_NODE_IMAGE: kindest/node:v1.31.4
+      REGISTRY_NAME: kind-registry
+      REGISTRY_PORT: "5000"
+      OW_NAMESPACE: openwhisk
+      OW_API_PORT: "31001"
+      # OpenWhisk default dev key — fine for ephemeral CI clusters
+      WSK_AUTH: 23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCGuMDGIwP
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # preinstalled toolchains we don't need
+      - name: Reclaim disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL
+          docker image prune -af
+          df -h
+
+      - name: Install kind
+        run: |
+          curl -fsSLo kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64
+          sudo install -m 0755 kind /usr/local/bin/kind
+          kind version
+
+      - name: Install kubectl
+        run: |
+          KCTL=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
+          curl -fsSLo kubectl https://dl.k8s.io/release/${KCTL}/bin/linux/amd64/kubectl
+          sudo install -m 0755 kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: latest
+
+      - name: Install wsk CLI
+        run: |
+          curl -fsSLo wsk.tgz \
+            https://github.com/apache/openwhisk-cli/releases/download/1.2.0/OpenWhisk_CLI-1.2.0-linux-amd64.tgz
+          tar -xzf wsk.tgz wsk
+          sudo install -m 0755 wsk /usr/local/bin/wsk
+
+      # Registry must exist before the kind cluster — kind creates the 'kind'
+      # Docker network on cluster create, and we want to attach the registry
+      # to it once that network exists.
+      - name: Start local registry
+        run: |
+          docker run -d --restart=always \
+            -p 127.0.0.1:${REGISTRY_PORT}:5000 \
+            --name ${REGISTRY_NAME} \
+            registry:2
+
+      - name: Create kind cluster
+        run: |
+          cat > kind-config.yaml <<EOF
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          containerdConfigPatches:
+          - |-
+            [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:${REGISTRY_PORT}"]
+              endpoint = ["http://${REGISTRY_NAME}:5000"]
+          nodes:
+            - role: control-plane
+              extraPortMappings:
+                - containerPort: ${OW_API_PORT}
+                  hostPort: ${OW_API_PORT}
+                  protocol: TCP
+            - role: worker
+              labels:
+                openwhisk-role: core
+            - role: worker
+              labels:
+                openwhisk-role: invoker
+          EOF
+          kind create cluster --image ${KIND_NODE_IMAGE} --config kind-config.yaml --wait 5m
+
+      - name: Attach registry to kind network
+        run: |
+          if [ "$(docker inspect -f '{{json .NetworkSettings.Networks.kind}}' ${REGISTRY_NAME})" = "null" ]; then
+            docker network connect kind ${REGISTRY_NAME}
+          fi
+
+      # Independent verification of the registry path before we add OpenWhisk
+      # variables to the picture. If this fails, OpenWhisk pulls will too.
+      - name: Verify registry round-trip
+        run: |
+          docker pull alpine:3.20
+          docker tag alpine:3.20 localhost:${REGISTRY_PORT}/test/alpine:3.20
+          docker push localhost:${REGISTRY_PORT}/test/alpine:3.20
+          curl -sf http://localhost:${REGISTRY_PORT}/v2/_catalog | grep -q '"test/alpine"'
+          kubectl run probe --image=localhost:${REGISTRY_PORT}/test/alpine:3.20 \
+            --restart=Never --command -- sleep 10
+          kubectl wait --for=condition=Ready pod/probe --timeout=60s
+          kubectl delete pod probe
+
+      - name: Deploy OpenWhisk
+        run: |
+          git clone --depth 1 https://github.com/apache/openwhisk-deploy-kube.git /tmp/ow
+          WORKER_IP=$(kubectl get node kind-worker -o jsonpath='{.status.addresses[0].address}')
+          echo "WORKER_IP=$WORKER_IP" >> $GITHUB_ENV
+          cat > /tmp/ow/mycluster.yaml <<EOF
+          whisk:
+            ingress:
+              type: NodePort
+              apiHostName: ${WORKER_IP}
+              apiHostPort: ${OW_API_PORT}
+            containerFactory:
+              impl: kubernetes
+          nginx:
+            httpsNodePort: ${OW_API_PORT}
+          invoker:
+            containerFactory:
+              impl: kubernetes
+          EOF
+          helm install owdev /tmp/ow/helm/openwhisk \
+            -n ${OW_NAMESPACE} --create-namespace \
+            -f /tmp/ow/mycluster.yaml
+
+      # The install-packages Job is OpenWhisk's own readiness signal.
+      # Wait for the Job object to exist (helm doesn't block on resource
+      # creation), then for it to complete.
+      - name: Wait for OpenWhisk readiness
+        run: |
+          for i in $(seq 1 60); do
+            kubectl get job owdev-install-packages -n ${OW_NAMESPACE} >/dev/null 2>&1 && break
+            sleep 2
+          done
+          kubectl wait --for=condition=complete --timeout=15m \
+            job/owdev-install-packages -n ${OW_NAMESPACE}
+          kubectl get pods -n ${OW_NAMESPACE}
+
+      - name: Configure wsk
+        run: |
+          wsk property set \
+            --apihost https://${WORKER_IP}:${OW_API_PORT} \
+            --auth ${WSK_AUTH}
+
+      - name: Build & push test function image
+        run: |
+          mkdir -p test-action
+          cat > test-action/__main__.py <<'EOF'
+          def main(args):
+              name = args.get("name", "World")
+              return {"greeting": f"Hello, {name}!"}
+          EOF
+          cat > test-action/Dockerfile <<'EOF'
+          FROM openwhisk/python3action:latest
+          COPY __main__.py /action/exec/__main__.py
+          EOF
+          docker build -t localhost:${REGISTRY_PORT}/sebs-test/hello:latest test-action/
+          docker push localhost:${REGISTRY_PORT}/sebs-test/hello:latest
+
+      - name: Create OpenWhisk action
+        run: |
+          # -i = --insecure, OpenWhisk's default ingress cert is self-signed
+          wsk -i action create hello \
+            --docker localhost:${REGISTRY_PORT}/sebs-test/hello:latest \
+            --web true
+
+      - name: Invoke and verify
+        run: |
+          OUT=$(wsk -i action invoke hello --result --param name SeBS)
+          echo "$OUT"
+          echo "$OUT" | grep -q "Hello, SeBS" \
+            || { echo "Unexpected output"; exit 1; }
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          echo "=== pods ==="
+          kubectl get pods -A
+          echo "=== invoker logs ==="
+          kubectl logs -n ${OW_NAMESPACE} -l name=owdev-invoker --tail=200 || true
+          echo "=== controller logs ==="
+          kubectl logs -n ${OW_NAMESPACE} -l name=owdev-controller --tail=200 || true
+          echo "=== registry contents ==="
+          curl -s http://localhost:${REGISTRY_PORT}/v2/_catalog
+          echo "=== registry container logs ==="
+          docker logs ${REGISTRY_NAME} --tail=100
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kind delete cluster || true
+          docker rm -f ${REGISTRY_NAME} || true
