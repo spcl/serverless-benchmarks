@@ -163,7 +163,7 @@ jobs:
           EOF
           cat > test-action/Dockerfile <<'EOF'
           FROM openwhisk/python3action:latest
-          COPY __main__.py /action/exec/__main__.py
+          COPY __main__.py /action/exec.py
           EOF
           docker build -t localhost:${REGISTRY_PORT}/sebs-test/hello:latest test-action/
           docker push localhost:${REGISTRY_PORT}/sebs-test/hello:latest
