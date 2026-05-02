@@ -1,10 +1,10 @@
 name: Regression Tests
 
 on:
-  #push:
-  #  branches:
-  #    - master
-  #    - 'feature/**'
+  push:
+    branches:
+      - master
+      - 'feature/**'
   workflow_dispatch:
 
 jobs:

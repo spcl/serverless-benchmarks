@@ -9,6 +9,21 @@ on:
 
 jobs:
   regression:
+    strategy:
+      matrix:
+        include:
+          - language: python
+            version: "3.11"
+            architecture: "x64"
+          - language: nodejs
+            version: "20"
+            architecture: "x64"
+          - language: java
+            version: "8"
+            architecture: "x64"
+      fail-fast: false
+
+    name: ${{ matrix.language }} ${{ matrix.version }} ${{ matrix.architecture }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -22,9 +37,9 @@ jobs:
       WSK_AUTH: 23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCGuMDGIwP
       OW_ACTION_MEMORY_MAX: "3072"
       RESOURCE_PREFIX: ci
-      LANGUAGE: python
-      LANGUAGE_VERSION: "3.11"
-      ARCHITECTURE: x64
+      LANGUAGE: ${{ matrix.language }}
+      LANGUAGE_VERSION: ${{ matrix.version }}
+      ARCHITECTURE: ${{ matrix.architecture }}
 
     steps:
       - name: Checkout code
@@ -245,7 +260,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: openwhisk-regression-artifacts
+          name: openwhisk-regression-artifacts-${{ matrix.language }}-${{ matrix.version }}-${{ matrix.architecture }}
           path: |
             diagnostics/
             regression-cache/
