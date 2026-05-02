@@ -9,6 +9,13 @@ async function main(args) {
       delete args[arg];
   });
 
+  Object.keys(args).forEach(function(arg) {
+    if (arg.includes("NOSQL_STORAGE_")) {
+      process.env[arg] = args[arg];
+      delete args[arg];
+    }
+  });
+
   var func = require('/function/function.js');
   var begin = Date.now() / 1000;
   var start = process.hrtime();
