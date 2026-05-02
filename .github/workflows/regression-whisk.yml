@@ -201,12 +201,12 @@ jobs:
               wsk -i action get "${action}" || true
               echo
               echo "=== activations for ${action} ==="
-              wsk -i activation list "${action}" --limit 10 || true
+              wsk -i activation list "${action}" || true
               echo
             } | tee "diagnostics/${safe_name}.txt"
 
             activation_ids=$(
-              wsk -i activation list "${action}" --limit 10 2>/dev/null \
+              wsk -i activation list "${action}" 2>/dev/null \
                 | awk '$1 ~ /^[0-9a-f-]+$/ {print $1}'
             )
             for activation_id in ${activation_ids}; do
