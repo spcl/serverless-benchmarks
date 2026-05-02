@@ -430,14 +430,16 @@ class OpenWhisk(System):
             else:
                 try:
                     self.logging.info(f"Creating new OpenWhisk action {func_name}")
-                    docker_image = self.system_config.benchmark_image_name(
-                        self.name(),
-                        code_package.benchmark,
-                        code_package.language_name,
-                        code_package.language_version,
-                        code_package.architecture,
-                        repository=self.config.dockerhub_repository,
-                    )
+                    docker_image_name = container_uri
+                    if docker_image_name is None:
+                        docker_image_name = self.system_config.benchmark_image_name(
+                            self.name(),
+                            code_package.benchmark,
+                            code_package.language_name,
+                            code_package.language_version,
+                            code_package.architecture,
+                            repository=self.config.dockerhub_repository,
+                        )
 
                     code_location = code_package.code_location
                     if code_location is None:
@@ -452,7 +454,7 @@ class OpenWhisk(System):
                         "--web",
                         "true",
                         "--docker",
-                        docker_image,
+                        docker_image_name,
                         "--memory",
                         str(code_package.benchmark_config.memory),
                         "--timeout",
@@ -526,14 +528,16 @@ class OpenWhisk(System):
 
         self.logging.info(f"Update an existing OpenWhisk action {function.name}.")
         function = cast(OpenWhiskFunction, function)
-        docker_image = self.system_config.benchmark_image_name(
-            self.name(),
-            code_package.benchmark,
-            code_package.language_name,
-            code_package.language_version,
-            code_package.architecture,
-            repository=self.config.dockerhub_repository,
-        )
+        docker_image = container_uri
+        if docker_image is None:
+            docker_image = self.system_config.benchmark_image_name(
+                self.name(),
+                code_package.benchmark,
+                code_package.language_name,
+                code_package.language_version,
+                code_package.architecture,
+                repository=self.config.dockerhub_repository,
+            )
 
         if code_package.code_location is None:
             raise RuntimeError(
