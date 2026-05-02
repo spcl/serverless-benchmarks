@@ -264,11 +264,6 @@ class Minio(PersistentStorage):
         Returns:
             minio.Minio: Configured MinIO client
         """
-        self.logging.info(
-            "Creating MinIO client connection address=%s access_key_length=%d",
-            self._cfg.address,
-            len(self._cfg.access_key),
-        )
         return minio.Minio(
             self._cfg.address,
             access_key=self._cfg.access_key,
