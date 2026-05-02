@@ -264,6 +264,11 @@ class Minio(PersistentStorage):
         Returns:
             minio.Minio: Configured MinIO client
         """
+        self.logging.info(
+            "Creating MinIO client connection address=%s access_key_length=%d",
+            self._cfg.address,
+            len(self._cfg.access_key),
+        )
         return minio.Minio(
             self._cfg.address,
             access_key=self._cfg.access_key,
@@ -399,12 +404,41 @@ class Minio(PersistentStorage):
         """
         Download an object from a bucket to a local file.
 
-        Not implemented for this class. Use fget_object directly or other methods.
+        Args:
+            bucket_name: Name of the source bucket
+            key: Object key/path in the bucket
+            filepath: Local destination path
 
         Raises:
-            NotImplementedError: This method is not implemented
+            RuntimeError: If the bucket does not exist
+            minio.error.ResponseError: If the download fails
         """
-        raise NotImplementedError()
+        self.logging.info(
+            "Download from MinIO address=%s bucket=%s key=%s to %s",
+            self._cfg.address,
+            bucket_name,
+            key,
+            filepath,
+        )
+        if not self.exists_bucket(bucket_name):
+            raise RuntimeError(f"Attempting to download from a non-existing bucket {bucket_name}!")
+        try:
+            self.connection.fget_object(bucket_name, key, filepath)
+            self.logging.info(
+                "Downloaded MinIO object bucket=%s key=%s to %s",
+                bucket_name,
+                key,
+                filepath,
+            )
+        except minio.error.ResponseError as err:
+            self.logging.error(
+                "Download from MinIO failed address=%s bucket=%s key=%s: %s",
+                self._cfg.address,
+                bucket_name,
+                key,
+                err,
+            )
+            raise
 
     def exists_bucket(self, bucket_name: str) -> bool:
         """
@@ -416,7 +450,14 @@ class Minio(PersistentStorage):
         Returns:
             bool: True if the bucket exists, False otherwise
         """
-        return self.connection.bucket_exists(bucket_name)
+        exists = self.connection.bucket_exists(bucket_name)
+        self.logging.info(
+            "Checked MinIO bucket existence address=%s bucket=%s exists=%s",
+            self._cfg.address,
+            bucket_name,
+            exists,
+        )
+        return exists
 
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         """
@@ -433,8 +474,21 @@ class Minio(PersistentStorage):
             RuntimeError: If the bucket does not exist
         """
         try:
+            self.logging.info(
+                "Listing MinIO bucket address=%s bucket=%s prefix=%s",
+                self._cfg.address,
+                bucket_name,
+                prefix,
+            )
             objects_list = self.connection.list_objects(bucket_name)
-            return [obj.object_name for obj in objects_list if prefix in obj.object_name]
+            ret = [obj.object_name for obj in objects_list if prefix in obj.object_name]
+            self.logging.info(
+                "Listed %d MinIO objects in bucket=%s with prefix=%s",
+                len(ret),
+                bucket_name,
+                prefix,
+            )
+            return ret
         except minio.error.NoSuchBucket:
             raise RuntimeError(
                 f"Attempting to access a non-existing bucket {bucket_name}!"
@@ -451,6 +505,12 @@ class Minio(PersistentStorage):
             List[str]: List of bucket names
         """
         buckets = self.connection.list_buckets()
+        self.logging.info(
+            "Listing MinIO buckets address=%s filter=%s count=%d",
+            self._cfg.address,
+            bucket_name,
+            len(buckets),
+        )
         if bucket_name is not None:
             return [bucket.name for bucket in buckets if bucket_name in bucket.name]
         else:
