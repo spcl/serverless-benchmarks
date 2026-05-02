@@ -38,10 +38,6 @@ public class Handler {
             requestId = "";
         }
 
-        // Create result wrapper matching Python format
-        JsonObject logData = new JsonObject();
-        logData.add("result", gson.toJsonTree(result).getAsJsonObject());
-
         JsonObject jsonResult = new JsonObject();
         jsonResult.addProperty("begin", formattedBegin);
         jsonResult.addProperty("end", formattedEnd);
@@ -49,7 +45,7 @@ public class Handler {
         jsonResult.addProperty("results_time", 0);
         jsonResult.addProperty("is_cold", ColdStartTracker.isCold());
         jsonResult.addProperty("container_id", containerId);
-        jsonResult.add("result", logData);
+        jsonResult.add("result", gson.toJsonTree(result).getAsJsonObject());
 
         return jsonResult;
     }
