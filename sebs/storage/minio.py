@@ -408,31 +408,11 @@ class Minio(PersistentStorage):
             RuntimeError: If the bucket does not exist
             minio.error.ResponseError: If the download fails
         """
-        self.logging.info(
-            "Download from MinIO address=%s bucket=%s key=%s to %s",
-            self._cfg.address,
-            bucket_name,
-            key,
-            filepath,
-        )
         if not self.exists_bucket(bucket_name):
             raise RuntimeError(f"Attempting to download from a non-existing bucket {bucket_name}!")
         try:
             self.connection.fget_object(bucket_name, key, filepath)
-            self.logging.info(
-                "Downloaded MinIO object bucket=%s key=%s to %s",
-                bucket_name,
-                key,
-                filepath,
-            )
         except minio.error.ResponseError as err:
-            self.logging.error(
-                "Download from MinIO failed address=%s bucket=%s key=%s: %s",
-                self._cfg.address,
-                bucket_name,
-                key,
-                err,
-            )
             raise
 
     def exists_bucket(self, bucket_name: str) -> bool:
@@ -446,12 +426,6 @@ class Minio(PersistentStorage):
             bool: True if the bucket exists, False otherwise
         """
         exists = self.connection.bucket_exists(bucket_name)
-        self.logging.info(
-            "Checked MinIO bucket existence address=%s bucket=%s exists=%s",
-            self._cfg.address,
-            bucket_name,
-            exists,
-        )
         return exists
 
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
@@ -469,20 +443,8 @@ class Minio(PersistentStorage):
             RuntimeError: If the bucket does not exist
         """
         try:
-            self.logging.info(
-                "Listing MinIO bucket address=%s bucket=%s prefix=%s",
-                self._cfg.address,
-                bucket_name,
-                prefix,
-            )
             objects_list = self.connection.list_objects(bucket_name)
             ret = [obj.object_name for obj in objects_list if prefix in obj.object_name]
-            self.logging.info(
-                "Listed %d MinIO objects in bucket=%s with prefix=%s",
-                len(ret),
-                bucket_name,
-                prefix,
-            )
             return ret
         except minio.error.NoSuchBucket:
             raise RuntimeError(
@@ -500,12 +462,6 @@ class Minio(PersistentStorage):
             List[str]: List of bucket names
         """
         buckets = self.connection.list_buckets()
-        self.logging.info(
-            "Listing MinIO buckets address=%s filter=%s count=%d",
-            self._cfg.address,
-            bucket_name,
-            len(buckets),
-        )
         if bucket_name is not None:
             return [bucket.name for bucket in buckets if bucket_name in bucket.name]
         else:
