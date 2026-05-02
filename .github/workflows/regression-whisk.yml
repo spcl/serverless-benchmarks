@@ -180,7 +180,14 @@ jobs:
         if: steps.regression.outcome == 'failure'
         run: |
           mkdir -p diagnostics
-          wsk -i action list | awk 'NR>1 {print $1}' | grep '^sebs-' > diagnostics/actions.txt || true
+          wsk -i action list > diagnostics/action-list.txt 2>&1 || true
+          awk 'NF > 0 && $1 != "actions" && $1 != "ok:" {print $1}' diagnostics/action-list.txt \
+            > diagnostics/actions.txt
+
+          if [ ! -s diagnostics/actions.txt ]; then
+            echo "No OpenWhisk actions returned by 'wsk action list'." \
+              > diagnostics/no-actions.txt
+          fi
 
           while IFS= read -r action; do
             [ -n "${action}" ] || continue
@@ -194,7 +201,10 @@ jobs:
               echo
             } | tee "diagnostics/${safe_name}.txt"
 
-            activation_ids=$(wsk -i activation list --name "${action}" --limit 10 2>/dev/null | awk 'NR>1 {print $1}')
+            activation_ids=$(
+              wsk -i activation list --name "${action}" --limit 10 2>/dev/null \
+                | awk '$1 ~ /^[0-9a-f-]+$/ {print $1}'
+            )
             for activation_id in ${activation_ids}; do
               {
                 echo "=== activation ${activation_id} logs for ${action} ==="
