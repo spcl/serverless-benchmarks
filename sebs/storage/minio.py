@@ -413,7 +413,7 @@ class Minio(PersistentStorage):
         try:
             self.connection.fget_object(bucket_name, key, filepath)
         except minio.error.ResponseError as err:
-            raise
+            raise err
 
     def exists_bucket(self, bucket_name: str) -> bool:
         """
@@ -425,8 +425,7 @@ class Minio(PersistentStorage):
         Returns:
             bool: True if the bucket exists, False otherwise
         """
-        exists = self.connection.bucket_exists(bucket_name)
-        return exists
+        return self.connection.bucket_exists(bucket_name)
 
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         """
@@ -444,8 +443,7 @@ class Minio(PersistentStorage):
         """
         try:
             objects_list = self.connection.list_objects(bucket_name)
-            ret = [obj.object_name for obj in objects_list if prefix in obj.object_name]
-            return ret
+            return [obj.object_name for obj in objects_list if prefix in obj.object_name]
         except minio.error.NoSuchBucket:
             raise RuntimeError(
                 f"Attempting to access a non-existing bucket {bucket_name}!"
