@@ -136,7 +136,7 @@ jobs:
           echo "WORKER_IP=${WORKER_IP}" >> $GITHUB_ENV
           echo "HOST_IP=${HOST_IP}" >> $GITHUB_ENV
 
-          git clone --depth 1 --branch 1.0.0 https://github.com/apache/openwhisk-deploy-kube.git /tmp/ow
+          git clone --depth 1 https://github.com/apache/openwhisk-deploy-kube.git /tmp/ow
 
           sed -i '/^      memory:$/,/^      concurrency:$/ s/^\(        max:\) ".*"/\1 "'"${OW_ACTION_MEMORY_MAX}"' MB"/' \
             /tmp/ow/helm/openwhisk/values.yaml
