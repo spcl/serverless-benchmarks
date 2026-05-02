@@ -4,9 +4,11 @@
     "update_storage": false,
     "download_results": false,
     "deployment": "openwhisk",
+    "architecture": "x64",
+    "system_variant": "container",
     "runtime": {
       "language": "python",
-      "version": "3.6"
+      "version": "3.11"
     }
   },
   "deployment": {
@@ -16,8 +18,23 @@
       "removeCluster": false,
       "wskBypassSecurity": "true",
       "wskExec": "wsk",
-      "experimentalManifest": "false",
-      "dockerhubRepository": ""
+      "experimentalManifest": false,
+      "dockerhubRepository": null,
+      "docker_registry": {
+        "registry": "",
+        "username": "",
+        "password": ""
+      },
+      "storage": {
+        "address": "",
+        "mapped_port": -1,
+        "access_key": "",
+        "secret_key": "",
+        "instance_id": "",
+        "input_buckets": [],
+        "output_buckets": [],
+        "type": "minio"
+      }
     }
   }
 }
