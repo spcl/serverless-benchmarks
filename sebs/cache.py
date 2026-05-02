@@ -844,6 +844,12 @@ class Cache(LoggingBase):
 
                         keys = [*base_keys, *extra_keys]
                         language = keys[0]
+
+                        # if we produced no code package (which can happen, e.g., on OpenWhisk),
+                        # there will be no "deployment" etrny at all:
+
+                        if deployment_name not in cached_config:
+                            cached_config[deployment_name] = {language: config}
                         if language in cached_config[deployment_name]:
                             # language known - add code package,
                             # but do not overwrite existing entries
