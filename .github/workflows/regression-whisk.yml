@@ -207,7 +207,7 @@ jobs:
 
             activation_ids=$(
               wsk -i activation list "${action}" 2>/dev/null \
-                | awk '$1 ~ /^[0-9a-f-]+$/ {print $1}'
+                | awk '$3 ~ /^[0-9a-f]{32}$/ {print $3}'
             )
             for activation_id in ${activation_ids}; do
               {
