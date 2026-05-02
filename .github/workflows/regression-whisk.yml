@@ -1,0 +1,284 @@
+name: OpenWhisk Regression on kind
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - 'feature/**'
+
+jobs:
+  regression:
+    strategy:
+      matrix:
+        include:
+          - language: python
+            version: "3.11"
+            architecture: "x64"
+          - language: nodejs
+            version: "20"
+            architecture: "x64"
+          - language: java
+            version: "8"
+            architecture: "x64"
+      fail-fast: false
+
+    name: ${{ matrix.language }} ${{ matrix.version }} ${{ matrix.architecture }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      KIND_VERSION: v0.27.0
+      KIND_NODE_IMAGE: kindest/node:v1.31.4
+      REGISTRY_NAME: kind-registry
+      REGISTRY_PORT: "5000"
+      OW_NAMESPACE: openwhisk
+      OW_API_PORT: "31001"
+      WSK_AUTH: 23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCGuMDGIwP
+      OW_ACTION_MEMORY_MAX: "3072"
+      RESOURCE_PREFIX: ci
+      LANGUAGE: ${{ matrix.language }}
+      LANGUAGE_VERSION: ${{ matrix.version }}
+      ARCHITECTURE: ${{ matrix.architecture }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      #- name: Reclaim disk
+      #  run: |
+      #    sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+      #                /opt/hostedtoolcache/CodeQL
+      #    docker image prune -af
+      #    df -h
+
+      - name: Install kind
+        run: |
+          curl -fsSLo kind https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64
+          sudo install -m 0755 kind /usr/local/bin/kind
+          kind version
+
+      - name: Install kubectl
+        run: |
+          KCTL=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
+          curl -fsSLo kubectl https://dl.k8s.io/release/${KCTL}/bin/linux/amd64/kubectl
+          sudo install -m 0755 kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: latest
+
+      - name: Install wsk CLI
+        run: |
+          curl -fsSLo wsk.tgz \
+            https://github.com/apache/openwhisk-cli/releases/download/1.2.0/OpenWhisk_CLI-1.2.0-linux-amd64.tgz
+          tar -xzf wsk.tgz wsk
+          sudo install -m 0755 wsk /usr/local/bin/wsk
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Create virtual environment and install SeBS
+        run: |
+          uv venv
+          uv pip install .
+
+      - name: Start local registry
+        run: |
+          docker run -d --restart=always \
+            -p 127.0.0.1:${REGISTRY_PORT}:5000 \
+            --name ${REGISTRY_NAME} \
+            registry:2
+
+      - name: Create kind cluster
+        run: |
+          cat > kind-config.yaml <<EOF
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          containerdConfigPatches:
+          - |-
+            [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:${REGISTRY_PORT}"]
+              endpoint = ["http://${REGISTRY_NAME}:5000"]
+          nodes:
+            - role: control-plane
+            - role: worker
+              labels:
+                openwhisk-role: core
+              extraPortMappings:
+                - containerPort: ${OW_API_PORT}
+                  hostPort: ${OW_API_PORT}
+                  protocol: TCP
+            - role: worker
+              labels:
+                openwhisk-role: invoker
+          EOF
+          kind create cluster --image ${KIND_NODE_IMAGE} --config kind-config.yaml --wait 5m
+
+      - name: Attach registry to kind network
+        run: |
+          if [ "$(docker inspect -f '{{json .NetworkSettings.Networks.kind}}' ${REGISTRY_NAME})" = "null" ]; then
+            docker network connect kind ${REGISTRY_NAME}
+          fi
+
+      - name: Start Minio and ScyllaDB
+        run: |
+          set -o pipefail
+          uv run sebs storage start all configs/storage.json --output-json storage.json
+
+      - name: Configure OpenWhisk
+        run: |
+          WORKER_IP=$(kubectl get node kind-worker -o jsonpath='{.status.addresses[0].address}')
+          HOST_IP=$(hostname -I | awk '{print $1}')
+          echo "WORKER_IP=${WORKER_IP}" >> $GITHUB_ENV
+          echo "HOST_IP=${HOST_IP}" >> $GITHUB_ENV
+
+          git clone --depth 1 https://github.com/apache/openwhisk-deploy-kube.git /tmp/ow
+
+          sed -i '/^      memory:$/,/^      concurrency:$/ s/^\(        max:\) ".*"/\1 "'"${OW_ACTION_MEMORY_MAX}"' MB"/' \
+            /tmp/ow/helm/openwhisk/values.yaml
+
+          helm install owdev /tmp/ow/helm/openwhisk \
+            -n ${OW_NAMESPACE} --create-namespace \
+            -f /tmp/ow/deploy/kind/mycluster.yaml
+
+          for i in $(seq 1 60); do
+            kubectl get job owdev-install-packages -n ${OW_NAMESPACE} >/dev/null 2>&1 && break
+            sleep 2
+          done
+          kubectl wait --for=condition=complete --timeout=20m \
+            job/owdev-install-packages -n ${OW_NAMESPACE}
+          kubectl get pods -n ${OW_NAMESPACE}
+
+          wsk property set \
+            --apihost https://${WORKER_IP}:${OW_API_PORT} \
+            --auth ${WSK_AUTH}
+
+      - name: Create OpenWhisk regression config
+        run: |
+          jq \
+            --arg host_ip "${HOST_IP}" \
+            '
+            .object.minio.address = ($host_ip + ":" + (.object.minio.mapped_port | tostring))
+            | .nosql.scylladb.address = ($host_ip + ":" + (.nosql.scylladb.mapped_port | tostring))
+            ' storage.json > storage-openwhisk.json
+
+          jq \
+            --arg language "${LANGUAGE}" \
+            --arg version "${LANGUAGE_VERSION}" \
+            --arg architecture "${ARCHITECTURE}" \
+            --arg registry "localhost:${REGISTRY_PORT}" \
+            --slurpfile storage storage-openwhisk.json \
+            '
+            .experiments.architecture = $architecture
+            | .experiments.runtime.language = $language
+            | .experiments.runtime.version = $version
+            | .deployment.openwhisk.docker_registry.registry = $registry
+            | .deployment.openwhisk.storage = $storage[0]
+            ' configs/openwhisk.json > openwhisk-regression.json
+
+      - name: Run OpenWhisk regression
+        id: regression
+        continue-on-error: true
+        timeout-minutes: 45
+        run: |
+          set -o pipefail
+          uv run sebs benchmark regression test \
+            --config openwhisk-regression.json \
+            --deployment openwhisk \
+            --language ${LANGUAGE} \
+            --language-version ${LANGUAGE_VERSION} \
+            --architecture ${ARCHITECTURE} \
+            --selected-architecture \
+            --resource-prefix ${RESOURCE_PREFIX} \
+            --filter-output
+
+      - name: Collect OpenWhisk action logs
+        if: steps.regression.outcome == 'failure'
+        run: |
+          mkdir -p diagnostics
+          wsk -i action list > diagnostics/action-list.txt 2>&1 || true
+          awk 'NF > 0 && $1 != "actions" && $1 != "ok:" {print $1}' diagnostics/action-list.txt \
+            > diagnostics/actions.txt
+
+          if [ ! -s diagnostics/actions.txt ]; then
+            echo "No OpenWhisk actions returned by 'wsk action list'." \
+              > diagnostics/no-actions.txt
+          fi
+
+          while IFS= read -r action; do
+            [ -n "${action}" ] || continue
+            safe_name=$(echo "${action}" | tr '/.' '__')
+            {
+              echo "=== action ${action} ==="
+              wsk -i action get "${action}" || true
+              echo
+              echo "=== activations for ${action} ==="
+              wsk -i activation list "${action}" || true
+              echo
+            } | tee "diagnostics/${safe_name}.txt"
+
+            activation_ids=$(
+              wsk -i activation list "${action}" 2>/dev/null \
+                | awk '$3 ~ /^[0-9a-f]{32}$/ {print $3}'
+            )
+            for activation_id in ${activation_ids}; do
+              {
+                echo "=== activation ${activation_id} logs for ${action} ==="
+                wsk -i activation logs "${activation_id}" || true
+                echo
+                echo "=== activation ${activation_id} record for ${action} ==="
+                wsk -i activation get "${activation_id}" || true
+                echo
+              } >> "diagnostics/${safe_name}.txt"
+            done
+          done < diagnostics/actions.txt
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          mkdir -p diagnostics
+          {
+            echo "=== pods ==="
+            kubectl get pods -A
+            echo
+            echo "=== invoker logs ==="
+            kubectl logs -n ${OW_NAMESPACE} -l name=owdev-invoker --tail=200 || true
+            echo
+            echo "=== controller logs ==="
+            kubectl logs -n ${OW_NAMESPACE} -l name=owdev-controller --tail=200 || true
+            echo
+            echo "=== registry contents ==="
+            curl -s http://localhost:${REGISTRY_PORT}/v2/_catalog || true
+            echo
+            echo "=== registry container logs ==="
+            docker logs ${REGISTRY_NAME} --tail=100 || true
+          } | tee diagnostics/cluster-diagnostics.txt
+
+      - name: Upload regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwhisk-regression-artifacts-${{ matrix.language }}-${{ matrix.version }}-${{ matrix.architecture }}
+          path: |
+            diagnostics/
+            regression-cache/
+            storage.json
+            storage-openwhisk.json
+            openwhisk-regression.json
+            regression_*.json
+          if-no-files-found: ignore
+
+      - name: Fail job when regression failed
+        if: steps.regression.outcome == 'failure'
+        run: exit 1
+
+      - name: Cleanup
+        if: always()
+        run: |
+          uv run sebs storage stop all storage.json || true
+          kind delete cluster || true
+          docker rm -f ${REGISTRY_NAME} || true

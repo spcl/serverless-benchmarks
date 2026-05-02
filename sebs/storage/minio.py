@@ -399,12 +399,21 @@ class Minio(PersistentStorage):
         """
         Download an object from a bucket to a local file.
 
-        Not implemented for this class. Use fget_object directly or other methods.
+        Args:
+            bucket_name: Name of the source bucket
+            key: Object key/path in the bucket
+            filepath: Local destination path
 
         Raises:
-            NotImplementedError: This method is not implemented
+            RuntimeError: If the bucket does not exist
+            minio.error.ResponseError: If the download fails
         """
-        raise NotImplementedError()
+        if not self.exists_bucket(bucket_name):
+            raise RuntimeError(f"Attempting to download from a non-existing bucket {bucket_name}!")
+        try:
+            self.connection.fget_object(bucket_name, key, filepath)
+        except minio.error.ResponseError as err:
+            raise err
 
     def exists_bucket(self, bucket_name: str) -> bool:
         """

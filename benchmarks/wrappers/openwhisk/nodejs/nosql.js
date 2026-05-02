@@ -4,7 +4,7 @@ const aws = require("aws-sdk");
 
 class nosql {
   constructor() {
-    if (process.env.NOSQL_STORAGE_TYPE !== "scylladb") {
+    if (process.env['NOSQL_STORAGE_TYPE'] !== "scylladb") {
       throw new Error(`Unsupported NoSQL storage type: ${process.env.NOSQL_STORAGE_TYPE}!`);
     }
     this.client = new aws.DynamoDB.DocumentClient({

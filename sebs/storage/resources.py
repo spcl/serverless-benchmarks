@@ -141,8 +141,8 @@ class SelfHostedResources(Resources):
             and "storage" in cached_config["resources"]
             and "object" in cached_config["resources"]["storage"]
         ):
-            storage_impl = cached_config["storage"]["object"]["type"]
-            storage_config = cached_config["storage"]["object"][storage_impl]
+            storage_impl = cached_config["resources"]["storage"][storage_type]["type"]
+            storage_config = cached_config["resources"]["storage"][storage_type][storage_impl]
             self.logging.info(
                 f"Using cached configuration of storage type: "
                 f"{storage_type} for {self._name} container."
