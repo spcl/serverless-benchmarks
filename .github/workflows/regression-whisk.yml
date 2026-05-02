@@ -20,6 +20,7 @@ jobs:
       OW_NAMESPACE: openwhisk
       OW_API_PORT: "31001"
       WSK_AUTH: 23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCGuMDGIwP
+      OW_ACTION_MEMORY_MAX: "3072"
       RESOURCE_PREFIX: ci
       LANGUAGE: python
       LANGUAGE_VERSION: "3.11"
@@ -120,6 +121,9 @@ jobs:
           echo "HOST_IP=${HOST_IP}" >> $GITHUB_ENV
 
           git clone --depth 1 https://github.com/apache/openwhisk-deploy-kube.git /tmp/ow
+
+          sed -i '/^      memory:$/,/^      concurrency:$/ s/^\(        max:\) ".*"/\1 "'"${OW_ACTION_MEMORY_MAX}"' MB"/' \
+            /tmp/ow/helm/openwhisk/values.yaml
 
           helm install owdev /tmp/ow/helm/openwhisk \
             -n ${OW_NAMESPACE} --create-namespace \
