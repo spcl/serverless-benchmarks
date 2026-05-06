@@ -546,6 +546,6 @@
       }
     },
     "architecture": ["x64"],
-    "deployments": ["package", "container"]
+    "deployments": ["workers", "container"]
   }
 }
