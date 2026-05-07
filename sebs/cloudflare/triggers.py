@@ -156,15 +156,14 @@ class HTTPTrigger(Trigger):
         """
         Synchronously invoke a Cloudflare Worker via HTTP.
 
-        Retries on ContainerProvisioningError to cover the short gap between the /health
-        check passing (Worker + Durable Object up) and the benchmark handler being fully
-        ready.  The /health gate in containers.py absorbs the unpredictable bulk of
-        container startup; the retry budget here only needs to bridge the remaining,
-        much shorter window.
+        For container workers, the deployment path already waits until an instance
+        is running before returning, so provisioning retries here are a last-resort
+        safety net only (e.g. the instance was recycled between deployment and the
+        first invocation).
         """
         self.logging.debug(f"Invoke function {self.url}")
-        max_provisioning_retries = 10
-        provisioning_retry_wait = 60  # seconds between retries
+        max_provisioning_retries = 2
+        provisioning_retry_wait = 15  # seconds between retries
         for attempt in range(max_provisioning_retries + 1):
             try:
                 result = self._http_invoke(payload, self.url)
@@ -172,7 +171,7 @@ class HTTPTrigger(Trigger):
             except ContainerProvisioningError:
                 if attempt < max_provisioning_retries:
                     self.logging.info(
-                        f"Container still provisioning, waiting {provisioning_retry_wait}s "
+                        f"Container not yet ready, waiting {provisioning_retry_wait}s "
                         f"before retry (attempt {attempt + 1}/{max_provisioning_retries})..."
                     )
                     time.sleep(provisioning_retry_wait)

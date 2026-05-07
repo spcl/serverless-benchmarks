@@ -23,7 +23,6 @@ except ImportError:
     import toml as tomli_w  # type: ignore[no-redef, import-untyped]
 from typing import Optional, Tuple
 
-import requests
 
 from sebs.benchmark import Benchmark
 from sebs.cloudflare.cli import CloudflareCLI
@@ -372,70 +371,16 @@ class CloudflareContainersDeployment:
         self.logging.info(f"Container image built: {image_tag}")
         return image_tag
 
-    def wait_for_container_worker_ready(
-        self, worker_name: str, worker_url: str, max_wait_seconds: int = 400
-    ) -> bool:
+    @staticmethod
+    def _container_name_from_worker(worker_name: str) -> str:
+        """Return the Cloudflare container name for a given worker name.
+
+        Cloudflare appends the Durable Object class name (lowercased) to the worker
+        name to form the container name, e.g.:
+          worker:    container-311-compression-nodejs-18
+          container: container-311-compression-nodejs-18-containerworker
         """
-        Wait for container worker to be fully provisioned and ready.
-
-        Polls /health instead of issuing a benchmark request directly because container
-        startup time is highly variable.  A 200 from /health confirms that (1) the Worker
-        is reachable and (2) the Durable Object / container binding is instantiated — at
-        which point only a short gap remains before the benchmark handler is fully ready.
-        That residual gap is covered by the sync_invoke retry loop in triggers.py, keeping
-        the retry window small and predictable rather than spanning the entire provisioning
-        window from scratch.
-
-        Args:
-            worker_name: Name of the worker
-            worker_url: URL of the worker
-            max_wait_seconds: Maximum time to wait in seconds
-
-        Returns:
-            True if ready, raises RuntimeError on timeout
-        """
-        wait_interval = 20
-        start_time = time.time()
-
-        self.logging.info("Checking container worker readiness via health endpoint...")
-
-        while time.time() - start_time < max_wait_seconds:
-            try:
-                # Use health check endpoint
-                response = requests.get(f"{worker_url}/health", timeout=60)
-
-                # 200 = ready
-                if response.status_code == 200:
-                    self.logging.info("Container worker is ready!")
-                    return True
-                # 503 = not ready yet
-                elif response.status_code == 503:
-                    elapsed = int(time.time() - start_time)
-                    self.logging.info(
-                        f"Container worker not ready yet (503 Service Unavailable)... "
-                        f"({elapsed}s elapsed, will retry)"
-                    )
-                # Other errors
-                else:
-                    self.logging.warning(
-                        f"Unexpected status {response.status_code}: {response.text[:100]}"
-                    )
-
-            except requests.exceptions.Timeout:
-                elapsed = int(time.time() - start_time)
-                self.logging.info(
-                    f"Health check timeout (container may be starting)... ({elapsed}s elapsed)"
-                )
-            except requests.exceptions.RequestException as e:
-                elapsed = int(time.time() - start_time)
-                self.logging.debug(f"Connection error ({elapsed}s): {str(e)[:100]}")
-
-            time.sleep(wait_interval)
-
-        raise RuntimeError(
-            f"Container worker {worker_name} did not become ready after {max_wait_seconds}s. "
-            "Deployment cannot proceed without a healthy container."
-        )
+        return f"{worker_name}-containerworker"
 
     def shutdown(self):
         """Drop the local CLI reference. The shared container is owned by CloudflareCLI;

@@ -639,10 +639,9 @@ class Cloudflare(System):
         self.logging.info(f"Uploading package to container: {container_package_path}")
         cli.upload_package(package_dir, container_package_path)
 
-        # Deploy using Wrangler in container
-        self.logging.info(f"Deploying worker {worker_name} using Wrangler in container...")
-
         try:
+            self.logging.info(f"Deploying worker {worker_name} using Wrangler in container...")
+
             # pywrangler is used for all native Python workers (packages must be
             # synced via pyproject.toml before wrangler uploads the bundle).
             # All other cases — nodejs, containers — use wrangler directly.
@@ -655,14 +654,28 @@ class Cloudflare(System):
             self.logging.debug(f"Wrangler deploy output: {output}")
 
             # Wait for the worker to become reachable before returning.
-            # Container workers expose /health; native workers are probed
-            # with a lightweight GET to confirm edge propagation.
             account_id_val = env.get("CLOUDFLARE_ACCOUNT_ID")
             worker_url = self._build_workers_dev_url(worker_name, account_id_val)
 
             if container_deployment:
-                self.logging.info("Waiting for container worker to initialize...")
-                self._containers_deployment.wait_for_container_worker_ready(worker_name, worker_url)
+                container_name = self._containers_deployment._container_name_from_worker(worker_name)
+                # Cloudflare compares the newly pushed registry image against the
+                # image currently running in the container worker. If the image digest
+                # has changed, wrangler deploy triggers a rollout: Cloudflare pulls the
+                # new image, replaces the running instances, and sets active_rollout_id
+                # on the container application record until the rollout finishes.
+                # If nothing changed (same digest), wrangler reports "no changes" and
+                # no rollout is started — the container is already on the correct image.
+                if "no changes" in output.lower():
+                    self.logging.info(
+                        f"Container {container_name} unchanged, skipping readiness wait."
+                    )
+                else:
+                    # A rollout is in progress. Poll the Cloudflare REST API until
+                    # active_rollout_id disappears, which signals that all container
+                    # instances have been replaced and are serving the new image.
+                    self.logging.info("Waiting for container rollout to complete...")
+                    self._wait_for_container_rollout(container_name, account_id)
             else:
                 self._wait_for_worker_ready(worker_name, worker_url)
 
@@ -695,6 +708,143 @@ class Cloudflare(System):
         self.logging.warning(
             f"Worker {worker_name} not confirmed reachable after {max_wait_seconds}s; "
             "proceeding anyway — invocation retries will handle residual propagation delay."
+        )
+
+    def _get_container_id(self, container_name: str, account_id: str) -> Optional[str]:
+        """Resolve a container name to its UUID via the Cloudflare REST API.
+
+        Lists all container applications for the account and returns the UUID
+        of the one whose name matches container_name, or None if not found yet.
+        """
+        url = f"{self._api_base_url}/accounts/{account_id}/containers/applications"
+        headers = self._get_auth_headers()
+        try:
+            resp = requests.get(url, headers=headers, timeout=30)
+            if resp.status_code != 200:
+                return None
+            items = resp.json().get("result", [])
+            for item in items:
+                if item.get("name") == container_name:
+                    return item.get("id")
+        except requests.exceptions.RequestException:
+            pass
+        return None
+
+    def _wait_for_container_rollout(
+        self,
+        container_name: str,
+        account_id: str,
+        max_wait_seconds: int = 900,
+        poll_interval: int = 20,
+    ) -> None:
+        """Poll the Cloudflare API until the container has rolled out and an instance is running.
+
+        This covers two sequential phases using the same
+        GET /accounts/{id}/containers/applications/{uuid} endpoint:
+
+        Phase 1 — Rollout: Cloudflare pulls the new image and replaces instances.
+        active_rollout_id is set for the duration. Large containers (e.g. ML inference
+        images) can take up to 10 minutes. Do not lower max_wait_seconds aggressively.
+
+        Phase 2 — Instance readiness: After the rollout finishes, Cloudflare must start
+        at least one container instance before it can accept requests. The top-level
+        `instances` field is the configured/desired count. Runtime state lives under
+        `health.instances`: `starting` = still booting, `healthy` = passed health check
+        and ready to serve, `active` = currently handling a request (always 0 until the
+        first invocation). We wait until `health.instances.healthy >= max_instances`.
+        Note: the top-level `instances` field equals `max_instances + 1` because
+        Cloudflare adds one extra Durable Object coordination instance that never
+        becomes healthy — `max_instances` is the correct readiness threshold.
+        This avoids the
+        first benchmark invocation hitting a "no Container instance available" error
+        from the Durable Object.
+
+        Args:
+            container_name: Cloudflare container name (e.g. my-worker-containerworker)
+            account_id: Cloudflare account ID
+            max_wait_seconds: Maximum seconds to wait (covers both phases)
+            poll_interval: Seconds between polls
+        """
+        headers = self._get_auth_headers()
+        start = time.time()
+        container_id: Optional[str] = None
+        rollout_complete = False
+
+        while time.time() - start < max_wait_seconds:
+            elapsed = int(time.time() - start)
+            try:
+                if container_id is None:
+                    container_id = self._get_container_id(container_name, account_id)
+                    if container_id is None:
+                        self.logging.info(
+                            f"Container {container_name} not registered yet... ({elapsed}s elapsed)"
+                        )
+                        time.sleep(poll_interval)
+                        continue
+                    self.logging.info(f"Resolved container ID: {container_id}")
+
+                url = f"{self._api_base_url}/accounts/{account_id}/containers/applications/{container_id}"
+                resp = requests.get(url, headers=headers, timeout=30)
+                if resp.status_code == 200:
+                    data = resp.json().get("result", resp.json())
+                    active_rollout = data.get("active_rollout_id")
+
+                    if active_rollout:
+                        self.logging.info(
+                            f"Container {container_name} rollout in progress "
+                            f"(rollout_id={active_rollout}, {elapsed}s elapsed)"
+                        )
+                    else:
+                        if not rollout_complete:
+                            self.logging.info(
+                                f"Container {container_name} rollout complete, "
+                                "waiting for an instance to start..."
+                            )
+                            rollout_complete = True
+
+                        # Phase 2: wait for at least one healthy instance so the
+                        # first benchmark invocation does not hit a cold Durable Object.
+                        # The top-level `instances` field is the configured/desired count,
+                        # not the runtime state. Actual readiness is in health.instances:
+                        #   healthy  — booted, passed health check, ready to serve (what we need > 0)
+                        #   starting — still booting (image pull + firecracker init)
+                        #   active   — currently handling a request (always 0 until first invocation)
+                        # The top-level `instances` field equals max_instances + 1 in practice:
+                        # Cloudflare appears to count one extra Durable Object coordination
+                        # instance that never appears as healthy. The `health.instances`
+                        # sub-object tracks runtime state per instance (not formally documented
+                        # by Cloudflare at time of writing, derived from observed API responses):
+                        #   healthy  — passed health check, ready to serve requests
+                        #   starting — still booting (image pull + firecracker init)
+                        #   active   — currently handling a request (0 until first invocation)
+                        # Use max_instances as the readiness threshold since that is the
+                        # configured number of workload instances.
+                        max_instances = data.get("max_instances", 0)
+                        health_instances = data.get("health", {}).get("instances", {})
+                        healthy = health_instances.get("healthy", 0)
+                        starting = health_instances.get("starting", 0)
+                        self.logging.debug(f"Container {container_name} health: {health_instances}")
+                        if max_instances > 0 and healthy >= max_instances:
+                            self.logging.info(
+                                f"Container {container_name} is ready "
+                                f"({healthy}/{max_instances} instances healthy)."
+                            )
+                            return
+                        self.logging.info(
+                            f"Container {container_name} awaiting all instances to become healthy "
+                            f"(healthy={healthy}/{max_instances}, starting={starting}, {elapsed}s elapsed)"
+                        )
+                else:
+                    self.logging.info(
+                        f"Unexpected API response {resp.status_code} ({elapsed}s elapsed)"
+                    )
+            except requests.exceptions.RequestException as e:
+                self.logging.debug(f"API request failed ({elapsed}s): {e}")
+
+            time.sleep(poll_interval)
+
+        raise RuntimeError(
+            f"Container {container_name} did not become ready after {max_wait_seconds}s."
         )
 
     def _get_workers_dev_subdomain(self, account_id: str) -> Optional[str]:

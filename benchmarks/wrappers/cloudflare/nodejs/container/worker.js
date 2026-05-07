@@ -15,60 +15,7 @@ export class ContainerWorker extends Container {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    
-    // Health check endpoint — used by the SeBS harness (sebs/cloudflare/containers.py)
-    // to detect when the worker is provisioned before running benchmarks.
-    //
-    // Why a dedicated endpoint: a first successful benchmark HTTP response (HTTP 200) would
-    // also confirm the worker is up, but container startup time is highly variable, so the
-    // harness cannot know how long to wait before attempting that first call.  The /health
-    // endpoint gives a defined starting point: a 200 here means (1) the Cloudflare Worker
-    // itself is reachable AND (2) the Durable Object / container binding is instantiated.
-    // Only a short gap remains until the benchmark handler is fully ready, which
-    // sync_invoke retries in triggers.py can cover cheaply — instead of retrying across
-    // the entire variable-length provisioning window.
-    if (url.pathname === '/health' || url.pathname === '/_health') {
-      try {
-        const containerId = 'default';
-        const id = env.CONTAINER_WORKER.idFromName(containerId);
-        const stub = env.CONTAINER_WORKER.get(id);
-        
-        // Make a simple GET request to the root path to verify container is responsive
-        const healthRequest = new Request('http://localhost/', {
-          method: 'GET',
-          headers: {
-            'X-Health-Check': 'true'
-          }
-        });
-        
-        const response = await stub.fetch(healthRequest);
-        
-        // Container is ready if it responds (even with an error from the benchmark handler)
-        // A 500 from the handler means the container is running, just not a valid benchmark request
-        if (response.status >= 200 && response.status < 600) {
-          return new Response('OK', { status: 200 });
-        } else {
-          return new Response(JSON.stringify({
-            error: 'Container not responding',
-            status: response.status
-          }), {
-            status: 503,
-            headers: { 'Content-Type': 'application/json' }
-          });
-        }
-        
-      } catch (error) {
-        return new Response(JSON.stringify({
-          error: 'Container failed to start',
-          details: error.message,
-          stack: error.stack
-        }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-    }
-    
+
     try {
       // Handle NoSQL proxy requests - intercept BEFORE forwarding to container
       if (url.pathname.startsWith('/nosql/')) {
