@@ -1,7 +1,16 @@
 {
   "timeout": 60,
   "memory": 768,
-  "languages": ["python", "cpp"],
+  "languages": [
+    {
+      "language": "python",
+      "variants": {
+        "default": "default",
+        "cloudflare": {"workers": "default", "containers": "cloudflare"}
+      }
+    },
+    "cpp"
+  ],
   "modules": ["storage"],
   "cpp_dependencies": ["sdk", "torch", "opencv"]
 }

@@ -1,0 +1,25 @@
+# Template for Cloudflare Container Workers
+# This file is read and modified by the deployment system
+
+name = "PLACEHOLDER_WORKER_NAME"
+main = "worker.js"
+compatibility_date = "2025-11-18"
+account_id = "PLACEHOLDER_ACCOUNT_ID"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[[containers]]
+max_instances = 10
+class_name = "ContainerWorker"
+image = "./Dockerfile"
+
+# Durable Object binding for Container class (required by @cloudflare/containers)
+[[durable_objects.bindings]]
+name = "CONTAINER_WORKER"
+class_name = "ContainerWorker"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ContainerWorker"]

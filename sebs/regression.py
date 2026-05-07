@@ -84,8 +84,13 @@ deployments_azure = ["package"]
 architectures_openwhisk = ["x64"]
 deployments_openwhisk = ["container"]
 
+# Cloudflare-specific configurations
+architectures_cloudflare = ["x64"]
+
 # User-defined config passed during initialization, set in regression_suite()
 cloud_config: Optional[dict] = None
+# Input size for benchmark test data ("test" | "small" | "large"), set in regression_suite()
+benchmark_input_size: str = "test"
 
 RESOURCE_PREFIX = "regr"
 LOGGING_REDACTED = False
@@ -242,7 +247,7 @@ class TestSequenceMeta(type):
                 # Prepare input data for the benchmark
                 input_config = benchmark.prepare_input(
                     deployment_client.system_resources,
-                    size="test",
+                    size=benchmark_input_size,
                     replace_existing=experiment_config.update_storage,
                 )
 
@@ -1188,6 +1193,130 @@ class OpenWhiskTestSequenceJava(
         return deployment_client
 
 
+class CloudflareTestSequencePythonWorkers(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
+    architectures=architectures_cloudflare,
+    deployments=["workers"],
+    deployment_name="cloudflare",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Python benchmarks on Cloudflare Workers."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Python workers."""
+        deployment_name = "cloudflare"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = False
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with CloudflareTestSequencePythonWorkers.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class CloudflareTestSequencePythonContainers(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
+    architectures=architectures_cloudflare,
+    deployments=["container"],
+    deployment_name="cloudflare",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Python benchmarks on Cloudflare Containers."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Python containers."""
+        deployment_name = "cloudflare"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = True
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with CloudflareTestSequencePythonContainers.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class CloudflareTestSequenceNodejsWorkers(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    architectures=architectures_cloudflare,
+    deployments=["workers"],
+    deployment_name="cloudflare",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Node.js benchmarks on Cloudflare Workers."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Node.js workers."""
+        deployment_name = "cloudflare"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = False
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with CloudflareTestSequenceNodejsWorkers.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class CloudflareTestSequenceNodejsContainers(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    architectures=architectures_cloudflare,
+    deployments=["container"],
+    deployment_name="cloudflare",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Node.js benchmarks on Cloudflare Containers."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Node.js containers."""
+        deployment_name = "cloudflare"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = True
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with CloudflareTestSequenceNodejsContainers.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
 # Stream result handler for concurrent test execution
 # Based on https://stackoverflow.com/questions/22484805/
 # a-simple-working-example-for-testtools-concurrentstreamtestsuite
@@ -1306,6 +1435,21 @@ def filter_out_benchmarks(
             and language_version in ["3.8", "3.9", "3.10", "3.11", "3.12"]
             and deployment_type == "function-gen1"):
         return "411.image-recognition" not in benchmark
+
+    # Cloudflare: only certain benchmarks are supported per language/deployment-type.
+    # None means all benchmarks are supported for that combination.
+    if deployment_name == "cloudflare":
+        from sebs.cloudflare.cloudflare import Cloudflare
+        is_container = deployment_type == "container"
+        allowed = Cloudflare.SUPPORTED_BENCHMARKS.get((language, is_container))
+        if allowed is not None:
+            # benchmark is the test method name, e.g. "test_cloudflare_120.uploader_x64_workers"
+            # Extract the numeric benchmark prefix (e.g. "120") from before the first "."
+            if "." in benchmark:
+                benchmark_id = benchmark.split(".")[-2].split("_")[-1]
+            else:
+                benchmark_id = benchmark.split("_")[-1]
+            return benchmark_id in allowed
     # fmt: on
 
     # All other benchmarks are supported
@@ -1319,6 +1463,8 @@ def regression_suite(
     deployment_config: dict,
     resource_prefix: str | None = None,
     benchmark_name: Optional[str] = None,
+    deployment_type: Optional[str] = None,
+    input_size: str = "test",
     selected_architecture: str | None = None,
     filter_output: bool = False,
 ):
@@ -1354,9 +1500,10 @@ def regression_suite(
     # Create the test suite
     suite = unittest.TestSuite()
 
-    # Make cloud_config available to test classes
-    global cloud_config
+    # Make cloud_config and input size available to test classes
+    global cloud_config, benchmark_input_size
     cloud_config = deployment_config
+    benchmark_input_size = input_size
 
     # Extract runtime configuration
     language = experiment_config["runtime"]["language"]
@@ -1416,6 +1563,38 @@ def regression_suite(
             suite.addTest(
                 unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequenceJava)
             )
+
+    # Add Cloudflare tests if requested
+    if "cloudflare" in providers:
+        assert (
+            "cloudflare" in cloud_config["deployment"]
+        ), "Cloudflare provider requested but not in deployment config"
+        if language == "python":
+            if deployment_type != "containers":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequencePythonWorkers
+                    )
+                )
+            if deployment_type != "functions":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequencePythonContainers
+                    )
+                )
+        elif language == "nodejs":
+            if deployment_type != "containers":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequenceNodejsWorkers
+                    )
+                )
+            if deployment_type != "functions":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequenceNodejsContainers
+                    )
+                )
 
     # Prepare the list of tests to run
     tests: List[unittest.TestCase] = []
