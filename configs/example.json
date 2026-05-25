@@ -48,6 +48,10 @@
       "region": "us-east-1",
       "lambda-role": "",
       "resources": {
+        "redis": {
+          "host": "ec2-54-86-32-136.compute-1.amazonaws.com",
+          "password": "xB46z3u9I6WJ"
+        },
         "use-function-url": true,
         "function-url-auth-type": "NONE"
       }

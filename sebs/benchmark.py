@@ -633,6 +633,20 @@ class Benchmark(LoggingBase):
         """
         self._hash_value = val
 
+    def get_code_files(self, include_config=True):
+        FILES = {
+            "python": ["*.py"],
+            "nodejs": ["*.js"],
+        }
+        if include_config:
+            FILES["python"] += ["requirements.txt*", "*.json"]
+            FILES["nodejs"] += ["package.json", "*.json"]
+
+        path = os.path.join(self.benchmark_path, self.language_name)
+        for file_type in FILES.get(self.language_name, []):
+            for f in glob.glob(os.path.join(path, file_type)):
+                yield f
+
     def __init__(
         self,
         benchmark: str,
@@ -984,7 +998,7 @@ class Benchmark(LoggingBase):
                         "init.sh failed (exit {}): {}".format(result.returncode, output)
                     )
 
-    def add_deployment_files(self, output_dir: str) -> None:
+    def add_deployment_files(self, output_dir: str, is_workflow: bool = False) -> None:
         """Add deployment-specific wrapper files to output directory.
 
         Copies platform-specific wrapper files (handlers, adapters) that
@@ -995,6 +1009,7 @@ class Benchmark(LoggingBase):
 
         Args:
             output_dir: Directory where deployment files should be added
+            is_workflow: If True, use handler_workflow.py as handler.py
         """
         handlers_dir = get_resource_path(
             "benchmarks", "wrappers", self._deployment_name, self.language_name
@@ -1013,6 +1028,14 @@ class Benchmark(LoggingBase):
             else:
                 if not os.path.exists(destination):
                     shutil.copy2(file, destination)
+
+        if self.language_name == "python":
+            handler_path = os.path.join(output_dir, "handler.py")
+            handler_workflow_path = os.path.join(output_dir, "handler_workflow.py")
+            if is_workflow and os.path.exists(handler_workflow_path):
+                os.replace(handler_workflow_path, handler_path)
+            elif os.path.exists(handler_workflow_path):
+                os.remove(handler_workflow_path)
 
     def add_deployment_package_python(self, output_dir: str) -> None:
         """Add Python deployment packages to requirements file.
@@ -1450,6 +1473,7 @@ class Benchmark(LoggingBase):
         container_client: DockerContainer | None,
         container_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, float]]
         | None,
+        is_workflow: bool = False,
     ) -> Tuple[bool, str | None, SystemVariant, str | None]:
         """Build the complete benchmark deployment package.
 
@@ -1517,7 +1541,7 @@ class Benchmark(LoggingBase):
 
         self.copy_code(self._output_dir)
         self.add_benchmark_data(self._output_dir)
-        self.add_deployment_files(self._output_dir)
+        self.add_deployment_files(self._output_dir, is_workflow)
         self.add_deployment_package(self._output_dir)
 
         """
