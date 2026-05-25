@@ -212,6 +212,16 @@ class storage:
         with open(filepath, 'wb') as f:
             f.write(data)
     
+    def list_directory(self, bucket, prefix):
+        """List all object keys with a given prefix."""
+        if not storage.worker_url:
+            raise RuntimeError("Worker URL not set - cannot access R2")
+        params = urllib.parse.urlencode({'bucket': bucket, 'prefix': prefix})
+        list_url = f"{storage.worker_url}/r2/list?{params}"
+        with urllib.request.urlopen(list_url) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            return [obj['key'] for obj in result.get('objects', [])]
+
     def download_directory(self, bucket, prefix, local_path):
         """
         Download all files with a given prefix to a local directory.

@@ -30,6 +30,11 @@ class storage:
         with open(filepath, 'wb') as download_file:
             download_file.write( self.download_stream(container, file) )
     
+    def list_directory(self, container, prefix):
+        client = self.client.get_container_client(container=container)
+        objects = client.list_blobs(name_starts_with=prefix)
+        return [obj.name for obj in objects]
+
     def download_directory(self, container, prefix, path):
         client = self.client.get_container_client(container=container)
         objects = client.list_blobs(name_starts_with=prefix)

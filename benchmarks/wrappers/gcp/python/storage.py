@@ -34,6 +34,10 @@ class storage:
         blob = bucket_instance.blob(file)
         blob.download_to_filename(filepath)
 
+    def list_directory(self, bucket, prefix):
+        objects = self.client.bucket(bucket).list_blobs(prefix=prefix)
+        return [obj.name for obj in objects]
+
     def download_directory(self, bucket, prefix, path):
         objects = self.client.bucket(bucket).list_blobs(prefix=prefix)
         for obj in objects:

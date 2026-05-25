@@ -58,6 +58,11 @@ class storage:
             f.write(data)
         return
 
+    def list_directory(self, bucket, prefix):
+        bobj = self.get_bucket(bucket)
+        list_res = run_sync(bobj.list(to_js({"prefix": prefix})))
+        return [obj.key for obj in list_res.objects]
+
     def download_directory(self, bucket, prefix, out_path):
         bobj = self.get_bucket(bucket)
         list_res = run_sync(bobj.list(to_js({"prefix": prefix})))
