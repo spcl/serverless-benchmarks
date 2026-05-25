@@ -494,13 +494,19 @@ class AWSResources(Resources):
                         "Effect": "Allow",
                         "Principal": {"Service": "lambda.amazonaws.com"},
                         "Action": "sts:AssumeRole",
-                    }
+                    },
+                    {
+                        "Effect": "Allow",
+                        "Principal": {"Service": "states.amazonaws.com"},
+                        "Action": "sts:AssumeRole",
+                    },
                 ],
             }
             role_name = "sebs-lambda-role"
             attached_policies = [
                 "arn:aws:iam::aws:policy/AmazonS3FullAccess",
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaRole",
             ]
             try:
                 out = iam_client.get_role(RoleName=role_name)
@@ -1036,6 +1042,7 @@ class AWSResources(Resources):
             for key, value in dct["function-urls"].items():
                 ret._function_urls[key] = AWSResources.FunctionURL.deserialize(value)
 
+        ret._redis = dct.get("redis")
         ret._use_function_url = dct.get("use-function-url", True)
         auth_type_str = dct.get("function-url-auth-type", "NONE")
         ret.function_url_auth_type = FunctionURLAuthType.from_string(auth_type_str)
@@ -1121,6 +1128,8 @@ class AWSResources(Resources):
             AWSResources.initialize(ret, cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for AWS")
+            if "resources" in config and "redis" in config["resources"]:
+                ret._redis = config["resources"]["redis"]
         else:
             # Check for new config
             if "resources" in config:
@@ -1183,6 +1192,20 @@ class AWSConfig(Config):
             AWSResources: AWS resource management configuration
         """
         return self._resources
+
+    @property
+    def redis_host(self) -> str | None:
+        redis_cfg = getattr(self._resources, "_redis", None)
+        if redis_cfg:
+            return redis_cfg.get("host")
+        return None
+
+    @property
+    def redis_password(self) -> str | None:
+        redis_cfg = getattr(self._resources, "_redis", None)
+        if redis_cfg:
+            return redis_cfg.get("password")
+        return None
 
     @staticmethod
     def initialize(cfg: Config, dct: dict) -> None:

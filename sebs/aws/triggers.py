@@ -14,6 +14,8 @@ import base64
 import concurrent.futures
 import datetime
 import json
+import time
+import uuid
 from enum import Enum
 from typing import Dict, Optional  # noqa
 
@@ -204,6 +206,57 @@ class LibraryTrigger(Trigger):
             Trigger: Deserialized LibraryTrigger instance
         """
         return LibraryTrigger(obj["name"])
+
+
+class WorkflowLibraryTrigger(LibraryTrigger):
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+        self.logging.debug(f"Invoke workflow {self.name}")
+
+        request_id = str(uuid.uuid4())[0:8]
+        sfn_input = {"payload": payload, "request_id": request_id}
+
+        client = self._deployment_client.get_sfn_client()
+        begin = datetime.datetime.now()
+        ret = client.start_execution(stateMachineArn=self.name, input=json.dumps(sfn_input))
+        end = datetime.datetime.now()
+
+        aws_result = ExecutionResult.from_times(begin, end)
+        aws_result.request_id = request_id
+        execution_arn = ret["executionArn"]
+
+        execution_finished = False
+        while not execution_finished:
+            execution = client.describe_execution(executionArn=execution_arn)
+            status = execution["status"]
+            execution_finished = status != "RUNNING"
+
+            if not execution_finished:
+                time.sleep(1)
+            elif status == "FAILED":
+                self.logging.error(f"Invocation of {self.name} failed")
+                self.logging.error(f"Input: {payload}")
+                aws_result.stats.failure = True
+                return aws_result
+
+        return aws_result
+
+    def async_invoke(self, payload: dict):
+        raise NotImplementedError("Async invocation is not implemented for workflows")
+
+    @staticmethod
+    def typename() -> str:
+        return "AWS.WorkflowLibraryTrigger"
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        return Trigger.TriggerType.LIBRARY
+
+    def serialize(self) -> dict:
+        return {"type": "Library", "name": self.name}
+
+    @staticmethod
+    def deserialize(obj: dict) -> "WorkflowLibraryTrigger":
+        return WorkflowLibraryTrigger(obj["name"])
 
 
 class HTTPTrigger(Trigger):

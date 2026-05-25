@@ -170,6 +170,12 @@ class AWS(System):
             self.system_config, self.session, self.config, self.docker_client
         )
 
+    @staticmethod
+    def format_resource_name(name: str) -> str:
+        name = name.replace("-", "_")
+        name = name.replace(".", "_")
+        return name
+
     def get_lambda_client(self):
         """
         Get or create an AWS Lambda client.
@@ -183,6 +189,14 @@ class AWS(System):
                 region_name=self.config.region,
             )
         return self.client
+
+    def get_sfn_client(self):
+        if not hasattr(self, "_sfn_client"):
+            self._sfn_client = self.session.client(
+                service_name="stepfunctions",
+                region_name=self.config.region,
+            )
+        return self._sfn_client
 
     def package_code(
         self,
@@ -243,6 +257,18 @@ class AWS(System):
             Language.PYTHON: ["handler.py", "requirements.txt", ".python_packages"],
             Language.NODEJS: ["handler.js", "package.json", "node_modules"],
         }
+
+        handler_path = os.path.join(directory, CONFIG_FILES[language][0])
+        if self.config.redis_host is not None:
+            from sebs.utils import replace_string_in_file
+            replace_string_in_file(
+                handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"'
+            )
+        if self.config.redis_password is not None:
+            from sebs.utils import replace_string_in_file
+            replace_string_in_file(
+                handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"'
+            )
 
         if language in [Language.PYTHON, Language.NODEJS]:
             package_config = CONFIG_FILES[language]
@@ -435,8 +461,9 @@ class AWS(System):
 
             self.wait_function_active(lambda_function)
 
-            # Update environment variables
-            self.update_function_configuration(lambda_function, code_package)
+            # Update environment variables (only if input has been processed)
+            if code_package.has_input_processed:
+                self.update_function_configuration(lambda_function, code_package)
 
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import LibraryTrigger
@@ -528,7 +555,8 @@ class AWS(System):
         self.wait_function_updated(function)
         self.logging.info(f"Updated code of {name} function. ")
         # and update config
-        self.update_function_configuration(function, code_package)
+        if code_package.has_input_processed:
+            self.update_function_configuration(function, code_package)
 
     def update_function_configuration(
         self, function: Function, code_package: Benchmark, env_variables: dict = {}
@@ -947,6 +975,113 @@ class AWS(System):
         function.add_trigger(trigger)
         self.cache_client.update_function(function)
         return trigger
+
+    @staticmethod
+    def workflow_type() -> "Type[Function]":
+        from sebs.aws.workflow import SFNWorkflow
+
+        return SFNWorkflow
+
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "Function":
+        import re
+        from sebs.aws.workflow import SFNWorkflow
+        from sebs.aws.generator import SFNGenerator
+        from sebs.aws.triggers import WorkflowLibraryTrigger
+
+        workflow_name = AWS.format_resource_name(workflow_name)
+
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(f"No workflow definition found for {workflow_name}")
+
+        code_files = list(code_package.get_code_files(include_config=False))
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [
+            self.create_function(
+                code_package,
+                workflow_name + "___" + fn,
+                code_package.system_variant,
+                None,
+            )
+            for fn in func_names
+        ]
+
+        gen = SFNGenerator({n: f.arn for (n, f) in zip(func_names, funcs)})
+        gen.parse(definition_path)
+        definition = gen.generate()
+
+        try:
+            ret = self.get_sfn_client().create_state_machine(
+                name=workflow_name,
+                definition=definition,
+                roleArn=self.config.resources.lambda_role(self.session),
+            )
+            self.logging.info(f"Creating workflow {workflow_name}")
+            workflow = SFNWorkflow(
+                workflow_name,
+                funcs,
+                code_package.benchmark,
+                ret["stateMachineArn"],
+                code_package.hash,
+                FunctionConfig.from_benchmark(code_package),
+            )
+        except self.get_sfn_client().exceptions.StateMachineAlreadyExists as e:
+            match = re.search("'([^']*)'", str(e))
+            if not match:
+                raise
+            arn = match.group()[1:-1]
+            self.logging.info(f"Workflow {workflow_name} exists on AWS, updating.")
+            workflow = SFNWorkflow(
+                workflow_name, funcs, code_package.benchmark, arn, code_package.hash,
+                FunctionConfig.from_benchmark(code_package),
+            )
+            self._update_workflow_definition(workflow, code_package)
+            workflow.updated_code = True
+
+        trigger = WorkflowLibraryTrigger(workflow.arn, self)
+        trigger.logging_handlers = self.logging_handlers
+        workflow.add_trigger(trigger)
+        return workflow
+
+    def update_workflow(self, workflow, code_package: Benchmark):
+        from sebs.aws.workflow import SFNWorkflow
+
+        workflow = cast(SFNWorkflow, workflow)
+        self._update_workflow_definition(workflow, code_package)
+
+    def _update_workflow_definition(self, workflow, code_package: Benchmark):
+        from sebs.aws.workflow import SFNWorkflow
+        from sebs.aws.generator import SFNGenerator
+
+        workflow = cast(SFNWorkflow, workflow)
+
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(f"No workflow definition found for {workflow.name}")
+
+        code_files = list(code_package.get_code_files(include_config=False))
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [
+            self.create_function(
+                code_package,
+                workflow.name + "___" + fn,
+                code_package.system_variant,
+                None,
+            )
+            for fn in func_names
+        ]
+
+        gen = SFNGenerator({n: f.arn for (n, f) in zip(func_names, funcs)})
+        gen.parse(definition_path)
+        definition = gen.generate()
+
+        self.get_sfn_client().update_state_machine(
+            stateMachineArn=workflow.arn,
+            definition=definition,
+            roleArn=self.config.resources.lambda_role(self.session),
+        )
+        workflow.functions = funcs
+        self.logging.info("Published new workflow code")
 
     def _enforce_cold_start(self, function: Function, code_package: Benchmark) -> None:
         """Enforce cold start for a single function.
