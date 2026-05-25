@@ -23,6 +23,7 @@ Example:
 import concurrent.futures
 import datetime
 import json
+import time
 from typing import Dict, Optional  # noqa
 
 from sebs.gcp.gcp import GCP
@@ -260,6 +261,60 @@ class LibraryTrigger(Trigger):
             deployment_type = FunctionDeploymentType.deserialize(obj["deployment_type"])
 
         return LibraryTrigger(obj["name"], deployment_type=deployment_type)
+
+
+class WorkflowLibraryTrigger(LibraryTrigger):
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+        from google.cloud.workflows.executions_v1 import ExecutionsClient, Execution
+
+        self.logging.info(f"Invoke workflow {self.name}")
+
+        config = self._deployment_client.config
+        full_workflow_name = GCP.get_full_workflow_name(
+            config.project_name, config.region, self.name
+        )
+
+        execution_client = ExecutionsClient()
+        execution = Execution(argument=json.dumps(payload))
+
+        begin = datetime.datetime.now()
+        res = execution_client.create_execution(parent=full_workflow_name, execution=execution)
+        end = datetime.datetime.now()
+
+        gcp_result = ExecutionResult.from_times(begin, end)
+
+        execution_finished = False
+        while not execution_finished:
+            execution = execution_client.get_execution(request={"name": res.name})
+            execution_finished = execution.state != Execution.State.ACTIVE
+
+            if not execution_finished:
+                time.sleep(10)
+            elif execution.state == Execution.State.FAILED:
+                self.logging.error(f"Invocation of {self.name} failed")
+                self.logging.error(f"Input: {payload}")
+                gcp_result.stats.failure = True
+                return gcp_result
+
+        return gcp_result
+
+    def async_invoke(self, payload: dict):
+        raise NotImplementedError("Async invocation is not implemented for workflows")
+
+    @staticmethod
+    def typename() -> str:
+        return "GCP.WorkflowLibraryTrigger"
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        return Trigger.TriggerType.LIBRARY
+
+    def serialize(self) -> dict:
+        return {"type": "Library", "name": self.name}
+
+    @staticmethod
+    def deserialize(obj: dict) -> "WorkflowLibraryTrigger":
+        return WorkflowLibraryTrigger(obj["name"])
 
 
 class HTTPTrigger(Trigger):

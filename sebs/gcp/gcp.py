@@ -292,6 +292,10 @@ class DeploymentStrategy(Protocol):
         """
         ...
 
+    @staticmethod
+    def get_full_workflow_name(project_name: str, location: str, workflow_name: str) -> str:
+        return f"projects/{project_name}/locations/{location}/workflows/{workflow_name}"
+
     def function_exists(self, project_name: str, location: str, func_name: str) -> Any:
         """Check whether the function or service exists.
 
