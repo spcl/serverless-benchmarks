@@ -915,3 +915,10 @@ class Function(LoggingBase):
             Function: New instance with the deserialized data
         """
         pass
+
+
+class Workflow(Function):
+    @staticmethod
+    @abstractmethod
+    def deserialize(cached_config: dict) -> "Workflow":
+        pass
