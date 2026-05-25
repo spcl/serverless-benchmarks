@@ -371,6 +371,93 @@ def invoke(
 
 
 @benchmark.command()
+@click.argument("benchmark", type=str)
+@click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
+@click.option("--repetitions", default=5, type=int, help="Number of experimental repetitions.")
+@click.option(
+    "--trigger",
+    type=click.Choice(["library", "http"]),
+    default="http",
+    help="Workflow trigger to be used.",
+)
+@click.option(
+    "--workflow-name",
+    default=None,
+    type=str,
+    help="Override workflow name for random generation.",
+)
+@common_params
+def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_name, **kwargs):
+    """Invoke a workflow benchmark and measure performance."""
+    import pandas as pd
+    from sebs.utils import connect_to_redis_cache, download_measurements
+
+    (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
+        **kwargs
+    )
+
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+
+    wf = deployment_client.get_workflow(
+        benchmark_obj,
+        workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj),
+    )
+
+    input_config = benchmark_obj.prepare_input(
+        deployment_client.system_resources,
+        size=benchmark_input_size,
+        replace_existing=experiment_config.update_storage,
+    )
+
+    redis_host = getattr(deployment_client.config, "redis_host", None)
+    redis = None
+    if redis_host:
+        try:
+            redis = connect_to_redis_cache(redis_host)
+        except Exception as e:
+            sebs_client.logging.warning(f"Could not connect to Redis ({e}), skipping measurements")
+
+    result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
+    result.begin()
+
+    trigger_type = Trigger.TriggerType.get(trigger)
+    triggers = wf.triggers(trigger_type)
+    if len(triggers) == 0:
+        trigger = deployment_client.create_trigger(wf, trigger_type)
+    else:
+        trigger = triggers[0]
+
+    measurements = []
+    for i in range(repetitions):
+        sebs_client.logging.info(f"Beginning repetition {i + 1}/{repetitions}")
+        ret = trigger.sync_invoke(input_config)
+        if ret.stats.failure:
+            sebs_client.logging.info(f"Failure on repetition {i + 1}/{repetitions}")
+
+        if redis:
+            measurements += download_measurements(redis, wf.name, result.begin_time, rep=i)
+        result.add_invocation(wf, ret)
+    result.end()
+
+    if measurements:
+        path = os.path.join(output_dir, "results", wf.name, deployment_client.name() + ".csv")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        df = pd.DataFrame(measurements)
+        df.to_csv(path, index=False)
+
+    result_file = os.path.join(output_dir, "experiments.json")
+    with open(result_file, "w") as out_f:
+        out_f.write(sebs.utils.serialize(result))
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath(result_file)))
+
+
+@benchmark.command()
 @common_params
 def process(**kwargs):
     """Process benchmark results and download cloud metrics."""
