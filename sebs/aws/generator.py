@@ -36,6 +36,11 @@ class SFNGenerator(Generator):
         else:
             payload["End"] = True
 
+        if state.failure:
+            payload["Catch"] = [
+                {"ErrorEquals": ["States.ALL"], "Next": state.failure}
+            ]
+
         return payload
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
@@ -86,6 +91,8 @@ class SFNGenerator(Generator):
                 },
             },
         }
+
+        payload["ResultPath"] = "$." + state.array
 
         if state.next:
             payload["Next"] = state.next

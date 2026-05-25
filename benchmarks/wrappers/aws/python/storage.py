@@ -30,6 +30,12 @@ class storage:
     def download(self, bucket, file, filepath):
         self.client.download_file(bucket, file, filepath)
 
+    def list_directory(self, bucket, prefix):
+        objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        if 'Contents' not in objects:
+            return []
+        return [obj['Key'] for obj in objects['Contents']]
+
     def download_directory(self, bucket, prefix, path):
         objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)
         # 'Contents' key is only present when objects are found

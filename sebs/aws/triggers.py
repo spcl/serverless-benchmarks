@@ -218,10 +218,6 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         client = self._deployment_client.get_sfn_client()
         begin = datetime.datetime.now()
         ret = client.start_execution(stateMachineArn=self.name, input=json.dumps(sfn_input))
-        end = datetime.datetime.now()
-
-        aws_result = ExecutionResult.from_times(begin, end)
-        aws_result.request_id = request_id
         execution_arn = ret["executionArn"]
 
         execution_finished = False
@@ -232,11 +228,20 @@ class WorkflowLibraryTrigger(LibraryTrigger):
 
             if not execution_finished:
                 time.sleep(1)
-            elif status == "FAILED":
-                self.logging.error(f"Invocation of {self.name} failed")
-                self.logging.error(f"Input: {payload}")
-                aws_result.stats.failure = True
-                return aws_result
+
+        end = datetime.datetime.now()
+        aws_result = ExecutionResult.from_times(begin, end)
+        aws_result.request_id = request_id
+
+        if status == "FAILED":
+            self.logging.error(f"Invocation of {self.name} failed")
+            self.logging.error(f"Input: {payload}")
+            aws_result.stats.failure = True
+            return aws_result
+
+        if "output" in execution:
+            output = json.loads(execution["output"])
+            aws_result.output = output
 
         return aws_result
 

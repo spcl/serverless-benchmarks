@@ -44,6 +44,9 @@ def handler(event, context):
         func_payload = event
         request_id = req_id
 
+    if isinstance(func_payload, dict):
+        func_payload["request-id"] = req_id
+
     workflow_name, func_name = context.function_name.split("___")
     function = importlib.import_module(f"function.{func_name}")
     res = function.handler(func_payload)
