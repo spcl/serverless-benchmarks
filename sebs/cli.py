@@ -404,15 +404,15 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
         logging_filename=logging_filename,
     )
 
-    wf = deployment_client.get_workflow(
-        benchmark_obj,
-        workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj),
-    )
-
     input_config = benchmark_obj.prepare_input(
         deployment_client.system_resources,
         size=benchmark_input_size,
         replace_existing=experiment_config.update_storage,
+    )
+
+    wf = deployment_client.get_workflow(
+        benchmark_obj,
+        workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj),
     )
 
     redis_host = getattr(deployment_client.config, "redis_host", None)
