@@ -39,6 +39,7 @@ def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buck
     data_path = os.path.join(data_dir, data_name)
 
     if not os.path.exists(data_path):
+        os.makedirs(data_dir, exist_ok=True)
         with open(data_path, "w") as f:
             f.writelines(k for k in generate(size_bytes))
 
