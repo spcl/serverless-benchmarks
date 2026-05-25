@@ -739,8 +739,8 @@ class Benchmark(LoggingBase):
         # Try to ensure benchmarks-data exists
         ensure_benchmarks_data(self.logging)
 
-        # Load input module
-        self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
+        # Load input module — fall back to output dir for benchmarks without data files
+        self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data") or self._output_dir
         self._benchmark_input_module = load_benchmark_input(self._benchmark_path)
 
         # Check if input has been processed
@@ -1037,6 +1037,11 @@ class Benchmark(LoggingBase):
             elif os.path.exists(handler_workflow_path):
                 os.remove(handler_workflow_path)
 
+        if is_workflow:
+            definition_src = os.path.join(self._benchmark_path, "definition.json")
+            if os.path.exists(definition_src):
+                shutil.copy2(definition_src, os.path.join(output_dir, "definition.json"))
+
     def add_deployment_package_python(self, output_dir: str) -> None:
         """Add Python deployment packages to requirements file.
 
@@ -1059,7 +1064,7 @@ class Benchmark(LoggingBase):
                 self._deployment_name, self.language_name
             )
             for package in packages:
-                out.write(package)
+                out.write(f"\n{package}")
 
             module_packages = self._system_config.deployment_module_packages(
                 self._deployment_name, self.language_name
@@ -1067,7 +1072,7 @@ class Benchmark(LoggingBase):
             for bench_module in self._benchmark_config.modules:
                 if bench_module.value in module_packages:
                     for package in module_packages[bench_module.value]:
-                        out.write(package)
+                        out.write(f"\n{package}")
 
     def add_deployment_package_nodejs(self, output_dir: str) -> None:
         """Add Node.js deployment packages to package.json.
