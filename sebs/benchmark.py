@@ -887,7 +887,7 @@ class Benchmark(LoggingBase):
             output_dir: Destination directory for copied files
         """
         FILES = {
-            Language.PYTHON: ["*.py", "requirements.txt*"],
+            Language.PYTHON: ["*.py", "*.c", "*.so", "requirements.txt*", "package.sh"],
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: [],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
@@ -1380,15 +1380,6 @@ class Benchmark(LoggingBase):
 
             # Create set of mounted volumes
             volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
-            package_script = os.path.abspath(
-                os.path.join(self._benchmark_path, self.language_name, "package.sh")
-            )
-            # does this benchmark has package.sh script?
-            if os.path.exists(package_script):
-                volumes[package_script] = {
-                    "bind": "/mnt/function/package.sh",
-                    "mode": "ro",
-                }
 
             # run Docker container to install packages
             PACKAGE_FILES = {
