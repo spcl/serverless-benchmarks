@@ -522,6 +522,72 @@ class GCPTestSequenceWorkflows(
         return deployment_client
 
 
+class AzureTestSequenceWorkflows(
+    unittest.TestCase,
+    metaclass=WorkflowTestSequenceMeta,
+    benchmarks=benchmarks_workflows,
+    architectures=architectures_azure,
+    deployments=deployments_azure,
+    deployment_name="azure",
+):
+    """Test suite for workflow benchmarks on Azure Durable Functions."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get an Azure deployment client for workflow testing.
+
+        Args:
+            benchmark_name: Name of the workflow benchmark to deploy
+            architecture: Architecture to deploy on (x64)
+            deployment_type: Deployment type (package)
+
+        Returns:
+            An initialized Azure deployment client
+        """
+        deployment_name = "azure"
+        assert cloud_config, "Cloud configuration is required"
+
+        with AzureTestSequenceWorkflows.lock:
+            if not AzureTestSequenceWorkflows.cfg:
+                AzureTestSequenceWorkflows.cfg = self.client.get_deployment_config(
+                    cloud_config["deployment"],
+                    logging_filename=os.path.join(
+                        self.client.output_dir,
+                        f"regression_wf_{deployment_name}_{benchmark_name}_{architecture}.log",
+                    ),
+                )
+
+            needs_login = False
+            if not hasattr(AzureTestSequenceWorkflows, "cli"):
+                from sebs.azure.cli import AzureCLI
+
+                AzureTestSequenceWorkflows.cli = AzureCLI(
+                    self.client.config, self.client.docker_client
+                )
+                needs_login = True
+
+            config_copy = copy.deepcopy(cloud_config)
+            config_copy["experiments"]["architecture"] = architecture
+            config_copy["experiments"]["system_variant"] = deployment_type
+
+            f = f"regression_wf_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+            deployment_client = self.client.get_deployment(
+                config_copy,
+                logging_filename=os.path.join(self.client.output_dir, f),
+                deployment_config=AzureTestSequenceWorkflows.cfg,
+            )
+
+            deployment_client.system_resources.initialize_cli(
+                cli=AzureTestSequenceWorkflows.cli, login=needs_login
+            )
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(deployment_client.config.resources.resources_id)
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id
+                )
+            return deployment_client
+
+
 class AWSTestSequencePython(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
@@ -1799,6 +1865,10 @@ def regression_suite(
             suite.addTest(
                 unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceWorkflows)
             )
+        if "azure" in providers:
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceWorkflows)
+            )
 
     # Prepare the list of tests to run
     tests: List[unittest.TestCase] = []
@@ -1879,6 +1949,8 @@ def regression_suite(
         AzureTestSequencePython.cli.shutdown()
     if hasattr(AzureTestSequenceJava, "cli"):
         AzureTestSequenceJava.cli.shutdown()
+    if hasattr(AzureTestSequenceWorkflows, "cli"):
+        AzureTestSequenceWorkflows.cli.shutdown()
 
     # Return True if any test failed
     return not result.all_correct
