@@ -6,7 +6,7 @@ one Azure-specific property: storage account associated with this function.
 """
 
 from sebs.azure.config import AzureResources
-from sebs.faas.function import Function, FunctionConfig
+from sebs.faas.function import Function, FunctionConfig, Workflow
 
 
 class AzureFunction(Function):
@@ -73,6 +73,56 @@ class AzureFunction(Function):
         )
         from sebs.azure.triggers import HTTPTrigger
 
+        for trigger in cached_config["triggers"]:
+            trigger_type = {"HTTP": HTTPTrigger}.get(trigger["type"])
+            assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
+            ret.add_trigger(trigger_type.deserialize(trigger))
+        return ret
+
+
+class AzureWorkflow(Workflow):
+    """Azure Durable Functions workflow implementation."""
+
+    def __init__(
+        self,
+        name: str,
+        benchmark: str,
+        code_hash: str,
+        function_storage: AzureResources.Storage,
+        cfg: FunctionConfig,
+    ) -> None:
+        """Initialize Azure Workflow.
+
+        Args:
+            name: Name of the Azure Function App hosting the workflow
+            benchmark: Name of the benchmark this workflow implements
+            code_hash: Hash of the workflow code for caching
+            function_storage: Azure Storage account for function code
+            cfg: Function configuration with memory, timeout, etc.
+        """
+        super().__init__(benchmark, name, code_hash, cfg)
+        self.function_storage = function_storage
+
+    def serialize(self) -> dict:
+        """Serialize workflow to dictionary."""
+        return {
+            **super().serialize(),
+            "function_storage": self.function_storage.serialize(),
+        }
+
+    @staticmethod
+    def deserialize(cached_config: dict) -> "AzureWorkflow":
+        """Deserialize workflow from cached configuration."""
+        from sebs.azure.triggers import HTTPTrigger
+
+        cfg = FunctionConfig.deserialize(cached_config["config"])
+        ret = AzureWorkflow(
+            cached_config["name"],
+            cached_config["benchmark"],
+            cached_config["hash"],
+            AzureResources.Storage.deserialize(cached_config["function_storage"]),
+            cfg,
+        )
         for trigger in cached_config["triggers"]:
             trigger_type = {"HTTP": HTTPTrigger}.get(trigger["type"])
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
