@@ -10,6 +10,18 @@ import logging
 import azure.functions as func
 from redis import Redis
 
+if 'NOSQL_STORAGE_DATABASE' in os.environ:
+    from . import nosql
+    nosql.nosql.get_instance(
+        os.environ['NOSQL_STORAGE_DATABASE'],
+        os.environ['NOSQL_STORAGE_URL'],
+        os.environ['NOSQL_STORAGE_CREDS']
+    )
+
+if 'STORAGE_CONNECTION_STRING' in os.environ:
+    from . import storage
+    storage.storage.get_instance(os.environ['STORAGE_CONNECTION_STRING'])
+
 def probe_cold_start():
     is_cold = False
     fname = os.path.join("/tmp", "cold_run")
