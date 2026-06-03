@@ -269,14 +269,17 @@ def handler(context: df.DurableOrchestrationContext):
 
     payload = json.dumps(payload)
 
-    redis = Redis(host={{REDIS_HOST}},
-          port=6379,
-          decode_responses=True,
-          socket_connect_timeout=10,
-          password={{REDIS_PASSWORD}})
+    redis_host = {{REDIS_HOST}}
+    redis_password = {{REDIS_PASSWORD}}
+    if redis_host:
+        redis = Redis(host=redis_host,
+              port=6379,
+              decode_responses=True,
+              socket_connect_timeout=10,
+              password=redis_password)
 
-    key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])
-    redis.set(key, payload)
+        key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])
+        redis.set(key, payload)
 
     return res
 
