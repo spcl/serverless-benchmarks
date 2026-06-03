@@ -345,6 +345,21 @@ class AzureResources(Resources):
         self._storage_accounts = storage_accounts or []
         self._data_storage_account = data_storage_account
         self._cosmosdb_account = cosmosdb_account
+        self._redis: Optional[Dict] = None
+
+    @property
+    def redis_host(self) -> Optional[str]:
+        """Get Redis host for workflow measurements."""
+        if self._redis:
+            return self._redis.get("host")
+        return None
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Get Redis password for workflow measurements."""
+        if self._redis:
+            return self._redis.get("password")
+        return None
 
     def set_region(self, region: str) -> None:
         """Set the Azure region for resource allocation.
@@ -714,6 +729,8 @@ class AzureResources(Resources):
         if "cosmosdb_account" in dct:
             ret._cosmosdb_account = CosmosDBAccount.deserialize(dct["cosmosdb_account"])
 
+        ret._redis = dct.get("redis")
+
     def serialize(self) -> dict:
         """Serialize resources to dictionary.
 
@@ -803,6 +820,16 @@ class AzureConfig(Config):
             AzureResources instance for resource management.
         """
         return self._resources
+
+    @property
+    def redis_host(self) -> Optional[str]:
+        """Get Redis host for workflow measurements."""
+        return self._resources.redis_host
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Get Redis password for workflow measurements."""
+        return self._resources.redis_password
 
     @staticmethod
     def initialize(cfg: Config, dct: dict) -> None:
