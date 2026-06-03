@@ -212,10 +212,19 @@
         "deployment": {
           "files": [
             "handler.py",
+            "handler_workflow.py",
+            "main_workflow.py",
+            "run_workflow.py",
+            "run_subworkflow.py",
+            "fsm.py",
             "storage.py",
             "nosql.py"
           ],
-          "packages": [],
+          "packages": [
+            "azure-functions",
+            "azure-functions-durable==1.1.6",
+            "redis"
+          ],
           "module_packages": {
             "storage": [
               "azure-storage-blob"
