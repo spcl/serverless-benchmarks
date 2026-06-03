@@ -3,6 +3,7 @@ import json
 import os
 import uuid
 import importlib
+import importlib.util
 
 import logging
 
@@ -31,12 +32,12 @@ def main(event, context: func.Context):
     workflow_name = os.getenv("APPSETTING_WEBSITE_SITE_NAME")
     func_name = os.path.basename(os.path.dirname(__file__))
 
-    # FIXME: sort out workflow and function request id
-    #event["request-id"] = context.invocation_id
-    # this only works on benchmarks where payload is dict
     event["payload"]["request-id"] = context.invocation_id
 
-    function = importlib.import_module(f".{func_name}", package=__package__)
+    module_path = os.path.join(os.path.dirname(__file__), f"{func_name}.py")
+    spec = importlib.util.spec_from_file_location(func_name, module_path)
+    function = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(function)
 
     res = function.handler(event["payload"])
 
