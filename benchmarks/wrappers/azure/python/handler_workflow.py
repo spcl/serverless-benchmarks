@@ -36,11 +36,7 @@ def main(event, context: func.Context):
     # this only works on benchmarks where payload is dict
     event["payload"]["request-id"] = context.invocation_id
 
-    module_name = f"{func_name}.{func_name}"
-    module_path = f"{func_name}/{func_name}.py"
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    function = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(function)
+    function = importlib.import_module(f".{func_name}", package=__package__)
 
     res = function.handler(event["payload"])
 
@@ -70,14 +66,17 @@ def main(event, context: func.Context):
 
     payload = json.dumps(payload)
 
-    redis = Redis(host={{REDIS_HOST}},
-          port=6379,
-          decode_responses=True,
-          socket_connect_timeout=10,
-          password={{REDIS_PASSWORD}})
+    redis_host = {{REDIS_HOST}}
+    redis_password = {{REDIS_PASSWORD}}
+    if redis_host:
+        redis = Redis(host=redis_host,
+              port=6379,
+              decode_responses=True,
+              socket_connect_timeout=10,
+              password=redis_password)
 
-    req_id = event["request_id"]
-    key = os.path.join(workflow_name, func_name, req_id, str(uuid.uuid4())[0:8])
-    redis.set(key, payload)
+        req_id = event["request_id"]
+        key = os.path.join(workflow_name, func_name, req_id, str(uuid.uuid4())[0:8])
+        redis.set(key, payload)
 
     return res
