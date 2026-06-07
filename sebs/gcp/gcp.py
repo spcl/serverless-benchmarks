@@ -26,6 +26,7 @@ Example:
 """
 
 import docker
+import json
 import os
 import logging
 import random
@@ -2213,6 +2214,17 @@ class GCP(System):
         """
         return GCPFunction
 
+    @staticmethod
+    def workflow_type() -> "Type[Function]":
+        """Get the workflow class type for this platform.
+
+        Returns:
+            GCPWorkflow class type
+        """
+        from sebs.gcp.workflow import GCPWorkflow
+
+        return GCPWorkflow
+
     def initialize(
         self,
         config: Dict[str, str] = {},
@@ -2551,6 +2563,7 @@ class GCP(System):
         func_name: str,
         system_variant: SystemVariant,
         container_uri: str | None,
+        extra_envs: Dict | None = None,
     ) -> GCPFunction:
         """Create a new GCP Cloud Function or update existing one.
 
@@ -2596,6 +2609,7 @@ class GCP(System):
             envs = {
                 **self._generate_function_envs(code_package),
                 **strategy.generate_runtime_envs(),
+                **(extra_envs or {}),
             }
 
             # Get code bucket for non-container deployments
@@ -2644,7 +2658,7 @@ class GCP(System):
             )
 
             strategy.allow_public_access(project_name, location, func_name)
-            self.update_function(function, code_package, system_variant, container_uri)
+            self.update_function(function, code_package, system_variant, container_uri, extra_envs)
 
         # Add LibraryTrigger to a new function
         # Not supported on containers
@@ -2675,10 +2689,18 @@ class GCP(System):
         Raises:
             RuntimeError: If trigger type is not supported
         """
-        from sebs.gcp.triggers import HTTPTrigger
+        from sebs.gcp.triggers import HTTPTrigger, WorkflowLibraryTrigger
         from sebs.gcp.function import GCPFunction
+        from sebs.gcp.workflow import GCPWorkflow
 
-        if trigger_type == Trigger.TriggerType.HTTP:
+        if isinstance(function, GCPWorkflow):
+            if trigger_type == Trigger.TriggerType.LIBRARY:
+                trigger = WorkflowLibraryTrigger(function.name, self)
+            else:
+                raise RuntimeError(
+                    f"Trigger type {trigger_type} not supported for workflows. Use LIBRARY."
+                )
+        elif trigger_type == Trigger.TriggerType.HTTP:
             gcp_function = cast(GCPFunction, function)
             self.logging.info(f"Function {function.name} - waiting for deployment...")
 
@@ -2697,6 +2719,187 @@ class GCP(System):
         self.cache_client.update_function(function)
         return trigger
 
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "Function":
+        """Create a new GCP Workflow that orchestrates Cloud Functions.
+
+        Deploys individual functions for each code file in the benchmark,
+        generates a GCP Workflows definition from the benchmark's FSM definition,
+        and creates the workflow via the GCP Workflows API.
+
+        Args:
+            code_package: Benchmark package with workflow code and definition
+            workflow_name: Name for the GCP Workflow
+
+        Returns:
+            GCPWorkflow instance representing the deployed workflow
+        """
+        import yaml
+        from google.cloud.workflows_v1 import WorkflowsClient, Workflow as GCPWorkflowProto
+        from sebs.gcp.workflow import GCPWorkflow
+        from sebs.gcp.generator import GCPGenerator
+        from sebs.gcp.triggers import WorkflowLibraryTrigger, HTTPTrigger
+
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(f"No workflow definition found for {workflow_name}")
+
+        code_files = list(code_package.get_code_files(include_config=False))
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [
+            self.create_function(
+                code_package,
+                workflow_name + "--" + fn,
+                code_package.system_variant,
+                None,
+                extra_envs={"MY_FUNCTION_NAME": workflow_name + "--" + fn},
+            )
+            for fn in func_names
+        ]
+
+        # Create HTTP triggers for each function so the workflow can call them
+        func_triggers: Dict[str, str] = {}
+        for fn, func in zip(func_names, funcs):
+            if len(func.triggers(Trigger.TriggerType.HTTP)) == 0:
+                self.create_trigger(func, Trigger.TriggerType.HTTP)
+            http_trigger = cast(HTTPTrigger, func.triggers(Trigger.TriggerType.HTTP)[0])
+            func_triggers[fn] = http_trigger.url
+
+        gen = GCPGenerator(workflow_name, func_triggers, code_package.benchmark_config.timeout)
+        gen.parse(definition_path)
+        definition = gen.generate()
+
+        # Deploy the workflow via GCP Workflows API
+        project_name = self.config.project_name
+        location = self.config.region
+        parent = f"projects/{project_name}/locations/{location}"
+
+        workflows_client = WorkflowsClient()
+        workflow_proto = GCPWorkflowProto(source_contents=yaml.dump(json.loads(definition), width=99999))
+
+        try:
+            operation = workflows_client.create_workflow(
+                parent=parent, workflow=workflow_proto, workflow_id=workflow_name
+            )
+            self.logging.info(f"Creating workflow {workflow_name}")
+            operation.result()
+        except Exception as e:
+            if "already exists" in str(e).lower():
+                self.logging.info(f"Workflow {workflow_name} already exists, updating.")
+                workflow_proto.name = f"{parent}/workflows/{workflow_name}"
+                operation = workflows_client.update_workflow(workflow=workflow_proto)
+                operation.result()
+            else:
+                raise
+
+        # Deploy map sub-workflows if any
+        for map_id, map_definition in gen.generate_maps():
+            map_proto = GCPWorkflowProto(source_contents=yaml.dump(json.loads(map_definition), width=99999))
+            try:
+                operation = workflows_client.create_workflow(
+                    parent=parent, workflow=map_proto, workflow_id=map_id
+                )
+                self.logging.info(f"Creating map sub-workflow {map_id}")
+                operation.result()
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    map_proto.name = f"{parent}/workflows/{map_id}"
+                    operation = workflows_client.update_workflow(workflow=map_proto)
+                    operation.result()
+                else:
+                    raise
+
+        storage_client = self._system_resources.get_storage()
+        workflow = GCPWorkflow(
+            workflow_name,
+            funcs,
+            code_package.benchmark,
+            code_package.hash,
+            FunctionConfig.from_benchmark(code_package),
+            storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT),
+        )
+
+        trigger = WorkflowLibraryTrigger(workflow_name, self)
+        trigger.logging_handlers = self.logging_handlers
+        workflow.add_trigger(trigger)
+        return workflow
+
+    def update_workflow(self, workflow: "Function", code_package: Benchmark) -> None:
+        """Update an existing GCP Workflow with new function code and definition.
+
+        Args:
+            workflow: Existing GCPWorkflow instance to update
+            code_package: New benchmark package with updated code
+        """
+        import yaml
+        from google.cloud.workflows_v1 import WorkflowsClient, Workflow as GCPWorkflowProto
+        from sebs.gcp.workflow import GCPWorkflow
+        from sebs.gcp.generator import GCPGenerator
+        from sebs.gcp.triggers import HTTPTrigger
+
+        wf = cast(GCPWorkflow, workflow)
+
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(f"No workflow definition found for {wf.name}")
+
+        code_files = list(code_package.get_code_files(include_config=False))
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [
+            self.create_function(
+                code_package,
+                wf.name + "--" + fn,
+                code_package.system_variant,
+                None,
+                extra_envs={"MY_FUNCTION_NAME": wf.name + "--" + fn},
+            )
+            for fn in func_names
+        ]
+        wf.functions = funcs
+
+        func_triggers: Dict[str, str] = {}
+        for fn, func in zip(func_names, funcs):
+            if len(func.triggers(Trigger.TriggerType.HTTP)) == 0:
+                self.create_trigger(func, Trigger.TriggerType.HTTP)
+            http_trigger = cast(HTTPTrigger, func.triggers(Trigger.TriggerType.HTTP)[0])
+            func_triggers[fn] = http_trigger.url
+
+        gen = GCPGenerator(wf.name, func_triggers, code_package.benchmark_config.timeout)
+        gen.parse(definition_path)
+        definition = gen.generate()
+
+        project_name = self.config.project_name
+        location = self.config.region
+        parent = f"projects/{project_name}/locations/{location}"
+
+        workflows_client = WorkflowsClient()
+        workflow_proto = GCPWorkflowProto(
+            name=f"{parent}/workflows/{wf.name}",
+            source_contents=yaml.dump(json.loads(definition), width=99999),
+        )
+        operation = workflows_client.update_workflow(workflow=workflow_proto)
+        self.logging.info(f"Updating workflow {wf.name}")
+        operation.result()
+
+        for map_id, map_definition in gen.generate_maps():
+            map_proto = GCPWorkflowProto(
+                name=f"{parent}/workflows/{map_id}",
+                source_contents=yaml.dump(json.loads(map_definition), width=99999),
+            )
+            try:
+                operation = workflows_client.update_workflow(workflow=map_proto)
+                operation.result()
+            except Exception as e:
+                if "not found" in str(e).lower():
+                    map_proto_new = GCPWorkflowProto(
+                        source_contents=yaml.dump(json.loads(map_definition), width=99999)
+                    )
+                    operation = workflows_client.create_workflow(
+                        parent=parent, workflow=map_proto_new, workflow_id=map_id
+                    )
+                    operation.result()
+                else:
+                    raise
+
     def cached_function(self, function: Function) -> None:
         """Configure a cached function instance for use.
 
@@ -2708,15 +2911,19 @@ class GCP(System):
         """
 
         from sebs.faas.function import Trigger
-        from sebs.gcp.triggers import LibraryTrigger
-
-        func = cast(GCPFunction, function)
+        from sebs.gcp.triggers import LibraryTrigger, WorkflowLibraryTrigger
+        from sebs.gcp.workflow import GCPWorkflow
 
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
-            gcp_trigger = cast(LibraryTrigger, trigger)
-            gcp_trigger.deployment_type = func.deployment_type
-            gcp_trigger.logging_handlers = self.logging_handlers
-            gcp_trigger.deployment_client = self
+            if isinstance(trigger, WorkflowLibraryTrigger) or isinstance(function, GCPWorkflow):
+                trigger.logging_handlers = self.logging_handlers
+                trigger._deployment_client = self
+            else:
+                func = cast(GCPFunction, function)
+                gcp_trigger = cast(LibraryTrigger, trigger)
+                gcp_trigger.deployment_type = func.deployment_type
+                gcp_trigger.logging_handlers = self.logging_handlers
+                gcp_trigger.deployment_client = self
 
     def update_function(
         self,
@@ -2724,6 +2931,7 @@ class GCP(System):
         code_package: Benchmark,
         system_variant: SystemVariant,
         container_uri: str | None,
+        extra_envs: Dict | None = None,
     ) -> None:
         """Update an existing Cloud Function with new code and configuration.
 
@@ -2736,6 +2944,7 @@ class GCP(System):
             code_package: New benchmark package with updated code
             system_variant: Selected deployment variant
             container_uri: Container image URI (unused)
+            extra_envs: Additional environment variables to set
 
         Raises:
             NotImplementedError: If the deployment variant is unsupported
@@ -2751,6 +2960,7 @@ class GCP(System):
         envs = {
             **self._generate_function_envs(code_package),
             **strategy.generate_runtime_envs(),
+            **(extra_envs or {}),
         }
 
         # Update code using strategy

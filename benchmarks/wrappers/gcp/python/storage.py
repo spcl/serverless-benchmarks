@@ -22,8 +22,8 @@ class storage:
                     random=str(uuid.uuid4()).split('-')[0]
                 )
 
-    def upload(self, bucket, file, filepath):
-        key_name = storage.unique_name(file)
+    def upload(self, bucket, file, filepath, unique_name=True):
+        key_name = storage.unique_name(file) if unique_name else file
         bucket_instance = self.client.bucket(bucket)
         blob = bucket_instance.blob(key_name)
         blob.upload_from_filename(filepath)
@@ -33,6 +33,11 @@ class storage:
         bucket_instance = self.client.bucket(bucket)
         blob = bucket_instance.blob(file)
         blob.download_to_filename(filepath)
+
+    def download_within_range(self, bucket, file, start_bytes, end_bytes):
+        blob = self.client.bucket(bucket).blob(file)
+        data = blob.download_as_bytes(start=start_bytes, end=end_bytes)
+        return data.decode("utf-8")
 
     def list_directory(self, bucket, prefix):
         objects = self.client.bucket(bucket).list_blobs(prefix=prefix)

@@ -270,8 +270,8 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         self.logging.info(f"Invoke workflow {self.name}")
 
         config = self._deployment_client.config
-        full_workflow_name = GCP.get_full_workflow_name(
-            config.project_name, config.region, self.name
+        full_workflow_name = (
+            f"projects/{config.project_name}/locations/{config.region}/workflows/{self.name}"
         )
 
         execution_client = ExecutionsClient()
@@ -293,6 +293,7 @@ class WorkflowLibraryTrigger(LibraryTrigger):
             elif execution.state == Execution.State.FAILED:
                 self.logging.error(f"Invocation of {self.name} failed")
                 self.logging.error(f"Input: {payload}")
+                self.logging.error(f"Error: {execution.error}")
                 gcp_result.stats.failure = True
                 return gcp_result
 

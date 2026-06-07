@@ -311,6 +311,7 @@
         "deployment": {
           "files": [
             "handler.py",
+            "handler_workflow.py",
             "storage.py",
             "nosql.py",
             "setup.py"
