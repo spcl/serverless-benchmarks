@@ -53,6 +53,10 @@ class storage:
     def download_stream(self, container, file):
         client = self.client.get_blob_client(container=container, blob=file)
         return client.download_blob().readall()
+
+    def download_within_range(self, container, file, start_bytes, end_bytes):
+        client = self.client.get_blob_client(container=container, blob=file)
+        return client.download_blob(offset=start_bytes, length=end_bytes - start_bytes).readall().decode("utf-8")
     
     @staticmethod
     def get_instance(connection_string: Optional[str] = None):
