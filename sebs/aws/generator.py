@@ -2,7 +2,7 @@ from typing import Dict, List, Union, Any
 import numbers
 import uuid
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map, Repeat, Loop
+from sebs.faas.fsm import Generator, Task, Switch, Map, Repeat, Loop
 
 
 class SFNGenerator(Generator):
@@ -16,6 +16,7 @@ class SFNGenerator(Generator):
             return p
 
         state_payloads = {p["Name"]: _nameless(p) for p in payloads}
+
         definition = {
             "Comment": "SeBS auto-generated benchmark",
             "StartAt": self.root.name,
@@ -92,6 +93,12 @@ class SFNGenerator(Generator):
             },
         }
 
+        if state.common_params:
+            item_selector: Dict[str, str] = {"array_element.$": "$$.Map.Item.Value"}
+            for p in state.common_params:
+                item_selector[f"{p}.$"] = f"$.{p}"
+            payload["ItemSelector"] = item_selector
+
         payload["ResultPath"] = "$." + state.array
 
         if state.next:
@@ -102,22 +109,30 @@ class SFNGenerator(Generator):
         return payload
 
     def encode_parallel(self, state) -> Union[dict, List[dict]]:
+        from sebs.faas.fsm import State as FsmState
+
+        branches = []
+        for branch in state.branches:
+            sub_states = {n: FsmState.deserialize(n, s) for n, s in branch.states.items()}
+            branch_states = {}
+            for sub_state in sub_states.values():
+                obj = self.encode_state(sub_state)
+                objs = [obj] if isinstance(obj, dict) else obj
+                for o in objs:
+                    name = o["Name"]
+                    branch_states[name] = {k: v for k, v in o.items() if k != "Name"}
+            branches.append({"StartAt": branch.root, "States": branch_states})
+
         payload: Dict[str, Any] = {
             "Name": state.name,
             "Type": "Parallel",
-            "Branches": [
-                {
-                    "StartAt": f"func_{i}",
-                    "States": {
-                        f"func_{i}": {
-                            "Type": "Task",
-                            "Resource": self._func_arns[fn],
-                            "End": True,
-                        }
-                    },
-                }
-                for i, fn in enumerate(state.funcs)
-            ],
+            "Branches": branches,
+            # Convert the Parallel output array into a dict keyed by branch root name
+            # so downstream states can reference results by name (e.g. $.sifting).
+            "ResultSelector": {
+                f"{b.root}.$": f"$[{i}]" for i, b in enumerate(state.branches)
+            },
+            "ResultPath": "$",
         }
 
         if state.next:

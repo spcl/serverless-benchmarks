@@ -55,15 +55,31 @@ class Switch(State):
         return cls(name=name, cases=cases, default=payload["default"])
 
 
+class Branch:
+    """A named sub-workflow branch used inside a Parallel state."""
+
+    def __init__(self, root: str, states: Dict[str, dict]):
+        self.root = root
+        self.states = states
+
+    @staticmethod
+    def deserialize(payload) -> "Branch":
+        if isinstance(payload, str):
+            # Legacy: bare function name — treat as a single-task sub-workflow.
+            return Branch(root=payload, states={payload: {"type": "task", "func_name": payload}})
+        return Branch(root=payload["root"], states=payload["states"])
+
+
 class Parallel(State):
-    def __init__(self, name: str, funcs: List, next: Optional[str]):
+    def __init__(self, name: str, branches: List["Branch"], next: Optional[str]):
         self.name = name
-        self.funcs = funcs
+        self.branches = branches
         self.next = next
 
     @classmethod
     def deserialize(cls, name: str, payload: dict) -> "Parallel":
-        return cls(name=name, funcs=payload.get("parallel_functions"), next=payload.get("next"))
+        branches = [Branch.deserialize(f) for f in payload.get("parallel_functions", [])]
+        return cls(name=name, branches=branches, next=payload.get("next"))
 
 
 class Map(State):
@@ -74,7 +90,7 @@ class Map(State):
         array: str,
         root: str,
         next: Optional[str],
-        common_params: Optional[str],
+        common_params: Optional[List[str]],
     ):
         self.name = name
         self.funcs = funcs
@@ -85,13 +101,18 @@ class Map(State):
 
     @classmethod
     def deserialize(cls, name: str, payload: dict) -> "Map":
+        raw = payload.get("common_params")
+        if isinstance(raw, str):
+            common_params = [p.strip() for p in raw.split(",") if p.strip()]
+        else:
+            common_params = raw or None
         return cls(
             name=name,
             funcs=payload["states"],
             array=payload["array"],
             root=payload["root"],
             next=payload.get("next"),
-            common_params=payload.get("common_params"),
+            common_params=common_params,
         )
 
 

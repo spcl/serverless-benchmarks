@@ -213,7 +213,7 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         self.logging.debug(f"Invoke workflow {self.name}")
 
         request_id = str(uuid.uuid4())[0:8]
-        sfn_input = {"payload": payload, "request_id": request_id}
+        sfn_input = {**payload, "__sebs_request_id": request_id}
 
         client = self._deployment_client.get_sfn_client()
         begin = datetime.datetime.now()

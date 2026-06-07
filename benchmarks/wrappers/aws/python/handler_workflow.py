@@ -34,11 +34,8 @@ def handler(event, context):
 
     req_id = context.aws_request_id
 
-    if isinstance(event, dict) and "payload" in event:
-        func_payload = event["payload"]
-        request_id = event.get("request_id", req_id)
-    elif isinstance(event, dict):
-        request_id = event.pop("__request_id", req_id)
+    if isinstance(event, dict):
+        request_id = event.pop("__sebs_request_id", event.pop("__request_id", req_id))
         func_payload = event
     else:
         func_payload = event
