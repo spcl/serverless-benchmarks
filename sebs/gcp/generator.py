@@ -1,7 +1,7 @@
 import uuid
-from typing import Dict, Union, List, Optional, Set
+from typing import Dict, Union, List, Optional, Set, Tuple
 
-from sebs.faas.fsm import Generator, State, Task, Switch, Map, Parallel, Repeat, Loop
+from sebs.faas.fsm import Generator, State, Task, Switch, Map, Parallel, Repeat, Loop, Branch
 
 
 class GCPGenerator(Generator):
@@ -57,6 +57,9 @@ class GCPGenerator(Generator):
                     queue.append(case.next)
                 if state.default:
                     queue.append(state.default)
+            elif isinstance(state, (Map, Parallel, Loop, Repeat)):
+                if state.next:
+                    queue.append(state.next)
 
         # Also add any states not reachable from root (shouldn't happen in well-formed FSMs)
         for name, state in self.states.items():
@@ -93,7 +96,8 @@ class GCPGenerator(Generator):
         """Find states that have no next pointer (end of a path)."""
         terminals: Set[str] = set()
         for name, state in self.states.items():
-            if isinstance(state, Task) and not state.next:
+            has_next = getattr(state, "next", None)
+            if not has_next:
                 terminals.add(name)
         return terminals
 
@@ -148,7 +152,19 @@ class GCPGenerator(Generator):
         cond = "res." + case.var + " " + case.op + " " + str(case.val)
         return {"condition": "${" + cond + "}", "next": case.next}
 
-    def encode_map(self, state: Map) -> Union[dict, List[dict]]:
+    def encode_map(self, state: Map, res_var: str = "res") -> Union[dict, List[dict]]:
+        """Encode a Map state as GCP Workflows steps.
+
+        Args:
+            state: Map state to encode.
+            res_var: Variable name that holds the current result dict.  Defaults
+                to ``"res"`` for top-level maps; pass a branch-specific variable
+                when encoding maps inside parallel branches to avoid cross-branch
+                interference via the shared ``res`` variable.
+
+        Returns:
+            List of step dicts for the map.
+        """
         if isinstance(state.funcs, dict):
             first_state = next(iter(state.funcs.values()))
             func_name = first_state["func_name"]
@@ -158,24 +174,22 @@ class GCPGenerator(Generator):
         id = self._workflow_name + "_" + "map" + str(uuid.uuid4())[0:8]
         self._map_funcs[id] = (self._func_triggers[func_name], state.common_params)
 
+        # Write map output to a separate var so the original dict is preserved.
+        # Use dot-path assignment (res_var.array = map_res_NAME) to update only
+        # the array key, keeping all other context fields intact.
+        map_res_var = "map_res_" + state.name.replace("-", "_")
+
         if state.common_params:
-            # Build enriched array: [{array_element: elem, ...common_params}, ...]
-            # GCP Workflows assign uses YAML dict syntax (not expression ${}) for maps.
             enrich_id = "enrich_" + state.name
             enriched_var = "enriched_" + state.name.replace("-", "_")
             temp_var = "tmp_" + state.name.replace("-", "_")
 
-            # Build the temp dict using YAML dict syntax in assign
             temp_dict: dict = {"array_element": "${elem}"}
             for p in state.common_params:
-                temp_dict[p] = "${res." + p + "}"
+                temp_dict[p] = "${" + res_var + "." + p + "}"
 
             inner_steps = [
-                {
-                    "build_" + enrich_id: {
-                        "assign": [{temp_var: temp_dict}]
-                    }
-                },
+                {"build_" + enrich_id: {"assign": [{temp_var: temp_dict}]}},
                 {
                     "append_" + enrich_id: {
                         "assign": [
@@ -190,7 +204,7 @@ class GCPGenerator(Generator):
                     "loop_" + enrich_id: {
                         "for": {
                             "value": "elem",
-                            "in": "${res." + state.array + "}",
+                            "in": "${" + res_var + "." + state.array + "}",
                             "steps": inner_steps,
                         }
                     }
@@ -200,7 +214,7 @@ class GCPGenerator(Generator):
                 state.name: {
                     "call": "experimental.executions.map",
                     "args": {"workflow_id": id, "arguments": "${" + enriched_var + "}"},
-                    "result": "res",
+                    "result": map_res_var,
                 }
             }
             return_steps = [*enrich_steps, call_step]
@@ -208,15 +222,15 @@ class GCPGenerator(Generator):
             call_step = {
                 state.name: {
                     "call": "experimental.executions.map",
-                    "args": {"workflow_id": id, "arguments": "${res." + state.array + "}"},
-                    "result": "res",
+                    "args": {"workflow_id": id, "arguments": "${" + res_var + "." + state.array + "}"},
+                    "result": map_res_var,
                 }
             }
             return_steps = [call_step]
-        # Wrap the list result back into a dict so downstream tasks can access it by key
+        # Update only the array key; all other context fields are preserved.
         assign_step = {
             "assign_res_" + state.name: {
-                "assign": [{"res": {state.array: "${res}"}}]
+                "assign": [{res_var + "." + state.array: "${" + map_res_var + "}"}]
             }
         }
         steps = return_steps + [assign_step]
@@ -224,22 +238,120 @@ class GCPGenerator(Generator):
             steps.append({"next_" + state.name: {"next": state.next}})
         return steps
 
-    def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
-        branches = []
-        for fn in state.funcs:
-            url = self._func_triggers[fn]
-            branches.append({
-                "call": "http.post",
-                "args": {"url": url, "body": "${res}"},
-                "result": "res",
-            })
+    def _encode_branch(self, branch: Branch, shared_var: str) -> Tuple[List[dict], List[str]]:
+        """Encode a single Parallel branch as a list of GCP Workflow steps.
 
-        return {
+        Each branch reads from ``shared_var``, processes its states in order,
+        and writes its result back to ``shared_var``.  Because GCP Workflows
+        parallel branches share the global variable namespace we write results
+        into a branch-specific variable and later merge them.
+
+        Args:
+            branch: Branch definition containing sub-states.
+            shared_var: Variable name to read input from.
+
+        Returns:
+            Tuple of (steps, extra_shared_vars).  ``extra_shared_vars`` lists
+            any intermediate variables written inside the branch (e.g.
+            ``map_res_*``) that must appear in the parallel step's ``shared``
+            list.
+        """
+        from sebs.faas.fsm import State as FSMState
+
+        steps: List[dict] = []
+        extra_shared: List[str] = []
+        # Resolve BFS order within the branch's own state dict
+        b_states = {n: FSMState.deserialize(n, s) for n, s in branch.states.items()}
+        visited: Set[str] = set()
+        queue = [branch.root]
+        ordered = []
+        while queue:
+            n = queue.pop(0)
+            if n in visited or n not in b_states:
+                continue
+            visited.add(n)
+            s = b_states[n]
+            ordered.append(s)
+            nxt = getattr(s, "next", None)
+            if nxt:
+                queue.append(nxt)
+            if isinstance(s, Task) and s.failure:
+                queue.append(s.failure)
+
+        for s in ordered:
+            if isinstance(s, Task):
+                url = self._func_triggers[s.func_name]
+                steps.append({s.name: {"call": "http.post", "args": {"url": url, "body": "${" + shared_var + "}", "timeout": self._func_timeout}, "result": shared_var}})
+                steps.append({"assign_res_" + s.name: {"assign": [{shared_var: "${" + shared_var + ".body}"}]}})
+            elif isinstance(s, Map):
+                # Pass shared_var directly so encode_map reads/writes that variable
+                # instead of the global "res".  This avoids cross-branch interference
+                # when multiple parallel branches each contain a Map step.
+                steps += self.encode_map(s, res_var=shared_var)  # type: ignore[arg-type]
+                # map_res_<name> is written inside this branch — must be shared.
+                map_res_var = "map_res_" + s.name.replace("-", "_")
+                extra_shared.append(map_res_var)
+        return steps, extra_shared
+
+    def encode_parallel(self, state: Parallel) -> Union[dict, List[dict]]:
+        """Encode a Parallel state as a GCP Workflows parallel block.
+
+        Each branch runs concurrently with its own local copy of ``res``
+        (since ``res`` is NOT in ``shared``).  Results are stored in
+        branch-specific shared variables and merged into ``res`` afterwards.
+
+        Args:
+            state: Parallel state to encode.
+
+        Returns:
+            List of step dicts for the parallel block and result merge.
+        """
+        shared_vars = []
+        extra_shared_all: List[str] = []
+        gcp_branches = []
+        for i, branch in enumerate(state.branches):
+            # Use a per-branch local variable as the working variable throughout
+            # the branch so that no branch writes to the outer "res".
+            # The final value is stored in this shared var after the branch ends.
+            var = "branch_res_" + state.name.replace("-", "_") + "_" + str(i)
+            shared_vars.append(var)
+            # Encode branch using var as both input (initialised to ${res}) and
+            # working accumulator — _encode_branch takes the var name to use.
+            branch_steps, extra_shared = self._encode_branch(branch, var)
+            extra_shared_all.extend(extra_shared)
+            # Seed the per-branch variable from the outer res before starting.
+            seed_step = {"seed_" + var: {"assign": [{var: "${res}"}]}}
+            branch_name = "branch_" + state.name.replace("-", "_") + "_" + str(i)
+            gcp_branches.append({branch_name: {"steps": [seed_step] + branch_steps}})
+
+        # GCP Workflows requires shared variables to be initialized in the outer
+        # scope before the parallel step references them.
+        all_shared_vars = shared_vars + extra_shared_all
+        init_assigns = [{v: None} for v in all_shared_vars]
+        init_step = {"init_" + state.name: {"assign": init_assigns}}
+
+        parallel_step = {
             state.name: {
-                "parallel": {"branches": [{"steps": [{"invoke": b}]} for b in branches]},
-                "next": state.next,
+                "parallel": {
+                    # Only branch_res_* and map_res_* vars are shared; "res" is NOT
+                    # listed so each branch gets its own local copy — no cross-branch
+                    # interference when two branches both contain Map steps.
+                    "shared": all_shared_vars,
+                    "branches": gcp_branches,
+                }
             }
         }
+        # Merge: build a single dict keyed by branch root name using YAML dict syntax.
+        merged_dict = {branch.root: "${" + var + "}" for var, branch in zip(shared_vars, state.branches)}
+        merge_step = {
+            "merge_" + state.name: {
+                "assign": [{"res": merged_dict}]
+            }
+        }
+        steps: List[dict] = [init_step, parallel_step, merge_step]
+        if state.next:
+            steps.append({"next_" + state.name: {"next": state.next}})
+        return steps
 
     def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
         url = self._func_triggers[state.func_name]
