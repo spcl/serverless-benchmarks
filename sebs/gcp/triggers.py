@@ -285,7 +285,14 @@ class WorkflowLibraryTrigger(LibraryTrigger):
 
         execution_finished = False
         while not execution_finished:
-            execution = execution_client.get_execution(request={"name": res.name})
+            try:
+                execution = execution_client.get_execution(
+                    request={"name": res.name},
+                    timeout=30,
+                )
+            except Exception:
+                time.sleep(10)
+                continue
             execution_finished = execution.state != Execution.State.ACTIVE
 
             if not execution_finished:

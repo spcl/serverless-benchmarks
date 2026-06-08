@@ -2719,6 +2719,38 @@ class GCP(System):
         self.cache_client.update_function(function)
         return trigger
 
+    @staticmethod
+    def _workflow_yaml(definition: str) -> str:
+        """Serialise a JSON workflow definition to GCP-compatible YAML.
+
+        PyYAML's default sequence representation places list-item dashes at the
+        same indentation level as the parent key, which the GCP Workflows parser
+        rejects when those lists appear inside ``parallel.branches[*].steps``.
+        This helper uses a custom Dumper that indents sequences properly.
+
+        Args:
+            definition: JSON string produced by GCPGenerator.
+
+        Returns:
+            YAML string accepted by the GCP Workflows API.
+        """
+        import json as _json
+        import yaml as _yaml
+
+        class _IndentDumper(_yaml.Dumper):
+            """YAML Dumper that indents block sequences under their parent key."""
+
+            def increase_indent(self, flow=False, indentless=False):
+                """Override to always indent sequence items."""
+                return super().increase_indent(flow=flow, indentless=False)
+
+        return _yaml.dump(
+            _json.loads(definition),
+            Dumper=_IndentDumper,
+            width=99999,
+            default_flow_style=False,
+        )
+
     def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "Function":
         """Create a new GCP Workflow that orchestrates Cloud Functions.
 
@@ -2774,7 +2806,7 @@ class GCP(System):
         parent = f"projects/{project_name}/locations/{location}"
 
         workflows_client = WorkflowsClient()
-        workflow_proto = GCPWorkflowProto(source_contents=yaml.dump(json.loads(definition), width=99999))
+        workflow_proto = GCPWorkflowProto(source_contents=self._workflow_yaml(definition))
 
         try:
             operation = workflows_client.create_workflow(
@@ -2793,7 +2825,7 @@ class GCP(System):
 
         # Deploy map sub-workflows if any
         for map_id, map_definition in gen.generate_maps():
-            map_proto = GCPWorkflowProto(source_contents=yaml.dump(json.loads(map_definition), width=99999))
+            map_proto = GCPWorkflowProto(source_contents=self._workflow_yaml(map_definition))
             try:
                 operation = workflows_client.create_workflow(
                     parent=parent, workflow=map_proto, workflow_id=map_id
@@ -2874,7 +2906,7 @@ class GCP(System):
         workflows_client = WorkflowsClient()
         workflow_proto = GCPWorkflowProto(
             name=f"{parent}/workflows/{wf.name}",
-            source_contents=yaml.dump(json.loads(definition), width=99999),
+            source_contents=self._workflow_yaml(definition),
         )
         operation = workflows_client.update_workflow(workflow=workflow_proto)
         self.logging.info(f"Updating workflow {wf.name}")
@@ -2883,7 +2915,7 @@ class GCP(System):
         for map_id, map_definition in gen.generate_maps():
             map_proto = GCPWorkflowProto(
                 name=f"{parent}/workflows/{map_id}",
-                source_contents=yaml.dump(json.loads(map_definition), width=99999),
+                source_contents=self._workflow_yaml(map_definition),
             )
             try:
                 operation = workflows_client.update_workflow(workflow=map_proto)
@@ -2891,7 +2923,7 @@ class GCP(System):
             except Exception as e:
                 if "not found" in str(e).lower():
                     map_proto_new = GCPWorkflowProto(
-                        source_contents=yaml.dump(json.loads(map_definition), width=99999)
+                        source_contents=self._workflow_yaml(map_definition)
                     )
                     operation = workflows_client.create_workflow(
                         parent=parent, workflow=map_proto_new, workflow_id=map_id

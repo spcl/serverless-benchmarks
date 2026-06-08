@@ -491,7 +491,7 @@ class GCPTestSequenceWorkflows(
     metaclass=WorkflowTestSequenceMeta,
     benchmarks=benchmarks_workflows,
     architectures=["x64"],
-    deployments=["package"],
+    deployments=["function-gen2"],
     deployment_name="gcp",
 ):
     def get_deployment(self, benchmark_name, architecture, deployment_type):
